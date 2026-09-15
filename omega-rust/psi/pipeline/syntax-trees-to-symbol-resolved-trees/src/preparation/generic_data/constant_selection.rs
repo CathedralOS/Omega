@@ -228,28 +228,27 @@ impl<'base> ConstantSelection<'base> {
             })
     }
 
-    /// Select one non-generic declared domain under module name law for a
-    /// pre-resolution fact evaluation. This is the same selection the full
-    /// resolver later applies to the fact's retained path: qualified spellings
-    /// name the exact `module::Carrier::Domain` declaration, relative attached
-    /// spellings reach a module-owned domain only from its own module, a leaf
-    /// reaches a foreign domain only through a narrow import of the exact
-    /// declaration, and unmoduled domains keep root scope.
-    ///
-    /// `None` means undecidable here — nothing selected, competing owners,
-    /// a reachable generic family (its closed membership belongs to the
-    /// downstream family normalization), or a retained-base domain with no
-    /// declaration in this forest. Callers keep the fact as a checked
-    /// obligation rather than discharge it against a guessed owner.
-    pub(super) fn domain<'syntax>(
+    /// Pool every in-forest domain declaration the authored spelling reaches
+    /// under module name law, narrowed to the candidates module-local
+    /// precedence leaves for `reference`. The pool retains declaration
+    /// custody so each caller can distinguish a generic family from a closed
+    /// domain before deciding what `None` means.
+    fn pooled_domains<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
         authored: &str,
         reference: source::SourceSpan,
-    ) -> Option<&'syntax syntax_trees::item::DomainDefinition> {
-        let children = self.symbols.child_handles(self.symbols.root())?;
+    ) -> Vec<(
+        symbols::SymbolHandle,
+        &'syntax syntax_trees::item::DomainDefinition,
+    )> {
         let mut pool = Vec::new();
-        for symbol in children {
+        for symbol in self
+            .symbols
+            .child_handles(self.symbols.root())
+            .into_iter()
+            .flatten()
+        {
             if !self.domain_symbol_is_reachable(symbol, authored, reference) {
                 continue;
             }
@@ -283,10 +282,31 @@ impl<'base> ConstantSelection<'base> {
             pool.iter().map(|(symbol, _)| *symbol).collect(),
             reference,
         );
-        let pool: Vec<_> = pool
-            .into_iter()
+        pool.into_iter()
             .filter(|(symbol, _)| preferred.contains(symbol))
-            .collect();
+            .collect()
+    }
+
+    /// Select one non-generic declared domain under module name law for a
+    /// pre-resolution fact evaluation. This is the same selection the full
+    /// resolver later applies to the fact's retained path: qualified spellings
+    /// name the exact `module::Carrier::Domain` declaration, relative attached
+    /// spellings reach a module-owned domain only from its own module, a leaf
+    /// reaches a foreign domain only through a narrow import of the exact
+    /// declaration, and unmoduled domains keep root scope.
+    ///
+    /// `None` means undecidable here — nothing selected, competing owners,
+    /// a reachable generic family (its closed membership belongs to the
+    /// downstream family normalization), or a retained-base domain with no
+    /// declaration in this forest. Callers keep the fact as a checked
+    /// obligation rather than discharge it against a guessed owner.
+    pub(super) fn domain<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        authored: &str,
+        reference: source::SourceSpan,
+    ) -> Option<&'syntax syntax_trees::item::DomainDefinition> {
+        let pool = self.pooled_domains(syntax, authored, reference);
         // A preferred generic family owns or contests this selection, but its
         // closed membership still belongs to the downstream family
         // normalization; decline rather than evaluate against it or cede the
@@ -309,6 +329,34 @@ impl<'base> ConstantSelection<'base> {
             return None;
         }
         Some(*first)
+    }
+
+    /// Select one generic domain family under the same law as `domain`, for
+    /// pre-resolution index canonicalization. The spelling's unique preferred
+    /// owner must be a generic declaration — a carrier/indexed family — so
+    /// its telescope owns the argument fold. `None` means the application
+    /// keeps its authored arguments for ordinary resolution: nothing
+    /// reachable, competing distinct owners, or a non-generic owner whose
+    /// declaration carries no index telescope here.
+    pub(super) fn domain_family<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        authored: &str,
+        reference: source::SourceSpan,
+    ) -> Option<(
+        symbols::SymbolHandle,
+        &'syntax syntax_trees::item::DomainDefinition,
+    )> {
+        let pool = self.pooled_domains(syntax, authored, reference);
+        let (first_symbol, first) = pool.first()?;
+        let first_path = self.symbols.display_path(*first_symbol, "::");
+        if pool
+            .iter()
+            .any(|(symbol, _)| self.symbols.display_path(*symbol, "::") != first_path)
+        {
+            return None;
+        }
+        (!first.type_parameters.is_empty()).then_some((*first_symbol, *first))
     }
 
     /// Select the nominal carrier in the authored type/constructor's source.

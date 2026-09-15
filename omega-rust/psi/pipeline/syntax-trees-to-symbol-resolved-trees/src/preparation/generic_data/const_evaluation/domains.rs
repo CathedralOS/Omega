@@ -181,9 +181,19 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 )));
             }
         }
+        // Families intern under the same complete logical path resolution
+        // gives the declaration: same-leaf families in different modules are
+        // distinct owners, while same-path declarations remain one family.
+        let family_path = match crate::preparation::generic_data::module_constants::module_path(
+            syntax,
+            definition.name.source_span().source_id,
+        ) {
+            Some(module) => format!("{module}::{}", definition.name.as_str()),
+            None => definition.name.as_str().to_owned(),
+        };
         if families
             .insert(
-                definition.name.as_str().to_owned(),
+                family_path,
                 ClosedDomainFamily {
                     parameters: family_parameters,
                 },
@@ -202,7 +212,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         .type_references
         .domain_constraints()
         .into_iter()
-        .map(|constraint| (constraint.name.as_str().to_owned(), constraint.arguments))
+        .map(|constraint| {
+            (
+                constraint.name.as_str().to_owned(),
+                constraint.arguments,
+                constraint.name.source_span(),
+            )
+        })
         .collect::<Vec<_>>();
     applications.extend(
         syntax
@@ -215,20 +231,41 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 if cast.semantic_domain.is_empty() {
                     return None;
                 }
-                let name = syntax
+                let members = syntax
                     .expressions
-                    .identifier_path_members(cast.semantic_domain)
+                    .identifier_path_members(cast.semantic_domain);
+                let name = members
                     .iter()
                     .map(|member| member.as_str())
                     .collect::<Vec<_>>()
                     .join("::");
-                Some((name, cast.semantic_domain_arguments))
+                let mut reference = members.first()?.source_span();
+                for member in members.iter().skip(1) {
+                    if member.source_span().source_id != reference.source_id {
+                        break;
+                    }
+                    reference.span.end = member.source_span().span.end;
+                }
+                Some((name, cast.semantic_domain_arguments, reference))
             }),
     );
 
     let concrete_data_positions = collect_data_type_reference_positions(syntax, false);
-    for (name, argument_span) in applications {
-        let Some(family) = families.get(&name) else {
+    for (name, argument_span, reference) in applications {
+        // The application selects its family by module name law before any
+        // argument folds: a qualified path names its exact owner, a
+        // module-local family outranks same-leaf foreign or root candidates,
+        // and a leaf spelling reaches a foreign family only through a narrow
+        // import of the exact declaration. Unreachable, contested, or
+        // non-generic owners keep the authored arguments for ordinary
+        // resolution rather than borrowing another declaration's telescope.
+        let family = match selection {
+            Some(selection) => selection
+                .domain_family(syntax, &name, reference)
+                .and_then(|(symbol, _)| families.get(&selection.declaration_path(symbol))),
+            None => families.get(&name),
+        };
+        let Some(family) = family else {
             continue;
         };
         let arguments = syntax

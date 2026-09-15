@@ -72,25 +72,19 @@ pub(crate) fn validate_with_const_resolution_mode(
     // Trait defaults and conformances join by the same exact source selection:
     // a module-owned template and a same-spelled sibling never share identity,
     // and generated references carry the selected owner's logical path.
-    // Non-generic module domains and their operator homes resolve by the same
+    // Module domains and their operator homes resolve by the same
     // namespace rules: qualified semantic identity, module-local precedence,
     // and import-gated relative spellings. Const-fact evaluation and
     // constrained-argument identity select their exact owner through that law,
-    // so same-spelled non-generic siblings no longer collide. Generic
-    // templates still fence: open index telescopes and carrier binders share
-    // the generic-template normalization queue, whose family and binder
-    // surfaces do not yet carry module ownership.
+    // so same-spelled non-generic siblings no longer collide. Indexed domain
+    // families intern under their complete logical path and every application
+    // selects its telescope through the same name law before any argument
+    // folds, so open-template indices on module-owned carriers substitute
+    // only against their exact owner. Generic operators still fence: open
+    // carrier binders share the generic-template normalization queue, whose
+    // binder surfaces do not yet carry module ownership.
     for item in syntax.root_items() {
         let unsupported = match item {
-            Item::Domain(definition)
-                if module_sources.contains(&definition.name.source_span().source_id) =>
-            {
-                if !definition.type_parameters.is_empty() {
-                    Some((&definition.name, "module-owned generic domains require namespace-aware template normalization"))
-                } else {
-                    None
-                }
-            }
             Item::Operator(definition) => {
                 syntax.items.identifier_path_members(definition.name).first()
                     .filter(|name| module_sources.contains(&name.source_span().source_id))
@@ -608,11 +602,11 @@ mod tests {
     fn module_generic_templates_remain_fenced() {
         for (sources, message) in [
             (
-                &["module units; domain<T> T::Distance;"][..],
+                &["module units; operator copy<T>(value: T) -> T;"][..],
                 "namespace-aware template normalization",
             ),
             (
-                &["module units; operator copy<T>(value: T) -> T;"][..],
+                &["module units; data IntervalSet<T> { value: T; }"][..],
                 "namespace-aware template normalization",
             ),
         ] {
