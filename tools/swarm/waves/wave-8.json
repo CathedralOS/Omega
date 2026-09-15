@@ -43,7 +43,6 @@
     "GENERATED-DIFFERENTIALS",
     "UEFI-PHYSICAL-SEMANTIC-ENTRY",
     "AP-BRINGUP",
-    "GENERAL-CYCLIC-EXECUTION",
     "BOUNDED-INSTALLATION-REACH-ROWS",
     "CRASH-CONTRACT",
     "CRASH-GUARD-COST",
@@ -316,7 +315,7 @@
         "omega-rust/omega/backend/plans/program-entry-plan",
         "omega-rust/omega/backend/runtime/external-roots"
       ],
-      "suggested_first_slice": "Backfill for the landed terminal-authority-review slot. The prior session's named dependency IS this item's next slice: connect ProgramLocalRootInstallationLedger aggregate capacity to actual installed backing — receiver partitions, activation loans, and completion for the same occurrence/epoch, so reconstructed capacity can discharge requirements. external-roots was just released by the landed sibling — claim it as listed. native-realization/src/native_realization.rs is the item's other owner but its terminal_authority* files are sibling-owned; keep to the two claimed paths or report blocked. macOS contract (source/library/std/targets/macos_arm64) is not exercisable on this host — report it.",
+      "suggested_first_slice": "Backfill for the landed terminal-authority-review slot. The prior session's named dependency IS this item's next slice: connect ProgramLocalRootInstallationLedger aggregate capacity to actual installed backing \u2014 receiver partitions, activation loans, and completion for the same occurrence/epoch, so reconstructed capacity can discharge requirements. external-roots was just released by the landed sibling \u2014 claim it as listed. native-realization/src/native_realization.rs is the item's other owner but its terminal_authority* files are sibling-owned; keep to the two claimed paths or report blocked. macOS contract (source/library/std/targets/macos_arm64) is not exercisable on this host \u2014 report it.",
       "backfill_for": "terminal-authority-review"
     },
     {
@@ -329,7 +328,7 @@
         "samples/cli/basics/print_squares",
         "omega-rust/omega/compiler/compiler/tests/samples_compile.rs"
       ],
-      "suggested_first_slice": "Backfill for the landed target-matrices slot. Close cli_mvp and print_squares through checked semantics AND native execution — the item names the focused probe: OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp (then print_squares) cargo nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'. Fix what the probe exposes inside owned paths; if the defect lives elsewhere (compiler, runtime crates), report blocked rather than claiming it.",
+      "suggested_first_slice": "Backfill for the landed target-matrices slot. Close cli_mvp and print_squares through checked semantics AND native execution \u2014 the item names the focused probe: OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp (then print_squares) cargo nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'. Fix what the probe exposes inside owned paths; if the defect lives elsewhere (compiler, runtime crates), report blocked rather than claiming it.",
       "backfill_for": "target-matrices"
     },
     {
@@ -340,8 +339,22 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit"
       ],
-      "suggested_first_slice": "Retry of the blocked w8 slot — its recorded evidence is exact: admit each Machine{Nominal} signature type parameter joined to a nominal_machine_use at the exact site (ordinal plus satisfaction row) without requiring an ABI native callback parameter — the PrivateCallbackSlot conformance supplies the destination. The blocker was admitted_native_callback_telescope in flow/terminal_unit/calls.rs; NOMINAL-FIELD-FLOW's claim on flow/ has expired, so the seam is free. Reuse the blocked session's instrumented gate: only the telescope condition fired — receiver routing, presentation, mutability, result checks all admit.",
+      "suggested_first_slice": "Retry of the blocked w8 slot \u2014 its recorded evidence is exact: admit each Machine{Nominal} signature type parameter joined to a nominal_machine_use at the exact site (ordinal plus satisfaction row) without requiring an ABI native callback parameter \u2014 the PrivateCallbackSlot conformance supplies the destination. The blocker was admitted_native_callback_telescope in flow/terminal_unit/calls.rs; NOMINAL-FIELD-FLOW's claim on flow/ has expired, so the seam is free. Reuse the blocked session's instrumented gate: only the telescope condition fired \u2014 receiver routing, presentation, mutability, result checks all admit.",
       "backfill_for": "target-semantic-applications"
+    },
+    {
+      "name": "general-cyclic-execution",
+      "board": "TASKS.md",
+      "item": "GENERAL-CYCLIC-EXECUTION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow.rs",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/control_flow"
+      ],
+      "suggested_first_slice": "Backfill for the blocked sample-corpus slot \u2014 its probe evidence names this item directly: print_squares' Terminal production stops at Lowering(OperationProofUnavailable(ObligationId(25))) \u2014 the guarded-exit lockstep invariant for nonzero divisor '1 <= self.place' at digit_div. Extend bounded safety/proof admission for guarded exits (qualified/partial owned custody or effectful calls) in terminal-verifier validation/control_flow so that proof class admits; preserve dominance, exact successor transfers, current-iteration guards, test-fuel suspension. flow/terminal_unit is owned by wave sibling callback-private-retry \u2014 do not touch it.",
+      "backfill_for": "sample-corpus"
     }
   ]
 }
