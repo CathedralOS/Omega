@@ -92,6 +92,7 @@ impl RangeCheckFixture {
             &self.flow,
             Some(&frames),
             &incoming,
+            &StateMutationSummaryCache::default(),
         );
         let initialized = StateMutationSummaryCache::build_count() - before;
         (result, initialized)

@@ -46,6 +46,7 @@ fn bounded_byte_state_alias_names_cannot_relabel_an_old_receiver_extent() {
             &flow,
             Some(&frames),
             &incoming,
+            &crate::flow::StateMutationSummaryCache::default(),
         );
         assert_eq!(result.is_ok(), accepted, "{result:#?}\n{source}");
         if let Err(diagnostics) = result {

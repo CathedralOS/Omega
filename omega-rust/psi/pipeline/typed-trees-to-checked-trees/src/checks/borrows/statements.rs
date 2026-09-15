@@ -35,7 +35,7 @@ pub(super) fn check_statement_borrows(
     compatibility_certificates: &mut Vec<CheckedBorrowCompatibilityCertificate>,
     retained_compatibility_certificates: &[CheckedBorrowCompatibilityCertificate],
     retained_compatibility_certificates_consumed: &mut [bool],
-    state_mutation_summaries: &mut StateMutationSummaryCache,
+    state_mutation_summaries: &StateMutationSummaryCache,
 ) {
     let Some(state) =
         find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
@@ -280,7 +280,7 @@ fn check_call_mutation_borrows(
     state_flow: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
     diagnostics: &mut Vec<Diagnostic>,
-    summary_cache: &mut StateMutationSummaryCache,
+    summary_cache: &StateMutationSummaryCache,
 ) {
     for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
         let mutated_places = call_write_accesses(

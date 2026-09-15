@@ -19,12 +19,13 @@ use self::statements::check_statement_borrows;
 pub(crate) fn check_flow_call_borrows(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     let retained_diagnostics = validate_checked_borrow_compatibility_certificates(program, facts);
     if !retained_diagnostics.is_empty() {
         return Err(retained_diagnostics);
     }
-    resources::replay_checked_direct_borrow_resources(program, facts)?;
+    resources::replay_checked_direct_borrow_resources(program, facts, mutation_summaries)?;
     let mut diagnostics = Vec::new();
     let mut compatibility_certificates = Vec::new();
     let retained_compatibility_certificates = facts
@@ -35,7 +36,6 @@ pub(crate) fn check_flow_call_borrows(
         .collect::<Vec<_>>();
     let mut retained_compatibility_certificates_consumed =
         vec![false; retained_compatibility_certificates.len()];
-    let mut state_mutation_summaries = crate::flow::StateMutationSummaryCache::default();
 
     check_view_return_elision(program, &mut diagnostics);
     check_view_return_escape(program, facts, &mut diagnostics);
@@ -58,7 +58,7 @@ pub(crate) fn check_flow_call_borrows(
             &mut compatibility_certificates,
             &retained_compatibility_certificates,
             &mut retained_compatibility_certificates_consumed,
-            &mut state_mutation_summaries,
+            mutation_summaries,
         );
     }
 
@@ -109,8 +109,9 @@ pub(crate) fn check_flow_call_borrows(
 pub(super) fn initialize_checked_direct_borrow_resources(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
-    resources::initialize_checked_direct_borrow_resources(program, facts)
+    resources::initialize_checked_direct_borrow_resources(program, facts, mutation_summaries)
 }
 
 fn validate_checked_borrow_compatibility_certificates(

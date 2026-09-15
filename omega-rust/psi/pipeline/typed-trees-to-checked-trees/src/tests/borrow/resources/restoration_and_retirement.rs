@@ -451,8 +451,12 @@ fn same_reassignment_batch_retires_without_arena_order_inference() {
         fact.source = source;
         fact.reason = checked_trees::FlowBorrowWeakeningReason::LocalReassigned;
     }
-    crate::checks::initialize_checked_direct_borrow_resources(&checked.typed, &mut checked.facts)
-        .expect("synthetic same-reassignment phase fixture");
+    crate::checks::initialize_checked_direct_borrow_resources(
+        &checked.typed,
+        &mut checked.facts,
+        &crate::flow::StateMutationSummaryCache::default(),
+    )
+    .expect("synthetic same-reassignment phase fixture");
     let (_, event) = checked
         .facts
         .borrow
