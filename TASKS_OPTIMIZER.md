@@ -526,10 +526,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   register at full width, the matching `ZeroExtend` at sub-word width,
   since a same-width store-then-load round-trips the register's low bits
   in the target's own byte order — and `rewrites/dead_store` removes a
-  `Store` whose dead range a later same-block `Store` covering the same
-  row rewrites unobserved — the first access on the dead place decides,
+  `Store` whose dead range a later `Store` covering the same row
+  rewrites unobserved — the first access on the dead place decides,
   boundary settlements inside the dead interval reject while later
-  positions shift one ordinal. Load forwarding also walks back across
+  positions shift one ordinal. Dead-store search also walks forward
+  across edges when every outgoing edge of a crossed block names one
+  block — each path forward then reaches the covering store before any
+  observer — checking each crossed terminator's roster rows and each
+  crossed edge's transports: joins at crossed blocks are harmless
+  because coverage looks forward, while forks to distinct blocks,
+  returns and hosted exits, re-entered blocks, and edge transports
+  writing or retiring the dead place's storage end the walk unproven.
+  Load forwarding also walks back across
   edges when the load's block has exactly one predecessor block — every
   path to the load then carries that block's writer — checking each
   crossed terminator's roster rows and each crossed edge's transports:
@@ -537,7 +545,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   the load's result reject, as do structural destinations, case custody
   slots, and custody discards touching the forwarded place's storage,
   while joins, unreachable blocks, self-loops, and the function entry
-  end the walk unproven (crate `nextest`: 235 pass). Remaining: mutation
+  end the walk unproven (crate `nextest`: 261 pass). Remaining: mutation
   motion and killers
   beyond the exact `Store`/`WritePlace` pair; forwarding still stops at
   joins.
