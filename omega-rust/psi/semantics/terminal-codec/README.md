@@ -10,15 +10,14 @@ artifact envelope/manifest, debug map, installation payload, optimization
 execution, obligation ledger, and observation profile have distinct owners.
 Do not infer one section's identity from another section's current version.
 
-Start at `encode_module` and `decode_module` in [lib.rs](src/lib.rs). Section
-payloads live in the `*_wire` modules;
-[module_foundation_validation.rs](src/module_foundation_validation.rs) owns the
-pre-encoding shape checks (identities, carriers, signatures, provider
-attachments, operation and result shape);
-[structural_place_wire.rs](src/structural_place_wire.rs) owns structural
-argument, path, and place-kind encoding shared by several sections;
-[wire.rs](src/wire.rs) owns byte cursors and counted/optional primitives; and
-[codec_error.rs](src/codec_error.rs) owns the error vocabulary.
+Start at `encode_module` and `decode_module` in [lib.rs](src/lib.rs). Everything
+the semantic module's bytes need lives under
+[semantic_module.rs](src/semantic_module.rs): one `*_wire` file per section,
+`module_foundation_validation.rs` for the pre-encoding shape checks,
+`structural_place_wire.rs` for the place encoders several sections share, and
+`wire.rs` for byte cursors. The remaining root files each own one separately
+identified section, and [codec_error.rs](src/codec_error.rs) owns the error
+vocabulary.
 
 Current markers live with their owners: semantic format in [lib.rs](src/lib.rs),
 vocabulary in [VocabularyMarker](../../representations/terminal-psi/src/terminal_module/identity/vocabulary.rs),
@@ -26,7 +25,7 @@ proof format in [proof_bundle.rs](src/proof_bundle.rs), envelope in
 [canonical_artifact.rs](src/canonical_artifact.rs), and manifest in
 [artifact_manifest.rs](src/artifact_manifest.rs). The image-emission owner
 maintains the separate [installation format](../../../omega/backend/images/image-emission/src/installation_record.rs).
-Codec-owned [current-format tests](src/current_format_tests.rs) pin canonical
+Codec-owned [current-format tests](src/semantic_module/current_format_tests.rs) pin canonical
 bytes and incompatible-marker rejection. Source-lowering tests check semantic
 round trips without duplicating a transient wire-version number.
 

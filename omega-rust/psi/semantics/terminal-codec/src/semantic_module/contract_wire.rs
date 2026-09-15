@@ -12,10 +12,12 @@ use terminal_psi::{
 
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_proposition, encode_proposition};
-use crate::structural_place_wire::{decode_structural_arguments, encode_structural_arguments};
-use crate::wire::decode_counted;
+use crate::semantic_module::structural_place_wire::{
+    decode_structural_arguments, encode_structural_arguments,
+};
+use crate::semantic_module::wire::decode_counted;
 
-pub(super) fn encode_successor_edge(
+pub(crate) fn encode_successor_edge(
     writer: &mut Writer,
     successor: &SuccessorEdge,
 ) -> Result<(), CodecError> {
@@ -36,7 +38,7 @@ pub(super) fn encode_successor_edge(
     Ok(())
 }
 
-pub(super) fn encode_contract(
+pub(crate) fn encode_contract(
     writer: &mut Writer,
     contract: &MachineContract,
 ) -> Result<(), CodecError> {
@@ -72,7 +74,7 @@ pub(super) fn encode_contract(
     Ok(())
 }
 
-pub(super) fn encode_crash_routes(
+pub(crate) fn encode_crash_routes(
     writer: &mut Writer,
     crash_routes: &[CrashRouteBucket],
 ) -> Result<(), CodecError> {
@@ -96,14 +98,14 @@ pub(super) fn encode_crash_routes(
     Ok(())
 }
 
-pub(super) fn encode_crash_predicate(
+pub(crate) fn encode_crash_predicate(
     writer: &mut Writer,
     predicate: &CrashPredicateTerm,
 ) -> Result<(), CodecError> {
     encode_proposition(writer, predicate.proposition(), 0)
 }
 
-pub(super) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, CodecError> {
+pub(crate) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, CodecError> {
     let edge = reader.id("EdgeId")?;
     let target = reader.id("BlockId")?;
     let argument_count = reader.count()?;
@@ -120,7 +122,7 @@ pub(super) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<Successor
     })
 }
 
-pub(super) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecError> {
+pub(crate) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract, CodecError> {
     let id = reader.id("ContractId")?;
     let crash_routes = decode_crash_routes(reader)?;
     let requires_count = reader.count()?;
@@ -179,7 +181,7 @@ fn decode_outcome_guard(reader: &mut Reader<'_>) -> Result<OutcomeSpecificGuard,
     })
 }
 
-pub(super) fn decode_crash_routes(
+pub(crate) fn decode_crash_routes(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<CrashRouteBucket>, CodecError> {
     let count = reader.count()?;
@@ -207,7 +209,7 @@ pub(super) fn decode_crash_routes(
     Ok(crash_routes)
 }
 
-pub(super) fn decode_crash_predicate(
+pub(crate) fn decode_crash_predicate(
     reader: &mut Reader<'_>,
 ) -> Result<CrashPredicateTerm, CodecError> {
     Ok(CrashPredicateTerm::new(decode_proposition(reader, 0)?))

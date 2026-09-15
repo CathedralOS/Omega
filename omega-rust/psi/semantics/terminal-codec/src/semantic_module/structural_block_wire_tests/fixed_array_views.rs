@@ -140,7 +140,7 @@ fn fixed_byte_array_call_presentations_hostile_bytes_replay_exact_access_type_an
                 encode_module(&module).is_err(),
                 "encode mutation {mutation}, boundary {boundary}"
             );
-            let changed = crate::module_wire::encode_raw(&module).unwrap();
+            let changed = crate::semantic_module::module_wire::encode_raw(&module).unwrap();
             assert!(
                 decode_module(&changed).is_err(),
                 "decode mutation {mutation}, boundary {boundary}"

@@ -10,7 +10,7 @@ use terminal_psi::{
     ScalarQualificationSet,
 };
 
-pub(super) fn encode(
+pub(crate) fn encode(
     writer: &mut Writer,
     catalog: &ScalarQualificationCatalog,
 ) -> Result<(), CodecError> {
@@ -44,7 +44,7 @@ pub(super) fn encode(
 #[path = "scalar_qualification_wire_tests.rs"]
 mod tests;
 
-pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatalog, CodecError> {
+pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatalog, CodecError> {
     Ok(ScalarQualificationCatalog {
         domains: decode_counted(reader, |reader| {
             Ok(ScalarDomainDeclaration {
@@ -72,7 +72,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
     })
 }
 
-pub(super) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), CodecError> {
+pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), CodecError> {
     if catalog
         .domains
         .windows(2)

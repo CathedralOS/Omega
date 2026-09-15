@@ -3,8 +3,8 @@
 //! module, contract, and dynamic-dispatch sections.
 
 use crate::codec_error::CodecError;
-use crate::structural_signature_wire;
-use crate::wire::{
+use crate::semantic_module::structural_signature_wire;
+use crate::semantic_module::wire::{
     Reader, Writer, decode_counted, decode_ids, decode_optional_id, encode_optional_id,
 };
 
@@ -242,7 +242,7 @@ mod structural_place_wire_tests {
     use semantic_vocabulary::{OperationId, PsiSemanticId, StructuralPlaceKind, StructuralTypeId};
 
     use super::{CodecError, decode_structural_place_kind, encode_structural_place_kind};
-    use crate::wire::{Reader, Writer};
+    use crate::semantic_module::wire::{Reader, Writer};
 
     fn id<T: PsiSemanticId>(raw: u64) -> T {
         T::new(raw).expect("test ids are nonzero")

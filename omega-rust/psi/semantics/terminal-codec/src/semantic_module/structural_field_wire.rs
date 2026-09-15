@@ -19,14 +19,14 @@ use super::scalar_wire::{
 };
 use super::wire::{Reader, Writer};
 
-pub(super) fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
+pub(crate) fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
     writer.u8(match format {
         IeeeFloatFormat::Binary32 => 1,
         IeeeFloatFormat::Binary64 => 2,
     });
 }
 
-pub(super) fn encode_ieee_float_comparison_kind(
+pub(crate) fn encode_ieee_float_comparison_kind(
     writer: &mut Writer,
     kind: IeeeFloatComparisonKind,
 ) {
@@ -36,7 +36,7 @@ pub(super) fn encode_ieee_float_comparison_kind(
     });
 }
 
-pub(super) fn decode_ieee_float_comparison_kind(
+pub(crate) fn decode_ieee_float_comparison_kind(
     reader: &mut Reader<'_>,
 ) -> Result<IeeeFloatComparisonKind, CodecError> {
     match reader.u8()? {
@@ -46,7 +46,7 @@ pub(super) fn decode_ieee_float_comparison_kind(
     }
 }
 
-pub(super) fn decode_ieee_float_format(
+pub(crate) fn decode_ieee_float_format(
     reader: &mut Reader<'_>,
 ) -> Result<IeeeFloatFormat, CodecError> {
     match reader.u8()? {
@@ -56,21 +56,21 @@ pub(super) fn decode_ieee_float_format(
     }
 }
 
-pub(super) fn encode_ieee_float_field(
+pub(crate) fn encode_ieee_float_field(
     writer: &mut Writer,
     field: &IeeeFloatStructuralField,
 ) -> Result<(), CodecError> {
     encode_canonical_structural_field(writer, field.root(), field.path(), "IEEE float field path")
 }
 
-pub(super) fn decode_ieee_float_field(
+pub(crate) fn decode_ieee_float_field(
     reader: &mut Reader<'_>,
 ) -> Result<IeeeFloatStructuralField, CodecError> {
     let (root, path) = decode_canonical_structural_field(reader)?;
     IeeeFloatStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
 }
 
-pub(super) fn encode_byte_sequence_field(
+pub(crate) fn encode_byte_sequence_field(
     writer: &mut Writer,
     field: &ByteSequenceStructuralField,
 ) -> Result<(), CodecError> {
@@ -82,14 +82,14 @@ pub(super) fn encode_byte_sequence_field(
     )
 }
 
-pub(super) fn decode_byte_sequence_field(
+pub(crate) fn decode_byte_sequence_field(
     reader: &mut Reader<'_>,
 ) -> Result<ByteSequenceStructuralField, CodecError> {
     let (root, path) = decode_canonical_structural_field(reader)?;
     ByteSequenceStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
 }
 
-pub(super) fn encode_canonical_structural_field(
+pub(crate) fn encode_canonical_structural_field(
     writer: &mut Writer,
     root: PlaceId,
     path: &[CanonicalStructuralPathSegment],
@@ -116,7 +116,7 @@ pub(super) fn encode_canonical_structural_field(
     Ok(())
 }
 
-pub(super) fn decode_canonical_structural_field(
+pub(crate) fn decode_canonical_structural_field(
     reader: &mut Reader<'_>,
 ) -> Result<(PlaceId, Vec<CanonicalStructuralPathSegment>), CodecError> {
     let root = reader.id("PlaceId")?;
@@ -138,7 +138,7 @@ pub(super) fn decode_canonical_structural_field(
     Ok((root, path))
 }
 
-pub(super) fn encode_byte_sequence_carrier(writer: &mut Writer, carrier: ByteSequenceCarrier) {
+pub(crate) fn encode_byte_sequence_carrier(writer: &mut Writer, carrier: ByteSequenceCarrier) {
     match carrier {
         ByteSequenceCarrier::BorrowedView => writer.u8(1),
         ByteSequenceCarrier::BoundedOwned { capacity } => {
@@ -148,7 +148,7 @@ pub(super) fn encode_byte_sequence_carrier(writer: &mut Writer, carrier: ByteSeq
     }
 }
 
-pub(super) fn decode_byte_sequence_carrier(
+pub(crate) fn decode_byte_sequence_carrier(
     reader: &mut Reader<'_>,
 ) -> Result<ByteSequenceCarrier, CodecError> {
     match reader.u8()? {
@@ -160,7 +160,7 @@ pub(super) fn decode_byte_sequence_carrier(
     }
 }
 
-pub(super) fn encode_structural_field(
+pub(crate) fn encode_structural_field(
     writer: &mut Writer,
     field: &StructuralFieldDeclaration,
 ) -> Result<(), CodecError> {
@@ -201,7 +201,7 @@ pub(super) fn encode_structural_field(
     Ok(())
 }
 
-pub(super) fn decode_structural_field(
+pub(crate) fn decode_structural_field(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralFieldDeclaration, CodecError> {
     let id = reader.id("StructuralFieldId")?;

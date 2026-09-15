@@ -17,7 +17,7 @@ use super::scalar_term_wire::encode_scalar_term;
 use super::wire::Writer;
 use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALAR_TERM_DEPTH};
 
-pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
+pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(
         module
             .scalar_block_invariants
@@ -765,7 +765,7 @@ fn validate_parameter_order(
     Ok(())
 }
 
-pub(super) fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
+pub(crate) fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
     !routes.windows(2).any(|pair| pair[0].cause >= pair[1].cause)
         && routes.iter().all(|bucket| {
             !bucket.alternatives.is_empty()
@@ -778,7 +778,7 @@ pub(super) fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
         })
 }
 
-pub(super) fn validate_crash_route_predicates(
+pub(crate) fn validate_crash_route_predicates(
     routes: &[CrashRouteBucket],
 ) -> Result<(), CodecError> {
     for predicate in routes

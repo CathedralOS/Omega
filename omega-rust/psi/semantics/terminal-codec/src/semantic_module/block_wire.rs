@@ -31,12 +31,16 @@ use super::structural_signature_wire::{
     decode_structural_parameters, encode_structural_parameters,
 };
 use super::wire::{Reader, Writer};
-use crate::structural_place_wire::{
+use crate::semantic_module::structural_place_wire::{
     decode_affine_cleanup_action, decode_structural_path, encode_affine_cleanup_action,
     encode_obligation_ids, encode_structural_path,
 };
-use crate::structural_place_wire::{decode_structural_arguments, encode_structural_arguments};
-use crate::wire::{decode_counted, decode_ids, decode_optional_id, encode_optional_id};
+use crate::semantic_module::structural_place_wire::{
+    decode_structural_arguments, encode_structural_arguments,
+};
+use crate::semantic_module::wire::{
+    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
+};
 
 fn encode_scalar_field_path(
     writer: &mut Writer,
@@ -66,7 +70,7 @@ fn decode_scalar_field_path(
     })
 }
 
-pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
+pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
     writer.id(block.id);
     encode_declarations(writer, "block parameters", &block.parameters)?;
     encode_structural_parameters(writer, &block.structural_parameters)?;
@@ -1016,7 +1020,7 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
     Ok(())
 }
 
-pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
+pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
     let structural_parameters = decode_structural_parameters(reader)?;
@@ -1682,7 +1686,7 @@ mod tests {
     use super::{decode_block, decode_scalar_field_path, encode_block, encode_scalar_field_path};
     use crate::{
         CodecError,
-        wire::{Reader, Writer},
+        semantic_module::wire::{Reader, Writer},
     };
 
     fn id<T: semantic_vocabulary::PsiSemanticId>(raw: u64) -> T {

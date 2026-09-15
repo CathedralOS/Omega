@@ -12,11 +12,11 @@ use terminal_verifier::{
     reconstruct_terminal_trace_v1_rows as reconstruct_verified_rows,
 };
 
-use crate::scalar_wire::{decode_scalar_type, encode_scalar_type};
-use crate::structural_signature_wire::{
+use crate::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use crate::semantic_module::structural_signature_wire::{
     decode_projected_qualifications, encode_projected_qualifications,
 };
-use crate::wire::{Reader, Writer};
+use crate::semantic_module::wire::{Reader, Writer};
 use crate::{CodecError, terminal_psi_identity};
 
 const DOMAIN: &[u8] = b"omega.terminal.observation-profile.v1";

@@ -12,9 +12,9 @@ use super::CodecError;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_field_wire::{decode_structural_field, encode_structural_field};
 use super::wire::{Reader, Writer};
-use crate::wire::decode_counted;
+use crate::semantic_module::wire::decode_counted;
 
-pub(super) fn encode_structural_type(
+pub(crate) fn encode_structural_type(
     writer: &mut Writer,
     declaration: &StructuralTypeDeclaration,
 ) -> Result<(), CodecError> {
@@ -84,7 +84,7 @@ pub(super) fn encode_structural_type(
     Ok(())
 }
 
-pub(super) fn decode_structural_type(
+pub(crate) fn decode_structural_type(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralTypeDeclaration, CodecError> {
     let id = reader.id("StructuralTypeId")?;
@@ -145,7 +145,7 @@ mod tests {
     use super::{decode_structural_type, encode_structural_type};
     use crate::{
         CodecError,
-        wire::{Reader, Writer},
+        semantic_module::wire::{Reader, Writer},
     };
 
     #[test]

@@ -18,10 +18,12 @@ use terminal_psi::{
 
 use super::wire::{Reader, Writer};
 use super::{CodecError, MAX_CONTENT_TERM_DEPTH};
-use crate::structural_place_wire::{decode_structural_place_kind, encode_structural_place_kind};
-use crate::wire::decode_counted;
+use crate::semantic_module::structural_place_wire::{
+    decode_structural_place_kind, encode_structural_place_kind,
+};
+use crate::semantic_module::wire::decode_counted;
 
-pub(super) fn encode_content_entry_claim(
+pub(crate) fn encode_content_entry_claim(
     writer: &mut Writer,
     binding: &ContentEntryClaim,
 ) -> Result<(), CodecError> {
@@ -30,7 +32,7 @@ pub(super) fn encode_content_entry_claim(
     encode_claim_content_projections(writer, &binding.projections)
 }
 
-pub(super) fn encode_content_partition_composition(
+pub(crate) fn encode_content_partition_composition(
     writer: &mut Writer,
     composition: &ContentPartitionComposition,
 ) -> Result<(), CodecError> {
@@ -63,7 +65,7 @@ pub(super) fn encode_content_partition_composition(
     encode_content_conservation(writer, &composition.derived)
 }
 
-pub(super) fn encode_content_conservation_guarantee(
+pub(crate) fn encode_content_conservation_guarantee(
     writer: &mut Writer,
     guarantee: &ContentConservationGuarantee,
 ) -> Result<(), CodecError> {
@@ -91,7 +93,7 @@ fn encode_content_conservation(
     encode_content_term(writer, conservation.right(), 0)
 }
 
-pub(super) fn encode_content_identity_reshuffle(
+pub(crate) fn encode_content_identity_reshuffle(
     writer: &mut Writer,
     reshuffle: &ContentIdentityReshuffle,
 ) -> Result<(), CodecError> {
@@ -114,7 +116,7 @@ fn encode_claim_content_projections(
     Ok(())
 }
 
-pub(super) fn encode_content_algebra(
+pub(crate) fn encode_content_algebra(
     writer: &mut Writer,
     algebra: &ContentAlgebra,
 ) -> Result<(), CodecError> {
@@ -125,7 +127,7 @@ pub(super) fn encode_content_algebra(
     writer.string("content algebra parameter", &algebra.parameter)
 }
 
-pub(super) fn encode_content_term(
+pub(crate) fn encode_content_term(
     writer: &mut Writer,
     term: &ContentTerm,
     depth: usize,
@@ -183,7 +185,7 @@ fn encode_content_structural_place(
     Ok(())
 }
 
-pub(super) fn decode_content_entry_claim(
+pub(crate) fn decode_content_entry_claim(
     reader: &mut Reader<'_>,
 ) -> Result<ContentEntryClaim, CodecError> {
     Ok(ContentEntryClaim {
@@ -193,7 +195,7 @@ pub(super) fn decode_content_entry_claim(
     })
 }
 
-pub(super) fn decode_content_partition_composition(
+pub(crate) fn decode_content_partition_composition(
     reader: &mut Reader<'_>,
 ) -> Result<ContentPartitionComposition, CodecError> {
     let producer_operation = reader.id("OperationId")?;
@@ -234,7 +236,7 @@ pub(super) fn decode_content_partition_composition(
     })
 }
 
-pub(super) fn decode_content_conservation_guarantee(
+pub(crate) fn decode_content_conservation_guarantee(
     reader: &mut Reader<'_>,
 ) -> Result<ContentConservationGuarantee, CodecError> {
     let report_fingerprint = reader.u64()?;
@@ -262,7 +264,7 @@ fn decode_content_conservation(reader: &mut Reader<'_>) -> Result<ContentConserv
     ))
 }
 
-pub(super) fn decode_content_identity_reshuffle(
+pub(crate) fn decode_content_identity_reshuffle(
     reader: &mut Reader<'_>,
 ) -> Result<ContentIdentityReshuffle, CodecError> {
     let claim = reader.id::<ClaimId>("ClaimId")?;
@@ -294,7 +296,7 @@ fn decode_claim_content_projections(
     Ok(projections)
 }
 
-pub(super) fn decode_content_algebra(
+pub(crate) fn decode_content_algebra(
     reader: &mut Reader<'_>,
 ) -> Result<ContentAlgebra, CodecError> {
     let kind = match reader.u8()? {
@@ -308,7 +310,7 @@ pub(super) fn decode_content_algebra(
     })
 }
 
-pub(super) fn decode_content_term(
+pub(crate) fn decode_content_term(
     reader: &mut Reader<'_>,
     depth: usize,
 ) -> Result<ContentTerm, CodecError> {

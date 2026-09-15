@@ -6,7 +6,7 @@
 //! qualifications, reach closure, or claim dataflow.
 
 use crate::codec_error::{CodecError, malformed};
-use crate::structural_result_wire;
+use crate::semantic_module::structural_result_wire;
 
 use semantic_vocabulary::{
     ClaimId, IntegerSign, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId,

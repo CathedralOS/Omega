@@ -1,6 +1,6 @@
 use super::{decode_ranked_scc, encode_ranked_scc};
 use crate::CodecError;
-use crate::wire::{Reader, Writer};
+use crate::semantic_module::wire::{Reader, Writer};
 use semantic_vocabulary::{BlockId, EdgeId, IntegerSign, IntegerType, ValueId};
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,

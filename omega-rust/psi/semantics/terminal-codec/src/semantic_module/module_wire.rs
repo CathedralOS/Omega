@@ -60,7 +60,7 @@ use super::structural_signature_wire::{
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::wire::{Reader, Writer};
 use super::{CodecError, FORMAT_MARKER, MAGIC};
-use crate::wire::{decode_counted, decode_ids};
+use crate::semantic_module::wire::{decode_counted, decode_ids};
 
 fn encode_carry_policy(writer: &mut Writer, policy: CarryPolicy) {
     writer.u8(match policy.suspension {
@@ -762,7 +762,7 @@ fn decode_reborrow_restored_call_use(
     })
 }
 
-pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
+pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
     writer.u16(FORMAT_MARKER);
@@ -1233,7 +1233,7 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     Ok(writer.finish())
 }
 
-pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecError> {
+pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecError> {
     let vocabulary_marker_raw = reader.u16()?;
     if vocabulary_marker_raw != VocabularyMarker::CURRENT.get() {
         return Err(CodecError::UnsupportedVocabularyMarker(

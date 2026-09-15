@@ -13,7 +13,7 @@ use super::scalar_wire::{
 use super::wire::{Reader, Writer};
 use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
 
-pub(super) fn encode_scalar_term(
+pub(crate) fn encode_scalar_term(
     writer: &mut Writer,
     term: &ScalarTerm,
     depth: usize,
@@ -382,7 +382,7 @@ pub(super) fn encode_scalar_term(
     Ok(())
 }
 
-pub(super) fn decode_scalar_term(
+pub(crate) fn decode_scalar_term(
     reader: &mut Reader<'_>,
     depth: usize,
 ) -> Result<ScalarTerm, CodecError> {

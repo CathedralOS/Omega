@@ -19,7 +19,7 @@ use super::structural_field_wire::{
 use super::wire::{Reader, Writer};
 use super::{CodecError, MAX_PROPOSITION_DEPTH, decode_scalar_term, encode_scalar_term};
 
-pub(super) fn encode_proposition(
+pub(crate) fn encode_proposition(
     writer: &mut Writer,
     proposition: &Proposition,
     depth: usize,
@@ -120,7 +120,7 @@ pub(super) fn encode_proposition(
     Ok(())
 }
 
-pub(super) fn decode_proposition(
+pub(crate) fn decode_proposition(
     reader: &mut Reader<'_>,
     depth: usize,
 ) -> Result<Proposition, CodecError> {

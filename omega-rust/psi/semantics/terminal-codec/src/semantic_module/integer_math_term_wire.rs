@@ -6,7 +6,7 @@ use super::scalar_wire::{decode_integer_type, encode_integer_type};
 use super::wire::{Reader, Writer};
 use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
 
-pub(super) fn encode_integer_math_term(
+pub(crate) fn encode_integer_math_term(
     writer: &mut Writer,
     term: &IntegerMathTerm,
     depth: usize,
@@ -46,7 +46,7 @@ pub(super) fn encode_integer_math_term(
     Ok(())
 }
 
-pub(super) fn decode_integer_math_term(
+pub(crate) fn decode_integer_math_term(
     reader: &mut Reader<'_>,
     depth: usize,
 ) -> Result<IntegerMathTerm, CodecError> {

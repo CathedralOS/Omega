@@ -16,9 +16,9 @@ use terminal_psi::{RetainedQuotientCorrespondence, retain_non_executable_quotien
 
 use super::CodecError;
 use super::wire::{Reader, Writer};
-use crate::wire::decode_counted;
+use crate::semantic_module::wire::decode_counted;
 
-pub(super) fn encode_quotient_correspondence(
+pub(crate) fn encode_quotient_correspondence(
     writer: &mut Writer,
     retained: &RetainedQuotientCorrespondence,
 ) -> Result<(), CodecError> {
@@ -163,7 +163,7 @@ fn encode_congruence(
     Ok(())
 }
 
-pub(super) fn decode_quotient_correspondence(
+pub(crate) fn decode_quotient_correspondence(
     reader: &mut Reader<'_>,
 ) -> Result<RetainedQuotientCorrespondence, CodecError> {
     let operation_kind = match reader.u8()? {

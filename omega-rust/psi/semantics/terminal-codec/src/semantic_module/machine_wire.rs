@@ -26,16 +26,18 @@ use super::structural_signature_wire::{
     decode_structural_parameters, encode_service_ceiling, encode_structural_parameters,
 };
 use super::wire::{Reader, Writer};
-use crate::structural_place_wire::{
+use crate::semantic_module::structural_place_wire::{
     decode_structural_path, decode_structural_place_kind, encode_structural_path,
     encode_structural_place_kind,
 };
-use crate::wire::{decode_counted, decode_ids, decode_optional_id, encode_optional_id};
+use crate::semantic_module::wire::{
+    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
+};
 
 #[cfg(test)]
 mod tests;
 
-pub(super) fn encode_machine(
+pub(crate) fn encode_machine(
     writer: &mut Writer,
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
@@ -95,7 +97,7 @@ pub(super) fn encode_machine(
     encode_contract(writer, &machine.contract)
 }
 
-pub(super) fn encode_declarations(
+pub(crate) fn encode_declarations(
     writer: &mut Writer,
     label: &'static str,
     declarations: &[ValueDeclaration],
@@ -107,13 +109,13 @@ pub(super) fn encode_declarations(
     Ok(())
 }
 
-pub(super) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclaration) {
+pub(crate) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclaration) {
     writer.id(declaration.id);
     encode_scalar_type(writer, declaration.scalar_type);
     writer.u64(declaration.qualifications.get());
 }
 
-pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
+pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
     let attachment = decode_optional_id(reader, "StructuralTypeId")?;
     let parameters = decode_declarations(reader)?;
@@ -260,7 +262,7 @@ fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc
     }
 }
 
-pub(super) fn decode_declarations(
+pub(crate) fn decode_declarations(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<ValueDeclaration>, CodecError> {
     let count = reader.count()?;
@@ -271,7 +273,7 @@ pub(super) fn decode_declarations(
     Ok(declarations)
 }
 
-pub(super) fn decode_declaration(reader: &mut Reader<'_>) -> Result<ValueDeclaration, CodecError> {
+pub(crate) fn decode_declaration(reader: &mut Reader<'_>) -> Result<ValueDeclaration, CodecError> {
     Ok(ValueDeclaration {
         id: reader.id("ValueId")?,
         scalar_type: decode_scalar_type(reader)?,

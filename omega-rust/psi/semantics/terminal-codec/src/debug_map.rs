@@ -8,7 +8,8 @@
 use sha2::{Digest, Sha256};
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::{CodecError, Reader, Writer, terminal_psi_identity};
+use crate::semantic_module::wire::{Reader, Writer};
+use crate::{CodecError, terminal_psi_identity};
 pub use terminal_psi::{
     DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
     DebugSubject, TerminalDebugMap,

@@ -6,54 +6,30 @@
 //! records, and debug/source maps have separate identities and can be replaced
 //! without changing [`TerminalPsiIdentity`].
 //!
-//! Start at [`encode_module`] and [`decode_module`]. Section payloads live in
-//! the `*_wire` modules, pre-encoding shape checks in
-//! [`module_foundation_validation`], byte cursors in [`wire`], and the
-//! error vocabulary in [`codec_error`].
+//! Start at [`encode_module`] and [`decode_module`]. The semantic module's
+//! section payloads, shape checks, and byte cursors live under
+//! [`semantic_module`], and the error vocabulary in [`codec_error`]. The other
+//! root files each own one separately identified section: proof bundle and
+//! sidecar, artifact envelope and manifest, publication, trust graph,
+//! obligation ledger, debug map, optimization execution, observation profile,
+//! and the program-local root catalog.
 
 mod artifact_manifest;
-mod block_wire;
 mod canonical_artifact;
-mod canonical_order;
 mod codec_error;
-mod content_wire;
-mod contract_wire;
-#[cfg(test)]
-mod current_format_tests;
 mod debug_map;
-mod dynamic_dispatch_wire;
-mod integer_math_term_wire;
-mod machine_wire;
-mod mathematical_certificate_wire;
-mod module_foundation_validation;
-mod module_wire;
 mod obligation_ledger;
 mod optimization_execution;
 mod program_local_root_catalog;
 mod proof_bundle;
-mod proof_declaration_wire;
 mod proof_sidecar;
-mod proposition_wire;
-mod provider_candidate_wire;
-pub use provider_candidate_wire::{
+mod semantic_module;
+pub use semantic_module::provider_candidate_wire::{
     decode_provider_candidate_record, encode_provider_candidate_record,
 };
 mod publication;
-mod quotient_correspondence_wire;
-mod reach_application_wire;
-mod scalar_qualification_wire;
-mod scalar_term_wire;
-mod scalar_wire;
-#[cfg(test)]
-mod structural_block_wire_tests;
-mod structural_field_wire;
-mod structural_place_wire;
-mod structural_result_wire;
-mod structural_signature_wire;
-mod structural_type_wire;
 mod terminal_trace_v1_profile;
 mod trust_graph;
-mod wire;
 
 pub use artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
@@ -63,16 +39,11 @@ pub use canonical_artifact::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactEnvelopeError,
     CanonicalTerminalArtifactError,
 };
-pub use canonical_order::{canonical_proposition_order_key, canonical_scalar_term_order_key};
 pub use codec_error::CodecError;
 pub use debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
     DebugSourceSpan, DebugSubject, TerminalDebugMap, decode_debug_map, encode_debug_map,
     source_digest, validate_debug_map,
-};
-pub use mathematical_certificate_wire::{
-    DecodedMathematicalCertificate, decode_mathematical_certificate,
-    encode_mathematical_certificate,
 };
 pub use obligation_ledger::{
     TerminalObligationLedger, TerminalObligationLedgerFingerprint,
@@ -107,6 +78,13 @@ pub use publication::{
     PublishedTerminalSemanticArtifact, TerminalSemanticArtifactPublication,
     TerminalSemanticPublicationError,
 };
+pub use semantic_module::canonical_order::{
+    canonical_proposition_order_key, canonical_scalar_term_order_key,
+};
+pub use semantic_module::mathematical_certificate_wire::{
+    DecodedMathematicalCertificate, decode_mathematical_certificate,
+    encode_mathematical_certificate,
+};
 pub use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity};
 pub use terminal_trace_v1_profile::{
     TerminalTraceV1ProfileAcceptanceError, TerminalTraceV1ProfileBuildError,
@@ -121,30 +99,22 @@ pub use trust_graph::{
     render_terminal_trust_graph, validate_terminal_trust_graph,
 };
 
-use canonical_order::{
+use semantic_module::canonical_order::{
     crash_routes_are_canonical, validate_canonical_order, validate_crash_route_predicates,
 };
-use contract_wire::{decode_crash_routes, encode_crash_routes};
-use module_wire::{decode_module_body, encode_raw};
+use semantic_module::contract_wire::{decode_crash_routes, encode_crash_routes};
+use semantic_module::module_wire::{decode_module_body, encode_raw};
 
-use module_foundation_validation::validate_structural_foundation;
-use proposition_wire::{decode_proposition, encode_proposition};
-use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
+use semantic_module::module_foundation_validation::validate_structural_foundation;
+use semantic_module::proposition_wire::decode_proposition;
+use semantic_module::wire::{Reader, Writer};
+use semantic_module::{FINGERPRINT_DOMAIN, FORMAT_MARKER, MAGIC};
 use sha2::{Digest, Sha256};
 use terminal_psi::TerminalModule;
 use terminal_verifier::validate_module_representation;
-use wire::{Reader, Writer, decode_counted};
-
-const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 97;
-const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
-const MAX_PROPOSITION_DEPTH: usize = 256;
-const MAX_SCALAR_TERM_DEPTH: usize = 256;
-const MAX_CONTENT_TERM_DEPTH: usize = 256;
-const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
-    scalar_qualification_wire::validate(&module.scalar_qualifications)?;
+    semantic_module::scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
     validate_structural_foundation(module)?;
     validate_module_representation(module).map_err(CodecError::InvalidModule)?;
@@ -159,7 +129,7 @@ pub fn encode_structural_type_declaration(
     declaration: &terminal_psi::StructuralTypeDeclaration,
 ) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
-    structural_type_wire::encode_structural_type(&mut writer, declaration)?;
+    semantic_module::structural_type_wire::encode_structural_type(&mut writer, declaration)?;
     Ok(writer.finish())
 }
 
@@ -176,7 +146,7 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
     if reader.remaining() != 0 {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
-    scalar_qualification_wire::validate(&module.scalar_qualifications)?;
+    semantic_module::scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
     validate_module_representation(&module).map_err(CodecError::InvalidModule)?;
@@ -259,6 +229,7 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
 #[cfg(test)]
 mod resource_tests {
     use super::*;
+    use crate::semantic_module::wire::decode_counted;
 
     #[test]
     fn counted_decoder_rejects_impossible_capacity_before_allocation() {
