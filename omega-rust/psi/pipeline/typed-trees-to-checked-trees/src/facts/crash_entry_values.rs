@@ -4,15 +4,25 @@
 //! A stable binding is insufficient when its contents contain mutable loans or
 //! interior authority. Reuse stable-observation validation before projecting
 //! fields; shared loans may retain immutable contents without owning them.
-//! Mutable bindings, unknown contents and state re-entry retain no entry identity.
-//! Substitution transports a proven origin, never re-reads an initializer after
-//! later operands execute. This is source provenance, not a Terminal certificate.
+//! Immutable state parameters resolve through every arrival that binds them:
+//! the invocation itself for the entry state, plus each named transition edge
+//! into the state, which must all produce the same entry-relative operand.
+//! Mutable bindings, unknown contents, divergent arrivals and unresolvable
+//! cycles retain no entry identity. Substitution transports a proven origin,
+//! never re-reads an initializer after later operands execute. This is source
+//! provenance, not a Terminal certificate.
 
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use validation::has_stable_observable_contents;
+
+/// Arrival provenance can revisit a state parameter through a transition
+/// cycle, so the fold carries a depth bound. Exhaustion is unproven
+/// provenance, never an affirmed origin.
+const MAX_ENTRY_PROVENANCE_DEPTH: u32 = 64;
 
 #[cfg(test)]
 mod tests;
@@ -24,7 +34,27 @@ pub(super) fn entry_operand(
     before_statement: usize,
     expression: ExpressionHandle,
 ) -> Option<CrashPredicateExpression> {
-    if !program.expression_table.expression_is_valid(expression) {
+    entry_operand_at(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        expression,
+        0,
+    )
+}
+
+fn entry_operand_at(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    expression: ExpressionHandle,
+    depth: u32,
+) -> Option<CrashPredicateExpression> {
+    if depth >= MAX_ENTRY_PROVENANCE_DEPTH
+        || !program.expression_table.expression_is_valid(expression)
+    {
         return None;
     }
     match program.expression_table.expression(expression) {
@@ -37,12 +67,13 @@ pub(super) fn entry_operand(
         {
             Some(CrashPredicateExpression::Unary {
                 operator: unary.operator as u8,
-                operand: Box::new(entry_operand(
+                operand: Box::new(entry_operand_at(
                     program,
                     machine_symbol,
                     state_symbol,
                     before_statement,
                     unary.operand,
+                    depth + 1,
                 )?),
             })
         }
@@ -50,12 +81,13 @@ pub(super) fn entry_operand(
             if member.member_symbol.is_valid() && member.case_variant.is_none() =>
         {
             Some(CrashPredicateExpression::Member {
-                receiver: Box::new(entry_operand(
+                receiver: Box::new(entry_operand_at(
                     program,
                     machine_symbol,
                     state_symbol,
                     before_statement,
                     member.receiver,
+                    depth + 1,
                 )?),
                 member: member.member.as_str().to_owned(),
             })
@@ -102,19 +134,21 @@ pub(super) fn entry_operand(
             // its selection rejected.
             Some(CrashPredicateExpression::Binary {
                 operator: binary.operator as u8,
-                left: Box::new(entry_operand(
+                left: Box::new(entry_operand_at(
                     program,
                     machine_symbol,
                     state_symbol,
                     before_statement,
                     binary.left,
+                    depth + 1,
                 )?),
-                right: Box::new(entry_operand(
+                right: Box::new(entry_operand_at(
                     program,
                     machine_symbol,
                     state_symbol,
                     before_statement,
                     binary.right,
+                    depth + 1,
                 )?),
             })
         }
@@ -155,40 +189,24 @@ pub(super) fn entry_operand(
                     // be immutable and entry-relative; mutable initializers
                     // are rejected even if their storage now has useful facts.
                     // Decreasing the prefix also prevents recursive aliases.
-                    return entry_operand(
+                    return entry_operand_at(
                         program,
                         machine_symbol,
                         state_symbol,
                         ordinal,
                         local.initial_value,
+                        depth + 1,
                     );
                 }
             }
-            let entry_index = crate::checks::termination::named_transition_target_state_index(
+            state_parameter_entry_operand(
                 program,
                 machine,
-                machine.symbol,
-            )?;
-            let entry = program.machine_states(machine).get(entry_index)?;
-            if state_symbol != entry.symbol
-                || entry_has_incoming_transition(program, machine, entry_index)
-            {
-                return None;
-            }
-            let (ordinal, _) =
-                program
-                    .state_parameters(entry)
-                    .iter()
-                    .enumerate()
-                    .find(|(_, parameter)| {
-                        parameter.symbol == path.symbol
-                            && !parameter.is_mutable
-                            && !parameter.is_self
-                            && has_stable_observable_contents(program, parameter.type_reference)
-                    })?;
-            Some(CrashPredicateExpression::Parameter(
-                u32::try_from(ordinal).ok()?,
-            ))
+                machine_symbol,
+                state_symbol,
+                path.symbol,
+                depth,
+            )
         }
         _ => None,
     }
@@ -214,43 +232,144 @@ fn builtin_binary_meaning(
     validation::has_builtin_binary_expression_meaning(program, machine, state, expression)
 }
 
-fn entry_has_incoming_transition(
+/// A state parameter's saved actual is whatever every arrival binds to it:
+/// the invocation for the entry state, and each named transition edge into
+/// the state positionally. `-> self` forwards the current values and adds no
+/// new arrival; a by-name edge forwarding this same parameter back to its own
+/// state is tautological for the same reason. Every remaining edge must
+/// resolve to one identical entry-relative operand, or provenance stays
+/// unknown rather than picking a winner.
+fn state_parameter_entry_operand(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
-    entry_index: usize,
-) -> bool {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    parameter_symbol: SymbolHandle,
+    depth: u32,
+) -> Option<CrashPredicateExpression> {
+    let states = program.machine_states(machine);
+    let state_index = states
+        .iter()
+        .position(|state| state.symbol == state_symbol)?;
+    let parameters = program.state_parameters(&states[state_index]);
+    let (parameter_ordinal, parameter) = parameters
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.symbol == parameter_symbol)?;
+    if parameter.is_mutable
+        || parameter.is_self
+        || !has_stable_observable_contents(program, parameter.type_reference)
+    {
+        return None;
+    }
+    // Transition arguments bind only the non-self parameters, in order.
+    let argument_index = parameters[..parameter_ordinal]
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+    let entry_index = crate::checks::termination::named_transition_target_state_index(
+        program,
+        machine,
+        machine.symbol,
+    )?;
+    // The invocation itself is the entry state's one non-transition arrival.
+    let mut provenance = if state_index == entry_index {
+        Some(CrashPredicateExpression::Parameter(
+            u32::try_from(parameter_ordinal).ok()?,
+        ))
+    } else {
+        None
+    };
+    for (source_symbol, statement_ordinal, argument) in
+        named_transition_arguments(program, machine, state_index, argument_index)
+    {
+        if source_symbol == state_symbol
+            && program.expression_table.expression_is_valid(argument)
+            && let ExpressionNode::Name(forwarded) = program.expression_table.expression(argument)
+            && forwarded.symbol == parameter_symbol
+            && forwarded.head_symbol == parameter_symbol
+            && program
+                .expression_table
+                .name_path_members(forwarded.members)
+                .len()
+                == 1
+        {
+            continue;
+        }
+        let resolved = entry_operand_at(
+            program,
+            machine_symbol,
+            source_symbol,
+            statement_ordinal,
+            argument,
+            depth + 1,
+        )?;
+        if let Some(existing) = provenance.as_ref() {
+            if *existing != resolved {
+                return None;
+            }
+        } else {
+            provenance = Some(resolved);
+        }
+    }
+    provenance
+}
 
-    // Typed statement lowering flattens nested transition forms into states.
-    // Inspect ordinary targets and continuation targets, just as the existing
-    // termination graph does. A repeated immutable declaration is a fresh
-    // arrival value, not necessarily the original invocation-entry value.
-    program.machine_states(machine).iter().any(|state| {
-        program
+/// Positional arguments of every named transition edge into `state_index`,
+/// paired with the source state and the transition's own statement ordinal.
+/// Typed lowering flattens nested transition forms into statements; inspect
+/// ordinary targets and continuation targets, just as the termination graph
+/// does. `-> self` and exits are not named arrivals; an edge short an
+/// argument contributes an invalid handle that fails resolution above.
+fn named_transition_arguments(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state_index: usize,
+    argument_index: usize,
+) -> Vec<(SymbolHandle, usize, ExpressionHandle)> {
+    let mut incoming = Vec::new();
+    for source in program.machine_states(machine) {
+        for (ordinal, statement) in program
             .statement_table
-            .statements(state.statement_nodes)
+            .statements(source.statement_nodes)
             .iter()
-            .any(|statement| {
-                let StatementNode::Transition(transition) = statement else {
-                    return false;
+            .enumerate()
+        {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                let TransitionTargetNode::Named {
+                    path, arguments, ..
+                } = program.statement_table.transition_target(target)
+                else {
+                    continue;
                 };
-                [transition.target, transition.continuation]
-                    .into_iter()
-                    .filter(|target| target.is_valid())
-                    .any(|target| {
-                        let symbol = match program.statement_table.transition_target(target) {
-                            TransitionTargetNode::Named { path, .. } => path.symbol,
-                            TransitionTargetNode::SelfTarget => state.symbol,
-                            TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
-                                return false;
-                            }
-                        };
-                        crate::checks::termination::named_transition_target_state_index(
-                            program, machine, symbol,
-                        ) == Some(entry_index)
-                    })
-            })
-    })
+                if crate::checks::termination::named_transition_target_state_index(
+                    program,
+                    machine,
+                    path.symbol,
+                ) != Some(state_index)
+                {
+                    continue;
+                }
+                incoming.push((
+                    source.symbol,
+                    ordinal,
+                    program
+                        .statement_table
+                        .expression_handles(*arguments)
+                        .get(argument_index)
+                        .copied()
+                        .unwrap_or_else(ExpressionHandle::invalid),
+                ));
+            }
+        }
+    }
+    incoming
 }
 
 pub(super) fn substitute_entry(
