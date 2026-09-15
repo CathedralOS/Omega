@@ -7,6 +7,7 @@ use effects::TerminalAuthorityPolicyIdentity;
 mod classification;
 mod commitment;
 mod construction;
+mod filesystem;
 mod inventory;
 mod model;
 mod normalized_foreign;
@@ -14,6 +15,10 @@ mod syscall;
 #[cfg(test)]
 mod tests;
 
+pub use filesystem::{
+    FilesystemCohortDisposition, UnsettledFilesystemRequirement, filesystem_host_permission_row,
+    filesystem_host_permission_rows, filesystem_mechanism_row, settled_filesystem_cohort,
+};
 pub use model::{
     TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,
     UnclassifiedTerminalMechanism,

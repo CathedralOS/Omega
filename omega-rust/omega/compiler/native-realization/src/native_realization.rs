@@ -41,13 +41,15 @@ pub use terminal_authority_permission_policy::{
 };
 pub use terminal_authority_policy::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
-    TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
-    TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
-    UnclassifiedTerminalMechanism, conservative_syscall_terminal_mechanism,
+    FilesystemCohortDisposition, TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy,
+    TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,
+    UnclassifiedCompilerIntrinsicTerminalMechanism, UnclassifiedTerminalMechanism,
+    UnsettledFilesystemRequirement, conservative_syscall_terminal_mechanism,
     current_compiler_intrinsic_terminal_authority_policy, current_terminal_authority_policy,
+    filesystem_host_permission_row, filesystem_host_permission_rows, filesystem_mechanism_row,
     normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
-    terminal_authority_policy_with_rows,
+    settled_filesystem_cohort, terminal_authority_policy_with_rows,
 };
 
 use diagnostics::Diagnostic;

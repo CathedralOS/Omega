@@ -5,6 +5,7 @@ use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition, TerminalMech
 use super::*;
 
 mod checked_physical_rows;
+mod filesystem_cohorts;
 mod foreign_rows;
 mod inventory;
 mod syscall_rows;
