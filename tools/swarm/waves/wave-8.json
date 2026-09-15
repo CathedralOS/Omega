@@ -15,7 +15,6 @@
     "TRANSLATION-VALIDATION",
     "GENERAL-LICM",
     "BOOTSTRAP-RUNTIME-SOURCE",
-    "MODULE-NAMESPACE-RESOLUTION",
     "BUILD-DEPENDENCY-PURPOSES",
     "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
     "EXTERNAL-ENTRY-STACK-EPOCHS",
@@ -367,6 +366,37 @@
       "suggested_first_slice": "Extend executable spill recovery: admitted uses now include body and terminator operands plus register-transport arguments on outgoing successor edges \u2014 extend recovery to one more exact class (e.g. cyclic-function block parameters or broader fixed-use composition with selected recovery rules), or extend final spill-inclusive frame demand into stack provisioning reusing the existing final-local-frame demand path. Keep WRITE-ONLY-BORROW's three-call regression as the hosted execution control; slot reuse must not double-count; stale demand must invalidate.",
       "backfill_for": "write-only-borrow",
       "layer": 1
+    },
+    {
+      "name": "module-namespace-resolution",
+      "board": "TASKS.md",
+      "item": "MODULE-NAMESPACE-RESOLUTION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/module_normalization.rs",
+        "omega-rust/psi/semantics/build-time-evaluation/src/const_initializers.rs",
+        "omega-rust/psi/semantics/build-time-evaluation/src/const_initializers",
+        "omega-rust/psi/semantics/build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs",
+        "omega-rust/psi/semantics/build-time-evaluation/src/const_generic_expressions/value/match_dispatch",
+        "omega-rust/psi/semantics/build-time-evaluation/src/admission/closure_validation.rs"
+      ],
+      "suggested_first_slice": "Backfill after case-constraints released preparation/. One bounded slice: extend concrete failure discharge in const_initializers/invocations.rs \u2014 arithmetic guard expressions or unknown saved-entry origins need their existing checked evidence (not successful interpretation or provider-body inspection); OR extend match_dispatch nonconstant divisor integrality beyond singleton sign intervals with exact fractional-warning evidence. Preserve exact lexical/package selection before evaluation; keep machine_initializers:: module/index and scalar-composition checks in module_machine_indices green.",
+      "backfill_for": "case-constraints",
+      "layer": 1
+    },
+    {
+      "name": "build-product-retry",
+      "board": "TASKS.md",
+      "item": "BUILD-PRODUCT-REFERENCES",
+      "host": "linux",
+      "layer": 1,
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation/src/selection",
+        "omega-rust/omega/compiler/compiler/tests/build_target_activation.rs",
+        "omega-rust/omega/compiler/compiler/tests/fixture_rosters/build_target_activation.rs"
+      ],
+      "suggested_first_slice": "Retry of the earlier blocked w8 sibling \u2014 the item's remaining work is 'provider/schema description kinds and the computed-receiver implementation fence'. The computed-receiver fence still depends on ordinary call-result authority (leave it, report as remaining_dependency); attack provider/schema description kinds instead: extend the Build.product facet / BuildProduct::entry query pattern so a designated provider or schema operand issues an opaque non-callable description (ProductProviderRef/ProductSchemaRef or the item's own naming) under the query occurrence's lexical package without executing product code, with wrong-scope/lookalike/forgery rejection pinned in build_target_activation.rs.",
+      "backfill_for": "build-admission-checkpoint"
     }
   ]
 }
