@@ -424,7 +424,138 @@ fn independent_replay_rejects_storage_use_source_and_fuel_corruption() {
 }
 
 #[test]
-fn address_values_fixed_uses_and_exhausted_budget_do_not_gain_spill_authority() {
+fn fixed_view_instruction_uses_pin_their_reload_at_the_call_operand() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let call = environment
+            .constraint(
+                *environment
+                    .selected_keys()
+                    .call_unit
+                    .get(1)
+                    .expect("every baseline target has a one-argument unit call row"),
+            )
+            .unwrap();
+        let [call_operand] = call.operands.as_slice() else {
+            panic!("a one-argument unit call row has exactly one pinned use operand");
+        };
+        assert_eq!(
+            call_operand.access,
+            register_model::RegisterOperandAccess::Use
+        );
+        assert!(call_operand.fixed_view.is_some());
+        let mut source = fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            // The second body instruction becomes a real one-argument unit
+            // call, so its use of the victim is an honest ABI-pinned site.
+            function.blocks[0].instructions[1] = admission::instruction(
+                SelectedInstructionId(2),
+                SelectedInstructionKind::CallUnit {
+                    callee: MachineId::new(2).unwrap(),
+                },
+                call,
+                &[VirtualRegisterId(1)],
+            );
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let original = &source.transformed().functions[0];
+        let transformed = &result.transformed().functions[0];
+        // The pinned call operand gains its own address/load pair immediately
+        // before the call; the operand keeps its access and fixed view while
+        // moving to the fresh reload register.
+        let block = &transformed.blocks[0];
+        let position = block
+            .instructions
+            .iter()
+            .position(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::CallUnit { .. })
+            })
+            .unwrap();
+        // Three uses each gain a reload pair and the definition gains a store.
+        assert_eq!(
+            block.instructions.len(),
+            original.blocks[0].instructions.len() + 7
+        );
+        assert!(matches!(
+            block.instructions[position - 2].kind,
+            SelectedInstructionKind::FrameAddress { .. }
+        ));
+        assert!(matches!(
+            block.instructions[position - 1].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        let original_operand = original.blocks[0].instructions[1].operands[0];
+        let rewritten_operand = block.instructions[position].operands[0];
+        let reload_register = block.instructions[position - 1].operands[1].virtual_register;
+        assert_eq!(original_operand.virtual_register, VirtualRegisterId(1));
+        assert_eq!(rewritten_operand.virtual_register, reload_register);
+        assert_eq!(rewritten_operand.access, original_operand.access);
+        assert_eq!(rewritten_operand.fixed_view, original_operand.fixed_view);
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+        for mutation in 0..5 {
+            let mut proposed = result.transformed().clone();
+            let function = &mut proposed.functions[0];
+            match mutation {
+                0 => {
+                    function.blocks[0].instructions.remove(position - 1);
+                }
+                1 => {
+                    function.blocks[0]
+                        .instructions
+                        .swap(position - 2, position - 1);
+                }
+                2 => {
+                    function.blocks[0].instructions[position].operands[0].virtual_register =
+                        VirtualRegisterId(1);
+                }
+                3 => {
+                    function.blocks[0].instructions[position].operands[0].fixed_view = None;
+                }
+                4 => {
+                    function.virtual_registers.pop();
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    proposed
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch,
+                "{target:?} mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn address_values_and_exhausted_budget_do_not_gain_spill_authority() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     let source = fixture(NativeTarget::linux_x64());
     let foreign_environment =
@@ -461,13 +592,5 @@ fn address_values_fixed_uses_and_exhausted_budget_do_not_gain_spill_authority() 
         spill_selected_runtime_value(&address, 0, VirtualRegisterId(1), &environment, budget())
             .unwrap_err(),
         RuntimeSpillError::UnsupportedValue
-    );
-    let mut fixed = source.clone();
-    Arc::make_mut(&mut fixed.transformed).functions[0].blocks[0].instructions[1].operands[0]
-        .fixed_view = Some(register_model::RegisterViewId(0));
-    assert_eq!(
-        spill_selected_runtime_value(&fixed, 0, VirtualRegisterId(1), &environment, budget())
-            .unwrap_err(),
-        RuntimeSpillError::UnsupportedUse
     );
 }
