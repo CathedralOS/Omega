@@ -1,6 +1,6 @@
-use crate::parse_error::ParseError;
 use crate::parser::expression::{memory_ordering_from_expression, parse_expression_handle};
 use crate::parser::input::{Input, ParseResult};
+use crate::parser::parse_error::ParseError;
 use crate::parser::transition::parse_transition_block_target_handle;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use arena::{Handle, HandleSpan};

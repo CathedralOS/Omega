@@ -188,7 +188,7 @@ fn parse_capability_contract<'tokens, 'source>(
 
 fn take_optional_semicolon<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+) -> Result<Input<'tokens, 'source>, crate::parser::parse_error::ParseError> {
     if input.at_punctuation(PunctuationKind::Semicolon) {
         input.take_punctuation(PunctuationKind::Semicolon, ";")
     } else {

@@ -115,7 +115,7 @@ pub(super) fn parse_operator_spelling<'tokens, 'source>(
 fn parse_operator_contract<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: &mut Input<'tokens, 'source>,
-) -> Result<CapabilityContract, crate::parse_error::ParseError> {
+) -> Result<CapabilityContract, crate::parser::parse_error::ParseError> {
     if input.at_contextual("requires") {
         let keyword_source_span = Some(input.current_source_span());
         *input = input.take_contextual("requires")?;
@@ -176,7 +176,7 @@ fn parse_operator_fact_contract<'tokens, 'source>(
     input: &mut Input<'tokens, 'source>,
     kind: CapabilityContractKind,
     keyword_source_span: Option<source::SourceSpan>,
-) -> Result<CapabilityContract, crate::parse_error::ParseError> {
+) -> Result<CapabilityContract, crate::parser::parse_error::ParseError> {
     let ((facts, token_count), rest) =
         parse_proof_facts_until(syntax_trees, *input, operator_contract_terminator)?;
     *input = rest;

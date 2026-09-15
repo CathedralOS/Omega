@@ -1,5 +1,5 @@
-use crate::parse_error::ParseError;
 use crate::parser::input::{Input, ParseResult, is_identifier_token_for_parser};
+use crate::parser::parse_error::ParseError;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
