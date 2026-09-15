@@ -8,9 +8,9 @@ use effects::{
 };
 
 use super::{
-    FilesystemCohortDisposition, TerminalAuthorityPolicyBuildError,
-    UnsettledFilesystemRequirement, filesystem_host_permission_rows, filesystem_mechanism_row,
-    settled_filesystem_cohort, terminal_authority_policy_with_rows,
+    FilesystemCohortDisposition, TerminalAuthorityPolicyBuildError, UnsettledFilesystemRequirement,
+    filesystem_host_permission_rows, filesystem_mechanism_row, settled_filesystem_cohort,
+    terminal_authority_policy_with_rows,
 };
 
 /// The complete canonical `FilesystemHost` cohort in declaration order,
