@@ -75,7 +75,10 @@ fn type_representation(
         lifetime_shell_depth: 0,
     };
     let phantom_lifetime_shell =
-        super::direct_phantom_lifetime_record_symbol(program, type_reference);
+        crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(
+            program,
+            type_reference,
+        );
     let mut representation = if let Some(symbol) = phantom_lifetime_shell {
         budget.lifetime_shell_depth = 1;
         mutable_record_representation_inner(
@@ -380,9 +383,9 @@ fn mutable_record_type_representation_body(
         TypeReferenceNode::Generic { .. }
             if allow_lifetime_shell
                 && budget.lifetime_shell_depth > 0
-                && budget.lifetime_shell_depth < super::MAX_RECAST_PHANTOM_LIFETIME_SHELL_DEPTH =>
+                && budget.lifetime_shell_depth < crate::value_custody::recasts::record_eligibility::MAX_RECAST_PHANTOM_LIFETIME_SHELL_DEPTH =>
         {
-            let symbol = super::phantom_lifetime_record_symbol_shape(program, type_reference)?;
+            let symbol = crate::value_custody::recasts::record_eligibility::phantom_lifetime_record_symbol_shape(program, type_reference)?;
             budget.lifetime_shell_depth += 1;
             let representation = mutable_record_representation_inner(
                 program,
@@ -793,11 +796,11 @@ mod tests {
     fn phantom_lifetime_shell_requires_exact_arity_and_runtime_free_origin() {
         let fixture = phantom_fixture();
         assert_eq!(
-            super::super::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,),
+            crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,),
             Some(fixture.instance_symbol)
         );
         assert_eq!(
-            super::super::literal_indexed_recast_target_size(&fixture.program, fixture.shell,),
+            crate::value_custody::recasts::literal_indexed_footprints::literal_indexed_recast_target_size(&fixture.program, fixture.shell,),
             Some(1)
         );
 
@@ -819,7 +822,7 @@ mod tests {
                 },
             );
             assert!(
-                super::super::direct_phantom_lifetime_record_symbol(
+                crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(
                     &fixture.program,
                     fixture.shell,
                 )
@@ -842,7 +845,7 @@ mod tests {
             },
         );
         assert!(
-            super::super::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
+            crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
                 .is_none()
         );
     }
@@ -895,7 +898,7 @@ mod tests {
             },
         );
         assert_eq!(
-            super::super::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,),
+            crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,),
             Some(fixture.instance_symbol)
         );
 
@@ -915,7 +918,7 @@ mod tests {
             },
         );
         assert!(
-            super::super::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
+            crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
                 .is_none()
         );
     }
@@ -931,7 +934,7 @@ mod tests {
             },
         );
         assert!(
-            super::super::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
+            crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
                 .is_none()
         );
 
@@ -964,7 +967,7 @@ mod tests {
         };
         field.type_reference = instance_type;
         assert!(
-            super::super::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
+            crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,)
                 .is_none()
         );
 
@@ -1000,12 +1003,12 @@ mod tests {
         };
         field.type_reference = zero_array;
         assert_eq!(
-            super::super::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,),
+            crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(&fixture.program, fixture.shell,),
             Some(fixture.instance_symbol)
         );
         assert!(shared_projection_type_representation(&fixture.program, fixture.shell).is_none());
         assert!(
-            super::super::literal_indexed_recast_target_size(&fixture.program, fixture.shell,)
+            crate::value_custody::recasts::literal_indexed_footprints::literal_indexed_recast_target_size(&fixture.program, fixture.shell,)
                 .is_none()
         );
     }
