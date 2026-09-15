@@ -1598,6 +1598,10 @@ mod tests {
             include_str!("os_handoff.rs"),
             include_str!("exit_boot_services.rs"),
             include_str!("get_memory_map.rs"),
+            include_str!("get_memory_map/memory_map_buffer.rs"),
+            include_str!("get_memory_map/provider_lifecycle.rs"),
+            include_str!("get_memory_map/invocation_planning.rs"),
+            include_str!("get_memory_map/execution.rs"),
         ] {
             let production = source
                 .split("#[cfg(test)]")
