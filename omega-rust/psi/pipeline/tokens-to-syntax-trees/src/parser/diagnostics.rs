@@ -1,5 +1,5 @@
-use crate::parse_error::ParseError;
 use crate::parser::input::Input;
+use crate::parser::parse_error::ParseError;
 use tokens::{CommentKind, KeywordKind, PunctuationKind, Token, TokenKind};
 
 pub(super) fn unexpected_eof<'tokens, 'source>(

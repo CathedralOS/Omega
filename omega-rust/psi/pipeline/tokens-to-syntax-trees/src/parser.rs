@@ -11,6 +11,7 @@ mod item;
 mod machine;
 mod measure;
 mod operator;
+pub mod parse_error;
 mod proof_fact;
 mod proposition;
 mod state;
@@ -20,7 +21,7 @@ mod transition;
 mod type_reference;
 mod use_item;
 
-use crate::parse_error::ParseError;
+use crate::parser::parse_error::ParseError;
 use file::parse_file;
 use input::Input;
 use source::SourceId;

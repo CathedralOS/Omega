@@ -494,7 +494,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
 
 fn outcome_case_path_followed_by_arrow(
     input: Input<'_, '_>,
-) -> Result<bool, crate::parse_error::ParseError> {
+) -> Result<bool, crate::parser::parse_error::ParseError> {
     if !input.at_name_like() {
         return Ok(false);
     }
@@ -511,7 +511,7 @@ fn outcome_case_path_followed_by_arrow(
 
 fn reject_ambiguous_outcome_specific_ensures(
     input: Input<'_, '_>,
-) -> Result<(), crate::parse_error::ParseError> {
+) -> Result<(), crate::parser::parse_error::ParseError> {
     let Ok((guard, arrow)) = input.split_at_top_level_punctuation(
         PunctuationKind::Arrow,
         "outcome-specific ensures requires an arrow",
@@ -686,7 +686,7 @@ pub(in crate::parser) fn parse_generic_conformance_bounds<'tokens, 'source>(
 
 fn take_invokes_clause_terminator<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+) -> Result<Input<'tokens, 'source>, crate::parser::parse_error::ParseError> {
     let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     if continues_after_operational_clause(after_semicolon) {
         Ok(after_semicolon)
@@ -699,7 +699,7 @@ fn take_invokes_clause_terminator<'tokens, 'source>(
 fn reject_retired_operational_reach(
     service: &Identifier,
     input: Input<'_, '_>,
-) -> Result<(), crate::parse_error::ParseError> {
+) -> Result<(), crate::parser::parse_error::ParseError> {
     let replacement = match service.as_str() {
         "Suspend" => "suspends;",
         "Block" => "blocks;",
@@ -716,7 +716,7 @@ fn reject_retired_operational_reach(
 fn take_operational_clause<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     name: &str,
-) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+) -> Result<Input<'tokens, 'source>, crate::parser::parse_error::ParseError> {
     let after_name = input.take_contextual(name)?;
     let after_semicolon = after_name.take_punctuation(PunctuationKind::Semicolon, ";")?;
     if continues_after_operational_clause(after_semicolon) {
@@ -1001,7 +1001,7 @@ pub(in crate::parser) fn parse_optional_satisfies_type_arguments<'tokens, 'sourc
         HandleSpan<syntax_trees::types::TypeReferenceHandle>,
         Input<'tokens, 'source>,
     ),
-    crate::parse_error::ParseError,
+    crate::parser::parse_error::ParseError,
 > {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((HandleSpan::empty(), input));

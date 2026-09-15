@@ -426,7 +426,7 @@ fn parse_trait_default_machine_body<'tokens, 'source>(
         HandleSpan<syntax_trees::statement::StatementHandle>,
         Input<'tokens, 'source>,
     ),
-    crate::parse_error::ParseError,
+    crate::parser::parse_error::ParseError,
 > {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut start = Handle::invalid();
@@ -494,7 +494,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         ),
         Input<'tokens, 'source>,
     ),
-    crate::parse_error::ParseError,
+    crate::parser::parse_error::ParseError,
 > {
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
@@ -845,7 +845,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
 fn take_invokes_signature_clause<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     allow_following_contract_clauses: bool,
-) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+) -> Result<Input<'tokens, 'source>, crate::parser::parse_error::ParseError> {
     let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
         || after_semicolon.at_contextual("reaches")
@@ -869,7 +869,7 @@ fn take_invokes_signature_clause<'tokens, 'source>(
 fn reject_retired_operational_reach(
     service: &Identifier,
     input: Input<'_, '_>,
-) -> Result<(), crate::parse_error::ParseError> {
+) -> Result<(), crate::parser::parse_error::ParseError> {
     let replacement = match service.as_str() {
         "Suspend" => "suspends;",
         "Block" => "blocks;",
@@ -887,7 +887,7 @@ fn take_operational_signature_clause<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     name: &str,
     allow_following_contract_clauses: bool,
-) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+) -> Result<Input<'tokens, 'source>, crate::parser::parse_error::ParseError> {
     let after_name = input.take_contextual(name)?;
     let after_semicolon = after_name.take_punctuation(PunctuationKind::Semicolon, ";")?;
     if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)

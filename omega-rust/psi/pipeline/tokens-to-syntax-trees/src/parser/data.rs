@@ -421,7 +421,7 @@ fn parse_data_members<'tokens, 'source>(
 fn validate_data_identity_modes(
     members: &[DataMember],
     input: Input<'_, '_>,
-) -> Result<(), crate::parse_error::ParseError> {
+) -> Result<(), crate::parser::parse_error::ParseError> {
     let fields: Vec<Option<u64>> = members
         .iter()
         .filter_map(|member| match member {
@@ -469,7 +469,7 @@ fn validate_identity_scope(
     identities: &[Option<u64>],
     retired: &[u64],
     input: Input<'_, '_>,
-) -> Result<(), crate::parse_error::ParseError> {
+) -> Result<(), crate::parser::parse_error::ParseError> {
     let numbered = identities
         .iter()
         .filter(|identity| identity.is_some())

@@ -1,6 +1,6 @@
-use crate::parse_error::ParseError;
 use crate::parser::context::ExpressionContext;
 use crate::parser::input::{Input, ParseResult};
+use crate::parser::parse_error::ParseError;
 use crate::parser::type_reference::parse_cast_target_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;

@@ -1,8 +1,8 @@
-use crate::parse_error::ParseError;
 use crate::parser::expression::{
     parse_argument_list_after_open_paren_handle, parse_expression_handle,
 };
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
+use crate::parser::parse_error::ParseError;
 use crate::parser::transition::guards::{
     DestructureBindings, rewrite_destructure_guard_expression,
 };

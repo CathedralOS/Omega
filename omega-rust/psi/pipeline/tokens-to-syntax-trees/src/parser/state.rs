@@ -436,7 +436,10 @@ pub(super) fn parse_state_parameter<'tokens, 'source>(
 fn parse_parameter_type_reference<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Result<(TypeReferenceHandle, bool, Input<'tokens, 'source>), crate::parse_error::ParseError> {
+) -> Result<
+    (TypeReferenceHandle, bool, Input<'tokens, 'source>),
+    crate::parser::parse_error::ParseError,
+> {
     if !input.at_punctuation(PunctuationKind::Ampersand) {
         let (type_reference, input) =
             parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;

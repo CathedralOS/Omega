@@ -1,7 +1,7 @@
-use crate::parse_error::ParseError;
 use crate::parser::diagnostics;
 use crate::parser::input::delimited::find_top_level_punctuation;
 use crate::parser::input::literals::{parse_integer_literal, validate_float_literal};
+use crate::parser::parse_error::ParseError;
 use arena::{Handle, HandleSpan};
 use numerics::literals::IntegerLiteral;
 use source::{SourceId, SourceSpan, SourceText, Span};
