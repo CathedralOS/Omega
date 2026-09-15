@@ -1,0 +1,503 @@
+use super::fixture_roster;
+use crate::{
+    CanaryCompileProduct, CanaryCompileSpec, compile_reviewed_repository_fixture,
+    compile_with_auxiliary_artifacts, fail_canary, fs, pass_canary, production_compile,
+    unique_no_output_build_dir,
+};
+use compiler::CheckedCompileRequest;
+
+#[test]
+fn explicit_program_entry_binding_owns_capability_manifest_identity() {
+    let canary = pass_canary(fixture_roster::BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING);
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-explicit-entry-manifest-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x86_64".into()),
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
+    })
+    .expect("explicit entry canary should emit audit artifacts");
+    let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
+        .expect("capability manifest should be written");
+
+    assert!(
+        manifest.contains("\"entry_machine\": \"launch\"")
+            && manifest.contains("\"entry_state\": \"entry\""),
+        "capability manifest must consume the exact Build-selected entry\n{manifest}"
+    );
+    let _ = fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn checked_compilation_retains_the_exact_selected_program_entry() {
+    let canary = pass_canary(fixture_roster::BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect("explicit entry canary should reach checked semantics");
+
+    assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+    let selected = checked
+        .selected_program_entry()
+        .expect("checked compilation must retain the complete selected entry");
+    assert_eq!(selected.source_signature().machine_name(), "launch");
+    assert!(
+        selected.calling_plans().is_none(),
+        "hosted ProgramEntry has no two-surface storage calling plan"
+    );
+    let outcome = checked_interpreter::interpret_entry(
+        &checked,
+        checked
+            .selected_program_entry_machine()
+            .expect("target build selected an exact entry"),
+        &[],
+    );
+    assert_eq!(outcome.error, None);
+}
+
+#[test]
+fn repeated_root_binding_execution_rejects() {
+    let canary = fail_canary(fixture_roster::BUILD_REPEATED_EVALUATED_ROOT_BINDING);
+    let diagnostics = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("windows_x86_64"),
+    ))
+    .expect_err("executing the same slot binding twice must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("already bound")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn evaluated_root_bindings_retain_the_executed_entry() {
+    for fixture in fixture_roster::BUILD_EVALUATED_ROOT_BINDINGS {
+        let canary = pass_canary(fixture);
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+            &canary.join("main.omg"),
+            Some("windows_x86_64"),
+        ))
+        .unwrap_or_else(|error| {
+            panic!("{fixture} must evaluate borrowed root authority: {error:?}")
+        });
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            Some("launch"),
+            "{fixture}"
+        );
+    }
+}
+
+#[test]
+fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
+    let canary = pass_canary(fixture_roster::BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("uefi_x86_64"),
+    ))
+    .expect("UEFI entry canary should retain its complete typed settlement");
+    let selected = checked
+        .selected_program_entry()
+        .expect("UEFI checked compilation must retain its selected entry");
+    let source = selected.source_signature();
+    let plans = selected
+        .calling_plans()
+        .expect("UEFI entry must retain semantic and physical calling plans");
+
+    assert_eq!(source.target_slot().owner, target::TargetProfile::UefiX64);
+    assert_eq!(source.machine_name(), "Boot::launch");
+    assert_eq!(source.visible_parameters().len(), 2);
+    assert_eq!(
+        source.visible_parameters()[0].role(),
+        program_entry_plan::ProgramStorageEntryRootRole::Image
+    );
+    assert_eq!(
+        source.visible_parameters()[1].role(),
+        program_entry_plan::ProgramStorageEntryRootRole::InitialStorage
+    );
+    let physical_contract = plans
+        .storage_entry
+        .physical_contract()
+        .expect("the retained semantic storage plan must keep its distinct physical contract");
+    assert_eq!(
+        physical_contract.requirement_identity(),
+        program_entry_plan::UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
+    );
+    assert_eq!(
+        physical_contract.parameter_type_identities(),
+        [
+            program_entry_plan::UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
+            program_entry_plan::UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
+        ],
+    );
+    assert_eq!(
+        physical_contract.result_type_identity(),
+        program_entry_plan::UEFI_X64_STATUS_TYPE_IDENTITY,
+    );
+    assert_eq!(
+        physical_contract.target_slot(),
+        target::TargetProfile::UefiX64.program_entry_slot(),
+    );
+    assert_eq!(
+        physical_contract.target_package(),
+        target::ProgramEntryPhysicalContractPackage::UefiX64,
+    );
+    let expected_physical_plan = program_entry_plan::exact_uefi_x64_physical_boundary_entry_plan();
+    assert_eq!(
+        physical_contract.boundary_entry_plan(),
+        expected_physical_plan.plan(),
+    );
+    assert_eq!(
+        physical_contract.calling_plan_report_fingerprint(),
+        expected_physical_plan.contract_report_fingerprint(),
+    );
+    assert!(
+        physical_contract.matches_exact_uefi_x64_physical_contract(),
+        "build evaluation must produce the exact canonical normalized UEFI physical contract: {physical_contract:#?}"
+    );
+    assert_eq!(
+        plans
+            .semantic_calling_application
+            .boundary_entry_plan
+            .call
+            .policy,
+        calling_conventions::CallingPolicy::MicrosoftX64
+    );
+    native_realization::NativeProgramEntrySettlement::new(
+        source,
+        Some((
+            &plans.semantic_calling_application,
+            &plans.physical_calling_application,
+            &plans.storage_entry,
+        )),
+        selected.fused_service_establishments(),
+    )
+    .validate_for_target(target::NativeTarget::uefi_x64())
+    .expect("native settlement must replay the actual authored two-surface applications");
+
+    let rejects =
+        |semantic: &provider_planning::calling_policy_plans::BoundaryCallingPlanRealization,
+         physical: &provider_planning::calling_policy_plans::BoundaryCallingPlanRealization,
+         storage: &program_entry_plan::SelectedProgramStorageEntryPlan| {
+            assert!(
+                native_realization::NativeProgramEntrySettlement::new(
+                    source,
+                    Some((semantic, physical, storage)),
+                    selected.fused_service_establishments(),
+                )
+                .validate_for_target(target::NativeTarget::uefi_x64())
+                .is_err()
+            );
+        };
+    let semantic = &plans.semantic_calling_application;
+    let physical = &plans.physical_calling_application;
+    rejects(physical, semantic, &plans.storage_entry);
+    rejects(semantic, semantic, &plans.storage_entry);
+    assert!(
+        native_realization::NativeProgramEntrySettlement::new(source, None, &[])
+            .validate_for_target(target::NativeTarget::uefi_x64())
+            .is_err()
+    );
+
+    for physical_role in [false, true] {
+        let original = if physical_role { physical } else { semantic };
+        let mut wrong_report = original.clone();
+        wrong_report.report_fingerprint ^= 1;
+        let mut raw_plan_identity = original.clone();
+        let plan = raw_plan_identity.replayed_validated_plan().unwrap();
+        raw_plan_identity.commitment =
+            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                plan.contract_commitment_digest(),
+            );
+        for changed in [&wrong_report, &raw_plan_identity] {
+            if physical_role {
+                rejects(semantic, changed, &plans.storage_entry);
+            } else {
+                rejects(changed, physical, &plans.storage_entry);
+            }
+        }
+    }
+
+    // Recompute even the public application digest and schema row after a
+    // structurally valid placement change. The sealed authored plan must still
+    // reject it; self-consistent public metadata is not source custody.
+    let mut moved = semantic.clone();
+    moved.boundary_entry_plan.call.parameters.swap(0, 1);
+    let (_, report, commitment) = moved
+        .replayed_validated_application()
+        .expect("swapped equal-size parameters still form a structurally valid ABI plan");
+    moved.report_fingerprint = report;
+    moved.commitment = commitment;
+    let mut schema = plans.storage_entry.schema().clone();
+    let method = schema
+        .methods
+        .iter_mut()
+        .find(|method| method.requirement_identity == plans.storage_entry.requirement_identity())
+        .unwrap();
+    method.calling_plan_report_fingerprint = Some(report);
+    method.calling_plan_commitment = Some(commitment);
+    let forged_storage = program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
+        source.target_slot(),
+        schema,
+        plans.storage_entry.requirement_identity().to_owned(),
+    )
+    .unwrap()
+    .with_physical_contract(physical_contract.clone())
+    .unwrap();
+    rejects(&moved, physical, &forged_storage);
+
+    let mut missing_physical = plans.storage_entry.schema().clone();
+    missing_physical
+        .methods
+        .retain(|method| method.requirement_owner != "UefiPhysicalEntry");
+    let missing_physical = program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
+        source.target_slot(),
+        missing_physical,
+        plans.storage_entry.requirement_identity().to_owned(),
+    )
+    .unwrap()
+    .with_physical_contract(physical_contract.clone())
+    .unwrap();
+    rejects(semantic, physical, &missing_physical);
+}
+
+#[test]
+fn checked_uefi_os_handoff_invocation_retains_edge_binding() {
+    let canary = pass_canary(fixture_roster::BUILD_UEFI_OS_HANDOFF_INVOCATION);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("uefi_x86_64"),
+    ))
+    .expect("UEFI OS-handoff invocation canary should compile");
+    assert_eq!(
+        checked.selected_program_entry_machine(),
+        Some("Loader::run")
+    );
+
+    let machine_path = |symbol| checked.typed.symbols.display_path(symbol, "::").to_owned();
+    let loader_entry = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine_path(machine.symbol) == "Loader::run")
+        .expect("the loader entry machine must be retained");
+
+    // The selected loader entry reaches and invokes the target-owned
+    // nonreturning handoff surface, naming the exact `UefiOsHandoff` service.
+    let handoff_invocation = checked
+        .typed
+        .machine_invokes(loader_entry)
+        .iter()
+        .find(|invocation| invocation.as_str() == "UefiOsHandoff")
+        .expect("Loader::run must invoke the UefiOsHandoff boundary");
+    let typed_trees::signature::AuthoredInvocationTarget::Service(service) =
+        handoff_invocation.target
+    else {
+        panic!("the handoff invocation must target a boundary service");
+    };
+    assert_eq!(machine_path(service), "UefiOsHandoff");
+
+    // The target package's boundary realization supplies the requirement: the
+    // native provider's `handoff` boundary machine satisfies
+    // `UefiOsHandoff::handoff`, the authored route for the custody edge.
+    let provider_handoff = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine_path(machine.symbol) == "UefiOsHandoffNativeProvider::handoff")
+        .expect("the target's handoff realization must be retained");
+    let conformance = checked
+        .typed
+        .machine_trait_conformances(provider_handoff)
+        .iter()
+        .find(|conformance| conformance.requirement.as_deref() == Some("handoff"))
+        .expect("the provider realization must satisfy the handoff requirement");
+    assert_eq!(
+        machine_path(conformance.requirement_symbol),
+        "UefiOsHandoff::handoff"
+    );
+}
+
+#[test]
+fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("direct Main entry canary should reach checked semantics");
+
+    assert_eq!(checked.selected_program_entry_machine(), None);
+    let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn production_compile_rejects_an_unrooted_legacy_entry() {
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
+    let scratch = unique_no_output_build_dir();
+    let source_dir = scratch.join("source");
+    let build_dir = scratch.join("output");
+    fs::create_dir_all(&source_dir).expect("create entry-agnostic source directory");
+    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+        .expect("copy source without its entry-selecting build companion");
+    let diagnostics = production_compile(CanaryCompileSpec {
+        root_path: source_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
+    })
+    .expect_err("production compilation must not discover `Main::main` by name");
+    let _ = fs::remove_dir_all(scratch);
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("no runtime entry point was selected")),
+        "missing ProgramEntry selection should fail explicitly: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn production_check_accepts_entry_agnostic_semantic_corpus() {
+    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
+    let scratch = unique_no_output_build_dir();
+    let source_dir = scratch.join("source");
+    let build_dir = scratch.join("output");
+    fs::create_dir_all(&source_dir).expect("create entry-agnostic source directory");
+    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+        .expect("copy source without its entry-selecting build companion");
+    let report = production_compile(CanaryCompileSpec {
+        root_path: source_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        product: CanaryCompileProduct::Check,
+    })
+    .expect("check-only compilation must not require or infer a runtime entry");
+
+    assert!(!report.wrote_output());
+    assert!(build_dir.join("04_typed_trees.json").is_file());
+    assert!(build_dir.join("05_machine_contracts.json").is_file());
+    let _ = fs::remove_dir_all(scratch);
+}
+
+#[test]
+fn migrated_main_entries_are_selected_only_through_their_target_root_bindings() {
+    for &(canary_name, target) in fixture_roster::MIGRATED_ENTRY_PASS_CANARIES {
+        let canary = pass_canary(canary_name);
+        let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&canary.join("main.omg"), Some(target)))
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "{canary_name} should retain its explicit {target} ProgramEntry binding: {diagnostics:?}"
+                )
+            });
+
+        assert_eq!(
+            checked.selected_program_entry_machine(),
+            Some("Main::main"),
+            "{canary_name} must select Main::main through its target-owned ProgramEntry slot"
+        );
+    }
+}
+
+#[test]
+fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
+    let canary = pass_canary(fixture_roster::INLINE_ASM_ASM_FENCES_COMPILE);
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-final-asm-evidence-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x86_64".into()),
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
+    })
+    .expect("fixed checked assembly should cross-compile with final-byte evidence");
+
+    let executable_regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
+        .expect("final executable-region inventory should be written");
+    assert!(
+        executable_regions.contains("\"checked_instruction_validation_count\": 3")
+            && executable_regions
+                .contains("\"checked_instruction_validation_report_fingerprint\": \"0x")
+            && executable_regions
+                .contains("\"checked_instruction_footprint_report_fingerprint\": \"0x")
+            && executable_regions.contains("\"catalog_checked_assembly\"")
+            && executable_regions.contains("\"enumeration_complete\": true")
+            && executable_regions.contains("\"missing_classes\": []"),
+        "final image evidence should cover all three fixed fence instructions with complete body validation:\n{executable_regions}"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn immediate_port_io_is_bound_in_final_image_validation() {
+    let canary = pass_canary(fixture_roster::INLINE_ASM_ASM_PORT_OUT_FINAL_VALIDATION);
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-final-port-evidence-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x86_64".into()),
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
+    })
+    .expect("immediate-port checked assembly should emit final-byte evidence");
+
+    let executable_regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
+        .expect("final executable-region inventory should be written");
+    assert!(
+        executable_regions.contains("\"checked_instruction_validation_count\": 1")
+            && executable_regions
+                .contains("\"checked_instruction_validation_report_fingerprint\": \"0x")
+            && executable_regions
+                .contains("\"checked_instruction_footprint_report_fingerprint\": \"0x"),
+        "final image evidence should bind the immediate port instruction:\n{executable_regions}"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
+    for &(canary_name, expected_count) in fixture_roster::MACHINE_CONTROL_PASS_CANARIES {
+        let canary = pass_canary(canary_name);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-final-machine-control-evidence-{}-{}",
+            std::process::id(),
+            expected_count
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some("linux_x86_64".into()),
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
+        })
+        .expect("structured machine-control assembly should emit final-byte evidence");
+
+        let executable_regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
+            .expect("final executable-region inventory should be written");
+        assert!(
+            executable_regions.contains(&format!(
+                "\"checked_instruction_validation_count\": {expected_count}"
+            )),
+            "{canary_name} should publish evidence for every structured machine-control instruction:\n{executable_regions}"
+        );
+
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
