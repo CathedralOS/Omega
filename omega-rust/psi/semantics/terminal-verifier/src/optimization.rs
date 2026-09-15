@@ -672,9 +672,11 @@ pub enum SparseConditionalConstantPropagationRewriteError {
 /// every value identity are unchanged. Ranked machines carry ranking evidence
 /// over execution positions and pass through unchanged.
 ///
-/// A `before` module carrying reconstructed proof obligations admits only the
-/// identity: the complete closure stays frozen until proof-context transport
-/// is implemented, so any machine change there is a rewrite error.
+/// A `before` module carrying reconstructed proof obligations admits only a
+/// rewrite the question carries verbatim: the unchanged-question check above
+/// is the refusal boundary, so a fold that leaves the question intact is
+/// checked by the same fold relation while a fold that perturbs it fails
+/// `ChangedProofQuestion` until proof-context transport is implemented.
 pub fn validate_sparse_conditional_constant_propagation(
     before: &TerminalModule,
     after: &TerminalModule,
@@ -693,17 +695,6 @@ pub fn validate_sparse_conditional_constant_propagation(
         .map_err(RewriteError::InvalidModule)?;
     if old_question != new_question {
         return Err(RewriteError::ChangedProofQuestion);
-    }
-    if !old_question.obligations().is_empty() {
-        for (old, new) in before.machines.iter().zip(&after.machines) {
-            if old != new {
-                return Err(RewriteError::ChangedMachine(old.id));
-            }
-        }
-        if before != after {
-            return Err(RewriteError::ChangedProgramStructure);
-        }
-        return Ok(());
     }
     let mut expected = before.clone();
     for ((old, new), expected_machine) in before
@@ -877,10 +868,13 @@ pub enum ControlFlowCleanupRewriteError {
 /// projection carriers name. Removing any such row would leave evidence
 /// pointing at structure the module no longer contains.
 ///
-/// A `before` module carrying reconstructed proof obligations admits only the
-/// identity: the complete closure stays frozen until proof-context transport
-/// is implemented. Ranked machines carry ranking evidence over exact control
-/// positions and pass through unchanged.
+/// A `before` module carrying reconstructed proof obligations admits only a
+/// rewrite the question carries verbatim: the unchanged-question check above
+/// is the refusal boundary, so a fold that leaves the question intact is
+/// checked by the same cleanup relation while a fold that perturbs it fails
+/// `ChangedProofQuestion` until proof-context transport is implemented.
+/// Ranked machines carry ranking evidence over exact control positions and
+/// pass through unchanged.
 pub fn validate_control_flow_cleanup(
     before: &TerminalModule,
     after: &TerminalModule,
@@ -899,17 +893,6 @@ pub fn validate_control_flow_cleanup(
         .map_err(RewriteError::InvalidModule)?;
     if old_question != new_question {
         return Err(RewriteError::ChangedProofQuestion);
-    }
-    if !old_question.obligations().is_empty() {
-        for (old, new) in before.machines.iter().zip(&after.machines) {
-            if old != new {
-                return Err(RewriteError::ChangedMachine(old.id));
-            }
-        }
-        if before != after {
-            return Err(RewriteError::ChangedProgramStructure);
-        }
-        return Ok(());
     }
     let evidence = block_local_evidence(before);
     for (old, new) in before.machines.iter().zip(&after.machines) {
@@ -933,10 +916,10 @@ pub fn validate_control_flow_cleanup(
         let mut literals = BTreeMap::new();
         for block in &old.blocks {
             for operation in &block.operations {
-                if let terminal_psi::OperationKind::BooleanConstant { value } = &operation.kind {
-                    if let Some(result) = operation.result.scalar() {
-                        literals.insert(result.id, *value);
-                    }
+                if let terminal_psi::OperationKind::BooleanConstant { value } = &operation.kind
+                    && let Some(result) = operation.result.scalar()
+                {
+                    literals.insert(result.id, *value);
                 }
             }
         }

@@ -8,13 +8,16 @@
 //! evidence still names — or would orphan a machine-level structural place
 //! declaration — is never removed, so its conditional stays unfolded.
 //!
-//! Proof-bearing closures stay frozen until proof-context transport is
-//! implemented, ranked machines keep their execution-position evidence, and
-//! the retained-value contract matches the sibling rules: proposition,
-//! coercion, invariant, suspension, dispatch, call-evidence, and projection
-//! carriers pin the exact block-local identities they name. The unsealed
-//! sidecars pin theirs too: a recorded source-call or selected-IEEE join keeps
-//! its named operation and captured scalar environment reachable.
+//! Inside a proof-bearing module a rewrite survives only while the
+//! reconstructed proof question is unchanged: a fold the question cannot
+//! carry verbatim refuses, leaving the complete closure as authored until
+//! proof-context transport lets the question move with the rewrite. Ranked
+//! machines keep their execution-position evidence, and the retained-value
+//! contract matches the sibling rules: proposition, coercion, invariant,
+//! suspension, dispatch, call-evidence, and projection carriers pin the exact
+//! block-local identities they name. The unsealed sidecars pin theirs too: a
+//! recorded source-call or selected-IEEE join keeps its named operation and
+//! captured scalar environment reachable.
 //!
 //! The scan proposes folds; the independent verifier re-derives each removed
 //! block's unreachability under the performed folds and checks the exact
@@ -36,34 +39,51 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
         .map_err(PsiOptimizationStageError::InvalidModule)?;
     let questions = reconstruct_optimizable_terminal_obligations(validated)
         .map_err(PsiOptimizationStageError::InvalidModule)?;
-    let mut after = before.clone();
     // Call composition can include a callee's axioms in another machine's
-    // obligation. Protect the complete closure, not just the obligation owner.
-    if questions.obligations().is_empty() {
-        // Checked-source joins are unsealed sidecars the module-level evidence
-        // inventory cannot see: an occurrence keeps its Terminal operation and
-        // captured scalar environment live while both representations exist.
-        let mut sidecar_operations = BTreeSet::new();
-        let mut sidecar_values = BTreeSet::new();
-        for occurrence in &before.source_call_occurrences {
-            sidecar_operations.insert(occurrence.terminal_operation);
-            for declaration in &occurrence.source_values_before_call {
-                sidecar_values.insert(declaration.id);
-            }
-        }
-        for occurrence in &before.selected_ieee_float_comparison_occurrences {
-            sidecar_operations.insert(occurrence.terminal_operation);
-        }
-        for occurrence in &before.selected_ieee_float_fma_occurrences {
-            sidecar_operations.insert(occurrence.terminal_operation);
-        }
-        let evidence = terminal_verifier::block_local_evidence(&before.semantic_module);
-        for machine in &mut after.semantic_module.machines {
-            cleanup::cleanup(machine, &evidence, &sidecar_operations, &sidecar_values);
+    // obligation: the verifier's reconstructed-question check is the refusal
+    // boundary for the complete closure, not just the obligation owner.
+    let proof_bearing = !questions.obligations().is_empty();
+    let mut after = before.clone();
+    // Checked-source joins are unsealed sidecars the module-level evidence
+    // inventory cannot see: an occurrence keeps its Terminal operation and
+    // captured scalar environment live while both representations exist.
+    let mut sidecar_operations = BTreeSet::new();
+    let mut sidecar_values = BTreeSet::new();
+    for occurrence in &before.source_call_occurrences {
+        sidecar_operations.insert(occurrence.terminal_operation);
+        for declaration in &occurrence.source_values_before_call {
+            sidecar_values.insert(declaration.id);
         }
     }
-    validate_control_flow_cleanup(&before.semantic_module, &after.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidControlFlowCleanupRewrite)?;
+    for occurrence in &before.selected_ieee_float_comparison_occurrences {
+        sidecar_operations.insert(occurrence.terminal_operation);
+    }
+    for occurrence in &before.selected_ieee_float_fma_occurrences {
+        sidecar_operations.insert(occurrence.terminal_operation);
+    }
+    let evidence = terminal_verifier::block_local_evidence(&before.semantic_module);
+    for machine in &mut after.semantic_module.machines {
+        cleanup::cleanup(machine, &evidence, &sidecar_operations, &sidecar_values);
+    }
+    if let Err(error) =
+        validate_control_flow_cleanup(&before.semantic_module, &after.semantic_module)
+    {
+        // Without proof-context transport a proof-bearing input keeps only a
+        // rewrite the reconstructed question survives unchanged; a refused
+        // rewrite leaves the module as authored.
+        if proof_bearing
+            && matches!(
+                error,
+                terminal_verifier::ControlFlowCleanupRewriteError::InvalidModule(_)
+                    | terminal_verifier::ControlFlowCleanupRewriteError::ChangedProofQuestion
+            )
+        {
+            return Ok(before);
+        }
+        return Err(PsiOptimizationStageError::InvalidControlFlowCleanupRewrite(
+            error,
+        ));
+    }
     if let Some(debug) = after.debug_map.as_mut() {
         let surviving_blocks = after
             .semantic_module
