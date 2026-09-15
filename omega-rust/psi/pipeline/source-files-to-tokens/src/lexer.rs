@@ -6,6 +6,7 @@ use crate::lexer::strings::decode_string_literal;
 use source::Span;
 use tokens::{CommentKind, KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText};
 
+pub mod lex_error;
 mod numbers;
 mod strings;
 

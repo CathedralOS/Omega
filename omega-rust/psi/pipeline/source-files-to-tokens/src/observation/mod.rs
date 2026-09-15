@@ -7,7 +7,7 @@ use tokens::{
     CommentKind, KeywordKind, NumericBase, NumericLiteralKind, PunctuationKind, Token, TokenKind,
 };
 
-use crate::lex_error::OUTSIDE_LEXICAL_PROFILE_MESSAGE;
+use crate::lexer::lex_error::OUTSIDE_LEXICAL_PROFILE_MESSAGE;
 use crate::{LexError, Lexer};
 
 pub const MAGIC: &[u8; 8] = b"OMGLEX1\0";
