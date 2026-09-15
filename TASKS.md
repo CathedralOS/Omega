@@ -2334,13 +2334,24 @@ Owners include
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
   [filesystem control/lifecycle policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
-  Acceptance: remaining requirements have justified dispositions; every
-  admitted leaf has one exact mechanism/contract row; unknowns and duplicates
-  reject; exercised classes fit independently supplied service permissions.
-  Explicit empties retain service reach and exact review identity. Retire the
-  transitional broad `Filesystem` summary only after exact replacement closes.
-  Generic close need not be supported to admit a separately proved constrained
-  occurrence; do not fabricate a broad union to complete the table.
+  Acceptance: every admitted leaf has one exact mechanism/contract row;
+  unknowns and duplicates reject; exercised classes fit independently
+  supplied service permissions. Explicit empties retain service reach and
+  exact review identity. Retire the transitional broad `Filesystem` summary
+  only after exact replacement closes. Generic close need not be supported
+  to admit a separately proved constrained occurrence; do not fabricate a
+  broad union to complete the table. Slice landed at 2212af0bb4 on Linux
+  x86-64: the three ordinary-release cohorts emit one evidence-bound
+  explicit-empty mechanism row for the direct-syscall mechanism carrying a
+  retained `FilesystemOrdinaryReleaseContract` in its checked
+  argument-contract coordinate, and the review admits one constrained close
+  leaf with empty exercised and permitted classes while the unconstrained
+  sibling under the same syscall number stays unclassified. Remaining: a
+  normalized foreign release mechanism has no occurrence contract
+  coordinate, so a constrained `close_handle`/`find_close` import
+  occurrence cannot earn its row; that slot needs a mechanism-identity
+  extension outside this seam before the broad `Filesystem` summary can
+  retire.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Implement bounded occurrence-specific
   open/query/close evidence through checked flow and native realization replay.
