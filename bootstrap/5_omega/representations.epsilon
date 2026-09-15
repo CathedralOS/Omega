@@ -40,10 +40,41 @@ data OmegaUtf8Validation {
 // bind a package/source identity, or authorize source parsing.
 data OmegaRequestEnvelope {
     complete: i32;
+    // First missing, incorrect, or trailing request byte under the contract's
+    // validation order; meaningful only when complete is 0.
+    error_offset: i32;
     subject_start: i32;
     subject_end: i32;
     invocation_start: i32;
     invocation_end: i32;
+}
+
+// The OCREQ V1 inner field/tag structure pass over a completely framed
+// envelope (wiki/spec/build/compiler_request.md): each section's positional
+// fields, table counts, variant tags, and exact end. This is the phase-2/6
+// shape check only; package-key recomputation, ordering, graph, snapshot,
+// admission, and commitment semantics remain their assigned phases. The
+// retained scalars keep the decoded top-level summary for those phases.
+data OmegaRequestStructure {
+    envelope: OmegaRequestEnvelope;
+    cursor: i32;
+    section_end: i32;
+    complete: i32;
+    malformed_offset: i32;
+    outcome_tag: i32;
+    outcome_space: i32;
+    outcome_code: i32;
+    outcome_coordinate: i32;
+    outcome_limit: i32;
+    outcome_requested: i32;
+    package_count: i32;
+    edge_count: i32;
+    root_package: i32;
+    root_role: i32;
+    product: i32;
+    target_start: i32;
+    target_end: i32;
+    admission_count: i32;
 }
 
 data OmegaNumericBase {

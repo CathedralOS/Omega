@@ -17,10 +17,10 @@
 # bytes being materialized are the bound ones; it is not a proof that D
 # implements Omega. Changing a member or the manifest invalidates the
 # dependent evidence and must update every record.
-OMEGA_COMPILER_MANIFEST_SIZE=1336
-OMEGA_COMPILER_MANIFEST_SHA256=726d98ed8e4f6cf318ed181d84d6c357ae5c6bccbd0ccf67782fd0e0951eec13
-OMEGA_COMPILER_PACKED_SIZE=489323
-OMEGA_COMPILER_PACKED_SHA256=d299c0f4e99d0f3ddfb5bce85a42eaba3b551bb0284cf1c67298dfc706fd3656
+OMEGA_COMPILER_MANIFEST_SIZE=1337
+OMEGA_COMPILER_MANIFEST_SHA256=d92552781e2e3eec70f8c5b47ec9349debb08aacaec779574cfe6b22cb7b8263
+OMEGA_COMPILER_PACKED_SIZE=506705
+OMEGA_COMPILER_PACKED_SHA256=f49913f8b9074c4d3aa1b023675c474740793b50b40849431c49423a21271037
 
 # require_omega_compiler_identity : the canonical manifest is the bound file
 # and repacking it reproduces exactly the bound D closure. Every

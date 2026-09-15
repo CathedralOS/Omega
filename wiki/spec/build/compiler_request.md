@@ -6,10 +6,10 @@ algorithms need not match. Rust compiler objects are not a wire specification.
 
 **Incomplete physical specification:** the outer framing, semantic contents,
 commitment preimage, validation order, publication rules, outcome frame
-layout, coordinate spaces, diagnostic phases, and scalar-resource table below
-are settled. The OCREQ subject and invocation field/tag tables and the
-per-diagnostic `Reject` code inventory still need assignment and implementation
-under OMEGA-D/OMEGA-C in the
+layout, coordinate spaces, diagnostic phases, scalar-resource table, and the
+subject/invocation field/tag tables below are settled. The per-diagnostic
+`Reject` code inventory still needs assignment, and the semantic phases over
+the decoded fields still need implementation, under OMEGA-D/OMEGA-C in the
 [bootstrap board](../../../TASKS_BOOTSTRAP.md#p4---epsilon-to-omega-and-self-hosting).
 Neither implementation may claim a complete interoperable V1 boundary yet.
 
@@ -80,6 +80,86 @@ never dereferences it. Ambient environment, clocks, randomness, network state,
 or a prior build-operation trace cannot replace snapshot facts. BuildOutput
 starts as a fresh activation-local tree; any later replay record describes that
 execution, not the complete input filesystem.
+
+### Subject field/tag table
+
+The subject section is one positional field sequence; there are no skipped or
+self-delimiting fields. Every `u32` is little-endian and at most `INT32_MAX`.
+Every `bytes` field is a `u32` length followed by that many bytes. Every table
+is a `u32` count followed by that many rows in the order its rule assigns.
+The section layout is:
+
+| Order | Field | Encoding |
+| --- | --- | --- |
+| 1 | `packages` | `u32` count, then that many package rows |
+| 2 | `edges` | `u32` count, then that many dependency edge rows |
+| 3 | `root_package` | `u32` index into the package table |
+| 4 | `root_role` | `u32` tag: 1 `package`, 2 `application` |
+
+The selected root is a package index plus its role because roots and entry
+selection are derived by admitted build execution, not supplied by the
+request. The explicit root role must agree with the root row's declared
+`role` field; a workspace is never a root role.
+
+Each package row is, in order:
+
+| Order | Field | Encoding |
+| --- | --- | --- |
+| 1 | `name` | `bytes`, the declared package name |
+| 2 | `lineage_kind` | `u32` tag: 1 `external_local`, 2 `git` |
+| 3 | `lineage` | `bytes`, canonical lineage identity text |
+| 4 | `revision` | `bytes`, exact selected revision resolution |
+| 5 | `tree` | `bytes`, exact tree resolution |
+| 6 | `content` | `bytes`, exact content resolution |
+| 7 | `member` | `bytes`, member projection path; empty selects the repository root |
+| 8 | `role` | `u32` tag: 1 `package`, 2 `application`; the row's declared role |
+| 9 | `snapshot` | `u32` count, then that many snapshot rows |
+
+The name, lineage, and resolutions supply the structural fields the
+`PackageKeyIdentity` recomputation and ordering rules consume. Resolution and
+lineage payloads are opaque custody text to the compiler; their
+canonicalization is acquisition-owned.
+
+Each snapshot row is, in order:
+
+| Order | Field | Encoding |
+| --- | --- | --- |
+| 1 | `kind` | `u32` tag: 1 `directory`, 2 `regular_file`, 3 `symbolic_link` |
+| 2 | `path` | `bytes`, the row's raw path |
+| 3 | payload | `directory`: none; `regular_file`: `u32` `executable` tag (0 or 1) then `bytes` content; `symbolic_link`: `bytes` target |
+
+Each edge row is, in order:
+
+| Order | Field | Encoding |
+| --- | --- | --- |
+| 1 | `requester` | `u32` index into the package table |
+| 2 | `scope` | `u32` tag: 1 `product`, 2 `build` |
+| 3 | `alias` | `bytes`, the requester-local alias spelling |
+| 4 | `target` | `u32` index into the package table |
+
+Edge rows are ordered by requester index, then local alias, then scope.
+
+### Invocation field/tag table
+
+The invocation section is likewise one positional field sequence:
+
+| Order | Field | Encoding |
+| --- | --- | --- |
+| 1 | `product` | `u32` tag: 1 `check`, 2 `terminal_artifact`, 3 `native_artifact`, 4 `alpha_bootstrap_tape` |
+| 2 | `target_profile` | `bytes`, the canonical target profile name |
+| 3 | `admissions` | `u32` count, then that many admission rows |
+| 4 | `subject_commitment` | exactly 32 bytes, the binding below |
+
+Each admission row is a `u32` `kind` tag then `bytes` `data`. No admission
+kind is assigned yet, so a canonical V1 request's admission table is empty
+until this contract gains entries; a present row's unassigned kind rejects at
+phase 6 like every other unassigned tag.
+
+Field/tag shape checking is phases 2 and 6: extents, counts, `u32` bounds,
+variant/tag membership, and the exact section end. Content rules — name and
+alias grammar, package-key recomputation and strict ordering, graph checks,
+snapshot row semantics, admission checks, and the commitment binding — remain
+in their assigned phases.
 
 The invocation's 32-byte subject commitment is:
 

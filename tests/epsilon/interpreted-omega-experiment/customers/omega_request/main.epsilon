@@ -1,65 +1,272 @@
 boundary trait Console {
-  machine exit_process(return_code: i32) -> never;
-  machine write_byte(value: i32);
-  machine read_byte() -> i32;
-  machine write_line(text: &[u8]);
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
 }
 
 data Main {
-  console: Console;
-  envelope: OmegaRequestEnvelope;
-  validation: OmegaUtf8Validation;
-  request: [u8; 18];
+    console: Console;
+    envelope: OmegaRequestEnvelope;
+    validation: OmegaUtf8Validation;
+    structure: OmegaRequestStructure;
+    request: [u8; 18];
+    buffer: [u8; 512];
+    cursor: i32;
+    subject_at: i32;
+    invocation_at: i32;
+    end_at: i32;
+    lineage_kind_at: i32;
+    package_role_at: i32;
+    snapshot_kind_at: i32;
+    edge_scope_at: i32;
+    root_role_at: i32;
+    product_at: i32;
+    admission_count_at: i32;
+    commitment_at: i32;
+}
+
+machine Main::put_u32(&mut self, value: i32) {
+    self.buffer[self.cursor] = value & 255;
+    self.buffer[self.cursor + 1] = (value >> 8) & 255;
+    self.buffer[self.cursor + 2] = (value >> 16) & 255;
+    self.buffer[self.cursor + 3] = (value >> 24) & 255;
+    self.cursor = self.cursor + 4;
+    return;
+}
+
+machine Main::poke_u32(&mut self, offset: i32, value: i32) {
+    self.buffer[offset] = value & 255;
+    self.buffer[offset + 1] = (value >> 8) & 255;
+    self.buffer[offset + 2] = (value >> 16) & 255;
+    self.buffer[offset + 3] = (value >> 24) & 255;
+    return;
+}
+
+machine Main::put_raw(&mut self, text: &[u8]) {
+    transition true { true -> byte(0) }
+
+    state byte(index: i32) {
+        transition index < text.len {
+            true -> write(index)
+            _ -> return
+        }
+    }
+
+    state write(index: i32) {
+        self.buffer[self.cursor] = text[index];
+        self.cursor = self.cursor + 1;
+        transition true { true -> byte(index + 1) }
+    }
+}
+
+machine Main::put_bytes(&mut self, text: &[u8]) {
+    self.put_u32(text.len);
+    self.put_raw(text);
+    return;
+}
+
+// A canonical two-package request: one external-local package root with a
+// three-row snapshot covering all assigned kinds, one git application member,
+// and an alpha_bootstrap_tape invocation with an empty admission table and a
+// 32-byte commitment. The refusal vectors mutate single fields of this one
+// built request and restore them afterward; the whole-request rebuild cost
+// is paid once so the customer stays inside the observation watchdog.
+machine Main::build_request(&mut self) {
+    self.cursor = 0;
+    self.put_raw("OCREQ\x01\x00\x00");
+    self.put_u32(0);
+    self.put_u32(0);
+    self.subject_at = self.cursor;
+    self.put_u32(2);
+    self.put_bytes("a");
+    self.lineage_kind_at = self.cursor;
+    self.put_u32(1);
+    self.put_bytes("l");
+    self.put_bytes("r");
+    self.put_bytes("t");
+    self.put_bytes("c");
+    self.put_bytes("");
+    self.package_role_at = self.cursor;
+    self.put_u32(1);
+    self.put_u32(3);
+    self.put_u32(1);
+    self.put_bytes("d");
+    self.snapshot_kind_at = self.cursor;
+    self.put_u32(2);
+    self.put_bytes("f");
+    self.put_u32(0);
+    self.put_bytes("x");
+    self.put_u32(3);
+    self.put_bytes("s");
+    self.put_bytes("t");
+    self.put_bytes("b");
+    self.put_u32(2);
+    self.put_bytes("g:b");
+    self.put_bytes("r");
+    self.put_bytes("t");
+    self.put_bytes("c");
+    self.put_bytes("m");
+    self.put_u32(2);
+    self.put_u32(0);
+    self.put_u32(1);
+    self.put_u32(0);
+    self.edge_scope_at = self.cursor;
+    self.put_u32(1);
+    self.put_bytes("d");
+    self.put_u32(1);
+    self.put_u32(0);
+    self.root_role_at = self.cursor;
+    self.put_u32(1);
+    self.invocation_at = self.cursor;
+    self.product_at = self.cursor;
+    self.put_u32(4);
+    self.put_bytes("alpha_bootstrap");
+    self.admission_count_at = self.cursor;
+    self.put_u32(0);
+    self.commitment_at = self.cursor;
+    self.put_raw("\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA");
+    self.end_at = self.cursor;
+    self.poke_u32(8, self.invocation_at - self.subject_at);
+    self.poke_u32(12, self.end_at - self.invocation_at);
+    return;
+}
+
+machine Main::expect_refusal(&mut self, coordinate: i32) {
+    transition self.structure.complete {
+        1 -> self.console.exit_process(10)
+        _ -> verify()
+    }
+
+    state verify() {
+        assert self.structure.outcome_tag == 1;
+        assert self.structure.outcome_space == 1;
+        assert self.structure.outcome_code == 1;
+        assert self.structure.outcome_coordinate == coordinate;
+        assert self.structure.outcome_limit == 0;
+        assert self.structure.outcome_requested == 0;
+        return;
+    }
 }
 
 machine Main::main(&mut self) {
-  self.envelope.frame_ocreq("OCREQ\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
-  assert self.envelope.complete == 1;
-  assert self.envelope.subject_start == 16;
-  assert self.envelope.subject_end == 16;
-  assert self.envelope.invocation_start == 16;
-  assert self.envelope.invocation_end == 16;
-  self.request[0] = 79;
-  self.request[1] = 67;
-  self.request[2] = 82;
-  self.request[3] = 69;
-  self.request[4] = 81;
-  self.request[5] = 1;
-  self.request[8] = 1;
-  self.request[12] = 1;
-  self.request[16] = 65;
-  self.request[17] = 66;
-  self.envelope.frame_ocreq(self.request.as_slice);
-  assert self.envelope.complete == 1;
-  assert self.envelope.subject_start == 16;
-  assert self.envelope.subject_end == 17;
-  assert self.envelope.invocation_start == 17;
-  assert self.envelope.invocation_end == 18;
-  self.request[11] = 128;
-  self.envelope.frame_ocreq(self.request.as_slice);
-  assert self.envelope.complete == 0;
-  assert self.envelope.subject_start == 0;
-  assert self.envelope.invocation_end == 0;
-  self.request[11] = 0;
-  self.envelope.frame_ocreq("OCREQ\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00X");
-  assert self.envelope.complete == 0;
-  self.validation.validate("");
-  assert self.validation.valid == 1;
-  self.validation.validate("\x00A\xC2\x80\xE0\xA0\x80\xF0\x90\x80\x80");
-  assert self.validation.valid == 1;
-  self.validation.validate("A\x80");
-  assert self.validation.valid == 0;
-  assert self.validation.error_offset == 1;
-  self.validation.validate("\xED\xA0\x80");
-  assert self.validation.valid == 0;
-  assert self.validation.error_offset == 0;
-  self.validation.validate("\xF4\x90\x80\x80");
-  assert self.validation.valid == 0;
-  self.validation.validate("\xE2\x82");
-  assert self.validation.valid == 0;
-  self.request[16] = 194;
-  self.request[17] = 128;
-  self.validation.validate(self.request.as_slice[16..]);
-  assert self.validation.valid == 1;
-  self.console.write_line("A");
+    self.envelope.frame_ocreq("OCREQ\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
+    assert self.envelope.complete == 1;
+    assert self.envelope.subject_start == 16;
+    assert self.envelope.subject_end == 16;
+    assert self.envelope.invocation_start == 16;
+    assert self.envelope.invocation_end == 16;
+    self.request[0] = 79;
+    self.request[1] = 67;
+    self.request[2] = 82;
+    self.request[3] = 69;
+    self.request[4] = 81;
+    self.request[5] = 1;
+    self.request[8] = 1;
+    self.request[12] = 1;
+    self.request[16] = 65;
+    self.request[17] = 66;
+    self.envelope.frame_ocreq(self.request.as_slice);
+    assert self.envelope.complete == 1;
+    assert self.envelope.subject_start == 16;
+    assert self.envelope.subject_end == 17;
+    assert self.envelope.invocation_start == 17;
+    assert self.envelope.invocation_end == 18;
+    self.request[11] = 128;
+    self.envelope.frame_ocreq(self.request.as_slice);
+    assert self.envelope.complete == 0;
+    assert self.envelope.error_offset == 8;
+    assert self.envelope.subject_start == 0;
+    assert self.envelope.invocation_end == 0;
+    self.request[11] = 0;
+    self.envelope.frame_ocreq("OCREQ\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00X");
+    assert self.envelope.complete == 0;
+    assert self.envelope.error_offset == 16;
+    self.envelope.frame_ocreq("OCREQ\x01\x00\x00");
+    assert self.envelope.complete == 0;
+    assert self.envelope.error_offset == 8;
+    self.validation.validate("");
+    assert self.validation.valid == 1;
+    self.validation.validate("\x00A\xC2\x80\xE0\xA0\x80\xF0\x90\x80\x80");
+    assert self.validation.valid == 1;
+    self.validation.validate("A\x80");
+    assert self.validation.valid == 0;
+    assert self.validation.error_offset == 1;
+    self.validation.validate("\xED\xA0\x80");
+    assert self.validation.valid == 0;
+    assert self.validation.error_offset == 0;
+    self.validation.validate("\xF4\x90\x80\x80");
+    assert self.validation.valid == 0;
+    self.validation.validate("\xE2\x82");
+    assert self.validation.valid == 0;
+    self.request[16] = 194;
+    self.request[17] = 128;
+    self.validation.validate(self.request.as_slice[16..]);
+    assert self.validation.valid == 1;
+
+    // The canonical request passes phases 0, 2, and 6 and retains its
+    // top-level summary.
+    self.build_request();
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    assert self.structure.complete == 1;
+    assert self.structure.package_count == 2;
+    assert self.structure.edge_count == 1;
+    assert self.structure.root_package == 0;
+    assert self.structure.root_role == 1;
+    assert self.structure.product == 4;
+    assert self.structure.admission_count == 0;
+    assert self.structure.malformed_offset == -1;
+    assert self.structure.outcome_tag == 0;
+    assert self.structure.outcome_code == -1;
+
+    // A declared package count that cannot fit its section is malformed at
+    // the count field.
+    self.poke_u32(self.subject_at, 1000000);
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.subject_at);
+    self.poke_u32(self.subject_at, 2);
+
+    // An unassigned lineage kind is malformed at the tag field.
+    self.poke_u32(self.lineage_kind_at, 9);
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.lineage_kind_at);
+    self.poke_u32(self.lineage_kind_at, 1);
+
+    // An unassigned package role is malformed at the tag field.
+    self.poke_u32(self.package_role_at, 3);
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.package_role_at);
+    self.poke_u32(self.package_role_at, 1);
+
+    // An unassigned snapshot kind is malformed at the tag field.
+    self.poke_u32(self.snapshot_kind_at, 7);
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.snapshot_kind_at);
+    self.poke_u32(self.snapshot_kind_at, 2);
+
+    // An unassigned edge scope is malformed at the tag field.
+    self.poke_u32(self.edge_scope_at, 9);
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.edge_scope_at);
+    self.poke_u32(self.edge_scope_at, 1);
+
+    // The invocation-side refusal vectors run in the omega_request_invocation
+    // customer so each stays inside the observation watchdog.
+
+    // A length field with its high bit set is malformed at the field start.
+    self.buffer[self.subject_at + 7] = 128;
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.subject_at + 4);
+    self.buffer[self.subject_at + 7] = 0;
+
+    // A stream shorter than its declared invocation extent is malformed at
+    // the length field.
+    self.structure.check(self.buffer.as_slice[0..self.end_at - 10]);
+    self.expect_refusal(12);
+
+    // A request that ends inside the header reports the first missing byte.
+    self.structure.check(self.buffer.as_slice[0..10]);
+    self.expect_refusal(10);
+
+    self.console.write_line("A");
 }

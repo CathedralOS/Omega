@@ -1,50 +1,76 @@
 
+// The eight OCREQ identity bytes, in order. Used by the envelope's per-byte
+// scan so a mismatch anchors at the first differing request byte.
+machine omega_ocreq_identity_byte(index: i32) -> i32 {
+    transition index {
+        0 -> return 79
+        1 -> return 67
+        2 -> return 82
+        3 -> return 69
+        4 -> return 81
+        5 -> return 1
+        _ -> return 0
+    }
+}
+
 // Validate the byte-exact D25 outer frame without inventing the subject or
 // invocation section encodings. All raw u32 lengths reject when their high bit
 // is set before signed conversion. Subtraction-dominated extent checks keep
 // hostile lengths from reaching trapping i32 addition.
+//
+// error_offset records the malformed_request coordinate under the contract's
+// validation order: the first missing byte (request.len when the stream ends
+// early), the first incorrect byte (the offending identity byte, or the first
+// byte of a length field whose value is invalid), or the first trailing byte
+// (the declared end when extra bytes follow).
 machine OmegaRequestEnvelope::frame_ocreq(
     &mut self,
     request: &[u8]
 ) {
     self.complete = 0;
+    self.error_offset = 0;
     self.subject_start = 0;
     self.subject_end = 0;
     self.invocation_start = 0;
     self.invocation_end = 0;
 
-    transition request.len >= 16 {
-        true -> check_identity()
-        _ -> reject()
+    transition request.len >= 8 {
+        true -> identity(0)
+        _ -> reject(request.len)
     }
 
-    state check_identity() {
-        transition
-            (request[0] == 79) &&
-            (request[1] == 67) &&
-            (request[2] == 82) &&
-            (request[3] == 69) &&
-            (request[4] == 81) &&
-            (request[5] == 1) &&
-            (request[6] == 0) &&
-            (request[7] == 0)
-        {
+    state identity(index: i32) {
+        transition request[index] == omega_ocreq_identity_byte(index) {
+            true -> identity_next(index)
+            _ -> reject(index)
+        }
+    }
+
+    state identity_next(index: i32) {
+        transition index < 7 {
+            true -> identity(index + 1)
+            _ -> check_header_extent()
+        }
+    }
+
+    state check_header_extent() {
+        transition request.len >= 16 {
             true -> check_subject_high_bit()
-            _ -> reject()
+            _ -> reject(request.len)
         }
     }
 
     state check_subject_high_bit() {
         transition request[11] < 128 {
             true -> check_invocation_high_bit()
-            _ -> reject()
+            _ -> reject(8)
         }
     }
 
     state check_invocation_high_bit() {
         transition request[15] < 128 {
             true -> decode_lengths()
-            _ -> reject()
+            _ -> reject(12)
         }
     }
 
@@ -61,7 +87,7 @@ machine OmegaRequestEnvelope::frame_ocreq(
             (request[15] * 16777216);
         transition subject_length <= request.len - 16 {
             true -> retain_subject(subject_length, invocation_length)
-            _ -> reject()
+            _ -> reject(8)
         }
     }
 
@@ -70,7 +96,7 @@ machine OmegaRequestEnvelope::frame_ocreq(
         self.subject_end = 16 + subject_length;
         transition invocation_length <= request.len - self.subject_end {
             true -> retain_invocation(invocation_length)
-            _ -> reject()
+            _ -> reject(12)
         }
     }
 
@@ -79,7 +105,7 @@ machine OmegaRequestEnvelope::frame_ocreq(
         self.invocation_end = self.invocation_start + invocation_length;
         transition self.invocation_end == request.len {
             true -> accept()
-            _ -> reject()
+            _ -> reject(self.invocation_end)
         }
     }
 
@@ -87,12 +113,549 @@ machine OmegaRequestEnvelope::frame_ocreq(
         self.complete = 1;
     }
 
-    state reject() {
+    state reject(offset: i32) {
         self.complete = 0;
+        self.error_offset = offset;
         self.subject_start = 0;
         self.subject_end = 0;
         self.invocation_start = 0;
         self.invocation_end = 0;
+    }
+}
+
+// OCREQ V1 section structure pass (phases 2 and 6). Every read is
+// subtraction-dominated against the retained section end, every u32 refuses a
+// set high bit before signed conversion, and every declared count must fit its
+// minimum row extent before iteration so a hostile count cannot stretch the
+// walk. Failure anchors follow the malformed_request coordinate rule: a
+// missing byte reports the section end, an invalid field value reports the
+// field's first byte, and trailing bytes report the first one.
+machine OmegaRequestStructure::fail(&mut self, offset: i32) -> i32 {
+    transition self.malformed_offset < 0 {
+        true -> record(offset)
+        _ -> return -1
+    }
+
+    state record(anchor: i32) {
+        self.malformed_offset = anchor;
+        return -1;
+    }
+}
+
+machine OmegaRequestStructure::take_u32(&mut self, request: &[u8]) -> i32 {
+    transition self.section_end - self.cursor >= 4 {
+        true -> read()
+        _ -> missing()
+    }
+
+    state missing() {
+        return self.fail(self.section_end);
+    }
+
+    state read() {
+        transition request[self.cursor + 3] < 128 {
+            true -> value()
+            _ -> refuse()
+        }
+    }
+
+    state refuse() {
+        return self.fail(self.cursor);
+    }
+
+    state value() {
+        let result: i32 = request[self.cursor] +
+            (request[self.cursor + 1] * 256) +
+            (request[self.cursor + 2] * 65536) +
+            (request[self.cursor + 3] * 16777216);
+        self.cursor = self.cursor + 4;
+        return result;
+    }
+}
+
+// A declared table count must fit the section's remaining extent at the
+// row's minimum byte width; a count that cannot fit is malformed at the
+// count field rather than a resource report.
+machine OmegaRequestStructure::take_count(
+    &mut self,
+    request: &[u8],
+    minimum_row: i32
+) -> i32 {
+    let count: i32 = self.take_u32(request);
+    transition count >= 0 {
+        true -> feasible(count, minimum_row)
+        _ -> return -1
+    }
+
+    state feasible(count: i32, minimum: i32) {
+        transition count <= (self.section_end - self.cursor) / minimum {
+            true -> return count
+            _ -> return self.fail(self.cursor - 4)
+        }
+    }
+}
+
+// A u32 tag whose value must sit inside the assigned inclusive range; an
+// empty range (low above high) refuses every value.
+machine OmegaRequestStructure::take_tag(
+    &mut self,
+    request: &[u8],
+    low: i32,
+    high: i32
+) -> i32 {
+    let tag: i32 = self.take_u32(request);
+    transition tag >= 0 {
+        true -> member(tag, low, high)
+        _ -> return -1
+    }
+
+    state member(tag: i32, low_bound: i32, high_bound: i32) {
+        transition (tag >= low_bound) && (tag <= high_bound) {
+            true -> return tag
+            _ -> return self.fail(self.cursor - 4)
+        }
+    }
+}
+
+// A length-framed byte field; returns the content's first offset and leaves
+// the cursor past it.
+machine OmegaRequestStructure::take_bytes(&mut self, request: &[u8]) -> i32 {
+    let length: i32 = self.take_u32(request);
+    transition length >= 0 {
+        true -> room(length)
+        _ -> return -1
+    }
+
+    state room(length: i32) {
+        transition length <= self.section_end - self.cursor {
+            true -> take(length)
+            _ -> return self.fail(self.section_end)
+        }
+    }
+
+    state take(length: i32) {
+        let start: i32 = self.cursor;
+        self.cursor = self.cursor + length;
+        return start;
+    }
+}
+
+// A fixed-width byte field; only presence is checked here.
+machine OmegaRequestStructure::take_fixed(&mut self, width: i32) -> i32 {
+    transition self.section_end - self.cursor >= width {
+        true -> take()
+        _ -> missing()
+    }
+
+    state take() {
+        let start: i32 = self.cursor;
+        self.cursor = self.cursor + width;
+        return start;
+    }
+
+    state missing() {
+        return self.fail(self.section_end);
+    }
+}
+
+machine OmegaRequestStructure::check(&mut self, request: &[u8]) {
+    self.complete = 0;
+    self.malformed_offset = -1;
+    self.cursor = 0;
+    self.section_end = 0;
+    self.package_count = 0;
+    self.edge_count = 0;
+    self.root_package = 0;
+    self.root_role = 0;
+    self.product = 0;
+    self.target_start = 0;
+    self.target_end = 0;
+    self.admission_count = 0;
+    self.outcome_tag = 0;
+    self.outcome_space = 0;
+    self.outcome_code = -1;
+    self.outcome_coordinate = 0;
+    self.outcome_limit = 0;
+    self.outcome_requested = 0;
+    self.envelope.frame_ocreq(request);
+    transition self.envelope.complete {
+        1 -> begin_subject()
+        _ -> refuse_envelope()
+    }
+
+    state begin_subject() {
+        self.cursor = self.envelope.subject_start;
+        self.section_end = self.envelope.subject_end;
+        transition true { true -> subject_package_count() }
+    }
+
+    state subject_package_count() {
+        // A package row needs at least its eight framing words plus a
+        // snapshot count, so its minimum extent is 36 bytes.
+        let count: i32 = self.take_count(request, 36);
+        transition count >= 0 {
+            true -> have_package_count(count)
+            _ -> refuse()
+        }
+    }
+
+    state have_package_count(count: i32) {
+        self.package_count = count;
+        transition true { true -> package_row(0) }
+    }
+
+    state package_row(index: i32) {
+        transition index < self.package_count {
+            true -> package_name(index)
+            _ -> subject_edge_count()
+        }
+    }
+
+    state package_name(index: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> package_lineage_kind(index)
+            _ -> refuse()
+        }
+    }
+
+    state package_lineage_kind(index: i32) {
+        let kind: i32 = self.take_tag(request, 1, 2);
+        transition kind >= 0 {
+            true -> package_lineage(index)
+            _ -> refuse()
+        }
+    }
+
+    state package_lineage(index: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> package_revision(index)
+            _ -> refuse()
+        }
+    }
+
+    state package_revision(index: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> package_tree(index)
+            _ -> refuse()
+        }
+    }
+
+    state package_tree(index: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> package_content(index)
+            _ -> refuse()
+        }
+    }
+
+    state package_content(index: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> package_member(index)
+            _ -> refuse()
+        }
+    }
+
+    state package_member(index: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> package_role(index)
+            _ -> refuse()
+        }
+    }
+
+    state package_role(index: i32) {
+        // The row's declared role: 1 package, 2 application. Workspaces are
+        // catalogs, never package rows.
+        let role: i32 = self.take_tag(request, 1, 2);
+        transition role >= 0 {
+            true -> package_snapshot_count(index)
+            _ -> refuse()
+        }
+    }
+
+    state package_snapshot_count(index: i32) {
+        // A snapshot row's minimum extent is its kind and path fields.
+        let count: i32 = self.take_count(request, 8);
+        transition count >= 0 {
+            true -> snapshot_row(index, 0, count)
+            _ -> refuse()
+        }
+    }
+
+    state snapshot_row(index: i32, row: i32, count: i32) {
+        transition row < count {
+            true -> snapshot_kind(index, row, count)
+            _ -> package_row(index + 1)
+        }
+    }
+
+    state snapshot_kind(index: i32, row: i32, count: i32) {
+        let kind: i32 = self.take_tag(request, 1, 3);
+        transition kind >= 0 {
+            true -> snapshot_path(index, row, count, kind)
+            _ -> refuse()
+        }
+    }
+
+    state snapshot_path(index: i32, row: i32, count: i32, kind: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> snapshot_payload(index, row, count, kind)
+            _ -> refuse()
+        }
+    }
+
+    state snapshot_payload(index: i32, row: i32, count: i32, kind: i32) {
+        transition kind {
+            2 -> snapshot_executable(index, row, count)
+            3 -> snapshot_target(index, row, count)
+            _ -> snapshot_row(index, row + 1, count)
+        }
+    }
+
+    state snapshot_executable(index: i32, row: i32, count: i32) {
+        let executable: i32 = self.take_tag(request, 0, 1);
+        transition executable >= 0 {
+            true -> snapshot_content(index, row, count)
+            _ -> refuse()
+        }
+    }
+
+    state snapshot_content(index: i32, row: i32, count: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> snapshot_row(index, row + 1, count)
+            _ -> refuse()
+        }
+    }
+
+    state snapshot_target(index: i32, row: i32, count: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> snapshot_row(index, row + 1, count)
+            _ -> refuse()
+        }
+    }
+
+    state subject_edge_count() {
+        // An edge row carries four words: requester, scope, alias length,
+        // and target.
+        let count: i32 = self.take_count(request, 16);
+        transition count >= 0 {
+            true -> have_edge_count(count)
+            _ -> refuse()
+        }
+    }
+
+    state have_edge_count(count: i32) {
+        self.edge_count = count;
+        transition true { true -> edge_row(0) }
+    }
+
+    state edge_row(index: i32) {
+        transition index < self.edge_count {
+            true -> edge_requester(index)
+            _ -> subject_root()
+        }
+    }
+
+    state edge_requester(index: i32) {
+        let requester: i32 = self.take_u32(request);
+        transition requester >= 0 {
+            true -> edge_scope(index)
+            _ -> refuse()
+        }
+    }
+
+    state edge_scope(index: i32) {
+        let scope: i32 = self.take_tag(request, 1, 2);
+        transition scope >= 0 {
+            true -> edge_alias(index)
+            _ -> refuse()
+        }
+    }
+
+    state edge_alias(index: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> edge_target(index)
+            _ -> refuse()
+        }
+    }
+
+    state edge_target(index: i32) {
+        let target: i32 = self.take_u32(request);
+        transition target >= 0 {
+            true -> edge_row(index + 1)
+            _ -> refuse()
+        }
+    }
+
+    state subject_root() {
+        let root: i32 = self.take_u32(request);
+        transition root >= 0 {
+            true -> have_root_package(root)
+            _ -> refuse()
+        }
+    }
+
+    state have_root_package(root: i32) {
+        self.root_package = root;
+        transition true { true -> subject_role() }
+    }
+
+    state subject_role() {
+        let role: i32 = self.take_tag(request, 1, 2);
+        transition role >= 0 {
+            true -> have_root_role(role)
+            _ -> refuse()
+        }
+    }
+
+    state have_root_role(role: i32) {
+        self.root_role = role;
+        transition true { true -> subject_end() }
+    }
+
+    state subject_end() {
+        transition self.cursor == self.section_end {
+            true -> begin_invocation()
+            _ -> trailing()
+        }
+    }
+
+    // Bytes past the last subject field are malformed at the first one.
+    state trailing() {
+        self.fail(self.cursor);
+        transition true { true -> refuse() }
+    }
+
+    state begin_invocation() {
+        self.cursor = self.envelope.invocation_start;
+        self.section_end = self.envelope.invocation_end;
+        transition true { true -> invocation_product() }
+    }
+
+    state invocation_product() {
+        let product: i32 = self.take_tag(request, 1, 4);
+        transition product >= 0 {
+            true -> have_product(product)
+            _ -> refuse()
+        }
+    }
+
+    state have_product(product: i32) {
+        self.product = product;
+        transition true { true -> invocation_target() }
+    }
+
+    state invocation_target() {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> have_target(start)
+            _ -> refuse()
+        }
+    }
+
+    state have_target(start: i32) {
+        self.target_start = start;
+        self.target_end = self.cursor;
+        transition true { true -> invocation_admission_count() }
+    }
+
+    state invocation_admission_count() {
+        // An admission row's minimum extent is its kind and data length.
+        let count: i32 = self.take_count(request, 8);
+        transition count >= 0 {
+            true -> have_admission_count(count)
+            _ -> refuse()
+        }
+    }
+
+    state have_admission_count(count: i32) {
+        self.admission_count = count;
+        transition true { true -> admission_row(0) }
+    }
+
+    state admission_row(index: i32) {
+        transition index < self.admission_count {
+            true -> admission_kind(index)
+            _ -> invocation_commitment()
+        }
+    }
+
+    state admission_kind(index: i32) {
+        // No admission kind is assigned yet; the empty range refuses every
+        // present row.
+        let kind: i32 = self.take_tag(request, 1, 0);
+        transition kind >= 0 {
+            true -> admission_data(index)
+            _ -> refuse()
+        }
+    }
+
+    state admission_data(index: i32) {
+        let start: i32 = self.take_bytes(request);
+        transition start >= 0 {
+            true -> admission_row(index + 1)
+            _ -> refuse()
+        }
+    }
+
+    state invocation_commitment() {
+        let start: i32 = self.take_fixed(32);
+        transition start >= 0 {
+            true -> invocation_end()
+            _ -> refuse()
+        }
+    }
+
+    state invocation_end() {
+        transition self.cursor == self.section_end {
+            true -> succeed()
+            _ -> trailing()
+        }
+    }
+
+    // A structural refusal publishes malformed_request anchored at the
+    // recorded offset; the frame encoder accepts this assigned tuple.
+    state refuse() {
+        self.outcome_tag = 1;
+        self.outcome_space = 1;
+        self.outcome_code = 1;
+        self.outcome_coordinate = self.malformed_offset;
+        self.outcome_limit = 0;
+        self.outcome_requested = 0;
+        return;
+    }
+
+    // Envelope failures anchor at the envelope's own first bad byte.
+    state refuse_envelope() {
+        self.malformed_offset = self.envelope.error_offset;
+        self.outcome_tag = 1;
+        self.outcome_space = 1;
+        self.outcome_code = 1;
+        self.outcome_coordinate = self.envelope.error_offset;
+        self.outcome_limit = 0;
+        self.outcome_requested = 0;
+        return;
+    }
+
+    // A complete structure pass retains the clean tuple: tag 0 carries no
+    // publishable frame.
+    state succeed() {
+        self.complete = 1;
+        self.outcome_tag = 0;
+        self.outcome_space = 0;
+        self.outcome_code = -1;
+        self.outcome_coordinate = 0;
+        self.outcome_limit = 0;
+        self.outcome_requested = 0;
+        return;
     }
 }
 
