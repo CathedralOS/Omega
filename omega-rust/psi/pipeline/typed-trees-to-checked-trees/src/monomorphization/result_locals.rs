@@ -145,8 +145,10 @@ pub(super) fn refresh_generic_call_results(
         // the runtime-expression root list stays empty here.
         super::const_values::substitute(program, &candidate, Some(expression_start), &[])
             .map_err(|error| vec![error])?;
-        super::substitute_cloned_type_parameters(None, program, &candidate, type_start)
-            .map_err(|error| vec![error])?;
+        crate::monomorphization::body_rewriting::substitute_cloned_type_parameters(
+            None, program, &candidate, type_start,
+        )
+        .map_err(|error| vec![error])?;
         if let StatementNode::LocalData(local) =
             &mut program.statement_table.statements_mut(body)[offset]
         {

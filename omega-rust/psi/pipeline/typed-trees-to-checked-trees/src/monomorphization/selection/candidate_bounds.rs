@@ -1,10 +1,12 @@
 //! Approved type bounds and candidate conformance bound validation.
 
+use crate::monomorphization::body_rewriting::{
+    forwarded_static_argument_rewrites, substitute_forwarded_machine_arguments,
+};
 use crate::monomorphization::selection::static_bindings::same_type_identity;
 use crate::monomorphization::{
     Candidate, Diagnostic, StaticMachineArgument, SymbolKind, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees, forwarded_static_argument_rewrites,
-    substitute_forwarded_machine_arguments,
+    TypeReferenceNode, TypedTrees,
 };
 
 pub(crate) fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate]) -> Vec<bool> {
