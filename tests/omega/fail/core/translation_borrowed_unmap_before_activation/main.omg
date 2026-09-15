@@ -1,0 +1,63 @@
+// The borrowed route keeps the same Pending -> Installed ordering as the
+// owned one: a structurally validated borrowed mapping is not installed
+// translations, and `unmap_borrowed` requires the `Installed` domain that
+// only the provider's activation receipt establishes
+// (wiki/spec/resources/extents.md "Mapping and reclamation").
+use omega::language::core::extent;
+
+boundary data BorrowedMappingToken [linear];
+
+data BorrowedMapping [linear] {
+    token: BorrowedMappingToken;
+    held_source: &Extent in Granted;
+}
+
+domain BorrowedMapping::Pending
+established by TranslationAuthority::map_borrowed;
+
+domain BorrowedMapping::Installed
+established by TranslationAuthority::activate_borrowed;
+
+data UnmappedBorrowed {
+    destination: Extent in Granted;
+    shootdown: &Extent in Granted;
+}
+
+boundary trait TranslationAuthority {
+    machine map_borrowed(
+        source: &Extent in Granted,
+        destination: Extent in Granted
+    ) -> BorrowedMapping
+    requires
+        source.length == destination.length
+    ensures
+        result in BorrowedMapping::Pending;
+
+    machine activate_borrowed(pending: BorrowedMapping in Pending)
+        -> BorrowedMapping
+    ensures
+        result in BorrowedMapping::Installed;
+
+    machine unmap_borrowed(active: BorrowedMapping in Installed)
+        -> UnmappedBorrowed;
+}
+
+machine unmap_borrowed_early(
+    authority: &TranslationAuthority,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> UnmappedBorrowed
+requires
+    source.length == destination.length
+reaches TranslationAuthority
+{
+    let pending: BorrowedMapping in Pending =
+        authority.map_borrowed(&source, destination);
+    authority.unmap_borrowed(pending)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

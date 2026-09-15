@@ -1,0 +1,75 @@
+// A borrowed-source mapping keeps the lender's shared loan visible inside
+// its carrier for the mapping's whole life: while the carrier lives, the
+// lender's owned source cannot be consumed, moved, or reclaimed. This is
+// the custody half of the borrowed route in the address-translation canary
+// (wiki/spec/resources/extents.md "Mapping and reclamation" -- a borrowed
+// source cannot be reclaimed while the mapping lives), and it mirrors the
+// conservation model where a `PendingMap<'source>` borrows an
+// `ExtentLoan<'source>` rather than taking ownership.
+use omega::language::core::extent;
+
+boundary data BorrowedMappingToken [linear];
+
+data BorrowedMapping [linear] {
+    token: BorrowedMappingToken;
+    held_source: &Extent in Granted;
+}
+
+domain BorrowedMapping::Pending
+established by TranslationAuthority::map_borrowed;
+
+domain BorrowedMapping::Installed
+established by TranslationAuthority::activate_borrowed;
+
+data UnmappedBorrowed {
+    destination: Extent in Granted;
+    shootdown: &Extent in Granted;
+}
+
+boundary trait TranslationAuthority {
+    machine map_borrowed(
+        source: &Extent in Granted,
+        destination: Extent in Granted
+    ) -> BorrowedMapping
+    requires
+        source.length == destination.length
+    ensures
+        result in BorrowedMapping::Pending;
+
+    machine activate_borrowed(pending: BorrowedMapping in Pending)
+        -> BorrowedMapping
+    ensures
+        result in BorrowedMapping::Installed;
+
+    machine unmap_borrowed(active: BorrowedMapping in Installed)
+        -> UnmappedBorrowed;
+}
+
+machine measure(source: Extent in Granted) -> u64 {
+    source.length
+}
+
+machine reclaim_source_while_mapped(
+    authority: &TranslationAuthority,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> UnmappedBorrowed
+requires
+    source.length == destination.length
+reaches TranslationAuthority
+{
+    let pending: BorrowedMapping in Pending =
+        authority.map_borrowed(&source, destination);
+    // The loan inside `pending` still pins the source: reclaiming it here,
+    // before the mapping's activation and release, is a borrow conflict.
+    let early: u64 = measure(source);
+    let installed: BorrowedMapping in Installed =
+        authority.activate_borrowed(pending);
+    authority.unmap_borrowed(installed)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

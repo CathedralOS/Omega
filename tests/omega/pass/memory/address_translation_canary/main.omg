@@ -14,15 +14,25 @@
 // before the teardown is complete. Equal-length ranges are the contract's
 // structural precondition, matching the conservation model's check.
 //
+// The borrowed-source route mirrors the owned one with different custody:
+// `map_borrowed` takes a shared loan of the source while still consuming the
+// destination, and the `BorrowedMapping` carrier keeps that loan visible so
+// the lender's `Granted` source stays suspended -- it cannot be consumed,
+// moved, or reclaimed while the mapping lives (matching
+// `MappedExtent::loan_mut`'s refusal of mutable access under shared source
+// custody in psi/foundation/extents). Releasing an installed borrowed
+// mapping ends the loan instead of returning source custody: the lender's
+// source qualification resumes, and teardown still owes the same shootdown.
+//
 // Nothing here grants access to the mapped range: placed access
 // (wiki/spec/resources/placed_access.md -- `Vacant`/`Resident` place/take/read
 // operations) is still undeclared, so this contract pins custody, state, and
 // ordering, not content. The conservation model exposes
 // `TranslationInstallObligations`/`TranslationReleaseObligations` to
 // providers at the grant, pending, installed, and teardown carriers in
-// psi/foundation/extents; borrowed-source custody and a source-spelled
-// obligation surface remain later slices. This slice models owned fixed
-// placement with the shootdown as the one residual debt.
+// psi/foundation/extents; a source-spelled obligation surface remains a
+// later slice. This slice models owned fixed placement and shared borrowed
+// source custody with the shootdown as the one residual debt.
 use omega::language::core::assembly;
 use omega::language::core::extent;
 
@@ -37,6 +47,26 @@ established by TranslationAuthority::map;
 domain Mapping::Installed
 established by TranslationAuthority::activate;
 
+// Provider-owned identity of one borrowed-source mapping. Kept opaque for
+// the same reason as `Mapping`; the carrier below pairs it with the visible
+// loan it holds, so source can never spell this token alone.
+boundary data BorrowedMappingToken [linear];
+
+// The borrowed-source carrier: an unforgeable provider identity plus the
+// visible shared loan of the lender's source. While this value lives the
+// loan stays active, which is what makes the lender's owned source
+// unavailable until teardown releases the carrier.
+data BorrowedMapping [linear] {
+    token: BorrowedMappingToken;
+    held_source: &Extent in Granted;
+}
+
+domain BorrowedMapping::Pending
+established by TranslationAuthority::map_borrowed;
+
+domain BorrowedMapping::Installed
+established by TranslationAuthority::activate_borrowed;
+
 // The linear cross-core invalidation debt a teardown leaves. It cannot be
 // dropped; only `discharge` consumes it.
 boundary data Shootdown [linear];
@@ -48,6 +78,15 @@ domain Shootdown::Owed;
 data Unmapped {
     destination: Extent in Granted;
     source: Extent in Granted;
+    shootdown: Shootdown in Owed;
+}
+
+// Borrowed teardown's intermediate custody has no `source` field: the loan
+// ends when the carrier is consumed, so the lender -- not the unmap route --
+// retains source authority. Only the destination and the shootdown debt
+// return through the boundary.
+data UnmappedBorrowed {
+    destination: Extent in Granted;
     shootdown: Shootdown in Owed;
 }
 
@@ -76,6 +115,30 @@ boundary trait TranslationAuthority {
     // Stale translations are released by the provider before this returns;
     // the cross-core shootdown debt remains the caller's to discharge.
     machine unmap(active: Mapping in Installed) -> Unmapped;
+
+    // Structural validation over a shared source loan: the pending carrier
+    // holds the loan and the destination's custody and grants no mapped
+    // access. The lender's owned source stays borrowed until release.
+    machine map_borrowed(
+        source: &Extent in Granted,
+        destination: Extent in Granted
+    ) -> BorrowedMapping
+    requires
+        source.length == destination.length
+    ensures
+        result in BorrowedMapping::Pending;
+
+    // The borrowed route's receipt crossing: installed translations exist
+    // for the exact pending borrowed mapping.
+    machine activate_borrowed(pending: BorrowedMapping in Pending)
+        -> BorrowedMapping
+    ensures
+        result in BorrowedMapping::Installed;
+
+    // Releasing an installed borrowed mapping ends the source loan; the
+    // shootdown debt remains the caller's to discharge.
+    machine unmap_borrowed(active: BorrowedMapping in Installed)
+        -> UnmappedBorrowed;
 }
 
 boundary requirement Shootdown::discharge(self)
@@ -101,6 +164,31 @@ reaches TranslationAuthority + MachineControl
     owed.discharge();
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
+    Reclaimed { destination: released_destination, source: released_source }
+}
+
+// The borrowed-source driver: the provider borrows `source` for the life of
+// the mapping while `destination` is consumed as before. Teardown ends the
+// loan rather than returning a source, so the caller's own `source`
+// authority is what resumes after the shootdown is discharged.
+machine borrowed_install_and_teardown(
+    authority: &TranslationAuthority,
+    source: Extent in Granted,
+    destination: Extent in Granted
+) -> Reclaimed
+requires
+    source.length == destination.length
+reaches TranslationAuthority + MachineControl
+{
+    let pending: BorrowedMapping in Pending =
+        authority.map_borrowed(&source, destination);
+    let installed: BorrowedMapping in Installed =
+        authority.activate_borrowed(pending);
+    let unmapped: UnmappedBorrowed = authority.unmap_borrowed(installed);
+    let owed: Shootdown in Owed = unmapped.shootdown;
+    owed.discharge();
+    let released_destination: Extent in Granted = unmapped.destination;
+    let released_source: Extent in Granted = source;
     Reclaimed { destination: released_destination, source: released_source }
 }
 
