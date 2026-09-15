@@ -925,12 +925,16 @@ pub fn goal_free_scalar_leaf_semantics(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        IntegerValue, OperationSemanticCustody, OperationSemanticError, OperationSemanticRow,
+        OperationSemanticTag, Proposition, ScalarLeafDenotation, ScalarLeafFactShape,
+        ScalarLeafLiteral, ScalarTerm, constant_goal_free_scalar_leaf,
+        exact_operation_semantic_row_in, goal_free_scalar_leaf_semantics,
+    };
     use std::collections::{BTreeMap, BTreeSet};
 
     use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, ValueId};
     use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
-
-    use super::*;
 
     fn i8_type() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("i8"))

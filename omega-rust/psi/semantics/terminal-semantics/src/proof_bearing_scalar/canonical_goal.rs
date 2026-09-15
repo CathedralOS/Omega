@@ -807,9 +807,11 @@ pub(super) fn canonical_goal(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        CanonicalScalarGoal, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue,
+        OperationSemanticError, Proposition, ScalarTerm, ScalarType,
+    };
     use semantic_vocabulary::ValueId;
-
-    use super::*;
 
     #[test]
     fn nonzero_divisor_projects_the_exact_fixed_carrier_proposition() {
