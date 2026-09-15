@@ -188,6 +188,19 @@
       ],
       "suggested_first_slice": "Backfill for the landed TPR6 slot. Board names the seam: extend ordinary reference preparation/receiving replay in legalization/scalar_graph_input — remaining work includes early loan closure / restored-parent uses. tests/omega/{pass,fail}/borrow(s) and tests/native-differential receiver fixtures are claimed by STRUCTURAL-BORROW-IDENTITY until ~06:16Z — prove via existing replay/crate tests in owned paths or report blocked.",
       "backfill_for": "tpr6"
+    },
+    {
+      "name": "terminal-authority-review",
+      "board": "TASKS.md",
+      "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy",
+        "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_permissions.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_permission_policy.rs"
+      ],
+      "suggested_first_slice": "Backfill for the landed general-call-clobbers slot. Finish one bounded class of consumer permission rows / exact target-mechanism classification under the settled filesystem control-lifecycle policy — the seam is native_realization/terminal_authority_policy{,.rs} + terminal_authority_permission*.rs. Do not retire the broad Filesystem summary unless the exact replacement closes. native_realization/physical_stage (SPILL-REALIZATION) and native_realization/src/tests + input_preparation.rs (SUBJECT-QUALIFIED-ARTIFACT-PROOFS) are claimed — keep writes in owned paths or report blocked.",
+      "backfill_for": "general-call-clobbers"
     }
   ]
 }
