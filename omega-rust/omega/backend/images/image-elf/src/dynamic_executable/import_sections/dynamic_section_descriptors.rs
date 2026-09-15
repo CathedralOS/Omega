@@ -13,7 +13,7 @@
 //! [GNU section types]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html
 //! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
-use crate::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
+use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use diagnostics::Diagnostic;
 
 const SHT_PROGBITS: u32 = 1;

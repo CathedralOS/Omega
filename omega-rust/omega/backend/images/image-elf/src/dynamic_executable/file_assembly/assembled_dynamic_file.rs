@@ -10,9 +10,11 @@
 //! the retained `FinalImage`, publish bytes, or grant loader or
 //! runnable-image authority.
 
-use crate::load_layout::{ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout};
-use crate::resolved_procedure_linkage::ValidatedElfResolvedProcedureLinkage;
-use crate::section_roster::ElfDynamicRosterSectionKind;
+use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::ValidatedElfResolvedProcedureLinkage;
+use crate::dynamic_executable::load_placement::load_layout::{
+    ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout,
+};
+use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 use image::{ExecutableImageOutput, FinalImage, place_executable_regions};
 use target::TargetProfile;

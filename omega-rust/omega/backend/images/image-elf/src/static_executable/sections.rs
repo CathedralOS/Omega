@@ -4,7 +4,7 @@
 use crate::constants::{
     ELF_HEADER_SIZE, IMAGE_BASE, PAGE_SIZE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,
 };
-use crate::layout::{align_to, align_to_u64};
+use crate::static_executable::layout::{align_to, align_to_u64};
 use image::{FinalImage, FinalImageLayout};
 
 pub(crate) struct ElfSections {

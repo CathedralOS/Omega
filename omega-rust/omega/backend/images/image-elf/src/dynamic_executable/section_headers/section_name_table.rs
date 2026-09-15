@@ -10,8 +10,8 @@
 //! [section-name string table]: https://gabi.xinuos.com/elf/03-sheader.html#special-sections
 //! [section header]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 
-use crate::dynamic_section_descriptors::ElfDynamicSectionKind;
-use crate::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
+use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
+use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
 use diagnostics::Diagnostic;
 
 const SHT_STRTAB: u32 = 3;

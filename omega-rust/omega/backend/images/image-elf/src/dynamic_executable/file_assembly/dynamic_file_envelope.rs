@@ -12,11 +12,11 @@
 //! grant loader, publication, or runnable-image authority.
 
 use crate::bytes::{write_u16, write_u32, write_u64};
-use crate::entry_symbol::elf_entry_address;
-use crate::load_layout::{
+use crate::dynamic_executable::load_placement::load_layout::{
     ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ValidatedElfDynamicLoadLayout,
 };
-use crate::resolved_dynamic_table::ValidatedElfResolvedDynamicTable;
+use crate::dynamic_executable::load_placement::resolved_dynamic_table::ValidatedElfResolvedDynamicTable;
+use crate::entry_symbol::elf_entry_address;
 use diagnostics::Diagnostic;
 use image::FinalImageSection;
 use object_file::SymbolKind;

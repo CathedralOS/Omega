@@ -10,13 +10,13 @@
 //! a file-only coordinate, but its bytes remain unchanged.
 
 use crate::constants::{ELF_HEADER_SIZE, IMAGE_BASE, PROGRAM_HEADER_SIZE};
-use crate::dynamic_linkage_templates::ElfProcedureLinkagePlacementConstraintKind;
-use crate::relative_section_layout::{
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ElfProcedureLinkagePlacementConstraintKind;
+use crate::dynamic_executable::section_headers::relative_section_layout::{
     ElfRelativeSectionPayloadRegion, ValidatedElfRelativeSectionPayloadLayout,
 };
-use crate::section_header_bytes::ElfSectionHeaderPlacementFixupKind;
-use crate::section_payload_roster::ElfIndexedProcedureFixupStorage;
-use crate::section_roster::ElfDynamicRosterSectionKind;
+use crate::dynamic_executable::section_headers::section_header_bytes::ElfSectionHeaderPlacementFixupKind;
+use crate::dynamic_executable::section_headers::section_payload_roster::ElfIndexedProcedureFixupStorage;
+use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 

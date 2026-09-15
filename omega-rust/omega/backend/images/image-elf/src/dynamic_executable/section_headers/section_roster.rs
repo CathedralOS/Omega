@@ -10,11 +10,13 @@
 //! [section header]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [`e_shstrndx`]: https://gabi.xinuos.com/elf/02-eheader.html#elf-header
 
-use crate::dynamic_linkage_descriptors::{
+use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionInfo, ElfProcedureLinkageSectionKind, ElfProcedureLinkageSectionLink,
 };
-use crate::dynamic_section_descriptors::ElfDynamicSectionKind;
-use crate::section_name_table::{ElfSectionNameTableSectionKind, ValidatedElfSectionNameTablePlan};
+use crate::dynamic_executable::section_headers::section_name_table::{
+    ElfSectionNameTableSectionKind, ValidatedElfSectionNameTablePlan,
+};
 use diagnostics::Diagnostic;
 
 const SECTION_COUNT: usize = 13;
@@ -293,7 +295,7 @@ fn derive_contents(
 
 fn base_descriptor_contents(
     section_names: &ValidatedElfSectionNameTablePlan,
-) -> &crate::dynamic_section_descriptors::ElfDynamicSectionDescriptorContents {
+) -> &crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionDescriptorContents{
     section_names
         .dynamic_table()
         .payload()
@@ -307,7 +309,7 @@ fn base_descriptor_contents(
 
 fn linkage_descriptor_contents(
     section_names: &ValidatedElfSectionNameTablePlan,
-) -> &crate::dynamic_linkage_descriptors::ElfProcedureLinkageSectionDescriptorContents {
+) -> &crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::ElfProcedureLinkageSectionDescriptorContents{
     section_names
         .dynamic_table()
         .payload()

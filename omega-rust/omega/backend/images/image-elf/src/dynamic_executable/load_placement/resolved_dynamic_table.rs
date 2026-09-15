@@ -7,16 +7,20 @@
 //! or source relocations, serialize ELF/program headers, or
 //! claim loader or runnable-image authority.
 
-use crate::dynamic_tag_bytes::{ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload};
-use crate::dynamic_tags::{
+use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
+    ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
+};
+use crate::dynamic_executable::dynamic_table::dynamic_tags::{
     ElfDynamicAddressTarget, ElfDynamicTag, ElfDynamicValue, ValidatedElfDynamicTagPlan,
 };
-use crate::load_layout::{ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout};
-use crate::placed_section_headers::ValidatedElfPlacedSectionHeaderTable;
-use crate::section_payload_roster::{
+use crate::dynamic_executable::load_placement::load_layout::{
+    ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout,
+};
+use crate::dynamic_executable::load_placement::placed_section_headers::ValidatedElfPlacedSectionHeaderTable;
+use crate::dynamic_executable::section_headers::section_payload_roster::{
     ElfIndexedDynamicFixup, ValidatedElfIndexedSectionPayloadPlan,
 };
-use crate::section_roster::ElfDynamicRosterSectionKind;
+use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
 const ELF64_DYNAMIC_ROW_SIZE: usize = 16;
@@ -509,7 +513,7 @@ fn indexed_payloads(
 
 fn dynamic_row(
     indexed: &ValidatedElfIndexedSectionPayloadPlan,
-) -> Result<&crate::section_payload_roster::ElfIndexedSectionPayloadRow, Diagnostic> {
+) -> Result<&crate::dynamic_executable::section_headers::section_payload_roster::ElfIndexedSectionPayloadRow, Diagnostic>{
     indexed
         .contents()
         .rows

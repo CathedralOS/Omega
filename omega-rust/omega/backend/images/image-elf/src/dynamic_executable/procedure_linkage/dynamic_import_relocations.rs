@@ -13,7 +13,7 @@
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI
 //! [AArch64 ELF ABI]: https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst
 
-use crate::dynamic_section_descriptors::ValidatedElfDynamicSectionDescriptorPlan;
+use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ValidatedElfDynamicSectionDescriptorPlan;
 use crate::imports::{ElfImportLocator, ElfImportRequest};
 use diagnostics::Diagnostic;
 use image::{FinalImageRelocation, FinalImageSection};

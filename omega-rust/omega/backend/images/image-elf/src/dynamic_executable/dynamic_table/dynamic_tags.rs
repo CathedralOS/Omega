@@ -12,10 +12,10 @@
 //! [LSB symbol-version ABI]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 //! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
-use crate::dynamic_linkage_descriptors::{
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionKind, ValidatedElfProcedureLinkageSectionDescriptorPlan,
 };
-use crate::dynamic_linkage_templates::{
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
     ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
     ElfProcedureLinkageSemanticTarget,
 };
@@ -353,13 +353,13 @@ fn push_address_row(
 
 fn dynamic_payloads(
     descriptors: &ValidatedElfProcedureLinkageSectionDescriptorPlan,
-) -> &crate::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads {
+) -> &crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads{
     descriptors.templates().linkage().descriptors().payloads()
 }
 
 fn structural_contents(
     descriptors: &ValidatedElfProcedureLinkageSectionDescriptorPlan,
-) -> &crate::dynamic_sections::ElfDynamicSectionContents {
+) -> &crate::dynamic_executable::import_sections::dynamic_sections::ElfDynamicSectionContents {
     dynamic_payloads(descriptors).plan().contents()
 }
 
