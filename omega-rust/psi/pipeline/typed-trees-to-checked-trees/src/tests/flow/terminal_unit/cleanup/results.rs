@@ -1,6 +1,7 @@
 //! Named call results retain their root while projected disposers move fields.
-
-use super::*;
+use super::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 mod anonymous;
 mod anonymous_shared;

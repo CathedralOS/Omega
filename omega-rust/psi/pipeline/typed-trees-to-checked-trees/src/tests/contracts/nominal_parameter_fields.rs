@@ -1,4 +1,10 @@
-use super::*;
+use crate::build_borrow_facts;
+use crate::build_domain_facts;
+use crate::build_flow_facts;
+use crate::build_proof_facts;
+use crate::build_semantic_facts;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 const DEFINITIONS: &str = r#"
     domain [u8; 4]::Utf8 requires valid_utf8(self);

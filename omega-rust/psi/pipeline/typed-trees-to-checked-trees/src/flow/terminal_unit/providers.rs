@@ -1,6 +1,11 @@
 //! Exact provider-attachment requirements shared by Unit plan families.
-
-use super::*;
+use super::{
+    CheckedProviderAttachmentRequirementPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralTypeShape, DataMember, TypeReferenceNode, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::provider_attachment_receiver_matches;
 
 pub(super) fn checked_provider_attachment_requirements(
     program: &TypedTrees,

@@ -1,6 +1,8 @@
 //! Payload evaluation for the shared selected-call custody walk.
-
-use super::*;
+use super::ScalarValue;
+use crate::flow::CanonicalPlace;
+use crate::flow::FlowBuildContext;
+use crate::flow::transfers::scalar_values::CallValues;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionNode;

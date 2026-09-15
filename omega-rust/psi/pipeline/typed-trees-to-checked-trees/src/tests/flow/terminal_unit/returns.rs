@@ -1,4 +1,6 @@
-use super::*;
+use super::{CheckedUnitStructuralTypeShape, Multiplicity};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
 fn borrowed_case_getter_retains_ordered_refined_scalar_returns() {

@@ -1,6 +1,8 @@
 //! An exclusive endpoint may observe its exact collection's current extent.
-
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
+use crate::checks::ranges::RangeFacts;
+use crate::checks::ranges::indexes::check_indexed_access;
+use crate::checks::ranges::indexes::validation::BoundsCheckResult;
 
 fn source(
     access: &str,

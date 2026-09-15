@@ -1,3 +1,5 @@
+use super::points;
+use crate::semantic_places::instantiate_call_contract_place;
 use arena::HandleSpan;
 use checked_trees::{
     ContractCallFact, ContractProofFact, ContractProofFactKind, ContractProofFactOwner,
@@ -11,8 +13,6 @@ mod payload;
 mod places;
 #[cfg(test)]
 mod tests;
-
-use super::*;
 pub(crate) use places::contract_fact_place;
 
 use payload::semantic_contract_payload;

@@ -2,8 +2,10 @@
 //! No branch is discarded as infeasible, and facts from different alternatives
 //! are intersected rather than joined as simultaneous assumptions.
 
-use super::*;
-
+use super::{
+    BinaryOperator, CrashPredicateIdentity, ExpressionHandle, ExpressionNode, TypedTrees,
+    UnaryOperator,
+};
 pub(super) struct Consequences<'a> {
     program: &'a TypedTrees,
     parameter_names: &'a [String],
@@ -172,7 +174,8 @@ fn structure(program: &TypedTrees, expression: ExpressionHandle, negated: bool) 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ExpressionHandle, TypedTrees};
+    use crate::checks::crashes::entry_requirements::consequences::Consequences;
 
     #[test]
     fn exhaustion_is_shared_and_cannot_resume_after_an_oversized_charge() {

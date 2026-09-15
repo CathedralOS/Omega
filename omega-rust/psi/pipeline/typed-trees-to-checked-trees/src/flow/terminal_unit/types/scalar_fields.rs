@@ -1,8 +1,10 @@
 //! Closed numeric field restrictions retained independently of the raw carrier.
 //! Intersect exact proof-integer endpoints before converting to the field's
 //! signed or unsigned carrier; an authored endpoint can exceed that carrier.
-
-use super::*;
+use super::{
+    CheckedUnitStructuralFieldType, PrimitiveType, SymbolHandle, TypeReferenceHandle,
+    TypeReferenceNode, TypedTrees,
+};
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
 
@@ -110,7 +112,12 @@ pub(super) fn retain_scalar_field(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::DataMember;
+    use super::{
+        CheckedUnitStructuralFieldType, IntegerValue, PrimitiveType, TypeReferenceHandle,
+        TypeReferenceNode, TypedTrees,
+    };
+    use crate::flow::terminal_unit::types::scalar_fields::retain_scalar_field;
 
     fn field_type(source: &str) -> (TypedTrees, TypeReferenceHandle) {
         let tokens = source_files_to_tokens::Lexer::new(source)

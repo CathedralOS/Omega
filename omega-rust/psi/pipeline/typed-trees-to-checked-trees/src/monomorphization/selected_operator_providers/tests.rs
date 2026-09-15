@@ -1,4 +1,6 @@
-use super::*;
+use super::{SymbolHandle, TypedTrees};
+use crate::monomorphization::SelectedProviderTemplates;
+use crate::monomorphization::specialize_selected_generic_operator_providers;
 use std::cell::Cell;
 
 thread_local! {

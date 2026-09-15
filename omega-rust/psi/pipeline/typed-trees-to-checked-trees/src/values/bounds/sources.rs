@@ -1,5 +1,10 @@
-use super::*;
+use super::{
+    BigInt, CheckedStructuralPredicatePathSegment, IntegerBoundsSource, IntegerRange,
+    PrimitiveType, SymbolHandle,
+};
 use crate::flow::{CanonicalPlace, canonical_place_from_symbol};
+use crate::values::bounds::declared_bounds;
+use crate::values::bounds::primitive_range;
 use crate::values::exclusive_reference;
 use facts::{FactContextHandle, FactPlan};
 use typed_trees::{

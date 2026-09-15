@@ -1,4 +1,6 @@
-use super::*;
+use crate::flow::borrow_state_fact;
+use crate::flow::canonical_place_from_expression_in_state;
+use crate::flow::canonical_place_from_symbol;
 use checked_trees::BorrowFacts;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;

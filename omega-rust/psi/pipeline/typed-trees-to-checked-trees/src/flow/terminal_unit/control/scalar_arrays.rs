@@ -1,8 +1,9 @@
 //! Array operands use the same checked pure values and computations as calls.
 //! Each element retains a statement-local role and exact primitive destination;
 //! selected constant projections still retain every indexing selection.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedScalarExpressionRole, SymbolHandle, TypeReferenceHandle, TypedTrees,
+};
 use typed_trees::expression::ExpressionHandle;
 
 pub(super) fn elements(

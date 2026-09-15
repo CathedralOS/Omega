@@ -1,4 +1,5 @@
-use super::*;
+use super::{HandleSpan, StatementNode, TypeReferenceNode};
+use crate::checks::termination::progress::origins::tests::Fixture;
 
 #[test]
 fn a_reference_observes_the_current_value_not_its_declaration_snapshot() {

@@ -1,4 +1,5 @@
-use super::*;
+use crate::flow::canonical_place_from_expression;
+use crate::flow::canonical_place_segments_equal;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 mod relative;

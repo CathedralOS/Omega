@@ -1,4 +1,22 @@
-use super::*;
+use super::{
+    Diagnostic, ExpressionNode, StatementNode, SymbolHandle, TypeParameterKind,
+    TypeReferenceHandle, TypedTrees,
+};
+use crate::monomorphization::Candidate;
+use crate::monomorphization::SpecializationKey;
+use crate::monomorphization::accepted_template_commitment;
+use crate::monomorphization::approved_type_bounds;
+use crate::monomorphization::candidate;
+use crate::monomorphization::canonical_template_contract_bytes;
+use crate::monomorphization::clone_specialized_machine;
+use crate::monomorphization::collect_expression_tree;
+use crate::monomorphization::copy_type_reference;
+use crate::monomorphization::fnv1a_report_fingerprint;
+use crate::monomorphization::machine_template_commitment;
+use crate::monomorphization::materialize_static_argument_types;
+use crate::monomorphization::normalized_machine_identity;
+use crate::monomorphization::saved_calls;
+use crate::monomorphization::validate_candidate_conformance_bounds;
 
 pub(crate) struct SelectedProviderTemplates {
     authored: TypedTrees,

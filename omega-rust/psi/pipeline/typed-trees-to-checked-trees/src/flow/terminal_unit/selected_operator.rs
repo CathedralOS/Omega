@@ -1,6 +1,21 @@
 //! Exact selected boundary-operator applications inside bounded Unit plans.
-
-use super::*;
+use super::{
+    BTreeSet, CheckFacts, CheckedStructuralAccess, CheckedUnitCallCoordinate,
+    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
+    MachineSupplyMode, Multiplicity, StatementNode, SymbolHandle, TypedTrees,
+    type_graph_requires_nominal_drop,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::is_reference;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::machine_has_content_evidence;
+use crate::flow::terminal_unit::parameter_qualifications;
+use crate::flow::terminal_unit::service_reach_is_empty;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
 
 pub(super) fn selected_operator_scalar_result_local<'applications>(
     program: &TypedTrees,

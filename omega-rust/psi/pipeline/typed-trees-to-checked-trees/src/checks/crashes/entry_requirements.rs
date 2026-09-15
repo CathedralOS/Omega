@@ -150,7 +150,8 @@ fn has_exact_entry_meaning(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CheckedOperatorFacts, TypedTrees, collect};
+    use crate::checks::crashes::entry_requirements::EntryRequirements;
 
     fn typed(source: &str) -> TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)

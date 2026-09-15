@@ -1,4 +1,9 @@
-use super::super::*;
+use super::super::{
+    Arc, CallExpression, Expression, Identifier, Machine, NamePath, State, StateParameter,
+    StatementNode, SymbolHandle, TableCall, TypeReferenceNode,
+};
+use crate::build_borrow_facts;
+use crate::tests::mutable_borrow;
 
 #[test]
 fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {

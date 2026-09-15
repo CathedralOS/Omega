@@ -1,7 +1,11 @@
 //! Call operands transported through an exact normal-return guarantee.
 //! No source arithmetic, callee body, or current argument storage is replayed.
-
-use super::*;
+use super::{CheckedScalarExpressionRole, ExpressionHandle, FactPayload, Machine, ScalarValue};
+use crate::checks::contracts::exits::scalars::ExitScalars;
+use crate::checks::contracts::return_values::is_result_reference;
+use crate::flow::canonical_place_from_expression_in_state;
+use crate::values::evaluate_checked_scalar;
+use crate::values::scalar_value_at_place;
 use checked_trees::{CheckedScalarComputationKind, ContractProofFactKind, ContractProofFactOwner};
 use facts::FactPlace;
 use typed_trees::expression::{BinaryOperator, ExpressionNode};

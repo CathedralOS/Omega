@@ -1,6 +1,6 @@
 //! Capture a selected initializer or assignment while its operand facts are live.
-
-use super::*;
+use crate::flow::CanonicalPlace;
+use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -331,7 +331,8 @@ impl crate::values::ScalarValueSource for CallValues {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ScalarValue, SymbolHandle};
+    use crate::flow::transfers::scalar_values::CallValues;
     use crate::values::ScalarValueSource;
 
     #[test]

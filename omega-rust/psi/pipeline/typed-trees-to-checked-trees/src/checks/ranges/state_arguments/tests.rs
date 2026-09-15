@@ -1,4 +1,13 @@
-use super::*;
+use super::SymbolHandle;
+use crate::checks::ranges::collect_state_argument_facts;
+use crate::checks::ranges::state_arguments::MAX_PROPAGATION_PASSES;
+use crate::checks::ranges::state_arguments::MergedBound;
+use crate::checks::ranges::state_arguments::MergedFact;
+use crate::checks::ranges::state_arguments::ParameterFacts;
+use crate::checks::ranges::state_arguments::ParameterIndexProof;
+use crate::checks::ranges::state_arguments::StateArgumentFacts;
+use crate::checks::ranges::state_arguments::collect_state_argument_facts_whole_pass;
+use crate::checks::ranges::state_arguments::merge_contribution;
 
 thread_local! {
     pub(super) static STATE_TRANSFERS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };

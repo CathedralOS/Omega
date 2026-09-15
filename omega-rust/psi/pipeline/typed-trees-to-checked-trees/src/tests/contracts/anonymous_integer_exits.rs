@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 fn check_expression(expression: &str, target: &str, expected: &str, accepted: bool) {
     let source =

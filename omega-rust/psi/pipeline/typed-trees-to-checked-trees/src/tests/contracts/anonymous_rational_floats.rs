@@ -1,4 +1,5 @@
-use super::{lower_typed_trees, parse_typed_trees};
+use super::super::lower_typed_trees;
+use super::parse_typed_trees;
 use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees};
 use numerics::literals::FloatFormat;
 use semantic_vocabulary::IeeeFloatValue;

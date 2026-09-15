@@ -1,4 +1,11 @@
-use super::*;
+use super::ProgressSubject;
+use crate::checks::termination::progress::lineage::ParameterLineage;
+use crate::checks::termination::progress::lineage::StateParameterLineage;
+use crate::checks::termination::progress::lineage::resolve_subject_lineage;
+use crate::checks::termination::progress::lineage::tests::exact;
+use crate::checks::termination::progress::lineage::tests::subject;
+use crate::checks::termination::progress::lineage::tests::symbol;
+use crate::checks::termination::progress::lineage::transfers;
 
 fn place(root: u32, projections: &[u32]) -> ProgressSubject {
     ProgressSubject {

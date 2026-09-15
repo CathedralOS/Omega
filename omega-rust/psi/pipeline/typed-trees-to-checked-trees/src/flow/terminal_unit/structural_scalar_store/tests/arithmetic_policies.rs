@@ -1,4 +1,5 @@
-use super::*;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::build_checked_machine;
 use language_semantics::SemanticDomainTable;
 
 #[test]

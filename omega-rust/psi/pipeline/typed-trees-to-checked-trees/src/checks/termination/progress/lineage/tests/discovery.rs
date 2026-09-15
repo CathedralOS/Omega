@@ -1,4 +1,8 @@
-use super::*;
+use super::{ProgressSubject, SymbolHandle};
+use crate::checks::termination::progress::lineage::ParameterLineage;
+use crate::checks::termination::progress::lineage::StateParameterLineage;
+use crate::checks::termination::progress::lineage::places;
+use crate::checks::termination::progress::lineage::resolve_subject_lineage;
 
 fn checked() -> checked_trees::CheckedTrees {
     let source = r#"

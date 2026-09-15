@@ -82,7 +82,8 @@ fn closed_literal_array(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CheckedOperatorFacts, ExpressionHandle, ExpressionNode, TypedTrees};
+    use crate::values::scalar::constant_array_projection::selected_leaf;
     use numerics::literals::IntegerLiteral;
 
     fn fixture(carrier: &str, initializer: &str) -> (TypedTrees, ExpressionHandle) {

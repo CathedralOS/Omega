@@ -1,5 +1,13 @@
 use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
-use super::*;
+use crate::flow::FlowOwnershipEventSource;
+use crate::flow::canonical_place_from_expression_in_state;
+use crate::flow::canonical_place_from_symbol;
+use crate::flow::ownership::DirectMoveEventSink;
+use crate::flow::ownership::append_move_event_for_place;
+use crate::flow::ownership::type_references;
+use crate::flow::ownership::type_requires_ownership;
+use crate::flow::resolve_operator_for_call;
+use crate::flow::symbol_type_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 pub(super) mod observations;

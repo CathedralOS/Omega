@@ -2,8 +2,14 @@
 //!
 //! This is meaning custody, not an overflow proof. Normal source formation and
 //! Terminal operation obligations still independently discharge Exact arithmetic.
-
-use super::*;
+use super::{
+    BinaryOperator, CheckFacts, ExpressionHandle, ExpressionNode, OperatorSpelling, PrimitiveType,
+    StateParameter, SymbolHandle, TypeReferenceHandle, TypedTrees,
+};
+use crate::checks::contracts::call_bounds::context::comparison_is_supported;
+use crate::checks::contracts::call_bounds::context::direct_parameter;
+use crate::checks::contracts::call_bounds::context::fixed_integer;
+use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
 use numerics::arithmetic::ArithmeticDomain;
 
 pub(super) fn primitive_type(

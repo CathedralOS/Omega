@@ -651,7 +651,12 @@ fn place_segment_pair_may_overlap(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{BorrowCompatibilityPlaceSide, CapturedPlaceContainment};
+    use crate::checks::borrows::overlap::CompatibilityReplayDrift;
+    use crate::checks::borrows::overlap::place_segments_compatibility_from_snapshot;
+    use crate::checks::borrows::overlap::place_segments_compatibility_with_snapshot;
+    use crate::checks::borrows::overlap::segments::place_segments_containment;
+    use crate::checks::borrows::overlap::segments::place_segments_may_overlap;
     use checked_trees::expression::{
         BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
     };

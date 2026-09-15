@@ -1,6 +1,9 @@
 //! General acyclic Boolean control graphs with exact effect leaves.
+use super::super::{
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan, TypedTrees,
+};
 
-use super::*;
+use crate::flow::terminal_unit::ShapeCollector;
 
 mod assembly;
 mod operations;

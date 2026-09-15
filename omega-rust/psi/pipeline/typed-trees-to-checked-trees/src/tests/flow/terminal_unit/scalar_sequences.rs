@@ -1,6 +1,7 @@
 //! Scalar declaration ordinals are dense across intervening Unit calls.
-
-use super::*;
+use super::{CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitEffectOperationPlan};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 const SOURCE: &str = r#"
     boundary trait Host {

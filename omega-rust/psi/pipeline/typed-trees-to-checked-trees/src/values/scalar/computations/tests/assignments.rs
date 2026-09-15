@@ -1,4 +1,10 @@
-use super::*;
+use super::super::SymbolHandle;
+use super::{
+    CheckedBooleanExpression, CheckedScalarComputationKind, CheckedScalarExpression,
+    CheckedScalarExpressionRole, ExpressionNode, StatementNode,
+};
+use crate::values::build_checked_scalar_computation_plans;
+use crate::values::scalar::computations::tests::checked_source;
 
 #[test]
 fn scalar_computations_keep_assignment_rhs_and_prior_storage_namespace() {

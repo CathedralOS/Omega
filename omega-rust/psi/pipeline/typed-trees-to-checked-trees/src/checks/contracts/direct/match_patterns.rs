@@ -133,7 +133,7 @@ fn proves_scoped(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ExpressionNode, proves};
 
     #[test]
     fn match_comparison_substitutes_recursive_actual_only_once() {

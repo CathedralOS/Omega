@@ -1,6 +1,7 @@
 //! Exact reference and immutable scalar origins across named-state arguments.
-
-use super::*;
+use crate::flow::FlowBuildContext;
+use crate::flow::canonical_place_from_expression_in_state;
+use crate::flow::common;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionNode;

@@ -1,4 +1,4 @@
-use super::*;
+use crate::flow::common;
 use checked_trees::statement::StatementNode;
 use checked_trees::{
     BorrowFacts, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowConstraintKind,

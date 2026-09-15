@@ -3,9 +3,21 @@
 //! Attachment specialization can erase borrowed self. A retained callee self
 //! instead requires the caller's actual loan, including through forwarding
 //! methods whose own provisional plan erased self.
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::base_type_identity;
+use crate::flow::terminal_unit::calls;
+use crate::flow::terminal_unit::control;
+use crate::flow::terminal_unit::receiver_aliases;
+use crate::flow::terminal_unit::state_flow;
 
-use super::*;
-
+use super::{
+    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedStructuralAccess,
+    CheckedUnitCallCoordinate, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
+    StatementNode, SymbolHandle, TypedTrees,
+};
 mod observations;
 pub(super) use observations::reads_receiver;
 

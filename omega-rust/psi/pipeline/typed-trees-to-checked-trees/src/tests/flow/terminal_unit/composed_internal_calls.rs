@@ -1,6 +1,7 @@
 //! Exact internal Unit-call leaves in composed control.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
 fn composes_two_internal_unit_call_leaves() {

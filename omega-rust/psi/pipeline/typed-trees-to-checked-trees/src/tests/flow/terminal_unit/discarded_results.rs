@@ -1,6 +1,7 @@
 //! Explicit result disposal must not turn a value-returning boundary into Unit.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 const SOURCE: &str = r#"
 data ReadResult { case Empty; case Bytes(count: u64); }

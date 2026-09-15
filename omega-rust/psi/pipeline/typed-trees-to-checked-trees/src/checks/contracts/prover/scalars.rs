@@ -203,7 +203,13 @@ pub(in crate::checks::contracts) fn evaluate_with_atoms(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, ScalarValue, TypedTrees,
+        UnaryOperator, evaluate,
+    };
+    use crate::checks::contracts::prover::closed_boolean_value;
+    use crate::checks::contracts::prover::scalars::evaluate_with_comparisons;
+    use crate::checks::contracts::prover::scalars::literal;
     use checked_trees::{
         CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
     };

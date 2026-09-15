@@ -1,4 +1,10 @@
-use super::*;
+use super::super::{CheckedScalarComputationHandle, ExpressionHandle, SymbolHandle};
+use super::{
+    CheckedBooleanExpression, CheckedScalarComputationKind, CheckedScalarExpression,
+    CheckedScalarExpressionRole, ExpressionNode, PrimitiveType, StatementNode,
+};
+use crate::values::build_checked_scalar_computation_plans;
+use crate::values::scalar::computations::tests::checked_source;
 use checked_trees::{
     CheckedCallScalarArgument, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan,

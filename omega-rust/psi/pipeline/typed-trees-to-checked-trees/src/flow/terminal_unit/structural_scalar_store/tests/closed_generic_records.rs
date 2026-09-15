@@ -1,6 +1,8 @@
 use super::super::super::structural_scalar_signature;
 use super::super::plain_record;
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence;
 
 fn fixture() -> checked_trees::CheckedTrees {
     let source = r#"

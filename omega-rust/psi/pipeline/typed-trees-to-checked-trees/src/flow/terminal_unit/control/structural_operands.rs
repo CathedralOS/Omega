@@ -1,7 +1,22 @@
 //! Direct structural operands execute before their enclosing call, retaining
 //! captured preorder coordinates rather than renumbering by execution order.
-
-use super::*;
+use super::super::{
+    CheckedStructuralResultPlan, CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
+};
+use super::{
+    CheckFacts, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
+    MachineSupplyMode, Multiplicity, SymbolHandle, TypedTrees,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::ExpectedCallValueResult;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::bind_structural_call_result;
+use crate::flow::terminal_unit::build_call_operation;
+use crate::flow::terminal_unit::checked_structural_result_type;
+use crate::flow::terminal_unit::control::boundary_result_plan;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::state_flow;
 
 pub(in crate::flow::terminal_unit) enum Operand<'facts> {
     Call(&'facts checked_trees::FlowCallFact),

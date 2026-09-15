@@ -1,5 +1,5 @@
 //! Case qualification selects declaration identity, not the first matching spelling.
-use super::*;
+use super::effective_member_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::name::Identifier;
 use symbols::SymbolHandle;

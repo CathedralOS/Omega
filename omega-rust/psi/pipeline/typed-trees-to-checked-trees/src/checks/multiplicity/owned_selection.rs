@@ -3,8 +3,14 @@
 //! the actual death edge. A path constructing a fresh result discards, at the
 //! join edge, the one source whose residual slot the result displaces; every
 //! other complement stays in the receipt until the actual death edge.
-
-use super::*;
+use super::{
+    CheckFacts, Diagnostic, HandleSpan, Multiplicity, PermissionClaimIdentity,
+    PermissionEventSource, PermissionProvenance, StatementNode, SymbolHandle, TypeReferenceHandle,
+    TypeReferenceNode,
+};
+use crate::checks::multiplicity::LinearPlace;
+use crate::checks::multiplicity::type_reference_is_reference;
+use crate::checks::type_multiplicity;
 use arena::Handle;
 use checked_trees::{
     FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,

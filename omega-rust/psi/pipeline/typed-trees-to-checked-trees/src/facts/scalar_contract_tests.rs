@@ -1,4 +1,6 @@
-use super::*;
+use super::TypedTrees;
+use crate::facts::build_closed_scalar_value_contract_plan;
+use crate::facts::encode_contract_fact_canonical;
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
     ClosedScalarContractValue,

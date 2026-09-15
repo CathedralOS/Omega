@@ -1,4 +1,5 @@
-use super::{lower_typed_trees, typed_trees};
+use super::super::lower_typed_trees;
+use super::typed_trees;
 
 #[test]
 fn explicit_unit_locals_reject_value_initializers() {

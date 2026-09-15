@@ -1,7 +1,9 @@
 //! Numeric bounds and live orderings for windows with a known collection extent.
-
-use super::*;
+use super::{ExpressionHandle, Machine, State, TableRangeExpression};
+use crate::checks::ranges::RangeFacts;
+use crate::checks::ranges::expression_enforced_declared_range;
 use crate::checks::ranges::expressions::normalize_exclusive_end;
+use crate::checks::ranges::indexes::validation::expression_integer_value;
 
 /// Prove the upper bound and ordering only. The caller independently requires
 /// nonnegative endpoints through `lower_bounds::prove` before admitting a window.

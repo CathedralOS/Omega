@@ -30,7 +30,6 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         37,
     ),
-    ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 451),
 ];
 
 fn workspace_root() -> PathBuf {

@@ -1,6 +1,16 @@
 //! Case terminators consume exact owned subjects after ordinary ordered effects.
-
-use super::*;
+use super::super::{
+    CheckedClosedSumCaseSuccessorPlan, CheckedClosedSumPayloadTransferPlan, DataMember,
+    PermissionAccess, PermissionClaimIdentity,
+};
+use super::{
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
+    PermissionEventSource, Signature, StatementNode, TransitionGuardNode, TransitionTargetNode,
+    TypeReferenceNode, TypedTrees,
+};
+use crate::flow::terminal_unit::state_graph::successor_bindings;
 
 pub(super) fn build(
     program: &TypedTrees,

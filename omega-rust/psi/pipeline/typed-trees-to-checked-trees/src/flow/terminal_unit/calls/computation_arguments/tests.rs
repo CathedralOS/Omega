@@ -1,6 +1,16 @@
 use super::super::super::scalar_targets::registered_structural_graph_target;
 use super::super::super::structural_scalar_graph_signature;
-use super::*;
+use super::super::{
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+};
+use super::{
+    CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity,
+    PrimitiveType, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::flow::structural_computation_argument;
+use crate::flow::terminal_unit::calls::computation_arguments::owned_parameter_argument;
+use crate::flow::terminal_unit::terminal_field_identity;
 
 const SOURCE: &str = r#"
 data Limits { limit: u64; divisor: u64 [3..=5]; }

@@ -1,6 +1,7 @@
 //! Shared temporary access retains one real owner until the call continuation.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
     PermissionProvenance,

@@ -1,4 +1,5 @@
-use super::*;
+use super::StatementNode;
+use crate::tests::values::typed_trees;
 use checked_trees::CheckedOperatorFacts;
 
 #[test]

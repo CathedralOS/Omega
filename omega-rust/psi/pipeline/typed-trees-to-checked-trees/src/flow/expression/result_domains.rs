@@ -10,8 +10,9 @@
 //! normalized instance travels with the declaration through every fact copy.
 //! Equality of exact instances is not a license to equate different open index
 //! expressions; those still require their selected normalization/equality proof.
-
-use super::*;
+use crate::flow::append_constraint_ref;
+use crate::flow::common;
+use crate::flow::expression::Execution;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};

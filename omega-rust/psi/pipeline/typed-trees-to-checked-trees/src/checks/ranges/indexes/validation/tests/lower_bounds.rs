@@ -1,4 +1,7 @@
-use super::*;
+use super::ExpressionNode;
+use crate::checks::ranges::RangeFacts;
+use crate::checks::ranges::indexes::check_indexed_access;
+use crate::checks::ranges::indexes::validation::BoundsCheckResult;
 
 fn check(
     collection: &str,

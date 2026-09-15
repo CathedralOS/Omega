@@ -1,4 +1,6 @@
-use super::*;
+use super::super::super::TerminationGuarantee;
+use crate::tests::termination::progress_mutation::CONTEXT_FIXTURE;
+use crate::tests::termination::progress_mutation::check_source;
 
 mod exposure;
 mod queries;

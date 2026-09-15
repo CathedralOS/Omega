@@ -1,4 +1,5 @@
-use super::*;
+use super::{CheckedScalarComputationKind, PrimitiveType};
+use crate::values::scalar::computations::tests::checked_source;
 
 #[test]
 fn anonymous_match_results_land_in_actual_integer_peer_without_erasing_dispatch() {

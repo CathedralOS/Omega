@@ -391,7 +391,8 @@ fn lower_scalar_term(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::Proposition;
+    use crate::proof::contract_entailment::selected_assumption_position;
 
     #[test]
     fn false_or_non_assumption_goal_has_no_discharge() {

@@ -1,4 +1,11 @@
-use super::*;
+use super::super::super::{
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
+use crate::tests::termination::progress_mutation::fixture_source;
+use crate::tests::termination::progress_mutation::fixture_with_body;
 
 fn assert_readonly_carrier_has_no_subject(operation: &str) {
     let source = fixture_source(

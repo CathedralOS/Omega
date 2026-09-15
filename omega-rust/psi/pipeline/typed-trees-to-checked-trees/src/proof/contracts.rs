@@ -1,4 +1,3 @@
-use super::*;
 use checked_trees::CheckedEvidenceTerm;
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use symbols::SymbolHandle;

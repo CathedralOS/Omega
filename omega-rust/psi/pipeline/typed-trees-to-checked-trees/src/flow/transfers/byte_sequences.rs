@@ -1,8 +1,12 @@
 //! Concatenation derives predicates from the operands at assignment time.
 //! The destination retains a materialized-value fact, not expressions that
 //! would read the mutable operands again at a later contract boundary.
-
-use super::*;
+use super::PlaceHandle;
+use crate::flow::FlowBuildContext;
+use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::normalize_attached_place_root;
+use crate::flow::normalized_event_place_root;
+use crate::flow::transfers::contextual_expression_place;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};

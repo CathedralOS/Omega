@@ -1502,7 +1502,21 @@ fn crash_route_expressions_by_identity(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CrashPredicateExpression, SymbolHandle, TypedTrees, infer_checked_crash_causes,
+        infer_checked_machine_crash_causes,
+    };
+    use crate::facts::crash_calls::CallArgumentSubstitution;
+    use crate::facts::crash_calls::PrivateSummaryDependency;
+    use crate::facts::crash_calls::PrivateSummaryEquation;
+    use crate::facts::crash_calls::SummaryCrashBucket;
+    use crate::facts::crash_calls::SummaryCrashPredicate;
+    use crate::facts::crash_calls::SummaryCrashRouteGuard;
+    use crate::facts::crash_calls::crash_predicate_from_expression;
+    use crate::facts::crash_calls::normalize_summary_buckets;
+    use crate::facts::crash_calls::normalize_summary_guards;
+    use crate::facts::crash_calls::solve_private_summary_fixed_point;
+    use crate::facts::crash_calls::summary_boolean_value;
 
     fn integer_comparison(
         operator: typed_trees::expression::BinaryOperator,

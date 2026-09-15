@@ -1,4 +1,5 @@
-use super::*;
+use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject, TypedTrees};
+use crate::checks::termination::progress::origins::at_call;
 use arena::HandleSpan;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;

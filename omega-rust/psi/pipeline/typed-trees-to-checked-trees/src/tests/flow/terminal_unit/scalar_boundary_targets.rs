@@ -1,6 +1,12 @@
 //! A Unit closure consumes the scalar boundary wrapper's real checked body.
 
-use super::*;
+use super::super::super::TypeReferenceNode;
+use super::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan, PrimitiveType,
+};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 const SOURCE: &str = r#"
     boundary trait Host {

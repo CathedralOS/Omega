@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 #[test]
 fn accepts_proven_asm_entry_and_exit_facts() {

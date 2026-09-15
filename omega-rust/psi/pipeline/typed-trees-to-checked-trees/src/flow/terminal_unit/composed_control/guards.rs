@@ -1,6 +1,9 @@
 //! Closed and parameter-backed guards admitted by composed Unit control.
 
-use super::*;
+use super::super::{
+    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckedStructuralScalarParameterPlan, PrimitiveType,
+};
 
 pub(super) fn exact_guard(
     expression: &CheckedScalarExpression,

@@ -1,8 +1,7 @@
 //! Match effects fork after each comparison and meet at the result join.
 //! A saved subject is not a promise about its storage after a pattern writes it;
 //! only unchanged stable inputs can publish branch-local comparison evidence.
-
-use super::*;
+use crate::flow::expression::Execution;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{FlowConstraintRef, FlowSemanticContextRef};

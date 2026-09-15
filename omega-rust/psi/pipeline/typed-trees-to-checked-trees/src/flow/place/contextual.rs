@@ -1,5 +1,8 @@
+use super::resolution;
 use super::resolution::{effective_member_symbol, resolve_member_symbol_from_type_symbol};
-use super::*;
+use crate::flow::CanonicalPlace;
+use crate::flow::index_place_segment;
+use crate::flow::push_field_place_segments;
 use crate::lookup::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;

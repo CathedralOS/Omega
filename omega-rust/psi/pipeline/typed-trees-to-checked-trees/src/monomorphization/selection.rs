@@ -1,6 +1,20 @@
 //! Discover complete call tuples and check their authored generic bounds.
-
-use super::*;
+use super::{
+    CallSite, Diagnostic, ExpressionHandle, ExpressionNode, Handle, HandleSpan, ProofFact,
+    StatementNode, StaticMachineArgument, SymbolHandle, SymbolKind, TypeConstraintNode,
+    TypeParameterKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::monomorphization::CallSelection;
+use crate::monomorphization::CalleeState;
+use crate::monomorphization::Candidate;
+use crate::monomorphization::SpecializationKey;
+use crate::monomorphization::collect_statement_expression_trees;
+use crate::monomorphization::const_arguments;
+use crate::monomorphization::forwarded_static_argument_rewrites;
+use crate::monomorphization::range_arguments;
+use crate::monomorphization::substitute_forwarded_machine_arguments;
+#[cfg(test)]
+use crate::monomorphization::{candidate, materialize_static_argument_types};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_call_proposals(

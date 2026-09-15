@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    CheckedValueFact, CheckedValueFacts, CheckedValueOrigin, CheckedValueStatementRole,
+    ExpressionNode,
+};
+use crate::checks::ranges::RangeFacts;
+use crate::checks::ranges::indexes::check_indexed_access;
+use crate::checks::ranges::indexes::validation::BoundsCheckResult;
 
 fn unknown_slice_result(
     declaration: &str,

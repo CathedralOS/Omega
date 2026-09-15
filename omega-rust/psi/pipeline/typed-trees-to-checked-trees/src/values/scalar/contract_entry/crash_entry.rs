@@ -1,4 +1,5 @@
 //! Exact invocation predicates over Boolean fields and total integer comparisons.
+use crate::values::operator_is_builtin;
 
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
@@ -155,7 +156,7 @@ impl<'program> Reader<'program> {
             }
             ExpressionNode::Unary(unary)
                 if unary.operator == UnaryOperator::LogicalNot
-                    && super::operator_is_builtin(self.operators, expression) =>
+                    && operator_is_builtin(self.operators, expression) =>
             {
                 Some(CheckedBooleanExpression::Not(Box::new(
                     self.boolean(unary.operand, depth + 1)?,
@@ -172,7 +173,7 @@ impl<'program> Reader<'program> {
                         | BinaryOperator::LessOrEqual
                         | BinaryOperator::Greater
                         | BinaryOperator::GreaterOrEqual
-                ) && super::operator_is_builtin(self.operators, expression) =>
+                ) && operator_is_builtin(self.operators, expression) =>
             {
                 if matches!(
                     binary.operator,

@@ -1,4 +1,7 @@
-use super::super::*;
+use crate::build_borrow_facts;
+use crate::lower_typed_trees;
+use crate::tests::StateMutationSummaryCache;
+use crate::tests::call_mutated_places;
 
 #[test]
 fn shared_statement_resolver_preserves_aliases_across_binding_replacement() {

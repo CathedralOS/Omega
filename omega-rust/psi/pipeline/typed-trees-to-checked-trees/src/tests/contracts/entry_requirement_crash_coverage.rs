@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 fn accepts(source: &str) {
     lower_typed_trees(parse_typed_trees(source))

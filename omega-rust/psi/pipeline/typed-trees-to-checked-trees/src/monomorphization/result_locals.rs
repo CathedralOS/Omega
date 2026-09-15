@@ -274,7 +274,8 @@ pub(super) fn refresh(program: &mut TypedTrees) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{StatementNode, TypedTrees};
+    use crate::monomorphization::result_locals::refresh_generic_call_results;
 
     fn typed(source: &str) -> TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)

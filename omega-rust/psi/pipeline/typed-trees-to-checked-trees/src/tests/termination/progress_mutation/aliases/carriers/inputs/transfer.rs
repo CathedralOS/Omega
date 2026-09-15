@@ -1,4 +1,14 @@
-use super::*;
+use super::super::super::super::{
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+
+use super::fixture_source;
+use crate::lower_typed_trees;
+use crate::tests::termination::progress_mutation::aliases::carriers::inputs::assert_input_subject;
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
+use crate::tests::termination::progress_mutation::check_source;
+use crate::tests::termination::symbol_of_checked;
 
 #[test]
 fn replacing_an_input_reference_slot_or_carrier_retires_the_old_relation() {

@@ -1,6 +1,12 @@
 //! Checked whole-primitive stores through exact exclusive reference parameters.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, DataMember, ExpressionNode,
+    Multiplicity, PrimitiveType, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
 
 pub(super) fn build_write_only_primitive_store(
     program: &TypedTrees,

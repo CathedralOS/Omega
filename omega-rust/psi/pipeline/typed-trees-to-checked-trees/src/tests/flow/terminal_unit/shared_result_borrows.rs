@@ -1,6 +1,7 @@
 //! Named results retain their owner while exact shared call accesses execute.
-
-use super::*;
+use super::{CheckedUnitEffectOperationPlan, Multiplicity};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{BorrowAccessKind, CheckedStructuralAccess};
 
 fn source(producer: &str, final_move: bool) -> String {

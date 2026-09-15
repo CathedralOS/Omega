@@ -1,4 +1,5 @@
-use super::*;
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::lower_typed_trees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 

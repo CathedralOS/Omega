@@ -1,4 +1,8 @@
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
+use crate::checks::ranges::RangeFacts;
+use crate::checks::ranges::facts::dependencies::tests::initializer;
+use crate::checks::ranges::facts::dependencies::tests::parameter_place;
+use crate::checks::ranges::facts::dependencies::tests::typed_source;
 
 fn index_source(declaration: &str, selector: &str) -> TypedTrees {
     typed_source(&format!(

@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    Builder, CheckedScalarExpressionPlans, CheckedScalarExpressionRole, ExpressionHandle,
+    SymbolHandle,
+};
+use crate::values::scalar::call_is_boundary;
 
 impl Builder<'_, '_> {
     pub(super) fn record_call_arguments(

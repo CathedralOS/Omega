@@ -1,4 +1,12 @@
-use super::*;
+use super::super::super::{
+    Lexer, ResolutionRequest, TerminationGuarantee, lower_symbol_resolved_trees,
+    parse_syntax_trees, resolve,
+};
+
+use crate::lower_typed_trees;
+use crate::tests::termination::progress_mutation::CONTEXT_FIXTURE;
+use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
+use crate::tests::termination::progress_mutation::check_source;
 
 mod direct;
 mod effects;

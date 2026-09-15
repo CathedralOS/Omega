@@ -1,5 +1,4 @@
-use super::*;
-
+use super::has_stable_observable_contents;
 #[test]
 fn structural_entry_identity_requires_plain_contents_through_generic_substitution() {
     for (carrier, stable) in [

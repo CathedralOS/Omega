@@ -1,4 +1,4 @@
-use super::*;
+use crate::CallSite;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
@@ -126,7 +126,10 @@ pub(crate) fn call_target_type_parameters(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::SymbolHandle;
+    use crate::call_target_parameters;
+    use crate::call_target_type_parameters;
+    use crate::find_state;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{machine::Machine, state::State};
 

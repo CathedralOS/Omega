@@ -1,8 +1,10 @@
 //! Constructor payloads use the ordinary operand graph before tag observation.
 //! The same dynamic field computations retain their calls, traps and selected
 //! operators; knowing the constructed case does not erase their evaluation.
-
-use super::*;
+use super::{
+    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
+    ExpressionNode, PrimitiveType, StatementNode,
+};
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
     CheckedScalarComputationStructuralArgument,

@@ -1,6 +1,11 @@
 //! Whole-root linear claims and edge-alias replay for composed Unit control.
+use super::super::{
+    CarryPolicy, CheckFacts, CheckedStructuralAccess, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralParameterPlan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, SymbolHandle, TypedTrees,
+};
 
-use super::*;
+use crate::flow::terminal_unit::entry_claims;
 
 pub(super) fn exact_claims(
     program: &TypedTrees,

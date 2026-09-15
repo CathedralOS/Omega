@@ -5,8 +5,19 @@
 //! realization at the end of an attached Unit state, with either one selection
 //! or one exact same-conformance reassignment. It publishes no fabricated
 //! result carrier.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedStructuralAccess, CheckedUnitCallCoordinate, Identifier, MachineSupplyMode,
+    ServiceReachSummary, StatementNode, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::dynamic_scalar_calls::checked_call_service_reach;
+use crate::flow::terminal_unit::dynamic_scalar_calls::checked_rebound_dynamic_selection;
+use crate::flow::terminal_unit::dynamic_scalar_calls::checked_self_attachment_source;
+use crate::flow::terminal_unit::dynamic_scalar_calls::checked_source_argument;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_access_for_type_reference;
 
 pub(super) enum CheckedDynamicUnitCall {
     Direct(checked_trees::CheckedDynamicUnitCallPlan),

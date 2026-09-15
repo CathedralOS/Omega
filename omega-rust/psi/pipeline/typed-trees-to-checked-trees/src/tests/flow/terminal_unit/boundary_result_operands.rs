@@ -1,6 +1,7 @@
 //! A returned boundary scalar keeps operand evaluation separate from settlement.
-
-use super::*;
+use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
 
 const SOURCE: &str = r#"

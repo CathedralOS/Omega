@@ -1,4 +1,7 @@
-use super::*;
+use super::{HandleSpan, ProofFact, TypeConstraintNode, TypeReferenceNode, TypedTrees};
+use crate::monomorphization::contract_fact_text;
+use crate::monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses;
+use crate::refresh_closed_domain_instance_identities;
 
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)

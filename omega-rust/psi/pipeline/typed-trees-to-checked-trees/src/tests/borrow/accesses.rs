@@ -1,4 +1,10 @@
-use super::super::*;
+use super::super::{
+    BorrowAccessKind, Expression, HandleSpan, Identifier, Machine, NamePath, State, StatementNode,
+    SymbolHandle, TableCall,
+};
+use crate::build_borrow_facts;
+use crate::lower_typed_trees;
+use crate::tests::mutable_borrow;
 
 #[test]
 fn implicit_shared_array_field_views_keep_argument_loan_conflicts() {

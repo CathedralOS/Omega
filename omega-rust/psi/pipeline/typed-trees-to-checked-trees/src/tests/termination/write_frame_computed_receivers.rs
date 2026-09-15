@@ -1,4 +1,5 @@
-use super::*;
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::lower_typed_trees;
 
 #[test]
 fn computed_receiver_cannot_select_a_numeric_builtin_by_spelling() {

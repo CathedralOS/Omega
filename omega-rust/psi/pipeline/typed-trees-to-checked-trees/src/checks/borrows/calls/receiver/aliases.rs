@@ -1,8 +1,7 @@
 //! Local reference operands rejoin retained storage before overlap comparison.
 //! A captured place does not grant ancestry: only receivers with independently
 //! retained lineage may exempt their own parent loans from interference.
-
-use super::*;
+use super::{CapturedPlace, CheckFacts, FlowStateFact, TypeReferenceNode, TypedTrees};
 use arena::{Handle, HandleSpan};
 use checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage, StateBorrowFact};
 use typed_trees::statement::StatementNode;

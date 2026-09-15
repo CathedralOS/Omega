@@ -1,4 +1,4 @@
-use super::*;
+use crate::flow::StateMutationSummaryCache;
 use checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
     FlowFacts, FlowInvalidationFacts, FlowOwnershipFacts, ProofFacts,
@@ -148,7 +148,9 @@ fn discard_output_arena<T: Default>(arena: &mut arena::Arena<T>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{StateMutationSummaryCache, SymbolHandle};
+    use crate::flow::FlowBuildContext;
+    use crate::flow::context::discard_output_arena;
 
     #[test]
     fn discard_output_replaces_all_roots_and_preserves_convergence_inputs() {

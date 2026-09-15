@@ -3,8 +3,10 @@
 //! The arithmetic engine receives current parameter atoms, landed literals,
 //! and independently selected Exact addition/subtraction/multiplication trees.
 //! Caller storage and earlier initializers are never replayed.
-
-use super::*;
+use super::{
+    BinaryOperator, CheckFacts, ExpressionHandle, ExpressionNode, FlowCallFact, FlowStateFact,
+    OperatorSpelling, TypedTrees,
+};
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};

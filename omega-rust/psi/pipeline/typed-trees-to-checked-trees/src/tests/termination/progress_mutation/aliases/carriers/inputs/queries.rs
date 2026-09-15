@@ -1,5 +1,5 @@
 use super::exposure::typed_source;
-use super::*;
+use super::fixture_source;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;

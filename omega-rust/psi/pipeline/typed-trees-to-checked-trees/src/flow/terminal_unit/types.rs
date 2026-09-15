@@ -1,6 +1,15 @@
 //! Structural type, shape, claim, and return-custody helpers.
-
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner, DataMember,
+    DataShapeKind, ExpressionNode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, PrimitiveType, ProofFact, SemanticDomainId,
+    SignatureContractKind, StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle,
+    TypeReferenceNode, TypedTrees,
+};
 use checked_trees::CheckedStructuralPathQualification;
 
 #[path = "types/scalar_fields.rs"]

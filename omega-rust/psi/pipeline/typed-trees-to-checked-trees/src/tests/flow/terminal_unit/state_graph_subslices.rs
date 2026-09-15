@@ -1,6 +1,7 @@
 //! Borrowed-byte edges retain source ranges and exact authored endpoint roles.
-
-use super::*;
+use super::{CheckedScalarExpression, CheckedScalarExpressionRole, PrimitiveType};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedStructuralControlTransferSourcePlan,
 };

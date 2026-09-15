@@ -1,6 +1,10 @@
 //! Scalar prefixes and successor expressions retain their authored fact coordinates.
-
-use super::*;
+use super::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    PrimitiveType,
+};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedScalarBindingDestination,
     CheckedScalarBindingValue, CheckedStructuralScalarArgumentSourcePlan,

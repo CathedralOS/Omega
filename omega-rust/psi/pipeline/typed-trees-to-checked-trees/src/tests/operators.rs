@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    Expression, HandleSpan, Identifier, Lexer, Machine, NamePath, ResolutionRequest,
+    SignatureContract, SignatureContractKind, State, StateParameter, StatementNode, SymbolHandle,
+    TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+};
+use crate::build_operator_facts;
+use crate::lower_typed_trees;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{
     BinaryOperator, ExpressionNode, TableBinaryExpression, TableIndexedExpression,

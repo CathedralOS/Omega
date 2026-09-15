@@ -1,7 +1,11 @@
 //! Close the fixed candidate roster over exact call dependencies, without
 //! rebuilding bodies or rechecking unaffected callers after each removal.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, SymbolHandle, TypedTrees,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::scalar_targets;
 
 #[cfg(test)]
 mod tests;

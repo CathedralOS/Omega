@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 use typed_trees::expression::ExpressionNode;
 
 fn proof_rejects(program: &typed_trees::TypedTrees) {

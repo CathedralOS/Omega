@@ -1,6 +1,11 @@
 //! Resolve selected structural scalar reads against their authored parameter roots.
-
-use super::*;
+use super::{
+    ArithmeticDomain, CheckedBooleanExpression, CheckedOperatorFacts,
+    CheckedOperatorResolutionStatus, CheckedScalarExpression,
+    CheckedStructuralPredicatePathSegment, ExpressionHandle, ExpressionNode, PrimitiveType,
+    StateParameter, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+};
+use crate::values::scalar::is_integer;
 
 #[cfg(test)]
 mod tests;

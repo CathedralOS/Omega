@@ -1,6 +1,9 @@
 //! Transport frozen structural origins without replaying selector expressions.
-
-use super::*;
+use crate::flow::CanonicalPlace;
+use crate::flow::canonical_place_from_symbol;
+use crate::flow::canonical_place_type_reference;
+use crate::flow::mutation::local_origins::place_from_origin_path;
+use crate::flow::place_segment_has_unresolved_identity;
 
 pub(super) fn origin_place(
     program: &typed_trees::TypedTrees,

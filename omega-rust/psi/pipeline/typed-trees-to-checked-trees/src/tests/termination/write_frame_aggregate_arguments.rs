@@ -1,4 +1,5 @@
-use super::*;
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::lower_typed_trees;
 
 #[test]
 fn aggregate_actual_reference_leaves_transport_complete_write_sets() {

@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 #[test]
 fn assignment_values_prove_nested_domain_outputs_and_preserve_disjoint_fields() {

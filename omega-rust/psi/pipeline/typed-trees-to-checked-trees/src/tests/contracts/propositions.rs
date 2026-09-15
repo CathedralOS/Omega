@@ -1,4 +1,7 @@
-use super::*;
+use super::super::ContractProofFactKind;
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 #[test]
 fn checked_proposition_declarations_retain_public_visibility_without_minting_facts() {

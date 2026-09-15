@@ -1,4 +1,7 @@
-use super::*;
+use super::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
+use crate::checks::ranges::RangeFacts;
+use crate::checks::ranges::indexes::check_indexed_access;
+use crate::checks::ranges::indexes::validation::BoundsCheckResult;
 use checked_trees::{
     CheckedOperatorFacts, CheckedValueFact, CheckedValueFacts, CheckedValueOrigin,
     CheckedValueStatementRole,

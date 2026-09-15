@@ -2,8 +2,12 @@
 //!
 //! This owner consumes already-complete branch-local call plans and descriptor
 //! transfer paths. It does not discover conformances or invent a joined table.
-
-use super::*;
+use super::{
+    BTreeMap, CheckFacts, CheckedStructuralAccess, CheckedUnitCallCoordinate, ServiceReachSummary,
+    SymbolHandle, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::dynamic_scalar_calls::inbound_call_site_counts;
 
 pub(super) fn promote_two_predecessor_dynamic_scalar_joins(
     program: &TypedTrees,

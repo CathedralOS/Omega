@@ -1215,7 +1215,14 @@ fn collect_static_argument_edges(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExpressionNode, HashSet, ProofFact, SymbolHandle, TableNamePath, TypeReferenceNode,
+        TypedTrees,
+    };
+    use crate::product_pruning::MachineIndex;
+    use crate::product_pruning::dependencies::retain_expression_machines;
+    use crate::product_pruning::dependencies::retain_proof_fact_machines;
+    use crate::product_pruning::dependencies::retain_type_machines;
     use typed_trees::machine::Machine;
 
     #[test]

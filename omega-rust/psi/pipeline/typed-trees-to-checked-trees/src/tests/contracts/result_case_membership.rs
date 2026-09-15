@@ -1,4 +1,5 @@
-use super::*;
+use crate::lower_typed_trees;
+use crate::tests::contracts::parse_typed_trees;
 
 const DATA: &str = "data Message { case Empty; case Data(value: u8); }";
 

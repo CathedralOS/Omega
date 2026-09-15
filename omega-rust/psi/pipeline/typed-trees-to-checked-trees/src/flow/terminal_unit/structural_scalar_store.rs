@@ -1,6 +1,14 @@
 //! Exact projected scalar-store admission for parameter and local storage.
-
-use super::*;
+use super::{
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
+    DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, SymbolHandle,
+    TypeReferenceNode, TypedTrees,
+};
+use crate::flow::byte_sequence_carrier;
+use crate::flow::terminal_unit::terminal_field_identity;
 
 mod frame;
 #[cfg(test)]

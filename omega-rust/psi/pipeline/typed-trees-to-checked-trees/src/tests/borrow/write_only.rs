@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::lower_typed_trees;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)

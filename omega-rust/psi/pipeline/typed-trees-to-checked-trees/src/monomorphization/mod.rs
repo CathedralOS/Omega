@@ -23,7 +23,7 @@
 
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;

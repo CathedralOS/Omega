@@ -1,4 +1,6 @@
-use super::*;
+use super::{CheckedScalarComputationKind, ExpressionNode, PrimitiveType};
+use crate::values::scalar::computations::tests::checked_source;
+use crate::values::scalar::semantic_casts;
 
 #[test]
 fn bare_scalar_tag_erasure_retains_the_authored_cast() {

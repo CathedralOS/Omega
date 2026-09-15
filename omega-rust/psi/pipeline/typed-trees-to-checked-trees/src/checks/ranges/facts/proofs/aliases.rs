@@ -107,7 +107,7 @@ impl RangeFacts<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::checks::ranges::RangeFacts;
 
     #[test]
     fn copied_numeric_bounds_survive_retirement_of_their_original_premises() {

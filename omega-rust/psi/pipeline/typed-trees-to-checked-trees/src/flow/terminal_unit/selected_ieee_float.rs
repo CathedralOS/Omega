@@ -1,7 +1,9 @@
 //! Selected compiler-intrinsic IEEE FMA applications in attached Unit plans.
 
-use super::*;
-
+use super::{
+    CheckFacts, CheckedScalarExpression, CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan,
+    CheckedUnitScalarResultBindingPlan, PrimitiveType, StatementNode, TypedTrees,
+};
 pub(super) fn selected_ieee_float_fma_result_locals<'applications>(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,

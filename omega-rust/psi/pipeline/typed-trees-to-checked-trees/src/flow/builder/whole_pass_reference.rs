@@ -1,7 +1,11 @@
 //! Pre-worklist reference: every retry rebuilds every state from baseline facts.
 //! Kept test-only so scheduling changes can compare complete published evidence.
-
-use super::*;
+use crate::flow::FlowBuildContext;
+use crate::flow::StateMutationSummaryCache;
+use crate::flow::attach_reach_summaries;
+use crate::flow::build_state_flow_fact;
+use crate::flow::builder::tests;
+use crate::flow::state_values;
 use checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
 use facts::{FactPlan, ProgramPoint};
 
@@ -118,7 +122,7 @@ pub(super) fn build_whole_pass_reference(
     );
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
-    ctx.state_value_inputs = super::state_values::unknown_inputs(program);
+    ctx.state_value_inputs = state_values::unknown_inputs(program);
     for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
         for state in program.machine_states(machine) {
             build_state_flow_fact(

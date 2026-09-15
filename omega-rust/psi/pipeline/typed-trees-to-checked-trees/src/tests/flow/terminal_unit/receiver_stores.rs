@@ -1,6 +1,7 @@
 //! Receiver identity and write-frame checks for projected scalar stores.
-
-use super::*;
+use super::{CheckedUnitEffectOperationPlan, PrimitiveType};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 
 #[test]
 fn projected_mutable_receiver_call_retains_its_exact_field_path() {

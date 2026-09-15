@@ -1,4 +1,6 @@
-use super::*;
+use super::records;
+use crate::borrow::accesses::BorrowAccessPlace;
+use crate::borrow::accesses::borrow_access_place;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use records::append_argument_access;

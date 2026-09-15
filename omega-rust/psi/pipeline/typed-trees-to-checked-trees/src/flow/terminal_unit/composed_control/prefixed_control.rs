@@ -1,6 +1,19 @@
 //! Finite unconditional scalar-custody chain before conditional effect leaves.
+use super::super::{
+    CheckFacts, CheckedBooleanExpression, CheckedBoundaryMachinePlan,
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarParameterPlan, PrimitiveType, StatementNode, TransitionExit,
+    TransitionGuardNode, TransitionTargetNode, TypedTrees,
+};
 
-use super::*;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::checked_composed_provider_attachment_requirements;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::state_flow;
+use crate::flow::terminal_unit::structural_scalar_signature;
 
 pub(super) fn build(
     program: &TypedTrees,

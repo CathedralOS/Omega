@@ -1,4 +1,8 @@
-use super::*;
+use crate::flow::FlowOwnershipEventSource;
+use crate::flow::expression_type_reference_in_state;
+use crate::flow::ownership::DirectMoveEventSink;
+use crate::flow::ownership::append_move_events_for_expression;
+use crate::flow::ownership::moves::operator_call_ownership_policy;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 

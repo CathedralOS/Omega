@@ -1,4 +1,11 @@
-use super::*;
+use super::TerminationGuarantee;
+use crate::tests::termination::progress_mutation::CONTEXT_FIXTURE;
+use crate::tests::termination::progress_mutation::assert_subjects;
+use crate::tests::termination::progress_mutation::check_source;
+use crate::tests::termination::progress_mutation::fixture_source;
+use crate::tests::termination::progress_mutation::fixture_with_body;
+use crate::tests::termination::progress_mutation::fixture_with_extra;
+use crate::tests::termination::symbol_of_checked;
 
 #[test]
 fn disjoint_named_state_store_preserves_the_scheduler_origin() {

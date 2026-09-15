@@ -1,4 +1,4 @@
-use super::*;
+use crate::borrow::calls::BorrowCallCollection;
 use crate::lookup::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
 };

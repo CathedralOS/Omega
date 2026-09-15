@@ -1,7 +1,8 @@
 //! Structural, declaration-derived lifetime frontiers shared by result and
 //! input selection. Incomplete frontiers never establish a partial contract.
-
-use super::*;
+use super::{SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees};
+use crate::borrow::BorrowOwnerSegment;
+use crate::borrow::view_link::data_definition;
 
 pub(super) struct CarriedLifetime {
     pub(super) owner_path: Vec<BorrowOwnerSegment>,

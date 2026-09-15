@@ -1,4 +1,5 @@
-use super::{lower_typed_trees, parse_typed_trees};
+use super::super::lower_typed_trees;
+use super::parse_typed_trees;
 
 const EXACT_SEVEN: [&str; 6] = [
     "7 / 2 * 2",

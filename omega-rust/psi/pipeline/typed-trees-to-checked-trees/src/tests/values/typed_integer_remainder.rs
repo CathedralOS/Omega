@@ -1,4 +1,5 @@
-use super::*;
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::lower_typed_trees;
 
 const ANONYMOUS_REMAINDERS: [(&str, &str); 3] = [("7 % 2", "1"), ("8 % 2", "0"), ("-3 % 2", "-1")];
 

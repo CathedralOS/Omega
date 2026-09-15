@@ -1,4 +1,9 @@
-use super::*;
+use super::{CapturedValue, CheckedScalarExpressionRole};
+use crate::flow::FlowBuildContext;
+use crate::flow::canonical_place_from_expression_in_state;
+use crate::flow::transfers::scalar_values::CallValues;
+use crate::flow::transfers::scalar_values::LiveValues;
+use crate::flow::transfers::scalar_values::retains_values_across_unit_call;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;

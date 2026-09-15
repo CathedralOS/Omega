@@ -1,4 +1,9 @@
-use super::*;
+use super::super::{CheckedScalarComputation, CheckedScalarComputationRoot};
+use super::{
+    CheckedScalarComputationKind, CheckedScalarExpressionRole, PrimitiveType, StatementNode,
+};
+use crate::values::build_checked_scalar_computation_plans;
+use crate::values::scalar::computations::tests::checked_source;
 
 fn guard_program(expression: &str) -> checked_trees::CheckedTrees {
     checked_source(

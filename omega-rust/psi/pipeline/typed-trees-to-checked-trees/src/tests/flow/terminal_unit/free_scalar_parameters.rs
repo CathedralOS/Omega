@@ -1,6 +1,7 @@
 //! Free Unit signatures retain scalar parameters without a fabricated attachment.
-
-use super::*;
+use super::{CheckedScalarExpression, CheckedUnitEffectOperationPlan, Multiplicity, PrimitiveType};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{CheckedCallScalarArgument, CheckedTerminalSignatureEligibility};
 
 const SOURCE: &str = r#"

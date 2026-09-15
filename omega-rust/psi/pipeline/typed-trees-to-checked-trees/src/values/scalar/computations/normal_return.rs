@@ -6,8 +6,10 @@
 //! Only Boolean selection and negation compose these results, matching flow's
 //! control facts. Strict operators still require closed scalar evaluation;
 //! interpreting a call-bearing comparison here would prune calls flow retained.
-
-use super::*;
+use super::{
+    CheckedBooleanExpression, CheckedScalarComputationHandle, CheckedScalarComputationKind,
+    CheckedScalarComputationPlans, CheckedScalarExpression,
+};
 use facts::ScalarValue;
 
 pub(super) fn boolean_result(

@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 #[test]
 fn transparent_returned_place_composes_direct_array_literal_index_frames() {
     let source = r#"

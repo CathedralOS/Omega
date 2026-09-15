@@ -1,6 +1,15 @@
 //! Call-free primitive-reference returns and prefixes shared with Unit effects.
-
-use super::*;
+use super::super::CheckedStructuralScalarParameterPlan;
+use super::{
+    BTreeSet, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralParameterPlan, MachineSupplyMode, Multiplicity, StatementNode,
+    TypeReferenceNode, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::build_structural_scalar_return_machine;
+use crate::flow::terminal_unit::build_write_only_primitive_store;
+use crate::flow::terminal_unit::state_flow;
 
 /// Discover call-free primitive-reference bodies before their Unit callers. Nominal
 /// cleanup has no catalog here and remains in the later return-plan phase.

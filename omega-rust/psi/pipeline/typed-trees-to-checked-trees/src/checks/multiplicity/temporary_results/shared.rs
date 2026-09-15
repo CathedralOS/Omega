@@ -1,6 +1,11 @@
 //! Shared access to an anonymous owner ends before that owner's call cleanup.
-
-use super::*;
+use super::super::{PermissionEventSource, StatementNode};
+use super::{
+    CheckFacts, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionProvenance, TypeReferenceNode,
+};
+use crate::checks::type_carries_linear_obligation;
+use crate::checks::type_multiplicity;
 use typed_trees::expression::ExpressionNode;
 
 pub(in crate::checks::multiplicity) fn append_shared_borrow(

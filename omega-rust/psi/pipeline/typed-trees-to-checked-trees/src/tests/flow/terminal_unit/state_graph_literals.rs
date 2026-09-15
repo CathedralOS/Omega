@@ -1,6 +1,7 @@
 //! Literal byte arguments retain their source order across authored graph edges.
-
-use super::*;
+use super::CheckedUnitEffectOperationPlan;
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 fn retains_literal_graph(boundary: bool) {

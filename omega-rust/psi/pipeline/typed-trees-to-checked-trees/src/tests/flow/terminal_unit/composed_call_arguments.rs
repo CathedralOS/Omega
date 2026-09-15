@@ -1,6 +1,10 @@
 //! Composed leaves retain operand computations without adding outer effects.
-
-use super::*;
+use super::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    PrimitiveType,
+};
+use crate::tests::flow::terminal_unit::checked;
+use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
 
 fn checked_operands(linear: bool, nested: bool) -> checked_trees::CheckedTrees {

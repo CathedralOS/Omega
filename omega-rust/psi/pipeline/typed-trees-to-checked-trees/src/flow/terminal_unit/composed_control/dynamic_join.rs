@@ -1,4 +1,15 @@
-use super::*;
+use super::super::{
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralScalarParameterPlan, PrimitiveType,
+    StatementNode, SymbolHandle, TransitionExit, TransitionGuardNode, TypedTrees,
+};
+
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::composed_control::guards;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::machine_binders;
+use crate::flow::terminal_unit::structural_scalar_signature;
+use crate::flow::terminal_unit::topology;
 
 pub(in crate::flow::terminal_unit) struct DynamicJoinControlTopology {
     pub entry_state: SymbolHandle,

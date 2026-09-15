@@ -1,3 +1,5 @@
+use crate::proof::contract_fact_kind;
+use crate::proof::fact_handles;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedOperatorContractUse, CheckedOperatorFacts, ContractOperatorUseFact, ContractProofFact,
@@ -47,7 +49,7 @@ fn append_contract_operator_use(
         .signature_contracts
         .span_or_empty(operator_use.contracts())
     {
-        let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+        let Some(kind) = contract_fact_kind(&contract.kind) else {
             continue;
         };
         let target = match kind {
@@ -55,7 +57,7 @@ fn append_contract_operator_use(
             ContractProofFactKind::Ensures => &mut ensures,
         };
 
-        for fact in super::fact_handles(contract.facts) {
+        for fact in fact_handles(contract.facts) {
             let contract_fact = contract_facts.append(ContractProofFact {
                 kind,
                 owner: ContractProofFactOwner::OperatorUse {
@@ -92,7 +94,8 @@ fn append_contract_operator_use(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CheckedOperatorFacts, ContractProofFactKind, ContractProofFactOwner, HandleSpan};
+    use crate::proof::build_contract_operator_use_facts;
     use checked_trees::expression::ExpressionHandle;
     use checked_trees::{
         CheckedOperatorCandidateFact, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,

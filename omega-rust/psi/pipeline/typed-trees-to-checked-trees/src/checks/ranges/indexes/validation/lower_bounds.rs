@@ -1,6 +1,6 @@
 //! An upper collection-relative fact is not evidence of non-negativity.
-
-use super::*;
+use super::{ExpressionHandle, Machine, OperatorSpelling, State, TableIndexedExpression};
+use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::expressions::expression_integer_value;
 use crate::checks::ranges::types::{
     expression_enforced_declared_range, expression_is_unsigned_integer,

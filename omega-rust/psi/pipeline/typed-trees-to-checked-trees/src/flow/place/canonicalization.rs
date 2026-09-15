@@ -1,6 +1,6 @@
 use super::contextual::contextual_canonical_place_from_expression;
 use super::resolution::effective_member_symbol;
-use super::*;
+use crate::flow::CanonicalPlace;
 use crate::lookup::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use facts::FactPlan;

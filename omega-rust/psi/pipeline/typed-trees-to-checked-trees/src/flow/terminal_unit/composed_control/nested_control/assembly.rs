@@ -1,6 +1,14 @@
 //! Checked state assembly and provider closure for admitted decision trees.
+use super::super::super::{
+    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
+};
 
-use super::*;
+use super::{
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan, TypedTrees,
+};
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::checked_composed_provider_attachment_requirements;
+use crate::flow::terminal_unit::state_flow;
 
 pub(super) fn finish(
     program: &TypedTrees,

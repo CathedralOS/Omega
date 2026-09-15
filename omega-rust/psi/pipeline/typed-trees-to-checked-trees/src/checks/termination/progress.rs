@@ -949,7 +949,9 @@ fn subject_label(program: &typed_trees::TypedTrees, subject: &ProgressSubject) -
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{FactPayload, FactPlace, PlaceRoot, PlaceSegment, SymbolHandle};
+    use crate::checks::termination::progress::replay_root_type_reference;
+    use crate::checks::termination::progress::validate_qualification_correspondences;
     use arena::HandleSpan;
     use facts::{
         Fact, FactOrigin, QualificationCorrespondence, QualificationEvidence,

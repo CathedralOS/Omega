@@ -1,6 +1,21 @@
 //! Normal graph results and source-bound scalar case construction.
-
-use super::*;
+use super::super::{
+    CheckedStructuralResultPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypeShape, DataMember, TypeReferenceHandle,
+    type_graph_requires_nominal_drop,
+};
+use super::{
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, Multiplicity,
+    StatementNode, TransitionExit, TransitionTargetNode, TypeReferenceNode, TypedTrees, control,
+};
+use crate::flow::ScalarCalleePlans;
+use crate::flow::terminal_unit::ShapeCollector;
+use crate::flow::terminal_unit::is_reference;
+use crate::flow::terminal_unit::is_unit;
+use crate::flow::terminal_unit::parameter_qualifications;
+use crate::flow::terminal_unit::projected_parameter_qualifications;
 use checked_trees::{CheckedControlResultPlan, CheckedScalarCaseFieldPlan};
 
 pub(in crate::flow::terminal_unit) fn signature(

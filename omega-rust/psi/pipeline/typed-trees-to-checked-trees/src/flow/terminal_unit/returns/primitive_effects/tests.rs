@@ -1,4 +1,8 @@
-use super::*;
+use super::super::CheckedStructuralScalarReturnCleanupAction;
+use super::{CheckedStructuralAccess, Multiplicity};
+use crate::flow::build_checked_primitive_store_scalar_return_plans;
+use crate::flow::reconcile_primitive_store_scalar_returns;
+use crate::flow::terminal_unit::primitive_effects::is_primitive_reference_plan;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)

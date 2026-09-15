@@ -1,8 +1,12 @@
 //! Constructor fields retain value evidence at the new storage coordinate.
 //! Only current literal values or live predicate facts transfer; declarations
 //! alone do not establish the contents of a newly constructed field.
-
-use super::*;
+use super::PlaceHandle;
+use crate::flow::FlowBuildContext;
+use crate::flow::expression_type_reference_in_state;
+use crate::flow::literal_value_projections;
+use crate::flow::transfers::contextual_expression_place;
+use crate::flow::transfers::projected;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
