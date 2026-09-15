@@ -445,7 +445,10 @@ pub(crate) fn publish_macos_application_package(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ExecutableContainerDigest, NativePackageEvidenceDigest, NativePackagePublicationReceipt,
+        Path, PathBuf, installed_package_files, publish_macos_application_package,
+    };
     use image::{FinalImage, FinalImageMemory, FinalImageSymbol};
     use object_file::SymbolKind;
 
