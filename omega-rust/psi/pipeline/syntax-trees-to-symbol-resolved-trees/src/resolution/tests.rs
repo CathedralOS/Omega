@@ -2041,6 +2041,122 @@ fn inherited_trait_default_applications_partition_shared_authored_calls() {
 }
 
 #[test]
+fn parameterized_trait_default_applications_partition_shared_authored_calls() {
+    let source = r#"
+        trait Sink<T> {
+            machine store(&mut self, value: T);
+            machine put(&mut self, value: T) { self.store(value); }
+        }
+        trait IntSink: Sink<i32> { }
+        trait ForwardedSink<U>: Sink<U> { }
+
+        data ParentCounter { value: i32; }
+        ParentCounterIntSink: ParentCounter satisfies IntSink;
+        machine ParentCounter::store(&mut self, value: i32) { self.value = value; }
+
+        data ForwardedCounter { value: i32; }
+        ForwardedCounterForwardedSink: ForwardedCounter satisfies ForwardedSink<i32>;
+        machine ForwardedCounter::store(&mut self, value: i32) { self.value = value; }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("source should parse");
+    let program = resolve(ResolutionRequest::new(&syntax_trees))
+        .expect("each parameterized default application should own its routed call");
+
+    let applications = ["ParentCounter::put", "ForwardedCounter::put"].map(|name| {
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("synthesized attached default");
+        // A parameterized declaring trait rejoins through the instantiated
+        // generic instead of a requirement edge, so the partition must come
+        // from the compiler-derived attached machine itself.
+        assert!(
+            program
+                .machine_trait_conformances(machine.satisfies)
+                .is_empty()
+        );
+        let partition = machine
+            .compiler_selection_partition
+            .expect("parameterized default application partition");
+        let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+        let call = program
+            .state_statements(state.statements)
+            .iter()
+            .find_map(|statement| match statement {
+                symbol_resolved_trees::statement::Statement::Call(call) => Some(call),
+                _ => None,
+            })
+            .expect("default body call");
+        let occurrence = call
+            .authored_call_selection
+            .expect("routed call selection occurrence");
+        let selection = *program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .expect("selection ledger row");
+        assert_eq!(selection.compiler_partition(), Some(partition));
+        (partition, selection)
+    });
+
+    assert_ne!(applications[0].0, applications[1].0);
+    assert_eq!(
+        applications[0].1.source_span(),
+        applications[1].1.source_span()
+    );
+    assert_ne!(applications[0].1.target(), applications[1].1.target());
+}
+
+#[test]
+fn synthesized_default_machine_symbol_keeps_authored_carrier_span() {
+    let source = r#"
+        trait Sink<T> {
+            machine store(&mut self, value: T);
+            machine put(&mut self, value: T) { self.store(value); }
+        }
+        data Counter { value: i32; }
+        CounterSink: Counter satisfies Sink<i32>;
+        machine Counter::store(&mut self, value: i32) { self.value = value; }
+    "#;
+    let mut sources = SourceMap::default();
+    let source_id = sources
+        .add(PathBuf::from("main.omg"), source.to_owned())
+        .source_id;
+    let syntax_trees = parse_syntax_trees_with_id(
+        source_id,
+        &Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed"),
+    )
+    .expect("source should parse");
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax_trees,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve should succeed");
+
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "Counter::put")
+        .expect("synthesized attached default");
+    let attached = machine
+        .attached_data
+        .as_ref()
+        .expect("synthesized default keeps its carrier occurrence");
+    // The generated machine name owns no spelling; the authored carrier
+    // occurrence supplies the provenance a package owner is derived from.
+    assert_eq!(
+        program.symbols.symbol_source_span(machine.symbol),
+        Some(attached.source_span())
+    );
+}
+
+#[test]
 fn closed_conformance_retains_every_same_named_default_overload() {
     let source = r#"
         trait Converter {

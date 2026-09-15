@@ -17,8 +17,8 @@ use crate::symbols::symbol_table::children::{
     insert_proposition_symbol_children, insert_trait_symbol_children,
 };
 use crate::symbols::symbol_table::names::{
-    measure_symbol_name, measure_symbol_seed, operator_symbol_name, operator_symbol_seed,
-    symbol_seed,
+    machine_symbol_seed, measure_symbol_name, measure_symbol_seed, operator_symbol_name,
+    operator_symbol_seed, symbol_seed,
 };
 
 pub(super) fn extend_symbol_table(
@@ -71,11 +71,7 @@ pub(super) fn extend_symbol_table(
     }
     for index in roots.machines..program.machines.len() {
         let machine = program.machines[index].clone();
-        let symbol = extension.insert_top_level([symbol_seed(
-            SymbolKind::Machine,
-            &machine.name,
-            has_sources,
-        )])[0];
+        let symbol = extension.insert_top_level([machine_symbol_seed(&machine, has_sources)])[0];
         program.machines[index].symbol = symbol;
     }
     for index in roots.propositions..program.propositions.len() {
@@ -205,7 +201,7 @@ pub(super) fn build_symbol_table(
                 program
                     .machines
                     .iter()
-                    .map(|machine| symbol_seed(SymbolKind::Machine, &machine.name, has_sources)),
+                    .map(|machine| machine_symbol_seed(machine, has_sources)),
             )
             .chain(program.propositions.iter().map(|proposition| {
                 symbol_seed(SymbolKind::Proposition, &proposition.name, has_sources)

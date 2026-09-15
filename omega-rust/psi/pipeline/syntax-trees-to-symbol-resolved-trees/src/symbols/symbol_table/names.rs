@@ -21,6 +21,33 @@ pub(super) fn symbol_seed<'name>(
     }
 }
 
+/// A machine declaration's seed. Compiler-synthesized machines (trait
+/// defaults, equatable realizations) carry a generated name, so the authored
+/// carrier occurrence in the conformance supplies the declaration's exact
+/// provenance: that occurrence pins the conforming package's identity even
+/// when the carrier declaration itself lives in another package.
+pub(super) fn machine_symbol_seed<'name>(
+    machine: &'name symbol_resolved_trees::machine::Machine,
+    has_sources: bool,
+) -> SymbolSeed<'name> {
+    if has_sources
+        && !machine.name.is_source_backed()
+        && let Some(attached) = machine
+            .attached_data
+            .as_ref()
+            .filter(|attached| attached.is_source_backed())
+    {
+        return (
+            SymbolKind::Machine,
+            SymbolNameRef::OwnedSource {
+                value: machine.name.as_str(),
+                source_span: attached.source_span(),
+            },
+        );
+    }
+    symbol_seed(SymbolKind::Machine, &machine.name, has_sources)
+}
+
 pub(super) fn operator_symbol_name(
     program: &SymbolResolvedTrees,
     operator: &symbol_resolved_trees::operator::OperatorDefinition,
