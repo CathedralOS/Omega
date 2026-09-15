@@ -434,10 +434,19 @@ do not claim a faster compiler from a smaller helper alone.
   index passed the same route in 532.465 seconds; that single 1.5% difference
   is inconclusive, so the prototype was discarded. See the
   [paired experiment](wiki/drafts/test_cycle_measurements.md#macos-package-review-classification-experiment).
-  Next: measure cumulative phase costs and repeated checking across the whole
-  review route before selecting another lookup structure. A short sample in
-  `symbol_is_integer_typed` alone does not attribute the nine-minute route;
-  a later sample also reached preliminary flow-fact construction.
+  Slice landed at `d7c486d7ae`: route instrumentation showed crash-guard
+  classification is a minor share of the checked stage (the crash checks and
+  guard-coverage inference total ~2s of ~700s on the review route); the
+  repeated work was three
+  independent `StateMutationSummaryCache` builds per check pass (54 builds,
+  ~50.6s across 18 invocations). One pass-owned table now serves fact
+  construction, borrow-resource replay, statement borrows, and range
+  checking, cutting builds to 18 (~16.6s, ~34s of repeated work removed,
+  ~5% of the checked stage). Crash-guard positive/negative outcomes for
+  parameters, locals and fields are preserved. Remaining candidates for a
+  follow-up slice: `CallFrameResolver` is still rebuilt in ~20 check-pass
+  sites (its per-call-site frame caches restart cold each time), and
+  `validate_specialized_program`/`build_flow_facts` dominate the stage.
   Acceptance: compare unchanged whole-route inputs with repeated release/debug timings,
   remove material repeated work through existing typed ownership/type facts
   where possible, and preserve positive/negative crash-guard outcomes for
