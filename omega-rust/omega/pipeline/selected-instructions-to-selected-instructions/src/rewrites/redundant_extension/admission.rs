@@ -1,7 +1,10 @@
 //! Shared admission for redundant-extension removal: locate the named
 //! extension, confirm its clean `[use, def]` register shape, and prove the
-//! input's unique defining instruction already normalizes the bits the
-//! extension would write.
+//! input's unique defining instruction already carries the bits the
+//! extension would write — either because the producer fixes the normalized
+//! high bits, or because the producer is itself a partial carrier feeding
+//! `ZeroExtendU32`, the one extension whose own result leaves them
+//! unmeaningful.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
@@ -47,30 +50,48 @@ fn extension(kind: SelectedInstructionKind) -> Option<Extension> {
 }
 
 /// The bit guarantee a producer kind makes about its result, or the exact
-/// pattern a materialization publishes. Only kinds whose documented contract
-/// fixes the high bits appear here.
+/// pattern a materialization publishes. `ZeroExtended`, `SignExtended`, and
+/// `Pattern` fix the high bits; `MeaningfulLow` is the partial carrier whose
+/// contract promises the low `width` bits and fixes nothing above them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Normalization {
     /// Every bit at or above `width` is zero.
     ZeroExtended { width: u8 },
     /// Every bit at or above `width - 1` replicates bit `width - 1`.
     SignExtended { width: u8 },
+    /// The low `width` bits carry the meaningful result and the contract
+    /// leaves every bit at or above `width` not meaningful.
+    MeaningfulLow { width: u8 },
     /// The low sixty-four bits the instruction writes, known exactly.
     Pattern(u64),
 }
 
-fn producer_normalization(kind: SelectedInstructionKind) -> Option<Normalization> {
+/// `defined_operand` is the producer operand index that wrote the extension's
+/// input register. It decides which register the guarantee describes: a packed
+/// load's assembled result is operand one while operand two is instruction
+/// scratch whose contents the contract does not describe.
+fn producer_normalization(
+    kind: SelectedInstructionKind,
+    defined_operand: u16,
+) -> Option<Normalization> {
     Some(match kind {
         SelectedInstructionKind::Load8 { .. } | SelectedInstructionKind::Load8Indexed => {
             Normalization::ZeroExtended { width: 8 }
         }
         SelectedInstructionKind::Load16 { .. } => Normalization::ZeroExtended { width: 16 },
         SelectedInstructionKind::Load32 { .. } => Normalization::ZeroExtended { width: 32 },
+        SelectedInstructionKind::LoadPacked { width, .. } if defined_operand == 1 => {
+            Normalization::MeaningfulLow {
+                width: width.byte_size() * 8,
+            }
+        }
         SelectedInstructionKind::ZeroExtendU8 => Normalization::ZeroExtended { width: 8 },
         SelectedInstructionKind::ZeroExtendU16 => Normalization::ZeroExtended { width: 16 },
+        SelectedInstructionKind::ZeroExtendU32 => Normalization::MeaningfulLow { width: 32 },
         SelectedInstructionKind::SignExtendI8 => Normalization::SignExtended { width: 8 },
         SelectedInstructionKind::SignExtendI16 => Normalization::SignExtended { width: 16 },
         SelectedInstructionKind::SignExtendI32 => Normalization::SignExtended { width: 32 },
+        SelectedInstructionKind::Float32ToBits => Normalization::MeaningfulLow { width: 32 },
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -93,6 +114,17 @@ fn producer_normalization(kind: SelectedInstructionKind) -> Option<Normalization
 fn identity(extension: Extension, normalization: Normalization) -> bool {
     match (extension, normalization) {
         (Extension::Zero { width }, Normalization::ZeroExtended { width: n }) => n <= width,
+        // `ZeroExtendU32` is the one extension whose contract leaves its own
+        // result's upper bits unmeaningful: it re-normalizes the low 32 input
+        // bits and promises nothing above them. A partial producer is the
+        // identity on it exactly when the producer's meaningful content
+        // already fits in 32 bits — the copy then propagates the producer's
+        // own unspecified surface, identical specified bits over an
+        // identically unspecified upper region. A wider partial producer
+        // genuinely narrows rather than witnesses, and every other extension
+        // fixes result bits a partial producer never promised.
+        (Extension::Zero { width: 32 }, Normalization::MeaningfulLow { width: n }) => n <= 32,
+        (Extension::Zero { .. }, Normalization::MeaningfulLow { .. }) => false,
         (Extension::Zero { width }, Normalization::Pattern(pattern)) => pattern < (1u64 << width),
         (Extension::Zero { .. }, Normalization::SignExtended { .. }) => false,
         (Extension::Sign { width }, Normalization::SignExtended { width: n }) => n <= width,
@@ -103,6 +135,7 @@ fn identity(extension: Extension, normalization: Normalization) -> bool {
             let shift = 64 - u32::from(width);
             (((pattern << shift) as i64) >> shift) as u64 == pattern
         }
+        (Extension::Sign { .. }, Normalization::MeaningfulLow { .. }) => false,
     }
 }
 
@@ -226,7 +259,20 @@ pub(super) fn admit<'source>(
     if producers.next().is_some() {
         return Err(RedundantExtensionError::UnsupportedProducer);
     }
-    let normalization = producer_normalization(producer.kind)
+    // Inside the producer the defining operand position decides which written
+    // register the guarantee describes: a packed load's assembled result and
+    // its undocumented instruction scratch are different definitions riding
+    // the same instruction, and only one of them carries the contract.
+    let mut defined = producer.operands.iter().filter(|operand| {
+        operand.access != RegisterOperandAccess::Use && operand.virtual_register == value
+    });
+    let Some(defined_operand) = defined.next() else {
+        return Err(RedundantExtensionError::UnsupportedProducer);
+    };
+    if defined.next().is_some() {
+        return Err(RedundantExtensionError::UnsupportedProducer);
+    }
+    let normalization = producer_normalization(producer.kind, defined_operand.operand)
         .ok_or(RedundantExtensionError::UnsupportedProducer)?;
     if !identity(form, normalization) {
         return Err(RedundantExtensionError::UnsupportedProducer);
