@@ -13,21 +13,32 @@
 //! `Load32`, `ZeroExtendU8`, `ZeroExtendU16`, and the `MaterializeBoolean*`
 //! forms whose result is zero or one), guarantees the bits at or above
 //! `width - 1` replicate bit `width - 1` (`SignExtendI8`, `SignExtendI16`,
-//! `SignExtendI32`), or publishes its exact pattern (`MaterializeI64`). A zero
-//! extension of width `m` is then the identity on a producer zero-normalized
-//! to `n <= m` or on a pattern below `2^m`; a sign extension of width `m` is
-//! the identity on a producer sign-normalized to `n <= m`, zero-normalized to
-//! `n < m` (bit `m - 1` is already zero), or on a pattern surviving the
-//! sign-extension round-trip.
+//! `SignExtendI32`), publishes its exact pattern (`MaterializeI64`), or
+//! promises a meaningful low `width` with the upper bits left unmeaningful
+//! (`ZeroExtendU32`, `LoadPacked`, `Float32ToBits`). A zero extension of
+//! width `m` is then the identity on a producer zero-normalized to
+//! `n <= m`, on a pattern below `2^m`, or — for `m = 32` alone, the one
+//! extension whose own result stays partial — on a partial carrier of
+//! `n <= 32`; a sign extension of width `m` is the identity on a producer
+//! sign-normalized to `n <= m`, zero-normalized to `n < m` (bit `m - 1` is
+//! already zero), or on a pattern surviving the sign-extension round-trip.
 //!
-//! Producers whose contracts do not promise the needed bits are refused.
-//! `ZeroExtendU32` declares its upper result bits "not meaningful" rather than
-//! zero, `LoadPacked` writes an early-clobber scratch with no documented
-//! extension guarantee, `Float32ToBits` preserves a payload without naming the
-//! upper GPR bits, and ordinary arithmetic, copies, calls, and address forms
-//! say nothing about high bits. A second definition of the input — including a
-//! `UseDef` rewrite — also refuses: the guarantee must hold wherever the
-//! extension reads the register, not only at one definition site.
+//! Partial carriers are the second producer class. `ZeroExtendU32` declares
+//! its upper result bits "not meaningful" rather than zero, `LoadPacked`'s
+//! assembled result names only its loaded bytes, and `Float32ToBits`
+//! preserves a payload without naming the upper GPR bits. None of them can
+//! witness an extension whose result fixes the high bits, but `ZeroExtendU32`
+//! itself promises nothing there — so when the producer's meaningful content
+//! already fits in 32 bits, that extension is the identity and becomes the
+//! copy. A wider partial producer genuinely narrows and refuses, as does a
+//! packed load's undocumented scratch register, which shares the defining
+//! instruction without carrying its guarantee.
+//!
+//! Producers whose contracts say nothing about high bits in either direction
+//! — ordinary arithmetic, copies, calls, and address forms — refuse, as does
+//! a second definition of the input, including a `UseDef` rewrite: the
+//! guarantee must hold wherever the extension reads the register, not only
+//! at one definition site.
 //!
 //! Proposal and independent replay share only the admission predicates and
 //! the copy constructor. Validation re-derives the pair from the source,

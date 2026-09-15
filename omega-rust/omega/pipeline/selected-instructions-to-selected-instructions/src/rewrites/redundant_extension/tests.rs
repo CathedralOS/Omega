@@ -9,9 +9,9 @@ use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    PackedByteWidth, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedOperand, SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -63,6 +63,7 @@ const POINTER: VirtualRegisterId = VirtualRegisterId(0);
 const SOURCE: VirtualRegisterId = VirtualRegisterId(1);
 const OUTPUT: VirtualRegisterId = VirtualRegisterId(2);
 const SINK: VirtualRegisterId = VirtualRegisterId(3);
+const SCRATCH: VirtualRegisterId = VirtualRegisterId(4);
 
 fn register(
     id: VirtualRegisterId,
@@ -96,7 +97,7 @@ fn fixture(
     let terminal_row = environment.constraint(keys.return_unit).unwrap();
     let class = copy.operands[0].class;
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    let registers = vec![
+    let mut registers = vec![
         VirtualRegister {
             id: POINTER,
             scalar_type,
@@ -136,6 +137,19 @@ fn fixture(
             },
         ),
     ];
+    // A packed producer writes a second, instruction-local scratch register;
+    // keep its roster row when the fixture names it so the plan stays whole.
+    if producer_registers.contains(&SCRATCH) {
+        registers.push(register(
+            SCRATCH,
+            scalar_type,
+            class,
+            VirtualRegisterOrigin::InstructionScratch {
+                instruction: PRODUCER,
+                operand: 2,
+            },
+        ));
+    }
     let mut extension_instruction = instruction(EXTENSION, extension_kind, copy, &[SOURCE, OUTPUT]);
     extension_instruction.provenance.operations = vec![OperationId::new(7).unwrap()];
     extension_instruction.provenance.values = vec![ValueId::new(3).unwrap()];
@@ -271,6 +285,72 @@ fn zero_extended_load_result_collapses_to_copy() {
                 &environment,
                 budget(),
                 detached,
+            )
+            .unwrap();
+        }
+    }
+}
+
+/// A partial-carrier producer feeding `ZeroExtendU32` collapses to the copy:
+/// the extension re-normalizes the producer's low 32 bits and promises
+/// nothing above them, so it is the identity on the producer's surface.
+#[test]
+fn partial_carrier_result_collapses_to_copy() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = keys(&environment);
+        for (producer_kind, producer_key, producer_registers) in [
+            (
+                SelectedInstructionKind::ZeroExtendU32,
+                keys.copy_i64,
+                &[POINTER, SOURCE][..],
+            ),
+            (
+                SelectedInstructionKind::LoadPacked {
+                    byte_offset: 0,
+                    width: PackedByteWidth::Three,
+                },
+                keys.load_packed.unwrap(),
+                &[POINTER, SOURCE, SCRATCH][..],
+            ),
+            (
+                SelectedInstructionKind::Float32ToBits,
+                keys.float32_to_bits.unwrap(),
+                &[POINTER, SOURCE][..],
+            ),
+        ] {
+            let source = fixture(
+                target,
+                producer_kind,
+                producer_key,
+                producer_registers,
+                SelectedInstructionKind::ZeroExtendU32,
+            );
+            let result =
+                remove_selected_redundant_extension(&source, 0, EXTENSION, &environment, budget())
+                    .unwrap_or_else(|error| panic!("{producer_kind:?} on {target:?}: {error}"));
+            let rewritten = &result.transformed().functions[0].blocks[0].instructions[1];
+            assert_eq!(rewritten.id, EXTENSION);
+            assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+            assert_eq!(rewritten.constraint, keys.copy_i64);
+            assert_eq!(rewritten.operands[0].virtual_register, SOURCE);
+            assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+            assert_eq!(
+                result.receipt().source_selected(),
+                source.selected_identity()
+            );
+            validate_redundant_extension_removal(
+                &source,
+                0,
+                EXTENSION,
+                &environment,
+                budget(),
+                result.transformed().clone(),
             )
             .unwrap();
         }
@@ -413,12 +493,29 @@ fn producer_normalization_table() {
             true,
         ),
         // ZeroExtendU32's contract leaves its upper bits unmeaningful rather
-        // than zero; it cannot witness a further extension.
+        // than zero, so its output is a partial carrier: the one extension
+        // whose own result stays partial — ZeroExtendU32 itself — is the
+        // identity over it, while the fixed-result extensions still cannot
+        // be witnessed.
         (
             ZeroExtendU32,
             copy_key,
             &[POINTER, SOURCE],
             ZeroExtendU32,
+            true,
+        ),
+        (
+            ZeroExtendU32,
+            copy_key,
+            &[POINTER, SOURCE],
+            ZeroExtendU16,
+            false,
+        ),
+        (
+            ZeroExtendU32,
+            copy_key,
+            &[POINTER, SOURCE],
+            SignExtendI32,
             false,
         ),
         (
@@ -483,6 +580,104 @@ fn producer_normalization_table() {
             &[SOURCE],
             SignExtendI8,
             true,
+        ),
+        // The packed-load result is a partial carrier of exactly its loaded
+        // bytes: the three-byte width fits inside ZeroExtendU32's
+        // normalization, the wider widths genuinely narrow, and no packed
+        // width can witness an extension that fixes result bits.
+        (
+            LoadPacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Three,
+            },
+            keys.load_packed.unwrap(),
+            &[POINTER, SOURCE, SCRATCH],
+            ZeroExtendU32,
+            true,
+        ),
+        (
+            LoadPacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Five,
+            },
+            keys.load_packed.unwrap(),
+            &[POINTER, SOURCE, SCRATCH],
+            ZeroExtendU32,
+            false,
+        ),
+        (
+            LoadPacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Seven,
+            },
+            keys.load_packed.unwrap(),
+            &[POINTER, SOURCE, SCRATCH],
+            ZeroExtendU32,
+            false,
+        ),
+        (
+            LoadPacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Three,
+            },
+            keys.load_packed.unwrap(),
+            &[POINTER, SOURCE, SCRATCH],
+            ZeroExtendU8,
+            false,
+        ),
+        (
+            LoadPacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Three,
+            },
+            keys.load_packed.unwrap(),
+            &[POINTER, SOURCE, SCRATCH],
+            SignExtendI32,
+            false,
+        ),
+        // The same instruction's scratch definition shares none of the
+        // result's contract; operand position, not the instruction kind,
+        // decides which guarantee the input carries.
+        (
+            LoadPacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Three,
+            },
+            keys.load_packed.unwrap(),
+            &[POINTER, SCRATCH, SOURCE],
+            ZeroExtendU32,
+            false,
+        ),
+        // The float bit transfers publish only their payload width:
+        // Float32ToBits is a 32-bit partial carrier, Float64ToBits a full
+        // result the extension would have to narrow.
+        (
+            Float32ToBits,
+            keys.float32_to_bits.unwrap(),
+            &[POINTER, SOURCE],
+            ZeroExtendU32,
+            true,
+        ),
+        (
+            Float32ToBits,
+            keys.float32_to_bits.unwrap(),
+            &[POINTER, SOURCE],
+            ZeroExtendU16,
+            false,
+        ),
+        (
+            Float32ToBits,
+            keys.float32_to_bits.unwrap(),
+            &[POINTER, SOURCE],
+            SignExtendI32,
+            false,
+        ),
+        (
+            Float64ToBits,
+            keys.float64_to_bits.unwrap(),
+            &[POINTER, SOURCE],
+            ZeroExtendU32,
+            false,
         ),
         // An unbounded producer can never witness the removal.
         (
