@@ -1,10 +1,6 @@
 use super::error::DependencyProjectionError;
-use super::projection::{
-    BUILD_DEPEND_AS_MACHINE_NAME, BUILD_DEPEND_AS_WHEN_MACHINE_NAME, BUILD_DEPEND_MACHINE_NAME,
-    BUILD_DEPEND_WHEN_MACHINE_NAME, DEPEND_AS_MACHINE_NAME, DEPEND_AS_WHEN_MACHINE_NAME,
-    DEPEND_MACHINE_NAME, DEPEND_WHEN_MACHINE_NAME,
-};
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
+use build_declarations::{DependencyOperation, is_dependency_call_name};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::Item;
@@ -35,17 +31,7 @@ pub(super) fn reject_authored_toolchain_vocabulary(
                     .attached_data
                     .as_ref()
                     .is_some_and(|owner| owner.as_str() == BUILD_TYPE_NAME)
-                    && matches!(
-                        machine_leaf_name(machine.name.as_str()),
-                        DEPEND_MACHINE_NAME
-                            | DEPEND_AS_MACHINE_NAME
-                            | BUILD_DEPEND_MACHINE_NAME
-                            | BUILD_DEPEND_AS_MACHINE_NAME
-                            | DEPEND_WHEN_MACHINE_NAME
-                            | DEPEND_AS_WHEN_MACHINE_NAME
-                            | BUILD_DEPEND_WHEN_MACHINE_NAME
-                            | BUILD_DEPEND_AS_WHEN_MACHINE_NAME
-                    ) =>
+                    && is_dependency_call_name(machine_leaf_name(machine.name.as_str())) =>
             {
                 return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
                     name: format!("Build::{}", machine.name.as_str()),
@@ -88,17 +74,8 @@ pub(super) fn reject_unprojected_dependency_syntax(
                 else {
                     continue;
                 };
-                if matches!(
-                    call.target.as_str(),
-                    DEPEND_MACHINE_NAME
-                        | DEPEND_AS_MACHINE_NAME
-                        | BUILD_DEPEND_MACHINE_NAME
-                        | BUILD_DEPEND_AS_MACHINE_NAME
-                        | DEPEND_WHEN_MACHINE_NAME
-                        | DEPEND_AS_WHEN_MACHINE_NAME
-                        | BUILD_DEPEND_WHEN_MACHINE_NAME
-                        | BUILD_DEPEND_AS_WHEN_MACHINE_NAME
-                ) && !accepted_statements.contains(statement_handle)
+                if is_dependency_call_name(call.target.as_str())
+                    && !accepted_statements.contains(statement_handle)
                 {
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);
                 }
@@ -115,28 +92,16 @@ pub(super) fn reject_unprojected_dependency_syntax(
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);
                 }
             }
-            ExpressionNode::Call(call)
-                if matches!(
-                    call.target.as_str(),
-                    DEPEND_MACHINE_NAME
-                        | DEPEND_AS_MACHINE_NAME
-                        | BUILD_DEPEND_MACHINE_NAME
-                        | BUILD_DEPEND_AS_MACHINE_NAME
-                        | DEPEND_WHEN_MACHINE_NAME
-                        | DEPEND_AS_WHEN_MACHINE_NAME
-                        | BUILD_DEPEND_WHEN_MACHINE_NAME
-                        | BUILD_DEPEND_AS_WHEN_MACHINE_NAME
-                ) =>
-            {
+            ExpressionNode::Call(call) if is_dependency_call_name(call.target.as_str()) => {
                 match (
-                    call.target.as_str(),
+                    DependencyOperation::classify(call.target.as_str()),
                     syntax_trees.expressions.expression_handles(call.arguments),
                 ) {
-                    (DEPEND_MACHINE_NAME, [source]) | (BUILD_DEPEND_MACHINE_NAME, [source])
-                        if accepted_sources.contains(source) => {}
-                    (DEPEND_AS_MACHINE_NAME, [alias, source])
-                    | (BUILD_DEPEND_AS_MACHINE_NAME, [alias, source])
-                        if accepted_aliases.contains(alias)
+                    (Some(operation), [source])
+                        if !operation.takes_alias() && accepted_sources.contains(source) => {}
+                    (Some(operation), [alias, source])
+                        if operation.takes_alias()
+                            && accepted_aliases.contains(alias)
                             && accepted_sources.contains(source) => {}
                     _ => return Err(DependencyProjectionError::UnsupportedDependencyShape),
                 }

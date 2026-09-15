@@ -7,10 +7,14 @@ use crate::declarations::dependencies::edit::model::{
 use crate::declarations::dependencies::edit::rendering::{
     canonical_dependency_statement, source_digest,
 };
-use crate::declarations::dependencies::read::{DependencySourceRequest, extract_from_source};
+use crate::declarations::dependencies::read::{
+    DependencyPurpose, DependencySourceRequest, extract_scoped_from_source,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// `omega install` authors product rows only; build rows are written by hand
+/// or by a purpose-aware caller of [`plan_dependency_replacement`].
 pub fn plan_dependency_addition(
     package_root: impl AsRef<Path>,
     request: &DependencySourceRequest,
@@ -19,13 +23,19 @@ pub fn plan_dependency_addition(
     plan_dependency_addition_from_source(build_path, source, request)
 }
 
+/// Replace the row declaring `accepted` in `purpose` scope with `candidate`.
+///
+/// The same alias and source may legitimately occur in both scopes; the
+/// purpose argument selects exactly which edge's row is rewritten, so a
+/// product update can never rewrite a build row that happens to match it.
 pub fn plan_dependency_replacement(
     package_root: impl AsRef<Path>,
+    purpose: DependencyPurpose,
     accepted: &DependencySourceRequest,
     candidate: &DependencySourceRequest,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
     let (build_path, source) = read_build_source(package_root.as_ref())?;
-    plan_dependency_replacement_from_source(build_path, source, accepted, candidate)
+    plan_dependency_replacement_from_source(build_path, source, purpose, accepted, candidate)
 }
 
 fn read_build_source(package_root: &Path) -> Result<(PathBuf, String), BuildDependencyEditError> {
@@ -44,17 +54,22 @@ fn read_build_source(package_root: &Path) -> Result<(PathBuf, String), BuildDepe
 
 /// Plan an addition using command-owned source without reading or writing the
 /// build path. Any edit or manual patch is bound to these exact source bytes.
+/// The authored row is a product dependency, matching `omega install`.
 pub fn plan_dependency_addition_from_source(
     build_path: PathBuf,
     source: String,
     request: &DependencySourceRequest,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    let requests = extract_from_source(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
-    if requests.contains(request) {
+    let requests =
+        extract_scoped_from_source(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    if requests
+        .iter()
+        .any(|(purpose, existing)| purpose.is_product() && existing == request)
+    {
         return Ok(BuildDependencyEditPlan::Unchanged);
     }
     let digest = source_digest(&source);
-    let statement = canonical_dependency_statement(request);
+    let statement = canonical_dependency_statement(DependencyPurpose::Product, request);
     let Some(layout) = discover_build_layout(&source)? else {
         return Ok(manual_patch(
             build_path,
@@ -87,7 +102,7 @@ pub fn plan_dependency_addition_from_source(
         digest,
         replacement,
         requests,
-        request,
+        (DependencyPurpose::Product, request.clone()),
         statement,
     )
 }
@@ -96,12 +111,12 @@ fn validated_automatic_addition(
     build_path: PathBuf,
     digest: [u8; 32],
     replacement: String,
-    mut expected: Vec<DependencySourceRequest>,
-    request: &DependencySourceRequest,
+    mut expected: Vec<(DependencyPurpose, DependencySourceRequest)>,
+    request: (DependencyPurpose, DependencySourceRequest),
     statement: String,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    expected.push(request.clone());
-    if extract_from_source(&replacement).ok().as_ref() != Some(&expected) {
+    expected.push(request);
+    if extract_scoped_from_source(&replacement).ok().as_ref() != Some(&expected) {
         return Ok(manual_patch(
             build_path,
             digest,
@@ -115,35 +130,45 @@ fn validated_automatic_addition(
     ))
 }
 
-/// Plan a replacement using command-owned source without reading or writing the
-/// build path. Any edit or manual patch is bound to these exact source bytes.
+/// Plan a replacement using command-owned source without reading or writing
+/// the build path. Any edit or manual patch is bound to these exact source
+/// bytes. `purpose` selects which authorized scope's row is rewritten.
 pub fn plan_dependency_replacement_from_source(
     build_path: PathBuf,
     source: String,
+    purpose: DependencyPurpose,
     accepted: &DependencySourceRequest,
     candidate: &DependencySourceRequest,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    let requests = extract_from_source(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    let requests =
+        extract_scoped_from_source(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    let scoped_contains = |request: &DependencySourceRequest| {
+        requests
+            .iter()
+            .any(|(row_purpose, existing)| *row_purpose == purpose && existing == request)
+    };
     if accepted == candidate {
-        return Ok(if requests.contains(candidate) {
+        return Ok(if scoped_contains(candidate) {
             BuildDependencyEditPlan::Unchanged
         } else {
             manual_patch(
                 build_path,
                 source_digest(&source),
                 BuildDependencyManualReason::AcceptedRequestMissing,
-                Some(canonical_dependency_statement(accepted)),
-                canonical_dependency_statement(candidate),
+                Some(canonical_dependency_statement(purpose, accepted)),
+                canonical_dependency_statement(purpose, candidate),
             )
         });
     }
     let digest = source_digest(&source);
-    let current_statement = canonical_dependency_statement(accepted);
-    let proposed_statement = canonical_dependency_statement(candidate);
+    let current_statement = canonical_dependency_statement(purpose, accepted);
+    let proposed_statement = canonical_dependency_statement(purpose, candidate);
     let accepted_indices = requests
         .iter()
         .enumerate()
-        .filter_map(|(index, request)| (request == accepted).then_some(index))
+        .filter_map(|(index, (row_purpose, request))| {
+            (*row_purpose == purpose && request == accepted).then_some(index)
+        })
         .collect::<Vec<_>>();
     let [accepted_index] = accepted_indices.as_slice() else {
         let reason = if accepted_indices.is_empty() {
@@ -159,7 +184,7 @@ pub fn plan_dependency_replacement_from_source(
             proposed_statement,
         ));
     };
-    if requests.iter().any(|request| request == candidate) {
+    if scoped_contains(candidate) {
         return Ok(manual_patch(
             build_path,
             digest,
@@ -208,8 +233,8 @@ pub fn plan_dependency_replacement_from_source(
     let mut replacement = source.clone();
     replacement.replace_range(row.start..row.end, &proposed_statement);
     let mut expected = requests;
-    expected[*accepted_index] = candidate.clone();
-    if extract_from_source(&replacement).ok().as_ref() != Some(&expected) {
+    expected[*accepted_index] = (purpose, candidate.clone());
+    if extract_scoped_from_source(&replacement).ok().as_ref() != Some(&expected) {
         return Ok(manual_patch(
             build_path,
             digest,

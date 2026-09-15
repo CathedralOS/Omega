@@ -4,6 +4,15 @@ use crate::declarations::dependencies::read::aliases::{
 use crate::declarations::roles::BuildDeclaration;
 use crate::declarations::{AliasName, PackageName};
 
+/// Which authorized context one direct dependency edge serves.
+///
+/// `depend`/`depend_as` rows authorize product imports. `build_depend`/
+/// `build_depend_as` rows authorize the host build context. The two scopes
+/// are distinct: an alias or a package may appear in both, and neither scope
+/// falls back to the other. The vocabulary lives in `build_declarations`
+/// so package management and the compiler share one grammar.
+pub use build_declarations::DependencyPurpose;
+
 /// Package selection inside one acquired repository source.
 ///
 /// Selection is request custody, not source or package identity. Omitting the
@@ -27,33 +36,6 @@ pub enum DependencySourceRequest {
         revision: String,
         selection: PackageSelection,
     },
-}
-
-/// Which authorized context one direct dependency edge serves.
-///
-/// `depend`/`depend_as` rows authorize product imports. `build_depend`/
-/// `build_depend_as` rows authorize the host build context. The two scopes
-/// are distinct: an alias or a package may appear in both, and neither scope
-/// falls back to the other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DependencyPurpose {
-    Product,
-    Build,
-}
-
-impl DependencyPurpose {
-    pub const ALL: [Self; 2] = [Self::Product, Self::Build];
-
-    pub const fn is_product(self) -> bool {
-        matches!(self, Self::Product)
-    }
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Product => "product",
-            Self::Build => "build",
-        }
-    }
 }
 
 /// The one ordered set of unconditional direct dependency rows within a

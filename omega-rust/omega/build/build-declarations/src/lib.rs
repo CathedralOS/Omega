@@ -18,6 +18,13 @@ use syntax_trees::statement::{StatementHandle, StatementNode};
 use syntax_trees::types::TypeReferenceNode;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
+mod dependencies;
+
+pub use dependencies::{
+    CONDITIONAL_DEPENDENCY_CALL_NAMES, DependencyOperation, DependencyPurpose, DependencyRow,
+    DependencyRowError, is_dependency_call_name, project_dependency_rows,
+};
+
 pub const BUILD_FILE_NAME: &str = "build.omg";
 const BUILD_MACHINE_NAME: &str = "build";
 const BUILD_TYPE_NAME: &str = "Build";
@@ -703,13 +710,13 @@ fn reject_authored_toolchain_vocabulary(
                     .attached_data
                     .as_ref()
                     .is_some_and(|owner| owner.as_str() == BUILD_TYPE_NAME)
-                    && matches!(
+                    && (matches!(
                         machine_leaf_name(machine.name.as_str()),
                         PACKAGE_MACHINE_NAME
                             | APPLICATION_MACHINE_NAME
                             | MEMBER_MACHINE_NAME
                             | ARTIFACT_ONLY_MACHINE_NAME
-                    ) =>
+                    ) || is_dependency_call_name(machine_leaf_name(machine.name.as_str()))) =>
             {
                 return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
                     name: machine.name.as_str().to_owned(),

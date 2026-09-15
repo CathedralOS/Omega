@@ -2,6 +2,7 @@ use crate::declarations::dependencies::edit::{
     BUILD_MACHINE_NAME, BUILDER_PARAMETER_NAME, BuildDependencyEditError,
 };
 use crate::declarations::dependencies::read::DependencyProjectionError;
+use build_declarations::DependencyOperation;
 use source_files_to_tokens::Lexer;
 use syntax_trees::item::Item;
 use tokens::TokenStream;
@@ -171,10 +172,10 @@ fn dependency_rows(
                 .get(position + 1)
                 .is_some_and(|next| tokens[*next].lexeme == ".")
             && semantic.get(position + 2).is_some_and(|next| {
-                matches!(
-                    tokens[*next].lexeme.try_as_str(),
-                    Some("depend" | "depend_as")
-                )
+                tokens[*next]
+                    .lexeme
+                    .try_as_str()
+                    .is_some_and(|name| DependencyOperation::classify(name).is_some())
             })
             && semantic
                 .get(position + 3)

@@ -1,9 +1,9 @@
 use super::*;
-use package_manager::declarations::DependencySourceRequest;
 use package_manager::declarations::{
     BuildDependencyEditPlan, BuildFileReplacement, plan_dependency_addition,
     plan_dependency_replacement,
 };
+use package_manager::declarations::{DependencyPurpose, DependencySourceRequest};
 use package_manager::operations::{
     LockedSourceRecoveryOptions, check_locked_sources, stage_build_dependency_edit,
 };
@@ -173,7 +173,13 @@ fn planned_source_replacement_reviews_candidate_when_old_checkout_is_unavailable
     let root = tree.path("sources/root");
     let original_build = fs::read(root.join("build.omg")).unwrap();
     let replacement = automatic(
-        plan_dependency_replacement(&root, &request("../old"), &request("../new")).unwrap(),
+        plan_dependency_replacement(
+            &root,
+            DependencyPurpose::Product,
+            &request("../old"),
+            &request("../new"),
+        )
+        .unwrap(),
     );
     let (staged, checked) = staged_review(&tree, &replacement, Some(&accepted));
     assert_eq!(checked.changes().source_replacements().len(), 1);

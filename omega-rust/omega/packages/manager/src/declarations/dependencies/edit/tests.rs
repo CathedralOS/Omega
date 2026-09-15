@@ -8,7 +8,8 @@ use crate::declarations::dependencies::edit::rendering::{
     canonical_dependency_statement, source_digest,
 };
 use crate::declarations::dependencies::read::{
-    DependencyProjectionError, DependencySourceRequest, PackageSelection, extract_from_source,
+    DependencyProjectionError, DependencyPurpose, DependencySourceRequest, PackageSelection,
+    extract_scoped_from_source,
 };
 use crate::declarations::{
     AliasName, plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
@@ -72,8 +73,8 @@ fn adds_to_empty_canonical_build_without_mutating_input() {
 
     assert_eq!(source, application_build(""));
     assert_eq!(
-        extract_from_source(replacement.replacement_source()).expect("project replacement"),
-        vec![path("../math")]
+        extract_scoped_from_source(replacement.replacement_source()).expect("project replacement"),
+        vec![(DependencyPurpose::Product, path("../math"))]
     );
     assert!(
         replacement
@@ -143,6 +144,7 @@ fn replaces_a_semantically_canonical_row_without_relying_on_formatting() {
         plan_dependency_replacement_from_source(
             PathBuf::from("build.omg"),
             source,
+            DependencyPurpose::Product,
             &accepted,
             &candidate,
         )
@@ -150,8 +152,8 @@ fn replaces_a_semantically_canonical_row_without_relying_on_formatting() {
     );
 
     assert_eq!(
-        extract_from_source(replacement.replacement_source()).expect("project replacement"),
-        vec![candidate]
+        extract_scoped_from_source(replacement.replacement_source()).expect("project replacement"),
+        vec![(DependencyPurpose::Product, candidate)]
     );
 }
 
@@ -168,6 +170,7 @@ fn comments_inside_a_replaced_row_force_manual_placement() {
     let plan = plan_dependency_replacement_from_source(
         PathBuf::from("build.omg"),
         source,
+        DependencyPurpose::Product,
         &accepted,
         &candidate,
     )
@@ -192,13 +195,13 @@ fn generated_rows_escape_all_caller_controlled_strings() {
             crate::declarations::PackageName::parse("selected-package").unwrap(),
         ),
     };
-    let statement = canonical_dependency_statement(&request);
+    let statement = canonical_dependency_statement(DependencyPurpose::Product, &request);
     let source = application_build(&format!("    {statement}\n"));
 
     assert!(!statement.contains("\n// injected"));
     assert_eq!(
-        extract_from_source(&source).expect("escaped statement parses"),
-        vec![request]
+        extract_scoped_from_source(&source).expect("escaped statement parses"),
+        vec![(DependencyPurpose::Product, request)]
     );
 }
 
@@ -207,7 +210,7 @@ fn exact_existing_request_is_unchanged() {
     let request = path("vendor");
     let source = application_build(&format!(
         "    {}\n",
-        canonical_dependency_statement(&request)
+        canonical_dependency_statement(DependencyPurpose::Product, &request)
     ));
 
     assert_eq!(
@@ -280,7 +283,7 @@ fn replacement_from_sources_rejects_invalid_before_and_proposed() {
     ];
     for invalid in invalid_sources {
         let expected = BuildDependencyEditError::InvalidBuild(
-            extract_from_source(&invalid).expect_err("ordinary projection rejects source"),
+            extract_scoped_from_source(&invalid).expect_err("ordinary projection rejects source"),
         );
         assert_eq!(
             BuildFileReplacement::from_sources(PathBuf::from("build.omg"), &invalid, valid.clone(),),
@@ -310,8 +313,8 @@ fn replacement_from_sources_hashes_raw_before_context() {
     let mut digests = Vec::new();
     for before in variants {
         assert_eq!(
-            extract_from_source(&before).expect("project before"),
-            extract_from_source(&source).expect("project original"),
+            extract_scoped_from_source(&before).expect("project before"),
+            extract_scoped_from_source(&source).expect("project original"),
         );
         let replacement = BuildFileReplacement::from_sources(
             PathBuf::from("build.omg"),
@@ -347,6 +350,7 @@ fn source_apis_use_command_bytes_when_the_file_differs() {
         plan_dependency_replacement_from_source(
             build_path.clone(),
             before.to_owned(),
+            DependencyPurpose::Product,
             &accepted,
             &candidate,
         )
@@ -354,8 +358,8 @@ fn source_apis_use_command_bytes_when_the_file_differs() {
     );
     assert_eq!(replacement.expected_sha256(), &source_digest(before));
     assert_eq!(
-        extract_from_source(replacement.replacement_source()).expect("project replacement"),
-        vec![candidate],
+        extract_scoped_from_source(replacement.replacement_source()).expect("project replacement"),
+        vec![(DependencyPurpose::Product, candidate)],
     );
     assert_eq!(
         BuildFileReplacement::from_sources(
@@ -371,4 +375,100 @@ fn source_apis_use_command_bytes_when_the_file_differs() {
         disk_source
     );
     fs::remove_dir_all(root).expect("remove fixture");
+}
+
+#[test]
+fn canonical_rows_render_their_authorized_scope() {
+    let aliased = DependencySourceRequest::Path {
+        explicit_alias: Some(AliasName::parse("kernels").expect("alias")),
+        location: "vendor/kernels".to_owned(),
+    };
+    assert_eq!(
+        canonical_dependency_statement(DependencyPurpose::Product, &aliased),
+        "builder.depend_as(\"kernels\", Source::Path { location: \"vendor/kernels\" });"
+    );
+    assert_eq!(
+        canonical_dependency_statement(DependencyPurpose::Build, &aliased),
+        "builder.build_depend_as(\"kernels\", Source::Path { location: \"vendor/kernels\" });"
+    );
+    assert_eq!(
+        canonical_dependency_statement(DependencyPurpose::Build, &path("vendor")),
+        "builder.build_depend(Source::Path { location: \"vendor\" });"
+    );
+}
+
+#[test]
+fn build_rows_are_recognized_dependency_rows_for_insertion() {
+    let source = application_build(
+        "    builder.build_depend_as(\"host\", Source::Path { location: \"host\" });\n",
+    );
+    let replacement = automatic(
+        plan_dependency_addition_from_source(PathBuf::from("build.omg"), source, &path("../math"))
+            .expect("plan addition beside a build row"),
+    );
+
+    assert_eq!(
+        extract_scoped_from_source(replacement.replacement_source()).expect("project replacement"),
+        vec![
+            (
+                DependencyPurpose::Build,
+                DependencySourceRequest::Path {
+                    explicit_alias: Some(AliasName::parse("host").expect("alias")),
+                    location: "host".to_owned(),
+                },
+            ),
+            (DependencyPurpose::Product, path("../math")),
+        ]
+    );
+}
+
+#[test]
+fn replacement_selects_only_the_requested_scope() {
+    let accepted = DependencySourceRequest::Path {
+        explicit_alias: Some(AliasName::parse("kernels").expect("alias")),
+        location: "shared".to_owned(),
+    };
+    let candidate = DependencySourceRequest::Path {
+        explicit_alias: Some(AliasName::parse("kernels").expect("alias")),
+        location: "shared-next".to_owned(),
+    };
+    let source = application_build(
+        "    builder.depend_as(\"kernels\", Source::Path { location: \"shared\" });\n    builder.build_depend_as(\"kernels\", Source::Path { location: \"shared\" });\n",
+    );
+
+    // The identical requests in both scopes are not ambiguous: each scope's
+    // replacement rewrites exactly its own row.
+    let product = automatic(
+        plan_dependency_replacement_from_source(
+            PathBuf::from("build.omg"),
+            source.clone(),
+            DependencyPurpose::Product,
+            &accepted,
+            &candidate,
+        )
+        .expect("plan product replacement"),
+    );
+    assert!(
+        product
+            .replacement_source()
+            .contains("    builder.depend_as(\"kernels\", Source::Path { location: \"shared-next\" });\n    builder.build_depend_as(\"kernels\", Source::Path { location: \"shared\" });"),
+        "product replacement must retain the untouched build row"
+    );
+
+    let build = automatic(
+        plan_dependency_replacement_from_source(
+            PathBuf::from("build.omg"),
+            source,
+            DependencyPurpose::Build,
+            &accepted,
+            &candidate,
+        )
+        .expect("plan build replacement"),
+    );
+    assert!(
+        build
+            .replacement_source()
+            .contains("    builder.depend_as(\"kernels\", Source::Path { location: \"shared\" });\n    builder.build_depend_as(\"kernels\", Source::Path { location: \"shared-next\" });"),
+        "build replacement must retain the untouched product row"
+    );
 }
