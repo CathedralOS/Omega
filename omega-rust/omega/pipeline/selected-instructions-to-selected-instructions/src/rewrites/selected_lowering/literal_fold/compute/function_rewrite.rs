@@ -47,8 +47,7 @@ pub(super) fn apply_action(
         })?;
 
     let pair = rows
-        .for_consumer(consumer.kind)
-        .filter(|pair| pair.row.key == action.immediate_constraint)
+        .for_consumer_row(consumer.kind, action.immediate_constraint)
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
@@ -75,12 +74,14 @@ pub(super) fn apply_action(
     let mut fuel = literal.provenance.fuel;
     fuel.extend(consumer_provenance.fuel);
     // Bind each rewritten row operand to its recorded register: `Use`
-    // positions take the surviving left operand and `Def` positions take the
-    // scalar result, so unary constant folds bind only their result.
+    // positions take the surviving source operand — the left operand under a
+    // right-literal grammar, the right operand under a left-literal one —
+    // and `Def` positions take the scalar result, so unary constant folds
+    // bind only their result.
     let mut registers = Vec::with_capacity(row.operands.len());
     for constraint in &row.operands {
         let register = match constraint.access {
-            RegisterOperandAccess::Use => Some(action.left),
+            RegisterOperandAccess::Use => Some(action.surviving),
             RegisterOperandAccess::Def => action.result,
             _ => None,
         };

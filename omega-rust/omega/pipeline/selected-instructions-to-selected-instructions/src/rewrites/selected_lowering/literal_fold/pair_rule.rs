@@ -17,10 +17,11 @@
 //! stack, control flow, barrier, call, and cleanup — that each form's
 //! [`MachineEffectDeclaration`] must satisfy, and the operand shape carries
 //! the consumer-grammar dimension: whether the folded literal is a binary
-//! consumer's right `Use` operand or a unary consumer's sole `Use` operand.
-//! When a rule needs shape data beyond those — a non-isolated effect
-//! relationship or further operand roles — extend this struct rather than
-//! re-inlining kind matches in compute.
+//! consumer's right `Use` operand, a commutative binary consumer's left
+//! `Use` operand, or a unary consumer's sole `Use` operand. When a rule
+//! needs shape data beyond those — a non-isolated effect relationship or
+//! further operand roles — extend this struct rather than re-inlining kind
+//! matches in compute.
 
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandConstraint,
@@ -265,6 +266,15 @@ pub enum PairOperandShape {
     /// rewritten instruction — the immediate-form binary arithmetic and
     /// compare rules.
     BinaryRightLiteral,
+    /// Commutative binary consumer: the literal victim is the left `Use`
+    /// operand (operand index 0) and the right `Use` operand survives into
+    /// the rewritten instruction's `Use` position. Declaring this shape
+    /// attests that the fold computes the same value under operand exchange:
+    /// the immediate form encodes `surviving <op> literal`, so only an
+    /// operation exact under commutation may declare it. Exact addition
+    /// commutes; subtraction and comparison fix the literal's role, so only
+    /// the add family declares a left-literal pair.
+    BinaryLeftLiteral,
     /// Unary consumer: the literal victim is the sole `Use` operand (operand
     /// index 0). The rewritten instruction consumes no register input — the
     /// fold recomputes the consumer's constant output directly, as in the
@@ -297,6 +307,15 @@ impl SelectedInstructionPairRule {
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
         machine_effects: PairMachineEffects::Isolated,
+    };
+    /// Eliminate `MaterializeI64` feeding the left operand of `ExactAddI64`:
+    /// exact addition commutes, so `literal + x` rewrites to the same
+    /// `ExactAddI64Immediate` form `x + literal` uses. The same catalog
+    /// selection admits both grammars; the pair disambiguates by which `Use`
+    /// position the folded literal occupies.
+    pub const EXACT_ADD_LEFT_IMMEDIATE_U12: Self = Self {
+        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        ..Self::EXACT_ADD_IMMEDIATE_U12
     };
     pub const EXACT_SUBTRACT_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
@@ -419,7 +438,7 @@ impl SelectedInstructionPairRule {
     pub const fn victim_operand(self) -> u16 {
         match self.operand_shape {
             PairOperandShape::BinaryRightLiteral => 1,
-            PairOperandShape::UnaryLiteral => 0,
+            PairOperandShape::BinaryLeftLiteral | PairOperandShape::UnaryLiteral => 0,
         }
     }
 
@@ -437,7 +456,9 @@ impl SelectedInstructionPairRule {
     /// `immediate` in [`crate::LiteralFoldAction`].
     pub fn fold_immediate(self, literal: u64) -> Option<u64> {
         match self.operand_shape {
-            PairOperandShape::BinaryRightLiteral => Some(literal),
+            PairOperandShape::BinaryRightLiteral | PairOperandShape::BinaryLeftLiteral => {
+                Some(literal)
+            }
             PairOperandShape::UnaryLiteral => match self.consumer {
                 MachineSemanticKind::ZeroExtendU8 => Some(literal & 0xFF),
                 MachineSemanticKind::ZeroExtendU16 => Some(literal & 0xFFFF),

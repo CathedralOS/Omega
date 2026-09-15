@@ -37,7 +37,10 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 4] 
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: LiteralFoldPolicy::EXACT_ADD_V1,
-            pairs: &[SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12],
+            pairs: &[
+                SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+                SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
+            ],
         },
     ),
     SelectedLoweringRuleCatalogEntry::new(

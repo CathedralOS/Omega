@@ -36,7 +36,7 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
                 bytes.extend_from_slice(&action.literal_instruction.0.to_le_bytes());
                 bytes.extend_from_slice(&action.victim.0.to_le_bytes());
                 bytes.extend_from_slice(&action.consumer_instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&action.left.0.to_le_bytes());
+                bytes.extend_from_slice(&action.surviving.0.to_le_bytes());
                 match action.result {
                     None => bytes.push(0),
                     Some(result) => {
@@ -118,7 +118,7 @@ mod tests {
                     literal_instruction: SelectedInstructionId(2),
                     victim: VirtualRegisterId(3),
                     consumer_instruction: SelectedInstructionId(4),
-                    left: VirtualRegisterId(2),
+                    surviving: VirtualRegisterId(2),
                     result: Some(VirtualRegisterId(4)),
                     immediate: 12,
                     immediate_constraint: RegisterConstraintKey {
