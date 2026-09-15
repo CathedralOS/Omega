@@ -621,7 +621,10 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   selection, and the observation records `BuildCapturedSourceInventory` extent
   evidence (schema 76). `compiler/tests/build_config_granted.rs` exercises a
   package build reading a template through the snapshot and completing a
-  required file, plus an omitted-required rejection, on macOS. Remaining:
+  required file, plus an omitted-required rejection, on macOS. A further
+  slice landed at 17034140c0 (Linux x86-64, linw1): deterministic
+  snapshot reads, inert symlink handling, and linear required-output
+  settlement with 24 tests. Remaining:
   `builder.output.require`/`complete`/`fail` facet obligations and
   `artifact_only()` root declaration, negative-lookup/ordering/metadata and
   symlink/substitution escape cases, retry-after-failed-completion and
@@ -1916,8 +1919,13 @@ Owners include
   `facts/dependencies/tests/atomics.rs`: a `requires` premise on
   `self.counter.load(NoOrdering)` survives writes to sibling fields and
   unrelated parameters and is retired by a store to the resident place
-  or to `self`. Next slice: range-premise read dependencies for selected
-  calls and indexing operators with established footprints.
+  or to `self`. Fifth slice landed at 126bdce303 (Linux x86-64):
+  range-premise read dependencies now cover selected calls — an exact
+  checked-call join authenticates the occurrence, and operand/receiver
+  places materialize as footprints. Next slice: the same coverage for
+  indexing operators; unvalidated work-in-progress toward it sits on
+  `swarm/linw1-borrow-proof-convergence-2` (reads.rs +176, new
+  `facts/dependencies/tests/indexes.rs`).
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
   `where machine Selected satisfies Trait::requirement` binder is pinned by
@@ -1933,10 +1941,14 @@ Owners include
   The slice also corrected scalar legalization custody to treat
   provider-attachment places as specialization witnesses rather than
   declared storage, matching the `aggregate_results::roster` contract.
-  Remaining platform note: native legs depending on `build.omg` need
-  private resolver storage; on Linux 5.15 `fchmod` on an `O_PATH`
-  directory descriptor fails with `EBADF`, so witness on a 6.6+ kernel or
-  fix the storage opener first.
+  Platform note re-checked on Linux x86-64 kernel 7.1.5 (linw1,
+  verification-only): cap-std opens resolver storage
+  capability-relative, so the `O_PATH` `fchmod`/`EBADF` failure is not
+  hit on 6.6+ kernels; the Linux run leg instead stops at the
+  ENTRY-CONTENT-ROOTS receiver bridge. Acceptance was already met on
+  macOS ARM64 — this item is a closure candidate; suggested
+  replacement: the private-resolver-storage Linux leg under
+  ENTRY-CONTENT-ROOTS.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
@@ -2050,9 +2062,12 @@ Owners include
   `MappedExtent`, `PendingUnmap`, and `MappingReceiptContext` in
   `psi/foundation/extents` each expose the exact install/release fact sets
   a provider's receipt must establish (Linux x86_64,
-  `cargo test -p extents`). Next surfaces: borrowed-source custody, a
-  source-spelled obligation surface on the canary contract, and a
-  Cathedral package carrying real page-table installation.
+  `cargo test -p extents`). Borrowed-source custody landed at
+  6fd003a9bb (Linux x86_64): a linear `BorrowedMapping` carrier plus
+  three new fail canaries. The source-spelled obligation surface
+  landed at e02ab0990f: authored install/release obligation sets now
+  ride on the translation carriers. Next surface: a Cathedral package
+  carrying real page-table installation.
 
 - **EXCEPTION-ROOTS-AND-TIMER.** Materialize all fatal exception entries,
   dedicated critical stacks, IDT installation, and a minimal timer root whose
@@ -2062,6 +2077,7 @@ Owners include
   descriptor table's complete declared member set — fatal exception entries on
   their own dedicated critical stack classes plus acknowledged interrupts such
   as the timer — over the installed-root ledger. Admission replays retained
+
   installed-root records, requires interrupt-return exit, the exact declared
   stack class, and the obligation's acknowledgement shape, and retains each
   member's linear handle so entries cannot retire while the table holds them.
