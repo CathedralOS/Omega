@@ -127,6 +127,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) {
     let content_conservation = validation::build_content_conservation_plans(program);
+    let mut integer_types = None;
     for machine in program.machines() {
         let incoming = incoming_guards.for_machine(machine.symbol);
         let parameter_names = program
@@ -152,6 +153,26 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         if crash_plan.checked_sites().is_empty() && crash_plan.checked_calls().is_empty() {
             continue;
         }
+        // The declaration classification is a program roster and the mutable
+        // primitive parameters are machine facts; the guard-consequence
+        // derivations below reread both per checked site and per checked
+        // call. Build each once, on first need, because neither answer can
+        // change during this pass.
+        let integer_types =
+            integer_types.get_or_insert_with(|| IntegerTypeClassification::build(program));
+        let mutable_parameters = program
+            .machine_states(machine)
+            .iter()
+            .flat_map(|state| program.state_parameters(state))
+            .filter(|parameter| {
+                parameter.is_mutable
+                    && !parameter.is_self
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+            })
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
         let source_fallthrough = source_fallthrough::collect(program, machine);
         let entry_requirements = entry_requirements::collect(
             program,
@@ -159,6 +180,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             &facts.operators,
             &parameter_names,
             &content_conservation,
+            integer_types,
         );
 
         let checked_sites = crash_plan
@@ -170,7 +192,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     .iter()
                     .filter(|guard| guard.applies_at(site.location().state()))
                     .filter(|guard| {
-                        entry_guards::retains_entry_meaning(program, machine, guard.guard())
+                        entry_guards::retains_entry_meaning(
+                            program,
+                            &mutable_parameters,
+                            guard.guard(),
+                        )
                     })
                     .collect::<Vec<_>>();
                 let mut path_guard_conjuncts = applicable_guards
@@ -196,6 +222,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         guard.is_negated(),
                         &parameter_names,
                         &content_conservation,
+                        integer_types,
                         &mut path_predicates,
                     );
                     collect_integer_order_relations(
@@ -204,6 +231,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         guard.is_negated(),
                         &parameter_names,
                         &content_conservation,
+                        integer_types,
                         &mut order_relations,
                         &mut integer_disequalities,
                     );
@@ -226,6 +254,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                             negated,
                             &parameter_names,
                             &content_conservation,
+                            integer_types,
                             &mut path_predicates,
                         );
                         collect_integer_order_relations(
@@ -234,6 +263,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                             negated,
                             &parameter_names,
                             &content_conservation,
+                            integer_types,
                             &mut order_relations,
                             &mut integer_disequalities,
                         );
@@ -277,7 +307,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     .iter()
                     .filter(|guard| guard.applies_at(call.location().state()))
                     .filter(|guard| {
-                        entry_guards::retains_entry_meaning(program, machine, guard.guard())
+                        entry_guards::retains_entry_meaning(
+                            program,
+                            &mutable_parameters,
+                            guard.guard(),
+                        )
                     })
                     .collect::<Vec<_>>();
                 let mut path_guard_conjuncts = applicable_guards
@@ -303,6 +337,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         guard.is_negated(),
                         &parameter_names,
                         &content_conservation,
+                        integer_types,
                         &mut path_guard_consequences,
                     );
                     collect_integer_order_relations(
@@ -311,6 +346,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         guard.is_negated(),
                         &parameter_names,
                         &content_conservation,
+                        integer_types,
                         &mut order_relations,
                         &mut integer_disequalities,
                     );
@@ -454,6 +490,7 @@ fn collect_structural_guard_consequences(
     negated: bool,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
+    integer_types: &IntegerTypeClassification,
     output: &mut Vec<checked_trees::CrashPredicateIdentity>,
 ) {
     use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
@@ -473,6 +510,7 @@ fn collect_structural_guard_consequences(
                 !negated,
                 parameter_names,
                 content_conservation,
+                integer_types,
                 output,
             );
         }
@@ -486,6 +524,7 @@ fn collect_structural_guard_consequences(
                 negated,
                 parameter_names,
                 content_conservation,
+                integer_types,
                 output,
             );
             collect_structural_guard_consequences(
@@ -494,6 +533,7 @@ fn collect_structural_guard_consequences(
                 negated,
                 parameter_names,
                 content_conservation,
+                integer_types,
                 output,
             );
         }
@@ -526,11 +566,12 @@ fn collect_structural_guard_consequences(
                     equality_is_negated == literal,
                     parameter_names,
                     content_conservation,
+                    integer_types,
                     output,
                 );
             }
             let operands_are_integers =
-                comparison_operands_are_integers(program, binary.left, binary.right);
+                comparison_operands_are_integers(program, binary.left, binary.right, integer_types);
             let normalized = normalized_comparison(binary.operator, negated, operands_are_integers)
                 .expect("equality operators are comparisons");
             push_comparison_consequences(
@@ -545,18 +586,17 @@ fn collect_structural_guard_consequences(
             );
         }
         ExpressionNode::Binary(binary) => {
-            let normalized = normalized_comparison(
-                binary.operator,
-                negated,
-                comparison_operands_are_integers(program, binary.left, binary.right),
-            );
-            if let Some(normalized) = normalized {
+            let operands_are_integers =
+                comparison_operands_are_integers(program, binary.left, binary.right, integer_types);
+            if let Some(normalized) =
+                normalized_comparison(binary.operator, negated, operands_are_integers)
+            {
                 push_comparison_consequences(
                     program,
                     normalized,
                     binary.left,
                     binary.right,
-                    comparison_operands_are_integers(program, binary.left, binary.right),
+                    operands_are_integers,
                     parameter_names,
                     content_conservation,
                     output,
@@ -588,6 +628,7 @@ fn collect_integer_order_relations(
     negated: bool,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
+    integer_types: &IntegerTypeClassification,
     output: &mut Vec<IntegerOrderRelation>,
     disequalities: &mut Vec<IntegerDisequality>,
 ) {
@@ -601,6 +642,7 @@ fn collect_integer_order_relations(
                 !negated,
                 parameter_names,
                 content_conservation,
+                integer_types,
                 output,
                 disequalities,
             );
@@ -615,6 +657,7 @@ fn collect_integer_order_relations(
                 negated,
                 parameter_names,
                 content_conservation,
+                integer_types,
                 output,
                 disequalities,
             );
@@ -624,6 +667,7 @@ fn collect_integer_order_relations(
                 negated,
                 parameter_names,
                 content_conservation,
+                integer_types,
                 output,
                 disequalities,
             );
@@ -654,6 +698,7 @@ fn collect_integer_order_relations(
                     equality_is_negated == literal,
                     parameter_names,
                     content_conservation,
+                    integer_types,
                     output,
                     disequalities,
                 );
@@ -666,6 +711,7 @@ fn collect_integer_order_relations(
                 negated,
                 parameter_names,
                 content_conservation,
+                integer_types,
                 output,
                 disequalities,
             );
@@ -678,6 +724,7 @@ fn collect_integer_order_relations(
             negated,
             parameter_names,
             content_conservation,
+            integer_types,
             output,
             disequalities,
         ),
@@ -694,12 +741,13 @@ fn collect_normalized_integer_order_relation(
     negated: bool,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
+    integer_types: &IntegerTypeClassification,
     output: &mut Vec<IntegerOrderRelation>,
     disequalities: &mut Vec<IntegerDisequality>,
 ) {
     use typed_trees::expression::BinaryOperator;
 
-    if !comparison_operands_are_integers(program, left, right) {
+    if !comparison_operands_are_integers(program, left, right, integer_types) {
         return;
     }
     let Some(normalized) = normalized_comparison(operator, negated, true) else {
@@ -935,28 +983,35 @@ fn comparison_operands_are_integers(
     program: &TypedTrees,
     left: typed_trees::expression::ExpressionHandle,
     right: typed_trees::expression::ExpressionHandle,
+    integer_types: &IntegerTypeClassification,
 ) -> bool {
-    expression_is_integer_typed(program, left) && expression_is_integer_typed(program, right)
+    expression_is_integer_typed(program, left, integer_types)
+        && expression_is_integer_typed(program, right, integer_types)
 }
 
 fn expression_is_integer_typed(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
+    integer_types: &IntegerTypeClassification,
 ) -> bool {
     use typed_trees::expression::ExpressionNode;
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
-        ExpressionNode::Atomic(atomic) => expression_is_integer_typed(program, atomic.value),
-        ExpressionNode::Borrow(inner) => expression_is_integer_typed(program, inner.target),
+        ExpressionNode::Atomic(atomic) => {
+            expression_is_integer_typed(program, atomic.value, integer_types)
+        }
+        ExpressionNode::Borrow(inner) => {
+            expression_is_integer_typed(program, inner.target, integer_types)
+        }
         ExpressionNode::Cast(cast) => type_reference_is_integer(program, cast.target_type),
         ExpressionNode::Name(path) => {
             crate::lookup::first_valid_name_path_symbol(path, &program.expression_table)
-                .is_some_and(|symbol| symbol_is_integer_typed(program, symbol))
+                .is_some_and(|symbol| integer_types.is_integer_typed(symbol))
         }
         ExpressionNode::Member(member) => {
             let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
-            symbol_is_integer_typed(program, symbol)
+            integer_types.is_integer_typed(symbol)
         }
         _ => false,
     }
@@ -972,55 +1027,86 @@ fn type_reference_is_integer(
         .is_some_and(typed_trees::types::PrimitiveType::accepts_integer_literal)
 }
 
-fn symbol_is_integer_typed(program: &TypedTrees, symbol: symbols::SymbolHandle) -> bool {
-    if !symbol.is_valid() {
-        return false;
-    }
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            if let Some(parameter) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == symbol)
-            {
-                return type_reference_is_integer(program, parameter.type_reference);
-            }
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                if let typed_trees::statement::StatementNode::LocalData(local) = statement
-                    && local.symbol == symbol
-                {
-                    return type_reference_is_integer(program, local.type_reference);
+/// Whole-program integer-type classification built once per path-conditioned
+/// coverage pass. The typed program is immutable for the duration of the pass,
+/// so one traversal over the declaration roster in the same order the replaced
+/// per-query scan used retains each symbol's first-match answer: state
+/// parameters, state locals, machine-owned data, then data members. Slots are
+/// keyed by the declaring symbol's full generational identity; a symbol absent
+/// from the roster, or one whose stale generation no longer occupies the slot,
+/// reports not integer-typed exactly as the exhausted scan did.
+pub(super) struct IntegerTypeClassification {
+    /// Indexed by symbol arena index: `(generation, is_integer)` recorded by
+    /// the declaring symbol. A zero generation means no roster declaration
+    /// owns the slot.
+    slots: Vec<(u32, bool)>,
+}
+
+impl IntegerTypeClassification {
+    pub(super) fn build(program: &TypedTrees) -> Self {
+        // Symbol arena indices are one-based, so slot 0 stays unwritten.
+        let mut classification = Self {
+            slots: vec![(0, false); program.symbols.symbols().len() + 1],
+        };
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                for parameter in program.state_parameters(state) {
+                    classification.record(program, parameter.symbol, parameter.type_reference);
                 }
-            }
-        }
-        if let Some(owned) = program
-            .machine_owned_data(machine)
-            .iter()
-            .find(|owned| owned.symbol == symbol)
-        {
-            return type_reference_is_integer(program, owned.type_reference);
-        }
-    }
-    for data in program.data_definitions() {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return type_reference_is_integer(program, field.type_reference);
-                }
-                typed_trees::data::DataMember::Variant(variant) => {
-                    if let Some(field) = program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find(|field| field.symbol == symbol)
-                    {
-                        return type_reference_is_integer(program, field.type_reference);
+                for statement in program.statement_table.statements(state.statement_nodes) {
+                    if let typed_trees::statement::StatementNode::LocalData(local) = statement {
+                        classification.record(program, local.symbol, local.type_reference);
                     }
                 }
-                _ => {}
+            }
+            for owned in program.machine_owned_data(machine) {
+                classification.record(program, owned.symbol, owned.type_reference);
             }
         }
+        for data in program.data_definitions() {
+            for member in program.data_members(data) {
+                match member {
+                    typed_trees::data::DataMember::Field(field) => {
+                        classification.record(program, field.symbol, field.type_reference);
+                    }
+                    typed_trees::data::DataMember::Variant(variant) => {
+                        for field in program.data_payload_fields(variant) {
+                            classification.record(program, field.symbol, field.type_reference);
+                        }
+                    }
+                }
+            }
+        }
+        classification
     }
-    false
+
+    /// The roster records a symbol only at its first position, matching the
+    /// replaced scan's early return on the first declaration that named it.
+    fn record(
+        &mut self,
+        program: &TypedTrees,
+        symbol: symbols::SymbolHandle,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+    ) {
+        if !symbol.is_valid() {
+            return;
+        }
+        if let Some(slot) = self.slots.get_mut(symbol.arena_index() as usize)
+            && slot.0 == 0
+        {
+            *slot = (
+                symbol.generation(),
+                type_reference_is_integer(program, type_reference),
+            );
+        }
+    }
+
+    fn is_integer_typed(&self, symbol: symbols::SymbolHandle) -> bool {
+        symbol.is_valid()
+            && self.slots.get(symbol.arena_index() as usize).is_some_and(
+                |&(generation, is_integer)| generation == symbol.generation() && is_integer,
+            )
+    }
 }
 
 fn reversed_comparison(

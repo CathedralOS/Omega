@@ -114,3 +114,59 @@ sample does not attribute the entire nine-minute route. Neither sample measures
 a phase's total share. Preserve the explicit review controls above; no thread
 cap, weakened checking, or disabled observation contract follows from these
 measurements.
+
+## Windows package-review crash-classification attribution
+
+On 2026-09-15, Windows AMD64 (Ryzen 9 7950X), mbx 1.11.0, base
+`24a88339d0a761a07e60e2fbd8f3aac61539947e`, the same hosted-consumer review
+test ran unchanged inputs:
+
+```sh
+mbx nextest run -p package-manager --test semantic_binding_review \
+  --no-fail-fast -E 'test(=macos_entry::target_entry_dependency_discovery_requires_explicit_consumer_acceptance)'
+```
+
+The route requires a local two-line `pub(crate)` repair in
+`build-output/src/capture.rs` (`is_executable`, `same_file_observation`):
+commit `0b404debf1bfea59784cb633ff2bd97fcd352a2b` left the `#[cfg(not(unix))`
+definitions private, so this base cannot compile package-manager on Windows
+without it. The repair stayed uncommitted and is unrelated to the measured
+change.
+
+| Implementation | Rust build (seconds) | Test execution (seconds) |
+| --- | ---: | ---: |
+| Unchanged base | 56.43 | 708.137 |
+| Unchanged base, counter-instrumented | — | 729.687 |
+| Declaration-roster classification | 52.42 | 773.603 |
+| Declaration-roster classification, repeat | 1.97 | 718.452 |
+
+The instrumented unchanged run appended per-pass counters for
+`infer_path_conditioned_guard_coverage` across the whole route (18 passes, one
+per checked compilation the review performs):
+
+| Counter | Total |
+| --- | ---: |
+| Coverage inference elapsed | 6.036 s |
+| Checked crash calls | 8,376 |
+| Checked crash sites | 0 |
+| Incoming-guard applications | 6,892 |
+| Entry-meaning filter elapsed | 0.029 s |
+| Expression integer classifications | 37,976 calls, 5.548 s |
+| Symbol integer classifications | 24,938 calls, 4.226 s |
+
+Every symbol classification rescanned all machines, states, parameters,
+locals, machine-owned data, and data members until first match, so repeated
+classification was about 70% of the coverage phase and 0.6% of the route.
+The landed replacement builds that same roster once per immutable pass —
+state parameters, locals, machine-owned data, then data members, in the same
+order, keeping the same first-match answer per generational symbol — and each
+query is one slot read. It also hoists the per-machine mutable-parameter set
+out of the per-guard entry-meaning filter and computes each binary
+comparison's operand classification once instead of twice.
+
+The paired execution samples span 708–774 seconds, so run-to-run variance
+exceeds the attributed 4.2-second phase saving; no whole-route speedup is
+claimed. All crash-guard positive and negative coverage for parameters,
+locals, and fields is exercised by the crate's existing checking tests; the
+route passed acceptance and stale-binding rejection on both implementations.
+Release timings were not measured.
