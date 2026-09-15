@@ -1766,11 +1766,22 @@ Owners include
   Every artifact Psi currently emits already replays through
   `scalar_graph_input`; probing found no Omega-side gap to fill.
 
+  Early loan closure now replays natively for the `let`-bound shapes Psi
+  emits: head-of-body `let` subloans over projected elements and fields
+  restore the parent for later calls, two live disjoint subloans close
+  independently, the restored parent reaches the same element the closed
+  subloan used, and the shape replays inside a borrowed callee, under
+  `&write` and `&mut` parents — `terminal_psi_indexed_receivers::
+  loan_closures::` (5 tests; published on the four hosted targets,
+  executed on macOS arm64).
+
   Remaining acceptance is upstream in Psi, which produces no artifact for:
-  restored-parent/early-closure `let` bindings, scalar and aggregate `let`
-  borrows forwarded as call arguments or used as store roots
+  `let` borrow declarations after non-let statements (mid-body or
+  sequential lets), scalar and aggregate `let` borrows forwarded as call
+  arguments or used as store roots
   (`let held: &write [u16; 4] = &write values; held[2] = 17` is rejected while
-  `held[1].replace()` composes), projected-element scalar stores on borrowed
+  `held[1].replace()` composes), `&mut` receiver calls on a borrowed parent
+  while a subloan exists, projected-element scalar stores on borrowed
   arrays (`records[1].value = 17` on `&mut`), whole aggregate or `[copy]` sum
   replacement through borrows, owned-record field borrows as call arguments,
   shared `&` scalar callee bodies ("scalar callee has no checked executable
