@@ -8,16 +8,21 @@ use semantic_vocabulary::{
 fn comparison_unit() -> optimization_unit::PsiOptimizationUnit {
     let mut unit = exact_add_unit();
     unit.accepted_obligation_facts.clear();
-    for node_index in 0..2 {
+    for (node_index, node) in unit.functions[0].blocks[0]
+        .nodes
+        .iter_mut()
+        .take(2)
+        .enumerate()
+    {
         let Operation::IntegerConstant {
             psi_operation,
             result,
             ..
-        } = unit.functions[0].blocks[0].nodes[node_index].operation
+        } = node.operation
         else {
             panic!("constant operand");
         };
-        unit.functions[0].blocks[0].nodes[node_index].operation = Operation::IeeeFloatConstant {
+        node.operation = Operation::IeeeFloatConstant {
             psi_operation,
             result,
             value: IeeeFloatValue::Binary32(if node_index == 0 {
