@@ -54,11 +54,12 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_compare());
     assert!(policy.enables_extension());
     assert!(policy.enables_load8_indexed());
+    assert!(policy.enables_copy());
 }
 
 #[test]
 fn catalog_rows_declare_symbolic_instruction_pairs() {
-    let [add, subtract, compare, _extension, indexed] = SELECTED_LOWERING_RULE_CATALOG;
+    let [add, subtract, compare, _extension, indexed, copy] = SELECTED_LOWERING_RULE_CATALOG;
     for entry in [subtract, compare] {
         let &[pair] = entry.payload().pairs() else {
             panic!("the subtract and compare families each declare one pair rule")
@@ -187,10 +188,27 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         None
     );
 
+    // The copy-materialization family declares one unary materialization
+    // rule: `MaterializeI64` feeding `CopyI64` folds to a direct
+    // `MaterializeI64` of the literal at the copy's destination.
+    let &[copy_rule] = copy.payload().pairs() else {
+        panic!("the copy-materialization family declares one pair rule")
+    };
+    assert_eq!(copy_rule, SelectedInstructionPairRule::COPY_LITERAL_FOLD);
+    assert_eq!(copy_rule.producer(), MachineSemanticKind::MaterializeI64);
+    assert_eq!(copy_rule.consumer(), MachineSemanticKind::CopyI64);
+    assert_eq!(copy_rule.rewritten(), MachineSemanticKind::MaterializeI64);
+    assert_eq!(copy_rule.operand_shape(), PairOperandShape::UnaryLiteral);
+    assert_eq!(copy_rule.victim_operand(), 0);
+    assert_eq!(copy_rule.result(), PairResultDisposition::ScalarRegister);
+    assert_eq!(copy_rule.unit_effects(), PairUnitEffects::Isolated);
+    assert_eq!(copy_rule.machine_effects(), PairMachineEffects::Isolated);
+    assert_eq!(copy_rule.immediate_limit(), u64::MAX);
+
     // Every landed rule's rewrite is unit-effect isolated: no implicit unit
     // uses or clobbers and no operand unit bindings beyond the declared
     // result channel.
-    for entry in [add, subtract, compare, indexed] {
+    for entry in [add, subtract, compare, indexed, copy] {
         for pair in entry.payload().pairs() {
             assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
         }
@@ -223,6 +241,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::LOAD8_INDEXED_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::LOAD8_INDEXED_U12]
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::COPY_V1).collect::<Vec<_>>(),
+        vec![SelectedInstructionPairRule::COPY_LITERAL_FOLD]
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -275,6 +297,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         Some(keys.compare_i64_immediate)
     );
     assert_eq!(indexed_rule.immediate_constraint_key(&keys), keys.load8);
+    assert_eq!(
+        copy_rule.immediate_constraint_key(&keys),
+        Some(keys.materialize_i64)
+    );
 }
 
 #[test]
@@ -294,6 +320,7 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
             SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
             SelectedInstructionPairRule::LOAD8_INDEXED_U12,
+            SelectedInstructionPairRule::COPY_LITERAL_FOLD,
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -350,6 +377,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         ]
         .into_iter()
         .chain(SelectedInstructionPairRule::EXTENSION_LITERAL_FOLDS)
+        .chain([SelectedInstructionPairRule::COPY_LITERAL_FOLD])
         {
             assert_eq!(rule.machine_effects(), PairMachineEffects::Isolated);
             let producer = declaration(rule.producer());
@@ -556,6 +584,85 @@ fn extension_elimination_rules_fold_unary_consumers_to_materializations() {
     );
     assert_eq!(
         zero_u8.rewrite_consumer(SelectedInstructionKind::CompareI64, 0xFF, Some(u64_type)),
+        None
+    );
+}
+
+#[test]
+fn copy_materialization_rule_folds_the_unary_copy_to_a_materialization() {
+    let copy = SELECTED_LOWERING_RULE_CATALOG[5];
+    assert_eq!(
+        copy.optimization(),
+        Optimization::SelectedIncomingLiteralCopyMaterialization
+    );
+    let pairs = copy.payload().pairs();
+    assert_eq!(pairs, &[SelectedInstructionPairRule::COPY_LITERAL_FOLD]);
+    let rule = pairs[0];
+    assert_eq!(rule.producer(), MachineSemanticKind::MaterializeI64);
+    assert_eq!(rule.consumer(), MachineSemanticKind::CopyI64);
+    assert_eq!(rule.rewritten(), MachineSemanticKind::MaterializeI64);
+    assert_eq!(rule.operand_shape(), PairOperandShape::UnaryLiteral);
+    assert_eq!(rule.victim_operand(), 0);
+    assert_eq!(rule.result(), PairResultDisposition::ScalarRegister);
+    // The copy preserves the full literal: no target immediate bound and no
+    // bit folding — the materialized payload is the literal itself.
+    assert_eq!(rule.immediate_limit(), u64::MAX);
+    assert_eq!(rule.fold_immediate(0), Some(0));
+    assert_eq!(rule.fold_immediate(0x1_0000_0001), Some(0x1_0000_0001));
+    assert_eq!(rule.fold_immediate(u64::MAX), Some(u64::MAX));
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        // The copy fold rewrites into the target's materialize row.
+        assert_eq!(
+            rule.immediate_constraint_key(&keys),
+            Some(keys.materialize_i64)
+        );
+    }
+
+    let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let i64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    // An unsigned result materializes the literal's unsigned value.
+    assert_eq!(
+        rule.rewrite_consumer(
+            SelectedInstructionKind::CopyI64,
+            0x1_0000_0001,
+            Some(u64_type)
+        ),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0x1_0000_0001),
+        })
+    );
+    // A signed result materializes the literal's two's-complement value.
+    assert_eq!(
+        rule.rewrite_consumer(SelectedInstructionKind::CopyI64, u64::MAX, Some(i64_type)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Signed(-1),
+        })
+    );
+    // The copy cannot narrow: a result type too small for the literal, a
+    // non-integer result, missing scalar evidence, or a mismatched consumer
+    // all reject.
+    assert_eq!(
+        rule.rewrite_consumer(SelectedInstructionKind::CopyI64, 0x1FF, Some(u8_type)),
+        None
+    );
+    assert_eq!(
+        rule.rewrite_consumer(
+            SelectedInstructionKind::CopyI64,
+            7,
+            Some(ScalarType::Boolean)
+        ),
+        None
+    );
+    assert_eq!(
+        rule.rewrite_consumer(SelectedInstructionKind::CopyI64, 7, None),
+        None
+    );
+    assert_eq!(
+        rule.rewrite_consumer(SelectedInstructionKind::ZeroExtendU8, 0xFF, Some(u8_type)),
         None
     );
 }

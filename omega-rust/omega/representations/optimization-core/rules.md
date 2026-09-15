@@ -24,6 +24,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedIncomingU12CompareImmediate` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingU12CompareImmediate` | Required |
 | `SelectedIncomingLiteralExtensionElimination` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingLiteralExtensionElimination` | Required |
 | `SelectedIncomingU12Load8IndexedOffset` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingU12Load8IndexedOffset` | Required |
+| `SelectedIncomingLiteralCopyMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingLiteralCopyMaterialization` | Required |
 | `CheckedTreeProductPruning` | CheckedTrees | Target-independent | Experimental | `--disable-optimization CheckedTreeProductPruning` | Required |
 <!-- exact-rule-inventory:end -->
 
