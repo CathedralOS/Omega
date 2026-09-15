@@ -4,7 +4,7 @@ use super::{
     provider_existing_content, stable_word_placement, stable_word_profile, uart_extent,
     uart_extent_with_lineage, uart_placement_plan, uart_reach, uart_resource_profile,
 };
-use crate::placement_authority::PlacementAuthorityRef;
+use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::{
     AccessOperation, BorrowPolarity, BoundaryReach, BoundaryServiceReachId, EffectiveSupplyKind,
     ObservationModel, PlacedOccurrenceId, PlacementAdmission, PlacementAdmissionId,

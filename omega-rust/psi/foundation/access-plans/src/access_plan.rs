@@ -2,8 +2,8 @@
 //! each slot carries, and the validated plan with its sealed field
 //! descriptors that lowering consumes.
 
-use crate::authorization::authorize_descriptor;
-use crate::normalized_identities::authoritative_access_layout_commitment;
+use crate::plan_policy::authorization::authorize_descriptor;
+use crate::plan_policy::normalized_identities::authoritative_access_layout_commitment;
 use crate::{AccessOperation, AccessPlanDiagnostic, BorrowPolarity};
 use layout_plans::{LayoutPlanReport, normalized_layout_plan_report_fingerprint};
 use std::collections::BTreeMap;

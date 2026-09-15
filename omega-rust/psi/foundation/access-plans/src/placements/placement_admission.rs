@@ -1,11 +1,11 @@
 use extents::{Extent, ExtentLoan};
 
-use super::{
+use crate::ResourceProfileReceiptId;
+use crate::{
     AccessPlanDiagnostic, AdmittedResourceProfile, OwnedPlacementAdmission,
     OwnedPlacementRejection, PlacedView, PlacementResourceCompatibility, ValidatedPlacementPlan,
     validate_placement_resources,
 };
-use crate::ResourceProfileReceiptId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PlacementAdmissionId(pub(crate) u64);

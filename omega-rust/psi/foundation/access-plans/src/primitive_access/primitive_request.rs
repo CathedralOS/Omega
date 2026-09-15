@@ -1,14 +1,14 @@
 use extents::ResidentClaimId;
 
-use super::{
+use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::plan_policy::authorization::authorize_descriptor;
+use crate::{AccessFieldKey, AuthorizedFieldAccess, FieldAccessDescriptor};
+use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, BorrowPolarity,
     BoundaryReach, EffectFootprint, EffectiveFieldSupply, LogicalFieldExtent, ObservationModel,
     PlacedOccurrenceId, PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId,
     effect_footprints_conflict,
 };
-use crate::authorization::authorize_descriptor;
-use crate::placement_authority::PlacementAuthorityRef;
-use crate::{AccessFieldKey, AuthorizedFieldAccess, FieldAccessDescriptor};
 
 /// Canonical input to target-specific placed-memory lowering.
 ///

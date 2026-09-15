@@ -2,7 +2,7 @@ use super::{
     access_plan, extent_rights, field_key, reach, uart_access_plan, uart_access_source,
     uart_extent, uart_layout,
 };
-use crate::access_plan_validation::validate_entry_geometry;
+use crate::plan_policy::access_plan_validation::validate_entry_geometry;
 use crate::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessOperation, AccessPlan,
     AtomicAccessOperation, AtomicCapability, AtomicPermissions, AtomicTransferRule, BorrowPolarity,
@@ -20,7 +20,7 @@ use layout_plans::{
 
 #[test]
 fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
-    let source = include_str!("../normalized_identities.rs");
+    let source = include_str!("../plan_policy/normalized_identities.rs");
     assert_eq!(
         source.matches("0xcbf29ce484222325u64").count(),
         3,

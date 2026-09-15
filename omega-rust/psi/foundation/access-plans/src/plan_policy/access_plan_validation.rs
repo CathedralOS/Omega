@@ -1,11 +1,11 @@
 use layout_plans::{LayoutPlacementReport, LayoutPlanReport, layout_plan_reports_match_for_replay};
 
-use super::{
+use crate::plan_policy::normalized_identities::non_authoritative_access_plan_compatibility_fingerprint;
+use crate::{
     AccessExposure, AccessFieldEntry, AccessPermissions, AccessPlan, AccessPlanDiagnostic,
     ExternalRead, FieldAccess, FieldAccessDescriptor, LogicalFieldExtent, LogicalFieldFragment,
     ObservationModel, RelativeEffectFootprint, ValidatedAccessPlan,
 };
-use crate::normalized_identities::non_authoritative_access_plan_compatibility_fingerprint;
 
 /// Validate one complete normalized access policy against its retained layout.
 pub fn validate_access_plan(
@@ -286,7 +286,7 @@ fn validate_entry_policy(
     Ok(Some(policy))
 }
 
-pub(super) fn validate_entry_geometry(
+pub(crate) fn validate_entry_geometry(
     field: &str,
     transfer_width_bits: u16,
     layout: &LayoutPlanReport,

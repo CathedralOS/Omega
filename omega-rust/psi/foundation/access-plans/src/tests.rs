@@ -13,7 +13,7 @@ mod resource_profiles;
 mod schema_correspondence;
 mod stable_specialization;
 
-use crate::placement_authority::PlacementAuthorityRef;
+use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessOperation, AccessPlan,
     AdmittedResourceProfile, AtomicAccessOperation, AtomicCapability, AtomicPermissions,

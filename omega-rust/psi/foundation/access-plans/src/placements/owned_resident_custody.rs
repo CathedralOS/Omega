@@ -1,10 +1,10 @@
 use extents::{ExtentLoan, ProviderExistingContentGrant};
 
-use super::{
+use crate::placements::placement_admission::validate_placement_admission;
+use crate::{
     AccessPlanDiagnostic, DormantOwnedResident, ObservationModel, OwnedPlacementAdmission,
     OwnedStableAdoptionError, PlacementResourceCompatibility, ValidatedPlacementPlan,
 };
-use crate::placement_admission::validate_placement_admission;
 
 /// Establish provider-validated existing content through the Stable adoption
 /// route.

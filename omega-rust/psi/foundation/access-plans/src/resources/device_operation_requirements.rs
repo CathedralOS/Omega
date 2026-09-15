@@ -12,7 +12,7 @@
 //! these roles provider-private; a future checked-driver surface must derive
 //! role-specific payloads from its actual typed operations.
 
-use super::{AccessPlanDiagnostic, SchemaDeviceCorrespondenceReceiptContext};
+use crate::{AccessPlanDiagnostic, SchemaDeviceCorrespondenceReceiptContext};
 use extents::MappedRangeReceiptContext;
 use std::collections::{BTreeMap, BTreeSet};
 

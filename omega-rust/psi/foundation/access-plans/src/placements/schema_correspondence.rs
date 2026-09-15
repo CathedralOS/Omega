@@ -6,14 +6,14 @@
 //! that the placement describes the named device. It performs no device read,
 //! placement admission, content establishment, or field access.
 
-use super::{
+use crate::placements::placement_admission::validate_placement_admission;
+use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::primitive_access::field_projection::project_placed_field;
+use crate::{
     AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
     PlacedFieldProjection, PlacedView, PlacementAdmission, PlacementAdmissionId, PlacementPlanId,
     ResourceProfileReceiptId, ValidatedPlacementPlan, place,
 };
-use crate::field_projection::project_placed_field;
-use crate::placement_admission::validate_placement_admission;
-use crate::placement_authority::PlacementAuthorityRef;
 use extents::{ExtentLoan, LoanPolarity};
 
 macro_rules! normalized_identity {
@@ -322,7 +322,7 @@ impl AdmittedSchemaDeviceCorrespondence {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_placement_for_test(
+    pub(crate) fn replace_placement_for_test(
         &mut self,
         placement: PlacementPlanId,
     ) -> PlacementPlanId {
@@ -484,7 +484,7 @@ impl<'extent> SchemaCorrespondedPlacementAdmission<'extent> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_correspondence_placement_for_test(
+    pub(crate) fn replace_correspondence_placement_for_test(
         &mut self,
         placement: PlacementPlanId,
     ) -> PlacementPlanId {
@@ -607,7 +607,7 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_correspondence_placement_for_test(
+    pub(crate) fn replace_correspondence_placement_for_test(
         &mut self,
         placement: PlacementPlanId,
     ) -> PlacementPlanId {
@@ -615,7 +615,7 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_view_profile_receipt_for_test(
+    pub(crate) fn replace_view_profile_receipt_for_test(
         &mut self,
         receipt: ResourceProfileReceiptId,
     ) -> ResourceProfileReceiptId {
@@ -623,7 +623,7 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_correspondence_profile_receipt_for_test(
+    pub(crate) fn replace_correspondence_profile_receipt_for_test(
         &mut self,
         receipt: ResourceProfileReceiptId,
     ) -> ResourceProfileReceiptId {

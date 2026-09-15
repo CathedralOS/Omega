@@ -3,7 +3,7 @@ use extents::{
     ExtentRootOrigin, MappingEraId,
 };
 
-use super::{
+use crate::{
     AccessPlanDiagnostic, BoundaryReach, ResourceProfile, ValidatedResourceProfile,
     validate_resource_profile,
 };
@@ -210,7 +210,7 @@ impl AdmittedResourceProfile {
         &self.profile
     }
 
-    pub(super) fn restrict_to_loan(
+    pub(crate) fn restrict_to_loan(
         &self,
         loan: &ExtentLoan<'_>,
     ) -> Result<ValidatedResourceProfile, AccessPlanDiagnostic> {

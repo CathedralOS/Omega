@@ -3,15 +3,15 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
-use super::{
+use crate::AdmittedResourceProfile;
+use crate::placements::owned_resident_custody::validate_owned_resident_authority;
+use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::primitive_access::field_projection::project_placed_field;
+use crate::{
     AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, ObservationModel, PlacedFieldProjection,
     PlacedOccurrenceId, PlacementAdmissionId, PlacementResourceCompatibility,
     ResourceProfileReceiptId, ValidatedPlacementPlan,
 };
-use crate::AdmittedResourceProfile;
-use crate::field_projection::project_placed_field;
-use crate::owned_resident_custody::validate_owned_resident_authority;
-use crate::placement_authority::PlacementAuthorityRef;
 
 /// One accepted whole-range placement admission that retains the exact owned
 /// Extent checked against provider supply.

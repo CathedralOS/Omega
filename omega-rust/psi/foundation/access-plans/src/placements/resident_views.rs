@@ -4,18 +4,18 @@
 //! occurrence to an exact whole-range `ExtentLoan` and forwards the lender's
 //! claim and provider receipts through placed field access.
 
-use super::owned_resident_custody::validate_resident_observation;
-use super::{
+use crate::placements::owned_resident_custody::validate_owned_resident_authority;
+use crate::placements::owned_resident_custody::validate_provider_content_binding;
+use crate::placements::owned_resident_custody::validate_resident_observation;
+use crate::placements::placement_admission::validate_placement_admission;
+use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::primitive_access::field_projection::project_placed_field;
+use crate::{
     AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
     DormantOwnedResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
     PlacementAdmissionId, PlacementResourceCompatibility, ResourceProfileReceiptId,
     ValidatedPlacementPlan,
 };
-use crate::field_projection::project_placed_field;
-use crate::owned_resident_custody::validate_owned_resident_authority;
-use crate::owned_resident_custody::validate_provider_content_binding;
-use crate::placement_admission::validate_placement_admission;
-use crate::placement_authority::PlacementAuthorityRef;
 use extents::{
     ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLoan, LoanPolarity,
     ProviderExistingContentGrant, ResidentClaimId,
@@ -282,7 +282,7 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_profile_for_test(
+    pub(crate) fn replace_profile_for_test(
         &mut self,
         profile: AdmittedResourceProfile,
     ) -> AdmittedResourceProfile {
@@ -290,7 +290,7 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
     }
 
     #[cfg(test)]
-    pub(super) fn replace_content_for_test(
+    pub(crate) fn replace_content_for_test(
         &mut self,
         content: &'resident ProviderExistingContentGrant,
     ) -> &'resident ProviderExistingContentGrant {

@@ -1,8 +1,8 @@
-use super::{
+use crate::{AccessFieldKey, PlacementPlanId, ResourceProfileId};
+use crate::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalRead, ExternalReadBehavior,
     FieldAccess, ResourceRegion, ValidatedPlacementPlan, ValidatedResourceProfile,
 };
-use crate::{AccessFieldKey, PlacementPlanId, ResourceProfileId};
 
 /// Normalized power-of-two constraint on the concrete loan base.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

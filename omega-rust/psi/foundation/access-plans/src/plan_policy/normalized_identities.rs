@@ -1,16 +1,16 @@
-use super::{
+use crate::access_plan::AccessLayoutCommitment;
+use crate::{
     AccessExposure, AccessPlan, AccessPlanId, AtomicCapability, AtomicPermissions, BoundaryReach,
     ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PlacementPlanId,
     ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
 };
-use crate::access_plan::AccessLayoutCommitment;
 use extents::{ExtentContentInterpretation, ExtentContentInterpretationId};
 use layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
 use sha2::{Digest, Sha256};
 
-pub(super) fn non_authoritative_placement_compatibility_fingerprint(
+pub(crate) fn non_authoritative_placement_compatibility_fingerprint(
     access: AccessPlanId,
     reach: &BoundaryReach,
 ) -> PlacementPlanId {
@@ -27,7 +27,7 @@ pub(super) fn non_authoritative_placement_compatibility_fingerprint(
 /// Collision-resistant semantic owner of compiler-issued access field keys.
 /// The compact layout report fingerprint remains useful for diagnostics and
 /// caches, but cannot rejoin a key to a different exact layout.
-pub(super) fn authoritative_access_layout_commitment(
+pub(crate) fn authoritative_access_layout_commitment(
     layout: &LayoutPlanReport,
 ) -> AccessLayoutCommitment {
     let mut digest = Sha256::new();
@@ -40,8 +40,8 @@ pub(super) fn authoritative_access_layout_commitment(
 ///
 /// Unlike the compact FNV compatibility fingerprint above, this value may be
 /// used to rejoin provider content evidence to its exact interpretation.
-pub(super) fn authoritative_placement_interpretation(
-    plan: &super::ValidatedPlacementPlan,
+pub(crate) fn authoritative_placement_interpretation(
+    plan: &crate::placements::placement_plan::ValidatedPlacementPlan,
 ) -> ExtentContentInterpretation {
     let mut digest = Sha256::new();
     digest.update(b"omega.placement-plan.authoritative.v1\0");
@@ -210,7 +210,7 @@ fn hash_u64_sha(digest: &mut Sha256, value: u64) {
     digest.update(value.to_le_bytes());
 }
 
-pub(super) fn non_authoritative_resource_profile_compatibility_fingerprint(
+pub(crate) fn non_authoritative_resource_profile_compatibility_fingerprint(
     length: u64,
     regions: &[ResourceRegion],
 ) -> ResourceProfileId {

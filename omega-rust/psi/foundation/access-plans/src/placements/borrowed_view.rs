@@ -1,14 +1,14 @@
 use extents::{ExtentLoan, LoanPolarity};
 
-use super::{
+use crate::AdmittedResourceProfile;
+use crate::ResourceProfileReceiptId;
+use crate::placements::placement_admission::validate_placement_admission;
+use crate::placements::placement_authority::PlacementAuthorityRef;
+use crate::primitive_access::field_projection::project_placed_field;
+use crate::{
     AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, PlacedFieldProjection,
     PlacementAdmissionId,
 };
-use crate::AdmittedResourceProfile;
-use crate::ResourceProfileReceiptId;
-use crate::field_projection::project_placed_field;
-use crate::placement_admission::validate_placement_admission;
-use crate::placement_authority::PlacementAuthorityRef;
 use crate::{PlacementResourceCompatibility, ValidatedPlacementPlan};
 
 /// A plan-qualified interpretation of one borrowed concrete range.
