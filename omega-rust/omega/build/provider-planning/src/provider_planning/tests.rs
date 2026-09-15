@@ -10,6 +10,7 @@ use super::{
     validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
     validate_selected_synchronous_invocation_cycles,
 };
+#[cfg(feature = "installed-writer")]
 use super::{selected_external_root_provider_plan, selected_external_root_provider_plan_id};
 #[path = "tests/hosted_byte_supply.rs"]
 mod hosted_byte_supply;
