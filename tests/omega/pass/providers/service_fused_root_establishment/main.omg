@@ -14,7 +14,9 @@ data Main {
     service: Service<Ping> in Bound;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Ping
+{
     self.service.ping();
 }
 
@@ -22,6 +24,8 @@ data NonRoot {
     service: Service<Ping> in Bound;
 }
 
-machine NonRoot::run(&mut self) {
+machine NonRoot::run(&mut self)
+reaches Ping
+{
     self.service.ping();
 }

@@ -2,6 +2,8 @@
 use omega_language_std::console;
 
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console
+{
     self.console.exit_process(293);
 }

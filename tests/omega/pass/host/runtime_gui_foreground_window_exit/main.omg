@@ -23,7 +23,9 @@ data Main {
     fw: u64;
     killed: u32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console, Gui
+{
     // "#32770\0"
     self.cls[0] = 35; self.cls[1] = 51; self.cls[2] = 50; self.cls[3] = 55;
     self.cls[4] = 55; self.cls[5] = 48; self.cls[6] = 0;

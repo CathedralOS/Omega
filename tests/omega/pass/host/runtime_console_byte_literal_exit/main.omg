@@ -11,7 +11,9 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console
+{
     self.console.write_byte(55);
     self.console.write_byte(10);
     self.console.exit_process(70);

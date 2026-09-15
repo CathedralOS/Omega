@@ -23,7 +23,9 @@ data Main {
     converter: Convert;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console, Convert
+{
     let ordinary: i32 = self.converter.convert(0);
     let saturated: i32 in Saturating = self.converter.convert(0);
     transition {

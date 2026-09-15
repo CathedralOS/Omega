@@ -32,7 +32,9 @@ data Main {
     selected: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console, Pick
+{
     self.pick.mark(&mut self.selected);
     let chosen: i32 = self.pick.choose();
     self.console.exit_process(self.selected + chosen);
