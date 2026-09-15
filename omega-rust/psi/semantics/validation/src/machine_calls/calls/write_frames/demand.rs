@@ -13,11 +13,12 @@ use super::caller_aliases::{CallerWriteSite, expression_has_calls, with_caller_o
 use super::{
     coarse_place_path, known_boundary_call_written_paths_for_parts,
     known_call_written_paths_for_parts, known_call_written_paths_with_summaries,
-    normalize_state_relative_path, receiver_member_chain, summarize_state_written_paths,
-    summarize_state_written_paths_with_permuted_cycles,
+    normalize_state_relative_path, receiver_member_chain,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
+use crate::machine_calls::calls::write_frames::permuted_cycle_frames::summarize_state_written_paths_with_permuted_cycles;
+use crate::machine_calls::calls::write_frames::state_write_walk::summarize_state_written_paths;
 use facts::NormalizedWriteFrame;
 use std::collections::HashMap;
 use std::sync::Mutex;

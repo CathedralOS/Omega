@@ -8,9 +8,10 @@ use super::{
     ParameterRelativeFrameOrigin, StateParameter, SymbolHandle, TopLevelSymbols, TypedTrees,
     expression_is_effectful_for_transparent_result, expression_is_effectful_indexed_place,
     expression_reborrows_transparent_alias_binding, known_boundary_call_written_paths_for_parts,
-    known_call_written_paths_for_parts, parameter_relative_place_origin, receiver_member_chain,
+    known_call_written_paths_for_parts, receiver_member_chain,
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
+use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origin;
 
 enum ExpressionAdmission {
     Reject,

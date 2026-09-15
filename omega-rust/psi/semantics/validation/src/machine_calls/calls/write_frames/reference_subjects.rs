@@ -1,11 +1,14 @@
 //! Exact local reference identity, separate from conservative write footprints.
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
-    FrameSourcePlace, Machine, MachineSymbols, State, StateWriteQuery, StatementNode,
-    StoredLocalOrigins, SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees, caller_aliases, frame_place_path, local_aliases, reference_origins,
-    stable_alias_initializer_origin, stored_origins, type_is_caller_isolated_local,
-    type_may_carry_write, type_reference_is_reference, walk_state_write_prefix,
+    FrameSourcePlace, Machine, MachineSymbols, State, StatementNode, StoredLocalOrigins,
+    SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    caller_aliases, frame_place_path, local_aliases, reference_origins, stored_origins,
+    type_is_caller_isolated_local, type_may_carry_write, type_reference_is_reference,
+};
+use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origin;
+use crate::machine_calls::calls::write_frames::state_write_walk::{
+    StateWriteQuery, walk_state_write_prefix,
 };
 use facts::PlaceSegment;
 
