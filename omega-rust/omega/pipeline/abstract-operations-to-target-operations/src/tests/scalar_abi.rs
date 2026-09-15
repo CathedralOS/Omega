@@ -5,6 +5,7 @@ use super::{
     CallingPolicy, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, NativeTarget,
     OperationId, ScalarType, ValueId, ValueShape, evaluate_call_plan, identity,
 };
+use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
 fn mixed_fixed_integer_plan() -> (
     AbstractOperationPlan,
     Vec<AbstractParameter>,
@@ -207,4 +208,83 @@ fn unit_and_unsupported_width_functions_publish_no_scalar_abi() {
     )
     .unwrap();
     assert_eq!(lowered.functions[0].scalar_abi, None);
+}
+
+/// The published scalar ABI is a standalone receiving entrance: an outside
+/// caller observes only these rows. Each must re-derive the declared value,
+/// type, and canonical placement; a substituted row or plan detail rejects.
+#[test]
+fn standalone_scalar_entrance_rejects_substituted_rows() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let (source, _, _) = mixed_fixed_integer_plan();
+        let lowered =
+            lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
+        crate::validate_abstract_to_target_translation(&source, native, &lowered).unwrap();
+        for mutation in 0..8 {
+            let mut changed = lowered.clone();
+            let function = &mut changed.functions[0];
+            let abi = function.scalar_abi.as_mut().unwrap();
+            match mutation {
+                0 => abi.parameters[0].value = ValueId::new(1).unwrap(),
+                1 => abi.parameters[0].scalar_type = ScalarType::Boolean,
+                2 => abi.parameters[0].placement = abi.call_plan.parameters[1].clone(),
+                3 => {
+                    abi.parameters.pop();
+                }
+                4 => abi.result.value = ValueId::new(1).unwrap(),
+                5 => abi.result.scalar_type = ScalarType::Boolean,
+                6 => abi.result.placement = abi.call_plan.parameters[0].clone(),
+                _ => abi.call_plan.stack_alignment = abi.call_plan.stack_alignment.wrapping_add(8),
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "scalar ABI substitution {mutation}"
+            );
+        }
+    }
+}
+
+/// A scalar ABI is derivable only for the scalar-only service-free family.
+/// A forged entrance on an ineligible function rejects even when its plan is
+/// internally consistent.
+#[test]
+fn standalone_scalar_entrance_rejects_forged_abi_on_ineligible_function() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let (mut unit, _, _) = mixed_fixed_integer_plan();
+        unit.functions[0].parameters.clear();
+        unit.functions[0].result = AbstractFunctionResult::Unit;
+        unit.functions[0].operations = vec![AbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(701).unwrap(),
+            cleanup_actions: Vec::new(),
+        }];
+        let lowered =
+            lower_to_target_operations(&unit, TargetLoweringRequest::new(native)).unwrap();
+        assert_eq!(lowered.functions[0].scalar_abi, None);
+        crate::validate_abstract_to_target_translation(&unit, native, &lowered).unwrap();
+
+        let forged_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(native),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .unwrap();
+        let mut changed = lowered.clone();
+        changed.functions[0].scalar_abi = Some(ScalarFunctionAbi {
+            result: ScalarAbiValue {
+                value: ValueId::new(720).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+                placement: forged_plan.result.clone().unwrap(),
+            },
+            call_plan: forged_plan,
+            parameters: Vec::new(),
+        });
+        assert!(
+            crate::validate_abstract_to_target_translation(&unit, native, &changed).is_err(),
+            "a Unit-result function cannot publish a scalar receiving entrance"
+        );
+    }
 }

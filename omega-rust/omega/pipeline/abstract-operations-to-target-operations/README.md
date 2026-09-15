@@ -71,6 +71,13 @@ retained source must also name the referent's canonical caller-side home: the
 incoming parameter placement, a non-entry block parameter, or the exact
 establishing operation — a staged destination, a sibling's home, or a copied
 referent cannot substitute for the original storage.
+Standalone receiving entrances — the graph's own scalar parameter rows and the
+published `scalar_abi`/`mixed_structural_scalar_abi` a function exposes to
+callers outside the plan — replay the same independently derived signature:
+each scalar and result row must bind the declared value, type, and canonical
+plan placement, and a published ABI is admitted only for the family its
+producer derives. A coherent plan on an ineligible function, or either ABI
+form beside the other, is a substituted entrance.
 
 For a mutable fixed-byte-array view, the projected storage type is the array
 while the callee receives a view descriptor. Validation reconstructs the exact
