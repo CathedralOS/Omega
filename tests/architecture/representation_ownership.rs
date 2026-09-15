@@ -393,8 +393,9 @@ fn effect_records_do_not_derive_typed_body_or_provider_summaries() {
             "effect records contain {forbidden}"
         );
     }
-    let inference =
-        rust_source(&root.join("omega-rust/psi/semantics/validation/src/effect_inference"));
+    let inference = rust_source(
+        &root.join("omega-rust/psi/semantics/validation/src/machine_calls/effect_inference"),
+    );
     for function in [
         "infer_operational_may",
         "infer_service_reaches",
@@ -813,7 +814,8 @@ fn every_psi_representation_has_one_named_entry() {
     assert!(!facts.contains("fn build_definition_fact_plan"));
     assert!(!facts.contains("fn append_domain_definition_facts"));
     let producer = std::fs::read_to_string(
-        repository().join("omega-rust/psi/semantics/validation/src/definition_facts.rs"),
+        repository()
+            .join("omega-rust/psi/semantics/validation/src/declarations/definition_facts.rs"),
     )
     .unwrap();
     assert!(producer.contains("pub fn build_definition_fact_plan"));

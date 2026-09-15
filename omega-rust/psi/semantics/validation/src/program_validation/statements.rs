@@ -1,18 +1,20 @@
 //! Ordered statement checks and flow-sensitive value updates.
 
-use crate::calls::validate_call_node;
-use crate::expression_types::ExpressionTypeOwner;
-use crate::expression_types::validate_expression_type_handle;
-use crate::locals::WritableRoots;
-use crate::places::validate_assignment_target_handle;
-use crate::symbols::MachineSymbols;
-use crate::transitions::validate_transition_target_node;
-use crate::type_references::TypeReferenceOwner;
-use crate::type_references::validate_type_reference_handle_with_type_parameters;
+use crate::declarations::symbols::MachineSymbols;
+use crate::declarations::transitions::validate_transition_target_node;
+use crate::machine_calls::calls::validate_call_node;
+use crate::value_custody::expression_types::ExpressionTypeOwner;
+use crate::value_custody::expression_types::validate_expression_type_handle;
+use crate::value_custody::locals::WritableRoots;
+use crate::value_custody::places::validate_assignment_target_handle;
+use crate::value_custody::type_references::TypeReferenceOwner;
+use crate::value_custody::type_references::validate_type_reference_handle_with_type_parameters;
 use crate::{
     ExactIntegerCastFact, TopLevelSymbols, ValidatedBoundaryOperatorApplication,
-    arithmetic_domains, calls, domain_weakening, expression_types, placed_views, places,
-    proof_facts, struct_literals, transitions,
+    declarations::transitions, machine_calls::calls, proof_contracts::arithmetic_domains,
+    proof_contracts::domain_weakening, proof_contracts::proof_facts,
+    value_custody::expression_types, value_custody::placed_views, value_custody::places,
+    value_custody::struct_literals,
 };
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -134,7 +136,7 @@ pub(super) fn validate_state_statement_node(
         StatementNode::AssemblyFact(fact) => {
             let state = current_state;
             if let Some(state) = state {
-                crate::locals::StateValueScope {
+                crate::value_custody::locals::StateValueScope {
                     program,
                     machine,
                     state,
@@ -421,7 +423,7 @@ pub(super) fn validate_state_statement_node(
         }
         StatementNode::Call(call) => {
             if let Some(state) = current_state {
-                crate::operators::validate_named_statement_operator_application(
+                crate::declarations::operators::validate_named_statement_operator_application(
                     program,
                     symbols,
                     machine,
@@ -458,7 +460,7 @@ pub(super) fn validate_state_statement_node(
             // `&mut` out-arguments' places (the boundary model's citable
             // fact) -- `fw.get_size(&mut self.n)` with `ensures size <= 8`
             // leaves `self.n` in [type_low, 8].
-            if let Some(signature) = crate::calls::boundary_trait_signature(
+            if let Some(signature) = crate::machine_calls::calls::boundary_trait_signature(
                 program,
                 machine,
                 machine_symbols,
