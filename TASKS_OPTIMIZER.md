@@ -334,12 +334,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   invalidate and reconstruct component, loop-carried custody, ranking,
   provenance, effect, and fuel evidence. The dedicated countdown zero/one
   relocation is not general LICM authority. The unique-entry preheader
-  boundary relocates scalar constant leaves and side-effect-free scalar
-  computations, and its invariant discovery resolves member parameters
-  transitively across component-internal edges to the representative every
-  reaching edge agrees on, rebinding moved operands to the
-  preheader-visible anchor. Remaining: non-scalar families, profitability,
-  and motion beyond the unique-entry preheader.
+  boundary relocates scalar constant leaves, side-effect-free scalar
+  computations, place observations whose storage root rebinds to its
+  invariant representative, and `ByteSequenceRead` reads whose `index`
+  operand substitutes through the same scalar rule, whose bounds
+  obligation stays byte-exact, and whose `length` operand relocates with
+  its `ByteSequenceLength` producer measuring the same rebound root in the
+  same run. Invariant discovery resolves member scalar and structural
+  parameters transitively across component-internal edges to the
+  representative every reaching edge agrees on, rebinding moved operands
+  and observed roots to the preheader-visible anchor. Remaining: other
+  non-scalar families, profitability, and motion beyond the unique-entry
+  preheader.
 
 ## Lowering and instruction selection
 
