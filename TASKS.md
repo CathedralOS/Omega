@@ -1934,43 +1934,6 @@ Owners include
 
 ## Parallel language and compiler lanes
 
-- **CASE-CONSTRAINTS.** Implement [case-local `where` constraints](wiki/spec/language/data_and_literals.md#case-constraints)
-  for typed requests/IR and case-specific payload invariants. Psi owns parsing,
-  resolved case contracts, generic substitution, construction checking,
-  arm-local facts and coverage through checked/Terminal publication. Reuse
-  ordinary equality, default-domain establishment and invariant-window checking;
-  do not add a separate GADT representation family or hidden type packaging.
-  Connect to the existing case/match lowering work below rather than introduce
-  a source-shape-specific evaluator.
-
-  Landed: case members parse `where` facts, carried on `DataVariant` through
-  syntax, symbol-resolved, and typed trees; the selected case's facts fold at
-  construction through the default-domain literal fold
-  (`pass/dependent/case_where_bound_literal_proves`,
-  `fail/dependent/case_where_{reversed,unproved}_bound_rejected`, Linux). Case
-  constraints on generic data are refused
-  (`fail/dependent/case_where_generic_data_unsupported`) until generic instance
-  synthesis carries variant facts. `71e274d9d4` tracks the place's active case
-  through the invariant-window engine: a payload store re-proves the type-wide
-  and active-case fact union and opens a window when the fold fails, a
-  whole-value case literal reseeds the case identity, and open windows refuse
-  at calls and state exits including transported predecessors
-  (`pass/dependent/case_where_{payload_write_restores,replacement_clears}`,
-  `fail/dependent/case_where_payload_write_{unclosed,exit_open}`, macOS).
-  Open: generic `T == i32` establishment, match-contributed case facts, and
-  coverage through established contradictions.
-
-  Acceptance: source tests establish `Value<T>::Integer where T == i32` and
-  `Boolean where T == bool`, and a generic payload-returning match checks without
-  casts; wrong-index construction rejects. `Range(lo, hi) where lo <= hi` accepts
-  proved construction and rejects reversed/unproved bounds. Exercise common
-  constraints, proved impossible-case coverage versus unknown predicates, first-case
-  zero gating for `Value<bool>`, generic establishment with and without sufficient
-  assumptions, stale facts after payload writes/case replacement, and ordinary
-  move/borrow/linear-payload controls. Valid cases must execute through ordinary
-  lowering and preserve checked facts in independent replay. No unrestricted
-  coverage search, specialization-only rescue, or conformance discovery.
-
 - **MATCH-SELECTIVE-LOWERING.** Complete the
   [value-dispatch contract](wiki/spec/language/patterns.md) for owned/nonnumeric
   results with parameter/projected/borrowed/linear custody, structural/case/domain

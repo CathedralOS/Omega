@@ -1,0 +1,14 @@
+// CASE-CONSTRAINTS first-case zero gating for `Value<bool>`: the ordinary
+// zero representation selects the FIRST DECLARED case, so `Value<bool>`'s
+// zero would be `Integer { value: false }` -- but `T == i32` refutes on this
+// instance, so the zero fill is not an established value and the omitted
+// field refuses. The accepted sibling is
+// `pass/dependent/case_where_zero_decided_first_case` on `Value<i32>`.
+data Value<T> {
+    case Integer(value: T) where T == i32;
+    case Boolean(value: T) where T == bool;
+}
+data Main { v: Value<bool>; }
+machine Main::main(&mut self) {
+    let m: Main = Main {};
+}

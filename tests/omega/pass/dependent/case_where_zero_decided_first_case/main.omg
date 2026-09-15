@@ -1,0 +1,15 @@
+// CASE-CONSTRAINTS first-case zero gating, decided side: the case-bearing
+// zero representation selects the FIRST DECLARED case and is accessible only
+// when the active value's complete obligations hold. On `Value<i32>` the
+// first case's `T == i32` fact decides true, so zero selects `Integer` with
+// `value: 0` and the array field may be omitted. The rejected sibling is
+// `fail/dependent/case_where_zero_refuted_first_case_rejected`, where the
+// same first case is refuted on `Value<bool>` and the zero fill refuses.
+data Value<T> {
+    case Integer(value: T) where T == i32;
+    case Boolean(value: T) where T == bool;
+}
+data Main { vs: [Value<i32>; 4]; }
+machine Main::main(&mut self) {
+    let m: Main = Main {};
+}
