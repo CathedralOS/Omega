@@ -13,10 +13,11 @@ use terminal_psi::{ServiceDeclaration, TerminalModule, TerminalRootServiceReach}
 
 use super::{
     AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
-    ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId, Fnv1a,
-    LogicalFuelResourceColumn, NestingRelationId, ProviderPlanId, RootEffectId, RootProviderId,
-    StackResourceColumn, StateValidationReceiptId, TrustReceiptId,
+    ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId, LogicalFuelResourceColumn,
+    NestingRelationId, ProviderPlanId, RootEffectId, RootProviderId, StackResourceColumn,
+    StateValidationReceiptId, TrustReceiptId,
 };
+use crate::identities::Fnv1a;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentVersionPin {

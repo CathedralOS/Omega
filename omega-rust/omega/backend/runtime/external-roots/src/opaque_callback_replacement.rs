@@ -1,12 +1,15 @@
 use super::{
-    EntryStubId, ExternalRootDiagnostic, ExternalRootId, GatewayAdmissionReceiptId,
-    GatewayDispatchContractId, InstalledCode, InstalledCodeContext, InstalledCodeId,
-    InstalledExternalRoot, InstalledRootEvidence, InstalledRootLedger, OpaqueCallbackProviderId,
+    ExternalRootDiagnostic, ExternalRootId, GatewayAdmissionReceiptId, GatewayDispatchContractId,
+    InstalledCodeId, InstalledExternalRoot, InstalledRootLedger, OpaqueCallbackProviderId,
     OpaqueCallbackRegistrationCapacityOccurrenceId, OpaqueCallbackRegistrationId,
     OpaqueCallbackRegistrationReceiptId, OpaqueCallbackUnregistrationContractId,
     OpaqueCallbackUnregistrationReceiptId, ProcessLifetimeGatewayId, RootRemovalReceipt,
     RootRemovalReceiptId, RootSlotAuthority,
 };
+use crate::installed_root_ledger::InstalledRootEvidence;
+use executable_installation::InstalledCode;
+use executable_installation::InstalledCodeContext;
+use layout_plans::EntryStubId;
 use std::sync::Arc;
 
 /// Private process-local provenance for one provider-issued capacity

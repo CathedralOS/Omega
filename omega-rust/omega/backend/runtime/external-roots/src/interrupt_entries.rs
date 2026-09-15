@@ -1,0 +1,679 @@
+//! One interrupt entry from arrival to settled exit: the receipt and
+//! invocation evidence, the linear obligations it mints, acknowledgement
+//! through the installed completion route, and the ledger's begin and
+//! finish operations.
+
+use crate::installed_root_ledger::InstalledRootEvidence;
+use crate::{
+    AcknowledgementPolicyId, AdmittedEntryQualification, AdmittedEntrySubject,
+    ExternalRootDiagnostic, ExternalRootId, InstalledExternalRoot, InstalledRootLedger,
+    InterruptAcknowledgementId, InterruptAcknowledgementReceiptId, InterruptEntryReceiptId,
+    InterruptInvocationId, InterruptMaskControl, InterruptMaskControlId, InterruptMaskStateId,
+    ProviderExecutionId, ProviderPlanId, RootSlotId,
+};
+use calling_conventions::EntryControl;
+use executable_installation::InstalledCodeId;
+use std::collections::BTreeSet;
+
+/// Provider evidence for one concrete invocation of an installed interrupt
+/// root. The exact installed realization and acknowledgement policy are bound
+/// before the source-visible opaque obligations are minted.
+#[derive(Debug, PartialEq, Eq)]
+pub struct InterruptEntryReceipt {
+    identity: InterruptEntryReceiptId,
+    installed_root: InstalledRootEvidence,
+    root: ExternalRootId,
+    slot: RootSlotId,
+    installed_code: InstalledCodeId,
+    provider_execution: ProviderExecutionId,
+    invocation: InterruptInvocationId,
+    mask_control: InterruptMaskControlId,
+    initial_mask_state: InterruptMaskStateId,
+    acknowledgement_policy: Option<AcknowledgementPolicyId>,
+    acknowledgement: Option<InterruptAcknowledgementId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InterruptInvocationEvidence {
+    installed_root: InstalledRootEvidence,
+    entry_receipt: InterruptEntryReceiptId,
+    invocation: InterruptInvocationId,
+    mask_control: InterruptMaskControlId,
+    initial_mask_state: InterruptMaskStateId,
+    acknowledgement_policy: Option<AcknowledgementPolicyId>,
+    acknowledgement: Option<InterruptAcknowledgementId>,
+}
+
+impl InterruptInvocationEvidence {
+    fn from_entry_receipt(receipt: &InterruptEntryReceipt) -> Self {
+        Self {
+            installed_root: receipt.installed_root.clone(),
+            entry_receipt: receipt.identity,
+            invocation: receipt.invocation,
+            mask_control: receipt.mask_control,
+            initial_mask_state: receipt.initial_mask_state,
+            acknowledgement_policy: receipt.acknowledgement_policy,
+            acknowledgement: receipt.acknowledgement,
+        }
+    }
+}
+
+impl InterruptEntryReceipt {
+    pub fn from_provider(
+        identity: InterruptEntryReceiptId,
+        root: &InstalledExternalRoot<'_>,
+        invocation: InterruptInvocationId,
+        mask_control: InterruptMaskControlId,
+        initial_mask_state: InterruptMaskStateId,
+        acknowledgement_policy: Option<AcknowledgementPolicyId>,
+        acknowledgement: Option<InterruptAcknowledgementId>,
+    ) -> Self {
+        Self {
+            identity,
+            installed_root: root.evidence.clone(),
+            root: root.root,
+            slot: root.slot,
+            installed_code: root.installed_code.identity(),
+            provider_execution: root.evidence.provider_execution.identity,
+            invocation,
+            mask_control,
+            initial_mask_state,
+            acknowledgement_policy,
+            acknowledgement,
+        }
+    }
+
+    pub const fn identity(&self) -> InterruptEntryReceiptId {
+        self.identity
+    }
+}
+
+/// The provider-owned half of an active interrupt. It must be reunited with
+/// the exact restored mask control and completed acknowledgement before the
+/// ledger accepts the deriver-owned exit.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PendingInterruptExit {
+    entry_receipt: InterruptEntryReceiptId,
+    invocation_evidence: InterruptInvocationEvidence,
+    root: ExternalRootId,
+    installed_code: InstalledCodeId,
+    provider_execution: ProviderExecutionId,
+    invocation: InterruptInvocationId,
+    mask_control: InterruptMaskControlId,
+    initial_mask_state: InterruptMaskStateId,
+    acknowledgement_policy: Option<AcknowledgementPolicyId>,
+    acknowledgement: Option<InterruptAcknowledgementId>,
+}
+
+/// Provider-minted source obligations for one admitted interrupt invocation.
+#[derive(Debug, PartialEq, Eq)]
+pub struct InterruptEntryObligations {
+    pending_exit: PendingInterruptExit,
+    mask_control: InterruptMaskControl,
+    acknowledgement: Option<InterruptAcknowledgement>,
+}
+
+impl InterruptEntryObligations {
+    pub fn into_parts(
+        self,
+    ) -> (
+        PendingInterruptExit,
+        InterruptMaskControl,
+        Option<InterruptAcknowledgement>,
+    ) {
+        (self.pending_exit, self.mask_control, self.acknowledgement)
+    }
+}
+
+/// Opaque linear acknowledgement minted only by an admitted entry receipt.
+#[derive(Debug, PartialEq, Eq)]
+pub struct InterruptAcknowledgement {
+    invocation_evidence: InterruptInvocationEvidence,
+    identity: InterruptAcknowledgementId,
+    root: ExternalRootId,
+    provider_execution: ProviderExecutionId,
+    invocation: InterruptInvocationId,
+    policy: AcknowledgementPolicyId,
+    qualifications: Vec<AdmittedEntryQualification>,
+}
+
+/// Sealed installation evidence for one provider-completed interrupt
+/// acknowledgement requirement.
+///
+/// The selected reach row is descriptive, not authority. Construction joins
+/// it back to the exact installed root, provider execution, acknowledgement
+/// policy, invocation, and linear acknowledgement occurrence before a provider
+/// receipt can settle the token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledInterruptCompletionRoute {
+    root: ExternalRootId,
+    normalized_root_report_identity: u64,
+    entry_provider_plan: ProviderPlanId,
+    pub(crate) provider_execution: ProviderExecutionId,
+    provider_execution_report_fingerprint: u64,
+    pub(crate) completion_requirement_identity: String,
+    pub(crate) resolution: effects::InstallationReachResolution,
+    entry_receipt: InterruptEntryReceiptId,
+    pub(crate) invocation: InterruptInvocationId,
+    pub(crate) policy: AcknowledgementPolicyId,
+    pub(crate) acknowledgement: InterruptAcknowledgementId,
+}
+
+impl InstalledInterruptCompletionRoute {
+    fn from_provider_requirement(
+        acknowledgement: &InterruptAcknowledgement,
+        completion_requirement_identity: &str,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if completion_requirement_identity.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "interrupt acknowledgement completion requirement identity cannot be empty".into(),
+            ));
+        }
+        let installed = &acknowledgement.invocation_evidence.installed_root;
+        let root = &installed.root;
+        if !installed.provider_execution.matches_root(root)
+            || installed.provider_execution.identity != acknowledgement.provider_execution
+        {
+            return Err(ExternalRootDiagnostic(
+                "interrupt acknowledgement completion does not retain the exact installed provider execution"
+                    .into(),
+            ));
+        }
+        let mut matches = root
+            .candidate
+            .service_reach
+            .resolutions()
+            .iter()
+            .filter(|resolution| {
+                resolution.requirement_identity == completion_requirement_identity
+            });
+        let Some(resolution) = matches.next() else {
+            return Err(ExternalRootDiagnostic(format!(
+                "interrupt acknowledgement completion requirement `{completion_requirement_identity}` is absent from the exact installed reach"
+            )));
+        };
+        if matches.next().is_some()
+            || !root
+                .candidate
+                .service_reach
+                .installation_requirements()
+                .iter()
+                .any(|requirement| requirement == completion_requirement_identity)
+        {
+            return Err(ExternalRootDiagnostic(format!(
+                "interrupt acknowledgement completion requirement `{completion_requirement_identity}` does not have one exact installed reach resolution"
+            )));
+        }
+        Ok(Self {
+            root: acknowledgement.root,
+            normalized_root_report_identity: root.normalized_report_identity,
+            entry_provider_plan: installed.provider_execution.provider_plan,
+            provider_execution: acknowledgement.provider_execution,
+            provider_execution_report_fingerprint: installed
+                .provider_execution
+                .normalized_report_identity,
+            completion_requirement_identity: completion_requirement_identity.into(),
+            resolution: resolution.clone(),
+            entry_receipt: acknowledgement.invocation_evidence.entry_receipt,
+            invocation: acknowledgement.invocation,
+            policy: acknowledgement.policy,
+            acknowledgement: acknowledgement.identity,
+        })
+    }
+
+    fn matches_acknowledgement(&self, acknowledgement: &InterruptAcknowledgement) -> bool {
+        let installed = &acknowledgement.invocation_evidence.installed_root;
+        let root = &installed.root;
+        let replayed_resolution =
+            root.candidate
+                .service_reach
+                .resolutions()
+                .iter()
+                .find(|resolution| {
+                    resolution.requirement_identity == self.completion_requirement_identity
+                });
+        installed.provider_execution.matches_root(root)
+            && self.root == acknowledgement.root
+            && self.normalized_root_report_identity == root.normalized_report_identity
+            && self.entry_provider_plan == installed.provider_execution.provider_plan
+            && self.provider_execution == acknowledgement.provider_execution
+            && self.provider_execution == installed.provider_execution.identity
+            && self.provider_execution_report_fingerprint
+                == installed.provider_execution.normalized_report_identity
+            && self.completion_requirement_identity == self.resolution.requirement_identity
+            && replayed_resolution == Some(&self.resolution)
+            && root
+                .candidate
+                .service_reach
+                .installation_requirements()
+                .iter()
+                .any(|requirement| requirement == &self.completion_requirement_identity)
+            && self.entry_receipt == acknowledgement.invocation_evidence.entry_receipt
+            && self.invocation == acknowledgement.invocation
+            && self.policy == acknowledgement.policy
+            && self.acknowledgement == acknowledgement.identity
+            && acknowledgement.invocation_evidence.invocation == acknowledgement.invocation
+            && acknowledgement.invocation_evidence.acknowledgement_policy
+                == Some(acknowledgement.policy)
+            && acknowledgement.invocation_evidence.acknowledgement == Some(acknowledgement.identity)
+    }
+
+    pub const fn entry_provider_plan(&self) -> ProviderPlanId {
+        self.entry_provider_plan
+    }
+
+    pub const fn provider_execution(&self) -> ProviderExecutionId {
+        self.provider_execution
+    }
+
+    pub fn completion_requirement_identity(&self) -> &str {
+        &self.completion_requirement_identity
+    }
+
+    pub const fn resolution(&self) -> &effects::InstallationReachResolution {
+        &self.resolution
+    }
+
+    pub const fn invocation(&self) -> InterruptInvocationId {
+        self.invocation
+    }
+
+    pub const fn policy(&self) -> AcknowledgementPolicyId {
+        self.policy
+    }
+
+    pub const fn acknowledgement(&self) -> InterruptAcknowledgementId {
+        self.acknowledgement
+    }
+}
+
+impl InterruptAcknowledgement {
+    pub const fn identity(&self) -> InterruptAcknowledgementId {
+        self.identity
+    }
+
+    /// Exact admitted source qualifications established for this concrete
+    /// acknowledgement subject by the installed-root invocation receipt.
+    pub fn qualifications(&self) -> &[AdmittedEntryQualification] {
+        &self.qualifications
+    }
+
+    /// Resolve one exact static accepted-claim contract from this concrete
+    /// linear occurrence. This never accepts a provider-plan receipt alone and
+    /// never returns evidence detached from the acknowledgement carrier.
+    pub fn qualification_for_contract(
+        &self,
+        provider_plan: ProviderPlanId,
+        requirement_identity: &str,
+        parameter_index: usize,
+        domain: &str,
+        effective_carry: language_semantics::CarryPolicy,
+    ) -> Result<&AdmittedEntryQualification, ExternalRootDiagnostic> {
+        let matches = self
+            .qualifications
+            .iter()
+            .filter(|qualification| {
+                qualification.matches_contract(
+                    provider_plan,
+                    requirement_identity,
+                    parameter_index,
+                    domain,
+                    effective_carry,
+                )
+            })
+            .collect::<Vec<_>>();
+        let [qualification] = matches.as_slice() else {
+            return Err(ExternalRootDiagnostic(format!(
+                "interrupt acknowledgement maps to {} qualifications for the exact accepted entry contract",
+                matches.len()
+            )));
+        };
+        Ok(*qualification)
+    }
+
+    pub fn complete(
+        self,
+        receipt: InterruptAcknowledgementReceipt,
+    ) -> Result<CompletedInterruptAcknowledgement, Box<InterruptAcknowledgementError>> {
+        let matches = receipt.root == self.root
+            && receipt.invocation_evidence == self.invocation_evidence
+            && receipt.provider_execution == self.provider_execution
+            && receipt.invocation == self.invocation
+            && receipt.policy == self.policy
+            && receipt.acknowledgement == self.identity
+            && receipt.route.matches_acknowledgement(&self);
+        if !matches {
+            return Err(Box::new(InterruptAcknowledgementError {
+                acknowledgement: self,
+                receipt,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt acknowledgement receipt does not complete the exact invocation and policy"
+                        .into(),
+                ),
+            }));
+        }
+        Ok(CompletedInterruptAcknowledgement {
+            invocation_evidence: self.invocation_evidence,
+            root: self.root,
+            provider_execution: self.provider_execution,
+            invocation: self.invocation,
+            policy: self.policy,
+            acknowledgement: self.identity,
+            receipt: receipt.identity,
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct InterruptAcknowledgementReceipt {
+    identity: InterruptAcknowledgementReceiptId,
+    invocation_evidence: InterruptInvocationEvidence,
+    root: ExternalRootId,
+    provider_execution: ProviderExecutionId,
+    invocation: InterruptInvocationId,
+    policy: AcknowledgementPolicyId,
+    acknowledgement: InterruptAcknowledgementId,
+    pub(crate) route: InstalledInterruptCompletionRoute,
+}
+
+impl InterruptAcknowledgementReceipt {
+    pub fn from_provider(
+        identity: InterruptAcknowledgementReceiptId,
+        acknowledgement: &InterruptAcknowledgement,
+        completion_requirement_identity: &str,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let route = InstalledInterruptCompletionRoute::from_provider_requirement(
+            acknowledgement,
+            completion_requirement_identity,
+        )?;
+        Ok(Self {
+            identity,
+            invocation_evidence: acknowledgement.invocation_evidence.clone(),
+            root: acknowledgement.root,
+            provider_execution: acknowledgement.provider_execution,
+            invocation: acknowledgement.invocation,
+            policy: acknowledgement.policy,
+            acknowledgement: acknowledgement.identity,
+            route,
+        })
+    }
+
+    pub const fn route(&self) -> &InstalledInterruptCompletionRoute {
+        &self.route
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CompletedInterruptAcknowledgement {
+    invocation_evidence: InterruptInvocationEvidence,
+    root: ExternalRootId,
+    provider_execution: ProviderExecutionId,
+    invocation: InterruptInvocationId,
+    policy: AcknowledgementPolicyId,
+    acknowledgement: InterruptAcknowledgementId,
+    receipt: InterruptAcknowledgementReceiptId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompletedInterruptEntry {
+    pub entry_receipt: InterruptEntryReceiptId,
+    pub root: ExternalRootId,
+    pub invocation: InterruptInvocationId,
+    pub acknowledgement_receipt: Option<InterruptAcknowledgementReceiptId>,
+}
+
+impl InstalledRootLedger {
+    /// Mint the opaque source obligations for one provider-reported interrupt
+    /// invocation. Ordinary code has no constructor for these carriers; the
+    /// receipt must match the exact installed root, selected execution, and
+    /// acknowledgement policy. An invocation or acknowledgement identity can
+    /// be admitted only once by a selected provider execution.
+    pub fn begin_interrupt_entry(
+        &mut self,
+        root: &InstalledExternalRoot<'_>,
+        receipt: InterruptEntryReceipt,
+    ) -> Result<InterruptEntryObligations, InterruptEntryStartError> {
+        let Some(record) = self.roots.get(&root.root) else {
+            return Err(InterruptEntryStartError {
+                receipt,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt entry requires a currently installed external root".into(),
+                ),
+            });
+        };
+        let acknowledgement_shape_matches = match (
+            record.acknowledgement_policy,
+            receipt.acknowledgement_policy,
+            receipt.acknowledgement,
+        ) {
+            (None, None, None) => true,
+            (Some(expected), Some(actual), Some(_)) => expected == actual,
+            _ => false,
+        };
+        let exact_root = root.slot == record.slot
+            && root.installed_code.identity() == record.installed_code
+            && self.root_evidence.get(&root.root).is_some_and(|evidence| {
+                evidence == &root.evidence && evidence == &receipt.installed_root
+            })
+            && receipt.root == record.root
+            && receipt.slot == record.slot
+            && receipt.installed_code == record.installed_code
+            && receipt.provider_execution == record.provider_execution
+            && acknowledgement_shape_matches
+            && (receipt.acknowledgement.is_none()
+                || record.acknowledgement_parameter_index.is_some())
+            && record.boundary.call.entry_control == EntryControl::InterruptReturn;
+        if !exact_root {
+            return Err(InterruptEntryStartError {
+                receipt,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt entry receipt does not bind the exact installed interrupt root, provider execution, and acknowledgement policy"
+                        .into(),
+                ),
+            });
+        }
+        let entry_key = (record.provider_execution, receipt.invocation);
+        let acknowledgement_key = receipt
+            .acknowledgement
+            .map(|identity| (record.provider_execution, identity));
+        if self.entered_interrupts.contains(&entry_key)
+            || acknowledgement_key.is_some_and(|key| self.minted_acknowledgements.contains(&key))
+        {
+            return Err(InterruptEntryStartError {
+                receipt,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt entry receipt replays an invocation or acknowledgement identity"
+                        .into(),
+                ),
+            });
+        }
+        self.entered_interrupts.insert(entry_key);
+        if let Some(key) = acknowledgement_key {
+            self.minted_acknowledgements.insert(key);
+        }
+        self.active_interrupts
+            .insert((record.root, receipt.invocation));
+
+        let invocation_evidence = InterruptInvocationEvidence::from_entry_receipt(&receipt);
+        let acknowledgement = receipt.acknowledgement.map(|identity| {
+            let parameter_index = record
+                .acknowledgement_parameter_index
+                .expect("exact interrupt root validated the acknowledgement parameter");
+            let qualifications = record
+                .entry_claims
+                .iter()
+                .filter(|claim| claim.parameter_index == parameter_index)
+                .map(|claim| AdmittedEntryQualification {
+                    provider_plan: record.provider_plan,
+                    requirement_identity: record.requirement_identity.clone(),
+                    parameter_index,
+                    abi_placement: record.boundary.call.parameters[parameter_index].clone(),
+                    domain: claim.domain.clone(),
+                    effective_carry: claim.effective_carry,
+                    entry_receipt: receipt.identity,
+                    invocation: receipt.invocation,
+                    subject: AdmittedEntrySubject::InterruptAcknowledgement(identity),
+                })
+                .collect::<Vec<_>>();
+            InterruptAcknowledgement {
+                invocation_evidence: invocation_evidence.clone(),
+                identity,
+                root: record.root,
+                provider_execution: record.provider_execution,
+                invocation: receipt.invocation,
+                policy: record
+                    .acknowledgement_policy
+                    .expect("validated acknowledgement shape has a policy"),
+                qualifications,
+            }
+        });
+        Ok(InterruptEntryObligations {
+            pending_exit: PendingInterruptExit {
+                entry_receipt: receipt.identity,
+                invocation_evidence: invocation_evidence.clone(),
+                root: record.root,
+                installed_code: record.installed_code,
+                provider_execution: record.provider_execution,
+                invocation: receipt.invocation,
+                mask_control: receipt.mask_control,
+                initial_mask_state: receipt.initial_mask_state,
+                acknowledgement_policy: record.acknowledgement_policy,
+                acknowledgement: receipt.acknowledgement,
+            },
+            mask_control: InterruptMaskControl {
+                invocation_evidence,
+                identity: receipt.mask_control,
+                root: record.root,
+                invocation: receipt.invocation,
+                initial_state: receipt.initial_mask_state,
+                current_state: receipt.initial_mask_state,
+                live_guards: Vec::new(),
+                used_guards: BTreeSet::new(),
+                mask_guard_claim: record.interrupt_mask_guard_claim.clone(),
+            },
+            acknowledgement,
+        })
+    }
+
+    /// Admit the deriver-owned interrupt exit only after every source-visible
+    /// obligation has returned to its exact provider state.
+    pub fn finish_interrupt_entry(
+        &mut self,
+        pending: PendingInterruptExit,
+        control: InterruptMaskControl,
+        acknowledgement: Option<CompletedInterruptAcknowledgement>,
+    ) -> Result<CompletedInterruptEntry, Box<InterruptEntryFinishError>> {
+        let acknowledgement_matches = match (
+            pending.acknowledgement_policy,
+            pending.acknowledgement,
+            acknowledgement.as_ref(),
+        ) {
+            (None, None, None) => true,
+            (Some(policy), Some(identity), Some(completed)) => {
+                completed.invocation_evidence == pending.invocation_evidence
+                    && completed.root == pending.root
+                    && completed.provider_execution == pending.provider_execution
+                    && completed.invocation == pending.invocation
+                    && completed.policy == policy
+                    && completed.acknowledgement == identity
+            }
+            _ => false,
+        };
+        let record_matches = self.roots.get(&pending.root).is_some_and(|record| {
+            record.installed_code == pending.installed_code
+                && record.provider_execution == pending.provider_execution
+                && record.acknowledgement_policy == pending.acknowledgement_policy
+                && self
+                    .root_evidence
+                    .get(&pending.root)
+                    .is_some_and(|evidence| evidence == &pending.invocation_evidence.installed_root)
+        });
+        let control_matches = control.invocation_evidence == pending.invocation_evidence
+            && control.root == pending.root
+            && control.invocation == pending.invocation
+            && control.identity == pending.mask_control
+            && control.initial_state == pending.initial_mask_state
+            && control.current_state == pending.initial_mask_state
+            && control.live_guards.is_empty();
+        let active_key = (pending.root, pending.invocation);
+        if !record_matches
+            || !control_matches
+            || !acknowledgement_matches
+            || !self.active_interrupts.contains(&active_key)
+        {
+            return Err(Box::new(InterruptEntryFinishError {
+                pending,
+                control,
+                acknowledgement,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt exit requires the exact restored mask state and completed acknowledgement"
+                        .into(),
+                ),
+            }));
+        }
+        self.active_interrupts.remove(&active_key);
+        Ok(CompletedInterruptEntry {
+            entry_receipt: pending.entry_receipt,
+            root: pending.root,
+            invocation: pending.invocation,
+            acknowledgement_receipt: acknowledgement.map(|completed| completed.receipt),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct InterruptEntryStartError {
+    receipt: InterruptEntryReceipt,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl InterruptEntryStartError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_receipt(self) -> InterruptEntryReceipt {
+        self.receipt
+    }
+}
+
+#[derive(Debug)]
+pub struct InterruptAcknowledgementError {
+    acknowledgement: InterruptAcknowledgement,
+    receipt: InterruptAcknowledgementReceipt,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl InterruptAcknowledgementError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (InterruptAcknowledgement, InterruptAcknowledgementReceipt) {
+        (self.acknowledgement, self.receipt)
+    }
+}
+
+#[derive(Debug)]
+pub struct InterruptEntryFinishError {
+    pending: PendingInterruptExit,
+    control: InterruptMaskControl,
+    acknowledgement: Option<CompletedInterruptAcknowledgement>,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl InterruptEntryFinishError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        PendingInterruptExit,
+        InterruptMaskControl,
+        Option<CompletedInterruptAcknowledgement>,
+    ) {
+        (self.pending, self.control, self.acknowledgement)
+    }
+}

@@ -5007,8 +5007,8 @@ fn external_root_execution_summaries_are_report_only_beside_exact_evidence() {
         "provider execution must not present compact resource and exit summaries as authority",
     );
 
-    let ledger =
-        std::fs::read_to_string(runtime.join("lib.rs")).expect("read external-root ledger");
+    let ledger = std::fs::read_to_string(runtime.join("installed_root_ledger.rs"))
+        .expect("read external-root ledger");
     assert!(
         ledger.contains("pub normalized_root_report_identity: u64")
             && ledger.contains("pub provider_execution_report_fingerprint: u64")
@@ -5020,7 +5020,7 @@ fn external_root_execution_summaries_are_report_only_beside_exact_evidence() {
         "installed-root reports must retain strong/exact authority beside compact coordinates",
     );
 
-    let adversarial = std::fs::read_to_string(runtime.join("tests.rs"))
+    let adversarial = std::fs::read_to_string(runtime.join("tests/root_installation.rs"))
         .expect("read external-root adversarial tests");
     assert!(
         adversarial
@@ -5084,7 +5084,7 @@ fn external_root_stack_and_logical_work_fingerprints_are_report_only() {
         "epoch stack FNV values must remain report-only beside exact pure and bound inputs",
     );
 
-    let adversarial = std::fs::read_to_string(runtime.join("tests.rs"))
+    let adversarial = std::fs::read_to_string(runtime.join("tests/stack_and_fuel_composition.rs"))
         .expect("read external-root adversarial tests");
     assert!(
         adversarial

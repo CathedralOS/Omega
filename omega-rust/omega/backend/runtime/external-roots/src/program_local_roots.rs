@@ -20,8 +20,9 @@ use terminal_psi::TerminalPsiIdentity;
 use super::{
     ExternalRootDiagnostic, ExternalRootId, InstalledExternalRoot,
     InstalledRequiredRootSlotClosure, InstalledRootLedger, ObjectEvidence, ProviderExecutionId,
-    RootAdmissionId, RootSlotId, RootSlotOwnerId, bind_terminal_function,
+    RootAdmissionId, RootSlotId, RootSlotOwnerId,
 };
+use crate::root_admission::bind_terminal_function;
 
 /// Collision-resistant commitment to every exact, resolved producer-schema
 /// field consumed by program-local root installation.
@@ -81,7 +82,7 @@ impl ProgramLocalRootPrebindingId {
 pub struct ProgramLocalRootInstalledPrebinding {
     identity: ProgramLocalRootPrebindingId,
     psi: TerminalPsiIdentity,
-    installed_root_evidence: super::InstalledRootEvidence,
+    installed_root_evidence: crate::installed_root_ledger::InstalledRootEvidence,
     owner: RootSlotOwnerId,
     artifact: ArtifactId,
     admission: RootAdmissionId,

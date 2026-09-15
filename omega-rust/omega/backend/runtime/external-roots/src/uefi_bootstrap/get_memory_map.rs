@@ -48,8 +48,9 @@ use target::{
 
 use super::exit_boot_services::{evaluate_exit_boot_services_plan, validate_exact_call_shape};
 use super::{PlannedUefiExitBootServicesInvocation, UefiApplicationFirmwareLedger};
+use crate::identities::Fnv1a;
 use crate::{
-    ExternalRootDiagnostic, Fnv1a, UefiBootServicesTableOccurrenceId, UefiFirmwareSessionId,
+    ExternalRootDiagnostic, UefiBootServicesTableOccurrenceId, UefiFirmwareSessionId,
     UefiImageHandleOccurrenceId, UefiMemoryMapKeyId, UefiMemoryMapSnapshotId,
     UefiPhysicalInvocationId,
 };

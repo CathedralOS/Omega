@@ -30,10 +30,11 @@ use layout_plans::EntryStubId;
 
 use super::stack_demand::fingerprint_stack_local_evidence;
 use super::{
-    ExternalRootDiagnostic, ExternalRootId, Fnv1a, ProviderStackSummary, RootProviderId,
-    StackDomain, StackLocalEvidence, StackNestingRelation, StackValidationReceiptId,
+    ExternalRootDiagnostic, ExternalRootId, ProviderStackSummary, RootProviderId, StackDomain,
+    StackLocalEvidence, StackNestingRelation, StackValidationReceiptId,
     X86_64GateProfileValidationReceiptId,
 };
+use crate::identities::Fnv1a;
 
 /// Structurally closed input to epoch composition.
 ///

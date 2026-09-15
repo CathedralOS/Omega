@@ -13,9 +13,11 @@ use layout_plans::EntryStubId;
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use super::{
-    ExternalRootDiagnostic, Fnv1a, FuelProvisionId, FuelValidationReceiptId, ProviderFuelSummaryId,
-    ProviderFuelValidationReceiptId, RootProviderId, bind_terminal_function,
+    ExternalRootDiagnostic, FuelProvisionId, FuelValidationReceiptId, ProviderFuelSummaryId,
+    ProviderFuelValidationReceiptId, RootProviderId,
 };
+use crate::identities::Fnv1a;
+use crate::root_admission::bind_terminal_function;
 
 /// One bounded call edge in a fixed-fuel provider summary. Multiplicity is
 /// explicit: a set of callees alone cannot distinguish one invocation from a

@@ -13,9 +13,11 @@ use installation_evidence::{ObjectEvidence, StackDemandEvidence};
 use layout_plans::EntryStubId;
 
 use super::{
-    BoundEpochStackComposition, ExternalRootDiagnostic, ExternalRootId, Fnv1a, NestingRelationId,
-    RootProviderId, StackValidationReceiptId, bind_terminal_function,
+    BoundEpochStackComposition, ExternalRootDiagnostic, ExternalRootId, NestingRelationId,
+    RootProviderId, StackValidationReceiptId,
 };
+use crate::identities::Fnv1a;
+use crate::root_admission::bind_terminal_function;
 
 /// A terminal-Psi stack closure bound to the exact installed bytes and entry
 /// stub selected for one external root.
