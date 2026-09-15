@@ -327,6 +327,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **SELECTED-ABI-VALIDATION.** Validate ABI operands, calls, clobbers, effects,
   traps, provenance, cleanup, and logical fuel across every selected rule.
+  The effect catalog now pins every encoded footprint to its owning
+  semantic: `validate_declaration` binds the declared trap surface —
+  hosted trap results name their owning hosted operation, and a
+  never-faulting declaration cannot also declare a memory access — and
+  `validate_encoded_effects` binds each row's shape, so control-flow
+  rules pin their exact encoded control inside the barrier class,
+  returns and calls can no longer borrow each other's activation-stack
+  and return-address lifecycle rows, indexed-pointer and frame-storage
+  rows reject foreign semantics, and the plain fallthrough row admits no
+  hosted trap shape (crate `nextest`: 41 pass, including
+  cross-borrowing, foreign-semantic, trap-understatement, and
+  catch-all-evasion negatives; 234 isa-x86_64, isa-aarch64, and
+  register-environment lib tests confirm every real catalog row still
+  validates on Linux x86-64). Remaining: provenance, cleanup, and
+  logical-fuel dimensions, and deeper per-rule operand/clobber coverage;
+  Windows and macOS runs were unavailable on this host.
 
 ## Register allocation and frames
 
