@@ -5,8 +5,9 @@
 //! type, or the bytes rejects or changes the checked outcome.
 
 use proof_admission::{
-    Budget, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, Level, MathematicalCertificate, Sort,
-    Term, TermArena, TermHandle, verify_mathematical_certificate,
+    Budget, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level,
+    MathematicalCertificate, Sort, Term, TermArena, TermHandle, indexed_scheme,
+    verify_mathematical_certificate,
 };
 use terminal_codec::{
     CodecError, decode_mathematical_certificate, encode_mathematical_certificate,
@@ -893,4 +894,372 @@ fn a_truncated_signature_section_never_decodes() {
             "a truncated signature record must not decode"
         );
     }
+}
+
+// ── A length-indexed family on the wire ────────────────────────────────
+//
+// The derived indexed scheme's first real consumer: `Vec n` over the
+// assumed `Nat`/`Elem`. The whole construction — five scheme
+// definitions, four assumptions, the `caseTwo`-computed description,
+// the `isup` constructor application — crosses the wire as data and the
+// receiver re-decides the signature and the judgment together.
+
+fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> TermHandle {
+    arena.insert(Term::Apply { function, argument })
+}
+
+fn sigma(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
+    arena.insert(Term::Sigma { domain, codomain })
+}
+
+fn pair(arena: &mut TermArena, first: TermHandle, second: TermHandle) -> TermHandle {
+    arena.insert(Term::Pair { first, second })
+}
+
+fn fst(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
+    arena.insert(Term::Fst { pair })
+}
+
+fn snd(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
+    arena.insert(Term::Snd { pair })
+}
+
+fn two(arena: &mut TermArena) -> TermHandle {
+    arena.insert(Term::Two)
+}
+
+fn two_zero(arena: &mut TermArena) -> TermHandle {
+    arena.insert(Term::TwoZero)
+}
+
+fn two_one(arena: &mut TermArena) -> TermHandle {
+    arena.insert(Term::TwoOne)
+}
+
+fn case_two(
+    arena: &mut TermArena,
+    motive: TermHandle,
+    zero_branch: TermHandle,
+    one_branch: TermHandle,
+    scrutinee: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::CaseTwo {
+        motive,
+        zero_branch,
+        one_branch,
+        scrutinee,
+    })
+}
+
+fn id(arena: &mut TermArena, ty: TermHandle, left: TermHandle, right: TermHandle) -> TermHandle {
+    arena.insert(Term::Id { ty, left, right })
+}
+
+fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
+    arena.insert(Term::Constant {
+        declaration,
+        levels: Vec::new(),
+    })
+}
+
+/// The vector assumptions' positions after the scheme's five
+/// declarations.
+const NAT: u32 = 5;
+const NAT_ZERO: u32 = 6;
+const NAT_SUCC: u32 = 7;
+const ELEM: u32 = 8;
+
+fn nat(arena: &mut TermArena) -> TermHandle {
+    constant(arena, NAT)
+}
+
+fn nat_zero(arena: &mut TermArena) -> TermHandle {
+    constant(arena, NAT_ZERO)
+}
+
+fn nat_succ(arena: &mut TermArena, predecessor: TermHandle) -> TermHandle {
+    let succ = constant(arena, NAT_SUCC);
+    apply(arena, succ, predecessor)
+}
+
+fn elem(arena: &mut TermArena) -> TermHandle {
+    constant(arena, ELEM)
+}
+
+/// `λ(_ : Two). Type 0` — the constant motive selecting types by tag.
+fn type_motive(arena: &mut TermArena) -> TermHandle {
+    let domain = two(arena);
+    let codomain = type_sort(arena, 0);
+    lambda(arena, domain, codomain)
+}
+
+/// `Id Two zero one` — no closed inhabitant: the dead child position.
+fn empty_positions(arena: &mut TermArena) -> TermHandle {
+    let ty = two(arena);
+    let left = two_zero(arena);
+    let right = two_one(arena);
+    id(arena, ty, left, right)
+}
+
+/// `Id Two zero zero` — the single live child position.
+fn unit_position(arena: &mut TermArena) -> TermHandle {
+    let ty = two(arena);
+    let left = two_zero(arena);
+    let right = two_zero(arena);
+    id(arena, ty, left, right)
+}
+
+/// `Payload = λ(tag : Two). caseTwo(λ_.Type 0, Two, Σ(e : Elem). Nat,
+/// tag)` — nil's dummy payload, cons's `⟨element, predecessor⟩`.
+fn payload(arena: &mut TermArena) -> TermHandle {
+    let motive = type_motive(arena);
+    let nil_payload = two(arena);
+    let cons_payload = {
+        let element = elem(arena);
+        let length = nat(arena);
+        sigma(arena, element, length)
+    };
+    let tag = variable(arena, 0);
+    let body = case_two(arena, motive, nil_payload, cons_payload, tag);
+    let domain = two(arena);
+    lambda(arena, domain, body)
+}
+
+/// `A = Σ(tag : Two). Payload tag`.
+fn carrier(arena: &mut TermArena) -> TermHandle {
+    let tag = variable(arena, 0);
+    let payload_fn = payload(arena);
+    let codomain = apply(arena, payload_fn, tag);
+    let domain = two(arena);
+    sigma(arena, domain, codomain)
+}
+
+/// `B a = caseTwo(λ_.Type 0, Id Two zero one, Id Two zero zero, fst a)`.
+fn branching(arena: &mut TermArena) -> TermHandle {
+    let motive = type_motive(arena);
+    let empty = empty_positions(arena);
+    let unit = unit_position(arena);
+    let bound = variable(arena, 0);
+    let tag = fst(arena, bound);
+    let body = case_two(arena, motive, empty, unit, tag);
+    let domain = carrier(arena);
+    lambda(arena, domain, body)
+}
+
+/// `out a = caseTwo(Π(_:Payload _).Nat, λ_.zeroN, λp. succN (snd p),
+/// fst a) (snd a)` — `nil ↦ zeroN`, `cons ⟨e, n⟩ ↦ succN n`.
+fn out_index(arena: &mut TermArena) -> TermHandle {
+    let motive = {
+        let tag = variable(arena, 0);
+        let payload_fn = payload(arena);
+        let payload_at = apply(arena, payload_fn, tag);
+        let length = nat(arena);
+        let codomain = pi(arena, payload_at, length);
+        let domain = two(arena);
+        lambda(arena, domain, codomain)
+    };
+    let zero_branch = {
+        let domain = two(arena);
+        let zero = nat_zero(arena);
+        lambda(arena, domain, zero)
+    };
+    let one_branch = {
+        let domain = {
+            let element = elem(arena);
+            let length = nat(arena);
+            sigma(arena, element, length)
+        };
+        let bound = variable(arena, 0);
+        let predecessor = snd(arena, bound);
+        let body = nat_succ(arena, predecessor);
+        lambda(arena, domain, body)
+    };
+    let bound = variable(arena, 0);
+    let tag = fst(arena, bound);
+    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
+    let bound = variable(arena, 0);
+    let payload_component = snd(arena, bound);
+    let body = apply(arena, selected, payload_component);
+    let domain = carrier(arena);
+    lambda(arena, domain, body)
+}
+
+/// `next a = caseTwo(Π(p:Payload _).Π(_:B' _).Nat, λp.λ_.zeroN,
+/// λp.λ_.snd p, fst a) (snd a)` — the cons child's required index is
+/// the recorded predecessor.
+fn next_index(arena: &mut TermArena) -> TermHandle {
+    let motive = {
+        let tag = variable(arena, 0);
+        let payload_fn = payload(arena);
+        let payload_at = apply(arena, payload_fn, tag);
+        let branching_at = {
+            // Under the `p` binder the tag is index 1.
+            let motive = type_motive(arena);
+            let empty = empty_positions(arena);
+            let unit = unit_position(arena);
+            let tag = variable(arena, 1);
+            case_two(arena, motive, empty, unit, tag)
+        };
+        let length = nat(arena);
+        let inner = pi(arena, branching_at, length);
+        let body = pi(arena, payload_at, inner);
+        let domain = two(arena);
+        lambda(arena, domain, body)
+    };
+    let zero_branch = {
+        let payload_domain = two(arena);
+        let position_domain = empty_positions(arena);
+        let body = nat_zero(arena);
+        let inner = lambda(arena, position_domain, body);
+        lambda(arena, payload_domain, inner)
+    };
+    let one_branch = {
+        let payload_domain = {
+            let element = elem(arena);
+            let length = nat(arena);
+            sigma(arena, element, length)
+        };
+        let position_domain = unit_position(arena);
+        let bound = variable(arena, 1);
+        let body = snd(arena, bound);
+        let inner = lambda(arena, position_domain, body);
+        lambda(arena, payload_domain, inner)
+    };
+    let bound = variable(arena, 0);
+    let tag = fst(arena, bound);
+    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
+    let bound = variable(arena, 0);
+    let payload_component = snd(arena, bound);
+    let body = apply(arena, selected, payload_component);
+    let domain = carrier(arena);
+    lambda(arena, domain, body)
+}
+
+/// `Vec = IW Nat (Σ(t : Two). Payload t) B out next`.
+fn vector_family(arena: &mut TermArena) -> IndexedFamily {
+    IndexedFamily {
+        levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
+        index: nat(arena),
+        carrier: carrier(arena),
+        children: branching(arena),
+        out: out_index(arena),
+        next: next_index(arena),
+    }
+}
+
+/// The nine-declaration producer signature: the derived scheme then
+/// `Nat`, `zeroN`, `succN`, `Elem` as assumptions.
+fn vector_declarations(arena: &mut TermArena) -> Vec<Declaration> {
+    let mut declarations = indexed_scheme(arena);
+    declarations.push(Declaration::assumption(0, type_sort(arena, 0))); // Nat
+    declarations.push(Declaration::assumption(0, nat(arena))); // zeroN
+    let succ_domain = nat(arena);
+    let succ_codomain = nat(arena);
+    let succ_statement = pi(arena, succ_domain, succ_codomain);
+    declarations.push(Declaration::assumption(0, succ_statement)); // succN
+    declarations.push(Declaration::assumption(0, type_sort(arena, 0))); // Elem
+    declarations
+}
+
+/// `⟨one, ⟨e, n⟩⟩` — a cons node recording element and predecessor.
+fn cons_node(arena: &mut TermArena, element: TermHandle, predecessor: TermHandle) -> TermHandle {
+    let payload_value = pair(arena, element, predecessor);
+    let tag = two_one(arena);
+    pair(arena, tag, payload_value)
+}
+
+#[test]
+fn a_length_indexed_vector_certificate_verifies_end_to_end() {
+    let mut arena = TermArena::new();
+    // Γ = e : Elem, n : Nat, tail : Vec n proves
+    //   `cons e n tail := isup ⟨one, ⟨e, n⟩⟩ (λ_. tail) : Vec (succN n)`
+    // — the derived indexed family, its constructor and the computed
+    // length index all travel as data; the kernel re-decides after
+    // decode.
+    let family = vector_family(&mut arena);
+    let declarations = vector_declarations(&mut arena);
+    let tail_type = {
+        let length = variable(&mut arena, 0);
+        family.indexed_w(&mut arena, length)
+    };
+    let element = variable(&mut arena, 2);
+    let predecessor = variable(&mut arena, 1);
+    let node = cons_node(&mut arena, element, predecessor);
+    let children_fn = {
+        let domain = apply(&mut arena, family.children, node);
+        let tail = variable(&mut arena, 1);
+        lambda(&mut arena, domain, tail)
+    };
+    let cons = family.sup(&mut arena, node, children_fn);
+    let expected = {
+        let predecessor = variable(&mut arena, 1);
+        let successor = nat_succ(&mut arena, predecessor);
+        family.indexed_w(&mut arena, successor)
+    };
+    let element_type = elem(&mut arena);
+    let index_type = nat(&mut arena);
+    let certificate = MathematicalCertificate {
+        signature: declarations,
+        level_arity: 0,
+        context: vec![element_type, index_type, tail_type],
+        term: cons,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    // All nine declarations — the scheme's definitions and the vector
+    // assumptions — survive as signature data.
+    assert_eq!(decoded.certificate.signature.len(), 9);
+    verify(&mut decoded).expect("the length-indexed judgment must re-verify");
+
+    // Re-encoding the decoded judgment reproduces the canonical bytes.
+    let repacked =
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode");
+    assert_eq!(repacked, bytes);
+
+    // The exact assumption record travels too: the judgment commits to
+    // `Nat`, `zeroN`, `succN`, `Elem` — positions 5–8 — and to none of
+    // the scheme's definitions.
+    assert_eq!(
+        proof_admission::certificate_assumption_closure(&decoded.arena, &decoded.certificate),
+        [NAT, NAT_ZERO, NAT_SUCC, ELEM].into_iter().collect()
+    );
+
+    // Claiming the tail's own length is a different, false judgment.
+    let mut arena = TermArena::new();
+    let family = vector_family(&mut arena);
+    let declarations = vector_declarations(&mut arena);
+    let tail_type = {
+        let length = variable(&mut arena, 0);
+        family.indexed_w(&mut arena, length)
+    };
+    let element = variable(&mut arena, 2);
+    let predecessor = variable(&mut arena, 1);
+    let node = cons_node(&mut arena, element, predecessor);
+    let children_fn = {
+        let domain = apply(&mut arena, family.children, node);
+        let tail = variable(&mut arena, 1);
+        lambda(&mut arena, domain, tail)
+    };
+    let cons = family.sup(&mut arena, node, children_fn);
+    let forged = {
+        let predecessor = variable(&mut arena, 1);
+        family.indexed_w(&mut arena, predecessor)
+    };
+    let element_type = elem(&mut arena);
+    let index_type = nat(&mut arena);
+    let certificate = MathematicalCertificate {
+        signature: declarations,
+        level_arity: 0,
+        context: vec![element_type, index_type, tail_type],
+        term: cons,
+        expected: forged,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert!(matches!(
+        verify(&mut decoded),
+        Err(CoreError::TypeMismatch { .. })
+    ));
 }
