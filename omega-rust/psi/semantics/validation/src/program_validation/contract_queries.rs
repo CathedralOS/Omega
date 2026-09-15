@@ -1,8 +1,8 @@
 //! Contract entailment queries and pristine-template prevalidation.
 
-use crate::contract_entailment;
-use crate::contract_entailment::validate_machine_contract_entailment;
 use crate::finish_diagnostics;
+use crate::proof_contracts::contract_entailment;
+use crate::proof_contracts::contract_entailment::validate_machine_contract_entailment;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 

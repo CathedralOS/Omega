@@ -1,37 +1,43 @@
 //! Validate typed programs and retain the analyses consumed by checking.
 
-use crate::calls::validate_proof_machine_recursion;
-use crate::calls::validate_self_recursive_call_positions;
-use crate::calls::validate_value_position_calls;
-use crate::contract_entailment::validate_machine_contract_entailment;
-use crate::data::validate_data_field_types;
-use crate::domains::validate_domain_definitions;
-use crate::locals::WritableRoots;
-use crate::locals::validate_local_data_names;
-use crate::machine_data::validate_owned_data;
-use crate::proof_facts::validate_proposition_definitions;
-use crate::state_signatures::validate_callable_state_signatures;
-use crate::state_signatures::validate_machine_contracts;
-use crate::symbols::MachineSymbols;
-use crate::traits::validate_conformances;
-use crate::traits::validate_external_leaf_native_shapes;
-use crate::traits::validate_external_via_expression;
-use crate::traits::validate_generic_conformance_bounds;
-use crate::traits::validate_machine_trait_conformances;
-use crate::traits::validate_trait_conformance_bounds;
-use crate::traits::validate_trait_requirements;
+use crate::declarations::state_signatures::validate_callable_state_signatures;
+use crate::declarations::state_signatures::validate_machine_contracts;
+use crate::declarations::symbols::MachineSymbols;
+use crate::declarations::traits::validate_conformances;
+use crate::declarations::traits::validate_external_leaf_native_shapes;
+use crate::declarations::traits::validate_external_via_expression;
+use crate::declarations::traits::validate_generic_conformance_bounds;
+use crate::declarations::traits::validate_machine_trait_conformances;
+use crate::declarations::traits::validate_trait_conformance_bounds;
+use crate::declarations::traits::validate_trait_requirements;
+use crate::machine_calls::calls::validate_proof_machine_recursion;
+use crate::machine_calls::calls::validate_self_recursive_call_positions;
+use crate::machine_calls::calls::validate_value_position_calls;
+use crate::machine_calls::machine_data::validate_owned_data;
+use crate::proof_contracts::contract_entailment::validate_machine_contract_entailment;
+use crate::proof_contracts::domains::validate_domain_definitions;
+use crate::proof_contracts::proof_facts::validate_proposition_definitions;
+use crate::value_custody::data::validate_data_field_types;
+use crate::value_custody::locals::WritableRoots;
+use crate::value_custody::locals::validate_local_data_names;
 use crate::{
     OpaqueDataPropertyReceipt, TopLevelSymbols, ValidatedBoundaryOperatorApplication,
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
-    ValidatedIntegerEmbeddingCall, ValidatedProofRecursiveComponent, arithmetic_domains,
-    build_definition_fact_plan, call_cycles, callable_overloads, calls, cleanup,
-    collect_dynamic_conformance_selections, constants, content_conservation, content_projections,
-    declaration_visibility, default_domains, destructure, fact_call_projections,
-    float_projection_bindings, float_projection_invocations, infer_operational_may,
-    infer_service_reaches, invocations, literals, machine_parameters, operators, placed_views,
-    plan_laid, proof_embeddings, proof_only_faces, properties, proposition_entailment,
-    qualification_evidence, quotients, recasts, relevance, struct_literals, transitions, wire,
-    write_only_borrows,
+    ValidatedIntegerEmbeddingCall, ValidatedProofRecursiveComponent, build_definition_fact_plan,
+    collect_dynamic_conformance_selections, declarations::declaration_visibility,
+    declarations::operators, declarations::transitions, infer_operational_may,
+    infer_service_reaches, machine_calls::call_cycles, machine_calls::callable_overloads,
+    machine_calls::calls, machine_calls::fact_call_projections, machine_calls::invocations,
+    machine_calls::machine_parameters, proof_contracts::arithmetic_domains,
+    proof_contracts::default_domains, proof_contracts::float_projection_bindings,
+    proof_contracts::float_projection_invocations, proof_contracts::proof_embeddings,
+    proof_contracts::proof_only_faces, proof_contracts::properties,
+    proof_contracts::proposition_entailment, proof_contracts::qualification_evidence,
+    proof_contracts::quotients, proof_contracts::relevance, value_custody::cleanup,
+    value_custody::constants, value_custody::content_conservation,
+    value_custody::content_projections, value_custody::destructure, value_custody::literals,
+    value_custody::placed_views, value_custody::plan_laid, value_custody::recasts,
+    value_custody::struct_literals, value_custody::wire, value_custody::write_only_borrows,
 };
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
