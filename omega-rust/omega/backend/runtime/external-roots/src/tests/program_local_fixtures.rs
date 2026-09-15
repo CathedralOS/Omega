@@ -5,13 +5,12 @@ use super::TestObject;
 use super::installed_code_fixtures::{extent_id, extent_provider_issuance};
 use crate::{
     ExternalRootEntryClaim, InstalledExternalRoot, InstalledProgramLocalRootOccurrence,
-    InstalledProgramLocalRootSubject, ProgramLocalRootCohortMember,
-    ProgramLocalRootCohortSealError, ProgramLocalRootEntryInvocationId,
-    ProgramLocalRootInstallationLedger, ProgramLocalRootPrebindingId,
-    ProgramLocalRootScalarBinding, ProgramLocalRootSubjectPlaceId,
+    InstalledProgramLocalRootSubject, ProgramLocalEntryActivation, ProgramLocalRootCohortMember,
+    ProgramLocalRootCohortSealError, ProgramLocalRootInstallationLedger,
+    ProgramLocalRootPrebindingId, ProgramLocalRootScalarBinding, ProgramLocalRootSubjectPlaceId,
 };
 use effects::{
-    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
+    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraEntryReceipt, ComponentEraLedgerId,
     ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile,
     ExecutableTcbProfileAcceptance, ExecutionScope, IncompleteScopePolicy,
     ProgramLocalRootEpochLeaseId, ScopeCompleteness, evaluate_executable_tcb_profile,
@@ -404,18 +403,39 @@ pub(super) fn program_local_epoch_lease(
         .expect("program-local epoch lease")
 }
 
+/// Enter one real activation of the generated installed-entry bridge on the
+/// test lifecycle. The receipt linearizes into the era published with the
+/// matching `publish_program_local_era` plan identity.
+pub(super) fn program_local_activation(
+    lifecycle: &mut ComponentEraEntryLedger,
+    invocation: u64,
+    era_identity: u64,
+) -> ProgramLocalEntryActivation {
+    ProgramLocalEntryActivation::enter(
+        lifecycle,
+        ComponentEraEntryReceipt::from_runtime(
+            invocation,
+            lifecycle,
+            era_identity,
+            format!("entry-plan:{era_identity}"),
+            true,
+        ),
+    )
+    .expect("the generated entry activation enters the current open era")
+}
+
 pub(super) fn program_local_subject<'root, 'code>(
     root: &'root InstalledExternalRoot<'code>,
-    invocation: u64,
+    activation: &ProgramLocalEntryActivation,
     subject_place: u64,
     length: Option<u64>,
 ) -> InstalledProgramLocalRootSubject<'root, 'code> {
-    program_local_subject_at(root, invocation, subject_place, 0, 0, length)
+    program_local_subject_at(root, activation, subject_place, 0, 0, length)
 }
 
 pub(super) fn program_local_subject_at<'root, 'code>(
     root: &'root InstalledExternalRoot<'code>,
-    invocation: u64,
+    activation: &ProgramLocalEntryActivation,
     subject_place: u64,
     argument_index: u32,
     source_parameter_position: u32,
@@ -433,8 +453,7 @@ pub(super) fn program_local_subject_at<'root, 'code>(
         .collect::<Vec<_>>();
     InstalledProgramLocalRootSubject::from_generated_entry(
         root,
-        ProgramLocalRootEntryInvocationId::from_normalized_identity(invocation)
-            .expect("entry invocation identity"),
+        activation,
         argument_index,
         source_parameter_position,
         "Region::Owned",
@@ -448,15 +467,14 @@ pub(super) fn program_local_subject_at<'root, 'code>(
 
 pub(super) fn program_local_extent_subject<'root, 'code>(
     root: &'root InstalledExternalRoot<'code>,
-    invocation: u64,
+    activation: &ProgramLocalEntryActivation,
     subject_place: u64,
     base: u64,
     length: u64,
 ) -> InstalledProgramLocalRootSubject<'root, 'code> {
     InstalledProgramLocalRootSubject::from_generated_entry(
         root,
-        ProgramLocalRootEntryInvocationId::from_normalized_identity(invocation)
-            .expect("entry invocation identity"),
+        activation,
         0,
         0,
         "Region::Owned",
