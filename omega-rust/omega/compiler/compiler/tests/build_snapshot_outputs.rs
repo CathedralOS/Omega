@@ -2,7 +2,11 @@
 // through `builder.output.require`/`complete`/`fail`, the `artifact_only`
 // application modifier, and the executable-with-companion route. Each fixture
 // runs the admitted build machine against a fresh sponsored output root bound
-// to a captured source snapshot.
+// to a captured source snapshot. Later cases pin the snapshot's deterministic
+// read surface: canonical roster ordering, metadata-kind enforcement, inert
+// symlink members (no traversal, no escape), sticky failure and receipt
+// custody, interruption without a committed set, and staged-output capture's
+// rejection of entries outside sponsor custody.
 
 use checked_interpreter::FilesystemSponsor;
 use compiler::CheckedCompileRequest;
@@ -49,6 +53,13 @@ fn set_canonical_source_tree_permissions(root: &Path, sealed: bool) {
     use std::os::unix::fs::PermissionsExt;
 
     let metadata = std::fs::symlink_metadata(root).expect("inspect package source fixture");
+    // A captured symlink member is inert evidence: its mode lives on the
+    // link, and `set_permissions` follows the link to its target, so the
+    // walk must skip links entirely rather than chmod a target it does not
+    // own (an in-tree directory target would lose its canonical 0o555).
+    if metadata.file_type().is_symlink() {
+        return;
+    }
     if metadata.is_dir() {
         if !sealed {
             std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o755))
@@ -635,6 +646,497 @@ fn snapshot_rejects_a_substituted_source_inventory_after_binding() {
     let messages = diagnostic_messages(&diagnostics);
     assert!(
         messages.contains("no longer matches the complete physical root"),
+        "unexpected diagnostics: {messages}"
+    );
+}
+
+#[test]
+fn snapshot_reads_are_deterministic_across_reopens() {
+    let project = Project::new("deterministic-reads");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    let templates = project.root.join("templates");
+    std::fs::create_dir(&templates).expect("create template directory");
+    project.write("templates/banner.tmpl", "HELLO {name}\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-deterministic-reads");
+    let required: RequiredOutput = builder.output.require("verdict.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let out: i32 = builder.output.create(artifact, 438);
+    let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
+    let first: i32 = builder.source.open(template, 0);
+    let mut first_bytes: [u8; 4];
+    let first_count: i64 = builder.source.read(first, &mut first_bytes, 4);
+    let first_closed: i32 = builder.source.close(first);
+    let second: i32 = builder.source.open(template, 0);
+    let mut second_bytes: [u8; 4];
+    let second_count: i64 = builder.source.read(second, &mut second_bytes, 4);
+    let second_closed: i32 = builder.source.close(second);
+    transition first_count == 4 && second_count == 4 {
+        true -> both(builder, required, artifact, out, first_bytes, second_bytes)
+        _ -> short(builder, required, artifact, out)
+    }
+
+    state both(
+        builder: &mut Build,
+        required: RequiredOutput,
+        artifact: BuildPath,
+        out: i32,
+        first_bytes: [u8; 4],
+        second_bytes: [u8; 4]
+    ) {
+        let written_first: i64 = builder.output.write(out, &first_bytes);
+        let written_second: i64 = builder.output.write(out, &second_bytes);
+        let closed: i32 = builder.output.close(out);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+
+    state short(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, out: i32) {
+        let written: i64 = builder.output.write(out, "short\n");
+        let closed: i32 = builder.output.close(out);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+}
+"#,
+    );
+
+    let checked = run_build(&project, "deterministic-reads", "linux_x86_64", &[]).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "reopened snapshot reads must publish the build: {}",
+                diagnostic_messages(&diagnostics)
+            )
+        },
+    );
+    let observation = checked
+        .build_observation_summary()
+        .expect("deterministic-read execution retains a build observation");
+    let staged = observation
+        .staged_output_tree()
+        .expect("completed outputs remain in staged custody");
+    let entry = staged
+        .sealed_entry(b"verdict.txt")
+        .expect("the verdict output is discoverable in sealed custody");
+    let build_output::BuildStagedOutputEntryKind::File { bytes, .. } = entry.kind() else {
+        panic!("the verdict output completes only as a sealed regular file")
+    };
+    // Every fresh descriptor reads the same captured bytes from offset zero:
+    // no per-occurrence cursor, host read order, or post-capture drift can
+    // make the second open observe different content.
+    assert_eq!(
+        bytes, b"HELLHELL",
+        "both descriptors must serve the identical captured member bytes"
+    );
+}
+
+#[test]
+fn snapshot_directory_member_never_serves_file_bytes() {
+    let project = Project::new("directory-read");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    let templates = project.root.join("templates");
+    std::fs::create_dir(&templates).expect("create template directory");
+    project.write("templates/banner.tmpl", "HELLO {name}\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-directory-read");
+    let required: RequiredOutput = builder.output.require("verdict.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let out: i32 = builder.output.create(artifact, 438);
+    let directory: BuildPath = builder.source.resolve("templates");
+    let descriptor: i32 = builder.source.open(directory, 0);
+    transition descriptor < 0 {
+        true -> denied(builder, required, artifact, out)
+        _ -> reading(builder, required, artifact, out, descriptor)
+    }
+
+    state reading(
+        builder: &mut Build,
+        required: RequiredOutput,
+        artifact: BuildPath,
+        out: i32,
+        descriptor: i32
+    ) {
+        let mut bytes: [u8; 4];
+        let count: i64 = builder.source.read(descriptor, &mut bytes, 4);
+        let closed: i32 = builder.source.close(descriptor);
+        transition count <= 0 {
+            true -> denied(builder, required, artifact, out)
+            _ -> served(builder, required, artifact, out)
+        }
+    }
+
+    state denied(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, out: i32) {
+        let written: i64 = builder.output.write(out, "denied\n");
+        let closed: i32 = builder.output.close(out);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+
+    state served(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, out: i32) {
+        let written: i64 = builder.output.write(out, "served\n");
+        let closed: i32 = builder.output.close(out);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+}
+"#,
+    );
+
+    let checked =
+        run_build(&project, "directory-read", "linux_x86_64", &[]).unwrap_or_else(|diagnostics| {
+            panic!(
+                "a directory member read probe must still publish the build: {}",
+                diagnostic_messages(&diagnostics)
+            )
+        });
+    let observation = checked
+        .build_observation_summary()
+        .expect("directory-read execution retains a build observation");
+    let staged = observation
+        .staged_output_tree()
+        .expect("completed outputs remain in staged custody");
+    let entry = staged
+        .sealed_entry(b"verdict.txt")
+        .expect("the verdict output is discoverable in sealed custody");
+    let build_output::BuildStagedOutputEntryKind::File { bytes, .. } = entry.kind() else {
+        panic!("the verdict output completes only as a sealed regular file")
+    };
+    // The captured inventory records `templates` as a directory row; the
+    // canonical kind bound into the Source grant can never serve file bytes
+    // through it, whether the host refuses the open or the read.
+    assert_eq!(
+        bytes, b"denied\n",
+        "a captured directory member must never serve file bytes"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn snapshot_symlink_members_stay_inert_and_deny_escape() {
+    use std::os::unix::fs::symlink;
+
+    let project = Project::new("symlink-inert");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    let templates = project.root.join("templates");
+    std::fs::create_dir(&templates).expect("create template directory");
+    project.write("templates/banner.tmpl", "HELLO {name}\n");
+    // An outside member the escaping link would reach if any traversal
+    // followed it: captured spellings are inert evidence, so none may.
+    let outside = std::env::temp_dir().join(format!(
+        "omega-snapshot-outside-symlink-inert-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&outside);
+    std::fs::create_dir(&outside).expect("create outside directory");
+    std::fs::write(outside.join("secret.txt"), "SECRET\n").expect("write outside file");
+    let escape_target = format!(
+        "../{}/secret.txt",
+        outside
+            .file_name()
+            .expect("outside directory name")
+            .to_str()
+            .expect("outside directory name is UTF-8")
+    );
+    symlink("templates/banner.tmpl", project.root.join("inside.link"))
+        .expect("create in-tree symlink member");
+    symlink(&escape_target, project.root.join("escape.link"))
+        .expect("create escaping symlink member");
+    symlink("templates", project.root.join("linkdir")).expect("create directory symlink member");
+    let build_source = r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-symlink-inert");
+    let required: RequiredOutput = builder.output.require("verdict.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let out: i32 = builder.output.create(artifact, 438);
+    let inside_path: BuildPath = builder.source.resolve("inside.link");
+    let inside: i32 = builder.source.open(inside_path, 0);
+    transition inside < 0 {
+        true -> denied_inside(builder, required, artifact, out)
+        _ -> served(builder, required, artifact, out)
+    }
+
+    state denied_inside(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, out: i32) {
+        let mark: i64 = builder.output.write(out, "d");
+        let escape_path: BuildPath = builder.source.resolve("escape.link");
+        let escape: i32 = builder.source.open(escape_path, 0);
+        transition escape < 0 {
+            true -> denied_escape(builder, required, artifact, out)
+            _ -> served(builder, required, artifact, out)
+        }
+    }
+
+    state denied_escape(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, out: i32) {
+        let mark: i64 = builder.output.write(out, "d");
+        let traversal_path: BuildPath = builder.source.resolve("linkdir/banner.tmpl");
+        let traversal: i32 = builder.source.open(traversal_path, 0);
+        transition traversal < 0 {
+            true -> denied_traversal(builder, required, artifact, out)
+            _ -> served(builder, required, artifact, out)
+        }
+    }
+
+    state denied_traversal(
+        builder: &mut Build,
+        required: RequiredOutput,
+        artifact: BuildPath,
+        out: i32
+    ) {
+        let mark: i64 = builder.output.write(out, "d");
+        let control_path: BuildPath = builder.source.resolve("templates/banner.tmpl");
+        let control: i32 = builder.source.open(control_path, 0);
+        let mut control_bytes: [u8; 4];
+        let control_count: i64 = builder.source.read(control, &mut control_bytes, 4);
+        let control_closed: i32 = builder.source.close(control);
+        transition control_count == 4 {
+            true -> finish(builder, required, artifact, out, control_bytes)
+            _ -> served(builder, required, artifact, out)
+        }
+    }
+
+    state finish(
+        builder: &mut Build,
+        required: RequiredOutput,
+        artifact: BuildPath,
+        out: i32,
+        control_bytes: [u8; 4]
+    ) {
+        let written: i64 = builder.output.write(out, &control_bytes);
+        let closed: i32 = builder.output.close(out);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+
+    state served(builder: &mut Build, required: RequiredOutput, artifact: BuildPath, out: i32) {
+        let written: i64 = builder.output.write(out, "SERVED\n");
+        let closed: i32 = builder.output.close(out);
+        let completion: OutputCompletion = builder.output.complete(required, artifact);
+    }
+}
+"#;
+    project.write("build.omg", build_source);
+
+    let checked =
+        run_build(&project, "symlink-inert", "linux_x86_64", &[]).unwrap_or_else(|diagnostics| {
+            panic!(
+                "inert-link traversal probes must still publish the build: {}",
+                diagnostic_messages(&diagnostics)
+            )
+        });
+    let _ = std::fs::remove_dir_all(&outside);
+    let observation = checked
+        .build_observation_summary()
+        .expect("inert-link execution retains a build observation");
+    // The three link members are real captured inventory rows; their extent
+    // evidence is counted even though no host link is ever materialized.
+    let inventory = observation
+        .captured_source_inventory()
+        .expect("captured inventory extent evidence is recorded");
+    assert_eq!(
+        inventory.entry_count(),
+        8,
+        "root + main.omg + build.omg + templates + banner.tmpl + three link members"
+    );
+    assert_eq!(
+        inventory.file_bytes(),
+        "data Main { value: u8; }\n".len() as u64
+            + build_source.len() as u64
+            + "HELLO {name}\n".len() as u64,
+        "retained file bytes exclude inert link spellings"
+    );
+    let staged = observation
+        .staged_output_tree()
+        .expect("completed outputs remain in staged custody");
+    let entry = staged
+        .sealed_entry(b"verdict.txt")
+        .expect("the verdict output is discoverable in sealed custody");
+    let build_output::BuildStagedOutputEntryKind::File { bytes, .. } = entry.kind() else {
+        panic!("the verdict output completes only as a sealed regular file")
+    };
+    // `d` per denied probe, then the control member's own captured bytes: an
+    // in-tree link, an escaping link, and a traversal through a link member
+    // all deny, while the ordinary member still serves its captured bytes.
+    assert_eq!(
+        bytes, b"dddHELL",
+        "captured link members must stay inert: no traversal, no escape, no substitution"
+    );
+}
+
+#[test]
+fn omitted_required_outputs_report_in_canonical_order() {
+    let project = Project::new("roster-order");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-roster-order");
+    let artifact: BuildPath = builder.output.resolve("z-last.txt");
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "z\n");
+    let closed: i32 = builder.output.close(descriptor);
+}
+"#,
+    );
+
+    // The declared roster is deliberately unsorted: the linear check must
+    // report the canonically first omitted member, not the first declared
+    // missing one, so ordering evidence never depends on request order.
+    let diagnostics = run_build(
+        &project,
+        "roster-order",
+        "linux_x86_64",
+        &[&b"m-mid.txt"[..], &b"z-last.txt"[..], &b"a-first.txt"[..]],
+    )
+    .expect_err("a roster with omitted members must reject publication");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("required build output `a-first.txt`")
+            && messages.contains("omitted from the sealed staged-output tree"),
+        "unexpected diagnostics: {messages}"
+    );
+    assert!(
+        !messages.contains("m-mid.txt"),
+        "the canonically first omitted member is named first: {messages}"
+    );
+}
+
+#[test]
+fn failed_obligation_stays_failed_and_cannot_complete() {
+    let project = Project::new("sticky-fail");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-sticky-fail");
+    let required: RequiredOutput = builder.output.require("artifact.txt");
+    builder.output.fail(required, "generator unavailable");
+    let artifact: BuildPath = builder.output.resolve("artifact.txt");
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "late\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, artifact);
+}
+"#,
+    );
+
+    let diagnostics = run_build(&project, "sticky-fail", "linux_x86_64", &[])
+        .expect_err("a failed obligation must stay failed; a later completion cannot revive it");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("already failed")
+            || messages.contains("required")
+            || messages.contains("move")
+            || messages.contains("consumed")
+            || messages.contains("linear"),
+        "unexpected diagnostics: {messages}"
+    );
+}
+
+#[test]
+fn complete_rejects_another_obligations_reserved_output() {
+    let project = Project::new("cross-obligation");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-cross-obligation");
+    let first: RequiredOutput = builder.output.require("first.txt");
+    let second: RequiredOutput = builder.output.require("second.txt");
+    let second_path: &[u8] = second.path();
+    let second_file: BuildPath = builder.output.resolve(second_path);
+    let descriptor: i32 = builder.output.create(second_file, 438);
+    let written: i64 = builder.output.write(descriptor, "second\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let wrong: OutputCompletion = builder.output.complete(first, second_file);
+}
+"#,
+    );
+
+    let diagnostics = run_build(&project, "cross-obligation", "linux_x86_64", &[])
+        .expect_err("a sealed file must never be rejoined to a different obligation's receipt");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("reserved output"),
+        "unexpected diagnostics: {messages}"
+    );
+}
+
+#[test]
+fn interrupted_activation_commits_no_output_set() {
+    let project = Project::new("interruption");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-interruption");
+    let required: RequiredOutput = builder.output.require("artifact.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "partial\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let escape: BuildPath = builder.output.resolve("../escape.txt");
+}
+"#,
+    );
+
+    let diagnostics = run_build(&project, "interruption", "linux_x86_64", &[]).expect_err(
+        "an activation that halts mid-run must reject rather than commit a partial set",
+    );
+    let messages = diagnostic_messages(&diagnostics);
+    // `artifact.txt` was already sealed into staged custody when the machine
+    // halted on the noncanonical resolve; rejection here means no observation
+    // or committed output set escaped the interrupted occurrence.
+    assert!(
+        messages.contains("build-time evaluation of `build` failed")
+            && messages.contains("canonical relative components"),
+        "unexpected diagnostics: {messages}"
+    );
+}
+
+#[test]
+fn staged_output_capture_rejects_foreign_uncommitted_entries() {
+    let project = Project::new("foreign-entry");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-foreign-entry");
+    let required: RequiredOutput = builder.output.require("artifact.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "artifact\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, artifact);
+}
+"#,
+    );
+
+    let (session, sponsor, build_dir) = bound_build_output_session("foreign-entry");
+    // A member another occurrence could have left in the output root: staged
+    // custody is exactly this occurrence's sponsor-committed entries, so a
+    // foreign residue poisons the capture rather than silently joining the
+    // committed set.
+    std::fs::write(build_dir.join("foreign.txt"), "foreign\n")
+        .expect("plant a foreign staged entry");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir),
+        package_inputs: Some(package_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        build_snapshot: Some(build_evaluation::BuildSnapshotRequest::new(
+            Vec::<Vec<u8>>::new(),
+        )),
+        ..CheckedCompileRequest::new(&project.main(), Some("linux_x86_64"))
+    })
+    .expect_err("a staged entry outside sponsor custody must reject the committed set");
+    set_canonical_source_tree_permissions(&project.root, false);
+    let _ = std::fs::remove_dir_all(session);
+
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("absent from sponsor custody"),
         "unexpected diagnostics: {messages}"
     );
 }
