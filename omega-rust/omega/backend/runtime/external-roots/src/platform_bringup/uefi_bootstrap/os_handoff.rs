@@ -15,7 +15,8 @@ use crate::{
     UefiPhysicalInvocationId,
 };
 
-use super::{UefiMemoryMapAcquisition, claim_ledger_authority};
+use super::UefiMemoryMapAcquisition;
+use crate::platform_bringup::uefi_bootstrap::firmware_ledger::claim_ledger_authority;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum UefiOsHandoffPhase {

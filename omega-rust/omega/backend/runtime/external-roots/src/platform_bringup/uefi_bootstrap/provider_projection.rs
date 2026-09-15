@@ -12,12 +12,12 @@ use target::{
     UefiSystemTableNativeFieldLayout, plan_uefi_system_table_native_layout,
 };
 
-use super::{
-    UefiApplicationBootstrapAdapterInvocationReadiness, UefiApplicationBootstrapLedgerId,
-    UefiApplicationFirmwareLedger, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
-    UefiImageHandleOccurrenceId, UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
+use super::{UefiApplicationBootstrapAdapterInvocationReadiness, UefiApplicationFirmwareLedger};
+use crate::{
+    ExternalRootDiagnostic, UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId,
+    UefiFirmwareSessionId, UefiImageHandleOccurrenceId, UefiPhysicalInvocationId,
+    UefiSystemTableOccurrenceId,
 };
-use crate::ExternalRootDiagnostic;
 
 const BOOT_SERVICES_FIELD_ORDINAL: u8 = 15;
 const BOOT_SERVICES_FIELD_OFFSET: u32 = 96;
