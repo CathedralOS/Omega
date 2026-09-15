@@ -1,6 +1,12 @@
 //! Independent replay rejection for equality-condition and selected-graph corruption.
-
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, LegalizationError, NativeTarget, OperationId, OperationKind, Optimization,
+    OptimizationSelections, OptimizedTargetLoweringRequest, ProofBundle, SelectedInstructionError,
+    SelectedInstructionKind, SelectedTerminator, conditional_immediate_module,
+    conditional_u64_integer_equal_parameters_machine, lower_optimized_to_target_operations,
+    optimize_artifact_sections, request, stage_optimized_instruction_selection,
+    validate_legalized_operations, validate_raw_selection,
+};
 use legalized_operations::LegalizedScalarInstructionKind;
 
 use super::fixture::staged_integer_equal_conditional;

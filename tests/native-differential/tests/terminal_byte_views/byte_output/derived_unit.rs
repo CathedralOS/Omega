@@ -1,5 +1,11 @@
 //! A caller-owned checked suffix reaches an effectful Unit reader.
-use super::*;
+use super::super::{PlaceId, native_function};
+use super::{
+    AdmissionProfile, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
+    CompilerBuiltinExecution, EdgeId, HostedWriteByteI32Realization, IntegerSign, IntegerType,
+    NativeTarget, Operation, OperationId, OperationKind, OperationResult, ScalarType,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, calls, widening,
+};
 use semantic_vocabulary::{BlockId, ContractId, MachineId};
 
 #[path = "derived_unit/block_unit_transfers.rs"]

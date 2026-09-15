@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::staged_integer_not_equal_conditional;
+use crate::tests::{EdgeId, NativeTarget, SelectedTerminator};
 
 #[test]
 fn inequality_semantics_cover_less_equal_greater_and_u64_boundaries_on_both_isas() {

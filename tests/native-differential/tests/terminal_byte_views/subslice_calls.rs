@@ -1,5 +1,9 @@
 //! Calls receive a descriptor computed inside the caller, not a substituted input.
-use super::*;
+use super::{
+    AdmissionProfile, IntegerValue, NativeTarget, ObligationId, OperationId, OperationKind,
+    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalModule, ValueId, calls,
+    fixtures, native_function, subslice,
+};
 use semantic_vocabulary::{BlockId, EdgeId, ScalarType};
 use terminal_psi::{
     Block, Operation, OperationResult, StructuralMultiplicity, StructuralOperationResult,

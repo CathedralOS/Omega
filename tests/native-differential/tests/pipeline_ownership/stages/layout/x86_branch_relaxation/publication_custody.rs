@@ -1,8 +1,13 @@
 //! Authenticated direct-receipt, rel8-manifest, and exit-custody corruption coverage.
 
+use crate::tests::{
+    FixedFramePublicationCustodyFieldForTest, FunctionRelativeOptimizationRealizationError,
+    FunctionRelativeOptimizationRealizationManifest, Rel8ExitBoundaryForTest,
+    ResolvedSelectedFormLayoutIdentity, WholeFunctionExitContractError,
+    WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
+    validate_fixed_frame_function_relative_realization,
+};
 use optimization_core::OptimizationSelectionIdentity;
-
-use crate::tests::*;
 
 #[test]
 fn every_direct_function_relative_receipt_field_rejects() {

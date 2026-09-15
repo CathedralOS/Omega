@@ -1,7 +1,13 @@
 //! Active-resident rematerialization through relocation-free emission on both targets.
 
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    AllocationEvidence, FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,
+    FunctionFragmentTextSectionManifest, NativeTarget, stage_function_fragment_frame_application,
+    stage_optimized_fixed_frame_text_section, stage_optimized_function_fragment_emission,
+    staged_active_resident_allocation_recovery_realization,
+    validate_optimized_fixed_frame_text_section, validate_optimized_function_fragment_emission,
+};
 
 #[test]
 fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_architectures() {

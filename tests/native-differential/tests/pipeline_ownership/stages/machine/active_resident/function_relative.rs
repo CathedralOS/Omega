@@ -1,8 +1,24 @@
 //! Function-relative exit realization and custody rejection.
 
+use crate::tests::{
+    AllocationEvidence, AllocatorAvailabilityPolicy, FunctionRelativeOptimizationRealizationError,
+    FunctionRelativeOptimizationRealizationManifest, NativeTarget, Optimization,
+    OptimizationSelections, OptimizedResolvedSelectedFormLayoutError,
+    PostAllocationSelectedTransformation, PressureRematerializationPolicy,
+    RecoveryClassificationPolicy, ResolvedLayoutOptimizationError, SpillChoicePolicy,
+    WholeFunctionExitContractError, WholeFunctionExitLayoutCustody,
+    corrupt_fixed_frame_realization_custody_for_test,
+    corrupt_fixed_frame_realization_exit_for_test, corrupt_fixed_frame_realization_layout_for_test,
+    corrupt_fixed_frame_realization_manifest_for_test,
+    replace_fixed_frame_realization_exit_for_test, selected_lowering_budget,
+    stage_fixed_frame_function_relative_realization,
+    stage_optimized_active_resident_rematerialization,
+    stage_optimized_post_allocation_machine_plan,
+    staged_active_resident_allocation_recovery_realization,
+    staged_active_resident_two_view_legality_with_selections,
+    validate_fixed_frame_function_relative_realization,
+};
 use std::collections::BTreeSet;
-
-use crate::tests::*;
 
 #[test]
 fn active_resident_rematerialization_reaches_function_relative_exit_on_both_architectures() {

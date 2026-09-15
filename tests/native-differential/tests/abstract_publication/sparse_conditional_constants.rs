@@ -1,7 +1,10 @@
 //! Sparse-constant projection custody.
 
-use super::*;
-
+use super::{
+    AbstractOperation, IntegerValue, NativeTarget, Optimization, OptimizationSelections,
+    exact_add_verified, lower_optimized_to_target_operations, run,
+};
+use crate::publish_optimization_run;
 #[test]
 fn proof_certified_exact_fold_projects_and_remains_target_lowerable() {
     let selections =

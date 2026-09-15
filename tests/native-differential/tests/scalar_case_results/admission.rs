@@ -1,6 +1,9 @@
 //! Fresh aggregate custody cannot be replaced by scalar/Unit records or detached bytes.
-use super::*;
 
+use super::{
+    AdmissionProfile, NativeTarget, OptimizationSelections, compiler_baseline_request_v1,
+    optimize_artifact_sections, produce, produce_source, publish,
+};
 #[test]
 fn windows_indirect_aggregate_returns_retain_destination_and_shifted_arguments() {
     use calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};

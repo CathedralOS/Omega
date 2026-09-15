@@ -1,5 +1,23 @@
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, AllocationReplayError, ExplicitOptimizationRequest,
+    FunctionFragmentFrameApplicationIdentity, FunctionRelativeOptimizationRealizationError,
+    NativeTarget, Optimization, OptimizationSelections, OptimizationWorkBudget,
+    OptimizedTargetLoweringRequest, StagedValidatedOptimizedOrdinaryCallableEntry,
+    canonical_artifact, conditional_u64_not_equal_zero_parameter_artifact,
+    lower_optimized_to_target_operations,
+    optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
+    selected_lowering_budget, stage_fixed_frame_function_relative_realization,
+    stage_function_fragment_frame_application, stage_optimized_allocation_legality,
+    stage_optimized_fixed_frame_text_section, stage_optimized_function_fragment_emission,
+    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_register_homes, stage_optimized_relocation_free_object_container,
+    stage_validated_optimized_object_artifact, stage_validated_optimized_ordinary_callable_entry,
+    staged_exact_add_conditional, validate_fixed_frame_function_relative_realization,
+    validate_optimized_ordinary_callable_entry,
+};
+use selected_instructions_to_register_homes::AllocationSource;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 #[test]
 fn fixed_frame_rejects_a_machine_from_another_allocation_before_encoding() {

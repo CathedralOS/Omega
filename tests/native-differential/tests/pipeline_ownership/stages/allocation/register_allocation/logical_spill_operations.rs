@@ -1,5 +1,11 @@
-use crate::tests::*;
-
+use crate::tests::{
+    AllocatorAvailabilityPolicy, LiveRangePoint, MachineId, NativeTarget, OptimizationWorkBudget,
+    ScalarType, SelectedInstructionId, SpillChoicePolicy, VirtualRegisterId, choose_spill_victims,
+    materialize_allocator_availability, selected_lowering_budget,
+    stage_optimized_allocation_legality, stage_optimized_allocation_legality_with_availability,
+    stage_optimized_live_ranges, stage_optimized_liveness,
+    staged_active_resident_two_view_legality, staged_exact_add_conditional,
+};
 #[test]
 fn logical_spill_operations_replay_the_active_resident_pressure_case_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

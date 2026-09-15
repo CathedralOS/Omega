@@ -1,7 +1,16 @@
 //! Proof-elision projection custody.
 
-use super::*;
-
+use super::{
+    AbstractOperation, IntegerValue, NativeTarget, OperationId, Optimization,
+    OptimizationSelections, ValueId, dead_exact_add_verified, live_exact_add_zero_verified,
+    live_exact_divide_by_one_verified, live_exact_multiply_by_zero_verified,
+    live_exact_remainder_by_one_verified, live_exact_self_divide_verified,
+    live_exact_self_remainder_verified, live_exact_self_subtract_verified,
+    live_exact_signed_negative_one_shift_right_verified,
+    live_exact_signed_remainder_by_negative_one_verified, live_exact_zero_dividend_verified,
+    live_exact_zero_value_shift_verified, lower_optimized_to_target_operations, run,
+};
+use crate::publish_optimization_run;
 #[test]
 fn proof_check_elision_projects_dead_exact_work_and_retains_evidence() {
     let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();

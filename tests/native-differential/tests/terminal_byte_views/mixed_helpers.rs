@@ -1,5 +1,9 @@
 //! Mixed scalar/view helpers retain runtime inputs and original reference identity.
-use super::*;
+use super::{
+    AdmissionProfile, NativeTarget, OperationId, OperationKind, OptimizationSelections,
+    TerminalModule, assert_byte_read_proof_rejected, compiler_baseline_request_v1, native_function,
+    optimize_artifact_sections, stage_byte_view,
+};
 #[path = "mixed_helpers/calls.rs"]
 mod calls;
 #[path = "mixed_helpers/proof.rs"]

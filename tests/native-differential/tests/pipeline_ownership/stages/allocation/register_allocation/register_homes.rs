@@ -1,4 +1,11 @@
-use crate::tests::*;
+use crate::tests::{
+    NativeTarget, PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
+    RegisterHomeError, RegisterHomePlan, register_home_identity,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_register_homes, staged_conditional, staged_forwarded_conditional,
+    validate_optimized_register_home_custody, validate_post_allocation_optimization_manifest,
+    validate_register_homes,
+};
 #[test]
 fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
     for (target, condition_view, result_view) in [

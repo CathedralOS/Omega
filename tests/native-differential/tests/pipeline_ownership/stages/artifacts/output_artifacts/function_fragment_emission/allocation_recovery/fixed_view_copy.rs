@@ -1,7 +1,16 @@
 //! Fixed-view-copy recovery through fragments, object artifact, and callable custody.
 
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, AllocationEvidence, ExplicitOptimizationRequest, NativeTarget, Optimization,
+    OptimizationSelections, PostAllocationSelectedTransformation, canonical_artifact,
+    conditional_forwarded_parameter_artifact, optimize_artifact_sections, selected_lowering_budget,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    stage_validated_optimized_object_artifact, stage_validated_optimized_ordinary_callable_entry,
+    validate_optimized_ordinary_callable_entry,
+};
 
 #[test]
 fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_architectures() {

@@ -1,4 +1,11 @@
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, IndirectPointerLocation, MachineRegister, NativeTarget, Optimization,
+    OptimizationSelections, OptimizedTargetLoweringRequest, OwnershipEvent,
+    SelectedInstructionKind, StagedOptimizedSelectedInstructions, StructuralAccess, ValueLocation,
+    legalize_target_operations, lower_optimized_to_target_operations, optimize_artifact_sections,
+    request, stage_optimized_instruction_selection, structural_extent_call_unit_artifact,
+    validate_legalized_operations, validate_raw_selection,
+};
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarInstructionKind, LegalizedScalarTerminator,
 };

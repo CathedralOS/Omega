@@ -1,4 +1,8 @@
-use crate::tests::*;
+use crate::tests::{
+    NativeTarget, Optimization, OptimizationSelections, selected_lowering_budget,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_register_homes, staged_exact_add_conditional_with_selections,
+};
 use selected_instructions_to_register_homes::RetainedAllocation;
 
 pub(super) fn allocation(target: NativeTarget, relaxation: bool) -> RetainedAllocation {

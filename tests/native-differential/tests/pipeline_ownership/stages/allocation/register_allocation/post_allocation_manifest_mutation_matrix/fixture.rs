@@ -1,5 +1,9 @@
-use crate::tests::*;
-
+use crate::tests::{
+    NativeTarget, PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
+    StagedOptimizedRegisterHomes, stage_optimized_allocation_legality, stage_optimized_live_ranges,
+    stage_optimized_liveness, stage_optimized_register_homes, staged_conditional,
+    validate_post_allocation_optimization_manifest,
+};
 pub(super) fn staged(target: NativeTarget) -> StagedOptimizedRegisterHomes {
     stage_optimized_register_homes(
         stage_optimized_allocation_legality(

@@ -1,6 +1,9 @@
-use crate::tests::*;
-
 use super::fixture::staged_object_artifact;
+use crate::tests::{
+    IntegerSign, IntegerType, NativeTarget, OptimizedOrdinaryCallableEntryRecord, ScalarType,
+    ValueId, stage_validated_optimized_ordinary_callable_entry, validate_optimized_object_artifact,
+    validate_optimized_ordinary_callable_entry,
+};
 
 #[test]
 fn signed_i64_reference_matrix_covers_boundaries_and_disagrees_with_unsigned_order() {

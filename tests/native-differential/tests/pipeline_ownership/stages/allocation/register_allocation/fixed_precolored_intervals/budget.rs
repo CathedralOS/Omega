@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{EXACT_USAGE, analyze, source};
+use crate::tests::{NativeTarget, OptimizationWorkBudget};
 
 #[test]
 fn every_representable_first_under_budget_fails_before_publication() {

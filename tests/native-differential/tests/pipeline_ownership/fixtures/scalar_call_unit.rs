@@ -1,7 +1,15 @@
 //! Exact attached-Unit scalar-call chain shared by selection and allocation tests.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
+    MachineContract, MachineId, NativeTarget, Operation, OperationId, OperationKind,
+    OperationResult, Optimization, OptimizationSelections, OptimizedTargetLoweringRequest,
+    ProofBundle, ScalarType, StagedOptimizedSelectedInstructions, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, ValueId, conditional_immediate_module,
+    conditional_u64_integer_equal_parameters_machine, lower_optimized_to_target_operations,
+    optimize_artifact_sections, request, stage_optimized_instruction_selection,
+};
 pub(crate) const SCALAR_CALL_UNIT_CALLER: u64 = 21_001;
 pub(crate) const SCALAR_CALL_UNIT_ATTACHMENT: u64 = 21_002;
 pub(crate) const SCALAR_CALL_UNIT_ENTRY: u64 = 21_003;

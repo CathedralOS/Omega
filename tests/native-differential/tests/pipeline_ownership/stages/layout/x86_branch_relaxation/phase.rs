@@ -1,6 +1,11 @@
 //! Identity and selected layout phases retain data, not unchecked admission.
-
-use crate::tests::*;
+use crate::tests::{
+    Optimization, OptimizationSelections, OptimizedX86BranchRelaxationError,
+    ResolvedLayoutOptimizationError, execute_resolved_layout_optimization,
+    selected_lowering_budget, stage_optimized_layout_independent_selected_form_encoding,
+    stage_optimized_post_allocation_machine_plan, stage_optimized_resolved_selected_form_layout,
+    validate_resolved_layout_optimization,
+};
 use optimization_core::OptimizationExecutionPhase;
 
 #[test]

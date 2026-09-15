@@ -3,8 +3,16 @@
 //! Discarding that custody before production is corruption, not frontend disposal.
 //! The source-free boundary is the produced artifact: the round-trip test drops
 //! both checked trees and producer output before independent consumption.
-
-use super::*;
+use super::{
+    AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan,
+    AbstractParameter, AdmissionProfile, BlockId, DebugSubject, EdgeId, IntegerSign, IntegerType,
+    IntegerValue, LoweringError, MachineId, OperationId, ScalarType, TerminalExecutionResult,
+    TerminalScalarValue, ValueBinding, ValueId, build_artifact_manifest, compile_to_checked,
+    decode_debug_map, decode_module, decode_proof_bundle, derive_fixed_entry_fuel,
+    encode_debug_map, encode_module, encode_proof_section, interpret_terminal_artifact_measured,
+    lower_artifact, lower_machine, source_canary, terminal_psi_identity,
+    validate_artifact_manifest, validate_fixed_entry_fuel, verify_module,
+};
 use compiler::CheckedCompileRequest;
 
 #[test]

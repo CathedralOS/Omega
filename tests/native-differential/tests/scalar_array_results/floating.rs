@@ -1,6 +1,6 @@
 //! Floating leaves retain IEEE bits inside the existing integer-fragment array ABI.
-use super::*;
 
+use super::{NativeTarget, native_function, publish};
 fn source(carrier: &str, shape: &str, initializer: &str) -> String {
     format!(
         "machine keep(row: {shape}) -> {shape} {{ row }}

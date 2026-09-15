@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AdmissionProfile, NativeTarget, TargetLoweringRequest, TerminalExecutionResult,
+    TerminalScalarValue, compile_to_checked, derive_fixed_entry_fuel, interpret_verified_artifact,
+    lower_machine, lower_to_target_operations, lower_verified_artifact, source_canary,
+    verify_module,
+};
 use compiler::CheckedCompileRequest;
 
 #[test]

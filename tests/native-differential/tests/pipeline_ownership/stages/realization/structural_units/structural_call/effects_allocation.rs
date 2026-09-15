@@ -1,5 +1,10 @@
-use crate::tests::*;
-
+use crate::tests::{
+    NativeTarget, SelectedInstructionKind, StagedOptimizedRegisterHomes,
+    StagedOptimizedSelectedInstructions, analyze_machine_effects,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_register_homes, validate_allocation_legality, validate_live_ranges,
+    validate_machine_effects, validate_register_homes,
+};
 pub(super) fn analyze_and_allocate_structural_call(
     selected: StagedOptimizedSelectedInstructions,
 ) -> StagedOptimizedRegisterHomes {

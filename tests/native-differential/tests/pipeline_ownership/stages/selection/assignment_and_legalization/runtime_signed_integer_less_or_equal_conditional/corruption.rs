@@ -1,6 +1,9 @@
 //! Independent rejection for signed inclusive-order and successor corruption.
-
-use crate::tests::*;
+use crate::tests::{
+    IntegerSign, IntegerType, LegalizationError, NativeTarget, ScalarType,
+    SelectedInstructionError, SelectedInstructionKind, SelectedTerminator,
+    validate_legalized_operations, validate_raw_selection,
+};
 use legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 
 use super::fixture::staged_signed_integer_less_or_equal_conditional;

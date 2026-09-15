@@ -1,4 +1,4 @@
-use crate::tests::*;
+use crate::tests::{NativeTarget, selected_lowering_budget};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use super::super::{homed_spill_pseudo_instructions, recursive_reload_value_homes::Bundle};

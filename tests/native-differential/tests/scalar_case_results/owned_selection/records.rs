@@ -1,6 +1,9 @@
 //! Record joins lend their own storage, with independent source and address replay.
-use super::super::*;
 
+use super::super::{
+    AdmissionProfile, NativeTarget, OptimizationSelections, compiler_baseline_request_v1,
+    membership, optimize_artifact_sections, produce_source, publish,
+};
 const SOURCE: &str =
     include_str!("../../../../omega/pass/expressions/owned_match_record_values/main.omg");
 

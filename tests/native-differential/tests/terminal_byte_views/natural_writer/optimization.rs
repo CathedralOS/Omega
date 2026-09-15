@@ -1,6 +1,9 @@
 //! Authored grouped ranking remains authoritative through current-IR replay.
-use super::*;
 
+use super::{
+    AdmissionProfile, AdmittedBoundaryExecution, AdmittedBoundarySettlement, NativeTarget,
+    TerminalRankedScc, writer,
+};
 fn verified_writer() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
     let lowered = writer();
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(

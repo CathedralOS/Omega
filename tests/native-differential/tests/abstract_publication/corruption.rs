@@ -1,7 +1,13 @@
 //! Independent source-projection corruption coverage.
 
-use super::*;
-
+use super::{
+    AbstractOperation, IntegerValue, Optimization, OptimizationSelections,
+    OptimizedAbstractPlanProjectionError, built_in_psi_registry, exact_add_verified,
+    redundant_block_parameter_verified, run, validate_optimized_abstract_plan_projection,
+};
+use crate::{
+    OptimizedAbstractProjectionError, baseline_psi_cost_model_identity, publish_optimization_run,
+};
 #[test]
 fn independent_validation_rejects_projected_operation_corruption() {
     let selections =

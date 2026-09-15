@@ -1,5 +1,4 @@
-use super::*;
-
+use super::{NativeTarget, native_function, produce_source, publish};
 #[test]
 fn fresh_match_case_flows_through_owned_state_and_borrowed_storage() {
     assert_owned_case_source(

@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget, OperationKind,
+    ScalarType, TargetLoweringRequest, TerminalExecutionResult, TerminalScalarValue,
+    compile_to_checked, derive_fixed_entry_fuel, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured, interpret_verified_artifact, lower_artifact,
+    lower_machine, lower_to_target_operations, lower_verified_artifact, source_canary,
+    verify_module,
+};
 use compiler::CheckedCompileRequest;
 
 #[cfg(unix)]

@@ -1,6 +1,11 @@
 //! Common source and selected corruption controls over genuine admitted fixtures.
-use crate::tests::*;
+use crate::tests::{
+    BlockId, FuelSettlement, IntegerSign, IntegerType, ObligationId, OperationId, PsiProvenance,
+    SelectedTerminator, StagedOptimizedSelectedInstructions, ValueDefinitionSite, ValueId,
+    VirtualRegisterId, validate_legalized_operations, validate_raw_selection,
+};
 use legalized_operations::LegalizedScalarInstructionKind as Kind;
+use selected_instructions_to_register_homes::AllocationSource;
 
 pub(crate) fn assert_ordinary_graph_custody(staged: &StagedOptimizedSelectedInstructions) {
     let original = staged.legalized().plan();

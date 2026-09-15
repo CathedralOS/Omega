@@ -1,5 +1,14 @@
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, ExplicitOptimizationRequest, FunctionFragmentTextSectionManifest, MachineId,
+    NativeTarget, Optimization, OptimizationSelections, OptimizationWorkBudget,
+    WholeFunctionFrameDisposition, WholeFunctionReturnValueEvidence, canonical_artifact,
+    optimize_artifact_sections, stage_function_fragment_frame_application,
+    stage_optimized_fixed_frame_text_section, stage_optimized_function_fragment_emission,
+    stage_optimized_relocation_free_object_container,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    stage_validated_optimized_object_artifact, structural_extent_unit_leaf_artifact,
+    validate_optimized_fixed_frame_text_section, validate_optimized_object_artifact,
+};
 #[test]
 fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
     let (semantic, proof) = structural_extent_unit_leaf_artifact();

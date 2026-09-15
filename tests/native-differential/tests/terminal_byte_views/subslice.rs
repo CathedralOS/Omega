@@ -1,5 +1,10 @@
 //! Native execution retains checked subslice bounds and the derived view.
-use super::*;
+use super::{
+    AdmissionProfile, NativeTarget, ObligationId, OperationId, OperationKind,
+    OptimizationSelections, PlaceId, ProofBundle, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalModule, ValueId, assert_byte_read_proof_rejected, compiler_baseline_request_v1,
+    native_function, optimize_artifact_sections, stage_byte_view,
+};
 use proof_admission::{EvidenceRoute, ProofRule};
 
 #[path = "subslice/fixtures.rs"]

@@ -1,6 +1,8 @@
-use crate::tests::*;
-
 use super::fixture::{caller_machine, staged_homes, staged_selected};
+use crate::tests::{
+    LegalizationError, NativeTarget, RegisterHomeError, SCALAR_CALL_UNIT_FIRST_RESULT, ValueId,
+    validate_legalized_operations, validate_raw_selection, validate_register_homes,
+};
 
 fn call_mut(
     plan: &mut legalized_operations::LegalizedOperationPlan,

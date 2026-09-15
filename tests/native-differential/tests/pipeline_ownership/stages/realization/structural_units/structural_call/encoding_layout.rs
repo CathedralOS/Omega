@@ -1,5 +1,10 @@
-use crate::tests::*;
-
+use crate::tests::{
+    MachineId, SelectedFormEncodingState, SelectedInstructionId, StagedOptimizedRegisterHomes,
+    selected_lowering_budget, stage_fixed_frame_function_relative_realization,
+    stage_optimized_post_allocation_machine_plan,
+    validate_fixed_frame_function_relative_realization,
+    validate_optimized_layout_independent_selected_form_encoding,
+};
 pub(super) fn verify_structural_call_encoding_and_layout(homes: StagedOptimizedRegisterHomes) {
     let legality_stage = homes.legality_stage();
     let range_stage = legality_stage.live_range_stage();

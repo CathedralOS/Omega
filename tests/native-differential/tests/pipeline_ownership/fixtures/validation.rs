@@ -1,7 +1,10 @@
 //! Raw selected and post-allocation validation helpers.
 
-use crate::tests::*;
-
+use crate::tests::{
+    BTreeSet, RegisterUnitId, SelectedInstructionError, StagedOptimizedLiveness,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
+    StagedOptimizedSelectedInstructions, validate_selected_instructions,
+};
 pub(crate) fn validate_raw_selection(
     staged: &StagedOptimizedSelectedInstructions,
     raw: selected_instructions::SelectedInstructionPlan,

@@ -1,4 +1,10 @@
-use crate::tests::*;
+use crate::tests::{
+    AllocationLegalityError, AllocatorAvailabilityPolicy, NativeTarget, RegisterReservationProfile,
+    allocation_legality_identity, materialize_allocator_availability,
+    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    staged_conditional, staged_forwarded_conditional, target_register_environment_identity,
+    validate_allocation_legality, validate_register_reservation_profile,
+};
 #[test]
 fn allocation_legality_is_phase_exact_with_explicit_abi_transfers() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

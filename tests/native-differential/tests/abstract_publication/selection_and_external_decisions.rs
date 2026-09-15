@@ -1,7 +1,10 @@
 //! Selection and external-decision projection custody.
 
-use super::*;
-
+use super::{
+    AbstractOperation, IntegerValue, Optimization, OptimizationSelections, empty_verified,
+    exact_add_verified, replay_psi_pipeline, run, run_pipeline, work_budget,
+};
+use crate::{OptimizedAbstractProjectionError, publish_optimization_run};
 #[test]
 fn current_program_outlives_publication_and_its_replay_evidence() {
     let optimized = publish_optimization_run(run_pipeline(

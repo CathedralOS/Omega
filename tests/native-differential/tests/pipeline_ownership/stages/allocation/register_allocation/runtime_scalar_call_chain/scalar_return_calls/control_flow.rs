@@ -1,7 +1,20 @@
 //! Authored Terminal branches carry actual call results into a shared return.
+use super::super::super::super::super::super::{
+    Block, BlockId, OptimizedTargetLoweringRequest, ScalarType, SelectedTerminator, SuccessorEdge,
+    lower_optimized_to_target_operations, stage_optimized_instruction_selection,
+    validate_raw_selection,
+};
 
-use super::*;
+use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
+use selected_instructions_to_register_homes::AllocationSource;
+
+use super::{
+    AdmissionProfile, EdgeId, IntegerValue, NativeTarget, Operation, OperationId, OperationKind,
+    OperationResult, OptimizationSelections, Terminator, ValueDeclaration, ValueId, artifact,
+    compiler_baseline_request_v1, optimize_artifact_sections, publish_scalar_artifacts,
+    reseal_proof,
+};
 #[test]
 fn branch_calls_and_join_parameters_reach_common_native_publication() {
     for (equal, expected) in [(true, 37), (false, 41)] {

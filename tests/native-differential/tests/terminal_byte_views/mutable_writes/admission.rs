@@ -1,5 +1,6 @@
 //! Independent replay rejects changed write operands, bounds, effects, and bytes.
-use super::*;
+use super::super::{ObligationId, OperationId, PlaceId, ValueId, byte_view_target};
+use super::{AdmissionProfile, FILL, NativeTarget, lower_writer, writer};
 use legalized_operations::LegalizedScalarInstructionKind;
 use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use target_operations_to_selected_instructions::{

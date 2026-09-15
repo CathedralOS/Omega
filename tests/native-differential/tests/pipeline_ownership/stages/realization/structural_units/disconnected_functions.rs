@@ -1,5 +1,12 @@
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, LivenessError, MachineId, NativeTarget, Optimization, OptimizationSelections,
+    OptimizedTargetLoweringRequest, disconnected_conditional_artifact,
+    lower_optimized_to_target_operations, optimize_artifact_sections, request,
+    stage_optimized_allocation_legality, stage_optimized_instruction_selection,
+    stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
+    validate_allocation_legality, validate_live_ranges, validate_liveness, validate_register_homes,
+};
 #[test]
 fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
     let expected_machines = [

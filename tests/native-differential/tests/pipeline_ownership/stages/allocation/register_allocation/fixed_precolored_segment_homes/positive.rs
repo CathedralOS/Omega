@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{assign, exact_usage, generous_budget, source, validate};
+use crate::tests::{NativeTarget, VirtualRegisterId};
 
 #[test]
 fn forwarded_conditional_assigns_exact_segment_domains_without_claiming_movement() {

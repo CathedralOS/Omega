@@ -1,5 +1,13 @@
-use crate::tests::*;
-
+use crate::tests::{
+    FixedViewCopyPolicy, NativeTarget, OptimizationWorkBudget, SelectedInstructionKind,
+    SelectedTerminator, StagedOptimizedAllocationLegality,
+    StagedOptimizedFixedPrecoloredSegmentHomes, analyze_machine_effects, selected_lowering_budget,
+    stage_optimized_allocation_legality, stage_optimized_fixed_precolored_segment_homes,
+    stage_optimized_fixed_view_copies, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_post_allocation_machine_plan,
+    stage_optimized_register_homes_after_fixed_view_copies, stage_optimized_selected_reanalysis,
+    staged_forwarded_conditional, validate_fixed_view_copies, validate_machine_effects,
+};
 fn with_segment_homes(
     source: StagedOptimizedAllocationLegality,
 ) -> StagedOptimizedFixedPrecoloredSegmentHomes {

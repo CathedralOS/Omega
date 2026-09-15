@@ -1,6 +1,9 @@
-use crate::tests::*;
-
 use super::fixture::{EXACT_USAGE, exact_budget, spill_source, stage};
+use crate::tests::{
+    FrameAbiPreservationConvention, NativeTarget, baseline_target_register_environment,
+    non_authoritative_spill_frame_requirement_identity,
+    validate_non_authoritative_spill_frame_requirements,
+};
 
 #[test]
 fn exact_target_matrix_retains_requirements_and_is_deterministic() {

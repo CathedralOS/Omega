@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{assign, exact_usage, source};
+use crate::tests::{NativeTarget, OptimizationWorkBudget};
 
 #[test]
 fn every_first_under_budget_axis_fails() {

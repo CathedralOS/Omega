@@ -1,6 +1,9 @@
 //! Reauthenticated ordinary-callable record and nested-subrecord mutations.
-
-use crate::tests::*;
+use crate::tests::{
+    MachineId, OptimizedOrdinaryCallableEntryError, OptimizedOrdinaryCallableEntryRecord,
+    WholeFunctionEntryAssumption, WholeFunctionExitContractIdentity, WholeFunctionExitPolicy,
+    validate_optimized_ordinary_callable_entry,
+};
 use calling_conventions::{CallingPolicy, MachineRegister};
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{

@@ -1,4 +1,8 @@
-use super::*;
+use super::super::super::{
+    Block, BlockId, ContractId, EdgeId, MachineContract, MachineId, ProofBundle, ScalarType,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
+    VocabularyMarker,
+};
 
 pub(super) fn scalar_terminal_artifact(
     result_type: ScalarType,

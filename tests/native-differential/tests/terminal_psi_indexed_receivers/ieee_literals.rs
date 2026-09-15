@@ -1,6 +1,6 @@
 //! Literal definitions keep their exact IEEE format through borrowed stores and calls.
-use super::*;
 
+use super::{NativeTarget, ieee_stores, primitive_stores};
 #[test]
 fn ieee_field_literals_preserve_projected_caller_bytes() {
     literal_stores(false);

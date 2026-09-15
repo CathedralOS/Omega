@@ -1,6 +1,6 @@
 //! Fixed-array loans preserve backing independently of descriptor ABI size.
-use super::*;
 
+use super::{FILL, NativeTarget, lower_writer, native_function, publish_lowered};
 #[path = "fixed_arrays/admission.rs"]
 mod admission;
 #[path = "fixed_arrays/primitive_elements.rs"]

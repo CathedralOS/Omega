@@ -1,8 +1,12 @@
 //! Target-neutral spill-area slot coloring after validated logical spilling.
 
+use crate::tests::{
+    LiveRangePoint, NativeTarget, SpillChoicePolicy, StagedOptimizedAllocationLegality,
+    choose_spill_victims, selected_lowering_budget, stage_optimized_allocation_legality,
+    stage_optimized_live_ranges, stage_optimized_liveness,
+    staged_active_resident_two_view_legality, staged_exact_add_conditional,
+};
 use selected_instructions_to_register_homes::{LogicalSpillStorageClass, LogicalSpillStorageId};
-
-use crate::tests::*;
 
 #[test]
 fn stack_slot_coloring_is_deterministic_and_target_neutral() {

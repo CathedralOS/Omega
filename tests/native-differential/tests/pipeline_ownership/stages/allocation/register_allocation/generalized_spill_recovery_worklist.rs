@@ -1,6 +1,7 @@
 //! Epoch-one generalized pressure becomes exact bounded epoch-two work.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, selected_lowering_budget,
+};
 use optimization_core::OptimizationWorkUsage;
 use selected_instructions::VirtualRegisterId;
 

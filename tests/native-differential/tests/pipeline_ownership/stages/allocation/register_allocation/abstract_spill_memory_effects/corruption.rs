@@ -1,9 +1,8 @@
-use crate::tests::*;
-
 use super::{
     super::recursive_reload_value_homes::{Bundle, original_bundle, reload_bundle},
     fixture::{build, exact_budget, lower, validate},
 };
+use crate::tests::NativeTarget;
 
 #[test]
 fn independent_replay_rejects_roots_geometry_views_lineage_and_order() {

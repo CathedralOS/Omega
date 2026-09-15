@@ -1,7 +1,11 @@
 //! Exact-add proof-elision fixture shared by live-result and discarded-result cases.
 
-use super::*;
-
+use super::{
+    Block, BlockId, EdgeId, EvidenceRoute, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationEvidence, ObligationId, Operation, OperationId, OperationKind, OperationResult,
+    PrimitiveJudgment, ProofBundle, ScalarType, TerminalMachineResult, Terminator,
+    ValueDeclaration, ValueId, VerifiedPsiOptimizationUnit, module_with_blocks, verified,
+};
 pub(in super::super) fn exact_add_verified_with_result(
     return_result: bool,
 ) -> VerifiedPsiOptimizationUnit {

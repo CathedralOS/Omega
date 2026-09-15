@@ -1,7 +1,7 @@
 //! The package-qualified customer keeps nominal identity through native execution.
 
+use super::CanonicalTerminalArtifact;
 use super::membership::execute;
-use super::*;
 use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };

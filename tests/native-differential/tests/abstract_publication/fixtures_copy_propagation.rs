@@ -1,7 +1,11 @@
 //! Copy-propagation projection fixtures.
 
-use super::*;
-
+use super::{
+    Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineContract,
+    MachineId, Operation, OperationId, OperationKind, OperationResult, ProofBundle, ScalarType,
+    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, ValueId,
+    VerifiedPsiOptimizationUnit, module_with_blocks, verified,
+};
 pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUnit {
     let machine = MachineId::new(1_031).unwrap();
     let entry = BlockId::new(1_032).unwrap();

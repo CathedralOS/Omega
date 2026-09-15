@@ -1,4 +1,6 @@
-use crate::tests::*;
+use crate::tests::{
+    NativeTarget, SpillFrameRequirementError, baseline_target_register_environment,
+};
 use optimization_core::OptimizationWorkBudget;
 
 use super::fixture::{EXACT_USAGE, exact_budget, spill_source, stage};

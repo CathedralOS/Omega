@@ -1,8 +1,10 @@
 //! Canonical ordinary-callable manifest envelope and closed wire-axis mutations.
 
-use crate::tests::*;
-
 use super::fixture::staged_callable;
+use crate::tests::{
+    OptimizedOrdinaryCallableEntryDecodeError, OptimizedOrdinaryCallableEntryManifest,
+    OptimizedOrdinaryCallableEntryManifestDecodeError,
+};
 
 fn record_error(
     error: OptimizedOrdinaryCallableEntryDecodeError,

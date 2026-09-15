@@ -1,6 +1,24 @@
-use crate::tests::*;
-
 use super::fixture::{caller_machine, staged_homes};
+use crate::tests::{
+    AllocatedCalleeSavedRequirementPolicy, MachineId, NativeTarget,
+    NonAuthoritativeCalleeSaveStoragePolicy, OptimizationWorkBudget,
+    OptimizedResolvedSelectedFormLayoutError, OptimizedSelectedFormEncodingError,
+    SCALAR_CALL_UNIT_CALLEE_BASE, SelectedFormEncodingState,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
+    StagedOptimizedSelectedFormEncoding, TargetFrameLayoutError, TargetFrameLayoutIdentity,
+    TargetFrameLayoutPlan, TargetFrameLayoutPolicy, TargetFrameProtocolEncodingError,
+    TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy,
+    ValidatedAllocatedCalleeSavedRequirements, ValidatedNonAuthoritativeCalleeSaveStorage,
+    ValidatedTargetFrameLayout, ValidatedTargetFrameProtocolEncoding,
+    ValidatedTargetRegisterEnvironment, stage_allocated_callee_saved_requirements,
+    stage_non_authoritative_callee_save_storage,
+    stage_optimized_layout_independent_selected_form_encoding,
+    stage_optimized_post_allocation_machine_plan, stage_optimized_resolved_selected_form_layout,
+    stage_target_frame_layout, stage_target_frame_protocol_encoding,
+    validate_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_resolved_selected_form_layout, validate_target_frame_layout,
+    validate_target_frame_protocol_encoding,
+};
 
 fn staged_call_encoding(
     target: NativeTarget,

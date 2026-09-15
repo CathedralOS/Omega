@@ -1,4 +1,7 @@
-use crate::tests::*;
+use crate::tests::{
+    NativeTarget, SelectedInstructionError, SelectedTerminator, VirtualRegisterId,
+    staged_forwarded_conditional, validate_raw_selection,
+};
 #[test]
 fn forwarded_parameter_selection_rejects_fixed_input_and_path_corruption() {
     let staged = staged_forwarded_conditional(NativeTarget::linux_x64());

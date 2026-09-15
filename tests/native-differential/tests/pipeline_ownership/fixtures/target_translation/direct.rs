@@ -1,5 +1,6 @@
+use super::super::super::{IntegerType, ScalarType};
+
 use super::common::{parameter_types, scalar_terminal_artifact};
-use super::*;
 
 pub(crate) fn integer_parameter_return_artifact(
     integer_type: IntegerType,

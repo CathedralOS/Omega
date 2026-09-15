@@ -1,7 +1,12 @@
 //! Logical reload-value reanalysis and bounded physical-view assignment.
 
-use crate::tests::*;
-
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, SelectedInstructionId, SpillChoicePolicy,
+    StagedOptimizedAllocationLegality, VirtualRegisterId, choose_spill_victims,
+    selected_lowering_budget, stage_optimized_allocation_legality, stage_optimized_live_ranges,
+    stage_optimized_liveness, staged_active_resident_bridge_chain_two_view_legality,
+    staged_active_resident_two_view_legality, staged_exact_add_conditional,
+};
 #[test]
 fn reload_value_gets_a_deterministic_home_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

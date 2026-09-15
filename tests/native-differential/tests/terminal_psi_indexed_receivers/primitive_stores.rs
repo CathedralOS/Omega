@@ -1,6 +1,6 @@
 //! Whole-scalar replacement uses its original primitive referent through calls.
-use super::*;
 
+use super::{NativeTarget, native_function, native_text};
 const FORWARDED_SCALAR: &str = "machine replace(destination: &write i32, value: i32) {
     destination = value;
 }

@@ -1,7 +1,11 @@
 //! Control-flow projection fixtures.
 
-use super::*;
-
+use super::{
+    Block, BlockId, ContractId, EdgeId, MachineContract, MachineId, Operation, OperationId,
+    OperationKind, OperationResult, ProofBundle, ScalarType, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration, ValueId, VerifiedPsiOptimizationUnit,
+    module_with_blocks, verified,
+};
 pub(super) fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
     let entry_machine = MachineId::new(1_041).unwrap();
     let entry_block = BlockId::new(1_042).unwrap();

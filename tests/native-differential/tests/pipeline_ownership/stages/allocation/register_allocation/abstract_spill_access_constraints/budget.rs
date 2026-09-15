@@ -1,4 +1,4 @@
-use crate::tests::*;
+use crate::tests::NativeTarget;
 use optimization_core::OptimizationWorkBudget;
 
 use super::{

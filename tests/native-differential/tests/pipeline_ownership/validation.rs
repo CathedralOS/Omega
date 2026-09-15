@@ -1,5 +1,18 @@
-use super::*;
-
+use super::{
+    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, LegalizationError, MachineId,
+    NativeTarget, ObligationId, OperationId, RecoveryClassificationPolicy, RegisterOperandAccess,
+    RegisterUnitId, ScalarType, SelectedInstructionError, SelectedInstructionKind,
+    SelectedTerminator, SpillChoicePolicy, ValueBinding, ValueDefinitionSite, ValueId, budget,
+    selected_instruction_plan_identity, stage_optimized_allocation_legality,
+    stage_optimized_live_ranges, stage_optimized_liveness, stage_optimized_register_homes,
+    staged_conditional, staged_exact_add_conditional, validate_legalized_operations,
+    validate_raw_selection,
+};
+use crate::{
+    LiteralFoldPolicy, OptimizedLiteralFoldCustodyError, OptimizedSelectionCustodyError,
+    run_selected_lowering_optimizations, stage_first_optimized_literal_fold,
+    validate_optimized_selection_custody,
+};
 #[test]
 fn selected_lowering_runner_rejects_a_psi_only_source_suite() {
     let legality = stage_optimized_allocation_legality(

@@ -1,6 +1,8 @@
-use crate::tests::*;
-
 use super::fixture::{caller_machine, staged_homes, staged_selected};
+use crate::tests::{
+    LegalizationError, NativeTarget, RegisterHomeError, STRUCTURAL_CALL_PRESERVING_FIRST_RESULT,
+    ValueId, validate_legalized_operations, validate_raw_selection, validate_register_homes,
+};
 
 fn call_positions(plan: &legalized_operations::LegalizedOperationPlan) -> Vec<usize> {
     plan.scalar_functions[0].blocks[0]

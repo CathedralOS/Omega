@@ -1,7 +1,13 @@
 //! Reauthenticated exit-record contradictions must fail direct replay.
 
 use super::current_allocation::allocation;
-use crate::tests::*;
+use crate::tests::{
+    FunctionRelativeOptimizationRealizationError, NativeTarget, ResolvedSelectedFormLayoutIdentity,
+    WholeFunctionExitContract, WholeFunctionExitContractError, WholeFunctionReturnMechanism,
+    WholeFunctionReturnValueEvidence, selected_lowering_budget,
+    stage_fixed_frame_function_relative_realization,
+    validate_fixed_frame_function_relative_realization,
+};
 
 type Mutation = (&'static str, fn(&mut WholeFunctionExitContract));
 

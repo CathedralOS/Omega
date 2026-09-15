@@ -1,7 +1,11 @@
 //! Global-value-numbering projection fixtures.
 
-use super::*;
-
+use super::{
+    Block, BlockId, EdgeId, EvidenceRoute, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationEvidence, ObligationId, Operation, OperationId, OperationKind, OperationResult,
+    PrimitiveJudgment, ProofBundle, ScalarType, SuccessorEdge, TerminalMachineResult, Terminator,
+    ValueDeclaration, ValueId, VerifiedPsiOptimizationUnit, module_with_blocks, verified,
+};
 pub(super) fn local_cse_verified() -> VerifiedPsiOptimizationUnit {
     let machine = MachineId::new(1_321).unwrap();
     let block = BlockId::new(1_322).unwrap();

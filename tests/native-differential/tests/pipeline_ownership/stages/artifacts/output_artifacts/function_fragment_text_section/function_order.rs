@@ -1,7 +1,12 @@
 //! Canonical placement of disconnected functions without implicit padding.
 
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, ExplicitOptimizationRequest, MachineId, NativeTarget, Optimization,
+    OptimizationSelections, conditional_exact_binary_artifact, optimize_artifact_sections,
+    selected_lowering_budget, stage_optimized_function_fragment_emission,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+};
 
 #[test]
 fn relocation_free_text_section_preserves_disconnected_function_order_without_padding() {

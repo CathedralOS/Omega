@@ -1,5 +1,8 @@
 //! Distinct incoming views bind one destination descriptor before real calls.
-use super::*;
+use super::{
+    NativeTarget, OperationKind, PlaceId, ProofBundle, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalModule, calls, fixtures, native_function,
+};
 use semantic_vocabulary::{BlockId, EdgeId, ScalarType};
 use terminal_psi::{Block, StructuralAccess, StructuralArgument, SuccessorEdge, Terminator};
 

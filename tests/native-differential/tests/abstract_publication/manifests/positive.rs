@@ -1,4 +1,4 @@
-use super::super::*;
+use super::super::{PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest};
 use super::fixture::{optimized, validate};
 
 #[test]

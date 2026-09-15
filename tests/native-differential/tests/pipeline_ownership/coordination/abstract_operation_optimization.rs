@@ -1,5 +1,17 @@
-use crate::tests::*;
-
+use crate::tests::{
+    AbstractOperation, AdmissionProfile, BlockId, EdgeId, EmptyOptimizationSelections,
+    ExplicitOptimizationRequest, IntegerSign, IntegerType, IntegerValue, LegalizationError,
+    MachineId, NativeTarget, ObligationId, OperationId, Optimization, OptimizationPipelineError,
+    OptimizationPipelineRequest, OptimizationRunError, OptimizationSelections,
+    OptimizationWorkBudget, OptimizedSelectionPipelineError, OptimizedTargetLoweringRequest,
+    ValueId, adjacent_block_merge_artifact, adjacent_conditional_merge_artifact, artifact, budget,
+    compiler_baseline_request_v1, conditional_immediate_artifact_with_type,
+    conditional_widened_u8_exact_add_artifact_with_values,
+    conditional_widened_u8_exact_subtract_artifact_with_values,
+    constant_conditional_prune_artifact, linear_empty_block_artifact,
+    lower_optimized_to_target_operations, optimize_artifact_sections,
+    path_qualified_empty_block_artifact, request, stage_optimized_instruction_selection,
+};
 #[test]
 fn legacy_explicit_request_still_rejects_an_empty_selection() {
     assert_eq!(

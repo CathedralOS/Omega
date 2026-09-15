@@ -1,7 +1,6 @@
 //! Source-proved fixed-extent writes retain ordinary native descriptor custody.
 
-use super::*;
-
+use super::{AdmissionProfile, NativeTarget, calls, native_function};
 #[path = "mutable_writes/admission.rs"]
 mod admission;
 

@@ -1,6 +1,6 @@
 //! Owned array payloads remain real values after argument registers are exhausted.
-use super::*;
 
+use super::{NativeTarget, native_function, publish, target_plan};
 #[test]
 fn outgoing_stack_array_replay_binds_argument_extent_and_exact_writes() {
     use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};

@@ -1,7 +1,14 @@
 //! Conditional and control-flow-cleanup artifact fixtures.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType,
+    MachineContract, MachineId, NativeTarget, Operation, OperationId, OperationKind,
+    OperationResult, Optimization, OptimizationSelections, OptimizedTargetLoweringRequest,
+    ProofBundle, ScalarType, StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
+    lower_optimized_to_target_operations, optimize_artifact_sections, request,
+    stage_optimized_instruction_selection,
+};
 pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(4_001).unwrap();
     let entry = BlockId::new(4_002).unwrap();

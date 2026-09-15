@@ -1,6 +1,14 @@
 //! Rematerialized programs use the ordinary encoder and replay boundaries.
-use crate::tests::*;
+use selected_instructions_to_register_homes::AllocationSource;
 
+use crate::tests::{
+    AllocationEvidence, AllocationReplayError, NativeTarget,
+    OptimizedActiveResidentRematerializationError, OptimizedSelectedFormEncodingError,
+    SelectedFormEncodingState, stage_optimized_layout_independent_selected_form_encoding,
+    staged_active_resident_rematerialization_and_machine,
+    validate_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_post_allocation_machine_plan_custody,
+};
 #[test]
 fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

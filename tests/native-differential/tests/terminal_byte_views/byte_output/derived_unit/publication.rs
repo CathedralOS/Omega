@@ -1,6 +1,9 @@
 //! Derived descriptor custody survives ordinary object and image publication.
-use super::*;
 
+use super::{
+    MachineId, NativeTarget, OperationId, PlaceId, derived_unit_output_module,
+    stage_derived_unit_output,
+};
 fn container(
     target: NativeTarget,
 ) -> std::sync::Arc<object_file::StagedOptimizedRelocationFreeObjectContainer> {

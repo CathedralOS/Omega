@@ -1,6 +1,8 @@
 //! Replayed epoch-zero home success and exact epoch-one recursive pressure.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, StagedOptimizedAllocationLegality,
+    selected_lowering_budget,
+};
 use optimization_core::OptimizationWorkUsage;
 use selected_instructions::VirtualRegisterId;
 

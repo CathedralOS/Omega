@@ -1,6 +1,6 @@
 //! Odd-sized arrays retain exact bytes through ordinary owned calls and returns.
-use super::*;
 
+use super::{NativeTarget, native_function, publish};
 #[test]
 fn packed_array_fragments_preserve_three_byte_tails() {
     check_lengths([3, 11]);

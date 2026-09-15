@@ -1,6 +1,7 @@
 //! Exact epoch-two victim choice over the retained blocker roster.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, MachineId, NativeTarget, OptimizationWorkBudget, selected_lowering_budget,
+};
 use optimization_core::OptimizationWorkUsage;
 use selected_instructions::VirtualRegisterId;
 

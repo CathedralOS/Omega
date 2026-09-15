@@ -1,6 +1,5 @@
 //! A boundary result and guarded mutable view compose through ordinary edges.
-
-use super::*;
+use super::{AdmissionProfile, IntegerValue, NativeTarget, calls, native_function};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };

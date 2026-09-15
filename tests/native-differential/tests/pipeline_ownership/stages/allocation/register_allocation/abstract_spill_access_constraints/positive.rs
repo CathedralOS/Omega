@@ -1,9 +1,8 @@
-use crate::tests::*;
-
 use super::{
     super::recursive_reload_value_homes::{Bundle, original_bundle, reload_bundle},
     fixture::{EXACT_USAGE, build, constrain, exact_budget},
 };
+use crate::tests::NativeTarget;
 
 #[test]
 fn both_recursive_paths_gain_exact_block_local_dependencies_on_both_targets() {

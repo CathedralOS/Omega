@@ -1,6 +1,8 @@
 //! Exact epoch-two logical obligations for one selected original victim.
-
-use crate::tests::*;
+use crate::tests::{
+    LiveRangePoint, NativeTarget, OptimizationWorkBudget, selected_lowering_budget,
+    staged_active_resident_original_victim_chain_two_view_legality,
+};
 use optimization_core::OptimizationWorkUsage;
 use selected_instructions::VirtualRegisterId;
 

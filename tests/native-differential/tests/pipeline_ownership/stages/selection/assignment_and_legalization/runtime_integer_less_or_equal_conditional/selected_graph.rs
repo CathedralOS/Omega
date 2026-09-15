@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::staged_integer_less_or_equal_conditional;
+use crate::tests::{EdgeId, NativeTarget, SelectedTerminator};
 
 #[test]
 fn inclusive_runtime_predicate_covers_order_and_u64_boundaries_on_both_isas() {

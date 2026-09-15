@@ -1,6 +1,7 @@
 //! Ordinary scalar subloans must address the caller's actual array element.
-use super::*;
 
+use super::super::super::byte_view_target;
+use super::{NativeTarget, lower_writer, native_function, publish_lowered};
 const SOURCE: &str = r#"
 data Record { before: u8; bytes: [u8; 3]; after: u64; }
 machine replace(destination: &write u8, value: u8) { destination = value; }

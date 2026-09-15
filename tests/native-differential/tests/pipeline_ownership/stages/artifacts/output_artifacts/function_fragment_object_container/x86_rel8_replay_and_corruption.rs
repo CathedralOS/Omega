@@ -1,7 +1,15 @@
 //! X86 rel8 object reconstruction, replay, and corruption rejection.
 
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    AdmissionProfile, ExplicitOptimizationRequest, FunctionFragmentObjectContainerManifest,
+    NativeTarget, Optimization, OptimizationSelections, RelocationFreeObjectContainerError,
+    conditional_exact_binary_artifact, optimize_artifact_sections, selected_lowering_budget,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    validate_optimized_relocation_free_object_container,
+};
 
 fn object_local_symbol_count(object: &object_file::RelocationFreeObjectPlan) -> usize {
     object

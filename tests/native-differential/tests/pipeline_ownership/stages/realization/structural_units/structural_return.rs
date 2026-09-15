@@ -2,8 +2,14 @@
 //! without a physical observer, descriptor, copy, or register. Selection must
 //! preserve that distinction rather than reject every structural signature.
 
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, EdgeId, NativeTarget, Optimization, OptimizationSelections,
+    OptimizedTargetLoweringRequest, SelectedInstructionKind, SelectedTerminator, StructuralAccess,
+    StructuralMultiplicity, lower_optimized_to_target_operations, optimize_artifact_sections,
+    request, stage_optimized_instruction_selection,
+    structurally_parameterized_unit_return_artifact, validate_optimized_selection_custody,
+    validate_raw_selection,
+};
 #[test]
 fn structural_unit_return_selects_without_materializing_unused_owned_input() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

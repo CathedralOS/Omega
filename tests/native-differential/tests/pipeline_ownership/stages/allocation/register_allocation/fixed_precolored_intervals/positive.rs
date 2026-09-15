@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{EXACT_USAGE, analyze, exact_budget, source};
+use crate::tests::NativeTarget;
 
 #[test]
 fn selected_fixed_constraints_become_exact_precolored_point_intervals() {

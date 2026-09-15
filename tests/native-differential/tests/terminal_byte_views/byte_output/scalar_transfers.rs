@@ -1,5 +1,13 @@
 //! Scalar arrivals select the byte observed by a real Unit output call.
-use super::*;
+use super::super::{
+    OptimizationSelections, compiler_baseline_request_v1, optimize_artifact_sections,
+};
+use super::{
+    AdmissionProfile, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
+    CompilerBuiltinExecution, EdgeId, HostedWriteByteI32Realization, IntegerSign, IntegerType,
+    NativeTarget, Operation, OperationId, OperationKind, OperationResult, ProofBundle, ScalarType,
+    TerminalModule, Terminator, ValueDeclaration, ValueId, stage_byte_output_module, unit_control,
+};
 use semantic_vocabulary::BlockId;
 
 #[path = "scalar_transfers/native_scalar.rs"]

@@ -1,5 +1,9 @@
-use crate::tests::*;
-
+use crate::tests::{
+    AdmissionProfile, NativeTarget, Optimization, OptimizationSelections,
+    OptimizedTargetLoweringRequest, lower_optimized_to_target_operations,
+    optimize_artifact_sections, request, stage_optimized_instruction_selection,
+    statically_attached_unit_return_artifact,
+};
 #[test]
 fn unit_legalization_retains_a_static_attachment_without_inventing_a_receiver() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

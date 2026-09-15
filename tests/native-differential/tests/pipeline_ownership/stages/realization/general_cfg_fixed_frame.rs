@@ -1,4 +1,16 @@
-use crate::tests::*;
+use crate::tests::{
+    AllocatorAvailabilityPolicy, FunctionFragmentFrameApplicationError,
+    FunctionFragmentReplayInputs, NativeTarget, OptimizationWorkBudget,
+    StagedFunctionFragmentFrameApplication, TargetFrameProtocolEncodingIdentity,
+    canonical_artifact, conditional_exact_binary_artifact, materialize_allocator_availability,
+    stage_fixed_frame_function_relative_realization, stage_function_fragment_frame_application,
+    stage_optimized_allocation_legality, stage_optimized_allocation_legality_with_availability,
+    stage_optimized_fixed_frame_text_section, stage_optimized_function_fragment_emission,
+    stage_optimized_live_ranges, stage_optimized_liveness, stage_optimized_register_homes,
+    stage_optimized_relocation_free_object_container, stage_validated_optimized_object_artifact,
+    stage_validated_optimized_ordinary_callable_entry, staged_exact_add_conditional,
+    validate_function_fragment_frame_application,
+};
 use machine_code::FunctionFragmentControlProvenance;
 
 #[test]

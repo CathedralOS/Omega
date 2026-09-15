@@ -1,6 +1,8 @@
 //! Segment-home roots are mandatory and independently replayed.
-
-use crate::tests::*;
+use crate::tests::{
+    FixedViewCopyError, NativeTarget, OptimizationWorkBudget, StagedOptimizedFixedViewCopies,
+    validate_fixed_view_copies,
+};
 use register_homes::{
     FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredSegmentHomePlanIdentity,
     FixedPrecoloredSplitRequirementPlanIdentity,

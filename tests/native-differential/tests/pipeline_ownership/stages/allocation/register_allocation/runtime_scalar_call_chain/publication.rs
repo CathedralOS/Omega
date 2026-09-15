@@ -1,5 +1,14 @@
 use crate::FunctionFragmentReplayInputs;
-use crate::tests::*;
+use crate::tests::{
+    FunctionFragmentFrameApplicationIdentity, NativeTarget, OptimizationWorkBudget,
+    RelocationFreeObjectContainerError, RelocationFreeTextSectionPlacementError,
+    StagedOptimizedFixedFrameTextSection, StagedOptimizedFunctionFragmentEmission,
+    canonical_artifact, scalar_call_unit_artifact, stage_fixed_frame_function_relative_realization,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
+    stage_validated_optimized_object_artifact, validate_optimized_object_artifact,
+    validate_optimized_relocation_free_object_container,
+};
 
 use super::fixture::staged_homes;
 

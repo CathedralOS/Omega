@@ -1,6 +1,5 @@
-use crate::tests::*;
-
 use super::fixture::{ARM64_EXACT_USAGE, X64_EXACT_USAGE, analyze, exact_budget, source};
+use crate::tests::NativeTarget;
 
 #[test]
 fn forwarded_conditional_keeps_abi_transfers_outside_semantic_value_domains() {

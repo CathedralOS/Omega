@@ -1,6 +1,5 @@
+use crate::tests::NativeTarget;
 use std::collections::BTreeMap;
-
-use crate::tests::*;
 
 mod effect;
 

@@ -1,3 +1,7 @@
+use crate::tests::{
+    NativeTarget, PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
+    PostAllocationSelectedTransformation,
+};
 use optimization_core::{
     PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
@@ -12,7 +16,6 @@ use selected_instructions_to_register_homes::{
 use target::{Architecture, ObjectFormat};
 
 use super::fixture::{staged, validate};
-use crate::tests::*;
 
 type Mutation = fn(&mut PostAllocationOptimizationManifest);
 

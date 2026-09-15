@@ -1,6 +1,11 @@
 //! The byte writer receives an explicit value-preserving u8-to-i32 conversion.
-use super::*;
 
+use super::super::native_function;
+use super::{
+    EdgeId, IntegerSign, IntegerType, NativeTarget, Operation, OperationId, OperationKind,
+    OperationResult, ProofBundle, ScalarType, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, ValueId, byte_output_module, calls, stage_byte_output_module,
+};
 pub(super) fn widened_byte_output_module() -> TerminalModule {
     let mut module = byte_output_module();
     let machine = &mut module.machines[0];

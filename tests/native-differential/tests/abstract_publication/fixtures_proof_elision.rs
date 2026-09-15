@@ -1,7 +1,13 @@
 //! Proof-elision projection fixtures.
 
-use super::*;
-
+use super::{
+    Block, BlockId, CertificateEnvelope, EdgeId, EvidenceIdentity, EvidenceRoute, IntegerSign,
+    IntegerType, IntegerValue, MachineId, ObligationEvidence, ObligationId, Operation, OperationId,
+    OperationKind, OperationResult, PrimitiveJudgment, ProofBundle, ProofNode, ProofRule,
+    ProofSystemMarker, Proposition, ScalarTerm, ScalarType, TerminalMachineResult, Terminator,
+    ValueDeclaration, ValueId, VerifiedPsiOptimizationUnit, checked_operation_proof_bundle,
+    module_with_blocks, verified,
+};
 mod exact_add;
 pub(super) use exact_add::exact_add_verified_with_result;
 

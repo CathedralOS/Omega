@@ -1,7 +1,10 @@
 //! Whole-root boundary qualification consumption fixture.
 
-use super::*;
-
+use super::{
+    Block, BlockId, ContractId, EdgeId, MachineId, Operation, OperationId, OperationKind,
+    OperationResult, ProofBundle, TerminalMachineResult, Terminator, VerifiedPsiOptimizationUnit,
+    module_with_blocks, verified,
+};
 pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
     let machine = MachineId::new(1_901).unwrap();
     let block = BlockId::new(1_902).unwrap();

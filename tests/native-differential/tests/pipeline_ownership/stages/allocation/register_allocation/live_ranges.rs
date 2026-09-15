@@ -1,5 +1,11 @@
-use crate::tests::*;
-
+use crate::tests::{
+    ArchitecturalUnitActionKind, EdgeId, LiveRangeError, LiveRangeFragment, LiveRangePoint,
+    NativeTarget, OptimizedLiveRangeCustodyError, VirtualFixedConstraintSite, VirtualInterference,
+    VirtualRegisterId, analyze_live_ranges, live_range_identity, named_units,
+    stage_optimized_live_ranges, stage_optimized_liveness, staged_conditional,
+    staged_forwarded_conditional, validate_live_ranges, validate_liveness,
+    validate_optimized_live_range_custody,
+};
 #[test]
 fn retained_selected_analysis_data_outlives_stages_and_requires_replay() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

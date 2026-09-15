@@ -1,6 +1,8 @@
-use crate::tests::*;
-
 use super::fixture::{call_requirements, exact_budget, stage, wide_budget};
+use crate::tests::{
+    NativeTarget, NonAuthoritativeCalleeSaveStorageError, OptimizationWorkBudget,
+    OptimizationWorkUsage,
+};
 
 #[test]
 fn exact_budget_and_every_single_axis_first_under_fail_closed() {
