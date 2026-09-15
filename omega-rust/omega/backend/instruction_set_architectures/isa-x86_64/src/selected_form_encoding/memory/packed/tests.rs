@@ -127,7 +127,7 @@ fn packed_memory_replays_exact_bytes_widths_offsets_and_aliases() {
                 kind(load, width, last),
                 alternative(load, width),
                 &operands,
-                last
+                i64::from(last)
             )
             .is_ok()
         );
@@ -138,7 +138,7 @@ fn packed_memory_replays_exact_bytes_widths_offsets_and_aliases() {
                     kind(load, width, offset),
                     alternative(load, width),
                     &operands,
-                    offset
+                    i64::from(offset)
                 )
                 .is_err()
             );

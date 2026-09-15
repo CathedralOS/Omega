@@ -152,8 +152,43 @@ pub(super) fn validate_layout(
             .abstract_area_bytes
             .checked_add(preservation_offset)
             .ok_or(Error::GeometryOverflow)?;
+        // A red-zone-resident frame is canonical only as a whole: either no
+        // bytes live below the unadjusted stack pointer, or the entire
+        // addressed extent does and nothing is committed. Residency also
+        // requires the leaf System V form, no preservation storage, and only
+        // allocator spill slots, so every below-RSP access still resolves
+        // through signed frame displacements.
+        let resident = row.red_zone_resident_bytes;
+        let committed = row
+            .frame_size_bytes
+            .checked_sub(resident)
+            .filter(|_| resident == 0 || resident == row.frame_size_bytes)
+            .ok_or(Error::NonCanonicalLayout)?;
+        if resident != 0 {
+            let capacity = u64::from(
+                register_environment::selected_abi_preservation(environment)
+                    .map_err(|_| Error::UnsupportedTarget)?
+                    .convention
+                    .red_zone_bytes,
+            );
+            if required.abi != FrameAbiPreservationConvention::SystemVAMD64
+                || calls
+                || !storage.slots.is_empty()
+                || row.frame_size_bytes > capacity
+                || source.local_storage_slots.iter().any(|slot| {
+                    !matches!(
+                        slot.id,
+                        selected_instructions::LocalStorageSlotId::Spill { .. }
+                    )
+                })
+            {
+                return Err(Error::NonCanonicalLayout);
+            }
+        }
         // The probe roster is checked as a coverage bound over the submitted
-        // frame extent, not by invoking the producer's plan computation.
+        // committed extent, not by invoking the producer's plan computation.
+        // Red-zone-resident bytes are already below the unadjusted stack
+        // pointer and never enter the commit schedule.
         let probe_interval = match (
             environment.target().architecture,
             environment.target().object_format,
@@ -163,15 +198,15 @@ pub(super) fn validate_layout(
         };
         let touches = u64::from(row.stack_probe.touches);
         if row.stack_probe.interval_bytes != probe_interval
-            || (touches == 0) != (row.frame_size_bytes <= probe_interval)
+            || (touches == 0) != (committed <= probe_interval)
             || (touches != 0
                 && !(touches
                     .checked_mul(probe_interval)
-                    .is_some_and(|covered| covered >= row.frame_size_bytes)
+                    .is_some_and(|covered| covered >= committed)
                     && touches
                         .checked_sub(1)
                         .and_then(|earlier| earlier.checked_mul(probe_interval))
-                        .is_some_and(|uncovered| uncovered < row.frame_size_bytes)))
+                        .is_some_and(|uncovered| uncovered < committed)))
         {
             return Err(Error::NonCanonicalLayout);
         }
@@ -226,7 +261,7 @@ pub(super) fn validate_layout(
                     || !minimal_aligned_extent(area, row.frame_size_bytes, alignment, residue)
                     || row.return_address
                         != (ReturnAddressFrameCustody::CallerActivationStack {
-                            post_prologue_offset_bytes: row.frame_size_bytes,
+                            post_prologue_offset_bytes: committed,
                             size_bytes: 8,
                         })
                 {

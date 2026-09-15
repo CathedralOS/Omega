@@ -22,8 +22,12 @@ pub fn encode_aarch64_selected_memory_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    // AArch64 frame and pointer addressing is a scaled unsigned immediate;
+    // negative (below-SP) displacements are not encodable and are rejected.
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
     if matches!(
         kind,
         SelectedInstructionKind::LoadPacked { .. } | SelectedInstructionKind::StorePacked { .. }
@@ -61,7 +65,7 @@ pub fn encode_aarch64_selected_memory_form(
         kind,
         alternative,
         operands,
-        displacement,
+        i64::from(displacement),
         &word.to_le_bytes(),
     )
 }
@@ -71,9 +75,11 @@ pub fn validate_aarch64_selected_memory_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
     if matches!(
         kind,
         SelectedInstructionKind::LoadPacked { .. } | SelectedInstructionKind::StorePacked { .. }
@@ -203,10 +209,9 @@ mod tests {
             family: MachineAlternativeFamily::Load64,
             variant: 0,
         };
-        for displacement in [0, 8, 32760] {
-            let kind = SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            };
+        for byte_offset in [0, 8, 32760] {
+            let kind = SelectedInstructionKind::Load64 { byte_offset };
+            let displacement = i64::from(byte_offset);
             let encoded = encode_aarch64_selected_memory_form(
                 &physical,
                 kind,
@@ -243,16 +248,14 @@ mod tests {
                 .is_err()
             );
         }
-        for displacement in [1, 32768] {
+        for byte_offset in [1, 32768] {
             assert!(
                 encode_aarch64_selected_memory_form(
                     &physical,
-                    SelectedInstructionKind::Load64 {
-                        byte_offset: displacement
-                    },
+                    SelectedInstructionKind::Load64 { byte_offset },
                     alternative,
                     &operands,
-                    displacement
+                    i64::from(byte_offset)
                 )
                 .is_err()
             );

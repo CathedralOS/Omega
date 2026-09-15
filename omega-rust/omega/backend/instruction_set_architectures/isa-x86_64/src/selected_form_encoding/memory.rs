@@ -20,7 +20,7 @@ pub fn encode_x86_64_selected_memory_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     if matches!(
         kind,
@@ -63,7 +63,7 @@ pub fn encode_x86_64_selected_memory_form(
         kind,
         alternative,
         operands,
-        displacement as u32,
+        i64::from(displacement),
         &bytes,
     )
 }
@@ -73,7 +73,7 @@ pub fn validate_x86_64_selected_memory_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     if matches!(
@@ -91,7 +91,7 @@ pub fn validate_x86_64_selected_memory_form(
         kind,
         SelectedInstructionKind::Load8 { .. } | SelectedInstructionKind::Load16 { .. }
     );
-    if matches!(kind, SelectedInstructionKind::Load8 { byte_offset } | SelectedInstructionKind::Load16 { byte_offset } | SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if byte_offset != displacement)
+    if matches!(kind, SelectedInstructionKind::Load8 { byte_offset } | SelectedInstructionKind::Load16 { byte_offset } | SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if i64::from(byte_offset) != displacement)
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -132,8 +132,7 @@ pub fn validate_x86_64_selected_memory_form(
         || decoded_register != register
         || decoded_base != base
         || (has_sib && instruction.get(mode_position + 1) != Some(&0x24))
-        || actual < 0
-        || actual as u32 != displacement
+        || i64::from(actual) != displacement
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -397,6 +396,129 @@ mod tests {
             Err(X86_64SelectedFormEncodingError::UnknownOrNonGpr64View(
                 stack_pointer
             )),
+        );
+    }
+
+    #[test]
+    fn frame_forms_encode_signed_displacements_below_the_stack_pointer() {
+        let physical =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let slot = selected_instructions::FrameStorageSlotId::Local(
+            selected_instructions::LocalStorageSlotId::Spill {
+                register: selected_instructions::VirtualRegisterId(7),
+            },
+        );
+        let value = physical.model().view_named("r11").unwrap().id;
+        for (kind, family, expected) in [
+            (
+                SelectedInstructionKind::Store64 {
+                    slot,
+                    byte_offset: 0,
+                },
+                MachineAlternativeFamily::Store64,
+                vec![0x4c, 0x89, 0x9c, 0x24, 0xf0, 0xff, 0xff, 0xff],
+            ),
+            (
+                SelectedInstructionKind::FrameAddress {
+                    slot,
+                    byte_offset: 8,
+                },
+                MachineAlternativeFamily::FrameAddress,
+                vec![0x4c, 0x8d, 0x9c, 0x24, 0xf0, 0xff, 0xff, 0xff],
+            ),
+        ] {
+            let alternative = MachineAlternativeKey { family, variant: 0 };
+            let encoded =
+                encode_x86_64_selected_memory_form(&physical, kind, alternative, &[value], -16)
+                    .unwrap();
+            assert_eq!(encoded.bytes, expected, "{kind:?}");
+            assert_eq!(
+                validate_x86_64_selected_memory_form(
+                    &physical,
+                    kind,
+                    alternative,
+                    &[value],
+                    -16,
+                    &encoded.bytes
+                ),
+                Ok(encoded.clone())
+            );
+            for displacement in [-24, -8, 0, i64::from(i32::MAX)] {
+                assert!(
+                    validate_x86_64_selected_memory_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &[value],
+                        displacement,
+                        &encoded.bytes
+                    )
+                    .is_err(),
+                    "{kind:?} {displacement}"
+                );
+            }
+            for byte_index in 0..encoded.bytes.len() {
+                let mut changed = encoded.bytes.clone();
+                changed[byte_index] ^= 1;
+                assert!(
+                    validate_x86_64_selected_memory_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &[value],
+                        -16,
+                        &changed
+                    )
+                    .is_err(),
+                    "{kind:?} byte {byte_index}"
+                );
+            }
+        }
+        // The signed frame range is disp32: anything wider is not encodable.
+        let kind = SelectedInstructionKind::Store64 {
+            slot,
+            byte_offset: 0,
+        };
+        for displacement in [i64::from(i32::MIN) - 1, i64::from(i32::MAX) + 1] {
+            assert_eq!(
+                encode_x86_64_selected_memory_form(
+                    &physical,
+                    kind,
+                    MachineAlternativeKey {
+                        family: MachineAlternativeFamily::Store64,
+                        variant: 0
+                    },
+                    &[value],
+                    displacement,
+                ),
+                Err(X86_64SelectedFormEncodingError::ImmediateOutsideU12)
+            );
+        }
+        // The signed disp32 lower bound itself still encodes and replays.
+        let encoded = encode_x86_64_selected_memory_form(
+            &physical,
+            kind,
+            MachineAlternativeKey {
+                family: MachineAlternativeFamily::Store64,
+                variant: 0,
+            },
+            &[value],
+            i64::from(i32::MIN),
+        )
+        .unwrap();
+        assert_eq!(
+            validate_x86_64_selected_memory_form(
+                &physical,
+                kind,
+                MachineAlternativeKey {
+                    family: MachineAlternativeFamily::Store64,
+                    variant: 0
+                },
+                &[value],
+                i64::from(i32::MIN),
+                &encoded.bytes
+            ),
+            Ok(encoded)
         );
     }
 

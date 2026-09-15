@@ -17,16 +17,13 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
             MachineAlternativeFamily::Load16
         };
         let alternative = MachineAlternativeKey { family, variant: 0 };
-        for displacement in [0, 2, 4096] {
+        for byte_offset in [0, 2, 4096] {
             let kind = if width == 1 {
-                SelectedInstructionKind::Load8 {
-                    byte_offset: displacement,
-                }
+                SelectedInstructionKind::Load8 { byte_offset }
             } else {
-                SelectedInstructionKind::Load16 {
-                    byte_offset: displacement,
-                }
+                SelectedInstructionKind::Load16 { byte_offset }
             };
+            let displacement = i64::from(byte_offset);
             for base_name in ["rax", "rbp", "r12", "r13", "r15"] {
                 let base = physical.model().view_named(base_name).unwrap().id;
                 let destination = physical.model().view_named("r11").unwrap().id;
@@ -108,19 +105,15 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                         kind,
                         alternative,
                         &operands,
-                        displacement + u32::from(width),
+                        displacement + i64::from(width),
                         encoded.bytes()
                     )
                     .is_err()
                 );
                 let changed_kind = if width == 1 {
-                    SelectedInstructionKind::Load16 {
-                        byte_offset: displacement,
-                    }
+                    SelectedInstructionKind::Load16 { byte_offset }
                 } else {
-                    SelectedInstructionKind::Load8 {
-                        byte_offset: displacement,
-                    }
+                    SelectedInstructionKind::Load8 { byte_offset }
                 };
                 assert!(
                     validate_x86_64_selected_memory_form(
@@ -258,7 +251,7 @@ fn narrow_loads_have_zero_extending_opcodes_and_reject_invalid_addresses() {
                 variant: 0
             },
             &operands,
-            invalid
+            i64::from(invalid)
         )
         .is_err()
     );

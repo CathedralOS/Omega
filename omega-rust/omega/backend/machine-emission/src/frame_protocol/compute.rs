@@ -28,6 +28,20 @@ pub(super) fn derive(
     let mut bytes = Vec::new();
     let mut functions = Vec::with_capacity(frame.plan().functions.len());
     for function in &frame.plan().functions {
+        // The prologue commits only the non-red-zone extent; resident bytes
+        // already live below the unadjusted entry stack pointer. Residency is
+        // a leaf-only storage shape: preservation slots and call frames can
+        // never observe a below-RSP coordinate, so a resident row carrying
+        // either is rejected here even though layout replay also refuses it.
+        let committed_bytes = function
+            .frame_size_bytes
+            .checked_sub(function.red_zone_resident_bytes)
+            .ok_or(TargetFrameProtocolEncodingError::NonCanonicalEncoding)?;
+        if function.red_zone_resident_bytes != 0
+            && (function.contains_call || !function.callee_save_slots.is_empty())
+        {
+            return Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding);
+        }
         let (prologue_bytes, epilogue_bytes) = match environment.target().architecture {
             Architecture::X86_64 => {
                 if !matches!(
@@ -47,7 +61,7 @@ pub(super) fn derive(
                     .collect::<Vec<_>>();
                 isa_x86_64::encode_system_v_amd64_frame_protocol(
                     environment.physical(),
-                    function.frame_size_bytes,
+                    committed_bytes,
                     isa_x86_64::X86_64StackProbe {
                         interval_bytes: function.stack_probe.interval_bytes,
                         touches: function.stack_probe.touches,
@@ -85,7 +99,7 @@ pub(super) fn derive(
                 }
                 isa_aarch64::encode_aapcs64_frame_protocol(
                     environment.physical(),
-                    function.frame_size_bytes,
+                    committed_bytes,
                     isa_aarch64::Aarch64StackProbe {
                         interval_bytes: function.stack_probe.interval_bytes,
                         touches: function.stack_probe.touches,

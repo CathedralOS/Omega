@@ -35,6 +35,7 @@ pub(super) fn validate_frame_root(
     for (row, source) in frame.functions.iter().zip(&machine.functions) {
         if row.machine != source.machine
             || row.outgoing_abi_area.byte_size > row.frame_size_bytes
+            || row.red_zone_resident_bytes > row.frame_size_bytes
             || u64::from(row.outgoing_abi_area.shadow_bytes) > row.outgoing_abi_area.byte_size
             || row.local_storage_slots.len() != source.local_storage_slots.len()
         {
@@ -154,6 +155,29 @@ fn function_geometry<'frame>(
     Ok(row)
 }
 
+/// The committed stack extent: the addressed extent minus the bytes resident
+/// below the unadjusted entry stack pointer.
+fn committed_extent(geometry: &FunctionTargetFrameLayout) -> Result<u64, Error> {
+    geometry
+        .frame_size_bytes
+        .checked_sub(geometry.red_zone_resident_bytes)
+        .ok_or(Error::ArtifactMismatch)
+}
+
+/// Signed post-prologue displacement of a frame-space offset: bytes resident
+/// in the red zone sit below the unadjusted stack pointer and surface as
+/// negative displacements.
+fn frame_displacement(
+    geometry: &FunctionTargetFrameLayout,
+    frame_offset_bytes: u64,
+) -> Result<i64, Error> {
+    i64::try_from(frame_offset_bytes)
+        .ok()
+        .zip(i64::try_from(geometry.red_zone_resident_bytes).ok())
+        .and_then(|(offset, resident)| offset.checked_sub(resident))
+        .ok_or(Error::ArtifactMismatch)
+}
+
 pub(super) fn resolve(
     function: &PostAllocationMachineFunction,
     frame: Option<&TargetFrameLayoutPlan>,
@@ -172,6 +196,7 @@ pub(super) fn resolve(
             byte_offset: 0,
         } => {
             let geometry = function_geometry(function, frame)?;
+            let committed = committed_extent(geometry)?;
             let return_address_bytes = match geometry.return_address {
                 machine_code::ReturnAddressFrameCustody::CallerActivationStack {
                     size_bytes,
@@ -180,13 +205,14 @@ pub(super) fn resolve(
                 machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
                 | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
             };
-            let displacement = geometry
-                .frame_size_bytes
+            // Incoming storage starts above the committed extent plus the
+            // caller-activation return address; resident bytes never shift it.
+            let displacement = committed
                 .checked_add(return_address_bytes)
                 .and_then(|base| base.checked_add(u64::from(abi_stack_byte_offset)))
                 .filter(|offset| *offset <= i32::MAX as u64)
                 .ok_or(Error::ArtifactMismatch)?;
-            u32::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?
+            i64::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?
         }
         Address::HostedWriteByteI32 { slot } => {
             if !matches!(
@@ -203,14 +229,15 @@ pub(super) fn resolve(
                 .iter()
                 .find(|entry| entry.id == slot)
                 .ok_or(Error::ArtifactMismatch)?;
+            let displacement = frame_displacement(geometry, start)?;
             if size != 1
                 || source.alignment != 1
                 || start.checked_add(1).is_none_or(|end| end > limit)
-                || start > i32::MAX as u64
+                || !(0..=i64::from(i32::MAX)).contains(&displacement)
             {
                 return Err(Error::ArtifactMismatch);
             }
-            u32::try_from(start).map_err(|_| Error::ArtifactMismatch)?
+            displacement
         }
         Address::HostedReadByte { slot } => {
             if !matches!(
@@ -227,15 +254,16 @@ pub(super) fn resolve(
                 .iter()
                 .find(|entry| entry.id == slot)
                 .ok_or(Error::ArtifactMismatch)?;
+            let displacement = frame_displacement(geometry, start)?;
             if size != 8
                 || source.alignment != 4
                 || !start.is_multiple_of(4)
                 || start.checked_add(8).is_none_or(|end| end > limit)
-                || start > i32::MAX as u64
+                || !(0..=i64::from(i32::MAX)).contains(&displacement)
             {
                 return Err(Error::ArtifactMismatch);
             }
-            u32::try_from(start).map_err(|_| Error::ArtifactMismatch)?
+            displacement
         }
         Address::Load8Indexed { .. } => 0,
         Address::LoadPacked { byte_offset, .. }
@@ -244,7 +272,7 @@ pub(super) fn resolve(
         | Address::Load8 { byte_offset, .. }
         | Address::Load16 { byte_offset, .. }
         | Address::Load32 { byte_offset, .. }
-        | Address::AddressOffset { byte_offset, .. } => byte_offset,
+        | Address::AddressOffset { byte_offset, .. } => i64::from(byte_offset),
         Address::Store {
             byte_offset,
             byte_size,
@@ -253,7 +281,7 @@ pub(super) fn resolve(
             if !matches!(byte_size, 1 | 2 | 4 | 8) {
                 return Err(Error::ArtifactMismatch);
             }
-            byte_offset
+            i64::from(byte_offset)
         }
         Address::Store64 { slot, byte_offset } | Address::FrameAddress { slot, byte_offset } => {
             let geometry = function_geometry(function, frame)?;
@@ -268,17 +296,20 @@ pub(super) fn resolve(
             {
                 return Err(Error::ArtifactMismatch);
             }
-            let displacement = start
+            let frame_offset = start
                 .checked_add(u64::from(byte_offset))
                 .ok_or(Error::ArtifactMismatch)?;
-            if displacement
+            if frame_offset
                 .checked_add(u64::from(width))
                 .is_none_or(|end| end > limit)
-                || displacement > i32::MAX as u64
             {
                 return Err(Error::ArtifactMismatch);
             }
-            u32::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?
+            let displacement = frame_displacement(geometry, frame_offset)?;
+            if i32::try_from(displacement).is_err() {
+                return Err(Error::ArtifactMismatch);
+            }
+            displacement
         }
     };
     Ok(Some(ResolvedPhysicalAddress {
@@ -314,6 +345,7 @@ pub(super) fn validate_address(
             byte_offset: 0,
         } => {
             let geometry = function_geometry(function, frame)?;
+            let committed = committed_extent(geometry)?;
             let return_address_bytes = match geometry.return_address {
                 machine_code::ReturnAddressFrameCustody::CallerActivationStack {
                     size_bytes,
@@ -322,11 +354,15 @@ pub(super) fn validate_address(
                 machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
                 | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
             };
-            let incoming_offset = u64::from(candidate.displacement)
-                .checked_sub(geometry.frame_size_bytes)
-                .and_then(|offset| offset.checked_sub(return_address_bytes));
-            if incoming_offset != Some(u64::from(abi_stack_byte_offset))
-                || candidate.displacement > i32::MAX as u32
+            let base = i64::try_from(
+                committed
+                    .checked_add(return_address_bytes)
+                    .ok_or(Error::ArtifactMismatch)?,
+            )
+            .map_err(|_| Error::ArtifactMismatch)?;
+            let incoming_offset = candidate.displacement.checked_sub(base);
+            if incoming_offset != Some(i64::from(abi_stack_byte_offset))
+                || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
             {
                 return Err(Error::ArtifactMismatch);
             }
@@ -347,12 +383,11 @@ pub(super) fn validate_address(
                 .iter()
                 .find(|entry| entry.id == slot)
                 .ok_or(Error::ArtifactMismatch)?;
-            let offset = u64::from(candidate.displacement);
-            if offset != start
+            if candidate.displacement != frame_displacement(geometry, start)?
                 || size != 1
                 || source.alignment != 1
-                || offset.checked_add(1).is_none_or(|end| end > limit)
-                || offset > i32::MAX as u64
+                || start.checked_add(1).is_none_or(|end| end > limit)
+                || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
             {
                 return Err(Error::ArtifactMismatch);
             }
@@ -373,13 +408,12 @@ pub(super) fn validate_address(
                 .iter()
                 .find(|entry| entry.id == slot)
                 .ok_or(Error::ArtifactMismatch)?;
-            let offset = u64::from(candidate.displacement);
-            if offset != start
+            if candidate.displacement != frame_displacement(geometry, start)?
                 || size != 8
                 || source.alignment != 4
-                || !offset.is_multiple_of(4)
-                || offset.checked_add(8).is_none_or(|end| end > limit)
-                || offset > i32::MAX as u64
+                || !start.is_multiple_of(4)
+                || start.checked_add(8).is_none_or(|end| end > limit)
+                || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
             {
                 return Err(Error::ArtifactMismatch);
             }
@@ -389,11 +423,15 @@ pub(super) fn validate_address(
             base_operand: 0,
             byte_offset,
             byte_size,
-        } if matches!(byte_size, 1 | 2 | 4 | 8) && candidate.displacement == byte_offset => Ok(()),
+        } if matches!(byte_size, 1 | 2 | 4 | 8)
+            && candidate.displacement == i64::from(byte_offset) =>
+        {
+            Ok(())
+        }
         Address::AddressOffset {
             base_operand: 0,
             byte_offset,
-        } if candidate.displacement == byte_offset => Ok(()),
+        } if candidate.displacement == i64::from(byte_offset) => Ok(()),
         Address::Load8Indexed {
             base_operand: 0,
             index_operand: 1,
@@ -423,7 +461,7 @@ pub(super) fn validate_address(
         | Address::Load32 {
             base_operand: 0,
             byte_offset,
-        } if candidate.displacement == byte_offset => Ok(()),
+        } if candidate.displacement == i64::from(byte_offset) => Ok(()),
         Address::Store64 { slot, byte_offset } | Address::FrameAddress { slot, byte_offset } => {
             let geometry = function_geometry(function, frame)?;
             let (start, size, limit, local) = slot_region(function, geometry, slot)?;
@@ -432,13 +470,23 @@ pub(super) fn validate_address(
             } else {
                 0
             };
-            let offset = u64::from(candidate.displacement);
-            if offset.checked_sub(start) != Some(u64::from(byte_offset))
+            // Replay checks the frame-space equation: the signed displacement
+            // plus the resident extent must land on the slot's byte position.
+            let resident = i64::try_from(geometry.red_zone_resident_bytes)
+                .map_err(|_| Error::ArtifactMismatch)?;
+            let frame_offset = candidate
+                .displacement
+                .checked_add(resident)
+                .and_then(|value| u64::try_from(value).ok());
+            if frame_offset.and_then(|offset| offset.checked_sub(start))
+                != Some(u64::from(byte_offset))
                 || (!local && byte_offset >= size)
                 || u64::from(byte_offset) + width > u64::from(size)
-                || offset < u64::from(geometry.outgoing_abi_area.shadow_bytes)
-                || offset + width > limit
-                || offset > i32::MAX as u64
+                || frame_offset.is_none_or(|offset| {
+                    offset < u64::from(geometry.outgoing_abi_area.shadow_bytes)
+                        || offset + width > limit
+                })
+                || i32::try_from(candidate.displacement).is_err()
             {
                 return Err(Error::ArtifactMismatch);
             }

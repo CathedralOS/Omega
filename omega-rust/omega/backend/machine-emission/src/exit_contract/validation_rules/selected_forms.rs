@@ -226,7 +226,7 @@ pub(in crate::exit_contract) fn validate_non_return(
             Some(address),
         ) => {
             byte_count == u16::from(width.byte_size())
-                && address.displacement == byte_offset
+                && address.displacement == i64::from(byte_offset)
                 && address.symbolic
                     == physical_instructions::PhysicalAddressOperation::LoadPacked {
                         base_operand: 0,
@@ -239,7 +239,7 @@ pub(in crate::exit_contract) fn validate_non_return(
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
             Some(address),
         ) => {
-            address.displacement == byte_offset
+            address.displacement == i64::from(byte_offset)
                 && address.symbolic
                     == physical_instructions::PhysicalAddressOperation::StorePacked {
                         base_operand: 0,
@@ -280,7 +280,7 @@ pub(in crate::exit_contract) fn validate_non_return(
             Some(address),
         ) => {
             matches!(byte_size, 1 | 2 | 4 | 8)
-                && address.displacement == byte_offset
+                && address.displacement == i64::from(byte_offset)
                 && address.symbolic
                     == physical_instructions::PhysicalAddressOperation::Store {
                         base_operand: 0,
@@ -293,7 +293,7 @@ pub(in crate::exit_contract) fn validate_non_return(
             MachineEncodedMemoryEffect::NoneV1,
             Some(address),
         ) => {
-            address.displacement == byte_offset
+            address.displacement == i64::from(byte_offset)
                 && address.symbolic
                     == physical_instructions::PhysicalAddressOperation::AddressOffset {
                         base_operand: 0,

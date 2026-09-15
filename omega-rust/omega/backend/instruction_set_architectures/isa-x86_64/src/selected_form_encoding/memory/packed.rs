@@ -103,8 +103,12 @@ pub(super) fn encode(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    // Packed byte streams address caller pointer storage, never frame slots;
+    // their displacement is the nonnegative symbolic byte offset.
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     let (load, width, [base, value, scratch], _) =
         request(physical, kind, alternative, operands, displacement)?;
     let mut bytes = Vec::new();
@@ -138,7 +142,14 @@ pub(super) fn encode(
             bytes.extend([rex(0, 0, scratch), 0xc1, modrm(3, 5, scratch), 8]);
         }
     }
-    validate(physical, kind, alternative, operands, displacement, &bytes)
+    validate(
+        physical,
+        kind,
+        alternative,
+        operands,
+        i64::from(displacement),
+        &bytes,
+    )
 }
 
 pub(super) fn validate(
@@ -146,9 +157,11 @@ pub(super) fn validate(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     let (load, width, registers, footprint) =
         request(physical, kind, alternative, operands, displacement)?;
     replay::validate(bytes, load, width, registers, displacement)?;

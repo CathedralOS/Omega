@@ -11,7 +11,7 @@ pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let [base, index, destination] = request(physical, alternative, operands, displacement)?;
     // A fixed disp32 form covers every allocatable base, including rbp/r13.
@@ -33,7 +33,7 @@ pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let [base, index, destination] = request(physical, alternative, operands, displacement)?;
@@ -95,7 +95,7 @@ fn request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<[u8; 3], X86_64SelectedFormEncodingError> {
     if physical.model() != &crate::x86_64_physical_register_model() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);

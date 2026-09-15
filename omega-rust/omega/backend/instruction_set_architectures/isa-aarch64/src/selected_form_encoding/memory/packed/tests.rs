@@ -68,7 +68,7 @@ fn packed_forms_access_exact_bytes_and_declare_all_scratch_writes() {
                         kind,
                         alternative,
                         &operands,
-                        offset,
+                        i64::from(offset),
                     )
                     .unwrap();
                     let effects = &encoded.footprint().encoded;
@@ -122,7 +122,7 @@ fn packed_forms_access_exact_bytes_and_declare_all_scratch_writes() {
                             kind,
                             alternative,
                             &operands,
-                            offset,
+                            i64::from(offset),
                             encoded.bytes()
                         )
                         .unwrap(),
@@ -187,7 +187,7 @@ fn packed_forms_reject_width_offset_alias_and_instruction_mutations() {
                     kind,
                     alternative,
                     &operands,
-                    offset
+                    i64::from(offset)
                 )
                 .is_err()
             );

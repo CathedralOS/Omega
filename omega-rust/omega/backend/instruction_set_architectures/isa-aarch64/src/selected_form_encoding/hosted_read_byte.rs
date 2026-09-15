@@ -79,8 +79,10 @@ fn request(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
+    // Hosted structural storage is committed caller frame space: its
+    // displacement is always a nonnegative unsigned-immediate offset.
     if (target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64())
         || physical.model() != &crate::aarch64_physical_register_model()
         || !matches!(
@@ -95,7 +97,8 @@ fn request(
                 variant: 0,
             })
         || !operands.is_empty()
-        || !displacement.is_multiple_of(4)
+        || displacement < 0
+        || displacement % 4 != 0
         || displacement > 4088
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
@@ -110,9 +113,11 @@ pub fn encode_aarch64_selected_hosted_read_byte_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     request(target, physical, kind, alternative, operands, displacement)?;
+    let displacement = u32::try_from(displacement)
+        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
     let bytes = if target == NativeTarget::macos_arm64() {
         crate::encode_macos_read_byte_to_stack(displacement, displacement + 4)
     } else {
@@ -125,7 +130,7 @@ pub fn encode_aarch64_selected_hosted_read_byte_form(
         kind,
         alternative,
         operands,
-        displacement,
+        i64::from(displacement),
         &bytes,
     )
 }
@@ -137,11 +142,12 @@ pub fn validate_aarch64_selected_hosted_read_byte_form(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-    displacement: u32,
+    displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     request(target, physical, kind, alternative, operands, displacement)?;
-    if decode_aarch64_selected_hosted_read_byte(target, bytes) != Some(displacement) {
+    if decode_aarch64_selected_hosted_read_byte(target, bytes).map(i64::from) != Some(displacement)
+    {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(ValidatedAarch64SelectedFormEncoding {
@@ -247,7 +253,7 @@ mod tests {
                     kind,
                     alternative,
                     &[],
-                    displacement,
+                    i64::from(displacement),
                 )
                 .unwrap();
                 assert_eq!(
@@ -271,7 +277,7 @@ mod tests {
                             kind,
                             alternative,
                             &[],
-                            displacement,
+                            i64::from(displacement),
                             &changed
                         )
                         .is_err(),
@@ -291,7 +297,7 @@ mod tests {
                             kind,
                             alternative,
                             &[],
-                            invalid_offset
+                            i64::from(invalid_offset)
                         )
                         .is_err()
                     );
@@ -303,7 +309,7 @@ mod tests {
                         kind,
                         alternative,
                         &[],
-                        displacement ^ 4,
+                        i64::from(displacement ^ 4),
                         encoded.bytes()
                     )
                     .is_err()
@@ -318,7 +324,7 @@ mod tests {
                         boundary,
                         alternative,
                         &[],
-                        displacement
+                        i64::from(displacement)
                     )
                     .is_err()
                 );
@@ -330,7 +336,7 @@ mod tests {
                         kind,
                         alternative,
                         &source,
-                        displacement
+                        i64::from(displacement)
                     )
                     .is_err()
                 );
@@ -345,7 +351,7 @@ mod tests {
                         kind,
                         wrong,
                         &[],
-                        displacement
+                        i64::from(displacement)
                     )
                     .is_err()
                 );
@@ -356,7 +362,7 @@ mod tests {
                         kind,
                         alternative,
                         &[],
-                        displacement,
+                        i64::from(displacement),
                         &encoded.bytes()[1..]
                     )
                     .is_err()
@@ -379,7 +385,7 @@ mod tests {
                         kind,
                         alternative,
                         &[],
-                        displacement,
+                        i64::from(displacement),
                         encoded.bytes()
                     )
                     .is_err()
