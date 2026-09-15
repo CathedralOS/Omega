@@ -1,5 +1,6 @@
 use super::*;
 use compiler::CheckedCompileRequest;
+use terminal_fuel::FuelChargeSite;
 
 #[test]
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
@@ -52,7 +53,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         )
     );
 
-    let mut missing_site = checked.clone();
+    let mut missing_site = checked.clone().into_program();
     let terminal_abort = missing_site
         .machines()
         .iter()
@@ -74,7 +75,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         LoweringError::Unsupported("explicit crash has no body-derived checked crash-site row")
     );
 
-    let mut missing_coverage = checked.clone();
+    let mut missing_coverage = checked.clone().into_program();
     let crash = &mut missing_coverage
         .facts
         .contract_plans
@@ -104,7 +105,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         )
     );
 
-    let mut unmapped_frontier = checked.clone();
+    let mut unmapped_frontier = checked.clone().into_program();
     let crash = &mut unmapped_frontier
         .facts
         .contract_plans
