@@ -25,7 +25,7 @@ use typed_trees::{
 use crate::const_generic_expressions::value::{self, ConstantCalls};
 use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
 
-pub(super) struct CheckedInitializers {
+pub(crate) struct CheckedInitializers {
     typed: TypedTrees,
     admission: BuildTimeAdmissionPlan,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
@@ -34,7 +34,7 @@ pub(super) struct CheckedInitializers {
 }
 
 impl CheckedInitializers {
-    pub(super) fn prepare(
+    pub(crate) fn prepare(
         typed: &TypedTrees,
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
         probe_symbols: &[symbols::SymbolHandle],
@@ -96,7 +96,7 @@ impl CheckedInitializers {
         }
     }
 
-    pub(super) fn calls_for_source(
+    pub(crate) fn calls_for_source(
         &self,
         reference: source::SourceSpan,
     ) -> Result<Invocation<'_>, String> {
@@ -134,7 +134,7 @@ impl CheckedInitializers {
     }
 }
 
-pub(super) struct Invocation<'program> {
+pub(crate) struct Invocation<'program> {
     program: &'program CheckedInitializers,
     machine: &'program Machine,
     state: &'program State,
@@ -665,6 +665,53 @@ impl Invocation<'_> {
         })
     }
 
+    /// Evaluate a fresh scalar application probe — a const-generic argument
+    /// whose whole expression is an ordinary closed machine call such as
+    /// `sized(4)`. There is no earlier phase roster to rejoin; the exact
+    /// transitive call closure collected beside the evaluation is returned so
+    /// the caller can confirm every authored call survived into custody. Each
+    /// authored call still undergoes the same selection, argument snapshot,
+    /// and concrete premise/failure discharge as initializer invocations.
+    pub(crate) fn evaluate_application_probe(
+        &self,
+        reference: source::SourceSpan,
+        public: bool,
+        syntax: &syntax_trees::SyntaxTrees,
+    ) -> Result<ApplicationProbeEvaluation, String> {
+        let typed = self.program.typed();
+        let roots = self.probe_roots()?;
+        let &[expression] = roots.as_slice() else {
+            return Err("application probe lost its single scalar root".into());
+        };
+        crate::admission::require_const_expression_selection(
+            typed,
+            self.machine,
+            reference,
+            self.program.authority.as_deref(),
+        )?;
+        let destination = crate::const_generic_expressions::exact_probe_destination(
+            typed,
+            self.state.return_type,
+        )
+        .ok_or("application probe destination requires an unconstrained exact builtin integer or Boolean carrier")?;
+        let (origins, operators, calls) = crate::const_generic_expressions::leaf_call_custody(
+            typed,
+            self.machine,
+            self.state,
+            &roots,
+            public,
+            syntax,
+        )?;
+        let (value, warnings) = self.evaluate(expression, destination)?;
+        Ok(ApplicationProbeEvaluation {
+            value,
+            origins,
+            operators,
+            calls,
+            warnings,
+        })
+    }
+
     /// Interpret this retained probe's own transition and return the
     /// structured result with its declared carrier. Receiving-side replay uses
     /// the same checked admission as the original evaluation.
@@ -685,6 +732,17 @@ impl Invocation<'_> {
         }
         Ok((self.interpret(reference)?, self.state.return_type))
     }
+}
+
+/// The evaluated result of one scalar application probe: the canonical value,
+/// the selection custody gathered beside it, the exact transitive call
+/// closure, and any evaluation warnings.
+pub(crate) struct ApplicationProbeEvaluation {
+    pub(crate) value: CanonicalConstValue,
+    pub(crate) origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
+    pub(crate) operators: Vec<source::SourceSpan>,
+    pub(crate) calls: Vec<(source::SourceSpan, source::SourceSpan)>,
+    pub(crate) warnings: Vec<Diagnostic>,
 }
 
 /// The evaluated result of one aggregate-producing initializer leaf: the

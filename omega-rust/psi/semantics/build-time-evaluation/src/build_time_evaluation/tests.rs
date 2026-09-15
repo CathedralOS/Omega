@@ -328,3 +328,145 @@ fn authority_pre_resolution_retains_the_exact_authority_for_pre_check() {
             .all(|(_, length)| !matches!(length, FixedArrayLength::ConstCall { .. }))
     );
 }
+
+#[test]
+fn const_generic_argument_calls_evaluate_their_closed_arguments() {
+    let package = PackageKeyIdentity::from_digest([0x75; 32]).expect("nonzero package identity");
+    let source = r#"
+        machine sized(value: u64) -> u64 {
+            transition { _ -> value }
+        }
+
+        data FixedBuffer<const N: u64> {
+            items: [u8; N];
+        }
+
+        data Main {
+            buffer: FixedBuffer<sized(4)>;
+        }
+    "#;
+    let (syntax, sources) = parsed_source(source, package);
+    let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(BuildTimeSourceContext {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
+    })
+    .expect("a closed scalar argument call must fold before instance synthesis");
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let folded = folded_const_arguments(&syntax);
+    assert_eq!(folded, vec![4]);
+    let mut typed = typed_after_pre_resolution(&syntax, sources);
+    pre_check
+        .evaluate(&mut typed)
+        .expect("the folded const argument must survive pre-check evaluation");
+}
+
+#[test]
+fn const_generic_argument_calls_evaluate_nested_calls() {
+    let package = PackageKeyIdentity::from_digest([0x76; 32]).expect("nonzero package identity");
+    let source = r#"
+        machine table_size() -> u64 {
+            transition { _ -> (2 + 2) }
+        }
+
+        machine sized(value: u64) -> u64 {
+            transition { _ -> value }
+        }
+
+        data FixedBuffer<const N: u64> {
+            items: [u8; N];
+        }
+
+        data Main {
+            buffer: FixedBuffer<sized(table_size())>;
+        }
+    "#;
+    let (syntax, sources) = parsed_source(source, package);
+    let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(BuildTimeSourceContext {
+            sources,
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
+    })
+    .expect("nested closed argument calls must fold before instance synthesis");
+    let (syntax, _) = evaluated.into_syntax_and_pre_check();
+    let folded = folded_const_arguments(&syntax);
+    assert_eq!(folded, vec![4]);
+}
+
+/// Every literal value surviving inside a const-generic argument after
+/// pre-resolution: integer const expressions and plain literal names both
+/// count as folded results.
+fn folded_const_arguments(syntax: &syntax_trees::SyntaxTrees) -> Vec<i64> {
+    use syntax_trees::expression::ExpressionNode;
+    use syntax_trees::types::TypeReferenceNode;
+    syntax
+        .type_references
+        .generic_nodes()
+        .iter()
+        .flat_map(|node| match syntax.type_references.type_reference(*node) {
+            TypeReferenceNode::Generic { arguments, .. } => syntax
+                .type_references
+                .type_reference_handles(*arguments)
+                .iter()
+                .filter_map(
+                    |argument| match syntax.type_references.type_reference(*argument) {
+                        TypeReferenceNode::Named(name) => name.as_str().parse::<i64>().ok(),
+                        TypeReferenceNode::ConstExpression(expression) => {
+                            match syntax.expressions.expression(*expression) {
+                                ExpressionNode::Integer(literal) => literal.value_i64(),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    },
+                )
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+#[test]
+fn const_generic_zero_argument_call_still_rejects_a_parameterized_entry() {
+    let package = PackageKeyIdentity::from_digest([0x77; 32]).expect("nonzero package identity");
+    let source = r#"
+        machine sized(value: u64) -> u64 {
+            transition { _ -> value }
+        }
+
+        data FixedBuffer<const N: u64> {
+            items: [u8; N];
+        }
+
+        data Main {
+            buffer: FixedBuffer<sized()>;
+        }
+    "#;
+    let (syntax, sources) = parsed_source(source, package);
+    let errors = match evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(BuildTimeSourceContext {
+            sources,
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
+    }) {
+        Ok(_) => panic!("a parameterless call site must keep the zero-argument boundary"),
+        Err(errors) => errors,
+    };
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("takes 1 parameter(s); a const-evaluated generic argument must call a zero-argument machine")),
+        "{errors:?}"
+    );
+}

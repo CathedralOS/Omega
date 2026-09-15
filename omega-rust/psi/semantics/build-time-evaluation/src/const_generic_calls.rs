@@ -1,10 +1,17 @@
-//! Psi pre-resolution bridge for zero-argument machine calls in const-generic
-//! arguments (`Buffer<table_size()>`). Generic record instances must be
-//! synthesized before the ordinary frontend runs, while the established
-//! build-time evaluator needs typed trees. Build a sanitized probe program,
-//! type it, reuse the same normalized build-time gate and interpreter entry as
+//! Psi pre-resolution bridge for machine calls in const-generic arguments
+//! (`Buffer<table_size()>`). Generic record instances must be synthesized
+//! before the ordinary frontend runs, while the established build-time
+//! evaluator needs typed trees. Build a sanitized probe program, type it,
+//! reuse the same normalized build-time gate and interpreter entry as
 //! fixed-array lengths, then substitute canonical decimal leaves into the
 //! authoritative syntax tree before monomorphization.
+//!
+//! Calls with closed scalar arguments (`Buffer<sized(4)>`) are ordinary
+//! applications of the same kind: the whole authored expression is evaluated
+//! as a scalar probe on a checked program so each named call goes through
+//! exact selected-entry resolution, concrete argument snapshots, and
+//! premise/failure discharge — the same admission as const-initializer calls —
+//! before its canonical result replaces the entire argument expression.
 //!
 //! Declared range endpoints inside those arguments are const positions of the
 //! same kind: `RangeValue<u64[0..=limit()]>` can only synthesize its instance
@@ -17,6 +24,7 @@
 //! post-typing admission.
 
 use diagnostics::Diagnostic;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
@@ -36,8 +44,13 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     let mut pending_type_references = Vec::new();
+    let mut applications = Vec::new();
     for (type_reference, expression) in syntax.type_references.const_expression_nodes() {
         let before = pending.len();
+        if contains_application_call(&syntax, expression)? {
+            applications.push((type_reference, expression));
+            continue;
+        }
         collect_call_leaves(&syntax, expression, &mut pending)?;
         if pending.len() > before {
             pending_type_references.push(type_reference);
@@ -48,8 +61,37 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
     // decides which of them can actually close.
     let mut endpoint_leaves = Vec::new();
     collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
-    if pending.is_empty() && endpoint_leaves.is_empty() {
+    if pending.is_empty() && endpoint_leaves.is_empty() && applications.is_empty() {
         return Ok(syntax);
+    }
+
+    // Whole-expression application probes need the declared const-argument
+    // destination: the const parameter's own type reference supplies the
+    // landing carrier. An application outside a declared const position has
+    // nothing to land on and is rejected rather than deferred.
+    let mut application_destinations = Vec::new();
+    if !applications.is_empty() {
+        let mut const_arguments =
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+                &syntax,
+            );
+        const_arguments.extend(
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
+                &syntax,
+            ),
+        );
+        for (type_reference, expression) in &applications {
+            let Some((_, destination, public)) = const_arguments
+                .iter()
+                .find(|(argument, _, _)| argument == type_reference)
+            else {
+                return Err(vec![Diagnostic::error(
+                    "a const-generic application call must occupy a declared const argument destination",
+                )
+                .with_source_span(syntax.expressions.source_span(*expression))]);
+            };
+            application_destinations.push((*type_reference, *expression, *destination, *public));
+        }
     }
 
     // The probe needs the same generic-template normalization as the real
@@ -61,6 +103,27 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
         probe.type_references.replace_type_reference(
             *type_reference,
             TypeReferenceNode::Named(Identifier::generated("0")),
+        );
+    }
+    // Application arguments get the same placeholder the scalar probes use:
+    // `false` on a bool carrier, `0` on every integer carrier. The authored
+    // expression survives whole inside the appended probe machine.
+    for (type_reference, _, destination, _) in &application_destinations {
+        let placeholder = match syntax.type_references.type_reference(*destination) {
+            TypeReferenceNode::Named(name) if name.as_str() == "bool" => "false",
+            _ => "0",
+        };
+        probe.type_references.replace_type_reference(
+            *type_reference,
+            TypeReferenceNode::Named(Identifier::generated(placeholder)),
+        );
+    }
+    for (ordinal, (_, expression, destination, _)) in application_destinations.iter().enumerate() {
+        crate::const_generic_expressions::append_probe(
+            &mut probe,
+            ordinal,
+            *expression,
+            *destination,
         );
     }
     let probe = crate::syntax_probes::normalize_generic_data(
@@ -102,6 +165,89 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
         syntax
             .expressions
             .replace_expression(expression, ExpressionNode::Integer(literal));
+    }
+
+    if !application_destinations.is_empty() {
+        // The appended probe machines are excluded from ordinary checking;
+        // their expressions are evaluated by the exact scalar evaluator with
+        // checked call admission, matching const-initializer invocations.
+        let references = application_destinations
+            .iter()
+            .map(|(_, expression, ..)| syntax.expressions.source_span(*expression))
+            .collect::<Vec<_>>();
+        let probe_symbols = typed
+            .machines()
+            .iter()
+            .filter(|machine| {
+                typed
+                    .symbols
+                    .symbol_source_span(machine.symbol)
+                    .is_some_and(|span| references.contains(&span))
+            })
+            .map(|machine| machine.symbol)
+            .collect::<Vec<_>>();
+        let checked = crate::const_initializers::CheckedInitializers::prepare(
+            &typed,
+            selection_authority.clone(),
+            &probe_symbols,
+        )?;
+        for (argument, expression, _, public) in &application_destinations {
+            let reference = syntax.expressions.source_span(*expression);
+            let failure = |reason: String| {
+                vec![
+                    Diagnostic::error(format!(
+                        "const-generic application evaluation failed: {reason}"
+                    ))
+                    .with_source_span(reference),
+                ]
+            };
+            let invocation = checked.calls_for_source(reference).map_err(&failure)?;
+            let evaluated = invocation
+                .evaluate_application_probe(reference, *public, &syntax)
+                .map_err(&failure)?;
+            // Every authored call in the const expression must appear in the
+            // probe's checked call closure; a dropped or substituted call
+            // leaves the argument without selection custody.
+            let mut authored = Vec::new();
+            collect_authored_call_sites(&syntax, *expression, &mut authored);
+            if authored.iter().any(|site| {
+                !evaluated
+                    .calls
+                    .iter()
+                    .any(|(call_site, _)| call_site == site)
+            }) {
+                return Err(failure(
+                    "application probe dropped an authored call's selection custody".to_owned(),
+                ));
+            }
+            let folded = match evaluated.value.decode_encoding() {
+                Some(DecodedCanonicalConstValue::Integer { value, .. }) => ExpressionNode::Integer(
+                    IntegerLiteral::from_parts(
+                        value < 0,
+                        IntegerRadix::Decimal,
+                        value.unsigned_abs().to_string().as_str(),
+                    )
+                    .expect("a canonical integer const result is a valid integer literal"),
+                ),
+                Some(DecodedCanonicalConstValue::Boolean(value)) => ExpressionNode::Boolean(value),
+                _ => {
+                    return Err(failure(
+                        "application probe returned a non-scalar canonical value".to_owned(),
+                    ));
+                }
+            };
+            for warning in &evaluated.warnings {
+                eprintln!("{warning}");
+            }
+            syntax.expressions.replace_expression(*expression, folded);
+            syntax.type_references.retain_const_argument_normalization(
+                *argument,
+                reference,
+                evaluated.value.encoding.clone(),
+                evaluated.origins,
+                evaluated.operators,
+            );
+        }
     }
 
     if !endpoint_leaves.is_empty() {
@@ -203,6 +349,58 @@ fn collect_endpoint_call_leaves(
             pending.push((expression, syntax.expressions.source_span(expression)));
             for argument in syntax.expressions.expression_handles(call.arguments) {
                 collect_endpoint_call_leaves(syntax, *argument, pending);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Whether a const expression contains a value-argument call; such an
+/// expression is evaluated whole by the application probe instead of by
+/// leaf substitution. Calls carrying machine or evidence arguments need the
+/// complete specialized application context and remain rejected here rather
+/// than admitted early.
+fn contains_application_call(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+) -> Result<bool, Vec<Diagnostic>> {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let left = contains_application_call(syntax, binary.left)?;
+            let right = contains_application_call(syntax, binary.right)?;
+            Ok(left || right)
+        }
+        ExpressionNode::Call(call) => {
+            if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
+                return Err(vec![Diagnostic::error(format!(
+                    "const-generic call `{}` must take no machine arguments",
+                    call.target.as_str()
+                ))]);
+            }
+            Ok(!call.arguments.is_empty())
+        }
+        _ => Ok(false),
+    }
+}
+
+/// The authored call sites inside one const expression, walking the same
+/// shapes the application probe admits so custody comparison sees the same
+/// call set (a dropped or substituted call leaves the argument without
+/// selection custody).
+fn collect_authored_call_sites(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    sites: &mut Vec<source::SourceSpan>,
+) {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            collect_authored_call_sites(syntax, binary.left, sites);
+            collect_authored_call_sites(syntax, binary.right, sites);
+        }
+        ExpressionNode::Call(call) => {
+            sites.push(syntax.expressions.source_span(expression));
+            for argument in syntax.expressions.expression_handles(call.arguments) {
+                collect_authored_call_sites(syntax, *argument, sites);
             }
         }
         _ => {}
