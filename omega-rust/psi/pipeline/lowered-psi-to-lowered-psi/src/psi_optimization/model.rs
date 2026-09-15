@@ -1,6 +1,6 @@
 //! Pre-Terminal optimization stage carriers and errors.
 
-use optimization::{PsiOptimization, PsiOptimizationSelections};
+use optimization::PsiOptimizationSelections;
 use terminal_codec::{
     CodecError, DebugMapError, ProofCodecError, PsiOptimizationExecutionRecord,
     PsiOptimizationExecutionRecordError,
@@ -68,7 +68,6 @@ pub enum PsiOptimizationStageError {
     InvalidProof(ProofCodecError),
     InvalidDebugMap(DebugMapError),
     InvalidExecutionRecord(PsiOptimizationExecutionRecordError),
-    UnsupportedSelection(PsiOptimization),
 }
 
 impl std::fmt::Display for PsiOptimizationStageError {
@@ -109,11 +108,6 @@ impl std::fmt::Display for PsiOptimizationStageError {
             Self::InvalidExecutionRecord(error) => {
                 write!(formatter, "invalid optimization execution record: {error}")
             }
-            Self::UnsupportedSelection(optimization) => write!(
-                formatter,
-                "Psi optimization `{}` has no pre-Terminal implementation",
-                optimization.name()
-            ),
         }
     }
 }

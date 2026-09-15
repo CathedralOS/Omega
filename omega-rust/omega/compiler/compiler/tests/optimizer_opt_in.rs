@@ -541,7 +541,7 @@ fn partial_rollback_routes_the_remaining_psi_selection_to_preterminal() {
         ),
     );
     let build_dir = root.join("build");
-    let diagnostics = compiler::compile(
+    let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -554,15 +554,40 @@ fn partial_rollback_routes_the_remaining_psi_selection_to_preterminal() {
         ),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
-    .expect_err("an unported Psi pass must fail at its pre-Terminal owner");
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("Optimization(UnsupportedSelection(ControlFlowCleanup))"),
-        "unexpected diagnostic: {}",
-        diagnostics[0].message
+    .expect("the remaining Psi selection executes at its pre-Terminal owner");
+    let receipt = report
+        .optimization_rollback_receipt()
+        .expect("a partial rollback reports the receipt of what actually ran");
+    assert_eq!(
+        receipt.actually_disabled().as_slice(),
+        &[Optimization::CopyPropagation]
     );
+    assert_eq!(
+        receipt.effective().as_slice(),
+        &[Optimization::ControlFlowCleanup]
+    );
+    let artifact = report
+        .retained_native_artifact()
+        .expect("the surviving selection still reaches native custody");
+    let executed = artifact.psi_artifact().optimization().selections();
+    assert_eq!(executed.as_slice().len(), 1);
+    assert!(
+        executed.contains(
+            Optimization::ControlFlowCleanup
+                .optimization()
+                .expect("ControlFlowCleanup is a Psi selection")
+        )
+    );
+    assert!(
+        !executed.contains(
+            Optimization::CopyPropagation
+                .optimization()
+                .expect("CopyPropagation is a Psi selection")
+        )
+    );
+    artifact
+        .validate()
+        .expect("the retained native artifact replays");
     assert!(!build_dir.join("omega-program.exe").exists());
 }
 
@@ -1537,22 +1562,18 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
     );
 
     let build_dir = selected.join("build");
-    let diagnostics = compile_native_and_publish(CompileOptions {
+    let report = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x86_64".into()),
     })
-    .expect_err("the build-visible layout selection must remain execution-gated");
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("`X86RelaxConditionalBranchesToRel8V1`"),
-        "{diagnostics:?}"
-    );
-    assert!(diagnostics[0].message.contains("no output was installed"));
+    .expect("the selected layout rule executes through native publication on x86");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("publication returns the executable receipt");
+    assert_eq!(executable, build_dir.join("omega-program.exe").as_path());
+    assert!(executable.is_file());
     assert!(!build_dir.join("omega-program").exists());
-    assert!(!build_dir.join("omega-program.exe").exists());
 }
 
 #[test]
@@ -1778,22 +1799,18 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
     );
 
     let build_dir = selected.join("build");
-    let diagnostics = compile_native_and_publish(CompileOptions {
+    let report = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x86_64".into()),
     })
-    .expect_err("the build-visible allocation recovery must remain publication-gated");
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("`SharedEntryFixedViewCopyAfterCompareBeforeBranchV1`"),
-        "{diagnostics:?}"
-    );
-    assert!(diagnostics[0].message.contains("no output was installed"));
+    .expect("the selected allocation-recovery rule executes through native publication");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("publication returns the executable receipt");
+    assert_eq!(executable, build_dir.join("omega-program.exe").as_path());
+    assert!(executable.is_file());
     assert!(!build_dir.join("omega-program").exists());
-    assert!(!build_dir.join("omega-program.exe").exists());
 }
 
 #[test]
@@ -1890,7 +1907,7 @@ fn terminal_product_routes_selected_psi_pass_to_preterminal_stage() {
 "#,
         ),
     );
-    let diagnostics = compiler::compile(
+    let report = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
             build_dir: None,
@@ -1899,15 +1916,27 @@ fn terminal_product_routes_selected_psi_pass_to_preterminal_stage() {
         .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
-    .expect_err("an unported Psi pass must fail before Terminal publication");
-    assert_eq!(diagnostics.len(), 1);
+    .expect("a selected Psi pass executes at its pre-Terminal owner before publication");
+    let artifact = report
+        .artifact()
+        .expect("the Terminal product retains its canonical artifact");
+    let executed = artifact.optimization().selections();
+    assert_eq!(executed.as_slice().len(), 1);
     assert!(
-        diagnostics[0]
-            .message
-            .contains("Optimization(UnsupportedSelection(ControlFlowCleanup))"),
-        "unexpected diagnostic: {}",
-        diagnostics[0].message
+        executed.contains(
+            Optimization::ControlFlowCleanup
+                .optimization()
+                .expect("ControlFlowCleanup is a Psi selection")
+        )
     );
+    assert_eq!(
+        artifact.manifest().optimization(),
+        artifact.optimization().identity(),
+        "the published manifest binds the execution that produced it"
+    );
+    artifact
+        .validate()
+        .expect("the optimized Terminal artifact replays");
 }
 
 #[test]
