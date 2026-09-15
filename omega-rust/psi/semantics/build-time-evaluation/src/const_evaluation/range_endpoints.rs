@@ -15,6 +15,13 @@
 //! context-free `i64` interval evaluator in `validation` never sees the call,
 //! so it cannot become the identity of a named computation.
 //!
+//! An endpoint callee whose reachable closure holds a resolved
+//! boundary-operator use cannot run before provider selection: it defers with
+//! the owning pre-check continuation, then evaluates under the same selected
+//! rows the deferred fixed-array lengths use -- sealed primitive-float
+//! meanings plus each selected provider's ordinary checked body, rebound on a
+//! private execution copy so the caller's tree keeps its authored selection.
+//!
 //! A type qualifier is not a runtime receiver. Reuse the typed call's resolved
 //! entry and receiver classification, then evaluate that exact machine symbol;
 //! rebuilding a name could select an unrelated same-spelled machine. Calls with
@@ -62,17 +69,86 @@ pub fn evaluate_const_range_endpoints_with_authority(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
+    evaluate_const_range_endpoints_with_selected(typed, selection_authority, &[], &[])
+}
+
+/// Whether any still-authored endpoint call's reachable machine closure holds
+/// a resolved boundary-operator use that only exact selected execution can
+/// run. Mirrors the fixed-array-length deferral gate: the owning continuation
+/// waits for Omega's settled rows rather than failing such an endpoint against
+/// an unselected admission.
+pub(crate) fn pending_endpoint_calls_need_operator_selection(
+    typed: &TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<bool, Vec<Diagnostic>> {
+    let pending = pending_endpoints(typed)?;
+    if pending.is_empty() {
+        return Ok(false);
+    }
+    // Admission and the deferral scan must see the same closed static
+    // applications as the eventual evaluation; prepare once and reuse it.
+    let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
+    let execution = prepared.typed();
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
+    let admission =
+        BuildTimeAdmissionPlan::infer_with_selection_authority(execution, selection_authority);
+    Ok(pending.iter().any(|endpoint| {
+        admission.closure_needs_operator_selection(execution, endpoint.machine, &facts)
+    }))
+}
+
+/// Record every still-authored endpoint call as deferred to selected
+/// execution. Interim checking passes over the typed tree before the owning
+/// continuation resumes, so the marks keep a pending endpoint from being
+/// misread as a non-constant or dependent bound; each fold removes its mark.
+pub(crate) fn defer_pending_endpoint_calls(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    for endpoint in pending_endpoints(typed)? {
+        typed
+            .pending_const_range_endpoints
+            .insert(endpoint.expression);
+    }
+    Ok(())
+}
+
+/// Finish still-authored endpoint calls under the exact selected rows Omega
+/// settled for this program. `operators` supplies the sealed primitive-float
+/// meanings; `provider_bodies` rebinds each retained boundary-operator
+/// occurrence to its selected provider's ordinary checked body on the private
+/// execution copy -- the caller's tree keeps its authored selection and
+/// source-owned handles for final checking, exactly as deferred fixed-array
+/// lengths do.
+pub(crate) fn evaluate_const_range_endpoints_with_selected(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    operators: &[crate::SelectedBuildTimeBinaryOperator],
+    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
+) -> Result<(), Vec<Diagnostic>> {
     let pending = pending_endpoints(typed)?;
     if pending.is_empty() {
         return Ok(());
     }
 
     let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
-    let execution = prepared.typed();
+    let selected_execution = if provider_bodies.is_empty() {
+        None
+    } else {
+        Some(
+            crate::machine_execution::selected_operators::apply_selected_provider_bodies(
+                prepared.typed(),
+                provider_bodies,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        )
+    };
+    let execution = selected_execution
+        .as_ref()
+        .unwrap_or_else(|| prepared.typed());
     let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(
         execution,
         selection_authority.clone(),
-    );
+    )
+    .with_selected_operators(execution, operators)
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
 
     let mut diagnostics = Vec::new();
     let mut substitutions = Vec::new();
@@ -181,6 +257,7 @@ pub fn evaluate_const_range_endpoints_with_authority(
     if diagnostics.is_empty() {
         for (expression, literal) in substitutions {
             *typed.expression_table.expression_mut(expression) = ExpressionNode::Integer(literal);
+            typed.pending_const_range_endpoints.remove(&expression);
         }
         for warning in warnings {
             eprintln!("{warning}");

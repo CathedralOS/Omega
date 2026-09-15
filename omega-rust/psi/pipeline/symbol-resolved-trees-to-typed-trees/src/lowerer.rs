@@ -515,6 +515,9 @@ impl Lowerer<'_> {
             evidence_forwardings,
             proof_output_calls,
             ranking_expression_custody,
+            // Typing precedes every build-time evaluation deferral, so no
+            // pending endpoint mark can exist here to carry forward.
+            pending_const_range_endpoints: _,
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);

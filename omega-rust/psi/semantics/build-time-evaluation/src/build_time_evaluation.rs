@@ -100,6 +100,8 @@ pub fn evaluate_pre_resolution(
             placed_view_records,
             plan_laid_records,
             selection_authority,
+            selected_operators: Vec::new(),
+            provider_bodies: Vec::new(),
         },
     })
 }
@@ -134,6 +136,11 @@ pub struct PreCheckEvaluation {
     placed_view_records: Vec<PlacedViewRecord>,
     plan_laid_records: Vec<PlanLaidRecord>,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    /// Exact selected rows supplied only when the deferred continuation is
+    /// finished under Omega's settled plans. They stay empty on the early
+    /// route so an unselected occurrence can never borrow selected custody.
+    selected_operators: Vec<SelectedBuildTimeBinaryOperator>,
+    provider_bodies: Vec<SelectedBuildTimeProviderBody>,
 }
 
 impl PreCheckEvaluation {
@@ -143,7 +150,13 @@ impl PreCheckEvaluation {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
-        if const_lengths::evaluate_independent_lengths(typed, self.selection_authority.clone())? {
+        if const_lengths::evaluate_independent_lengths(typed, self.selection_authority.clone())?
+            || range_endpoints::pending_endpoint_calls_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+            )?
+        {
+            range_endpoints::defer_pending_endpoint_calls(typed)?;
             return Ok(Some(self));
         }
         self.evaluate(typed)?;
@@ -159,13 +172,15 @@ impl PreCheckEvaluation {
         self.evaluate_or_defer(typed)
     }
 
-    /// Finish the deferred const lengths under exact selected execution.
+    /// Finish the deferred const work under exact selected execution.
     /// `operators` supplies the sealed primitive-float meanings and
     /// `provider_bodies` the exact selected checked provider bodies; each
     /// retained occurrence keeps its own row so a stale or substituted
-    /// selection can never stand in for the current one.
+    /// selection can never stand in for the current one. The remaining typed
+    /// const positions (range endpoints today) observe the same rows when the
+    /// continuation resumes.
     pub fn evaluate_with_selected_operators(
-        self,
+        mut self,
         typed: &mut typed_trees::TypedTrees,
         operators: &[SelectedBuildTimeBinaryOperator],
         provider_bodies: &[SelectedBuildTimeProviderBody],
@@ -176,6 +191,8 @@ impl PreCheckEvaluation {
             operators,
             provider_bodies,
         )?;
+        self.selected_operators = operators.to_vec();
+        self.provider_bodies = provider_bodies.to_vec();
         self.evaluate(typed)?;
         Ok(folds)
     }
@@ -193,9 +210,11 @@ impl PreCheckEvaluation {
             typed,
             self.selection_authority.clone(),
         )?;
-        range_endpoints::evaluate_const_range_endpoints_with_authority(
+        range_endpoints::evaluate_const_range_endpoints_with_selected(
             typed,
             self.selection_authority.clone(),
+            &self.selected_operators,
+            &self.provider_bodies,
         )?;
         const_domain_facts::evaluate_const_domain_facts_with_authority(
             typed,

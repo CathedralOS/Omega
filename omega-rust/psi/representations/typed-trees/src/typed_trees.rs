@@ -88,6 +88,16 @@ pub struct TypedTrees {
     /// termination plan retains stable semantic text; checked consumers join
     /// through these handles instead of rediscovering expressions by spelling.
     pub ranking_expression_custody: Vec<crate::ranking::RankingExpressionCustody>,
+    /// Range-endpoint call expressions whose const evaluation deferred to
+    /// selected execution. The build-time evaluation owner marks every
+    /// still-authored endpoint its continuation will fold; interim checking
+    /// treats exactly those marked bounds as pending constants rather than
+    /// non-constant or dependent ranges. The evaluator removes each mark as
+    /// its endpoint folds, and checked lowering refuses any mark that
+    /// survives to it -- a surviving mark is a lost continuation, never an
+    /// unbounded range.
+    pub pending_const_range_endpoints:
+        std::collections::HashSet<crate::expression::ExpressionHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -679,6 +689,7 @@ impl TypedTrees {
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             ranking_expression_custody: Vec::new(),
+            pending_const_range_endpoints: std::collections::HashSet::new(),
         }
     }
 

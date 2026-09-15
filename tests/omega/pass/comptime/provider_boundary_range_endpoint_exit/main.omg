@@ -1,0 +1,46 @@
+// A declared range endpoint whose const machine invokes a selected boundary
+// operator must execute the provider's ordinary checked body during semantic
+// const evaluation -- never a builtin spelling. `Provider::remainder` computes
+// `left | right` = 7 where builtin `%` would fold 1, so passing 7 to
+// `take_bounded` only type-checks when the provider body actually ran.
+use omega_language_std::console;
+
+data Math {}
+
+boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+
+data Provider {}
+
+machine Provider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder
+{
+    transition { _ -> (left | right) }
+}
+
+machine limit() -> u64 {
+    let left: u64 = 7;
+    let right: u64 = 2;
+    transition { _ -> (left % right) }
+}
+
+machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let bounded: u64 = take_bounded(7);
+    transition bounded == 7 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

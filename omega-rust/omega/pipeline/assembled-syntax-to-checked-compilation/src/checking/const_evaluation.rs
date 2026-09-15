@@ -273,6 +273,31 @@ fn operator_name(
         .join("::")
 }
 
+/// A deferred range-endpoint mark that survives selected settlement means its
+/// owning pre-check continuation was lost before it could fold -- a custody
+/// break, never coverage. The evaluator clears each mark as it substitutes
+/// the landed integer, so any remainder names an endpoint no continuation
+/// evaluated.
+pub(super) fn require_evaluated_range_endpoints(
+    program: &typed_trees::TypedTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let pending = program
+        .pending_const_range_endpoints
+        .iter()
+        .map(|expression| {
+            Diagnostic::error(
+                "range endpoint has an unresolved build-time evaluation dependency".to_owned(),
+            )
+            .with_source_span(program.expression_table.source_span(*expression))
+        })
+        .collect::<Vec<_>>();
+    if pending.is_empty() {
+        Ok(())
+    } else {
+        Err(pending)
+    }
+}
+
 pub(super) fn require_evaluated_array_lengths(
     program: &typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {

@@ -149,6 +149,7 @@ pub(super) fn check_selected_execution(
         }
     }
     const_evaluation::require_evaluated_array_lengths(&typed)?;
+    const_evaluation::require_evaluated_range_endpoints(&typed)?;
     let root_grants = build_config
         .grants
         .iter()

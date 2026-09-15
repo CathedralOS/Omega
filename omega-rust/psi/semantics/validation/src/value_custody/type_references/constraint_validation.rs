@@ -5,6 +5,7 @@ use super::{
 };
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// A domain constraint `T in Name` is satisfied by a declared `domain <T>::Name`:
@@ -179,6 +180,33 @@ pub(super) fn validate_type_constraints_node(
                     // here so an unranged/mistyped field name refuses at the
                     // declaration instead of unproving every call site.
                     _ if primitive_type.accepts_integer_literal() => {
+                        // A still-authored endpoint call whose const
+                        // evaluation deferred to selected execution is a
+                        // PENDING CONSTANT, not a dependent or non-constant
+                        // bound: the owning pre-check continuation lands the
+                        // integer literal here before final checked lowering,
+                        // the same position the `(Some, Some)` arm accepts
+                        // for an already evaluated endpoint. Marks are set
+                        // only by the build-time evaluation owner when its
+                        // continuation defers, so an unmarked call still
+                        // refuses below. The gate requires at least one real
+                        // mark: a bound whose leaves happen to be integers
+                        // but whose whole does not fold (`0..=5 / 2` keeps a
+                        // fractional landing) is still the non-constant arm
+                        // below, not a pending constant. This gate is
+                        // deliberately owner-independent: the
+                        // immediate-evaluation route folds the same call to
+                        // a literal before any owner distinction applies.
+                        let mut found_pending = false;
+                        if [*minimum, *maximum].into_iter().all(|bound| {
+                            let (closed, pending) =
+                                range_bound_pending_evaluation_shape(program, bound);
+                            found_pending |= pending;
+                            closed
+                        }) && found_pending
+                        {
+                            continue;
+                        }
                         if matches!(
                             owner,
                             TypeReferenceOwner::StateReturn {
@@ -395,6 +423,37 @@ fn validate_layout_domain_constraint(
                  `{schema_name}` exists"
             )));
         }
+    }
+}
+
+/// The pending-evaluation shape of one range bound:
+/// `(closed_or_pending, contains_pending_mark)`. A marked endpoint call admits
+/// as the pending constant the owning continuation still folds; a closed
+/// integer admits as already evaluated. The evaluator's pending scan descends
+/// the same binary composition this walks, so a bound with any other unclosed
+/// leaf (a place read, an unmarked call) refuses. `contains_pending_mark`
+/// stays false for a bound that merely has integer leaves without a mark --
+/// whole-expression folding, not leaf shape, decides those bounds, so
+/// `0..=5 / 2` still reaches the non-constant arm below.
+fn range_bound_pending_evaluation_shape(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> (bool, bool) {
+    if program.pending_const_range_endpoints.contains(&expression) {
+        return (true, true);
+    }
+    if crate::closed_integer_range_bound(program, expression).is_some() {
+        return (true, false);
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let (left_closed, left_pending) =
+                range_bound_pending_evaluation_shape(program, binary.left);
+            let (right_closed, right_pending) =
+                range_bound_pending_evaluation_shape(program, binary.right);
+            (left_closed && right_closed, left_pending || right_pending)
+        }
+        _ => (false, false),
     }
 }
 
