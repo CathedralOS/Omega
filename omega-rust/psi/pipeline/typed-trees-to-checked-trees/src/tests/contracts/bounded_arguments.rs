@@ -292,6 +292,57 @@ fn strict_float_calls_retain_and_enforce_the_authored_endpoint() {
 }
 
 #[test]
+fn float_call_endpoints_read_at_the_declared_carrier() {
+    // Landed f32 arguments compare on the widened f32 grid, so an authored
+    // f32 endpoint must read its spelling at binary32 -- not at the
+    // transitional f64 window, where `0.3` and its f32 rendering
+    // (0.30000001192092896) order differently. At the carrier both spellings
+    // land on the same value, so the inclusive endpoint admits it.
+    let inclusive = r#"
+        machine accept(value: f32 [0.0..=0.3]) -> f32 { value }
+        machine run() { _ = accept(0.3); }
+    "#;
+    lower_typed_trees(parse_typed_trees(inclusive))
+        .unwrap_or_else(|diagnostics| panic!("{inclusive}\n{diagnostics:#?}"));
+
+    // f32("0.10000000149011613") rounds to 0.1f32, so the exclusive endpoint
+    // IS the delivered argument at the carrier. The f64 text read sits one
+    // f64 step above the landed argument and would wrongly admit the call.
+    let exclusive = r#"
+        machine accept(value: f32 [0.0..0.10000000149011613]) -> f32 { value }
+        machine run() { _ = accept(0.1); }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(exclusive))
+        .expect_err("the exclusive f32 endpoint equals the delivered f32 value");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove call argument")),
+        "{diagnostics:#?}"
+    );
+
+    // A suffixed argument keeps its authored landing: `0.3f32` reads as the
+    // widened f32 value, which IS the exclusive endpoint at the carrier.
+    let suffixed_argument = r#"
+        machine accept(value: f32 [0.0..0.3]) -> f32 { value }
+        machine run() { _ = accept(0.3f32); }
+    "#;
+    assert!(
+        lower_typed_trees(parse_typed_trees(suffixed_argument)).is_err(),
+        "an f32-suffixed argument equal to the exclusive f32 endpoint must reject"
+    );
+
+    // An f32-landed endpoint under an f64 range keeps its widened f32 value:
+    // 0.3f64 < f64(0.3f32), so the strict endpoint still admits `0.3`.
+    let landed_endpoint = r#"
+        machine accept(value: f64 [0.0..0.3f32]) -> f64 { value }
+        machine run() { _ = accept(0.3); }
+    "#;
+    lower_typed_trees(parse_typed_trees(landed_endpoint))
+        .unwrap_or_else(|diagnostics| panic!("{landed_endpoint}\n{diagnostics:#?}"));
+}
+
+#[test]
 fn incoming_argument_guards_keep_their_own_polarity() {
     let positive = r#"
         machine accept(delivered: u32 [1..=5]) -> u32 { delivered }

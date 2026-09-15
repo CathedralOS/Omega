@@ -1693,8 +1693,8 @@ fn float_range_from_constraints(constraints: &[ProofConstraint]) -> Option<Float
         };
 
         let candidate = FloatRange {
-            minimum: minimum.value(),
-            maximum: maximum.value(),
+            minimum: minimum.landed_f64(),
+            maximum: maximum.landed_f64(),
             maximum_inclusive: *maximum_inclusive,
         };
 
@@ -1708,7 +1708,9 @@ fn float_range_from_constraints(constraints: &[ProofConstraint]) -> Option<Float
 }
 
 fn finite_float_literal(value: &typed_trees::expression::FloatLiteral) -> Option<f64> {
-    let value = value.value();
+    // The riding landing decides the value: `0.3f32` is the widened f32, not
+    // the f64 read of its spelling (and f32 overflow is genuinely infinite).
+    let value = value.landed_f64();
     value.is_finite().then_some(value)
 }
 
