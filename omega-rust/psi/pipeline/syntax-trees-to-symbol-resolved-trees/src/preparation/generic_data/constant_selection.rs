@@ -200,11 +200,11 @@ impl<'base> ConstantSelection<'base> {
     }
 
     /// Whether the authored spelling reaches an in-forest domain declaration
-    /// under module name law, including generic families `domain` excludes.
-    /// When `domain` returns `None` this distinguishes absence — nothing was
-    /// reachable, so a retained-base owner may still be selected — from a
-    /// contested spelling whose reachable in-forest candidates the resolver
-    /// will pool and reject or own itself.
+    /// under module name law, including generic families whose closed
+    /// membership `domain` declines to evaluate. When `domain` returns `None`
+    /// this distinguishes absence — nothing was reachable, so a retained-base
+    /// owner may still be selected — from a contested spelling whose reachable
+    /// in-forest candidates the resolver will pool and reject or own itself.
     pub(super) fn contested_domain(
         &self,
         syntax: &SyntaxTrees,
@@ -237,10 +237,10 @@ impl<'base> ConstantSelection<'base> {
     /// declaration, and unmoduled domains keep root scope.
     ///
     /// `None` means undecidable here — nothing selected, competing owners,
-    /// a generic family (its closed membership belongs to the downstream
-    /// family normalization), or a retained-base domain with no declaration in
-    /// this forest. Callers keep the fact as a checked obligation rather than
-    /// discharge it against a guessed owner.
+    /// a reachable generic family (its closed membership belongs to the
+    /// downstream family normalization), or a retained-base domain with no
+    /// declaration in this forest. Callers keep the fact as a checked
+    /// obligation rather than discharge it against a guessed owner.
     pub(super) fn domain<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
@@ -268,9 +268,14 @@ impl<'base> ConstantSelection<'base> {
             let Some(definition) = declarations.next() else {
                 continue;
             };
-            if declarations.next().is_some() || !definition.type_parameters.is_empty() {
+            if declarations.next().is_some() {
                 continue;
             }
+            // Generic families pool too, exactly as the resolver's candidate
+            // set does: beside a same-leaf sibling they contest the spelling,
+            // and module-local preference ranks them ahead of foreign or root
+            // candidates. Skipping them here would silently cede the spelling
+            // to a non-generic sibling the resolver never selects.
             pool.push((symbol, definition));
         }
         let preferred = crate::symbols::prefer_module_local_domain(
@@ -282,6 +287,16 @@ impl<'base> ConstantSelection<'base> {
             .into_iter()
             .filter(|(symbol, _)| preferred.contains(symbol))
             .collect();
+        // A preferred generic family owns or contests this selection, but its
+        // closed membership still belongs to the downstream family
+        // normalization; decline rather than evaluate against it or cede the
+        // spelling to a pooled sibling.
+        if pool
+            .iter()
+            .any(|(_, definition)| !definition.type_parameters.is_empty())
+        {
+            return None;
+        }
         let (first_symbol, first) = pool.first()?;
         // Same complete logical path is one semantic candidate, matching the
         // post-resolution lookup's name/identity collapse. Competing owners
