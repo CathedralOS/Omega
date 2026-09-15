@@ -1,19 +1,38 @@
 //! Ordinary-machine roster construction, block traversal, and final assembly.
-use super::{LoweringError, lower_operation, lower_terminator};
+use crate::lowering::LoweringError;
+use semantic_vocabulary::OperationId;
+#[path = "operation/mod.rs"]
+mod operation;
+#[path = "terminator.rs"]
+mod terminator;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractParameter, AbstractResult,
 };
+use operation::lower_operation;
 use semantic_vocabulary::StructuralPlaceKind;
 use std::collections::BTreeMap;
 use terminal_psi::TerminalMachine;
+use terminator::lower_terminator;
 
-pub(super) fn lower_ordinary_machine(
+type StructuralLiteral<'a> = (
+    &'a terminal_psi::StructuralPlaceDeclaration,
+    u32,
+    semantic_vocabulary::StructuralTypeId,
+);
+type LoweredAffineLocal = (
+    OperationId,
+    terminal_psi::StructuralPlaceDeclaration,
+    terminal_psi::StructuralTypeDeclaration,
+);
+
+pub(super) fn lower_machine(
+    module: &terminal_psi::TerminalModule,
     machine: &TerminalMachine,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
-    closed_conformance_applications: &[terminal_psi::ClosedConformanceApplication],
 ) -> Result<AbstractFunction, LoweringError> {
+    let structural_types = &module.structural_types;
+    let dynamic_dispatch = &module.dynamic_dispatch;
+    let closed_conformance_applications = &module.closed_conformance_applications;
     let result = machine.result.scalar();
     let blocks = machine
         .blocks

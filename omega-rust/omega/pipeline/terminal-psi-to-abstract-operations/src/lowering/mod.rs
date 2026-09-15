@@ -7,6 +7,7 @@ use terminal_codec::terminal_psi_identity;
 use terminal_verifier::{VerifiedOptimizableTerminalModule, VerifiedTerminalModule};
 mod block_bindings;
 mod error;
+#[path = "machine/lower_machine.rs"]
 mod machine;
 
 pub use error::LoweringError;
@@ -50,14 +51,7 @@ fn lower_decoded_module(module: &TerminalModule) -> Result<AbstractOperationPlan
     let functions = module
         .machines
         .iter()
-        .map(|machine| {
-            lower_machine(
-                module,
-                machine,
-                &module.structural_types,
-                &module.dynamic_dispatch,
-            )
-        })
+        .map(|machine| lower_machine(module, machine))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(AbstractOperationPlan {
         psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,

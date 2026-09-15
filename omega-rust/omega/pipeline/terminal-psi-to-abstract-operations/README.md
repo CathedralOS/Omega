@@ -15,6 +15,14 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
 - `lowering`: one operation-by-operation walk for scalar, Unit, and structural
   results. Optimization selection does not change this projection.
 
+[Module lowering](src/lowering/mod.rs) checks entry and structural block bindings,
+then calls [machine lowering](src/lowering/machine/lower_machine.rs) directly.
+That owner prepares block/value rosters, visits blocks in order, dispatches
+[operations](src/lowering/machine/operation/mod.rs) and
+[terminators](src/lowering/machine/terminator.rs), and assembles the abstract
+function. Scalar, Unit and structural results share this traversal; there is no
+separate forwarding or ordinary-machine route to navigate.
+
 No checked tree, StateGraph, or caller-created module substitutes for the
 canonical artifact. Unsupported vocabulary rejects at admission or lowering;
 provider installation is not permission to drop an unsupported result.
