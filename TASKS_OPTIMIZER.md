@@ -264,7 +264,26 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   identities, the closed stage and unavailable markers, unknown vocabulary,
   architecture, object-format, and optional-section tags, a zero machine
   identity, and trailing or truncated envelopes are rejected at canonical
-  decoding.
+  decoding. Landed: deployment-journal canonical records, durable storage,
+  and runtime recovery joins (`component-publication/src/tests.rs`,
+  `component_deployment_journal_rejects_every_one_field_substitution`,
+  f125c9e2d4) — the journal identity, phase, both contract identities,
+  every prior, live-era, and candidate era-occurrence axis, each live-era
+  row's state and active-entry count, the entry-plan and admission-receipt
+  identities, the envelope identity and canonical bytes, and every
+  admission class, subject, and identity are independently representable
+  and rejected by replay: the Prepared-to-Activated transition binds the
+  exact durable predecessor, durable storage replays the retained record
+  against its bytes, restart reconciliation binds the journal and
+  contract identities plus the offered recovery choices, and the runtime
+  recovery join replays occurrence axes and canonical installation
+  evidence against the live ledger; honestly recomputed installation
+  evidence still encodes yet rejects at the same replays; zero axes,
+  empty text and byte fields, unordered, duplicated, dropped, or
+  extended rosters, and a drifted installation fingerprint or record are
+  rejected at encoding or decoding as non-canonical, as are the magic,
+  version, phase, state, and presence tags, count ceilings, non-UTF-8
+  text, trailing bytes, truncation, and on-disk tampering at decode.
 
 ## Psi optimization and loops
 
