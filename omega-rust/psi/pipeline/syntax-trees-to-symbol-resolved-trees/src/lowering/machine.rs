@@ -205,12 +205,25 @@ fn compiler_selection_partition(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition> {
-    let [requirement] = syntax_trees.items.satisfies_clauses(machine.satisfies) else {
+    // Only compiler-derived declarations carry generated names; an authored
+    // spelling must never receive a partition.
+    if machine.name.is_source_backed() {
         return None;
+    }
+    let ordinal = u64::try_from(machine_ordinal).ok()?;
+    let [requirement] = syntax_trees.items.satisfies_clauses(machine.satisfies) else {
+        // Synthesized defaults for parameterized traits rejoin their
+        // requirement through the instantiated generic instead of a satisfies
+        // clause. The conformance application still needs its own partition:
+        // copies of one authored call may select a different exact realization
+        // per carrier.
+        return machine
+            .attached_data
+            .is_some()
+            .then(|| language_semantics::declaration_selection::CompilerDerivedSelectionPartition::from_compiler_ordinal(ordinal));
     };
     let requirement_name = requirement.requirement.as_ref()?;
-    if machine.name.is_source_backed()
-        || requirement.trait_name.is_source_backed()
+    if requirement.trait_name.is_source_backed()
         || requirement_name.is_source_backed()
         || requirement.alias.is_some()
         || requirement.via.is_some()
@@ -218,7 +231,6 @@ fn compiler_selection_partition(
     {
         return None;
     }
-    let ordinal = u64::try_from(machine_ordinal).ok()?;
     Some(
         language_semantics::declaration_selection::CompilerDerivedSelectionPartition::from_compiler_ordinal(
             ordinal,

@@ -1,7 +1,7 @@
 // Defaults flow through both body-level `requires` and header-parent
 // composition. A conformance to the child trait alone receives the inherited
 // machine.
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Resettable {
     machine set(&mut self, value: i32);
@@ -80,7 +80,7 @@ data Main {
     resolved_value: ResolvedValue;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.required_value.reset();
     self.parent_value.reset();
     self.resolved_value.reset();
