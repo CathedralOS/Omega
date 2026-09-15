@@ -367,8 +367,12 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
 fn machine_specialization_compact_coordinate_is_report_only_beside_strong_authority() {
     let root = workspace_root();
     let typed_path = root.join("omega-rust/psi/representations/typed-trees/src/typed_trees.rs");
+    let commitments_path = typed_path.with_extension("").join("commitments.rs");
     let typed = fs::read_to_string(&typed_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", typed_path.display()));
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", typed_path.display()))
+        + &fs::read_to_string(&commitments_path).unwrap_or_else(|error| {
+            panic!("failed to read {}: {error}", commitments_path.display())
+        });
     assert!(
         typed.contains("pub report_fingerprint: u64")
             && typed.contains("pub commitment: MachineSpecializationCommitment")

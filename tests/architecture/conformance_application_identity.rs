@@ -18,7 +18,11 @@ fn source(relative: &str) -> String {
 
 #[test]
 fn closed_conformance_dispatch_never_authorizes_with_a_compact_identity_alone() {
-    let typed = source("omega-rust/psi/representations/typed-trees/src/typed_trees.rs");
+    let typed = [
+        source("omega-rust/psi/representations/typed-trees/src/typed_trees.rs"),
+        source("omega-rust/psi/representations/typed-trees/src/typed_trees/commitments.rs"),
+    ]
+    .join("\n");
     let checked =
         source("omega-rust/psi/representations/checked-trees/src/checked_trees/proof/contracts.rs");
     let terminal = [
