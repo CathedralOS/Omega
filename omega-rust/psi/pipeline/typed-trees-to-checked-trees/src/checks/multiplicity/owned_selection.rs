@@ -3,19 +3,25 @@
 //! the actual death edge. A path constructing a fresh result discards, at the
 //! join edge, the one source whose residual slot the result displaces; every
 //! other complement stays in the receipt until the actual death edge.
-use super::{
-    CheckFacts, Diagnostic, HandleSpan, Multiplicity, PermissionClaimIdentity,
-    PermissionEventSource, PermissionProvenance, StatementNode, SymbolHandle, TypeReferenceHandle,
-    TypeReferenceNode,
-};
-use crate::checks::multiplicity::LinearPlace;
-use crate::checks::multiplicity::type_reference_is_reference;
+use crate::checks::multiplicity::linear_obligations::LinearPlace;
+use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::type_multiplicity;
 use arena::Handle;
+use arena::HandleSpan;
+use checked_trees::CheckFacts;
 use checked_trees::{
     FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,
 };
+use diagnostics::Diagnostic;
+use language_semantics::Multiplicity;
+use language_semantics::PermissionClaimIdentity;
+use language_semantics::PermissionEventSource;
+use language_semantics::PermissionProvenance;
+use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern, TableMatchArm};
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn record_statement(
     program: &typed_trees::TypedTrees,

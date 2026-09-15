@@ -1,15 +1,15 @@
 //! A temporary's selected subtree moves; its exact complement dies at the call.
-use super::super::PermissionEventSource;
 use super::{
     CheckFacts, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionProvenance, SymbolHandle,
     TypeReferenceNode,
 };
-use crate::checks::multiplicity::permission_kind_for_move;
-use crate::checks::multiplicity::permission_source;
+use crate::checks::multiplicity::linear_validation::permission_kind_for_move;
+use crate::checks::multiplicity::linear_validation::permission_source;
 use crate::checks::type_carries_linear_obligation;
 use crate::checks::type_multiplicity;
 use crate::flow::FlowOwnershipEventSource;
+use language_semantics::PermissionEventSource;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append(
