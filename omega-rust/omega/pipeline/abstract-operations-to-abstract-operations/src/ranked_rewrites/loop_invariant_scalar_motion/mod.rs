@@ -40,11 +40,17 @@ pub use model::{
 /// (each rebound to the representative every reaching edge agrees on, resolved
 /// transitively across member-to-member edges), or are defined by another node
 /// the same run relocates — invariant discovery iterates to a fixed point so a
-/// chain of computations moves together in def-before-use order. Each
-/// candidate relocates the component's complete admissible set into the tail
-/// of the component's unique preheader, ahead of the terminator that owns the
-/// entry edge and ahead of any already-relocated countdown-certificate
-/// constants owned by the dedicated countdown boundary.
+/// chain of computations moves together in def-before-use order. Computation
+/// relocation is non-speculative: the unique entry edge must be the preheader
+/// terminator's only successor, and only member blocks guaranteed to execute
+/// on every traversal that leaves the component contribute computations — a
+/// member block a bypassing exit can skip keeps its computations inside the
+/// loop. Scalar-constant leaves are exempt from both halves of the gate:
+/// materializing a constant performs no work a traversal could have skipped.
+/// Each candidate relocates the component's complete admissible set into the
+/// tail of the component's unique preheader, ahead of the terminator that
+/// owns the entry edge and ahead of any already-relocated
+/// countdown-certificate constants owned by the dedicated countdown boundary.
 pub fn propose_loop_invariant_scalar_motion(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,

@@ -98,6 +98,91 @@ pub(crate) fn value_definition_sites(
         .collect()
 }
 
+/// Member blocks of `component` guaranteed to execute on every traversal that
+/// leaves the component: they dominate every exit-edge source inside the
+/// subgraph the component's internal edges induce over its member roster,
+/// rooted at the unique entry target. Relocating a node out of any other
+/// member block would speculate executions the source traversal may never
+/// perform — a bypassing exit can leave the component before the block runs —
+/// so the scalar-motion boundary admits only these members even though every
+/// admitted operation is total. A component with no exits admits every
+/// member: no traversal leaves it. The bound is the standard
+/// guaranteed-to-execute criterion; a traversal that enters and neither exits
+/// nor completes an iteration may still bypass the block, which is the
+/// residual speculation the boundary accepts.
+pub(crate) fn guaranteed_executed_member_blocks(
+    component: &OptimizerCycleComponent,
+) -> BTreeSet<BlockId> {
+    let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+    let [entry] = component.entries.as_slice() else {
+        return BTreeSet::new();
+    };
+    if !members.contains(&entry.target) {
+        return BTreeSet::new();
+    }
+    let boundary: BTreeSet<BlockId> = component
+        .exits
+        .iter()
+        .map(|exit| exit.source)
+        .filter(|source| members.contains(source))
+        .collect();
+    let mut predecessors: BTreeMap<BlockId, BTreeSet<BlockId>> = members
+        .iter()
+        .map(|member| (*member, BTreeSet::new()))
+        .collect();
+    for edge in &component.id.internal_edges {
+        if members.contains(&edge.source) && members.contains(&edge.target) {
+            predecessors
+                .get_mut(&edge.target)
+                .expect("member target has a predecessor row")
+                .insert(edge.source);
+        }
+    }
+    let root = entry.target;
+    let mut dominators: BTreeMap<BlockId, BTreeSet<BlockId>> = members
+        .iter()
+        .map(|member| {
+            (
+                *member,
+                if *member == root {
+                    BTreeSet::from([root])
+                } else {
+                    members.clone()
+                },
+            )
+        })
+        .collect();
+    loop {
+        let mut changed = false;
+        for member in members.iter().copied().filter(|member| *member != root) {
+            let mut incoming = predecessors[&member]
+                .iter()
+                .filter_map(|predecessor| dominators.get(predecessor));
+            let mut next = incoming.next().cloned().unwrap_or_default();
+            for set in incoming {
+                next = next.intersection(set).copied().collect();
+            }
+            next.insert(member);
+            if dominators[&member] != next {
+                dominators.insert(member, next);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    members
+        .iter()
+        .copied()
+        .filter(|member| {
+            boundary
+                .iter()
+                .all(|source| dominators[source].contains(member))
+        })
+        .collect()
+}
+
 /// Parameters of `component`'s member blocks whose value is provably the same
 /// on every iteration. A member parameter qualifies when every edge reaching
 /// its block binds it to itself, to a member parameter that resolves to the

@@ -2,23 +2,70 @@
 
 use super::super::super::VerifiedPsiOptimizationSession;
 use crate::{
+    LoopInvariantScalarMotionError, LoopInvariantScalarRelocation,
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
 use abstract_operations::AbstractOperation;
 use optimization_unit::{
-    ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
+    NodeLocation, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
     recompute_psi_optimization_unit_identity,
 };
 use optimization_unit_semantics::OptimizationUnitValidationError;
 use semantic_vocabulary::ValueId;
 
 /// Two-state unranked cycle: the entry state forwards `scale` to `step`, which
-/// carries it back unchanged. `s` is a parameter of a non-entry member block
-/// — provably invariant only once member parameters resolve transitively
-/// through the component's internal edges — so `s + s` is the relocated
-/// computation this family adds over the entry-target-only discovery.
+/// carries it back unchanged, and every traversal that leaves the component
+/// passes through `step` — the loop's only exit is `step`'s own `finish` arm.
+/// `s` is a parameter of a non-entry member block — provably invariant only
+/// once member parameters resolve transitively through the component's
+/// internal edges — so `s + s` is the relocated computation this family adds
+/// over the entry-target-only discovery, and `step` dominating every exit
+/// keeps the relocation inside the non-speculative gate.
 const TRANSITIVE_MEMBER_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let doubled: u32 in Wrapping = s + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+/// Same component shape, but `step` advances `s` on the back edge, so the
+/// member parameter is genuinely loop-carried and `s + s` must stay inside
+/// even though its block is guaranteed to execute.
+const CARRIED_MEMBER_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let doubled: u32 in Wrapping = s + s;
+            transition pending > 0 {
+                true -> scan(s + 1, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+/// Same two-state cycle as `TRANSITIVE_MEMBER_SOURCE`, but the entry state can
+/// leave the component through its own `done` arm before `step` ever runs.
+/// `s` still resolves to the preheader anchor — invariance is intact — yet
+/// `s + s` stays inside because relocating a node out of a member block that
+/// does not dominate every exit would speculate executions the traversal may
+/// never perform. The header's own invariant leaves still relocate.
+const BYPASSED_MEMBER_SOURCE: &str = r#"
     data Root {}
 
     machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
@@ -39,21 +86,24 @@ const TRANSITIVE_MEMBER_SOURCE: &str = r#"
     }
 "#;
 
-/// Same component shape, but `step` advances `s` on the back edge, so the
-/// member parameter is genuinely loop-carried and `s + s` must stay inside.
-const CARRIED_MEMBER_SOURCE: &str = r#"
+/// The component's unique entry edge is one of two successors on the
+/// preheader's terminator: reaching the preheader does not guarantee entering
+/// the loop, so relocating `s + s` would execute it on traversals that never
+/// enter the component. The computation stays inside; work-free
+/// scalar-constant leaves still relocate.
+const CONDITIONAL_ENTRY_SOURCE: &str = r#"
     data Root {}
 
-    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    machine Root::enter(scale: u32 in Wrapping, go: bool, remaining: u32 [0..=5])
     {
-        transition remaining > 0 {
-            true -> step(scale, remaining - 1)
+        transition go {
+            true -> scan(scale, remaining)
             _ -> done()
         }
-        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+        state scan(s: u32 in Wrapping, pending: u32 [0..=5]) {
             let doubled: u32 in Wrapping = s + s;
             transition pending > 0 {
-                true -> scan(s + 1, pending - 1)
+                true -> scan(s, pending - 1)
                 _ -> finish(doubled)
             }
         }
@@ -404,7 +454,196 @@ fn refresh_coordinates_and_effects(unit: &mut PsiOptimizationUnit) {
     unit.identity = recompute_psi_optimization_unit_identity(unit);
 }
 
+#[test]
+fn bypassed_member_computation_is_speculation_and_stays_inside() {
+    let session = lowered_session(BYPASSED_MEMBER_SOURCE, "bypassed member loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (member_block, addition, member_parameter) = member_addition(function, component);
+    // Invariance is intact: `s` still resolves transitively to the preheader
+    // anchor. The rejection is the profitability gate alone — `step` does not
+    // dominate the entry state's own `done` exit, so relocating `s + s` into
+    // the preheader would execute it on traversals that leave the component
+    // without ever reaching `step`.
+    let header = function
+        .blocks
+        .iter()
+        .find(|block| block.id == entry.target)
+        .expect("entry target exists");
+    let entry_edge = function
+        .blocks
+        .iter()
+        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+        .find(|edge| edge.psi_edge == entry.edge && edge.target == entry.target)
+        .expect("the preheader terminator owns the entry edge");
+    let anchor = entry_edge
+        .bindings
+        .iter()
+        .find(|binding| binding.parameter == header.parameters[0].value)
+        .expect("entry binds the carried header parameter")
+        .argument;
+    assert_eq!(
+        crate::validation::invariant_member_parameters(function, component).get(&member_parameter),
+        Some(&anchor),
+        "the member parameter still resolves transitively to its preheader anchor"
+    );
+    assert!(
+        !crate::validation::guaranteed_executed_member_blocks(component).contains(&member_block.id),
+        "the bypassed member block is outside the non-speculative gate"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    let addition_operation = match addition.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+    assert!(
+        !candidate.relocations().is_empty()
+            && candidate
+                .relocations()
+                .iter()
+                .all(|relocation| relocation.node().operand_rewrites().is_empty()),
+        "work-free scalar-constant leaves still relocate"
+    );
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != addition_operation),
+        "the speculated member computation is not a planned relocation"
+    );
+
+    // A forged candidate cannot smuggle the speculated relocation past
+    // independent validation: replaying the gated plan yields a different
+    // relocation roster and a different candidate identity.
+    let mut forged = candidate.clone();
+    forged.relocations.push(LoopInvariantScalarRelocation {
+        node: crate::LoopInvariantScalarNode {
+            psi_operation: addition_operation,
+            result: match addition.definitions.as_slice() {
+                [definition] => definition.value,
+                _ => panic!("one defined result"),
+            },
+            scalar_type: match addition.definitions.as_slice() {
+                [definition] => definition.scalar_type,
+                _ => panic!("one defined result"),
+            },
+            location: NodeLocation {
+                machine: component.id.machine,
+                block: member_block.id,
+                node: u32::try_from(
+                    member_block
+                        .nodes
+                        .iter()
+                        .position(|node| std::ptr::eq(node, addition))
+                        .expect("the computation lives in its member block"),
+                )
+                .expect("node index fits u32"),
+            },
+            operand_rewrites: vec![(member_parameter, anchor)],
+            provenance: addition.provenance.clone(),
+            fuel: addition.fuel.clone(),
+        },
+        destination: NodeLocation {
+            machine: component.id.machine,
+            block: entry.source,
+            node: 0,
+        },
+    });
+    assert!(matches!(
+        validate_loop_invariant_scalar_motion(&session, &forged),
+        Err(LoopInvariantScalarMotionError::CandidateMismatch)
+            | Err(LoopInvariantScalarMotionError::StaleCandidateRevision { .. })
+    ));
+
+    // The gated plan itself still validates and applies atomically, and the
+    // applied session is an exact fixed point: the retained computation stays
+    // frozen inside the component while every leaf sits in the preheader.
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("gated plan validates independently");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("gated plan applies atomically");
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn conditional_entry_keeps_computations_inside_while_leaves_still_relocate() {
+    let session = lowered_session_entry(
+        CONDITIONAL_ENTRY_SOURCE,
+        "conditional entry loop",
+        "Root::enter",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one self-loop component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    // The member gate itself still qualifies the header, and `s` resolves to
+    // its entry representative — only the two-successor preheader terminator
+    // declines the computation's relocation.
+    assert!(
+        !crate::validation::guaranteed_executed_member_blocks(component).is_empty(),
+        "member blocks qualify; the conditional entry is the only rejection"
+    );
+    let (_, addition, member_parameter) = member_addition(function, component);
+    assert!(
+        crate::validation::invariant_member_parameters(function, component)
+            .contains_key(&member_parameter),
+        "the member parameter is still provably invariant"
+    );
+    let addition_operation = match addition.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        !candidate.relocations().is_empty()
+            && candidate
+                .relocations()
+                .iter()
+                .all(|relocation| relocation.node().operand_rewrites().is_empty()),
+        "only work-free scalar-constant leaves relocate past a conditional entry"
+    );
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != addition_operation),
+        "the speculated computation is not a planned relocation"
+    );
+}
+
 fn lowered_session(source: &str, label: &str) -> VerifiedPsiOptimizationSession {
+    lowered_session_entry(source, label, "Root::scan")
+}
+
+fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationSession {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap_or_else(|error| panic!("tokenize {label}: {error:?}"));
@@ -418,7 +657,7 @@ fn lowered_session(source: &str, label: &str) -> VerifiedPsiOptimizationSession 
         .unwrap_or_else(|error| panic!("type {label}: {error:?}"));
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::scan")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
