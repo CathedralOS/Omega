@@ -332,8 +332,9 @@ fn stack_argument_calls_replay_frame_accesses_through_callable_publication() {
                     });
                     assert_eq!(resolved.symbolic, symbolic, "{target:?}");
                     assert_eq!(
-                        u64::from(resolved.displacement),
-                        expected_frame_displacement(function, frame, &symbolic),
+                        resolved.displacement,
+                        i64::try_from(expected_frame_displacement(function, frame, &symbolic))
+                            .expect("expected frame displacement fits a signed displacement"),
                         "{target:?} {symbolic:?}"
                     );
                     match symbolic {
