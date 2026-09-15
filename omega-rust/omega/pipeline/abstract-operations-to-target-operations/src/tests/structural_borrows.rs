@@ -3,7 +3,7 @@
 use super::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, BlockId, EdgeId, IntegerSign, IntegerType,
-    ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    IntegerValue, ScalarType, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
     StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, ValueId,
 };
@@ -285,6 +285,85 @@ fn projected_field_borrow_scalar_argument_plan() -> abstract_operations::Abstrac
     plan
 }
 
+/// The same projected borrow rooted at a caller-established record home
+/// rather than a machine parameter. The referent's declaration comes from
+/// the `EstablishRecord` results, so the retained argument must replay
+/// against that home's own root type and byte offset.
+fn established_home_borrow_plan() -> abstract_operations::AbstractOperationPlan {
+    let mut plan = projected_field_borrow_plan();
+    let tally = StructuralTypeId::new(1).unwrap();
+    let main = StructuralTypeId::new(2).unwrap();
+    let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let tally_place = PlaceId::new(11).unwrap();
+    let main_place = PlaceId::new(12).unwrap();
+    let callee = plan.functions[1].machine;
+    let caller = &mut plan.functions[0];
+    caller.structural_parameters.clear();
+    caller.operations = vec![
+        AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(10).unwrap(),
+            result: ValueId::new(10).unwrap(),
+            scalar_type: unsigned,
+            value: IntegerValue::Unsigned(7),
+        },
+        AbstractOperation::EstablishRecord {
+            psi_operation: OperationId::new(11).unwrap(),
+            result: terminal_psi::StructuralOperationResult {
+                place: tally_place,
+                structural_type: tally,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            fields: vec![terminal_psi::RecordFieldInitializer {
+                field: StructuralFieldId::new(1).unwrap(),
+                value: terminal_psi::RecordFieldValue::Scalar {
+                    value: ValueId::new(10).unwrap(),
+                    range_obligation: None,
+                },
+            }],
+        },
+        AbstractOperation::EstablishRecord {
+            psi_operation: OperationId::new(12).unwrap(),
+            result: terminal_psi::StructuralOperationResult {
+                place: main_place,
+                structural_type: main,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            fields: vec![terminal_psi::RecordFieldInitializer {
+                field: StructuralFieldId::new(1).unwrap(),
+                value: terminal_psi::RecordFieldValue::Structural(StructuralArgument {
+                    place: tally_place,
+                    access: StructuralAccess::Owned,
+                    path: Vec::new(),
+                }),
+            }],
+        },
+        AbstractOperation::CallUnit {
+            psi_operation: OperationId::new(13).unwrap(),
+            callee,
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: main_place,
+                access: StructuralAccess::MutableBorrow,
+                path: vec![terminal_psi::StructuralPathSegment::Field("tally".into())],
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        AbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(1).unwrap(),
+            cleanup_actions: Vec::new(),
+        },
+    ];
+    plan
+}
+
 fn mutate_call_plan(
     target: &TargetOperationPlan,
     f: impl Fn(&mut calling_conventions::CallPlan),
@@ -492,6 +571,88 @@ fn projected_field_borrow_rejects_substituted_home_identity() {
             crate::validate_abstract_to_target_translation(&source, native, &mutated),
             Err(expected.clone()),
             "substituted argument source"
+        );
+    }
+}
+
+#[test]
+fn established_home_borrow_retains_borrowed_reference_and_validates() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let source = established_home_borrow_plan();
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .unwrap();
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let argument = target.functions[0]
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call { arguments, .. } => arguments.first(),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(
+            argument.access,
+            terminal_psi::StructuralAccess::MutableBorrow
+        );
+        assert_eq!(argument.shape.class, ValueClass::BorrowedReference);
+        assert_eq!(
+            argument.source,
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: OperationId::new(12).unwrap()
+            }
+        );
+        assert_eq!(
+            argument.root_structural_type,
+            StructuralTypeId::new(2).unwrap()
+        );
+        assert_eq!(argument.structural_type, StructuralTypeId::new(1).unwrap());
+        assert_eq!(argument.source_byte_offset, 0);
+    }
+}
+
+#[test]
+fn established_home_borrow_rejects_substituted_root_projection_and_home() {
+    let source = established_home_borrow_plan();
+    let native = NativeTarget::linux_x64();
+    let target =
+        crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+            .unwrap();
+    let expected =
+        crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+            machine: MachineId::new(1).unwrap(),
+            operation: OperationId::new(13).unwrap(),
+        };
+    for mutation in [
+        // Referent root type substitution.
+        Box::new(|argument: &mut TargetStructuralArgument| {
+            argument.root_structural_type = StructuralTypeId::new(1).unwrap()
+        }) as Box<dyn Fn(&mut TargetStructuralArgument)>,
+        // A different byte offset inside the same established home.
+        Box::new(|argument: &mut TargetStructuralArgument| argument.source_byte_offset = 8),
+        // Forged array-transport metadata on a plain pointer carrier.
+        Box::new(|argument: &mut TargetStructuralArgument| argument.element_stride = Some(8)),
+        // A sibling establishment is not this referent's producer.
+        Box::new(|argument: &mut TargetStructuralArgument| {
+            argument.source = target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: OperationId::new(11).unwrap(),
+            }
+        }),
+        // An established home is not a block arrival.
+        Box::new(|argument: &mut TargetStructuralArgument| {
+            argument.source = target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block: semantic_vocabulary::BlockId::new(1).unwrap(),
+                place: argument.place,
+            }
+        }),
+    ] {
+        let mutated = mutate_call_arguments(&target, mutation);
+        assert_eq!(
+            crate::validate_abstract_to_target_translation(&source, native, &mutated),
+            Err(expected.clone()),
+            "substituted argument identity"
         );
     }
 }

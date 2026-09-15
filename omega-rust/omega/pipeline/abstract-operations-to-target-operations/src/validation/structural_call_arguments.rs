@@ -2,16 +2,16 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
 use calling_conventions::{CallingPolicy, evaluate_call_plan};
-use semantic_vocabulary::OperationId;
+use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use target::NativeTarget;
 use target_operations::{
     NativeCallOrigin, TargetFunction, TargetStructuralArgument, TargetUnitOperation,
     TargetUnitScalarCallArgument,
 };
 use terminal_psi::{
-    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralAccess, StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralTypeDeclaration,
 };
 
@@ -23,6 +23,15 @@ struct TargetCall<'a> {
     call_plan: &'a calling_conventions::CallPlan,
     scalar_arguments: &'a [TargetUnitScalarCallArgument],
     arguments: &'a [TargetStructuralArgument],
+}
+
+/// The semantic referent declaration bound to one argument place: the root
+/// structural type and the access that declaration grants. Operation
+/// establishments own their storage; caller and block parameters keep their
+/// declared access.
+struct RootDeclaration {
+    structural_type: StructuralTypeId,
+    access: StructuralAccess,
 }
 
 pub(super) fn validate(
@@ -88,6 +97,8 @@ pub(super) fn validate(
             ))
         })
         .collect::<BTreeMap<_, _>>();
+
+    let roots = canonical_roots(source);
 
     for operation in &source.operations {
         let (psi_operation, source_callee, scalar_arguments, structural_arguments) = match operation
@@ -244,19 +255,15 @@ pub(super) fn validate(
             if actual.destination != *destination {
                 return Err(psi_operation);
             }
-            let Some(root) = source
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == semantic.place)
-            else {
+            let Some(root) = roots.get(&semantic.place) else {
                 continue;
             };
             // Static subloans carry a pointer to the reconstructed leaf, not
             // an array-view descriptor. Indexed paths need the same carrier
             // and offset replay as fields; owned indexed copies retain their
             // separate array transport metadata.
-            let static_borrow = root.access != terminal_psi::StructuralAccess::Owned
-                && semantic.access != terminal_psi::StructuralAccess::Owned
+            let static_borrow = root.access != StructuralAccess::Owned
+                && semantic.access != StructuralAccess::Owned
                 && semantic.path.iter().all(|segment| {
                     matches!(
                         segment,
@@ -312,7 +319,7 @@ fn matches_projected_carrier(
     let Some(StructuralTypeShape::FixedArray { element, length }) = find_shape(projected) else {
         return false;
     };
-    actual.access == terminal_psi::StructuralAccess::MutableBorrow
+    actual.access == StructuralAccess::MutableBorrow
         && *length > 0
         && matches!(
             find_shape(*element),
@@ -341,4 +348,58 @@ fn matches_argument_identity(
         && actual.access == semantic.access
         && actual.access == declared.access
         && actual.structural_type == declared.structural_type
+}
+
+/// Reconstruct each argument place's referent declaration in the same
+/// precedence `structural_argument_sources::expected_sources` binds homes:
+/// operation-established places, then non-entry block parameters, then
+/// caller parameters. Every projected argument must replay its root type and
+/// byte offset against the referent's own declaration, not only when that
+/// referent happens to arrive as a machine parameter.
+fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclaration> {
+    let mut roots = BTreeMap::new();
+    for operation in &source.operations {
+        let (place, structural_type) = match operation {
+            AbstractOperation::EstablishPrimitiveLocal { result, .. }
+            | AbstractOperation::EstablishRecord { result, .. }
+            | AbstractOperation::EstablishScalarArray { result, .. }
+            | AbstractOperation::EstablishScalarCase { result, .. }
+            | AbstractOperation::ByteSequenceSubslice { result, .. }
+            | AbstractOperation::CallStructural { result, .. } => {
+                (result.place, result.structural_type)
+            }
+            AbstractOperation::EstablishByteSequenceLiteral {
+                place,
+                structural_type,
+                ..
+            } => (place.id, structural_type.id),
+            AbstractOperation::BoundaryCall {
+                result: AbstractBoundaryResult::Structural(result),
+                ..
+            } => (result.place, result.structural_type),
+            _ => continue,
+        };
+        roots.entry(place).or_insert(RootDeclaration {
+            structural_type,
+            access: StructuralAccess::Owned,
+        });
+    }
+    for entry in &source.block_entries {
+        if entry.block == source.entry {
+            continue;
+        }
+        for parameter in &entry.structural_parameters {
+            roots.entry(parameter.place).or_insert(RootDeclaration {
+                structural_type: parameter.structural_type,
+                access: parameter.access,
+            });
+        }
+    }
+    for parameter in &source.structural_parameters {
+        roots.entry(parameter.place).or_insert(RootDeclaration {
+            structural_type: parameter.structural_type,
+            access: parameter.access,
+        });
+    }
+    roots
 }
