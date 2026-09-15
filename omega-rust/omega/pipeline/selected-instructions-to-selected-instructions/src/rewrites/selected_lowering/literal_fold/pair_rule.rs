@@ -18,7 +18,10 @@
 //! [`MachineEffectDeclaration`] must satisfy, and the operand shape carries
 //! the consumer-grammar dimension: whether the folded literal is a binary
 //! consumer's right `Use` operand, a commutative binary consumer's left
-//! `Use` operand, or a unary consumer's sole `Use` operand. Beyond the
+//! `Use` operand, a unary consumer's sole `Use` operand, or a binary
+//! right-literal consumer whose folded result is a constant of the literal
+//! alone — no `Use` operand survives and every operand past the result is
+//! a dropped `Def` scratch. Beyond the
 //! isolated machine-effect surface, [`PairMachineEffects::IndexedPointerReadFold`]
 //! declares the first non-isolated relationship — a consumer that reads
 //! memory through the folded index and a rewritten form that reads the same
@@ -95,6 +98,19 @@ pub enum PairUnitEffects {
     /// operand. `tied_to` and `early_clobber` still reject — neither has a
     /// carried meaning once the operand list is rebuilt.
     BoundConsumerOperands,
+    /// The rewritten row stays as under [`Isolated`](Self::Isolated), but
+    /// the admitted consumer's operands may carry `early_clobber` marks as
+    /// well as `fixed_view` pins — the write-before-read hazard a
+    /// pinned-scratch realization such as the x86-64 `idiv` remainder form
+    /// declares between its result and scratch outputs. Both bindings
+    /// constrain only the folded operand list: the rewrite rebuilds the
+    /// operands from the undecorated rewritten row, so every pin and
+    /// early-clobber mark the folded form needed dies with its operand. A
+    /// surviving operand's register keeps its other uses' own constraints
+    /// and gains strictly more allocation freedom. `tied_to` still rejects
+    /// — a tie would silently lose the shared-home requirement a surviving
+    /// operand might have observed.
+    BoundEarlyClobberConsumerOperands,
 }
 
 impl PairUnitEffects {
@@ -103,7 +119,9 @@ impl PairUnitEffects {
     /// channel and stay under `PairResultDisposition`.
     pub fn admits_row_units(self, row: &RegisterInstructionConstraint) -> bool {
         match self {
-            Self::Isolated | Self::BoundConsumerOperands => {
+            Self::Isolated
+            | Self::BoundConsumerOperands
+            | Self::BoundEarlyClobberConsumerOperands => {
                 row.implicit_uses.is_empty() && row.clobbers.is_empty()
             }
         }
@@ -112,7 +130,9 @@ impl PairUnitEffects {
     /// Whether one constraint-row operand carries no unit binding.
     pub fn admits_operand(self, operand: &RegisterOperandConstraint) -> bool {
         match self {
-            Self::Isolated | Self::BoundConsumerOperands => {
+            Self::Isolated
+            | Self::BoundConsumerOperands
+            | Self::BoundEarlyClobberConsumerOperands => {
                 operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
             }
         }
@@ -123,7 +143,10 @@ impl PairUnitEffects {
     /// [`Isolated`](Self::Isolated) no operand may carry a binding; under
     /// [`BoundConsumerOperands`](Self::BoundConsumerOperands) a `fixed_view`
     /// pin is admitted because the rewrite deliberately drops it with the
-    /// pinned form.
+    /// pinned form; under
+    /// [`BoundEarlyClobberConsumerOperands`](Self::BoundEarlyClobberConsumerOperands)
+    /// an `early_clobber` mark is admitted for the same reason — the
+    /// hazard it names exists only inside the dropped operand list.
     pub fn admits_consumer(self, consumer: &SelectedInstruction) -> bool {
         match self {
             Self::Isolated => consumer.operands.iter().all(|operand| {
@@ -133,6 +156,10 @@ impl PairUnitEffects {
                 .operands
                 .iter()
                 .all(|operand| operand.tied_to.is_none() && !operand.early_clobber),
+            Self::BoundEarlyClobberConsumerOperands => consumer
+                .operands
+                .iter()
+                .all(|operand| operand.tied_to.is_none()),
         }
     }
 
@@ -143,7 +170,9 @@ impl PairUnitEffects {
     /// survives in any form.
     pub fn admits_producer(self, producer: &SelectedInstruction) -> bool {
         match self {
-            Self::Isolated | Self::BoundConsumerOperands => {
+            Self::Isolated
+            | Self::BoundConsumerOperands
+            | Self::BoundEarlyClobberConsumerOperands => {
                 producer.implicit_uses.is_empty()
                     && producer.implicit_defs.is_empty()
                     && producer.clobbers.is_empty()
@@ -221,7 +250,10 @@ pub enum PairMachineEffects {
     /// `EXACT_DIVIDE_ONE_COPY` folds a divisor of one, under which an
     /// unsigned divide can neither divide by zero nor overflow — provided
     /// the auxiliary `Use` operands the shape drops are provably zero, the
-    /// operand-shape contract's own requirement. The eliminated producer
+    /// operand-shape contract's own requirement — and
+    /// `WRAPPING_REMAINDER_ONE_MATERIALIZE` folds a divisor of one, under
+    /// which a signed or unsigned remainder can neither divide by zero nor
+    /// overflow. The eliminated producer
     /// stays effect-isolated, as under [`Isolated`](Self::Isolated). The
     /// consumer declaration must be non-unit isolated — no memory, hosted
     /// trap, barrier, call, or cleanup surface — with alternatives that
@@ -496,6 +528,20 @@ pub enum PairOperandShape {
     /// that is not a dropped `Use` — a `Def`, or any operand at position 0
     /// through 2 outside this grammar — rejects.
     BinaryRightLiteralAuxiliaryUses,
+    /// Binary right-literal consumer whose folded result is a constant of
+    /// the literal alone: the literal victim is the operand-1 `Use`,
+    /// operand 0 is a `Use` the fold drops because the constant result
+    /// never reads it, operand 2 is the `Def` result, and every operand
+    /// past the result is a `Def` scratch output the fold drops. Declaring
+    /// this shape attests the rewritten constant is exact regardless of
+    /// the dropped operand-0 value — `x % 1` is zero for every `x` — and
+    /// that each dropped `Def` register occurs nowhere else in the
+    /// function: a scratch output another instruction read or defined
+    /// would leave a use of a register the rewrite stopped defining. An
+    /// operand that is not in its declared position and access — a `Use`
+    /// past the result, or any operand at positions 0 through 2 outside
+    /// this grammar — rejects.
+    BinaryRightLiteralConstantResult,
 }
 
 /// The literal values a pair's fold admits.
@@ -736,6 +782,49 @@ impl SelectedInstructionPairRule {
         rule
     };
 
+    /// Eliminate `MaterializeI64` feeding the divisor operand of
+    /// `WrappingRemainderI64` when the literal is exactly one: a wrapping
+    /// remainder by one is always zero — signed or unsigned, `x % 1` is
+    /// `0` and `i64::MIN % 1` cannot overflow — so the rewrite is a
+    /// `MaterializeI64` of the constant zero at the consumer's result
+    /// register. The declared surface carries the dimensions an
+    /// `idiv`-class realization brings: the consumer may encode an
+    /// architectural fault — divide by zero or quotient overflow — which
+    /// the folded divisor of one discharges under
+    /// [`FaultDischargedByLiteral`](PairMachineEffects::FaultDischargedByLiteral),
+    /// its operands may carry the register pins and early-clobber marks a
+    /// pinned-scratch realization requires under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// and every operand past the operand-2 `Def` result — the dead
+    /// quotient scratch an x86-64 `idiv` realization writes — is a `Def`
+    /// the fold drops under
+    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult),
+    /// which requires each such register to occur nowhere else in the
+    /// function. The operand-0 dividend `Use` is dropped with the form:
+    /// the constant result never reads it. Targets whose remainder row
+    /// carries no scratch `Def` — aarch64's `udiv`/`msub` realization —
+    /// admit the same rule with an empty scratch tail.
+    pub const WRAPPING_REMAINDER_ONE_MATERIALIZE: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::WrappingRemainderI64,
+            rewritten: MachineSemanticKind::MaterializeI64,
+            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            immediate_bound: PairImmediateBound::Exactly(1),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::FaultDischargedByLiteral,
+        };
+        assert!(
+            matches!(
+                rule.machine_effects,
+                PairMachineEffects::FaultDischargedByLiteral
+            ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(1)),
+            "the fault discharge holds only for the divisor literal one"
+        );
+        rule
+    };
+
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
@@ -777,7 +866,8 @@ impl SelectedInstructionPairRule {
     pub const fn victim_operand(self) -> u16 {
         match self.operand_shape {
             PairOperandShape::BinaryRightLiteral
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUses => 1,
+            | PairOperandShape::BinaryRightLiteralAuxiliaryUses
+            | PairOperandShape::BinaryRightLiteralConstantResult => 1,
             PairOperandShape::BinaryLeftLiteral | PairOperandShape::UnaryLiteral => 0,
         }
     }
@@ -804,6 +894,10 @@ impl SelectedInstructionPairRule {
             PairOperandShape::BinaryRightLiteral
             | PairOperandShape::BinaryLeftLiteral
             | PairOperandShape::BinaryRightLiteralAuxiliaryUses => Some(literal),
+            // The constant-result grammar records the constant the
+            // rewritten `MaterializeI64` embeds: a remainder by one is
+            // always zero, whatever the folded divisor literal was.
+            PairOperandShape::BinaryRightLiteralConstantResult => Some(0),
             PairOperandShape::UnaryLiteral => match self.consumer {
                 MachineSemanticKind::CopyI64 => Some(literal),
                 MachineSemanticKind::ZeroExtendU8 => Some(literal & 0xFF),
@@ -917,6 +1011,14 @@ impl SelectedInstructionPairRule {
             (MachineSemanticKind::CopyI64, SelectedInstructionKind::ExactDivideU64 { .. }) => {
                 Some(SelectedInstructionKind::CopyI64)
             }
+            // A remainder by one is always zero: the `MaterializeI64`
+            // rewrite materializes the folded constant at the result
+            // register, sign-matched and admitted by its scalar type.
+            (
+                MachineSemanticKind::MaterializeI64,
+                SelectedInstructionKind::WrappingRemainderI64 { .. },
+            ) => scalar_materialize_value(immediate, result_scalar?)
+                .map(|value| SelectedInstructionKind::MaterializeI64 { value }),
             _ => None,
         }
     }

@@ -4,7 +4,7 @@ use crate::{LiteralFoldIdentity, LiteralFoldPlan};
 
 pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v5\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v6\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     LiteralFoldIdentity(Sha256::digest(bytes).into())
 }
@@ -21,7 +21,7 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
     bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
-    bytes.push(plan.policy.canonical_bits());
+    bytes.extend_from_slice(&plan.policy.canonical_bits().to_le_bytes());
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     length(&mut bytes, plan.functions.len());

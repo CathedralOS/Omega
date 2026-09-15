@@ -33,7 +33,11 @@ pub use validate::validate_literal_fold;
 /// extension or copy into a direct `MaterializeI64`, or the literal `1` at
 /// the divisor operand of an unsigned exact divide into a `CopyI64` of the
 /// dividend — the divide-by-one identity that discharges the consumer's
-/// encoded fault surface and drops its zeroed auxiliary `Use` operands.
+/// encoded fault surface and drops its zeroed auxiliary `Use` operands —
+/// or the literal `1` at the divisor operand of a wrapping remainder into a
+/// `MaterializeI64` of the constant zero — a remainder by one is always
+/// zero — discharging the consumer's encoded fault surface and dropping its
+/// dividend `Use` and dead scratch `Def` operands.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

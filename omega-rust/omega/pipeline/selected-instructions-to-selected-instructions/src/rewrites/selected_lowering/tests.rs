@@ -57,6 +57,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_copy());
     assert!(policy.enables_byte_view_address());
     assert!(policy.enables_exact_divide());
+    assert!(policy.enables_wrapping_remainder());
 }
 
 #[test]
@@ -70,6 +71,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         copy,
         address_offset,
         divide,
+        remainder,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -351,10 +353,96 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         None
     );
 
-    // Every landed rule's rewrite but the divide fold is unit-effect
-    // isolated: no implicit unit uses or clobbers and no operand unit
-    // bindings beyond the declared result channel. The divide fold
-    // deliberately drops the pinned consumer's `fixed_view` bindings.
+    // The remainder-identity family declares the second trap-carrying
+    // machine-effect relationship: a divisor literal of exactly one folds
+    // `WrappingRemainderI64` into a `MaterializeI64` of the constant zero —
+    // a remainder by one is always zero — discharging the remainder's
+    // encoded architectural fault, admitting the register pins and
+    // early-clobber scratch marks a pinned-scratch realization requires,
+    // and dropping the consumer's dividend `Use` and dead scratch `Def`
+    // operands.
+    let &[remainder_rule] = remainder.payload().pairs() else {
+        panic!("the remainder-identity family declares one pair rule")
+    };
+    assert_eq!(
+        remainder.optimization(),
+        Optimization::SelectedIncomingWrappingRemainderOneZeroMaterialization
+    );
+    assert_eq!(
+        remainder_rule,
+        SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE
+    );
+    assert_eq!(
+        remainder_rule.producer(),
+        MachineSemanticKind::MaterializeI64
+    );
+    assert_eq!(
+        remainder_rule.consumer(),
+        MachineSemanticKind::WrappingRemainderI64
+    );
+    assert_eq!(
+        remainder_rule.rewritten(),
+        MachineSemanticKind::MaterializeI64
+    );
+    assert_eq!(
+        remainder_rule.immediate_bound(),
+        PairImmediateBound::Exactly(1)
+    );
+    assert!(remainder_rule.admits_immediate(1));
+    assert!(!remainder_rule.admits_immediate(0));
+    assert!(!remainder_rule.admits_immediate(2));
+    assert!(!remainder_rule.admits_immediate(u64::MAX));
+    assert_eq!(remainder_rule.fold_immediate(1), Some(0));
+    assert_eq!(
+        remainder_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteralConstantResult
+    );
+    assert_eq!(remainder_rule.victim_operand(), 1);
+    assert_eq!(
+        remainder_rule.result(),
+        PairResultDisposition::ScalarRegister
+    );
+    assert_eq!(
+        remainder_rule.unit_effects(),
+        PairUnitEffects::BoundEarlyClobberConsumerOperands
+    );
+    assert_eq!(
+        remainder_rule.machine_effects(),
+        PairMachineEffects::FaultDischargedByLiteral
+    );
+    let u64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    let remainder_kind = SelectedInstructionKind::WrappingRemainderI64 {
+        obligation,
+        accepted_fact,
+    };
+    assert_eq!(
+        remainder_rule.rewrite_consumer(remainder_kind, 0, Some(u64_scalar)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0),
+        })
+    );
+    assert_eq!(
+        remainder_rule.rewrite_consumer(remainder_kind, 0, Some(i64_scalar)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Signed(0),
+        })
+    );
+    assert_eq!(
+        remainder_rule.rewrite_consumer(SelectedInstructionKind::CopyI64, 0, Some(u64_scalar)),
+        None
+    );
+    assert_eq!(
+        remainder_rule.rewrite_consumer(remainder_kind, 0, None),
+        None
+    );
+
+    // Every landed rule's rewrite but the divide and remainder folds is
+    // unit-effect isolated: no implicit unit uses or clobbers and no
+    // operand unit bindings beyond the declared result channel. The divide
+    // fold deliberately drops the pinned consumer's `fixed_view` bindings;
+    // the remainder fold drops the pinned consumer's `fixed_view` pins and
+    // `early_clobber` scratch marks.
     for entry in [add, subtract, compare, indexed, copy, address_offset] {
         for pair in entry.payload().pairs() {
             assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
@@ -400,6 +488,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::EXACT_DIVIDE_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY]
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::WRAPPING_REMAINDER_V1).collect::<Vec<_>>(),
+        vec![SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE]
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -462,6 +554,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         divide_rule.immediate_constraint_key(&keys),
         Some(keys.copy_i64)
     );
+    assert_eq!(
+        remainder_rule.immediate_constraint_key(&keys),
+        Some(keys.materialize_i64)
+    );
 }
 
 #[test]
@@ -487,6 +583,10 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // unit-clean; `BoundConsumerOperands` relaxes only the dropped
             // consumer's operand bindings, not the rewritten row.
             SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY,
+            // The materialize row the remainder fold rewrites into is
+            // likewise unit-clean; `BoundEarlyClobberConsumerOperands`
+            // relaxes only the dropped consumer's operand decorations.
+            SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE,
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -601,6 +701,47 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         // fault-discharging consumer surface.
         {
             let rule = SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY;
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A faulting surface the literal does not discharge — memory
+            // traffic or a hosted trap — cannot take the consumer role.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
+            );
+        }
+
+        // The remainder-identity pair admits its own triple on both
+        // targets: an isolated producer, the possibly-faulting remainder,
+        // and the isolated materialization — x86-64's `idiv` encodes
+        // `MayArchitecturalFaultV1` while aarch64's `udiv`/`msub` encodes
+        // `NeverV1`, and both satisfy the fault-discharging consumer
+        // surface.
+        {
+            let rule = SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE;
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
             let rewritten = declaration(rule.rewritten());

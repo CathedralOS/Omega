@@ -129,7 +129,7 @@ pub(super) fn selected_lowering_completion_identity(
     receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
 ) -> SelectedLoweringOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v3\0");
+    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v4\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -181,7 +181,7 @@ pub(super) fn encode_iteration_receipt(
     canonical.push(recovery_policy_tag(iteration.recovery_policy()));
     canonical.extend_from_slice(&iteration.recovery_usage().encode());
     canonical.extend_from_slice(&iteration.fold().bytes());
-    canonical.push(literal_fold_policy_tag(iteration.fold_policy()));
+    canonical.extend_from_slice(&literal_fold_policy_tag(iteration.fold_policy()).to_le_bytes());
     canonical.extend_from_slice(&iteration.fold_usage().encode());
     canonical.extend_from_slice(&iteration.transformed_selected().bytes());
     canonical.extend_from_slice(&iteration.fresh_liveness().bytes());
@@ -203,7 +203,7 @@ pub(super) fn encode_attempt_receipt(
     canonical.push(recovery_policy_tag(attempt.recovery_policy()));
     canonical.extend_from_slice(&attempt.recovery_usage().encode());
     canonical.extend_from_slice(&attempt.fold().bytes());
-    canonical.push(literal_fold_policy_tag(attempt.fold_policy()));
+    canonical.extend_from_slice(&literal_fold_policy_tag(attempt.fold_policy()).to_le_bytes());
     canonical.extend_from_slice(&attempt.fold_usage().encode());
     encode_count(canonical, attempt.applied_count());
     canonical.extend_from_slice(&attempt.transformed_selected().bytes());
@@ -221,7 +221,7 @@ pub(super) fn recovery_policy_tag(policy: RecoveryClassificationPolicy) -> u8 {
     }
 }
 
-pub(super) fn literal_fold_policy_tag(policy: LiteralFoldPolicy) -> u8 {
+pub(super) fn literal_fold_policy_tag(policy: LiteralFoldPolicy) -> u16 {
     policy.canonical_bits()
 }
 

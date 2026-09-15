@@ -26,6 +26,7 @@ pub(super) const DECLARATIONS: &str = r#"pub data Optimization {
     case SelectedIncomingLiteralCopyMaterialization;
     case SelectedIncomingU12ByteViewAddressOffset;
     case SelectedIncomingExactDivideIdentityCopy;
+    case SelectedIncomingWrappingRemainderOneZeroMaterialization;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -56,6 +57,7 @@ pub data Optimizations {
     selected_incoming_literal_copy_materialization: u8 in Trapping;
     selected_incoming_u12_byte_view_address_offset: u8 in Trapping;
     selected_incoming_exact_divide_identity_copy: u8 in Trapping;
+    selected_incoming_wrapping_remainder_one_zero_materialization: u8 in Trapping;
 }
 "#;
 
@@ -88,6 +90,7 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
         Optimization::SelectedIncomingLiteralCopyMaterialization -> selected_incoming_literal_copy_materialization()
         Optimization::SelectedIncomingU12ByteViewAddressOffset -> selected_incoming_u12_byte_view_address_offset()
         Optimization::SelectedIncomingExactDivideIdentityCopy -> selected_incoming_exact_divide_identity_copy()
+        Optimization::SelectedIncomingWrappingRemainderOneZeroMaterialization -> selected_incoming_wrapping_remainder_one_zero_materialization()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -196,6 +199,10 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
 
     state selected_incoming_exact_divide_identity_copy(&mut self) {
         self.selected_incoming_exact_divide_identity_copy = self.selected_incoming_exact_divide_identity_copy + 1;
+    }
+
+    state selected_incoming_wrapping_remainder_one_zero_materialization(&mut self) {
+        self.selected_incoming_wrapping_remainder_one_zero_materialization = self.selected_incoming_wrapping_remainder_one_zero_materialization + 1;
     }
 }
 "#;

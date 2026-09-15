@@ -220,6 +220,19 @@ fn reconstruct_action(
             rows.divide,
             MachineSemanticKind::CopyI64,
         ),
+        // The wrapping remainder folds an operand-1 divisor literal of
+        // exactly one into a `MaterializeI64` of zero — a remainder by one
+        // is always zero — bound to the `MaterializeI64` row the
+        // remainder policy's own gate selected. Operands past the
+        // operand-2 `Def` result are `Def` scratch outputs the fold drops,
+        // each independently required to occur nowhere else in the
+        // function, and the operand-0 `Use` is dropped because the
+        // constant result never reads it.
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => (
+            SourceShape::RemainderIdentity,
+            rows.remainder,
+            MachineSemanticKind::MaterializeI64,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -262,6 +275,18 @@ fn reconstruct_action(
                 });
             }
             literal_u64
+        }
+        // The remainder fold is the constant zero only when the divisor
+        // literal is exactly one; any other divisor is a different
+        // computation the replay must not admit. The recorded immediate is
+        // the constant the rewritten `MaterializeI64` embeds — zero.
+        SourceShape::RemainderIdentity => {
+            if literal_u64 != 1 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            0
         }
     };
     let result = match (shape, consumer.operands.as_slice()) {
@@ -337,6 +362,34 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
+        // The constant-result grammar: `[dividend, divisor, result,
+        // scratch...]` folds the operand-1 `Use`, drops the operand-0
+        // `Use` — the constant result never reads it — and drops every
+        // `Def` operand past the operand-2 `Def` result. The validator
+        // independently re-derives the dropped-operand custody: each
+        // dropped `Def` register must occur nowhere else in the function —
+        // the dead quotient scratch an x86-64 `idiv` realization writes —
+        // because the fold discards a definition a surviving read or
+        // second definition would still observe.
+        (SourceShape::RemainderIdentity, [left, right, result, scratch @ ..]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         (SourceShape::UnaryExtension | SourceShape::UnaryCopy, [input, result]) => {
             if input.access != RegisterOperandAccess::Use
                 || input.virtual_register != candidate.victim
@@ -363,13 +416,20 @@ fn reconstruct_action(
     // declared unit-effect surface. Under the divide-identity grammar a
     // `fixed_view` pin is deliberately dropped with the pinned operand
     // form — a surviving operand keeps its other uses' own constraints —
-    // while `tied_to` and `early_clobber` have no carried meaning once the
-    // operand list is rebuilt and still reject under every grammar.
-    let drops_fixed_views = shape == SourceShape::DivideIdentity;
+    // while `tied_to` has no carried meaning once the operand list is
+    // rebuilt and still rejects under every grammar. Under the
+    // constant-result grammar an `early_clobber` mark drops with its
+    // operand for the same reason: the write-before-read hazard it names
+    // exists only inside the folded operand list.
+    let drops_fixed_views = matches!(
+        shape,
+        SourceShape::DivideIdentity | SourceShape::RemainderIdentity
+    );
+    let drops_early_clobbers = shape == SourceShape::RemainderIdentity;
     if consumer.operands.iter().any(|operand| {
         (operand.fixed_view.is_some() && !drops_fixed_views)
             || operand.tied_to.is_some()
-            || operand.early_clobber
+            || (operand.early_clobber && !drops_early_clobbers)
     }) {
         return Err(LiteralFoldError::ConsumerMismatch {
             function: function_index,
@@ -420,7 +480,8 @@ fn reconstruct_action(
         // folded divisor of one discharges that surface, so the validator
         // requires the fault-discharging relationship rather than strict
         // isolation on the consumer side.
-        SelectedInstructionKind::ExactDivideU64 { .. } => {
+        SelectedInstructionKind::ExactDivideU64 { .. }
+        | SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             fault_discharged_fold_admission(consumer_declaration, rewritten_declaration)
         }
         _ => {
@@ -460,7 +521,8 @@ fn reconstruct_action(
         SourceShape::BinaryImmediate
         | SourceShape::UnaryExtension
         | SourceShape::UnaryCopy
-        | SourceShape::DivideIdentity => consumer.operands[0].virtual_register,
+        | SourceShape::DivideIdentity
+        | SourceShape::RemainderIdentity => consumer.operands[0].virtual_register,
     };
 
     Ok(LiteralFoldAction {
@@ -482,9 +544,12 @@ fn reconstruct_action(
 /// operand-1 `Use` is the folded index or offset and whose operand-2 `Def`
 /// is the result — the commutative binary immediate form whose literal is
 /// the left `Use` operand, the unary extension and copy forms whose
-/// literal is the sole operand, or the divide-identity form whose
+/// literal is the sole operand, the divide-identity form whose
 /// operand-1 divisor literal of one folds into a copy of the dividend and
-/// drops every `Use` operand past the operand-2 `Def` result.
+/// drops every `Use` operand past the operand-2 `Def` result, or the
+/// remainder-identity form whose operand-1 divisor literal of one folds
+/// into a materialized zero and drops the operand-0 `Use` and every `Def`
+/// operand past the operand-2 `Def` result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
@@ -492,12 +557,13 @@ enum SourceShape {
     UnaryExtension,
     UnaryCopy,
     DivideIdentity,
+    RemainderIdentity,
 }
 
 impl SourceShape {
     const fn victim_operand(self) -> u16 {
         match self {
-            Self::BinaryImmediate | Self::DivideIdentity => 1,
+            Self::BinaryImmediate | Self::DivideIdentity | Self::RemainderIdentity => 1,
             Self::BinaryLeftImmediate | Self::UnaryExtension | Self::UnaryCopy => 0,
         }
     }
@@ -530,6 +596,105 @@ fn dropped_use_defined_zero(function: &SelectedFunction, register: VirtualRegist
             }
         )
     }) && saw_definition
+}
+
+/// Whether `register`'s only occurrence in `function` is one `Def` operand
+/// — the validator's independent re-derivation of the custody the
+/// constant-result grammar requires of every scratch `Def` it drops. The
+/// operand itself is that one occurrence: any other operand position,
+/// terminator operand, or successor transport naming the register would
+/// leave the fold removing a definition that a surviving read or a second
+/// definition still observes. Uses are counted across instruction and
+/// terminator operand lists and every successor binding transport, the
+/// same sites the rebuild's densification walks.
+fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
+    let mut occurrences = 0_usize;
+    for block in &function.blocks {
+        for instruction in block.instructions.iter().chain(match &block.terminator {
+            SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+            | SelectedTerminator::Jump { instruction, .. }
+            | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::HostedExitProcess { instruction, .. } => {
+                std::iter::once(instruction)
+            }
+        }) {
+            occurrences += instruction
+                .operands
+                .iter()
+                .filter(|operand| operand.virtual_register == register)
+                .count();
+        }
+        let successors = match &block.terminator {
+            SelectedTerminator::Jump { successor, .. } => vec![successor],
+            SelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } => vec![when_nonzero, when_zero],
+            SelectedTerminator::ConditionalBranchU64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            }
+            | SelectedTerminator::ConditionalBranchI64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            } => vec![when_less, when_not_less],
+            SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+                Vec::new()
+            }
+        };
+        for successor in successors {
+            occurrences += successor
+                .structural_bindings
+                .iter()
+                .filter(|binding| {
+                    matches!(
+                        binding.transport,
+                        selected_instructions::SelectedStructuralTransport::WholeValue {
+                            argument,
+                            ..
+                        }
+                        | selected_instructions::SelectedStructuralTransport::Descriptor {
+                            argument,
+                            ..
+                        } if argument == register
+                    )
+                })
+                .count();
+            if let Some(case) = &successor.structural_case {
+                occurrences += case
+                    .payloads
+                    .iter()
+                    .filter(|payload| match &payload.transport {
+                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                            parameter,
+                        } => *parameter == register,
+                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                            argument,
+                            parameter,
+                        } => *argument == register || *parameter == register,
+                    })
+                    .count();
+            }
+            occurrences += successor
+                .bindings
+                .iter()
+                .filter(|binding| match &binding.transport {
+                    selected_instructions::SelectedValueTransport::Unused => false,
+                    selected_instructions::SelectedValueTransport::Registers {
+                        argument,
+                        parameter,
+                    } => *argument == register || *parameter == register,
+                })
+                .count();
+        }
+    }
+    occurrences == 1
 }
 
 /// The exact 64-bit output an extension consumer computes on `literal`. The
@@ -682,7 +847,8 @@ fn rebuild_function(
         | SelectedInstructionKind::SignExtendI8
         | SelectedInstructionKind::SignExtendI16
         | SelectedInstructionKind::SignExtendI32
-        | SelectedInstructionKind::CopyI64 => {
+        | SelectedInstructionKind::CopyI64
+        | SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             // The folded materialization must declare the exact constant the
             // result register's scalar type admits; the validator recomputes
             // it from the action payload and the surviving result register.
@@ -702,10 +868,16 @@ fn rebuild_function(
                     function: function_index,
                 },
             )?;
-            // The copy fold binds its own policy-gated row; the extension
-            // consumers bind theirs.
+            // The copy fold binds its own policy-gated row, the remainder
+            // fold binds the materialize row under its own policy bit, and
+            // the extension consumers bind theirs.
             let row = if consumer.kind == SelectedInstructionKind::CopyI64 {
                 rows.copy
+            } else if matches!(
+                consumer.kind,
+                SelectedInstructionKind::WrappingRemainderI64 { .. }
+            ) {
+                rows.remainder
             } else {
                 rows.materialize
             };
@@ -765,16 +937,22 @@ fn rebuild_function(
         })?);
     }
     // The divide-identity grammar deliberately drops `fixed_view` pins with
-    // the pinned operand form; every other grammar still requires
-    // undecorated operands.
+    // the pinned operand form, and the remainder-identity grammar drops the
+    // pins and `early_clobber` marks a pinned-scratch realization carries;
+    // every other grammar still requires undecorated operands.
     let drops_fixed_views = matches!(
         consumer.kind,
         SelectedInstructionKind::ExactDivideU64 { .. }
+            | SelectedInstructionKind::WrappingRemainderI64 { .. }
+    );
+    let drops_early_clobbers = matches!(
+        consumer.kind,
+        SelectedInstructionKind::WrappingRemainderI64 { .. }
     );
     if consumer.operands.iter().any(|operand| {
         (operand.fixed_view.is_some() && !drops_fixed_views)
             || operand.tied_to.is_some()
-            || operand.early_clobber
+            || (operand.early_clobber && !drops_early_clobbers)
     }) {
         return Err(LiteralFoldError::ConsumerMismatch {
             function: function_index,
