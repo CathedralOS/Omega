@@ -46,6 +46,19 @@ impl ComponentDeploymentLiveEraSnapshot {
     }
 }
 
+#[cfg(test)]
+impl ComponentDeploymentLiveEraSnapshot {
+    pub fn occurrence_mut_for_test(&mut self) -> &mut ComponentDeploymentEraOccurrence {
+        &mut self.occurrence
+    }
+    pub fn state_mut_for_test(&mut self) -> &mut ComponentEraEntryState {
+        &mut self.state
+    }
+    pub fn active_entries_mut_for_test(&mut self) -> &mut usize {
+        &mut self.active_entries
+    }
+}
+
 impl ComponentDeploymentEraOccurrence {
     pub fn new(
         era_identity: u64,
@@ -83,6 +96,22 @@ impl ComponentDeploymentEraOccurrence {
     }
 }
 
+#[cfg(test)]
+impl ComponentDeploymentEraOccurrence {
+    pub fn era_identity_mut_for_test(&mut self) -> &mut u64 {
+        &mut self.era_identity
+    }
+    pub fn artifact_occurrence_digest_mut_for_test(&mut self) -> &mut [u8; 32] {
+        &mut self.artifact_occurrence_digest
+    }
+    pub fn installed_code_report_identity_mut_for_test(&mut self) -> &mut u64 {
+        &mut self.installed_code_report_identity
+    }
+    pub fn artifact_report_identity_mut_for_test(&mut self) -> &mut u64 {
+        &mut self.artifact_report_identity
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ComponentDeploymentAdmissionRecord {
     class: String,
@@ -114,6 +143,19 @@ impl ComponentDeploymentAdmissionRecord {
     }
     pub fn identity(&self) -> &str {
         &self.identity
+    }
+}
+
+#[cfg(test)]
+impl ComponentDeploymentAdmissionRecord {
+    pub fn class_mut_for_test(&mut self) -> &mut String {
+        &mut self.class
+    }
+    pub fn subject_mut_for_test(&mut self) -> &mut String {
+        &mut self.subject
+    }
+    pub fn identity_mut_for_test(&mut self) -> &mut String {
+        &mut self.identity
     }
 }
 
@@ -160,6 +202,19 @@ impl ComponentDeploymentAcceptanceSnapshot {
     }
     pub fn admissions(&self) -> &[ComponentDeploymentAdmissionRecord] {
         &self.admissions
+    }
+}
+
+#[cfg(test)]
+impl ComponentDeploymentAcceptanceSnapshot {
+    pub fn envelope_identity_mut_for_test(&mut self) -> &mut String {
+        &mut self.envelope_identity
+    }
+    pub fn canonical_envelope_mut_for_test(&mut self) -> &mut Vec<u8> {
+        &mut self.canonical_envelope
+    }
+    pub fn admissions_mut_for_test(&mut self) -> &mut Vec<ComponentDeploymentAdmissionRecord> {
+        &mut self.admissions
     }
 }
 
@@ -217,6 +272,48 @@ impl ComponentDeploymentJournalRecord {
     }
     pub fn installation_record(&self) -> &[u8] {
         &self.installation_record
+    }
+}
+
+#[cfg(test)]
+impl ComponentDeploymentJournalRecord {
+    pub fn journal_identity_mut_for_test(&mut self) -> &mut u64 {
+        &mut self.journal_identity
+    }
+    pub fn phase_mut_for_test(&mut self) -> &mut ComponentDeploymentJournalPhase {
+        &mut self.phase
+    }
+    pub fn binding_contract_identity_mut_for_test(&mut self) -> &mut String {
+        &mut self.binding_contract_identity
+    }
+    pub fn entry_contract_identity_mut_for_test(&mut self) -> &mut String {
+        &mut self.entry_contract_identity
+    }
+    pub fn prior_mut_for_test(&mut self) -> &mut Option<ComponentDeploymentEraOccurrence> {
+        &mut self.prior
+    }
+    pub fn live_eras_before_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<ComponentDeploymentLiveEraSnapshot> {
+        &mut self.live_eras_before
+    }
+    pub fn candidate_mut_for_test(&mut self) -> &mut ComponentDeploymentEraOccurrence {
+        &mut self.candidate
+    }
+    pub fn entry_plan_identity_mut_for_test(&mut self) -> &mut String {
+        &mut self.entry_plan_identity
+    }
+    pub fn entry_plan_admission_receipt_identity_mut_for_test(&mut self) -> &mut String {
+        &mut self.entry_plan_admission_receipt_identity
+    }
+    pub fn acceptance_mut_for_test(&mut self) -> &mut ComponentDeploymentAcceptanceSnapshot {
+        &mut self.acceptance
+    }
+    pub fn installation_fingerprint_mut_for_test(&mut self) -> &mut [u8; 32] {
+        &mut self.installation_fingerprint
+    }
+    pub fn installation_record_mut_for_test(&mut self) -> &mut Vec<u8> {
+        &mut self.installation_record
     }
 }
 
