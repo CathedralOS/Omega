@@ -9,10 +9,9 @@
 //! liveness and live ranges from [`analyses`], then either the identity route
 //! or the selected-lowering [`rewrites`] under allocation legality, published
 //! as one [`SelectedInstructionOptimizationOutput`] from
-//! `optimization_output.rs`.
+//! `selected_optimization::optimization_output`.
 
 mod analyses;
-mod optimization_output;
 mod rewrites;
 mod selected_optimization;
 
@@ -41,7 +40,7 @@ use register_homes::{
 };
 
 pub use analyses::*;
-pub use optimization_output::{
+pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
     SelectedInstructionOptimizationOutput,
 };
@@ -52,7 +51,7 @@ pub use selected_optimization::{
 };
 
 #[cfg(feature = "test-support")]
-pub mod test_support;
+pub use rewrites::test_support;
 
 use selected_instructions::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,

@@ -10,6 +10,8 @@ mod redundant_extension;
 mod runtime_rematerialization;
 mod runtime_spill;
 mod selected_lowering;
+#[cfg(feature = "test-support")]
+pub mod test_support;
 
 pub use allocation_recovery::*;
 pub use dead_store::*;

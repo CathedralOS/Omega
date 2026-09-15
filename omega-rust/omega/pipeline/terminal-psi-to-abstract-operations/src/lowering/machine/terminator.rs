@@ -1,6 +1,10 @@
 //! Ordinary-machine control-flow and terminal-edge projection.
 
 use super::*;
+use abstract_operations::{AbstractOperation, AbstractSuccessor, ValueBinding};
+use semantic_vocabulary::BlockId;
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_terminator(

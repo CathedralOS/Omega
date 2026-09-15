@@ -1,6 +1,13 @@
 //! Ordinary-machine roster construction, block traversal, and final assembly.
 
 use super::*;
+use abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractParameter, AbstractResult,
+};
+use semantic_vocabulary::StructuralPlaceKind;
+use std::collections::BTreeMap;
+use terminal_psi::TerminalMachine;
 
 pub(super) fn lower_ordinary_machine(
     machine: &TerminalMachine,

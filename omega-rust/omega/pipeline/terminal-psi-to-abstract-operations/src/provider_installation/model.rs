@@ -1,5 +1,6 @@
-use crate::shared::*;
-
+use abstract_operations::CompletionClaimSource;
+use semantic_vocabulary::{MachineId, OperationId};
+use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
 /// Bind Omega's provider policy only to exact rows preserved from the verified
 /// terminal catalog. Psi independently replays artifact verification before it
 /// returns the private-field installation carrier consumed by its interpreter.

@@ -1,5 +1,7 @@
 use super::LoweringError;
-use crate::shared::*;
+use abstract_operations::AbstractFunction;
+use semantic_vocabulary::OperationId;
+use terminal_psi::TerminalMachine;
 
 mod operation;
 mod ordinary;

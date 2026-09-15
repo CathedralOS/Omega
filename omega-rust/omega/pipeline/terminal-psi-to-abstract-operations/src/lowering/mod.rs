@@ -2,13 +2,15 @@
 //! every verified machine operation by operation, and
 //! retain the canonical Terminal-Psi identity.
 
+use abstract_operations::AbstractOperationPlan;
+use terminal_codec::terminal_psi_identity;
+use terminal_verifier::{VerifiedOptimizableTerminalModule, VerifiedTerminalModule};
 mod block_bindings;
 mod error;
 mod machine;
 
 pub use error::LoweringError;
 
-use crate::shared::*;
 use machine::lower_machine;
 use terminal_psi::TerminalModule;
 

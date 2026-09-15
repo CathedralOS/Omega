@@ -1,5 +1,5 @@
 use super::{VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnitBuildError};
-use crate::shared::*;
+use semantic_vocabulary::MachineId;
 
 pub(super) fn project_ownership_frontiers(
     input: &VerifiedPsiOptimizationInput,
