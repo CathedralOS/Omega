@@ -17,7 +17,9 @@ domain [u8; 1]::Utf8
 requires
     valid_utf8(self);
 data Main { console: Console; a: [u8; 2] in Utf8; b: [u8; 1] in Utf8; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console
+{
     self.a = "AB";
     self.b = "C";
     self.console.write(self.a);

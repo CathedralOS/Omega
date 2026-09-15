@@ -20,7 +20,9 @@ satisfies GenericMath::remainder
 
 data Main { console: Console; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console
+{
     let result: i32 = (70 as i32) % (1 as i32);
     self.console.exit_process(70);
 }

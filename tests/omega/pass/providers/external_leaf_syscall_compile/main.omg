@@ -32,7 +32,9 @@ linux_arm64 machine exit_leaf(code: i32)
     via Binding::Syscall(93);
 
 data Main { process: RawProcess; pid: i64; pgid_zero: i64; pgid: i64; exit_code: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches RawProcess
+{
     self.exit_code = 70;
     self.pid = self.process.process_id();
     self.pgid_zero = self.process.process_group(0);

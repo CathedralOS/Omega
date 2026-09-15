@@ -27,7 +27,9 @@ data Main {
     killed: u32;
     alive_after: u32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console, Gui
+{
     self.cls[0] = 83;
     self.cls[1] = 84;
     self.cls[2] = 65;

@@ -8,7 +8,9 @@
 use omega_language_std::console;
 boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 data Main { console: Console; input: Input; k: u64; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console, Input
+{
     self.k = self.input.key_state(32);
     transition self.k >= 0 { true -> ok() _ -> ok() }
     state ok(&mut self) { self.console.exit_process(70); }

@@ -20,7 +20,9 @@ data Main {
     hdc: u64;
     copied: u32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console, Gui
+{
     self.info[0] = 40;
     self.info[1] = 8;
     self.info[2] = 4294967288;

@@ -5,7 +5,9 @@
 use omega_language_std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); }
 data Main { console: Console; clock: Clock; delay: u32 in Wrapping; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Clock, Console
+{
     self.clock.sleep(2);
     self.delay = 1;
     self.clock.sleep(self.delay as u32);

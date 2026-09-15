@@ -19,7 +19,9 @@ data Main {
     service: Service<Ping> in Bound;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Ping
+{
     self.service.ping();
 }
 
@@ -28,7 +30,9 @@ machine Main::main(&mut self) {
 // scalar namespace retains an ordinary immutable input without forwarding,
 // borrowing, nesting, or return transport of the affine carrier.
 data ParameterHarness { }
-machine ParameterHarness::run(service: Service<Ping> in Bound, value: i32) {
+machine ParameterHarness::run(service: Service<Ping> in Bound, value: i32)
+reaches Ping
+{
     service.ping_value(value);
     service.ping_value(value);
 }
@@ -37,7 +41,9 @@ machine ParameterHarness::run(service: Service<Ping> in Bound, value: i32) {
 // helper. The helper terminates the route with direct calls; forwarding a
 // scalar, projecting or borrowing the carrier, or forwarding again remains
 // outside this cohort.
-machine forwarding_terminal(service: Service<Ping> in Bound) {
+machine forwarding_terminal(service: Service<Ping> in Bound)
+reaches Ping
+{
     service.ping();
 }
 
@@ -54,7 +60,9 @@ machine forwarding_twice(service: Service<Ping> in Bound) {
 machine forwarding_scalar_terminal(
     service: Service<Ping> in Bound,
     value: i32
-) {
+)
+reaches Ping
+{
     service.ping_value(value);
 }
 
