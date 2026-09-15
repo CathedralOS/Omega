@@ -649,7 +649,7 @@ rows! {
         "a producer's target-neutral rewrite claim over a verified module",
         "the rewrite is independently checked: surviving structure, operations, block parameters, edge arguments, and the proof question must be unchanged; the producer's liveness result is never trusted",
         &["formation:evidence-orchestration"],
-        &[tv!( "optimization.rs")]
+        &[tv!( "optimization.rs"), tv!( "optimization/dead_scalar_elimination.rs"), tv!( "optimization/copy_propagation.rs"), tv!( "optimization/global_value_numbering.rs"), tv!( "optimization/sparse_conditional_constant_propagation.rs"), tv!( "optimization/control_flow_cleanup.rs"), tv!( "optimization/proof_check_elision.rs")]
     );
     FORM_TRACE => (
         "formation:trace-observation-profile",
