@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    CapabilityDirectory, CapabilityOpenOptions, FollowSymlinks, OsString, Path, PathBuf,
+    RecordFileError, RecordFileRoot, io_error, single_file_name, verify_regular_identity,
+};
+use cap_fs_ext::OpenOptionsFollowExt;
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt;
 use std::fs::{File, TryLockError};
@@ -88,7 +92,7 @@ impl Drop for RecordFileLock {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CapabilityDirectory, Path, RecordFileRoot};
 
     #[test]
     fn guard_drop_unlocks_even_while_a_duplicate_description_remains_open() {
