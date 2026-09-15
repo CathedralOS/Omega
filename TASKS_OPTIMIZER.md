@@ -562,7 +562,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **TARGET-MATRICES.** Complete supported target/OS allocator, encoding,
   unwind, object, and callable matrices. Existing selected-lowering and
   post-allocation matrices do not claim physical spill insertion, final frame
-  layout, or unwind completion.
+  layout, or unwind completion. The callable leg now declares its second
+  boundary mechanism: `CallingPolicy::native_syscall_for_target` maps the
+  Linux x86-64 and arm64 pairs to their direct-syscall policies, answers
+  none for the Windows, UEFI, and Darwin C-called boundaries, and fails
+  closed on undeclared pairs; provider-planning's syscall binding arm now
+  selects from this matrix rather than a private (format, architecture)
+  match (calling-conventions `nextest`: 66 pass on Linux x86-64, including
+  per-target row pinning, undeclared-pair, and wrong-architecture drift
+  negatives). Remaining: allocator, encoding, unwind, and object legs.
+  Windows and macOS runs were unavailable on this host.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target.
