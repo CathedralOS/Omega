@@ -828,6 +828,25 @@ Owners include
   conditional native product; coordinate that join with
   **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**.
 
+  Resume evidence: `cea82370e6` adds
+  `ProgramLocalExtentRegistry::materialize_aggregate`, which discharges a
+  reconstructed epoch aggregate capacity over the group's actual installed
+  backing partitions for the same occurrence/epoch. The installation ledger
+  re-derives the complete live membership, so stale, substituted,
+  foreign-lifecycle, omitted, or repeated member sets reject transactionally
+  with their inputs; each backing must equal its member's evaluated interval
+  in one shared address space, and the presented receiver partitions must
+  compose the exact reconstructed interval set — overlap rejects. Minted
+  Extents carry activation loans (`Extent::loan`/`loan_mut`) and `retire`
+  completes the occurrence, returning the partition for rejoin into installed
+  storage. Witnessed on Linux x86-64 by `cargo nextest run -p external-roots
+  --no-fail-fast` (213/213), including
+  `aggregate_materialization_discharges_reconstructed_capacity_over_installed_partitions`,
+  `aggregate_materialization_rejects_stale_substituted_and_inexact_discharge`,
+  and `counted_aggregate_capacity_cannot_discharge_extent_partitions`. The
+  native-realization entrance is sibling-owned; the receiver-side bridge and
+  macOS contract remain open below.
+
   Acceptance: execute an authored receiver entry as a published process with no
   test-supplied `self`. Reject redirected continuation/receiver identities,
   non-ZII state, insufficient/misaligned backing, overlapping partitions, stale
