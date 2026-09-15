@@ -381,7 +381,9 @@ fn range_contains(
             <= checked_sum(outer_start, outer_size, context)?)
 }
 
-fn validate_deferred_constraint_envelope(candidate: &Candidate) -> Result<(), Diagnostic> {
+pub(crate) fn validate_deferred_constraint_envelope(
+    candidate: &Candidate,
+) -> Result<(), Diagnostic> {
     let payloads = candidate.relative.payloads().contents();
     for constraint in &payloads.procedure_constraints {
         let fixup = payloads
@@ -451,7 +453,7 @@ fn validate_deferred_constraint_envelope(candidate: &Candidate) -> Result<(), Di
     Ok(())
 }
 
-fn aarch64_page_delta_covers_extent(
+pub(crate) fn aarch64_page_delta_covers_extent(
     source: u64,
     target_start: u64,
     target_size: u64,

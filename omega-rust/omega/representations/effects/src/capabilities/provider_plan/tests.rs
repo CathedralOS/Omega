@@ -3,12 +3,12 @@
 use super::{
     BoundaryCallingPlanCommitment, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
-    EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
-    NormalizedForeignLocator, ProviderBinding, ProviderPlan, ProviderPlanRow,
-    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
+    EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport, ProviderBinding,
+    ProviderPlan, ProviderPlanRow, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
     ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
     ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
 };
+use crate::capabilities::foreign_locator::NormalizedForeignLocator;
 
 fn evaluated_import(locator: NormalizedForeignLocator, seed: u8) -> EvaluatedForeignImport {
     let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)
@@ -242,8 +242,7 @@ fn strong_provider_plan_identity_rejects_compact_equal_structural_substitution()
 #[test]
 fn exact_package_provenance_enters_provider_identity_but_legacy_label_does_not() {
     let mut first = windows_console_plan();
-    first.origin_package_identity =
-        semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
+    first.origin_package_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
     let first_identity = first.report_fingerprint();
 
     let mut renamed_label = first.clone();
@@ -251,8 +250,7 @@ fn exact_package_provenance_enters_provider_identity_but_legacy_label_does_not()
     assert_eq!(renamed_label.report_fingerprint(), first_identity);
 
     let mut second = first;
-    second.origin_package_identity =
-        semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]);
+    second.origin_package_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]);
     assert_ne!(second.report_fingerprint(), first_identity);
 
     let mut provider_type_owner = renamed_label.clone();
@@ -610,9 +608,7 @@ fn schema_validation_requires_explicit_owner_without_using_it_for_selection() {
     plan.schema.methods[0].requirement_owner.clear();
     let errors = plan.validate_candidate_against_schema();
     assert!(errors.iter().any(|error| {
-        error.contains(
-            "schema method `DerivedConsole::write_line` has no exact requirement owner",
-        )
+        error.contains("schema method `DerivedConsole::write_line` has no exact requirement owner")
     }));
     assert!(
         plan.covers_schema(),
@@ -657,8 +653,7 @@ fn schema_validation_requires_unique_exact_requirement_identities() {
         same_label
             .validate_candidate_against_schema()
             .iter()
-            .any(|error| error
-                .contains("repeat exact requirement identity `Console::write_line`"))
+            .any(|error| error.contains("repeat exact requirement identity `Console::write_line`"))
     );
 
     let mut different_label = windows_console_plan();
@@ -670,8 +665,7 @@ fn schema_validation_requires_unique_exact_requirement_identities() {
         different_label
             .validate_candidate_against_schema()
             .iter()
-            .any(|error| error
-                .contains("repeat exact requirement identity `Console::write_line`"))
+            .any(|error| error.contains("repeat exact requirement identity `Console::write_line`"))
     );
 }
 
@@ -953,18 +947,22 @@ fn schema_validation_requires_canonical_independent_service_axes() {
     let mut duplicate_reach = valid.clone();
     duplicate_reach.schema.methods[0].service_reach =
         vec!["Console".to_owned(), "Console".to_owned()];
-    assert!(duplicate_reach
-        .validate_candidate_against_schema()
-        .iter()
-        .any(|error| error.contains("service-reach identities are not strictly increasing")));
+    assert!(
+        duplicate_reach
+            .validate_candidate_against_schema()
+            .iter()
+            .any(|error| error.contains("service-reach identities are not strictly increasing"))
+    );
 
     let mut out_of_order_reach = valid.clone();
     out_of_order_reach.schema.methods[0].service_reach =
         vec!["Storage".to_owned(), "Console".to_owned()];
-    assert!(out_of_order_reach
-        .validate_candidate_against_schema()
-        .iter()
-        .any(|error| error.contains("service-reach identities are not strictly increasing")));
+    assert!(
+        out_of_order_reach
+            .validate_candidate_against_schema()
+            .iter()
+            .any(|error| error.contains("service-reach identities are not strictly increasing"))
+    );
 
     let mut empty_invocation = valid.clone();
     empty_invocation.schema.methods[0].synchronous_invocations[0].clear();
@@ -1257,8 +1255,7 @@ fn normalized_import_identity_enters_provider_plan_identity_atomically() {
     let baseline_identity = baseline.report_fingerprint();
 
     let mut changed_library = baseline.clone();
-    changed_library.rows[0].binding =
-        normalized_windows_import(b"kernelbase.dll", b"WriteFile");
+    changed_library.rows[0].binding = normalized_windows_import(b"kernelbase.dll", b"WriteFile");
     assert_ne!(baseline_identity, changed_library.report_fingerprint());
 
     let mut changed_export = baseline.clone();
@@ -1299,8 +1296,7 @@ fn evaluated_receipt_enters_provider_plan_identity_atomically() {
 fn macho_locator_coordinates_enter_provider_plan_identity_atomically() {
     let mut baseline = windows_console_plan();
     baseline.target = "macos_arm64".to_owned();
-    baseline.rows[0].binding =
-        normalized_macos_import(b"/usr/lib/libSystem.B.dylib", b"_write");
+    baseline.rows[0].binding = normalized_macos_import(b"/usr/lib/libSystem.B.dylib", b"_write");
     let baseline_identity = baseline.identity_digest();
 
     let mut changed_install_name = baseline.clone();
