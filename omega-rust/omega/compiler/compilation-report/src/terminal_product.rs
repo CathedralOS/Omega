@@ -290,6 +290,12 @@ pub struct TerminalNativeRealizationProposal {
     application_name: Option<String>,
     post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
     program_entry: build_evaluation::SelectedCompilerProgramEntry,
+    /// The checked-source ProgramEntry-to-Terminal join receipt produced with
+    /// this artifact. Native re-entry attaches it to the entry settlement as
+    /// independently admitted authority; `validate_for_artifact` binds it to
+    /// the retained source signature and canonical semantic identity so a
+    /// drifted receipt cannot enter custody beside a valid artifact.
+    checked_program_entry: terminal_production::CheckedProgramEntryTerminalReceipt,
     selected_provider_plans: effects::SelectedProviderPlanFacts,
     external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
     package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
@@ -314,6 +320,7 @@ impl TerminalNativeRealizationProposal {
         application_name: Option<String>,
         post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
         program_entry: build_evaluation::SelectedCompilerProgramEntry,
+        checked_program_entry: terminal_production::CheckedProgramEntryTerminalReceipt,
         selected_provider_plans: effects::SelectedProviderPlanFacts,
         external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
         mut package_terminal_authority_permissions: Vec<
@@ -351,6 +358,7 @@ impl TerminalNativeRealizationProposal {
             application_name,
             post_terminal_optimizations,
             program_entry,
+            checked_program_entry,
             selected_provider_plans,
             external_binding_rows,
             package_terminal_authority_permissions,
@@ -422,6 +430,20 @@ impl TerminalNativeRealizationProposal {
         {
             return Err("Terminal native proposal target, profile, and ProgramEntry disagree");
         }
+        if self.checked_program_entry.source_signature_identity()
+            != self.program_entry.source_signature().identity().bytes()
+            || self.checked_program_entry.source_machine_symbol()
+                != self.program_entry.source_signature().machine_symbol()
+        {
+            return Err(
+                "Terminal native proposal checked ProgramEntry receipt drifts from its selected source entry",
+            );
+        }
+        if self.checked_program_entry.terminal_psi_identity() != artifact.manifest().semantic() {
+            return Err(
+                "Terminal native proposal checked ProgramEntry receipt drifts from the canonical Terminal identity",
+            );
+        }
         self.validate_evaluated_import_rows()?;
         self.validate_package_terminal_authority_permissions()?;
         let mut requirements = std::collections::BTreeSet::new();
@@ -456,6 +478,11 @@ impl TerminalNativeRealizationProposal {
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
             |_| "Terminal callback occurrence replay could not decode canonical semantics",
         )?;
+        if module.entry != self.checked_program_entry.terminal_entry() {
+            return Err(
+                "Terminal native proposal checked ProgramEntry receipt names a different Terminal entry",
+            );
+        }
         self.validate_fused_program_entry_establishments(&module)?;
         for demand in self.boundary_application_coverage.demands().rows() {
             let matching_operations = module
@@ -865,6 +892,16 @@ impl TerminalNativeRealizationProposal {
 
     pub const fn program_entry(&self) -> &build_evaluation::SelectedCompilerProgramEntry {
         &self.program_entry
+    }
+
+    /// The checked-source ProgramEntry-to-Terminal receipt retained for native
+    /// re-entry. Validation binds it to this proposal's selected source
+    /// signature and canonical Terminal identity; settlement independently
+    /// re-derives the complete join before trusting it.
+    pub const fn checked_program_entry(
+        &self,
+    ) -> &terminal_production::CheckedProgramEntryTerminalReceipt {
+        &self.checked_program_entry
     }
 
     pub const fn selected_provider_plans(&self) -> &effects::SelectedProviderPlanFacts {

@@ -455,6 +455,7 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-codec",
+ "terminal-production",
  "terminal-psi",
  "trust-model",
 ]

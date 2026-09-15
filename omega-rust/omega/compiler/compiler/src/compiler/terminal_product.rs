@@ -59,16 +59,16 @@ pub(super) fn produce_retained_terminal_artifact(
     let callback_placements = checked.callback_placements().to_vec();
     // The selected entry rejoins Terminal production by its exact checked
     // machine symbol: the build product operand's lexical package choice must
-    // survive a same-named declaration in another package.
-    let entry_machine_symbol = checked
-        .selected_program_entry()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "terminal-artifact production requires one exact selected program entry",
-            )]
-        })?
-        .source_signature()
-        .machine_symbol();
+    // survive a same-named declaration in another package. The retained
+    // product also carries the checked entry receipt so later native re-entry
+    // can settle the hosted receiver without the checked frontend.
+    let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "terminal-artifact production requires one exact selected program entry",
+        )]
+    })?;
+    let entry_machine_symbol = selected_program_entry.source_signature().machine_symbol();
+    let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
     selected_dispatch::validate_selected_operator_terminal_custody(
         checked,
         checked.selected_provider_plans(),
@@ -84,7 +84,7 @@ pub(super) fn produce_retained_terminal_artifact(
         machine: terminal_production::TerminalMachineSelection::Symbol(entry_machine_symbol),
         optimization_selections: psi_optimizations.selections().clone(),
     }
-    .produce_with_callback_custody(callback_placements)
+    .produce_program_entry_with_callback_custody(source_signature_identity, callback_placements)
     .map_err(|error| {
         vec![Diagnostic::error(format!(
             "terminal-artifact production failed: {}",
@@ -93,6 +93,7 @@ pub(super) fn produce_retained_terminal_artifact(
     })?;
     let (
         artifact,
+        checked_program_entry,
         checked_boundary_operator_scope,
         callback_placements,
         source_call_occurrences,
@@ -104,6 +105,7 @@ pub(super) fn produce_retained_terminal_artifact(
         checked,
         profile,
         &artifact,
+        checked_program_entry,
         checked_boundary_operator_scope,
         &callback_placements,
         &source_call_occurrences,
@@ -123,6 +125,7 @@ fn project_terminal_native_realization_proposal(
     checked: &crate::CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
+    checked_program_entry: terminal_production::CheckedProgramEntryTerminalReceipt,
     checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
@@ -312,6 +315,7 @@ fn project_terminal_native_realization_proposal(
             .map(|name| name.as_str().to_owned()),
         selections.project_post_terminal(),
         program_entry,
+        checked_program_entry,
         checked.selected_provider_plans().clone(),
         external_binding_rows,
         package_terminal_authority_permissions,
