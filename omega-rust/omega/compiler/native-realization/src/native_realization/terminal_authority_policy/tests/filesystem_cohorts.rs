@@ -2,13 +2,14 @@
 
 use super::super::{
     FilesystemCohortDisposition, TerminalAuthorityPolicyBuildError, UnsettledFilesystemRequirement,
-    filesystem_host_permission_rows, filesystem_mechanism_row, settled_filesystem_cohort,
-    terminal_authority_policy_with_rows,
+    filesystem_host_permission_rows, filesystem_mechanism_row,
+    filesystem_ordinary_release_contract, filesystem_release_mechanism_row,
+    settled_filesystem_cohort, terminal_authority_policy_with_rows,
 };
 use effects::{
-    CheckedSyscallArgumentContractIdentity, PortableFilesystemAuthorityFacet,
-    SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityDisposition,
-    TerminalMechanismIdentity,
+    CheckedPhysicalTerminalMechanismIdentity, CheckedSyscallArgumentContractIdentity,
+    PortableFilesystemAuthorityFacet, SyscallTerminalMechanismIdentity, TerminalAuthorityClass,
+    TerminalAuthorityDisposition, TerminalMechanismIdentity,
     provider_plan::{ServiceMethod, ServiceSchema},
 };
 
@@ -277,4 +278,79 @@ fn emitted_mechanism_rows_enter_policy_and_duplicates_still_reject() {
             mechanism(0, 7)
         ))
     );
+}
+
+fn release_bound_mechanism(
+    number: u32,
+    contract: super::super::FilesystemOrdinaryReleaseContract,
+) -> TerminalMechanismIdentity {
+    SyscallTerminalMechanismIdentity::new(
+        target::TargetProfile::LinuxX64,
+        number,
+        contract.checked_argument_contract(),
+    )
+    .into()
+}
+
+#[test]
+fn ordinary_release_contract_binds_exactly_one_syscall_mechanism() {
+    let contract = filesystem_ordinary_release_contract([7; 32]);
+    // The release domain cannot reproduce its retained occurrence commitment
+    // or a differently committed occurrence's contract.
+    assert_ne!(contract.checked_argument_contract().as_bytes(), [7; 32]);
+    assert_ne!(filesystem_ordinary_release_contract([8; 32]), contract);
+
+    let bound = release_bound_mechanism(3, contract);
+    for release in ["close", "find_close", "close_handle"] {
+        let row = filesystem_release_mechanism_row(bound, &method(release), contract)
+            .expect("the occurrence-bound mechanism earns the explicit empty row");
+        assert_eq!(row.mechanism(), bound);
+        assert!(row.disposition().is_authority_class_empty());
+    }
+
+    // The same syscall number under any other contract is a different,
+    // unconstrained key: it cannot inherit the bound contract's row.
+    assert_eq!(
+        filesystem_release_mechanism_row(mechanism(3, 4), &method("close"), contract),
+        Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
+    );
+    // Non-syscall roles carry no release contract coordinate and refuse.
+    let port_write: TerminalMechanismIdentity =
+        CheckedPhysicalTerminalMechanismIdentity::port_write(target::TargetProfile::LinuxX64, 0x60)
+            .into();
+    assert_eq!(
+        filesystem_release_mechanism_row(port_write, &method("close"), contract),
+        Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
+    );
+    // Faceted and unknown requirements never take a release row.
+    assert_eq!(
+        filesystem_release_mechanism_row(bound, &method("read"), contract),
+        Err(UnsettledFilesystemRequirement::SettledFacetCohort)
+    );
+    assert_eq!(
+        filesystem_release_mechanism_row(bound, &method("not_a_requirement"), contract),
+        Err(UnsettledFilesystemRequirement::UnknownRequirement)
+    );
+    // The generic emitter refuses even the bound mechanism: the contract must
+    // arrive through the release path, not silently.
+    assert_eq!(
+        filesystem_mechanism_row(bound, &method("close")),
+        Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
+    );
+}
+
+#[test]
+fn occurrence_bound_release_row_classifies_in_an_exact_policy() {
+    let contract = filesystem_ordinary_release_contract([7; 32]);
+    let bound = release_bound_mechanism(3, contract);
+    let policy = terminal_authority_policy_with_rows(vec![
+        filesystem_mechanism_row(mechanism(0, 7), &method("read")).unwrap(),
+        filesystem_release_mechanism_row(bound, &method("close"), contract).unwrap(),
+    ])
+    .expect("exact cohort policy with the release row");
+    assert!(policy.classify(bound).unwrap().is_authority_class_empty());
+    // A substituted contract is an unknown mechanism, not a synonym, and an
+    // unconstrained close stays fail-closed under the same table.
+    assert!(policy.classify(mechanism(3, 4)).is_err());
+    assert!(policy.classify(mechanism(3, 0)).is_err());
 }

@@ -16,8 +16,10 @@ mod syscall;
 mod tests;
 
 pub use filesystem::{
-    FilesystemCohortDisposition, UnsettledFilesystemRequirement, filesystem_host_permission_row,
-    filesystem_host_permission_rows, filesystem_mechanism_row, settled_filesystem_cohort,
+    FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract, UnsettledFilesystemRequirement,
+    filesystem_host_permission_row, filesystem_host_permission_rows, filesystem_mechanism_row,
+    filesystem_ordinary_release_contract, filesystem_release_mechanism_row,
+    settled_filesystem_cohort,
 };
 pub use model::{
     TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,

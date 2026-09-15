@@ -12,15 +12,24 @@
 //! is not a disposition: lookup fails closed. Demand completeness never
 //! fabricates a broad union, and an ordinary-release cohort cannot emit a
 //! mechanism row without its separately retained occurrence-specific release
-//! contract.
+//! contract. That contract binds into a direct-syscall mechanism's checked
+//! argument-contract coordinate; a normalized foreign mechanism commits its
+//! implementation contract to the boundary calling plan instead and has no
+//! release coordinate yet.
 
 use effects::{
-    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission,
-    TerminalAuthorityDisposition, TerminalMechanismIdentity,
+    CheckedSyscallArgumentContractIdentity, PortableFilesystemAuthorityFacet,
+    ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition, TerminalMechanismIdentity,
     provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest},
 };
+use sha2::{Digest, Sha256};
 
 use super::TerminalAuthorityPolicyRow;
+
+/// Domain separation inside the checked syscall argument-contract namespace
+/// for the occurrence-specific ordinary-release contract.
+const ORDINARY_RELEASE_CONTRACT_DOMAIN: &[u8] =
+    b"omega.checked-syscall-argument-contract.filesystem-ordinary-release.v1\0";
 
 /// One canonical `FilesystemHost` requirement's settled cohort disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,11 +54,55 @@ pub enum UnsettledFilesystemRequirement {
     /// The name is not a canonical `FilesystemHost` cohort member. No
     /// disposition is inferred from a readable name.
     UnknownRequirement,
+    /// The requirement's settled cohort is a concrete facet disposition, not
+    /// the ordinary-release contract. Its mechanism row emits through
+    /// `filesystem_mechanism_row` and needs no release contract.
+    SettledFacetCohort,
     /// The requirement's only settled classification is the explicit empty
     /// set under a retained occurrence-specific ordinary-release contract.
     /// Consumer permission rows still emit an explicit empty grant; mechanism
     /// classification rows refuse until that contract is established.
     OrdinaryReleaseContract,
+}
+
+/// Strong identity of one retained occurrence-specific ordinary-release
+/// contract bound into a direct-syscall mechanism key.
+///
+/// Ordinary-release narrowing requires exact checked constraint evidence in
+/// the mechanism key; this identity is the domain-separated commitment the
+/// checking stage's retained evidence produces. It stays disjoint from the
+/// conservative unconstrained argument contract and every other narrowing
+/// derivation, so a constrained mechanism and an unconstrained one never
+/// share a key or a classification row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemOrdinaryReleaseContract(CheckedSyscallArgumentContractIdentity);
+
+impl FilesystemOrdinaryReleaseContract {
+    /// The checked argument-contract coordinate carried in the bound
+    /// mechanism's `Syscall` identity.
+    pub const fn checked_argument_contract(self) -> CheckedSyscallArgumentContractIdentity {
+        self.0
+    }
+}
+
+/// Bind one retained occurrence commitment into the ordinary-release contract
+/// coordinate of a direct-syscall mechanism.
+///
+/// `occurrence_commitment` is the checking stage's strong commitment of the
+/// retained constrained acquisition/observation/release lifecycle — for the
+/// `FilesystemHost` native-handle chain, the checked query-release record's
+/// own commitment. Minting this coordinate does not itself establish the
+/// occurrence and grants no classification, permission, or admission: the
+/// mechanism row still emits only through `filesystem_release_mechanism_row`.
+pub fn filesystem_ordinary_release_contract(
+    occurrence_commitment: [u8; 32],
+) -> FilesystemOrdinaryReleaseContract {
+    let mut digest = Sha256::new();
+    digest.update(ORDINARY_RELEASE_CONTRACT_DOMAIN);
+    digest.update(occurrence_commitment);
+    FilesystemOrdinaryReleaseContract(CheckedSyscallArgumentContractIdentity::from_digest(
+        digest.finalize().into(),
+    ))
 }
 
 /// Look up the settled cohort for one canonical `FilesystemHost` requirement
@@ -160,6 +213,41 @@ pub fn filesystem_mechanism_row(
         )),
         Some(FilesystemCohortDisposition::OrdinaryReleaseContract) => {
             Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
+        }
+        None => Err(UnsettledFilesystemRequirement::UnknownRequirement),
+    }
+}
+
+/// Emit the evidence-bound explicit-empty mechanism row for one
+/// ordinary-release cohort requirement whose proved constrained occurrence
+/// carries `contract` in the mechanism's checked contract coordinate.
+///
+/// Only a direct-syscall mechanism can carry the contract today: a normalized
+/// foreign locator commits its implementation contract to the admitted
+/// boundary calling plan and has no release coordinate, so foreign
+/// `close`/`find_close`/`close_handle` realizations still refuse rather than
+/// fabricating a union. A mechanism carrying any other contract is an
+/// unconstrained key and earns no row.
+pub fn filesystem_release_mechanism_row(
+    mechanism: TerminalMechanismIdentity,
+    method: &ServiceMethod,
+    contract: FilesystemOrdinaryReleaseContract,
+) -> Result<TerminalAuthorityPolicyRow, UnsettledFilesystemRequirement> {
+    match settled_filesystem_cohort(&method.name) {
+        Some(FilesystemCohortDisposition::OrdinaryReleaseContract) => {
+            let TerminalMechanismIdentity::Syscall(syscall) = mechanism else {
+                return Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract);
+            };
+            if syscall.checked_argument_contract() != contract.checked_argument_contract() {
+                return Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract);
+            }
+            Ok(TerminalAuthorityPolicyRow::new(
+                mechanism,
+                TerminalAuthorityDisposition::from_filesystem_facets([]),
+            ))
+        }
+        Some(FilesystemCohortDisposition::Facets(_)) => {
+            Err(UnsettledFilesystemRequirement::SettledFacetCohort)
         }
         None => Err(UnsettledFilesystemRequirement::UnknownRequirement),
     }
