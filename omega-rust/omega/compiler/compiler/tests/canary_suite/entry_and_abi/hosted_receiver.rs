@@ -1,12 +1,12 @@
 //! Real process entry must provision the receiver; the test supplies no pointer,
 //! storage grant, interpreter arguments, or replacement native entry stub.
 
-use super::super::{PathBuf, repo_root};
-use super::{
-    CanaryCompileProduct, CanaryCompileSpec, CheckedCompileRequest, Command, CompileReport, Path,
-    compile_reviewed_repository_fixture, compile_with_auxiliary_artifacts, fs,
+use crate::{
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, Path, PathBuf,
+    compile_reviewed_repository_fixture, compile_with_auxiliary_artifacts, fs, repo_root,
     unique_no_output_build_dir,
 };
+use compiler::CheckedCompileRequest;
 struct HostedProject(PathBuf);
 
 impl Drop for HostedProject {
