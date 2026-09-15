@@ -690,11 +690,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `WritePlace` row at the identical byte offset — `CopyI64` of the stored
   register at full width, the matching `ZeroExtend` at sub-word width,
   since a same-width store-then-load round-trips the register's low bits
-  in the target's own byte order — and `rewrites/dead_store` removes a
-  `Store` whose dead range a later `Store` covering the same row
-  rewrites unobserved — the first access on the dead place decides,
-  boundary settlements inside the dead interval reject while later
-  positions shift one ordinal. Dead-store search also walks forward
+  in the target's own byte order — and `rewrites/dead_store` removes an
+  exact-width `Store` whose dead range a later place store rewrites
+  unobserved — the first access on the dead place decides, and the
+  covering store's single `WritePlace` row need only contain the dead
+  range entirely, so a wider `Store` or a `StorePacked` kills a
+  narrower or shifted dead store while partial overlap, a row that
+  disagrees with its instruction's encoded range, and a packed store
+  on the wrong constraint still reject; boundary settlements inside
+  the dead interval reject while later positions shift one ordinal.
+  Dead-store search also walks forward
   across edges when every outgoing edge of a crossed block names one
   block — each path forward then reaches the covering store before any
   observer — checking each crossed terminator's roster rows and each
@@ -725,9 +730,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   the load's result reject, as do structural destinations, case custody
   slots, and custody discards touching the forwarded place's storage,
   while joins, unreachable blocks, self-loops, and the function entry
-  end the walk unproven (crate `nextest`: 282 pass). Remaining: killers
-  beyond the exact `Store`/`WritePlace` pair; forwarding still stops at
-  joins.
+  end the walk unproven (crate `nextest`: 357 pass). Remaining:
+  place-backed local-slot and dynamic-extent writes still cannot
+  cover, `StorePacked` cannot yet be the removed store, and load
+  forwarding still stops at joins.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
