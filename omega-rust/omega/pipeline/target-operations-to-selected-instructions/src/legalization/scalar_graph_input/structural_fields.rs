@@ -205,8 +205,15 @@ pub(in crate::legalization) fn read(
         let selected = fields
             .iter()
             .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
-        let terminal_psi::StructuralFieldType::Structural(child) = selected.field_type else {
-            return None;
+        let child = match &selected.field_type {
+            terminal_psi::StructuralFieldType::Structural(child) => *child,
+            leaf => {
+                let shape = leaf.canonical_leaf_shape()?;
+                types
+                    .iter()
+                    .find(|declaration| declaration.shape == shape)
+                    .map(|declaration| declaration.id)?
+            }
         };
         runtime_path.push(terminal_psi::StructuralPathSegment::Field(
             selected.identity.clone(),

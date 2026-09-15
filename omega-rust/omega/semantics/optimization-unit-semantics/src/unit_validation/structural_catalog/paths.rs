@@ -50,10 +50,16 @@ pub(crate) fn resolve_structural_path(
                 let field = fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-                let terminal_psi::StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
-                next
+                match &field.field_type {
+                    terminal_psi::StructuralFieldType::Structural(next) => *next,
+                    leaf => {
+                        let shape = leaf.canonical_leaf_shape()?;
+                        *types
+                            .iter()
+                            .find(|(_, declaration)| declaration.shape == shape)
+                            .map(|(id, _)| id)?
+                    }
+                }
             }
             (
                 terminal_psi::StructuralPathSegment::FixedIndex(index),

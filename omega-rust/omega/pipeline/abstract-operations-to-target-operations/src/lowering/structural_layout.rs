@@ -7,17 +7,18 @@ pub(super) fn primitive_projection_type(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<ScalarType> {
     use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
-    for segment in path {
+    for (position, segment) in path.iter().enumerate() {
         carrier = match (segment, &declarations.get(&carrier)?.shape) {
             (Segment::Field(identity), StructuralTypeShape::Record { fields }) => {
                 let field = fields.iter().find(|field| field.id == *identity)?;
                 if field.relevance.is_erased() {
                     return None;
                 }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
-                child
+                match &field.field_type {
+                    StructuralFieldType::Structural(child) => *child,
+                    leaf if position + 1 == path.len() => return leaf.scalar_type(),
+                    _ => return None,
+                }
             }
             (
                 Segment::FixedIndex(position),
@@ -362,8 +363,18 @@ pub(super) fn resolve_structural_field_path(
             local_offset = checked_align_up_u32(local_offset, u32::from(field_shape.alignment))
                 .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
             if field.identity == *identity {
-                let StructuralFieldType::Structural(field_type) = field.field_type else {
-                    return Err(LoweringError::UnknownStructuralType(structural_type));
+                let field_type = match &field.field_type {
+                    StructuralFieldType::Structural(nested) => *nested,
+                    leaf => {
+                        let shape = leaf.canonical_leaf_shape().ok_or(
+                            LoweringError::UnknownStructuralType(structural_type),
+                        )?;
+                        *declarations
+                            .iter()
+                            .find(|(_, declaration)| declaration.shape == shape)
+                            .map(|(id, _)| id)
+                            .ok_or(LoweringError::UnknownStructuralType(structural_type))?
+                    }
                 };
                 selected = Some((field_type, field_shape, local_offset));
                 break;

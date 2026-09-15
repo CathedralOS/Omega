@@ -456,10 +456,19 @@ pub(super) fn resolve_structural_path_type(
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())
                     .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
-                let terminal_psi::StructuralFieldType::Structural(next) = field.field_type else {
-                    return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
-                };
-                next
+                match &field.field_type {
+                    terminal_psi::StructuralFieldType::Structural(next) => *next,
+                    leaf => {
+                        let Some(shape) = leaf.canonical_leaf_shape() else {
+                            return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
+                        };
+                        structural_types
+                            .iter()
+                            .find(|(_, declaration)| declaration.shape == shape)
+                            .map(|(id, _)| *id)
+                            .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?
+                    }
+                }
             }
             _ => return Err(TerminalInterpretError::AffineProjectionNotRepresentable),
         };

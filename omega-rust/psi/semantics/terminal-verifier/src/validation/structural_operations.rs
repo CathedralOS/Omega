@@ -2593,6 +2593,11 @@ pub(crate) fn structural_argument_canonical_prefix(
                 prefix.push(CanonicalStructuralPathSegment::Field(field.id));
                 match field.field_type {
                     StructuralFieldType::Structural(next) => structural_type = next,
+                    StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)
+                        if position + 1 == argument.path.len() =>
+                    {
+                        return Some(prefix);
+                    }
                     StructuralFieldType::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
                     ) if argument.access == StructuralAccess::MutableBorrow

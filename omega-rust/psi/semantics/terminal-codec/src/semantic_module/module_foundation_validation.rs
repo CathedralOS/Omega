@@ -652,10 +652,23 @@ pub(crate) fn validate_structural_path(
                 if field.relevance.is_erased() {
                     return malformed("structural path cannot select an erased structural field");
                 }
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return malformed("structural path must retain structural custody");
-                };
-                next
+                match &field.field_type {
+                    StructuralFieldType::Structural(next) => *next,
+                    leaf => {
+                        let Some(shape) = leaf.canonical_leaf_shape() else {
+                            return malformed("structural path must retain structural custody");
+                        };
+                        let Some(id) = module
+                            .structural_types
+                            .iter()
+                            .find(|declaration| declaration.shape == shape)
+                            .map(|declaration| declaration.id)
+                        else {
+                            return malformed("structural path must retain structural custody");
+                        };
+                        id
+                    }
+                }
             }
             (
                 StructuralPathSegment::FixedIndex(index),

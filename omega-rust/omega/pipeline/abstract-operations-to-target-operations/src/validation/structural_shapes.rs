@@ -99,8 +99,18 @@ pub(super) fn project_static_path(
             let shape = field_shape(&field.field_type, &indexed, &mut cache, &mut active)?;
             local_offset = align(local_offset, u32::from(shape.alignment))?;
             if field.identity == *identity {
-                let StructuralFieldType::Structural(field_type) = field.field_type else {
-                    return Err(InvalidStructuralShape);
+                let field_type = match &field.field_type {
+                    StructuralFieldType::Structural(nested) => *nested,
+                    leaf => {
+                        let shape = leaf
+                            .canonical_leaf_shape()
+                            .ok_or(InvalidStructuralShape)?;
+                        *indexed
+                            .iter()
+                            .find(|(_, declaration)| declaration.shape == shape)
+                            .map(|(id, _)| id)
+                            .ok_or(InvalidStructuralShape)?
+                    }
                 };
                 selected = Some((field_type, local_offset));
                 break;

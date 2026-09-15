@@ -92,6 +92,22 @@ impl StructuralFieldType {
             Self::ByteSequence(_) | Self::Structural(_) | Self::Erased { .. } => None,
         }
     }
+
+    /// The declared structural shape a plain leaf field resolves to at a path
+    /// end. Bounded leaves keep their restriction out of borrowed shapes, and
+    /// erased or structural children are resolved by their own owners.
+    pub fn canonical_leaf_shape(&self) -> Option<StructuralTypeShape> {
+        match self {
+            Self::Scalar(scalar_type) => Some(StructuralTypeShape::PrimitiveScalar(*scalar_type)),
+            Self::IeeeFloat(format) => {
+                Some(StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+                    *format,
+                )))
+            }
+            Self::ByteSequence(carrier) => Some(StructuralTypeShape::ByteSequence(*carrier)),
+            Self::BoundedInteger(_) | Self::Structural(_) | Self::Erased { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -542,8 +542,15 @@ fn project_inner<'a>(
                         Projection::FieldId(identity) => field.id == identity,
                         _ => false,
                     } {
-                        let StructuralFieldType::Structural(nested) = field.field_type else {
-                            return None;
+                        let nested = match &field.field_type {
+                            StructuralFieldType::Structural(nested) => *nested,
+                            leaf => {
+                                let shape = leaf.canonical_leaf_shape()?;
+                                declarations
+                                    .iter()
+                                    .find(|declaration| declaration.shape == shape)
+                                    .map(|declaration| declaration.id)?
+                            }
                         };
                         found = Some((nested, field_offset));
                         break;
