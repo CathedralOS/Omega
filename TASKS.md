@@ -2721,6 +2721,19 @@ Owners include
   authored/generated boundary; no own-build final-component query or hidden
   post-compilation callback.
 
+  Resume evidence: `4eecfbddfe` (2026-09-15 UTC, Linux x86-64) bound the full
+  replay activation — serialized replay records now carry the exact root
+  package identity, authored declaration role, and selected target profile
+  (`build-evaluation/src/observations.rs` `BuildReplayActivation`, folded into
+  the observation identity and record VERSION 56), and admission drift-rejects
+  a replay captured under any other activation
+  (`build_config_granted.rs::serialized_replay_record_rejects_activation_drift`;
+  `cargo nextest run -p compiler --test build_config_granted
+  serialized_replay_record` passes). Remaining: compiler-owned publication of
+  the retained native product with generated source — dependency-purpose and
+  execution-profile binding on checkpoints and generated handoffs, and
+  publication gated on every required output plus final product checking.
+
 - **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish the compiler/library migration
   to explicit ordinary std dependency edges. Std may be replaced, split, or
   absent; only core and compiler-injected vocabulary remain toolchain-owned.
