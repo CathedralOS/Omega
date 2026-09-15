@@ -1,11 +1,13 @@
 //! Owner tests for structural crash predicates, not fabricated source evidence.
 use super::{
-    CanonicalStructuralPathSegment, CheckedBooleanExpression, CheckedIntegerComparisonKind,
-    CheckedScalarExpression, IeeeFloatFormat, IeeeFloatStructuralField, LoweringError,
-    PrimitiveType, Proposition, ScalarTerm, ScalarType, StructuralFieldType,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalCrashCause, ValueDeclaration, integer_scalar_type,
+    CheckedBooleanExpression, LoweringError, ScalarType, TerminalCrashCause, ValueDeclaration,
     lower_structural_crash_route_buckets,
+};
+use crate::proofs::{
+    CanonicalStructuralPathSegment, CheckedIntegerComparisonKind, CheckedScalarExpression,
+    IeeeFloatFormat, IeeeFloatStructuralField, PrimitiveType, Proposition, ScalarTerm,
+    StructuralFieldType, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, integer_scalar_type,
 };
 use semantic_vocabulary::PsiSemanticId;
 use terminal_psi::{StructuralAccess, StructuralFieldDeclaration, StructuralMultiplicity};
