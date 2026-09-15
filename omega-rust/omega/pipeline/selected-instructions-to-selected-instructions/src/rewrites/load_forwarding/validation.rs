@@ -13,7 +13,8 @@ use crate::ValidatedSelectedAnalysis;
 
 /// Independently consume the proposed program: admission re-derives the pair
 /// from the source, the rewritten instruction must equal the reconstructed
-/// copy, and the roster must drop exactly the load's read row. Reinserting
+/// register move or `ZeroExtend`, and the roster must drop exactly the load's
+/// read row. Reinserting
 /// the load and its row must restore the complete source by content — every
 /// other instruction, register, call, settlement, and function included.
 pub fn validate_stored_load_forwarding(

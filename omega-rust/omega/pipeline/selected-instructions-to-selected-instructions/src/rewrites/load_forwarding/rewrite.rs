@@ -5,10 +5,11 @@ use selected_instructions::SelectedInstructionId;
 use super::{StoredLoadForwardingError, ValidatedStoredLoadForwarding, admission};
 use crate::ValidatedSelectedAnalysis;
 
-/// Replace one admitted `Load64` with a `CopyI64` of the register its
-/// place-matched `Store` wrote. The roster drops exactly the load's read row;
-/// every other function, block, instruction, register, call, settlement, and
-/// access is retained, and replay independently confirms that.
+/// Replace one admitted load with the register move or exact-width
+/// `ZeroExtend` of the value its place-matched `Store` wrote. The roster
+/// drops exactly the load's read row; every other function, block,
+/// instruction, register, call, settlement, and access is retained, and
+/// replay independently confirms that.
 pub fn forward_selected_stored_load(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
