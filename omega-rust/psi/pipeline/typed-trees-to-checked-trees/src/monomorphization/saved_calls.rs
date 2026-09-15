@@ -13,7 +13,9 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
     let mut sites = Vec::new();
     let mut expressions = Vec::new();
     for state in source.machine_states(machine) {
-        for handle in super::statement_span_handles(state.statement_nodes) {
+        for handle in
+            crate::monomorphization::body_rewriting::statement_span_handles(state.statement_nodes)
+        {
             sites.push(CallSite::Statement(handle));
             for root in super::selected_operator_providers::executable_statement_expression_roots(
                 source,

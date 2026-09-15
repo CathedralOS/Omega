@@ -1,6 +1,7 @@
 //! Materialize selected const binders without capturing same-spelled names.
 
-use super::{Candidate, static_const_literal_from_type_reference};
+use super::Candidate;
+use crate::monomorphization::body_rewriting::static_const_literal_from_type_reference;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
