@@ -576,10 +576,10 @@ fn build_snapshot_rejects_an_omitted_required_output() {
     let _ = std::fs::remove_dir_all(session);
 }
 
-#[test]
-fn serialized_replay_record_reproduces_the_full_admitted_activation() {
-    let profile = target::TargetProfile::WindowsX64;
-    let project = Project::new("serialized-replay");
+/// One generated-source build activation shared by the serialized-replay
+/// tests: the granted machine reads an authored input and hands off
+/// `generated.omg` into the later checking stratum.
+fn write_serialized_replay_project(project: &Project) {
     project.write("main.omg", "data Main { value: u8; }\n");
     project.write("input.txt", "input\n");
     project.write(
@@ -605,9 +605,11 @@ fn serialized_replay_record_reproduces_the_full_admitted_activation() {
 "#,
         ),
     );
+}
 
+fn sponsored_build_session(label: &str) -> (PathBuf, FilesystemSponsor, PathBuf) {
     let session = std::env::temp_dir().join(format!(
-        "omega-build-facet-serialized-replay-session-{}",
+        "omega-build-facet-{label}-session-{}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&session);
@@ -625,6 +627,15 @@ fn serialized_replay_record_reproduces_the_full_admitted_activation() {
     prepared_build_dir
         .commit()
         .expect("commit serialized-replay output root");
+    (session, sponsor, build_dir)
+}
+
+#[test]
+fn serialized_replay_record_reproduces_the_full_admitted_activation() {
+    let profile = target::TargetProfile::WindowsX64;
+    let project = Project::new("serialized-replay");
+    write_serialized_replay_project(&project);
+    let (session, sponsor, build_dir) = sponsored_build_session("serialized-replay");
     set_canonical_source_tree_permissions(&project.root, true);
     let inputs = package_inputs(&project.root);
     let checked = compile_to_checked(CheckedCompileRequest {
@@ -716,6 +727,110 @@ fn serialized_replay_record_reproduces_the_full_admitted_activation() {
             .message
             .contains("does not match the current canonical Source metadata identity")),
         "unexpected drift diagnostics: {drifted:#?}"
+    );
+    let _ = std::fs::remove_dir_all(session);
+}
+
+#[test]
+fn serialized_replay_record_rejects_activation_drift() {
+    let profile = target::TargetProfile::WindowsX64;
+    let project = Project::new("serialized-activation-drift");
+    write_serialized_replay_project(&project);
+    let (session, sponsor, build_dir) = sponsored_build_session("serialized-activation-drift");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let inputs = package_inputs(&project.root);
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir),
+        package_inputs: Some(inputs.clone()),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect("admitted build activation executes and appends generated source");
+    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
+    let record = build_evaluation::capture_verified_build_filesystem_replay_record(
+        checked
+            .build_observation_summary()
+            .expect("admitted activation retains observation custody"),
+        limits,
+    )
+    .expect("capture the verified replay record")
+    .expect("a complete receipted activation issues a replay record");
+    let recovered = build_evaluation::recover_review_only_build_filesystem_replay_record(
+        record.canonical_bytes(),
+        limits,
+    )
+    .expect("serialized replay record recovers");
+
+    // The record's bound target is an observable build input: replaying the
+    // same evidence under another selected target must reject rather than
+    // substitute a stale activation.
+    let drifted_target = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        replay_record: Some(recovered.clone()),
+        ..CheckedCompileRequest::new(
+            &project.main(),
+            Some(target::TargetProfile::LinuxX64.target_name()),
+        )
+    })
+    .expect_err("replay evidence bound to another target must reject");
+    assert!(
+        drifted_target
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("selected target profile")),
+        "unexpected target-drift diagnostics: {drifted_target:#?}"
+    );
+
+    // Identical source bytes under a different root package occurrence are a
+    // different activation even though the canonical metadata commitment is
+    // unchanged.
+    let foreign = PackageKeyIdentity::from_digest([98; 32]).expect("foreign root identity");
+    let foreign_inputs = PackageCompilationInputs::new_package(
+        foreign,
+        vec![
+            PackageSourceBinding::new(foreign, "build-facet", project.root.clone())
+                .with_canonical_source_metadata()
+                .expect("capture canonical package source"),
+        ],
+        Vec::new(),
+    )
+    .expect("foreign package occurrence input");
+    let drifted_root = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(foreign_inputs),
+        replay_record: Some(recovered.clone()),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect_err("replay evidence bound to another root package must reject");
+    assert!(
+        drifted_root
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("root package identity")),
+        "unexpected root-drift diagnostics: {drifted_root:#?}"
+    );
+
+    // The authored declaration role is part of the activation: the same
+    // sources under the application role must not replay package evidence.
+    let application_inputs = PackageCompilationInputs::new(
+        inputs.root(),
+        package_compilation::BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(inputs.root(), "build-facet", project.root.clone())
+                .with_canonical_source_metadata()
+                .expect("capture canonical package source"),
+        ],
+        Vec::new(),
+    )
+    .expect("application-role package input");
+    let drifted_role = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(application_inputs),
+        replay_record: Some(recovered),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect_err("replay evidence bound to another declaration role must reject");
+    assert!(
+        drifted_role
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("root declaration role")),
+        "unexpected role-drift diagnostics: {drifted_role:#?}"
     );
     let _ = std::fs::remove_dir_all(session);
 }

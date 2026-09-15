@@ -2,7 +2,10 @@
 
 pub mod preparation;
 
-use crate::{BuildCanonicalSourceMetadataIdentity, observations::BuildCapturedSourceInventory};
+use crate::{
+    BuildCanonicalSourceMetadataIdentity,
+    observations::{BuildCapturedSourceInventory, BuildReplayActivation},
+};
 use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture,
     discard_materialized_snapshot, empty,
@@ -46,6 +49,9 @@ pub struct BuildMachineFilesystemScope {
     build_dir: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
     replay: Option<checked_interpreter::FilesystemReplay>,
+    replay_activation: Option<BuildReplayActivation>,
+    root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    root_role: Option<package_compilation::BuildDeclarationKind>,
     captured_source_input: Option<CapturedBuildSourceInput>,
     snapshot_dir: Option<PathBuf>,
     required_outputs: BTreeSet<Vec<u8>>,
@@ -72,6 +78,9 @@ impl BuildMachineFilesystemScope {
             build_dir,
             sponsor,
             replay: None,
+            replay_activation: None,
+            root_package_identity: None,
+            root_role: None,
             captured_source_input: None,
             snapshot_dir: None,
             required_outputs: BTreeSet::new(),
@@ -92,14 +101,40 @@ impl BuildMachineFilesystemScope {
             build_dir,
             sponsor,
             replay: None,
+            replay_activation: None,
+            root_package_identity: None,
+            root_role: None,
             captured_source_input: None,
             snapshot_dir: None,
             required_outputs: BTreeSet::new(),
         }
     }
 
-    pub fn with_replay(mut self, replay: checked_interpreter::FilesystemReplay) -> Self {
+    /// Bind the root package occurrence and authored declaration role whose
+    /// validated inputs produced this scope. With these bound, a replay
+    /// record's own activation may be checked against the requesting
+    /// compilation rather than trusted from custody alone.
+    pub fn with_package_activation(
+        mut self,
+        root_package_identity: semantic_vocabulary::PackageKeyIdentity,
+        root_role: package_compilation::BuildDeclarationKind,
+    ) -> Self {
+        self.root_package_identity = Some(root_package_identity);
+        self.root_role = Some(root_role);
+        self
+    }
+
+    /// Bind retained replay evidence and the activation it was captured
+    /// under. The activation travels with the evidence so admission can
+    /// reject a record replayed under a different root package, declaration
+    /// role, or selected target.
+    pub fn with_replay(
+        mut self,
+        replay: checked_interpreter::FilesystemReplay,
+        replay_activation: BuildReplayActivation,
+    ) -> Self {
         self.replay = Some(replay);
+        self.replay_activation = Some(replay_activation);
         self
     }
 
@@ -199,6 +234,24 @@ impl BuildMachineFilesystemScope {
 
     pub(super) const fn is_replay(&self) -> bool {
         self.replay.is_some()
+    }
+
+    /// The activation any bound replay evidence was captured under.
+    pub(super) const fn replay_activation(&self) -> Option<BuildReplayActivation> {
+        self.replay_activation
+    }
+
+    /// The activation this scope describes: the bound package occurrence
+    /// members plus the selected target the requesting compilation asked for.
+    pub(super) fn activation(
+        &self,
+        selected_target_profile: Option<target::TargetProfile>,
+    ) -> BuildReplayActivation {
+        BuildReplayActivation {
+            root_package_identity: self.root_package_identity,
+            root_role: self.root_role,
+            selected_target_profile,
+        }
     }
 
     pub(super) fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {

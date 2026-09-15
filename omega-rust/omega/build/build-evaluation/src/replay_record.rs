@@ -6,7 +6,7 @@ use crate::{
     BuildFilesystemOperationAttempt, BuildFilesystemOperationObservationClass,
     BuildFilesystemOperationResult, BuildFilesystemProvider,
     BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
-    BuildFilesystemScalarOperandValue, BuildObservationSummary,
+    BuildFilesystemScalarOperandValue, BuildObservationSummary, BuildReplayActivation,
 };
 #[cfg(test)]
 use crate::{BuildFilesystemReplayDisposition, BuildFilesystemReplayVerdict};
@@ -100,7 +100,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 55;
+const VERSION: u16 = 56;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -163,6 +163,7 @@ pub struct ReviewOnlyBuildFilesystemReplayRecord {
     canonical_bytes: Vec<u8>,
     commitment: [u8; 32],
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    replay_activation: BuildReplayActivation,
 }
 
 impl ReviewOnlyBuildFilesystemReplayRecord {
@@ -178,6 +179,14 @@ impl ReviewOnlyBuildFilesystemReplayRecord {
         &self,
     ) -> Option<BuildCanonicalSourceMetadataIdentity> {
         self.canonical_source_metadata_identity
+    }
+
+    /// The exact activation this record's evidence was captured under. A
+    /// replay request admits the record only when the requesting
+    /// compilation's own root package, declaration role, and selected target
+    /// agree with it.
+    pub const fn replay_activation(&self) -> BuildReplayActivation {
+        self.replay_activation
     }
 }
 
@@ -241,6 +250,7 @@ pub fn capture_verified_build_filesystem_replay_record(
             encoder.fixed(&identity.source_content_commitment());
         }
     }
+    encode_replay_activation(&mut encoder, summary.replay_activation())?;
     encoder.count(summary.included_source_handoffs().len())?;
     for handoff in summary.included_source_handoffs() {
         encoder.bytes(handoff.relative_path())?;
@@ -266,6 +276,7 @@ pub fn recover_review_only_build_filesystem_replay_record(
         commitment: record_commitment(&canonical_bytes),
         canonical_bytes,
         canonical_source_metadata_identity: decoded.canonical_source_metadata_identity,
+        replay_activation: decoded.replay_activation,
     })
 }
 
@@ -1249,6 +1260,7 @@ fn rehydrate_native_query_operation_shape(
 
 struct DecodedReplay<'a> {
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    replay_activation: BuildReplayActivation,
     included_sources: Vec<ShapeIncludedSource<'a>>,
     shapes: Vec<AttemptShape<'a>>,
 }
@@ -1284,6 +1296,7 @@ fn decode_shapes(
     }
     let canonical_source_metadata_identity =
         decode_canonical_source_metadata_identity(&mut decoder)?;
+    let replay_activation = decode_replay_activation(&mut decoder)?;
     let included_source_count = decoder.count()?;
     if included_source_count > checked_interpreter::MAX_INCLUDED_BUILD_SOURCES {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -1322,6 +1335,7 @@ fn decode_shapes(
     validate_included_source_shapes(&shapes, &included_sources)?;
     Ok(DecodedReplay {
         canonical_source_metadata_identity,
+        replay_activation,
         included_sources,
         shapes,
     })
@@ -1340,6 +1354,93 @@ fn decode_canonical_source_metadata_identity(
             "invalid canonical source metadata identity tag",
         )),
     }
+}
+
+fn encode_replay_activation(
+    encoder: &mut Encoder,
+    activation: BuildReplayActivation,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    match activation.root_package_identity() {
+        None => encoder.byte(0),
+        Some(identity) => {
+            encoder.byte(1);
+            encoder.fixed(&identity.digest());
+        }
+    }
+    encoder.byte(match activation.root_role() {
+        None => 0,
+        Some(package_compilation::BuildDeclarationKind::Package) => 1,
+        Some(package_compilation::BuildDeclarationKind::Application) => 2,
+        Some(package_compilation::BuildDeclarationKind::Workspace) => 3,
+    });
+    match activation.selected_target_profile() {
+        None => encoder.byte(0),
+        Some(profile) => {
+            encoder.byte(1);
+            encoder.bytes(profile.target_name().as_bytes())?;
+        }
+    }
+    Ok(())
+}
+
+fn decode_replay_activation(
+    decoder: &mut Decoder<'_>,
+) -> Result<BuildReplayActivation, BuildFilesystemReplayRecordError> {
+    let root_package_identity = match decoder.byte()? {
+        0 => None,
+        1 => Some(
+            semantic_vocabulary::PackageKeyIdentity::from_digest(decoder.array_32()?).ok_or_else(
+                || {
+                    BuildFilesystemReplayRecordError::new(
+                        "invalid replay activation root package identity",
+                    )
+                },
+            )?,
+        ),
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "invalid replay activation root package tag",
+            ));
+        }
+    };
+    let root_role = match decoder.byte()? {
+        0 => None,
+        1 => Some(package_compilation::BuildDeclarationKind::Package),
+        2 => Some(package_compilation::BuildDeclarationKind::Application),
+        3 => Some(package_compilation::BuildDeclarationKind::Workspace),
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "invalid replay activation root role tag",
+            ));
+        }
+    };
+    let selected_target_profile = match decoder.byte()? {
+        0 => None,
+        1 => {
+            let name = std::str::from_utf8(decoder.bytes()?).map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "invalid replay activation target profile encoding",
+                )
+            })?;
+            Some(
+                target::TargetProfile::from_canonical_target_name(name).map_err(|_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "invalid replay activation target profile",
+                    )
+                })?,
+            )
+        }
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "invalid replay activation target profile tag",
+            ));
+        }
+    };
+    Ok(BuildReplayActivation {
+        root_package_identity,
+        root_role,
+        selected_target_profile,
+    })
 }
 
 fn encode_attempt(

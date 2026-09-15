@@ -102,6 +102,7 @@ pub(super) fn output_only_summary(handoff_ordinal: u64) -> BuildObservationSumma
             checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
         filesystem_operation_attempts: output_file_attempts(),
         canonical_source_metadata_identity: None,
+        replay_activation: crate::BuildReplayActivation::default(),
         captured_source_inventory: None,
         filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
             BuildFilesystemReplayDisposition::Complete,

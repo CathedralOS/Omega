@@ -115,7 +115,7 @@ pub use observations::{
     BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
     BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
     BuildFilesystemScalarOperandValue, BuildIncludedSourceHandoff, BuildObservationClass,
-    BuildObservationSummary, BuildRequiredOutputSettlement,
+    BuildObservationSummary, BuildReplayActivation, BuildRequiredOutputSettlement,
 };
 
 use observations::{
@@ -493,6 +493,34 @@ pub fn admit_build_program(
     }
     let filesystem_reachable =
         build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
+
+    // Replay evidence is bound to the activation that produced it: the
+    // build's `Build.target`, root package occurrence, and authored
+    // declaration role are all observable inputs. A record captured under a
+    // different activation is stale evidence for this request.
+    if let Some(bound_activation) = filesystem_scope.replay_activation() {
+        let expected_activation = filesystem_scope.activation(selected_target_profile);
+        if bound_activation != expected_activation {
+            let mut drift = Vec::<&'static str>::new();
+            if bound_activation.root_package_identity()
+                != expected_activation.root_package_identity()
+            {
+                drift.push("root package identity");
+            }
+            if bound_activation.root_role() != expected_activation.root_role() {
+                drift.push("root declaration role");
+            }
+            if bound_activation.selected_target_profile()
+                != expected_activation.selected_target_profile()
+            {
+                drift.push("selected target profile");
+            }
+            return Err(vec![Diagnostic::error(format!(
+                "build filesystem replay record was captured for a different activation ({} drifted)",
+                drift.join(", ")
+            ))]);
+        }
+    }
 
     let mut build_fields = Vec::new();
     if let (Some(profile), Some(_)) = (selected_target_profile, target_vocabulary) {
@@ -1566,6 +1594,7 @@ pub fn execute_admitted_build_program(
             filesystem_operation_attempts,
             canonical_source_metadata_identity: filesystem_scope
                 .canonical_source_metadata_identity(),
+            replay_activation: filesystem_scope.activation(selected_target_profile),
             captured_source_inventory: filesystem_scope.captured_source_inventory(),
             filesystem_replay_verdict,
             included_source_handoffs,

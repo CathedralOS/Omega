@@ -49,6 +49,22 @@ impl BuildObservationSummary {
                 digest.update(identity.source_content_commitment());
             }
         }
+        let replay_activation = self.replay_activation();
+        match replay_activation.root_package_identity() {
+            None => digest.update([0]),
+            Some(identity) => {
+                digest.update([1]);
+                digest.update(identity.digest());
+            }
+        }
+        digest.update([declaration_role_tag(replay_activation.root_role())]);
+        match replay_activation.selected_target_profile() {
+            None => digest.update([0]),
+            Some(profile) => {
+                digest.update([1]);
+                hash_bytes(&mut digest, profile.target_name().as_bytes());
+            }
+        }
         match self.captured_source_inventory() {
             None => digest.update([0]),
             Some(inventory) => {
@@ -411,6 +427,15 @@ const fn filesystem_replay_disposition_tag(disposition: BuildFilesystemReplayDis
     }
 }
 
+const fn declaration_role_tag(role: Option<package_compilation::BuildDeclarationKind>) -> u8 {
+    match role {
+        None => 0,
+        Some(package_compilation::BuildDeclarationKind::Package) => 1,
+        Some(package_compilation::BuildDeclarationKind::Application) => 2,
+        Some(package_compilation::BuildDeclarationKind::Workspace) => 3,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -418,6 +443,7 @@ mod tests {
         BuildFilesystemReplayDisposition, BuildFilesystemReplayVerdict, BuildObservationClass,
         BuildObservationSummary,
     };
+    use crate::BuildReplayActivation;
 
     fn empty_summary() -> BuildObservationSummary {
         BuildObservationSummary {
@@ -428,6 +454,7 @@ mod tests {
                 checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: Vec::new(),
             canonical_source_metadata_identity: None,
+            replay_activation: BuildReplayActivation::default(),
             captured_source_inventory: None,
             filesystem_replay_verdict: BuildFilesystemReplayVerdict::new(
                 BuildFilesystemReplayDisposition::NotReplayed,
@@ -449,9 +476,9 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0xcf, 0x93, 0x5e, 0xc1, 0xec, 0xb1, 0x34, 0xa6, 0x80, 0x67, 0xb9, 0x0c, 0x37, 0xda,
-                0x40, 0xec, 0x3c, 0x87, 0x19, 0x92, 0xa9, 0xfa, 0xc5, 0x4c, 0x6f, 0x0b, 0xb0, 0xaf,
-                0xc5, 0xdb, 0x66, 0x10,
+                0x3c, 0xab, 0x24, 0x3e, 0x28, 0x30, 0x59, 0x4d, 0xbf, 0x82, 0xb5, 0x59, 0x81, 0x85,
+                0x86, 0x46, 0x17, 0x7d, 0x1a, 0x21, 0x98, 0x5d, 0x12, 0x18, 0x43, 0x22, 0x91, 0x2e,
+                0xdc, 0x9b, 0xc1, 0x5d,
             ],
             "the current package build-observation byte contract remains stable"
         );
