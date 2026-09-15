@@ -82,19 +82,29 @@
 //! compilation runs a JSON writer over an evidence slice that is always empty.
 //! Neither crate can see that on its own: from here the type has a production
 //! consumer, and from there it has a producer.
+//!
+//! `selected_provider_plans.rs` and `capabilities/` record which provider
+//! realizes each boundary; `executable_scopes/`, `component_eras/` and
+//! `authority/` hold the retained evidence about scopes, eras and authority.
 
+mod authority;
 mod capabilities;
-mod coexisting_executable_eras;
-mod component_era_entry_ledger;
-mod component_progress_manifest;
-mod executable_tcb_manifest;
-mod executable_tcb_profile;
-mod isolated_executable_scopes;
-mod process_static_services;
+mod component_eras;
+mod executable_scopes;
 mod selected_provider_plans;
-mod service_terminal_authority_permission;
-mod terminal_authority;
 
+pub use authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
+pub use authority::terminal_authority::{
+    CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
+    CheckedSyscallArgumentContractIdentity, CompilerIntrinsicExecutionIdentity,
+    CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
+    SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureLeaf,
+    TerminalAuthorityClosureReviewBuildError, TerminalAuthorityClosureReviewReceipt,
+    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
+    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
+    compiler_intrinsic_execution_identity_bytes, terminal_mechanism_identity_bytes,
+};
 pub use capabilities::analysis::{
     BoundaryCallCoordinate, UnapprovedBoundaryCall, audit_boundary_provider_calls,
     build_boundary_provider_approval_registry,
@@ -107,12 +117,7 @@ pub use capabilities::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
 pub use capabilities::provider_plan;
-pub use coexisting_executable_eras::{
-    AdmittedExecutableEra, AttributedContainmentEvidence, AttributedManifestCompleteness,
-    CoexistingExecutableTcbEntry, CoexistingExecutableTcbReport, CoexistingExecutableTcbSet,
-    CoexistingScopeCompleteness, ExecutableManifestSource,
-};
-pub use component_era_entry_ledger::{
+pub use component_eras::component_era_entry_ledger::{
     ActiveComponentEraEntry, ComponentEraCandidate, ComponentEraEntryLedger,
     ComponentEraEntryReceipt, ComponentEraEntryState, ComponentEraLeaveReceipt,
     ComponentEraLedgerId, ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt,
@@ -121,11 +126,16 @@ pub use component_era_entry_ledger::{
     ProgramLocalRootEpochLeaseAcquisitionError, ProgramLocalRootEpochLeaseId,
     ProgramLocalRootEpochLeaseReleaseError,
 };
-pub use component_progress_manifest::{
+pub use component_eras::component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentBuildBoundProgressDemand, ComponentProgressManifest,
     ComponentProgressManifestDigest,
 };
-pub use executable_tcb_manifest::{
+pub use executable_scopes::coexisting_executable_eras::{
+    AdmittedExecutableEra, AttributedContainmentEvidence, AttributedManifestCompleteness,
+    CoexistingExecutableTcbEntry, CoexistingExecutableTcbReport, CoexistingExecutableTcbSet,
+    CoexistingScopeCompleteness, ExecutableManifestSource,
+};
+pub use executable_scopes::executable_tcb_manifest::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
     ExecutableTcbEntry, ExecutableTcbManifest, ExecutionScope, ImplementationEvidence,
     IncompleteCause, OmegaRuntimeExecutableAdmissionCandidate, OmegaRuntimeExecutableLedger,
@@ -133,31 +143,19 @@ pub use executable_tcb_manifest::{
     ProviderIdentity, RuntimeExecutableClosureEvidence, ScopeCompleteness,
     SelectedProviderRequirement, ValidatedOpaqueExecutableAdmission,
 };
-pub use executable_tcb_profile::{
+pub use executable_scopes::executable_tcb_profile::{
     ExactExecutableTcbAllowance, ExecutableTcbProfile, ExecutableTcbProfileAcceptance,
     ExecutableTcbProfileRejection, ExecutableTcbProfileViolation, IncompleteScopePolicy,
     evaluate_executable_tcb_profile,
 };
-pub use isolated_executable_scopes::{
+pub use executable_scopes::isolated_executable_scopes::{
     AdmittedIsolatedExecutableScope, ExecutableTcbManifestSet, IsolatedExecutableScopeCandidate,
 };
-pub use process_static_services::{
+pub use executable_scopes::process_static_services::{
     ActiveServiceRegistration, AtomicServiceHandoverReceipt, ProcessStaticServiceContract,
     ProcessStaticServicePolicy, ProcessStaticServiceRegistry, ServiceHandoverCompletion,
     ServiceHandoverError, ServiceRegistrationCandidate, ServiceRegistrationError,
 };
 pub use selected_provider_plans::{
     InstallationReachResolution, SelectedProviderClosureDigest, SelectedProviderPlanFacts,
-};
-pub use service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
-pub use terminal_authority::{
-    CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
-    CheckedSyscallArgumentContractIdentity, CompilerIntrinsicExecutionIdentity,
-    CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
-    SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureLeaf,
-    TerminalAuthorityClosureReviewBuildError, TerminalAuthorityClosureReviewReceipt,
-    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
-    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
-    compiler_intrinsic_execution_identity_bytes, terminal_mechanism_identity_bytes,
 };

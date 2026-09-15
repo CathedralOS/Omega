@@ -306,7 +306,7 @@ impl SelectedProviderPlanFacts {
                 ));
             }
             self.opaque_executable_admissions.push(
-                crate::executable_tcb_manifest::validate_opaque_executable_admission(
+                crate::executable_scopes::executable_tcb_manifest::validate_opaque_executable_admission(
                     &self.plans,
                     candidate,
                 )?,
@@ -433,7 +433,7 @@ impl SelectedProviderPlanFacts {
     /// Derive caller-address-space TCB facts from the selected closure, never
     /// from source service reach or the unselected candidate set.
     pub fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
-        crate::executable_tcb_manifest::derive_static_manifest(
+        crate::executable_scopes::executable_tcb_manifest::derive_static_manifest(
             &self.plans,
             self.report_fingerprint,
             self.execution_scope,
