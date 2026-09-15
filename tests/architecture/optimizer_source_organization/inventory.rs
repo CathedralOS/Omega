@@ -69,7 +69,7 @@ pub(super) struct RuleStageDescriptor {
 
 pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
     RuleStageDescriptor {
-        entrance: "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/lib.rs",
+        entrance: "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/psi_optimization.rs",
         catalog: "omega-rust/psi/representations/optimization/src/optimization_selections/catalog.rs",
         coordination_marker: "pub fn run_psi_optimization",
         catalog_marker: "PRETERMINAL_PSI_PASS_CATALOG",

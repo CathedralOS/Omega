@@ -10,7 +10,7 @@ use semantic_vocabulary::ValueId;
 use std::collections::BTreeSet;
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard, OperationKind as O};
 
-pub(super) fn retain_proposition(
+pub(crate) fn retain_proposition(
     proposition: &semantic_vocabulary::Proposition,
     retained_values: &mut BTreeSet<ValueId>,
 ) {
@@ -19,7 +19,7 @@ pub(super) fn retain_proposition(
     });
 }
 
-pub(super) fn retain_crash_routes(
+pub(crate) fn retain_crash_routes(
     routes: &[CrashRouteBucket],
     retained_values: &mut BTreeSet<ValueId>,
 ) {
@@ -32,7 +32,7 @@ pub(super) fn retain_crash_routes(
     }
 }
 
-pub(super) fn crash_continuations(kind: &O) -> &[CrashRouteBucket] {
+pub(crate) fn crash_continuations(kind: &O) -> &[CrashRouteBucket] {
     match kind {
         O::Call {
             crash_continuations,

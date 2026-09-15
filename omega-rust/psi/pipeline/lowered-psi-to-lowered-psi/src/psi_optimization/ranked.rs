@@ -12,7 +12,7 @@ use terminal_psi::{TerminalMachine, TerminalRankedScc};
 
 /// The block-local coordinates a machine's `ranked_scc` evidence covers.
 #[derive(Debug, Default)]
-pub(super) struct RankedCoverage {
+pub(crate) struct RankedCoverage {
     /// Member blocks of the covered cyclic components. Their parameter tables
     /// feed rank-substitution positions and their contents stay exact.
     pub blocks: BTreeSet<BlockId>,
@@ -27,7 +27,7 @@ pub(super) struct RankedCoverage {
 
 /// Inventory the coordinates `machine`'s retained ranking evidence covers.
 /// An unranked machine has empty coverage and optimizes everywhere.
-pub(super) fn ranked_coverage(machine: &TerminalMachine) -> RankedCoverage {
+pub(crate) fn ranked_coverage(machine: &TerminalMachine) -> RankedCoverage {
     let mut coverage = RankedCoverage::default();
     let Some(ranking) = &machine.ranked_scc else {
         return coverage;
