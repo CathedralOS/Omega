@@ -1,7 +1,7 @@
-use super::{
-    IntegerSign, IntegerType, ProofRule, Proposition, accept_certificate, integer,
-    prove_canonical_integer_proposition, two_value_context, value,
-};
+use super::{IntegerType, integer, two_value_context, value};
+use crate::proofs::nonzero_divisor_certificate::prove_canonical_integer_proposition;
+use proof_admission::{ProofRule, accept_certificate};
+use semantic_vocabulary::{IntegerSign, Proposition};
 #[test]
 fn signed_division_composes_both_retained_nonzero_cases() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
