@@ -6,7 +6,6 @@ fn operator_entry_guard_does_not_survive_entry_state_rearrival() {
     for transfer in [
         "transition { _ -> compare(-1, right) }",
         "transition { _ -> again(right) } state again(right: i32) -> bool { transition { _ -> compare(-1, right) } }",
-        "transition { _ -> self }",
     ] {
         let source = |ceiling: &str| {
             format!(
@@ -31,6 +30,32 @@ fn operator_entry_guard_does_not_survive_entry_state_rearrival() {
             "{diagnostics:#?}"
         );
     }
+}
+
+#[test]
+fn operator_entry_guard_survives_a_self_forwarded_rearrival() {
+    // `-> self` forwards the current values verbatim, so an immutable
+    // parameter still denotes the initial invocation actual.
+    let source = |ceiling: &str| {
+        format!(
+        "boundary operator == Comparison::equal(left: i32, right: i32) -> bool crashes Trap left < 0;
+         pub machine compare(left: i32, right: i32) -> bool {ceiling} {{
+             let answer: bool = left == right;
+             transition {{ _ -> self }}
+         }}"
+    )
+    };
+    check(&source("crashes Trap")).expect("unconditional route covers a self-forwarded re-entry");
+    check(&source("crashes Trap left < 0"))
+        .expect("a self-forwarded arrival retains the exact entry actual");
+    let diagnostics = check(&source("crashes Trap right < 0"))
+        .expect_err("the forwarded arrival still names `left`, not `right`");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("crash")),
+        "{diagnostics:#?}"
+    );
 }
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
