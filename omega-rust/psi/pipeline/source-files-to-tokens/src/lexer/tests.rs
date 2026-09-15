@@ -4,7 +4,7 @@ use tokens::{
     NumericLiteralKind, PunctuationKind, TokenKind,
 };
 
-use crate::lex_error::OUTSIDE_LEXICAL_PROFILE_MESSAGE;
+use crate::lexer::lex_error::OUTSIDE_LEXICAL_PROFILE_MESSAGE;
 
 fn semantic_kinds(source: &str) -> Vec<TokenKind> {
     Lexer::new(source)
