@@ -212,6 +212,17 @@
       ],
       "suggested_first_slice": "Backfill for the blocked build-product-references slot. Validate one bounded dimension (e.g. clobbers, effects, or provenance) across every selected rule in the selected-instructions representation — extend the existing validation/catalog machinery there rather than a second classifier. machine-code, machine-emission exit_contract, and isa-* are claimed by SPILL-REALIZATION until ~06:23Z — keep writes inside selected-instructions or report blocked.",
       "backfill_for": "build-product-references"
+    },
+    {
+      "name": "installed-program-roots",
+      "board": "TASKS.md",
+      "item": "INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/backend/runtime/external-roots"
+      ],
+      "suggested_first_slice": "Backfill for the landed alias-aware-memory slot. Resume evidence on the board names the seam: extend ProgramLocalRootInstallationLedger work inside external-roots (program_local_roots.rs / program_local_extents) — e.g. aggregate capacity reconstruction for one artifact instance and lifecycle epoch. Re-check tools/claims.py status at start: external-roots was held by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z and may be re-claimed by another host.",
+      "backfill_for": "alias-aware-memory"
     }
   ]
 }
