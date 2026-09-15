@@ -84,6 +84,35 @@ fn assert_physical_child_mutation_rejected(
     );
 }
 
+/// Replay a copy of the admitted evidence after mutating its retained child
+/// set. Independent artifact validation re-derives the exact
+/// survivor/physical-child bijection, so a missing, duplicate, substituted, or
+/// role-swapped child must never re-enter as accepted custody.
+fn assert_physical_children_mutation_rejected(
+    parts: &native::NativeArtifactParts,
+    mutate: impl FnOnce(&mut Vec<native::NativePhysicalChild>),
+) {
+    let mut replay = replay_native_artifact_parts(parts);
+    let evidence = replay
+        .physical_evidence
+        .take()
+        .expect("admitted foreign-call physical evidence")
+        .into_parts();
+    let mut children = evidence.children;
+    mutate(&mut children);
+    replay.physical_evidence = Some(native::NativePhysicalEvidence::from_replayed_parts(
+        native::NativePhysicalEvidenceParts {
+            projection: evidence.projection,
+            children,
+            identity: evidence.identity,
+        },
+    ));
+    assert!(
+        native::NativeArtifact::from_replayed_parts(replay).is_err(),
+        "mutated admitted-provider physical child set must not replay",
+    );
+}
+
 fn assert_d41_parent_mutation_rejected(
     parts: &native::NativeArtifactParts,
     mutate: impl FnOnce(&mut native::BoundaryTraitSettlementParts),
@@ -1918,6 +1947,24 @@ fn retained_source_evaluated_fixed_u32_import_requires_complete_d32_custody() {
     });
     assert_physical_child_mutation_rejected(&parts, |child| {
         child.machine_bytes_digest[0] ^= 1;
+    });
+
+    // The survivor/physical-child bijection must reject every child-set
+    // mutation class: a dropped survivor, a duplicated child, a substituted
+    // occurrence, and a child claiming a foreign parent role.
+    assert_physical_children_mutation_rejected(&parts, |children| children.clear());
+    assert_physical_children_mutation_rejected(&parts, |children| {
+        children.push(children[0].clone());
+    });
+    assert_physical_child_mutation_rejected(&parts, |child| {
+        child.occurrence = native::NativePhysicalOccurrence::Boundary(
+            optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes([0xa5; 32]),
+        );
+    });
+    assert_physical_child_mutation_rejected(&parts, |child| {
+        child.occurrence = native::NativePhysicalOccurrence::Operator(
+            optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0x5a; 32]),
+        );
     });
 }
 

@@ -329,6 +329,137 @@ machine Main::main(&mut self) {{}}
 }
 
 #[test]
+fn evaluates_exact_pe_ordinal_binding_into_provider_identity() {
+    let fixture = TemporaryProgram::new(
+        r#"
+use omega::language::core::external_binding;
+
+
+boundary trait Console {
+    machine write(value: u8);
+}
+
+windows_x86_64 machine write_binding() -> Binding<12, 0, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByOrdinal {
+            library: "kernel32.dll",
+            ordinal: 37,
+        },
+    }
+}
+
+machine write_leaf(value: u8)
+    satisfies Console::write
+    via write_binding();
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &fixture.main(),
+        Some("windows_x86_64"),
+    ))
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "ordinary ordinal via binding should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    assert_eq!(checked.evaluated_via_bindings().rows().len(), 1);
+    let imports = checked
+        .provider_plans()
+        .iter()
+        .flat_map(|plan| plan.rows.iter())
+        .filter_map(|row| match &row.binding {
+            ProviderBinding::Import { evaluated } => Some(evaluated),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [evaluated] = imports.as_slice() else {
+        panic!("one evaluated ordinal import provider row expected");
+    };
+    assert_eq!(evaluated.locator().target(), TargetProfile::WindowsX64);
+    assert_eq!(
+        evaluated.locator().locator(),
+        &ForeignLocatorCandidate::PeByOrdinal {
+            library: b"kernel32.dll".to_vec(),
+            ordinal: 37,
+        }
+    );
+    assert_eq!(
+        evaluated.receipt().locator_identity_digest(),
+        evaluated.locator().identity_digest()
+    );
+    assert_ne!(evaluated.receipt().identity_digest(), [0; 32]);
+}
+
+#[test]
+fn pe_ordinal_binding_rejects_reserved_ordinal_wrong_target_and_used_widths() {
+    for (target, widths, ordinal, expected) in [
+        (
+            "windows_x86_64",
+            "12, 0, 0",
+            "0",
+            "PeByOrdinal ordinal must be nonzero",
+        ),
+        (
+            "windows_x86_64",
+            "12, 1, 0",
+            "37",
+            "PeByOrdinal SymbolLength must be zero for this locator case",
+        ),
+        (
+            "linux_x86_64",
+            "12, 0, 0",
+            "37",
+            "not applicable to selected target",
+        ),
+    ] {
+        let source = format!(
+            r#"
+use omega::language::core::external_binding;
+
+boundary trait Console {{
+    machine write(value: u8);
+}}
+
+{target} machine write_binding() -> Binding<{widths}> {{
+    Binding::DllImport {{
+        import: DllImport::PeByOrdinal {{
+            library: "kernel32.dll",
+            ordinal: {ordinal},
+        }},
+    }}
+}}
+
+machine write_leaf(value: u8)
+    satisfies Console::write
+    via write_binding();
+
+data Main {{}}
+machine Main::main(&mut self) {{}}
+"#,
+        );
+        let fixture = TemporaryProgram::new(&source);
+        let diagnostics =
+            compile_to_checked(CheckedCompileRequest::new(&fixture.main(), Some(target)))
+                .expect_err("invalid ordinal via binding must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.to_string().contains(expected)),
+            "expected `{expected}` in {diagnostics:#?}",
+        );
+    }
+}
+
+#[test]
 fn local_binding_lookalike_does_not_enter_the_evaluated_vocabulary() {
     let fixture = TemporaryProgram::new(
         r#"

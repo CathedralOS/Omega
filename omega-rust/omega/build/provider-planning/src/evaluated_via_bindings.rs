@@ -1412,6 +1412,34 @@ mod tests {
     }
 
     #[test]
+    fn decodes_exact_pe_ordinal_and_rejects_reserved_ordinal_or_used_widths() {
+        let value = binding(BuildTimeValue::Case {
+            variant: "PeByOrdinal".to_owned(),
+            payload: vec![
+                ("library".to_owned(), bytes(b"kernel32.dll")),
+                ("ordinal".to_owned(), BuildTimeValue::Int(37)),
+            ],
+        });
+        assert_eq!(
+            decode_binding_value(&value, [12, 0, 0]).unwrap(),
+            DecodedBindingValue::Import(ForeignLocatorCandidate::PeByOrdinal {
+                library: b"kernel32.dll".to_vec(),
+                ordinal: 37,
+            })
+        );
+        let zero = binding(BuildTimeValue::Case {
+            variant: "PeByOrdinal".to_owned(),
+            payload: vec![
+                ("library".to_owned(), bytes(b"kernel32.dll")),
+                ("ordinal".to_owned(), BuildTimeValue::Int(0)),
+            ],
+        });
+        assert!(decode_binding_value(&zero, [12, 0, 0]).is_err());
+        assert!(decode_binding_value(&value, [12, 1, 0]).is_err());
+        assert!(decode_binding_value(&value, [12, 0, 1]).is_err());
+    }
+
+    #[test]
     fn decodes_exact_syscall_and_rejects_width_or_number_substitution() {
         let value = BuildTimeValue::Case {
             variant: "Syscall".to_owned(),
