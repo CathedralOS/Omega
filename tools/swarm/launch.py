@@ -33,6 +33,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -374,6 +375,123 @@ def route_check(sessions, freshness_by_name):
         raise SwarmError("\n".join(failures))
 
 
+DEPENDENCY_LANGUAGE = ("depends on", "join", "joins", "preceding task",
+                       "blocks on", "after the")
+ITEM_TOKEN = re.compile(r"`?([A-Z][A-Z0-9]+(?:-[A-Z0-9]+)+)`?")
+PATH_TOKEN = re.compile(r"`?([A-Za-z_][\w.-]*/[\w.-]+(?:/[\w.-]+)*)`?")
+SCALE_CRATE_LIMIT = 4
+
+
+def item_section(repository, board, item):
+    """The item's board text block: marker line through the next top-level
+    item or heading. Path/crate mentions and dependency language live here."""
+    board_path = repository / board
+    if not board_path.is_file():
+        return ""
+    text = board_path.read_text(encoding="utf-8", errors="replace")
+    marker = f"**{item}.**"
+    start = text.find(marker)
+    if start == -1:
+        return ""
+    start = text.rfind("\n", 0, start) + 1
+    kept = []
+    for line in text[start:].splitlines():
+        if kept and (line.startswith("- **") or line.startswith("#")):
+            break
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def board_item_names(repository):
+    names = set()
+    for board in BOARDS:
+        board_path = repository / board
+        if not board_path.is_file():
+            continue
+        text = board_path.read_text(encoding="utf-8", errors="replace")
+        names.update(re.findall(r"^- \*\*([A-Z][A-Z0-9-]+)\.\*\*",
+                                text, flags=re.MULTILINE))
+    return names
+
+
+def partition_hints(repository, session, sessions, crates):
+    """Coordinator-facing partitioning signals, advisory only.
+
+    - dependency_language: phrases in the board text that suggest this item
+      is sequenced after other work (layering candidates).
+    - references_items / same_layer_reference: board items named in this
+      item's text; flagged when one is another session at the same layer.
+    - uncovered_mentions: path or crate-directory mentions in the item text
+      that owning_paths do not cover — the fence would protect the wrong
+      ground (the product-references drift pattern).
+    - named_crate_count / scale_hint: how many crates the text spans; large
+      items are multi-layer decompositions, not slices.
+    """
+    hints = {}
+    text = item_section(repository, session["board"], session["item"])
+    if not text:
+        return hints
+    lowered = text.lower()
+    language = [phrase for phrase in DEPENDENCY_LANGUAGE
+                if re.search(r"(?<![\w-])" + re.escape(phrase) + r"\b", lowered)]
+    if language:
+        hints["dependency_language"] = language
+    known_items = board_item_names(repository)
+    referenced = sorted(token for token in set(ITEM_TOKEN.findall(text))
+                        if token in known_items and token != session["item"])
+    if referenced:
+        hints["references_items"] = referenced
+        by_item = {other["item"]: other for other in sessions
+                   if other["name"] != session["name"]}
+        layer = session.get("layer", 0)
+        same = [item for item in referenced
+                if item in by_item and by_item[item].get("layer", 0) == layer]
+        if same:
+            hints["same_layer_reference"] = (
+                f"item text references {', '.join(same)} which is a session at "
+                f"the same layer {layer}; order them or split into layers")
+    crate_dirs = {}
+    if isinstance(crates, dict):
+        crate_dirs = {record["name"]: directory
+                      for directory, record in crates.items()}
+    uncovered = set()
+    named_crates = set()
+    for token in PATH_TOKEN.findall(text):
+        parts = token.split("/")
+        if len(parts) < 2:
+            continue
+        resolved = None
+        if (repository / token).exists() or parts[0] in (
+                "omega-rust", "tests", "bootstrap", "tools", "wiki", "samples"):
+            resolved = token
+        elif parts[0] in crate_dirs:
+            resolved = crate_dirs[parts[0]]
+            named_crates.add(parts[0])
+        if resolved is None:
+            continue
+        if not any(claims.paths_overlap(resolved, owning)
+                   for owning in session["owning_paths"]):
+            uncovered.add(token)
+    for name, directory in crate_dirs.items():
+        if name in named_crates:
+            continue
+        if f"`{name}`" not in text:
+            continue
+        named_crates.add(name)
+        if not any(claims.paths_overlap(directory, owning)
+                   for owning in session["owning_paths"]):
+            uncovered.add(name)
+    if uncovered:
+        hints["uncovered_mentions"] = sorted(uncovered)
+    if named_crates:
+        hints["named_crate_count"] = len(named_crates)
+        if len(named_crates) >= SCALE_CRATE_LIMIT:
+            hints["scale_hint"] = (
+                f"item text names {len(named_crates)} crates; consider "
+                "decomposing into layers rather than one slice")
+    return hints
+
+
 def session_blocks(session):
     slice_block = ""
     if session.get("suggested_first_slice"):
@@ -584,6 +702,8 @@ def command_local(arguments, repository):
             "claims": claims_state[session["name"]],
             "probe_only": bool(session.get("probe_only", False)),
             "freshness": freshness[session["name"]],
+            "partition_hints": partition_hints(repository, session, sessions,
+                                               route_data),
         })
     emit({"command": "local", "wave": manifest["wave"],
           "skipped_non_local_sessions": skipped, "sessions": rows})
@@ -710,6 +830,8 @@ def command_plan(arguments, repository):
             "claims": claims_state[session["name"]],
             "probe_only": bool(session.get("probe_only", False)),
             "freshness": freshness[session["name"]],
+            "partition_hints": partition_hints(repository, session, sessions,
+                                               route_data),
             "body": request_body(manifest, session, prompt),
         })
     emit({"command": "plan", "wave": manifest["wave"],

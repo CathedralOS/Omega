@@ -46,7 +46,17 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
    the omega-route check, probes owning-path freshness (including each path's
    crate), checks each item and its owning paths against the live claims
    registry, renders one prompt per session to `build/swarm/<wave>/prompts/`,
-   and prints the exact request bodies. Review the prompts. Use
+   and prints the exact request bodies. Each session row also carries
+   `partition_hints`, advisory signals read from the item's board text:
+   `dependency_language` ("depends on", "joins the preceding task") marks
+   sequencing candidates for layers; `references_items` names other board
+   items the text cites, and `same_layer_reference` warns when one is a
+   same-layer session; `uncovered_mentions` lists paths or backticked crate
+   names the item text cites that `owning_paths` do not cover — the fence
+   would protect the wrong ground; `scale_hint` fires when the text spans
+   many crates, marking a multi-layer decomposition rather than one slice.
+   Use them before spawning: adjust owning paths to the named machinery and
+   order dependency-flagged items into layers. Use
    `--skip-host-gates`, `--skip-route-check`, or `--skip-claims-check` when
    the coordinator deliberately does not run those checks. An unreachable
    registry reports `unavailable` per session rather than failing `plan`'s

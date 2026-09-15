@@ -567,6 +567,64 @@ class SwarmTests(unittest.TestCase):
         self.assertIsNone(crates["src/two"])
         self.assertIsNone(crates["TASKS.md"])
 
+    def write_board(self, text):
+        (self.repository / "TASKS.md").write_text(text, encoding="utf-8")
+
+    def test_partition_hints_flag_dependency_language(self):
+        self.write_board(
+            "- **ITEM-ONE.** Join semantics from the preceding task. "
+            "Depends on ITEM-TWO above.\n"
+            "- **ITEM-TWO.** Second item.\n")
+        session = {"name": "a", "board": "TASKS.md", "item": "ITEM-ONE",
+                   "owning_paths": ["src/one"], "layer": 0}
+        hints = self.module.partition_hints(self.repository, session,
+                                            [session], "skipped")
+        self.assertIn("join", hints["dependency_language"])
+        self.assertIn("depends on", hints["dependency_language"])
+        self.assertEqual(hints["references_items"], ["ITEM-TWO"])
+        self.assertNotIn("same_layer_reference", hints)
+
+    def test_partition_hints_flag_same_layer_reference(self):
+        self.write_board(
+            "- **ITEM-ONE.** Consumes ITEM-TWO output.\n"
+            "- **ITEM-TWO.** Second item.\n")
+        one = {"name": "a", "board": "TASKS.md", "item": "ITEM-ONE",
+               "owning_paths": ["src/one"], "layer": 0}
+        two = {"name": "b", "board": "TASKS.md", "item": "ITEM-TWO",
+               "owning_paths": ["src/two"], "layer": 0}
+        hints = self.module.partition_hints(self.repository, one,
+                                            [one, two], "skipped")
+        self.assertIn("ITEM-TWO", hints["same_layer_reference"])
+        two["layer"] = 1
+        hints = self.module.partition_hints(self.repository, one,
+                                            [one, two], "skipped")
+        self.assertNotIn("same_layer_reference", hints)
+
+    def test_partition_hints_flag_uncovered_mentions_and_scale(self):
+        self.write_board(
+            "- **ITEM-ONE.** Wire `other-crate/src/foo.rs` through "
+            "`omega-rust/omega/build/build-output` and `third-crate` while "
+            "`fourth-crate` and `fifth-crate` keep their evidence.\n")
+        crates = {"x/other-crate": {"name": "other-crate", "on_route": True},
+                  "x/third-crate": {"name": "third-crate", "on_route": True},
+                  "x/fourth-crate": {"name": "fourth-crate", "on_route": True},
+                  "x/fifth-crate": {"name": "fifth-crate", "on_route": True}}
+        session = {"name": "a", "board": "TASKS.md", "item": "ITEM-ONE",
+                   "owning_paths": ["omega-rust/omega/build/build-output"]}
+        hints = self.module.partition_hints(self.repository, session,
+                                            [session], crates)
+        self.assertIn("other-crate/src/foo.rs", hints["uncovered_mentions"])
+        self.assertNotIn("omega-rust/omega/build/build-output",
+                         hints["uncovered_mentions"])
+        self.assertIn("scale_hint", hints)
+
+    def test_partition_hints_quiet_when_text_is_benign(self):
+        session = {"name": "a", "board": "TASKS.md", "item": "ITEM-ONE",
+                   "owning_paths": ["src/one"]}
+        hints = self.module.partition_hints(self.repository, session,
+                                            [session], "skipped")
+        self.assertEqual(hints, {})
+
 
 if __name__ == "__main__":
     unittest.main()
