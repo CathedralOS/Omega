@@ -1327,12 +1327,19 @@ pub fn structural_effect_leaf_observation(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        IntegerSign, IntegerType, ObligationId, Operation, OperationKind, OperationSemanticError,
+        OperationSemanticTag, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
+        StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,
+        StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy, StructuralEffectGoalShape,
+        StructuralEffectObservation, StructuralEffectResultShape, StructuralEffectSemanticRow,
+        exact_structural_effect_semantic_row_in, structural_effect_leaf_observation,
+        structural_effect_leaf_observation_in, structural_effect_semantic_row,
+    };
     use std::collections::BTreeSet;
 
     use semantic_vocabulary::{OperationId, StructuralFieldId, ValueId};
     use terminal_psi::{OperationResult, ValueDeclaration};
-
-    use super::*;
 
     #[test]
     fn integer_field_observation_retains_exact_source_field_and_carrier() {

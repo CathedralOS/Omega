@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    IntegerSign, IntegerType, ObligationId, Operation, OperationKind, OperationResult,
+    OperationSemanticTag, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralEffectCustody,
+    StructuralEffectExternalEffect, StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy,
+    StructuralEffectGoalShape, StructuralEffectObservation, StructuralEffectResultShape,
+    StructuralEffectSemanticRow, ValueId, structural_effect_leaf_observation,
+    structural_effect_leaf_observation_in, structural_effect_semantic_row,
+};
 use semantic_vocabulary::{OperationId, StructuralTypeId};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult};
 

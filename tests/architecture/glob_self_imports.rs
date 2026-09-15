@@ -156,7 +156,6 @@ const GLOB_SELF_IMPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/psi/semantics/terminal-codec", 16),
     ("omega-rust/psi/semantics/terminal-fixed-fuel", 1),
     ("omega-rust/psi/semantics/terminal-interpreter", 20),
-    ("omega-rust/psi/semantics/terminal-semantics", 8),
     ("omega-rust/psi/semantics/terminal-verifier", 56),
     ("omega-rust/psi/semantics/validation", 110),
 ];

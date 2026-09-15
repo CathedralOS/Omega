@@ -53,7 +53,10 @@ pub fn primitive_place_type<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CanonicalStructuralPathSegment, ScalarType, StructuralFieldType, StructuralTypeDeclaration,
+        StructuralTypeId, StructuralTypeShape, primitive_place_type,
+    };
     use semantic_vocabulary::{IntegerSign, IntegerType, StructuralFieldId};
     use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
 

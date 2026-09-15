@@ -714,12 +714,19 @@ pub fn proof_bearing_scalar_leaf_semantics(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        ArithmeticDomain, INTEGER_POLICY_BOUND_TAGS, IntegerPolicyPrimitive, IntegerType,
+        ObligationId, OperationSemanticError, OperationSemanticTag,
+        ProofBearingIntegerPolicyBinding, ProofBearingScalarSemanticRow, Proposition,
+        ScalarLeafCrashPolicy, ScalarLeafFactShape, ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy,
+        ScalarLeafGoalShape, ScalarLeafResultShape, ScalarTerm, catalog_goal_shape,
+        exact_proof_bearing_scalar_semantic_row_in, proof_bearing_integer_policy_binding,
+        proof_bearing_scalar_leaf_semantics, validate_proof_bearing_scalar_semantic_rows,
+    };
     use std::collections::{BTreeMap, BTreeSet};
 
     use semantic_vocabulary::{IntegerSign, OperationId, ScalarType, ValueId};
     use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
-
-    use super::*;
 
     fn integer_type(bits: u16) -> IntegerType {
         IntegerType::new(IntegerSign::Signed, bits).expect("fixed signed integer type")

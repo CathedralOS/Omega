@@ -491,11 +491,16 @@ pub fn call_composition_semantic_row(
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        CallArgumentRule, CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule,
+        CallFrontierRule, CallFuelPolicy, CallOutcomeRule, CallRequirementRule, CallResultRule,
+        CallTargetRule, CallTransferRule, OperationKind, OperationSemanticError,
+        OperationSemanticTag, call_composition_semantic_row,
+        exact_call_composition_semantic_row_in, validate_call_composition_semantic_rows,
+    };
     use std::collections::BTreeSet;
 
     use semantic_vocabulary::{BoundaryMachineId, MachineId, ValueId};
-
-    use super::*;
 
     fn scalar_call() -> OperationKind {
         OperationKind::Call {
