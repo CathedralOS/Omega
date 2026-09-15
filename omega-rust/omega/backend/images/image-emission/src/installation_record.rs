@@ -286,6 +286,13 @@ impl InstallationRecord {
     }
 
     #[cfg(any(test, feature = "test-support"))]
+    pub fn internal_unit_scalar_calls_mut_for_test(
+        &mut self,
+    ) -> &mut Vec<InstalledInternalUnitScalarCall> {
+        &mut self.internal_unit_scalar_calls
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
     pub fn structural_returns_mut_for_test(&mut self) -> &mut Vec<InstalledStructuralReturn> {
         &mut self.structural_returns
     }
