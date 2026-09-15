@@ -27,5 +27,7 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$OUTPUT_DIR/epsilon_compiler.delta"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$OUTPUT_DIR/omega_compiler.epsilon"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$OUTPUT_DIR/support.bin"
 materialize_gamma_evaluator "$OUTPUT_DIR/evaluator.exe" >/dev/null
 python3 "$GATE_DIR/gate.py" "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER"
