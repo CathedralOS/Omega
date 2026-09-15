@@ -80,7 +80,7 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
 /// Parses the optional fixed-token declaration head, e.g. `+`, `[]`, `[..]`.
 /// Fixed tokens are sequences of punctuation tokens; this assembles the
 /// lexemes and validates against the closed [`OperatorSpelling`] set.
-pub(super) fn parse_operator_spelling<'tokens, 'source>(
+pub(in crate::parser) fn parse_operator_spelling<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, OperatorSpelling> {
     // `[]` and `[..]` span multiple punctuation tokens; everything else is a

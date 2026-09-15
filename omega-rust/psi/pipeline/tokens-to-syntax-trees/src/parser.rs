@@ -1,65 +1,44 @@
-mod capability;
-mod const_item;
 mod context;
 mod data;
+mod declaration;
 mod diagnostics;
-mod domain;
 mod expression;
-mod file;
 mod input;
-mod item;
+use declaration as item;
 mod machine;
-mod measure;
-mod operator;
 pub mod parse_error;
 mod proof_fact;
-mod proposition;
 mod state;
 mod statement;
-mod trait_definition;
 mod transition;
 mod type_reference;
-mod use_item;
 
 use crate::parser::parse_error::ParseError;
-use file::parse_file;
 use input::Input;
 use source::SourceId;
 use syntax_trees::{SyntaxTrees, item::ItemHandle};
 use tokens::Token;
 
-pub fn parse_syntax_trees(tokens: &[Token<'_>]) -> Result<SyntaxTrees, ParseError> {
-    parse_syntax_trees_with_id(SourceId::default(), tokens)
-}
-
-pub fn parse_syntax_trees_with_id(
-    source_id: SourceId,
-    tokens: &[Token<'_>],
-) -> Result<SyntaxTrees, ParseError> {
-    let mut syntax_trees = SyntaxTrees::new(source_id);
-    parse_syntax_trees_into_with_id(&mut syntax_trees, source_id, tokens)?;
-
-    Ok(syntax_trees)
-}
-
-pub fn parse_syntax_trees_into_with_id(
+/// Parses one source into the caller's arena and returns that source's root handles.
+/// Existing roots retain their identities. On error, the arena retains the parsed prefix.
+pub fn parse(
     syntax_trees: &mut SyntaxTrees,
     source_id: SourceId,
     tokens: &[Token<'_>],
 ) -> Result<Vec<ItemHandle>, ParseError> {
-    let input = Input::new(source_id, tokens);
+    let mut input = Input::new(source_id, tokens);
     let mut root_items = Vec::new();
-    let ((), rest) = parse_file(syntax_trees, input, &mut root_items)?;
-
-    if let Some(token) = rest.tokens.first() {
-        return Err(ParseError::at_source_span(
-            "unexpected token after file parse",
-            rest.source_span(token),
-        ));
+    while !input.tokens.is_empty() {
+        let (item, rest) = declaration::parse_item(syntax_trees, input)?;
+        root_items.push(syntax_trees.push_root_item(item));
+        input = rest;
     }
 
     Ok(root_items)
 }
+
+pub use crate::{parse_syntax_trees, parse_syntax_trees_with_id};
+pub use parse as parse_syntax_trees_into_with_id;
 
 #[cfg(test)]
 mod tests;

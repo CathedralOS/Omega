@@ -176,7 +176,7 @@ pub fn parse_sources(
     let mut parsed = Vec::with_capacity(source_count);
 
     for lexed_source in lexed_sources {
-        let root_items = tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
+        let root_items = tokens_to_syntax_trees::parse(
             syntax_trees,
             lexed_source.source_id,
             &lexed_source.tokens,

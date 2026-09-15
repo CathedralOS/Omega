@@ -1,3 +1,5 @@
+mod external_binding;
+
 use crate::parser::expression::{
     parse_expression_handle_without_struct_literals,
     parse_expression_handle_without_struct_literals_or_membership,
@@ -910,7 +912,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
 
     loop {
         let ((trait_name, lifetime_arguments, arguments), mut rest) =
-            crate::parser::item::parse_conformance_trait_application(syntax_trees, input)?;
+            crate::parser::declaration::parse_conformance_trait_application(syntax_trees, input)?;
 
         // The single-requirement binding (rearrange settle 2026-07-18):
         // `satisfies Trait::requirement [as Alias]` conforms THIS machine to
@@ -948,7 +950,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
                 .take_identifier()
                 .is_ok_and(|(root, _)| root.as_str() == "Binding");
             if is_bootstrap_binding {
-                let (binding, next) = crate::parser::item::parse_external_provider_binding(next)?;
+                let (binding, next) = external_binding::parse_external_provider_binding(next)?;
                 via = Some(binding);
                 rest = next;
             } else {
