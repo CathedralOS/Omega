@@ -101,7 +101,7 @@ fn exact_names(selections: &OptimizationSelections) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Optimization, OptimizationRollbackReceipt, OptimizationSelections};
 
     #[test]
     fn rollback_receipt_distinguishes_requested_actual_and_effective_sets() {

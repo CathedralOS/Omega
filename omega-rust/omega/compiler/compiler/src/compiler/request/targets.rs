@@ -60,7 +60,7 @@ impl ExplicitTargetSet {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ExplicitTargetSet, TargetProfile};
 
     #[test]
     fn rejects_empty_and_catalog_expansion_spellings() {

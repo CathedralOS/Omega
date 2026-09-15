@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Arc, CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome, Diagnostic,
+    OptimizationRollback, RequestedCompileProduct, TargetCompileConfiguration, TargetProfile,
+};
 use optimization_core::Optimization;
 
 fn request(product: RequestedCompileProduct) -> CompileRequest {

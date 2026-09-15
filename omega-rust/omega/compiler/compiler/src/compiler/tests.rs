@@ -1,4 +1,9 @@
-use crate::*;
+use super::CompileOutcomes;
+use crate::{
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, CompileTargetOutcome,
+    ExplicitTargetSet, RequestedCompileProduct, TargetCompileConfiguration,
+    admit_checked_compilation, compile,
+};
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
