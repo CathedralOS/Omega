@@ -1,4 +1,13 @@
-use super::*;
+use super::{
+    Arc, IntegerSign, IntegerType, NativeTarget, ScalarType, SelectedInstructionId,
+    SelectedInstructionKind, ValueId, VirtualRegisterId, VirtualRegisterOrigin,
+    baseline_target_register_environment, fixture, selected_instruction_plan_identity,
+};
+use crate::RuntimeSpillError;
+use crate::ValidatedRuntimeSpill;
+use crate::rewrites::runtime_spill::tests::budget;
+use crate::spill_selected_runtime_value;
+use crate::validate_runtime_spill;
 use semantic_vocabulary::IeeeFloatFormat;
 
 fn typed_fixture(target: NativeTarget, scalar_type: ScalarType) -> ValidatedRuntimeSpill {

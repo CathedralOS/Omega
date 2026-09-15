@@ -1,8 +1,16 @@
 //! Optimizer module role: executable entrance. Exact fixed-view copy insertion and independent CFG replay entrance.
+use crate::ValidatedAllocationLegality;
+use crate::ValidatedFixedPrecoloredIntervals;
+use crate::ValidatedFixedPrecoloredSegmentHomes;
+use crate::ValidatedFixedPrecoloredSplitRequirements;
+use crate::ValidatedLiveRanges;
+use crate::{
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile,
+};
 
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
-
-use crate::*;
 
 pub(crate) mod codec;
 pub(crate) mod compute;

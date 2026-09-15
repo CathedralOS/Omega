@@ -1,6 +1,12 @@
 //! Ordinary and structural function live-range construction.
-
-use super::*;
+use super::{
+    BTreeSet, FunctionLiveRanges, RegisterOperandAccess, VirtualFixedConstraint,
+    VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
+};
+use super::{
+    LiveRangeError, architectural_units, block_domain, connector, derive_early_clobbers,
+    derive_tied_pairs, fragments_overlap, operand_point, virtual_fragments,
+};
 
 pub(super) fn compute_function(
     function_index: usize,

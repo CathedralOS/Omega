@@ -437,7 +437,9 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Cursor, MachineId, SelectedInstructionKind};
+    use crate::codec::selected::decode_kind;
+    use crate::codec::selected::instruction::encode_kind;
 
     #[test]
     fn compare_i64_uses_append_only_tag_ten() {

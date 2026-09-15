@@ -1,6 +1,9 @@
 //! Architectural register-unit discovery, actions, and fragments.
-
-use super::*;
+use super::{
+    ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange, BTreeSet,
+    RegisterUnitId,
+};
+use super::{LiveRangeError, after_point, before_point, connector, fragments_from_points};
 
 pub(super) fn architectural_units(
     function_index: usize,

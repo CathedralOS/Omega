@@ -1,6 +1,12 @@
 //! Selected-CFG copy insertion and operand rewriting mechanics.
-
-use super::*;
+use super::{
+    IntegerSign, RegisterInstructionConstraint, ScalarType, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
+    SelectedTerminator, VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
+};
+use crate::FixedViewCopy;
+use crate::FixedViewCopyError;
 
 pub(super) fn apply_copy(
     function_index: usize,

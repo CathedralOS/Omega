@@ -1,6 +1,10 @@
 //! Shared-entry-after-compare-before-branch policy mechanics.
-
-use super::*;
+use super::{
+    BTreeSet, RegisterInstructionConstraint, RegisterOperandAccess, SelectedInstructionId,
+    SelectedInstructionKind, SelectedTerminator, VirtualFixedConstraintSite, VirtualRegisterId,
+    VirtualRegisterOrigin,
+};
+use super::{FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, find_leaf_block, is_u64};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_shared_entry_copy(

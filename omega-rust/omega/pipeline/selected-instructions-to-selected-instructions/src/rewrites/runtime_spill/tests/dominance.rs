@@ -1,6 +1,16 @@
 use super::control_flow::{cfg_fixture, successor};
 use super::parameters::parameter_fixture;
-use super::*;
+use super::{
+    Arc, BlockId, EdgeId, NativeTarget, SelectedBlock, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionKind, SelectedTerminator, VirtualRegisterId,
+    baseline_target_register_environment, selected_instruction_plan_identity,
+};
+use crate::RuntimeSpillError;
+use crate::ValidatedRuntimeSpill;
+use crate::rewrites::runtime_spill::admission;
+use crate::rewrites::runtime_spill::tests::budget;
+use crate::spill_selected_runtime_value;
+use crate::validate_runtime_spill;
 use selected_instructions::SelectedBlockOrigin;
 
 fn downstream_use_fixture(

@@ -1,6 +1,15 @@
 //! Source-custody preflight, work accounting, and insertion-site discovery.
-
-use super::*;
+use super::{
+    BTreeSet, OptimizationWorkUsage, RegisterInstructionConstraint, RegisterOperandAccess,
+    SelectedInstructionId, SelectedTerminator, TargetRegisterEnvironmentConstraintKeys,
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
+    ValidatedSelectedInstructions, VirtualRegisterId, target_register_environment_identity,
+};
+use crate::FixedViewCopyError;
+use crate::FixedViewCopyPolicy;
+use crate::ValidatedAllocationLegality;
+use crate::ValidatedLiveRanges;
 
 pub(super) fn validate_roots(
     selected: &ValidatedSelectedInstructions,

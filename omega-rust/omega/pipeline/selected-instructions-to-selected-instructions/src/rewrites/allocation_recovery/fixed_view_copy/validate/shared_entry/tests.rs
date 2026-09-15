@@ -1,6 +1,8 @@
 //! Applied-copy replay uses raw fixtures, not fabricated selection admission.
-
-use super::*;
+use super::{FixedViewCopyError, replay_shared_entry_copy};
+use super::{
+    SelectedInstructionId, SelectedInstructionKind, SelectedTerminator, VirtualRegisterId,
+};
 use crate::rewrites::allocation_recovery::fixed_view_copy::compute::tests::{
     boundaries, computed_shared_fixture,
 };

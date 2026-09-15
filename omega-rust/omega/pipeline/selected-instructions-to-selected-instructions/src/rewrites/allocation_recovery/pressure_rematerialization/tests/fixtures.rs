@@ -1,3 +1,12 @@
+use super::super::super::super::super::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, BlockPointDomain,
+    FunctionLiveRanges, FunctionRecoveryClassification, LiveRangeFragment, LiveRangeIdentity,
+    LiveRangePlan, LiveRangePoint, LivenessIdentity, LivenessPosition,
+    PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity,
+    VirtualLiveRange, VirtualOccurrence,
+};
+
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
 use register_model::{
@@ -16,15 +25,6 @@ use semantic_vocabulary::{
     OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-use super::super::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, BlockPointDomain,
-    FunctionLiveRanges, FunctionRecoveryClassification, LiveRangeFragment, LiveRangeIdentity,
-    LiveRangePlan, LiveRangePoint, LivenessIdentity, LivenessPosition,
-    PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity,
-    VirtualLiveRange, VirtualOccurrence,
-};
 
 fn operand(register: u32, access: RegisterOperandAccess) -> SelectedOperand {
     SelectedOperand {

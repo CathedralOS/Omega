@@ -1,6 +1,11 @@
 //! Optimizer module role: executable entrance. Per-point physical-view legality compute -> validation entrance.
-
-use crate::*;
+use crate::ValidatedAllocatorAvailability;
+use crate::ValidatedLiveRanges;
+use crate::{
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile,
+};
 
 pub(crate) mod compute;
 pub(crate) mod model;

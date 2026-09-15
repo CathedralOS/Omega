@@ -1,4 +1,15 @@
-use super::*;
+use super::{
+    Arc, BlockId, EdgeId, NativeTarget, ScalarType, SelectedBlock, SelectedBlockId,
+    SelectedInstructionId, SelectedInstructionKind, SelectedTerminator, ValueDefinitionSite,
+    ValueId, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    baseline_target_register_environment, fixture, selected_instruction_plan_identity,
+};
+use crate::RuntimeSpillError;
+use crate::ValidatedRuntimeSpill;
+use crate::rewrites::runtime_spill::admission;
+use crate::rewrites::runtime_spill::tests::budget;
+use crate::spill_selected_runtime_value;
+use crate::validate_runtime_spill;
 use selected_instructions::{
     LocalStorageSlotId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedStructuralBinding, SelectedStructuralTransport,

@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan};
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterViewId,
     TargetRegisterEnvironmentIdentity,

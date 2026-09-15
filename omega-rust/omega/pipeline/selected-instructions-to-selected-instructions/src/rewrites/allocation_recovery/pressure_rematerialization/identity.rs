@@ -90,6 +90,17 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
 
 #[cfg(test)]
 mod tests {
+    use crate::FunctionPressureRematerialization;
+    use crate::PressureRematerializationAction;
+    use crate::PressureRematerializationDecodeError;
+    use crate::PressureRematerializationPlan;
+    use crate::PressureRematerializationPolicy;
+    use crate::PressureRematerializationRewrite;
+    use crate::pressure_rematerialization_identity;
+    use crate::{
+        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity,
+        LiveRangePoint, RecoveryClassificationIdentity, SpillChoiceIdentity,
+    };
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     };
@@ -101,8 +112,6 @@ mod tests {
         SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
     };
     use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
-
-    use crate::*;
 
     fn plan() -> PressureRematerializationPlan {
         PressureRematerializationPlan {

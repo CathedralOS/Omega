@@ -1,6 +1,22 @@
 //! Receipt identity, work accounting, and schedule validation.
-
-use super::*;
+use super::{
+    OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    RecoveryClassificationPolicy, SelectedLoweringOptimizationCompletionIdentity,
+    SpillChoicePolicy,
+};
+use crate::LiteralFoldPolicy;
+use crate::OptimizedLiteralFoldCustodyError;
+use crate::StagedOptimizedAllocationLegality;
+use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use crate::StagedOptimizedLiteralFoldAttempt;
+use crate::StagedOptimizedLiteralFoldAttemptReceipt;
+use crate::StagedOptimizedLiteralFoldCustodyReceipt;
+use crate::StagedOptimizedLiteralFoldIterationReceipt;
+use crate::StagedOptimizedLiteralFoldStep;
+use crate::StagedSelectedLoweringOptimizationCustodyReceipt;
+use crate::ValidatedLiteralFold;
+use crate::ValidatedRecoveryClassifications;
+use crate::ValidatedSpillChoices;
 
 pub(super) fn custody_receipt(
     source: StagedOptimizedAllocationLegalityCustodyReceipt,

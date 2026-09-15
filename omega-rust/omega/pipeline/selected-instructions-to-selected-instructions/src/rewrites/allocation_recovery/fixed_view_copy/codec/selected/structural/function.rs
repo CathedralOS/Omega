@@ -307,7 +307,13 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
 
 #[cfg(test)]
 mod local_slot_tests {
-    use super::*;
+    use super::{
+        Cursor, FixedViewCopyDecodeError, OperationId, PlaceId, SelectedBlockId, SelectedFunction,
+        SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    };
+    use crate::codec::selected::structural::decode_contracts;
+    use crate::codec::selected::structural::decode_local_slot;
+    use crate::codec::selected::structural::encode_contracts;
 
     #[test]
     fn byte_span_contract_roundtrip_retains_length_obligation_and_accepted_fact() {

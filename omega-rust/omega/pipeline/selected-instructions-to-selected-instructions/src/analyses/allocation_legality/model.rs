@@ -1,4 +1,7 @@
-use crate::*;
+use crate::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    LiveRangeIdentity,
+};
 use register_model::TargetRegisterEnvironmentIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

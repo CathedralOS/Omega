@@ -1,4 +1,5 @@
-use super::*;
+use crate::OptimizedAllocationLegalityCustodyError;
+use crate::analyses::legality::policies::active_resident_immediate_u64_multi_use_rematerialization_v1_views;
 
 #[test]
 fn active_resident_two_view_policy_reports_the_exact_missing_required_view() {

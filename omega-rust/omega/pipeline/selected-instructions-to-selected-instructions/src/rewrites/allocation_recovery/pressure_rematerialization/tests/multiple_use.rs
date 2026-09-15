@@ -1,3 +1,9 @@
+use super::super::super::super::super::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
+    LiveRangeIdentity, LiveRangePoint, RecoveryClassificationIdentity, SpillChoiceIdentity,
+    VirtualPointLegality, VirtualRegisterAllocationLegality, analyze_live_ranges, analyze_liveness,
+};
+
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
     PhysicalRegisterModel, RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId,
@@ -13,12 +19,8 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::super::compute::build_functions;
 use super::super::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
-    LiveRangeIdentity, LiveRangePoint, PressureRematerializationError,
-    PressureRematerializationPlan, PressureRematerializationPolicy,
-    PressureRematerializationValidationReceipt, RecoveryClassificationIdentity,
-    SpillChoiceIdentity, ValidatedPressureRematerialization, VirtualPointLegality,
-    VirtualRegisterAllocationLegality, analyze_live_ranges, analyze_liveness,
+    PressureRematerializationError, PressureRematerializationPlan, PressureRematerializationPolicy,
+    PressureRematerializationValidationReceipt, ValidatedPressureRematerialization,
     pressure_rematerialization_identity,
 };
 use super::fixtures::multiple_future_fixture;

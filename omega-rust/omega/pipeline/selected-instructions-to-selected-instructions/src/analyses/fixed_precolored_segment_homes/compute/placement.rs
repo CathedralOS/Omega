@@ -114,14 +114,17 @@ fn select(
 
 #[cfg(test)]
 mod tests {
-    use register_model::{RegisterClassId, RegisterViewId};
-    use selected_instructions::{SelectedBlockId, VirtualRegisterId};
-
-    use super::*;
+    use crate::FixedPrecoloredSegmentHomeError;
+    use crate::analyses::fixed_precolored_segment_homes::compute::placement::Conflicts;
+    use crate::analyses::fixed_precolored_segment_homes::compute::placement::Domain;
+    use crate::analyses::fixed_precolored_segment_homes::compute::placement::assign;
+    use crate::analyses::fixed_precolored_segment_homes::compute::work::Work;
     use crate::{
         FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId, LiveRangePoint,
         analyses::fixed_precolored_segment_homes::compute::domains::Segment,
     };
+    use register_model::{RegisterClassId, RegisterViewId};
+    use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
     #[test]
     fn exhausted_segment_domain_returns_typed_pressure() {

@@ -128,6 +128,13 @@ fn encode_len(bytes: &mut Vec<u8>, value: usize) {
 
 #[cfg(test)]
 mod tests {
+    use crate::FixedViewCopySourceEvidence;
+    use crate::fixed_view_copy_identity;
+    use crate::{
+        AllocationLegalityIdentity, FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan,
+        FixedViewCopyPolicy, LiveRangeIdentity, LiveRangePoint, LivenessPosition,
+        VirtualFixedConstraintSite,
+    };
     use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
     use optimization_unit::ValueDefinitionSite;
     use register_model::{
@@ -140,13 +147,6 @@ mod tests {
     };
     use semantic_vocabulary::{FuelScheduleIdentity, MachineId, ValueId};
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-    use super::*;
-    use crate::{
-        AllocationLegalityIdentity, FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan,
-        FixedViewCopyPolicy, LiveRangeIdentity, LiveRangePoint, LivenessPosition,
-        VirtualFixedConstraintSite,
-    };
 
     type Mutation = fn(&mut FixedViewCopyPlan);
 
