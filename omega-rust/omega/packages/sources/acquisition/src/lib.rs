@@ -44,7 +44,7 @@ pub use local::resolution_observations::{
 };
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 pub use observations::storage::GitRetainedStorageCustody;
-pub use storage::SourceResolverStorage;
+pub use storage::{PrimaryGitChoices, SourceResolverStorage};
 pub use tree::ResolvedSourceTree;
 
 #[cfg(test)]

@@ -3,6 +3,7 @@ use super::{
     resolve_local_source, resolve_local_source_snapshot_in_lane, resolve_materialized_source,
     temp_root,
 };
+use crate::PrimaryGitChoices;
 use crate::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
 use crate::storage::{RetainedStorageLane, SourceResolverStorage};
 use sha2::{Digest, Sha256};
@@ -14,7 +15,8 @@ fn with_staging_source(name: &str, test: impl FnOnce(&Path, &RetainedStorageLane
     std::fs::create_dir_all(&root).expect("create source root");
     std::fs::write(root.join("main.omg"), b"before").expect("write original source");
     std::fs::write(root.join("other.omg"), b"kept").expect("write unrelated source");
-    let storage = SourceResolverStorage::for_hardened_base(&cache).expect("retain storage");
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+        .expect("retain storage");
     test(&root, storage.external_local_sources());
     drop(storage);
     make_tree_owner_writable(&cache);

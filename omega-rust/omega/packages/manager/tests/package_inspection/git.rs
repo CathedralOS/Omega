@@ -87,7 +87,11 @@ fn inspect_with_offline(
             details: false,
             offline,
         },
-        &SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap(),
+        &SourceResolverStorage::for_hardened_base(
+            fixture.path("cache"),
+            PrimaryGitChoices::default(),
+        )
+        .unwrap(),
     )
     .unwrap();
     if offline {

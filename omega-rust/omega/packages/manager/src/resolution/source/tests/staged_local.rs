@@ -4,6 +4,7 @@ use crate::resolution::source::{
     ResolvePackageSourceError, bind_staged_external_local_project_source,
     resolve_external_local_project_source_with_storage,
 };
+use package_source::PrimaryGitChoices;
 use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceContentDigest, SourceRelativePath,
@@ -18,7 +19,8 @@ fn with_stage(name: &str, test: impl FnOnce(&Path, &SourceResolverStorage, &Stag
     let root = temp_root(name);
     let cache = temp_root(&format!("{name}-cache"));
     write_package(&root, "staged-root");
-    let storage = SourceResolverStorage::for_hardened_base(&cache).expect("retain storage");
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+        .expect("retain storage");
     let original = std::fs::read(root.join("build.omg")).expect("read original build");
     let stage = stage_local_source_replacement_in_lane(
         &root.join("."),

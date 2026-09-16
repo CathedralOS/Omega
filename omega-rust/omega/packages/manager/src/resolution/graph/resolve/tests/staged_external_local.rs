@@ -18,6 +18,7 @@ use crate::resolution::graph::{
 };
 use crate::resolution::source::ResolvePackageSourceError;
 use crate::review::SemanticBindingReview;
+use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
 use package_source::{ExternalLocalLineage, SourceResolveError};
@@ -86,7 +87,11 @@ fn live_and_staged_options_validate_pin_root_and_context_before_acquisition() {
     let fixture = Fixture::new("offline-options-root-request");
     write_application(&fixture.path("root"), "consumer", None);
     write_package(&fixture.path("dependency"), "dependency", None);
-    let storage = SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        fixture.path("cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let proposed = "machine build(builder: &mut Build) { builder.application(\"consumer\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n";
     let stage = fixture.stage(&storage, proposed);
     let context = ExternalSourceContext::derive(b"offline-options-root-request");
@@ -181,7 +186,11 @@ fn staged_project_adds_relative_and_nested_path_dependencies_from_live_directori
     write_package(&fixture.path("root/nested"), "nested", None);
     let original_build = std::fs::read(fixture.path("root/build.omg")).unwrap();
     let original_main = std::fs::read(fixture.path("root/main.omg")).unwrap();
-    let storage = SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        fixture.path("cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let context = ExternalSourceContext::derive(b"staged-closure-context");
     let proposed = "machine build(builder: &mut Build) {\n    builder.application(\"staged-app\");\n    builder.depend(Source::Path { location: \"../middle\" });\n    builder.depend(Source::Path { location: \"./nested\" });\n}\n";
     let stage = fixture.stage(&storage, proposed);
@@ -293,7 +302,11 @@ fn staged_project_adds_relative_and_nested_path_dependencies_from_live_directori
 fn staged_project_rejects_stale_live_root_before_dependency_acquisition() {
     let fixture = Fixture::new("staged-closure-stale");
     write_package(&fixture.path("root"), "staged-root", None);
-    let storage = SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        fixture.path("cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let stage = fixture.stage(&storage, "machine build(builder: &mut Build) { builder.package(\"staged-root\"); builder.depend(Source::Path { location: \"../missing\" }); }\n");
     std::fs::write(fixture.path("root/main.omg"), "machine changed() {}\n").unwrap();
     let error = resolve_staged_external_local_project_closure_with_storage(
@@ -317,7 +330,11 @@ fn staged_project_preserves_closure_limits_and_package_only_dependencies() {
     let fixture = Fixture::new("staged-closure-limits");
     write_package(&fixture.path("root"), "staged-root", None);
     write_package(&fixture.path("dependency"), "dependency", None);
-    let storage = SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        fixture.path("cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let stage = fixture.stage(&storage, "machine build(builder: &mut Build) { builder.package(\"staged-root\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n");
     let context = ExternalSourceContext::derive(b"staged-closure-limits");
     let error = resolve_staged_external_local_project_closure_with_storage(
@@ -367,7 +384,11 @@ fn staged_pin_policy_keeps_local_lookup_and_rejects_another_root_request() {
     let fixture = Fixture::new("staged-pin-policy");
     write_application(&fixture.path("root"), "staged-app", None);
     write_package(&fixture.path("dependency"), "dependency", None);
-    let storage = SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        fixture.path("cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let proposed = "machine build(builder: &mut Build) { builder.application(\"staged-app\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n";
     let stage = fixture.stage(&storage, proposed);
     let context = ExternalSourceContext::derive(b"staged-pin-policy");

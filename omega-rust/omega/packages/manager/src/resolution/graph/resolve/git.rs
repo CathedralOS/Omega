@@ -9,6 +9,7 @@ use super::errors::ResolveGitPackageClosureError;
 use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };
@@ -29,9 +30,10 @@ pub(crate) fn resolve_git_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
-        ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+        .map_err(|error| {
+            ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+        })?;
     resolve_git_package_closure_with_storage(request, &storage, source_limits, closure_limits)
 }
 

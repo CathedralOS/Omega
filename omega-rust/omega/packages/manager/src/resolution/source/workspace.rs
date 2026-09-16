@@ -1,6 +1,7 @@
 use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
 use crate::declarations::PackageKey;
+use package_source::PrimaryGitChoices;
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
@@ -25,7 +26,8 @@ pub fn resolve_workspace_member_package_source(
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir)?;
+    let storage =
+        SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
     resolve_workspace_member_package_source_with_storage(
         workspace_root_source,
         member_path,

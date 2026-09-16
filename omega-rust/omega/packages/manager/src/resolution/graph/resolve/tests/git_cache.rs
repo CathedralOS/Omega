@@ -2,6 +2,7 @@ use super::super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::super::dependencies::register_git_repository;
 use super::super::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
 use super::{run_test_git, temp_root, write_package};
+use package_source::PrimaryGitChoices;
 use std::collections::BTreeMap;
 
 mod registration;
@@ -31,13 +32,13 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
-    let acquisition = GitSourceRequest::for_local_test_repository_with_lineage(
+    let acquisition = GitSourceRequest::for_local_test_repository(
         &repository,
         None,
-        "https://github.com/CathedralOS/shared-acquisition.git",
+        Some("https://github.com/CathedralOS/shared-acquisition.git"),
     )
     .expect("validated local Git request");
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
     let mut acquisitions = GitAcquisitionCache::default();
     let selected = |name| {

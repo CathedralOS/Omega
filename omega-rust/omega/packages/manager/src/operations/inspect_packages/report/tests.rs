@@ -12,6 +12,7 @@ use crate::review::{
     PackagePolicyChangeLimits, compare_package_policy_changes, compile_resolved_package_reviews,
 };
 use package_evidence::record::PackagePolicyBaseline;
+use package_source::PrimaryGitChoices;
 use package_source::{
     ExternalSourceContext, GitCommitId, GitTreeId, LocalSourceLimits, SourceResolverStorage,
 };
@@ -128,9 +129,11 @@ impl Project {
         CompilerIssuedPackageReviewSet,
         PackagePolicyChangeSet,
     ) {
-        let storage =
-            SourceResolverStorage::for_hardened_base(self.0.join(format!("{label}-cache")))
-                .unwrap();
+        let storage = SourceResolverStorage::for_hardened_base(
+            self.0.join(format!("{label}-cache")),
+            PrimaryGitChoices::default(),
+        )
+        .unwrap();
         let closure = resolve_external_local_project_closure_with_storage(
             self.0.join("root"),
             ExternalSourceContext::derive(b"inspection-renderer-tests"),

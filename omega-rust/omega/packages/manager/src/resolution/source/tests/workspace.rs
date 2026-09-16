@@ -103,8 +103,11 @@ fn workspace_member_resolution_rejects_member_path_symlink_escape() {
     let member = workspace.join("packages/escaped");
     symlink(&outside, &member).expect("create escaping member symlink");
 
-    let storage = package_source::SourceResolverStorage::for_hardened_base(&cache)
-        .expect("create retained workspace storage");
+    let storage = package_source::SourceResolverStorage::for_hardened_base(
+        &cache,
+        PrimaryGitChoices::default(),
+    )
+    .expect("create retained workspace storage");
     let error = crate::resolution::source::resolve_workspace_member_package_source_with_storage(
         &SourceLineage::git("https://github.com/CathedralOS/workspace.git")
             .expect("workspace lineage"),

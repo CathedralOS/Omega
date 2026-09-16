@@ -4,6 +4,7 @@ mod execution;
 mod report;
 
 use super::{PackageFileTransaction, PackagePublicationLimits};
+use package_source::PrimaryGitChoices;
 use package_source::SourceResolverStorage;
 use std::fmt;
 use std::path::PathBuf;
@@ -56,9 +57,10 @@ pub fn inspect_packages(
         options.details,
         options.offline,
         |root| {
-            SourceResolverStorage::for_current_user_excluding_primary_git_roots(&[
-                root.to_path_buf()
-            ])
+            SourceResolverStorage::for_current_user(PrimaryGitChoices {
+                excluded_controlled_roots: &[root.to_path_buf()],
+                ..PrimaryGitChoices::default()
+            })
             .map_err(failure)
         },
     )

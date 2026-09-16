@@ -7,6 +7,7 @@ use super::{
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
     resolve_external_local_project_closure_with_storage, write_file,
 };
+use package_source::PrimaryGitChoices;
 #[test]
 fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
     let temporary = TemporaryTree::new();
@@ -27,7 +28,11 @@ fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
             standard_library.to_str().expect("fixture source path")
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(temporary.0.join("resolved")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        temporary.0.join("resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let closure = resolve_external_local_project_closure_with_storage(
         &application,
         ExternalSourceContext::derive(b"macos-entry-dependency-discovery"),

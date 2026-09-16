@@ -4,6 +4,7 @@ use super::super::{
     resolve_external_local_project_closure_with_storage,
 };
 use super::{temp_root, write_package};
+use package_source::PrimaryGitChoices;
 #[test]
 fn resolves_external_local_closure_across_directory_boundaries_in_one_context() {
     let sources = temp_root("external-sources");
@@ -84,7 +85,8 @@ fn project_resolution_retains_an_application_root_role() {
     .expect("write application declaration");
     std::fs::write(source.join("main.omg"), "machine root() {}\n")
         .expect("write application source");
-    let storage = SourceResolverStorage::for_hardened_base(&cache).expect("resolver storage");
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
+        .expect("resolver storage");
 
     let closure = resolve_external_local_project_closure_with_storage(
         &source,

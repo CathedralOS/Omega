@@ -1,4 +1,5 @@
 mod recovery;
+use package_source::PrimaryGitChoices;
 pub(crate) use recovery::recover_cached_external_local_source;
 
 use super::projection::project_package_build;
@@ -59,7 +60,8 @@ pub fn resolve_external_local_package_source(
     limits: LocalSourceLimits,
     source_context: ExternalSourceContext,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir)?;
+    let storage =
+        SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
     resolve_external_local_package_source_with_storage(
         source_root,
         &storage,

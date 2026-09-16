@@ -90,16 +90,16 @@ invokes console;
     assert_ne!(baseline_revision, candidate_revision);
 
     let canonical_lineage = "https://github.com/CathedralOS/process-exit.git";
-    let baseline_request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let baseline_request = GitSourceRequest::for_local_test_repository(
         &repository,
         Some(baseline_revision.clone()),
-        canonical_lineage,
+        Some(canonical_lineage),
     )
     .expect("construct exact baseline Git request");
-    let candidate_request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let candidate_request = GitSourceRequest::for_local_test_repository(
         &repository,
         Some(candidate_revision.clone()),
-        canonical_lineage,
+        Some(canonical_lineage),
     )
     .expect("construct exact candidate Git request");
     let baseline_sources = resolve_git_package_closure(

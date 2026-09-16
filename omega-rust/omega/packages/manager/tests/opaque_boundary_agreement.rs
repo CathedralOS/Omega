@@ -16,6 +16,7 @@ use package_manager::resolution::graph::{
 use package_manager::review::{
     CompileResolvedPackageReviewsError, SemanticBindingReview, compile_resolved_package_reviews,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -50,7 +51,7 @@ impl Tree {
     }
 
     fn storage(&self, name: &str) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.path(name))
+        SourceResolverStorage::for_hardened_base(self.path(name), PrimaryGitChoices::default())
             .expect("create source resolver storage")
     }
 }

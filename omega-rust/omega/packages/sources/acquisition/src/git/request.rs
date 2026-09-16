@@ -179,30 +179,24 @@ impl GitSourceRequest {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     #[doc(hidden)]
+    /// A test repository on disk; `remote_locator` names the lineage it stands
+    /// in for, otherwise a fixture locator is derived from the path.
     pub fn for_local_test_repository(
         repository: &Path,
         revision: Option<String>,
+        remote_locator: Option<&str>,
     ) -> Result<Self, GitSourceRequestError> {
-        let path_identity = Sha256::digest(repository.as_os_str().to_string_lossy().as_bytes());
-        let mut request = Self::new(
-            format!(
-                "https://local-fixture.invalid/{}.git",
-                format_sha256(&path_identity)
-            ),
-            revision,
-        )?;
-        request.fetch_locator = local_test_fetch_locator(repository);
-        request.execution_transport = GitExecutionTransport::File;
-        Ok(request)
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    #[doc(hidden)]
-    pub fn for_local_test_repository_with_lineage(
-        repository: &Path,
-        revision: Option<String>,
-        remote_locator: &str,
-    ) -> Result<Self, GitSourceRequestError> {
+        let remote_locator = match remote_locator {
+            Some(locator) => locator.to_owned(),
+            None => {
+                let path_identity =
+                    Sha256::digest(repository.as_os_str().to_string_lossy().as_bytes());
+                format!(
+                    "https://local-fixture.invalid/{}.git",
+                    format_sha256(&path_identity)
+                )
+            }
+        };
         let mut request = Self::new(remote_locator, revision)?;
         request.fetch_locator = local_test_fetch_locator(repository);
         request.execution_transport = GitExecutionTransport::File;

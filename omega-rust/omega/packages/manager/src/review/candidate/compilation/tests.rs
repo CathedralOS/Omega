@@ -9,6 +9,7 @@ use super::{
 use crate::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::PathBuf;
@@ -89,7 +90,11 @@ impl SourcePreparationFixture {
     }
 
     fn closure(&self) -> crate::resolution::graph::ResolvedPackageSourceClosure {
-        let storage = SourceResolverStorage::for_hardened_base(self.0.join("resolved")).unwrap();
+        let storage = SourceResolverStorage::for_hardened_base(
+            self.0.join("resolved"),
+            PrimaryGitChoices::default(),
+        )
+        .unwrap();
         resolve_external_local_project_closure_with_storage(
             self.0.join("package"),
             ExternalSourceContext::derive(b"candidate-source-preparation"),

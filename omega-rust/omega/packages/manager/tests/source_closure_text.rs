@@ -7,6 +7,7 @@ use package_manager::resolution::graph::{
     resolve_external_local_project_closure_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
     SourceResolverStorage,
@@ -116,8 +117,9 @@ fn resolve_diamond(tree: &TempTree, role: &str) -> ResolvedPackageSourceClosure 
         );
     }
     write_member(&sources.join("shared"), "package", "shared-package", "");
-    let storage = SourceResolverStorage::for_hardened_base(tree.path("cache"))
-        .expect("source resolver storage");
+    let storage =
+        SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
+            .expect("source resolver storage");
     resolve_external_local_project_closure_with_storage(
         sources.join("root"),
         ExternalSourceContext::derive(b"source-closure-text-diamond"),
@@ -234,8 +236,9 @@ fn workspace_graph_text_recovers_without_old_source_or_cache() {
     write_member(&workspace.join("child"), "package", "workspace-child", "");
     let lineage = SourceLineage::git("https://github.com/CathedralOS/source-text-fixture.git")
         .expect("workspace source lineage");
-    let storage = SourceResolverStorage::for_hardened_base(tree.path("cache"))
-        .expect("workspace resolver storage");
+    let storage =
+        SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
+            .expect("workspace resolver storage");
     let closure = resolve_workspace_package_closure_with_storage(
         &lineage,
         SourceRelativePath::parse("root").unwrap(),

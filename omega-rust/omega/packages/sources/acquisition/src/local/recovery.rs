@@ -17,6 +17,7 @@ use std::ffi::OsStr;
 use std::path::{Component, Path};
 
 use super::snapshot::local_snapshot_custody_identity;
+use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
 
 /// Recover an old snapshot for a caller-known canonical local origin.
 ///
@@ -31,7 +32,7 @@ pub fn recover_cached_local_source_in_lane(
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
 ) -> Result<Option<ResolvedLocalSource>, SourceResolveError> {
-    recover_with_entry_limit(
+    recover_bounded(
         canonical_origin,
         expected,
         lane,
@@ -40,7 +41,7 @@ pub fn recover_cached_local_source_in_lane(
     )
 }
 
-fn recover_with_entry_limit(
+fn recover_bounded(
     canonical_origin: &Path,
     expected: &SourceContentDigest,
     lane: &RetainedStorageLane,
@@ -106,6 +107,7 @@ fn recover_with_entry_limit(
                 &collection,
                 &directory,
                 OsStr::new(&lock_name),
+                LOCAL_SNAPSHOT_LOCK_TIMEOUT,
             )?;
             verify_collection(lane, &directory)?;
             let limits = limits.compiler_bounded();

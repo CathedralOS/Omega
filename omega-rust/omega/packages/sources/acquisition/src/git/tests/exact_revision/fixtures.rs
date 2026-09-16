@@ -7,6 +7,7 @@ use super::{
     GitExactRevisionAcquisition, LocalSourceLimits, ResolvedGitSource, SourceResolveError,
     local_git_request, resolve_git_source_at_revision_in_lane,
 };
+use crate::PrimaryGitChoices;
 pub(super) struct Fixture {
     pub(super) repository: PathBuf,
     storage_base: PathBuf,
@@ -31,9 +32,14 @@ impl Fixture {
             .execution_backend
             .executable()
             .to_path_buf();
-        let storage =
-            SourceResolverStorage::for_hardened_base_with_primary_git(&storage_base, executable)
-                .unwrap();
+        let storage = SourceResolverStorage::for_hardened_base(
+            &storage_base,
+            PrimaryGitChoices {
+                explicit_git: Some(executable.as_ref()),
+                ..PrimaryGitChoices::default()
+            },
+        )
+        .unwrap();
         Self {
             repository,
             storage_base,

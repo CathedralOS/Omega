@@ -8,6 +8,7 @@ use super::{
 };
 use crate::resolution::graph::resolve::dependencies::resolve_registered_package_closure;
 use crate::resolution::source::{GitPackageSourceRequest, ResolvedPackageSource};
+use package_source::PrimaryGitChoices;
 use package_source::ResolvedGitSource;
 
 const LOCATOR: &str = "https://github.com/CathedralOS/registration.git";
@@ -44,7 +45,8 @@ impl Fixture {
         run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
         run_test_git(&repository, ["branch", "accepted"]);
         run_test_git(&repository, ["branch", "alternate"]);
-        let storage = SourceResolverStorage::for_hardened_base(&cache).unwrap();
+        let storage =
+            SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default()).unwrap();
         Self {
             repository,
             cache,
@@ -54,10 +56,10 @@ impl Fixture {
 
     fn request(&self, locator: &str, revision: &str, member: &str) -> GitPackageSourceRequest {
         GitPackageSourceRequest::new(
-            GitSourceRequest::for_local_test_repository_with_lineage(
+            GitSourceRequest::for_local_test_repository(
                 &self.repository,
                 Some(revision.to_owned()),
-                locator,
+                Some(locator),
             )
             .unwrap(),
             crate::declarations::PackageSelection::Named(

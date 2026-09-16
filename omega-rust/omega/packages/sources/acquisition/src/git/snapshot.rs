@@ -30,6 +30,7 @@ use std::path::{Path, PathBuf};
 use super::snapshot_metadata::{
     GitSnapshotMetadata, git_snapshot_metadata, parse_git_snapshot_metadata,
 };
+use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
 use crate::snapshot::construction::{
     create_snapshot_symlink_from_open_root, open_or_create_snapshot_directory,
     write_snapshot_file_from_open_root,
@@ -84,6 +85,7 @@ pub(crate) fn publish_git_member_snapshot(
         lane.path(),
         lane.directory(),
         OsStr::new(&lock_name),
+        LOCAL_SNAPSHOT_LOCK_TIMEOUT,
     )?;
     lane.verify_path_identity()?;
 

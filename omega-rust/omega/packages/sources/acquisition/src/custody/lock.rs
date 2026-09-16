@@ -8,7 +8,7 @@ use super::platform::{
 use super::publication::direct_cache_child_name;
 use super::tree::{CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root};
 use crate::SourceResolveError;
-use crate::limits::{LOCAL_SNAPSHOT_LOCK_TIMEOUT, PROCESS_POLL_INTERVAL};
+use crate::limits::PROCESS_POLL_INTERVAL;
 use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
@@ -147,8 +147,22 @@ impl CacheEntryLock {
         Ok(file)
     }
 
+    #[cfg(test)]
+    pub(crate) fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
+        file.lock().map_err(|error| io_error(path, error))?;
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path: path.to_path_buf(),
+            lock_name,
+        })
+    }
+
     #[cfg(all(test, unix))]
-    pub(crate) fn acquire_with_budget(
+    pub(crate) fn acquire_within(
         path: &Path,
         budget: &impl CacheLockBudget,
     ) -> Result<Self, SourceResolveError> {
@@ -180,7 +194,7 @@ impl CacheEntryLock {
         })
     }
 
-    pub(crate) fn acquire_with_budget_from_parent(
+    pub(crate) fn acquire_from_parent(
         parent_path: &Path,
         retained_parent: &CapabilityDirectory,
         lock_name: &OsStr,
@@ -221,26 +235,7 @@ impl CacheEntryLock {
     }
 
     #[cfg(test)]
-    pub(crate) fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
-        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
-        file.lock().map_err(|error| io_error(path, error))?;
-        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
-        Ok(Self {
-            file,
-            parent,
-            kind: CacheCustodyKind::Git,
-            path: path.to_path_buf(),
-            lock_name,
-        })
-    }
-
-    #[cfg(test)]
-    pub(crate) fn acquire_local(path: &Path) -> Result<Self, SourceResolveError> {
-        Self::acquire_local_with_timeout(path, LOCAL_SNAPSHOT_LOCK_TIMEOUT)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn acquire_local_with_timeout(
+    pub(crate) fn acquire_local(
         path: &Path,
         timeout: Duration,
     ) -> Result<Self, SourceResolveError> {
@@ -284,19 +279,6 @@ impl CacheEntryLock {
     }
 
     pub(crate) fn acquire_local_from_parent(
-        parent_path: &Path,
-        retained_parent: &CapabilityDirectory,
-        lock_name: &OsStr,
-    ) -> Result<Self, SourceResolveError> {
-        Self::acquire_local_from_parent_with_timeout(
-            parent_path,
-            retained_parent,
-            lock_name,
-            LOCAL_SNAPSHOT_LOCK_TIMEOUT,
-        )
-    }
-
-    pub(crate) fn acquire_local_from_parent_with_timeout(
         parent_path: &Path,
         retained_parent: &CapabilityDirectory,
         lock_name: &OsStr,

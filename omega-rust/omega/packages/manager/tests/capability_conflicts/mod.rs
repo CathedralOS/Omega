@@ -17,6 +17,7 @@ use package_manager::review::{
     recover_review_only_root_policy_resolution, resolve_review_only_root_policy_decisions,
     triage_initial_install, triage_review_update,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -58,9 +59,13 @@ fn resolve_external_local_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_base).map_err(|error| {
-        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
+    let storage =
+        SourceResolverStorage::for_hardened_base(cache_base, PrimaryGitChoices::default())
+            .map_err(|error| {
+                ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(
+                    error,
+                ))
+            })?;
     resolve_external_local_package_closure_with_storage(
         live_root,
         source_context,

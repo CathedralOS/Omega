@@ -19,6 +19,7 @@ use package_manager::review::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
     compile_resolved_package_reviews,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
     SourceResolverStorage,
@@ -54,9 +55,10 @@ fn resolve_workspace_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+        .map_err(|error| {
+            ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
+        })?;
     resolve_workspace_package_closure_with_storage(
         workspace_root_source,
         root_member_path,
@@ -71,7 +73,8 @@ fn resolve_external_closure(
     live_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
 ) -> ResolvedPackageSourceClosure {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir).expect("source storage");
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+        .expect("source storage");
     resolve_external_local_package_closure_with_storage(
         live_root,
         ExternalSourceContext::derive(b"open-claim-composition"),

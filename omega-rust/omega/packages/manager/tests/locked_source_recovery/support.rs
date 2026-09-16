@@ -6,6 +6,7 @@ use super::{
     fs, package_compilation_inputs,
 };
 use package_manager::review::SemanticBindingReview;
+use package_source::PrimaryGitChoices;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -30,7 +31,8 @@ impl Tree {
         self.0.join(relative)
     }
     pub(super) fn storage(&self, name: &str) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.path(name)).unwrap()
+        SourceResolverStorage::for_hardened_base(self.path(name), PrimaryGitChoices::default())
+            .unwrap()
     }
 }
 impl Drop for Tree {

@@ -5,6 +5,7 @@ use super::super::{
     resolve_git_package_closure_with_storage,
 };
 use super::{GitTransportProfile, run_test_git, temp_root, write_application, write_package};
+use package_source::PrimaryGitChoices;
 #[test]
 fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     let repository = temp_root("git-root-repository");
@@ -18,13 +19,13 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "root"]);
-    let request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let request = GitSourceRequest::for_local_test_repository(
         &repository,
         None,
-        "https://github.com/CathedralOS/network-root.git",
+        Some("https://github.com/CathedralOS/network-root.git"),
     )
     .expect("validated local Git root request");
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
     let resolved = crate::resolution::source::resolve_git_package_source_with_storage(
         &request,
@@ -33,20 +34,20 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     )
     .expect("resolve root for exact request validation");
     assert!(git_root_request_matches(&request, resolved.source()));
-    let wrong_revision = GitSourceRequest::for_local_test_repository_with_lineage(
+    let wrong_revision = GitSourceRequest::for_local_test_repository(
         &repository,
         Some("different-revision".to_owned()),
-        "https://github.com/CathedralOS/network-root.git",
+        Some("https://github.com/CathedralOS/network-root.git"),
     )
     .expect("alternate revision request");
     assert!(!git_root_request_matches(
         &wrong_revision,
         resolved.source()
     ));
-    let wrong_locator = GitSourceRequest::for_local_test_repository_with_lineage(
+    let wrong_locator = GitSourceRequest::for_local_test_repository(
         &repository,
         None,
-        "https://github.com/CathedralOS/other-root.git",
+        Some("https://github.com/CathedralOS/other-root.git"),
     )
     .expect("alternate locator request");
     assert!(!git_root_request_matches(&wrong_locator, resolved.source()));
@@ -92,13 +93,13 @@ fn repository_root_project_retains_application_role_and_package_entry_rejects() 
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "application"]);
-    let request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let request = GitSourceRequest::for_local_test_repository(
         &repository,
         None,
-        "https://github.com/CathedralOS/network-console.git",
+        Some("https://github.com/CathedralOS/network-console.git"),
     )
     .expect("validated local Git application request");
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     crate::resolution::graph::resolve_git_package_closure_with_storage(
@@ -150,17 +151,17 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "root"]);
     let request = crate::resolution::source::GitPackageSourceRequest::new(
-        GitSourceRequest::for_local_test_repository_with_lineage(
+        GitSourceRequest::for_local_test_repository(
             &repository,
             None,
-            "https://github.com/CathedralOS/workspace.git",
+            Some("https://github.com/CathedralOS/workspace.git"),
         )
         .expect("validated local Git root request"),
         crate::declarations::PackageSelection::Named(
             crate::declarations::PackageName::parse("matrix").expect("package name"),
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     let closure = crate::resolution::graph::resolve_selected_git_package_closure_with_storage(
@@ -233,17 +234,17 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
     let request = crate::resolution::source::GitPackageSourceRequest::new(
-        GitSourceRequest::for_local_test_repository_with_lineage(
+        GitSourceRequest::for_local_test_repository(
             &repository,
             None,
-            "https://github.com/CathedralOS/driver-workspace.git",
+            Some("https://github.com/CathedralOS/driver-workspace.git"),
         )
         .expect("validated local Git workspace request"),
         crate::declarations::PackageSelection::Named(
             crate::declarations::PackageName::parse("driver-console").expect("project name"),
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     let closure = crate::resolution::graph::resolve_selected_git_project_closure_with_storage(
@@ -304,17 +305,17 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
     let request = crate::resolution::source::GitPackageSourceRequest::new(
-        GitSourceRequest::for_local_test_repository_with_lineage(
+        GitSourceRequest::for_local_test_repository(
             &repository,
             None,
-            "https://github.com/CathedralOS/member-path.git",
+            Some("https://github.com/CathedralOS/member-path.git"),
         )
         .expect("validated local Git root request"),
         crate::declarations::PackageSelection::Named(
             crate::declarations::PackageName::parse("left").expect("package name"),
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     let closure = crate::resolution::graph::resolve_selected_git_package_closure_with_storage(
@@ -405,17 +406,17 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
     let request = crate::resolution::source::GitPackageSourceRequest::new(
-        GitSourceRequest::for_local_test_repository_with_lineage(
+        GitSourceRequest::for_local_test_repository(
             &repository,
             None,
-            "https://github.com/CathedralOS/undeclared-member.git",
+            Some("https://github.com/CathedralOS/undeclared-member.git"),
         )
         .expect("validated local Git root request"),
         crate::declarations::PackageSelection::Named(
             crate::declarations::PackageName::parse("left").expect("package name"),
         ),
     );
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
     let error = crate::resolution::graph::resolve_selected_git_package_closure_with_storage(

@@ -4,6 +4,7 @@ use super::report::PackageSourceInspection;
 #[cfg(test)]
 use super::request::PackageSourceRequestParseError;
 use super::request::{PackageSourceInspectionError, PackageSourceRequest, SourceAdapter};
+use package_source::PrimaryGitChoices;
 use package_source::git::resolution::resolve_git_source_in_lane;
 #[cfg(test)]
 use package_source::resolve_git_source_with_storage;
@@ -38,7 +39,8 @@ pub(crate) fn inspect_package_source_in_cache(
             })
         }
         PackageSourceRequest::Git(request) => {
-            let storage = SourceResolverStorage::for_hardened_base(cache_dir)?;
+            let storage =
+                SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
             let resolved = resolve_git_source_with_storage(&request, &storage, limits)?;
             Ok(PackageSourceInspection {
                 source_kind: "git".to_owned(),
@@ -140,6 +142,7 @@ mod tests {
         inspect_package_source_locator_in_cache,
     };
     use package_source::GitSourceRequest;
+    use package_source::PrimaryGitChoices;
     use std::ffi::OsStr;
     use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -259,8 +262,9 @@ mod tests {
         let cache_base = temp_root("local-audit-cache");
         std::fs::create_dir_all(&root).expect("create local package");
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
-        let storage = SourceResolverStorage::for_hardened_base(&cache_base)
-            .expect("create private resolver storage");
+        let storage =
+            SourceResolverStorage::for_hardened_base(&cache_base, PrimaryGitChoices::default())
+                .expect("create private resolver storage");
         storage
             .verify_path_identity()
             .expect("storage identity before source audit");
@@ -320,16 +324,21 @@ mod tests {
             .expect("write source");
         run_test_git(&repository, ["add", "main.omg"]);
         run_test_git(&repository, ["commit", "--quiet", "-m", "initial"]);
-        let storage = SourceResolverStorage::for_hardened_base(&cache_base)
-            .expect("create private resolver storage");
+        let storage =
+            SourceResolverStorage::for_hardened_base(&cache_base, PrimaryGitChoices::default())
+                .expect("create private resolver storage");
         storage
             .verify_path_identity()
             .expect("storage identity before Git source inspection");
 
         let inspection = inspect_package_source(
             PackageSourceRequest::Git(
-                GitSourceRequest::for_local_test_repository(&repository, Some("HEAD".to_owned()))
-                    .expect("local Git fixture request"),
+                GitSourceRequest::for_local_test_repository(
+                    &repository,
+                    Some("HEAD".to_owned()),
+                    None,
+                )
+                .expect("local Git fixture request"),
             ),
             &storage,
             LocalSourceLimits::default(),

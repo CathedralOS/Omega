@@ -16,6 +16,7 @@ use crate::resolution::source::{
     GitPackageSourceRequest, bind_staged_external_local_project_source,
     resolve_external_local_project_source_in_lane,
 };
+use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::local::staging::stage_local_source_replacement_in_lane;
 use sha2::{Digest, Sha256};
@@ -29,7 +30,11 @@ struct Project {
 impl Project {
     fn new(name: &str) -> Self {
         let directory = temp_root(name);
-        let storage = SourceResolverStorage::for_hardened_base(directory.join("cache")).unwrap();
+        let storage = SourceResolverStorage::for_hardened_base(
+            directory.join("cache"),
+            PrimaryGitChoices::default(),
+        )
+        .unwrap();
         Self {
             directory,
             storage,
@@ -138,10 +143,10 @@ impl Project {
                 // Only the transport is redirected; declarations, source acquisition,
                 // pin selection, graph traversal and reconciliation are production code.
                 let request = GitPackageSourceRequest::new(
-                    GitSourceRequest::for_local_test_repository_with_lineage(
+                    GitSourceRequest::for_local_test_repository(
                         &self.directory.join(name),
                         Some(revision.clone()),
-                        repository,
+                        Some(repository),
                     )
                     .unwrap(),
                     selection.clone(),

@@ -6,12 +6,14 @@ use super::super::{
     resolve_workspace_package_closure_with_storage,
 };
 use super::{fixture_lineage, fixture_root, temp_root, write_application, write_package};
+use package_source::PrimaryGitChoices;
 #[test]
 fn resolves_explicit_workspace_path_closure() {
     let cache_base = temp_root("fixture-cache");
     std::fs::create_dir_all(&cache_base).expect("create private storage base");
-    let storage = SourceResolverStorage::for_hardened_base(&cache_base)
-        .expect("create production-shaped private resolver storage");
+    let storage =
+        SourceResolverStorage::for_hardened_base(&cache_base, PrimaryGitChoices::default())
+            .expect("create production-shaped private resolver storage");
     let closure = resolve_workspace_package_closure_with_storage(
         &fixture_lineage(),
         SourceRelativePath::parse("graph-workbench").expect("root member"),
@@ -60,7 +62,7 @@ fn workspace_project_entry_retains_application_root_role() {
     let workspace = temp_root("application-workspace");
     let cache = temp_root("application-workspace-cache");
     write_application(&workspace.join("projects/console"), "driver-console", None);
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained workspace resolver storage");
 
     crate::resolution::graph::resolve_workspace_package_closure_with_storage(

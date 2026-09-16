@@ -4,6 +4,7 @@ use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, resolve_external_local_package_source,
     resolve_git_package_source, resolve_selected_git_package_source_with_storage,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, GitSourceRequest, LocalSourceLimits};
 use std::path::Path;
 use std::process::Command;
@@ -37,16 +38,16 @@ fn git_binding_normalizes_known_transport_without_using_repository_name() {
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "package"]);
     let revision = test_git_head(&repository);
-    let https_request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let https_request = GitSourceRequest::for_local_test_repository(
         &repository,
         Some(revision.clone()),
-        "https://github.com/CathedralOS/repository-name-does-not-match.git",
+        Some("https://github.com/CathedralOS/repository-name-does-not-match.git"),
     )
     .expect("HTTPS request");
-    let ssh_request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let ssh_request = GitSourceRequest::for_local_test_repository(
         &repository,
         Some(revision),
-        "git@github.com:cathedralos/repository-name-does-not-match.git",
+        Some("git@github.com:cathedralos/repository-name-does-not-match.git"),
     )
     .expect("SSH request");
     let https = resolve_git_package_source(&https_request, &cache, LocalSourceLimits::default())
@@ -78,14 +79,17 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
-    let acquisition = GitSourceRequest::for_local_test_repository_with_lineage(
+    let acquisition = GitSourceRequest::for_local_test_repository(
         &repository,
         None,
-        "https://github.com/CathedralOS/named-errors.git",
+        Some("https://github.com/CathedralOS/named-errors.git"),
     )
     .expect("local Git request");
-    let storage =
-        package_source::SourceResolverStorage::for_hardened_base(&cache).expect("retained storage");
+    let storage = package_source::SourceResolverStorage::for_hardened_base(
+        &cache,
+        PrimaryGitChoices::default(),
+    )
+    .expect("retained storage");
 
     let missing = resolve_selected_git_package_source_with_storage(
         &GitPackageSourceRequest::new(
@@ -153,14 +157,17 @@ fn named_git_binding_rejects_symlink_member_navigation() {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
-    let acquisition = GitSourceRequest::for_local_test_repository_with_lineage(
+    let acquisition = GitSourceRequest::for_local_test_repository(
         &repository,
         None,
-        "https://github.com/CathedralOS/named-symlink.git",
+        Some("https://github.com/CathedralOS/named-symlink.git"),
     )
     .expect("local Git request");
-    let storage =
-        package_source::SourceResolverStorage::for_hardened_base(&cache).expect("retained storage");
+    let storage = package_source::SourceResolverStorage::for_hardened_base(
+        &cache,
+        PrimaryGitChoices::default(),
+    )
+    .expect("retained storage");
 
     let error = resolve_selected_git_package_source_with_storage(
         &GitPackageSourceRequest::new(
@@ -261,19 +268,19 @@ fn conflicting_git_revisions_report_real_custody_and_both_request_paths() {
 
     let cache = temp_root("git-reconciliation-cache");
     let source_limits = LocalSourceLimits::default();
-    let first_request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let first_request = GitSourceRequest::for_local_test_repository(
         &repository,
         Some(first_revision.clone()),
-        canonical_repository,
+        Some(canonical_repository),
     )
     .expect("validate first local Git fixture request");
     let first = resolve_git_package_source(&first_request, cache.join("first"), source_limits)
         .expect("bind first declared package custody")
         .into_custody();
-    let second_request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let second_request = GitSourceRequest::for_local_test_repository(
         &repository,
         Some(second_revision.clone()),
-        canonical_repository,
+        Some(canonical_repository),
     )
     .expect("validate second local Git fixture request");
     let second = resolve_git_package_source(&second_request, cache.join("second"), source_limits)

@@ -10,6 +10,7 @@ use crate::resolution::graph::{
 };
 use crate::resolution::package_compilation_inputs;
 use package_compilation::{PackageCompilationInputError, PackageCompilationInputs};
+use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceResolveError, SourceResolverStorage,
@@ -147,9 +148,10 @@ pub fn prepare_local_project_with_options(
     options: LocalProjectPreparationOptions,
 ) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
     prepare_with_options_and_storage(entry_path, options, |root| {
-        SourceResolverStorage::for_current_user_excluding_primary_git_roots(std::slice::from_ref(
-            &root.to_path_buf(),
-        ))
+        SourceResolverStorage::for_current_user(PrimaryGitChoices {
+            excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
+            ..PrimaryGitChoices::default()
+        })
     })
 }
 

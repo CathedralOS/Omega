@@ -6,6 +6,7 @@ use package_manager::resolution::graph::{
 use package_manager::resolution::source::resolve_git_package_source_with_storage;
 use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
+use package_source::PrimaryGitChoices;
 use package_source::{
     GitSourceRequest, LocalSourceLimits, SourceLineage, SourceResolverStorage,
     resolve_git_source_with_storage, resolve_local_source,
@@ -188,7 +189,7 @@ fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
     let fixture = fixture::Fixture::new();
     let cache = fixture.path("cache");
     std::fs::create_dir_all(&cache).expect("cache root should be creatable");
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create remote fixture resolver storage");
     for pin in pins {
         let request = GitSourceRequest::new(ssh_url(&pin), Some(pin.commit.clone()))

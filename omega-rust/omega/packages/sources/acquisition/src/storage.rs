@@ -40,40 +40,26 @@ pub struct SourceResolverStorage {
     external_local_sources: RetainedStorageLane,
 }
 
+/// Operator choices that narrow how storage selects its primary Git executable.
+///
+/// The default lets storage select automatically from the host; an explicit
+/// executable or excluded controlled roots come from operator flags.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PrimaryGitChoices<'a> {
+    /// One explicit operator-selected Git executable.
+    pub explicit_git: Option<&'a Path>,
+    /// Operator-known controlled roots excluded from automatic selection.
+    pub excluded_controlled_roots: &'a [PathBuf],
+}
+
 impl SourceResolverStorage {
     /// Open or create the current user's production resolver storage.
     ///
     /// There is deliberately no temporary-directory fallback. If the host has
     /// no usable per-user cache location, source resolution fails closed.
-    pub fn for_current_user() -> Result<Self, SourceResolveError> {
+    pub fn for_current_user(choices: PrimaryGitChoices<'_>) -> Result<Self, SourceResolveError> {
         let base = current_user_cache_base()?;
-        Self::create_beneath_with_primary_git(&base, None, &[])
-    }
-
-    /// Open production storage while excluding operator-known controlled roots
-    /// from automatic primary Git selection.
-    pub fn for_current_user_excluding_primary_git_roots(
-        excluded_roots: &[PathBuf],
-    ) -> Result<Self, SourceResolveError> {
-        let base = current_user_cache_base()?;
-        Self::create_beneath_with_primary_git(&base, None, excluded_roots)
-    }
-
-    /// Open production storage with one explicit operator-selected Git executable.
-    pub fn for_current_user_with_primary_git(
-        primary_git: impl AsRef<Path>,
-    ) -> Result<Self, SourceResolveError> {
-        let base = current_user_cache_base()?;
-        Self::create_beneath_with_primary_git(&base, Some(primary_git.as_ref()), &[])
-    }
-
-    /// Open production storage with explicit Git and controlled-root exclusions.
-    pub fn for_current_user_with_primary_git_and_excluded_roots(
-        primary_git: impl AsRef<Path>,
-        excluded_roots: &[PathBuf],
-    ) -> Result<Self, SourceResolveError> {
-        let base = current_user_cache_base()?;
-        Self::create_beneath_with_primary_git(&base, Some(primary_git.as_ref()), excluded_roots)
+        Self::create_beneath(&base, choices)
     }
 
     /// Open an isolated resolver tree beneath a caller-custodied base.
@@ -81,29 +67,11 @@ impl SourceResolverStorage {
     /// This is the explicit hardened-mode constructor for CI, bootstrap, and
     /// other infrastructure that supplies its own private storage boundary.
     /// Ordinary commands must use [`Self::for_current_user`].
-    pub fn for_hardened_base(base: impl AsRef<Path>) -> Result<Self, SourceResolveError> {
-        Self::create_beneath_with_primary_git(base.as_ref(), None, &[])
-    }
-
-    /// Open isolated storage with one explicit operator-selected Git executable.
-    pub fn for_hardened_base_with_primary_git(
+    pub fn for_hardened_base(
         base: impl AsRef<Path>,
-        primary_git: impl AsRef<Path>,
+        choices: PrimaryGitChoices<'_>,
     ) -> Result<Self, SourceResolveError> {
-        Self::create_beneath_with_primary_git(base.as_ref(), Some(primary_git.as_ref()), &[])
-    }
-
-    /// Open isolated storage with explicit Git and controlled-root exclusions.
-    pub fn for_hardened_base_with_primary_git_and_excluded_roots(
-        base: impl AsRef<Path>,
-        primary_git: impl AsRef<Path>,
-        excluded_roots: &[PathBuf],
-    ) -> Result<Self, SourceResolveError> {
-        Self::create_beneath_with_primary_git(
-            base.as_ref(),
-            Some(primary_git.as_ref()),
-            excluded_roots,
-        )
+        Self::create_beneath(base.as_ref(), choices)
     }
 
     #[cfg(test)]
@@ -151,16 +119,14 @@ impl SourceResolverStorage {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub(crate) fn create_beneath(base: &Path) -> Result<Self, SourceResolveError> {
-        Self::create_beneath_with_primary_git(base, None, &[])
-    }
-
-    fn create_beneath_with_primary_git(
+    fn create_beneath(
         base: &Path,
-        explicit_primary_git: Option<&Path>,
-        excluded_primary_git_roots: &[PathBuf],
+        choices: PrimaryGitChoices<'_>,
     ) -> Result<Self, SourceResolveError> {
+        let PrimaryGitChoices {
+            explicit_git: explicit_primary_git,
+            excluded_controlled_roots: excluded_primary_git_roots,
+        } = choices;
         if !base.is_absolute() {
             return Err(SourceResolveError::PrivateStorageUnavailable {
                 message: format!("per-user cache base `{}` is not absolute", base.display()),
@@ -364,6 +330,7 @@ fn absolute_path_from_environment(
 
 #[cfg(test)]
 mod tests {
+    use super::PrimaryGitChoices;
     use super::{PathBuf, SourceResolverStorage};
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -382,7 +349,7 @@ mod tests {
     fn production_constructor_creates_one_retained_private_tree() {
         let base = isolated_base("storage");
         std::fs::create_dir_all(&base).expect("create isolated cache base");
-        let storage = SourceResolverStorage::create_beneath(&base)
+        let storage = SourceResolverStorage::create_beneath(&base, PrimaryGitChoices::default())
             .expect("production private-root constructor");
         assert!(storage.root().starts_with(base.canonicalize().unwrap()));
         storage
@@ -427,7 +394,7 @@ mod tests {
     fn retained_private_root_rejects_path_replacement() {
         let base = isolated_base("replacement");
         std::fs::create_dir_all(&base).expect("create isolated cache base");
-        let storage = SourceResolverStorage::create_beneath(&base)
+        let storage = SourceResolverStorage::create_beneath(&base, PrimaryGitChoices::default())
             .expect("production private-root constructor");
         let retained = storage.root().with_extension("retained");
         std::fs::rename(storage.root(), &retained).expect("move retained root");
@@ -450,7 +417,7 @@ mod tests {
     fn retained_private_lane_rejects_path_replacement() {
         let base = isolated_base("lane-replacement");
         std::fs::create_dir_all(&base).expect("create isolated cache base");
-        let storage = SourceResolverStorage::create_beneath(&base)
+        let storage = SourceResolverStorage::create_beneath(&base, PrimaryGitChoices::default())
             .expect("production private-root constructor");
         let lane = storage.git_sources().path().to_path_buf();
         let retained = lane.with_extension("retained");

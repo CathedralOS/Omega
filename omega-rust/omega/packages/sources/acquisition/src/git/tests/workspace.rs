@@ -4,6 +4,7 @@ use super::{
     create_git_source, local_git_request, make_tree_owner_writable,
     resolve_git_workspace_member_with_storage, run_test_git, temp_root, test_system_git_executor,
 };
+use crate::PrimaryGitChoices;
 struct FixedWorkspacePlanner {
     member: SourceRelativePath,
 }
@@ -75,9 +76,14 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
         .execution_backend
         .executable()
         .to_path_buf();
-    let storage =
-        SourceResolverStorage::for_hardened_base_with_primary_git(&storage_base, primary_git)
-            .expect("retain resolver storage");
+    let storage = SourceResolverStorage::for_hardened_base(
+        &storage_base,
+        PrimaryGitChoices {
+            explicit_git: Some(primary_git.as_ref()),
+            ..PrimaryGitChoices::default()
+        },
+    )
+    .expect("retain resolver storage");
     let member = SourceRelativePath::parse("packages/member").expect("member path");
     let mut planner = FixedWorkspacePlanner {
         member: member.clone(),

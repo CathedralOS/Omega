@@ -49,10 +49,10 @@ fn missing_target_precedes_git_acquisition_even_when_the_recorded_selector_moved
         context.clone(),
     )
     .unwrap();
-    let request = GitSourceRequest::for_local_test_repository_with_lineage(
+    let request = GitSourceRequest::for_local_test_repository(
         &repository,
         Some("main".into()),
-        locator,
+        Some(locator),
     )
     .unwrap();
     // Fixture acquisition is routed locally; missing-target preparation must

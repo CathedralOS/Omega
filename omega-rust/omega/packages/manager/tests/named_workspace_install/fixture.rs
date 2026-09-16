@@ -178,7 +178,13 @@ impl Fixture {
                 targets,
                 offline,
             },
-            Some(&SourceResolverStorage::for_hardened_base(self.path("cache")).unwrap()),
+            Some(
+                &SourceResolverStorage::for_hardened_base(
+                    self.path("cache"),
+                    PrimaryGitChoices::default(),
+                )
+                .unwrap(),
+            ),
         );
         if offline {
             assert_eq!(

@@ -4,7 +4,7 @@ use crate::custody::lock::CacheEntryLock;
 use crate::custody::publication::{direct_cache_child_name, retained_cache_directory_exists};
 use crate::custody::tree::CacheCustodyKind;
 use crate::error::SourceResolveError;
-use crate::git::cache::creation::{create_git_cache_entry, create_git_cache_entry_with_format};
+use crate::git::cache::creation::create_git_cache_entry;
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::invalidation::invalidate_git_cache_entry_from_open_parent;
 use crate::git::cache::repository::VerifiedGitRepository;
@@ -93,12 +93,8 @@ pub(super) fn resolve_git_source_from_retained_cache_with_selection<Evidence, Pl
             git_cache_identity(locator_identity, requested_rev, execution_transport);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_name = OsString::from(format!("git-{cache_identity}.lock"));
-        let entry_lock = CacheEntryLock::acquire_with_budget_from_parent(
-            cache_dir,
-            cache_directory,
-            &lock_name,
-            &executor,
-        )?;
+        let entry_lock =
+            CacheEntryLock::acquire_from_parent(cache_dir, cache_directory, &lock_name, &executor)?;
         let entry_name =
             direct_cache_child_name(CacheCustodyKind::Git, cache_dir, &entry_root)?.to_os_string();
         let mut cache_entry_existed = retained_cache_directory_exists(
@@ -172,7 +168,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with_selection<Evidence, Pl
                 return Err(recorded.unavailable().into());
             }
             let creation_result = match selection {
-                GitRevisionSelection::Recorded(recorded) => create_git_cache_entry_with_format(
+                GitRevisionSelection::Recorded(recorded) => create_git_cache_entry(
                     &executor,
                     cache_dir,
                     entry_lock.parent(),
@@ -198,6 +194,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with_selection<Evidence, Pl
                     requested_rev,
                     execution_transport,
                     limits,
+                    None,
                 ),
             };
             reconcile_git_cache_operation_result(
