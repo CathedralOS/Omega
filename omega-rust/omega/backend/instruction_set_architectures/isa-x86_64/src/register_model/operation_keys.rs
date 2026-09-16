@@ -164,7 +164,9 @@ pub const X86_64_DIVIDE_U64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 56,
 };
 
-/// Signed wrapping remainder uses RAX and an early-clobber RDX scratch output.
+/// Signed wrapping remainder reads RAX, reads its divisor pinned to RCX so the
+/// realized form may zero RDX for the MIN / -1 guard, and defines RAX plus an
+/// ordinary late RDX scratch output.
 pub const X86_64_REMAINDER_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 57,

@@ -434,10 +434,14 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
+        // x86-64 pins the divisor to RCX — a fixed view disjoint from RAX and
+        // RDX — so the realized form may zero RDX before reading the divisor;
+        // the RDX scratch is an ordinary late definition rather than a fixed
+        // early clobber.
         WrappingRemainderI64 => ArithmeticContract {
-            early_clobbers: if x86 { &[3] } else { &[2] },
+            early_clobbers: if x86 { &[] } else { &[2] },
             fixed_views: if x86 {
-                &[(0, "rax"), (2, "rax"), (3, "rdx")]
+                &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")]
             } else {
                 &[]
             },
@@ -1429,19 +1433,29 @@ fn every_arithmetic_family_rejects_arithmetic_contract_corruption_on_every_targe
             assert_target_semantic_error(case.target, key, error);
 
             // An operand moved to the other operand class is still a known,
-            // allocatable class — the canonical row rejects it.
+            // allocatable class — the canonical row rejects it. A row whose
+            // operands are all fixed instead takes a foreign-class fixed view:
+            // the substitution stays structural and still rejects.
             let position = row
                 .operands
                 .iter()
-                .position(|operand| operand.fixed_view.is_none())
-                .expect("every arithmetic row admits an allocatable operand");
+                .position(|operand| operand.fixed_view.is_none());
             let mut corrupted = constraints.clone();
-            let operand = &mut row_mut(&mut corrupted, key).operands[position];
-            operand.class = if operand.class == integer_class {
-                float_class
-            } else {
-                integer_class
-            };
+            match position {
+                Some(position) => {
+                    let operand = &mut row_mut(&mut corrupted, key).operands[position];
+                    operand.class = if operand.class == integer_class {
+                        float_class
+                    } else {
+                        integer_class
+                    };
+                }
+                None => {
+                    let operand = &mut row_mut(&mut corrupted, key).operands[0];
+                    operand.class = float_class;
+                    operand.fixed_view = Some(float_view);
+                }
+            }
             let error = validate_target_register_environment(case.target, raw.clone(), corrupted)
                 .expect_err("a foreign-class arithmetic operand must reject");
             assert_target_semantic_error(case.target, key, error);

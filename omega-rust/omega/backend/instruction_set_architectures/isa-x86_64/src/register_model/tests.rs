@@ -3,8 +3,8 @@
 use super::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
     X86_64_COPY_I64, X86_64_LINUX_SYSTEM_CALL, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL_UNIT,
-    X86_64_MICROSOFT_RETURN, X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SUBTRACT_I64,
-    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
+    X86_64_MICROSOFT_RETURN, X86_64_REMAINDER_I64, X86_64_REQUIRED_REGISTER_CONSTRAINTS,
+    X86_64_SUBTRACT_I64, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
     X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
     x86_64_fixed_register_view, x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys,
     x86_64_indirect_aggregate_call_keys, x86_64_microsoft_aggregate_call_keys,
@@ -405,6 +405,85 @@ fn register_constraint_catalog_closes_the_required_x86_64_inventory() {
         branch.implicit_defs,
         model.model().view_named("rip").unwrap().units
     );
+}
+
+#[test]
+fn signed_remainder_row_keeps_the_divisor_out_of_rdx() {
+    let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    let catalog = x86_64_register_constraint_catalog(&model);
+    let rax = model.model().view_named("rax").unwrap().id;
+    let rcx = model.model().view_named("rcx").unwrap().id;
+    let rdx = model.model().view_named("rdx").unwrap();
+    let remainder = row(&catalog, X86_64_REMAINDER_I64);
+    assert_eq!(remainder.key, X86_64_REMAINDER_I64);
+    assert_eq!(remainder.operands.len(), 4);
+    for (operand, access, fixed) in [
+        (0, RegisterOperandAccess::Use, Some(rax)),
+        (1, RegisterOperandAccess::Use, Some(rcx)),
+        (2, RegisterOperandAccess::Def, Some(rax)),
+        (3, RegisterOperandAccess::Def, Some(rdx.id)),
+    ] {
+        assert_eq!(remainder.operands[operand].operand, operand as u16);
+        assert_eq!(remainder.operands[operand].access, access);
+        assert_eq!(remainder.operands[operand].fixed_view, fixed);
+        assert!(
+            !remainder.operands[operand].early_clobber,
+            "operand {operand} must not be early-clobber"
+        );
+        assert_eq!(remainder.operands[operand].class, GPR64);
+    }
+    assert!(remainder.implicit_uses.is_empty());
+    assert!(remainder.implicit_defs.is_empty());
+    assert_eq!(
+        remainder.clobbers,
+        model.model().view_named("rflags").unwrap().units
+    );
+
+    // A fixed early-clobber definition cannot participate in the allocation
+    // model: restating operand 3 as an early-clobber Def must reject even
+    // though it matches the old row this contract replaced.
+    let mut changed = x86_64_register_constraint_catalog(&model);
+    let operand = &mut row_mut(&mut changed, X86_64_REMAINDER_I64).operands[3];
+    operand.early_clobber = true;
+    assert_eq!(
+        validate_x86_64_register_constraint_catalog(changed, &model),
+        Err(
+            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                X86_64_REMAINDER_I64,
+            )
+        )
+    );
+
+    // The divisor pin is load-bearing: an allocatable divisor could be homed
+    // in RDX, whose zeroing precedes the divisor read in the realized form.
+    let mut changed = x86_64_register_constraint_catalog(&model);
+    let operand = &mut row_mut(&mut changed, X86_64_REMAINDER_I64).operands[1];
+    operand.fixed_view = None;
+    assert_eq!(
+        validate_x86_64_register_constraint_catalog(changed, &model),
+        Err(
+            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                X86_64_REMAINDER_I64,
+            )
+        )
+    );
+}
+
+#[test]
+fn no_fixed_view_operand_is_early_clobber() {
+    let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    let catalog = x86_64_register_constraint_catalog(&model);
+    for constraint in &catalog.constraints {
+        for operand in &constraint.operands {
+            assert!(
+                !(operand.early_clobber && operand.fixed_view.is_some()),
+                "{:?} operand {} pins an early-clobber fixed view, which \
+                 fixed-precolored interval validation rejects",
+                constraint.key,
+                operand.operand,
+            );
+        }
+    }
 }
 
 #[test]

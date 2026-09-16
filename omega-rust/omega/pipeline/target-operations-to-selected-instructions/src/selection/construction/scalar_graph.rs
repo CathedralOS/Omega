@@ -498,7 +498,7 @@ pub(super) fn build_with_environment(
                     } => {
                         let (_, left_register, _, left_type) =
                             builder.resolve(*left).ok_or_else(invalid)?;
-                        let (_, right_register, _, right_type) =
+                        let (_, mut right_register, right_site, right_type) =
                             builder.resolve(*right).ok_or_else(invalid)?;
                         if left_type != scalar_type
                             || right_type != scalar_type
@@ -516,6 +516,20 @@ pub(super) fn build_with_environment(
                             builder.register(result.value, result.definition_site, scalar_type)?;
                         let mut operands = vec![left_register, right_register, output];
                         if environment.target().architecture == target::Architecture::X86_64 {
+                            // The realized form pins the divisor to RCX so its
+                            // RDX zeroing cannot read a live divisor. A shared
+                            // dividend/divisor register cannot carry RAX and
+                            // RCX fixed views at once, so give the divisor its
+                            // own copy first.
+                            if right_register == left_register {
+                                right_register = builder.copy(
+                                    right_register,
+                                    *right,
+                                    right_site,
+                                    scalar_type,
+                                )?;
+                                operands[1] = right_register;
+                            }
                             operands.push(remainder_scratch(&mut builder)?);
                         }
                         builder.emit(

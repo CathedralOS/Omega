@@ -558,7 +558,7 @@ pub(in crate::selection) fn validate_with_environment(
                     } => {
                         let (_, left_register, _, left_type) =
                             replay.resolve(*left).ok_or_else(invalid)?;
-                        let (_, right_register, _, right_type) =
+                        let (_, mut right_register, right_site, right_type) =
                             replay.resolve(*right).ok_or_else(invalid)?;
                         if left_type != scalar_type
                             || right_type != scalar_type
@@ -578,6 +578,20 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         let mut operands = vec![left_register, right_register, output];
                         if environment.target().architecture == target::Architecture::X86_64 {
+                            // The realized form pins the divisor to RCX so its
+                            // RDX zeroing cannot read a live divisor. A shared
+                            // dividend/divisor register cannot carry RAX and
+                            // RCX fixed views at once, so the divisor arrives
+                            // through its own copy first.
+                            if right_register == left_register {
+                                right_register = replay.check_copy(
+                                    right_register,
+                                    *right,
+                                    right_site,
+                                    scalar_type,
+                                )?;
+                                operands[1] = right_register;
+                            }
                             operands.push(remainder_scratch(&mut replay)?);
                         }
                         replay.check_instruction(
