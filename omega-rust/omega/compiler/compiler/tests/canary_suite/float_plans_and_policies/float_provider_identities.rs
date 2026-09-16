@@ -130,7 +130,8 @@ fn float_match_checked_interpreter_executes_selected_arm_comparisons() {
         Some("macos_arm64"),
     ))
     .expect("float match selects its ordinary core provider");
-    let outcome = checked_interpreter::interpret_entry(&checked, "launch", &[], InterpretOptions::default());
+    let outcome =
+        checked_interpreter::interpret_entry(&checked, "launch", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None, "selected Match equality must execute");
     assert_eq!(outcome.exit_code, 0);
 }

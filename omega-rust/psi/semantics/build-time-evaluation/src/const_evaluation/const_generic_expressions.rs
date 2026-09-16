@@ -666,9 +666,9 @@ fn evaluate_probe_internal(
         );
     }
     let (value, warnings) = if let Some((_, calls)) = calls {
-        value::evaluate_with_calls(typed, machine, state, *expression, destination, calls)?
+        value::evaluate(typed, machine, state, *expression, destination, Some(calls))?
     } else {
-        value::evaluate(typed, machine, state, *expression, destination)?
+        value::evaluate(typed, machine, state, *expression, destination, None)?
     };
     if value.type_name != destination.name() {
         return Err(format!(

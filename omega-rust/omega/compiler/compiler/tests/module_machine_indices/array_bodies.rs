@@ -52,7 +52,7 @@ fn array_constant_bodies_keep_exact_module_values_and_independent_copies() {
                 .iter()
                 .find(|machine| checked.symbols.display_path(machine.symbol, "::") == path)
                 .expect("array consumer");
-            let result = BuildTimeAdmissionPlan::infer(&checked.typed)
+            let result = BuildTimeAdmissionPlan::infer(&checked.typed, None)
                 .evaluate_machine_symbol_for_invocation_measured(
                     &checked.typed,
                     machine.symbol,

@@ -384,7 +384,7 @@ fn public_float_constants_retain_landed_identity_and_exact_import_owner() {
             .iter()
             .find(|machine| machine.name.as_str() == name)
             .expect("constant consumer");
-        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed)
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed, None)
             .evaluate_machine_symbol_for_invocation_measured(
                 &checked.typed,
                 machine.symbol,

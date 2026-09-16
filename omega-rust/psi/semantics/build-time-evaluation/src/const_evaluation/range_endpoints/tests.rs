@@ -1,8 +1,9 @@
 use super::{
     ArithmeticDomain, Diagnostic, ExpressionNode, IntegerLanding, IntegerLiteral, IntegerRadix,
-    LandedIntegerType, TypeConstraintNode, TypedTrees, arguments,
-    evaluate_const_range_endpoints_with_authority, pending_endpoints,
+    LandedIntegerType, TypeConstraintNode, TypedTrees, arguments, evaluate_const_range_endpoints,
+    pending_endpoints,
 };
+use crate::SelectedBuildTimeOperators;
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -72,7 +73,7 @@ fn closed_integer_arguments_keep_carriers_and_exact_landings() {
         ));
         let pending = pending_endpoints(&program).unwrap();
         assert_eq!(pending.len(), 1);
-        evaluate_const_range_endpoints_with_authority(&mut program, None)
+        evaluate_const_range_endpoints(&mut program, None)
             .unwrap_or_else(|errors| panic!("{argument}: {errors:?}"));
         let ExpressionNode::Integer(literal) =
             program.expression_table.expression(pending[0].expression)
@@ -109,7 +110,7 @@ fn ignored_arguments_cannot_hide_invalid_or_unsupported_inputs() {
         ));
         let pending = pending_endpoints(&program).unwrap();
         assert_eq!(pending.len(), 1);
-        let errors = evaluate_const_range_endpoints_with_authority(&mut program, None)
+        let errors = evaluate_const_range_endpoints(&mut program, None)
             .expect_err("an ignored argument still needs source admission");
         assert!(
             errors
@@ -173,7 +174,7 @@ fn nested_calls_compose_without_erasing_their_integer_carriers() {
         ));
         let calls = pending_endpoints(&program).unwrap();
         let expression = calls.last().unwrap().expression;
-        evaluate_const_range_endpoints_with_authority(&mut program, None)
+        evaluate_const_range_endpoints(&mut program, None)
             .unwrap_or_else(|errors| panic!("{parameter}: {argument}: {errors:?}"));
         let value = program
             .closed_integer_value_in(expression, symbols::SymbolHandle::invalid())
@@ -201,7 +202,7 @@ fn failed_outer_calls_restore_successful_inner_calls() {
         ));
         let calls = pending_endpoints(&program).unwrap();
         assert!(calls.len() >= 2);
-        evaluate_const_range_endpoints_with_authority(&mut program, None)
+        evaluate_const_range_endpoints(&mut program, None)
             .expect_err("ignored arguments retain typing and evaluation obligations");
         for call in calls {
             assert!(
@@ -342,7 +343,7 @@ fn signature_bounds_are_dependencies_even_when_declared_after_the_consumer() {
         program.symbols.display_path(calls[2].machine, "::"),
         "endpoint"
     );
-    evaluate_const_range_endpoints_with_authority(&mut program, None)
+    evaluate_const_range_endpoints(&mut program, None)
         .expect("signature dependencies fold before invocation");
     let value = program
         .closed_integer_expression_value(calls[2].expression)
@@ -360,7 +361,7 @@ fn cyclic_signature_bounds_do_not_depend_on_source_order_or_retries() {
          machine bounded(value: u64[0..=first(0)]) {}",
     ] {
         let mut program = typed(source);
-        let errors = evaluate_const_range_endpoints_with_authority(&mut program, None)
+        let errors = evaluate_const_range_endpoints(&mut program, None)
             .expect_err("a signature bound cannot depend on its own invocation");
         assert!(
             errors
@@ -451,7 +452,7 @@ fn generic_record_arguments_fold_endpoint_calls_before_synthesis() {
             .iter()
             .find(|machine| machine.name.as_str() == "keep")
             .expect("consumer machine");
-        let admission = crate::BuildTimeAdmissionPlan::infer(&checked.typed);
+        let admission = crate::BuildTimeAdmissionPlan::infer(&checked.typed, None);
         let execution = admission
             .evaluate_machine_symbol_for_invocation_measured(
                 &checked.typed,
@@ -605,8 +606,15 @@ fn provider_boundary_endpoint_waits_for_selected_execution() {
 fn provider_boundary_endpoint_executes_the_selected_body() {
     let (mut program, rows) = provider_endpoint_fixture();
     crate::validate_selected_provider_bodies(&program, &rows).unwrap();
-    super::evaluate_const_range_endpoints_with_selected(&mut program, None, &[], &rows)
-        .unwrap_or_else(|errors| panic!("provider-boundary endpoint: {errors:?}"));
+    super::evaluate_selected_range_endpoints(
+        &mut program,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &rows,
+        },
+    )
+    .unwrap_or_else(|errors| panic!("provider-boundary endpoint: {errors:?}"));
     assert_eq!(
         folded_maximum(&program).as_deref(),
         Some("7"),
@@ -617,8 +625,15 @@ fn provider_boundary_endpoint_executes_the_selected_body() {
 #[test]
 fn unselected_boundary_endpoint_never_falls_back_to_host_semantics() {
     let (mut program, _rows) = provider_endpoint_fixture();
-    let errors = super::evaluate_const_range_endpoints_with_selected(&mut program, None, &[], &[])
-        .expect_err("an unselected boundary use must not execute");
+    let errors = super::evaluate_selected_range_endpoints(
+        &mut program,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &[],
+        },
+    )
+    .expect_err("an unselected boundary use must not execute");
     assert!(
         errors
             .iter()
@@ -665,7 +680,13 @@ machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
     );
     let rows = provider_rows(&program);
     pending
-        .evaluate_with_selected_operators(&mut program, &[], &rows)
+        .evaluate_selected_operators(
+            &mut program,
+            SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &rows,
+            },
+        )
         .unwrap_or_else(|errors| panic!("deferred endpoint: {errors:?}"));
     assert_eq!(
         folded_maximum(&program).as_deref(),
@@ -726,7 +747,13 @@ machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
     );
     let rows = provider_rows(&program);
     pending
-        .evaluate_with_selected_operators(&mut program, &[], &rows)
+        .evaluate_selected_operators(
+            &mut program,
+            SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &rows,
+            },
+        )
         .unwrap_or_else(|errors| panic!("deferred endpoint: {errors:?}"));
     typed_trees_to_checked_trees::lower_typed_trees(program)
         .unwrap_or_else(|errors| panic!("the folded endpoint must check: {errors:?}"));

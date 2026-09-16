@@ -1,7 +1,8 @@
 use super::{
-    TypeReferenceHandle, TypedTrees, evaluate_const_array_lengths,
-    evaluate_with_selected_operators, validate_folded_array_lengths,
+    TypeReferenceHandle, TypedTrees, evaluate_const_array_lengths, evaluate_selected_array_lengths,
+    validate_folded_array_lengths,
 };
+use crate::SelectedBuildTimeOperators;
 use crate::{SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody};
 use checked_interpreter::{
     BuildMachineEvaluationRequest, BuildTimeOperationEvaluation, InterpretOptions,
@@ -140,7 +141,15 @@ fn operator_crash_fence_ignores_unselected_overload_and_survives_expression_rewr
 #[test]
 fn folded_result_replay_rejects_paired_literal_forgery_and_lost_owner() {
     let (mut typed, rows) = fixture("Float");
-    let folds = evaluate_with_selected_operators(&mut typed, None, &rows, &[]).unwrap();
+    let folds = evaluate_selected_array_lengths(
+        &mut typed,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &rows,
+            provider_bodies: &[],
+        },
+    )
+    .unwrap();
     assert_eq!(folds.len(), 1);
     validate_folded_array_lengths(&typed, &folds, &rows, &[], None).unwrap();
     let mut forged = folds.clone();
@@ -186,8 +195,15 @@ fn independent_and_selected_lengths_share_full_width_integer_decoding() {
         let mut selected =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let mut independent = selected.clone();
-        let independent_result = evaluate_const_array_lengths(&mut independent);
-        let selected_result = evaluate_with_selected_operators(&mut selected, None, &[], &[]);
+        let independent_result = evaluate_const_array_lengths(&mut independent, None);
+        let selected_result = evaluate_selected_array_lengths(
+            &mut selected,
+            None,
+            SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &[],
+            },
+        );
         if carrier == "i64" || usize::BITS < 64 {
             assert!(independent_result.is_err());
             assert!(selected_result.is_err());
@@ -308,7 +324,15 @@ fn selected_provider_body_executes_its_ordinary_machine_and_replays() {
     let (mut typed, rows) = provider_fixture();
     assert_eq!(rows.len(), 1);
     crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
-    let folds = evaluate_with_selected_operators(&mut typed, None, &[], &rows).unwrap();
+    let folds = evaluate_selected_array_lengths(
+        &mut typed,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &rows,
+        },
+    )
+    .unwrap();
     assert_eq!(folds.len(), 1);
     assert_eq!(
         folds[0].value, 9,
@@ -320,7 +344,15 @@ fn selected_provider_body_executes_its_ordinary_machine_and_replays() {
 #[test]
 fn unselected_boundary_use_cannot_fall_back_to_host_semantics() {
     let (mut typed, _rows) = provider_fixture();
-    let diagnostics = evaluate_with_selected_operators(&mut typed, None, &[], &[]).unwrap_err();
+    let diagnostics = evaluate_selected_array_lengths(
+        &mut typed,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &[],
+        },
+    )
+    .unwrap_err();
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .to_string()
@@ -332,7 +364,15 @@ fn unselected_boundary_use_cannot_fall_back_to_host_semantics() {
 #[test]
 fn provider_body_fold_rejects_a_forged_builtin_result() {
     let (mut typed, rows) = provider_fixture();
-    let folds = evaluate_with_selected_operators(&mut typed, None, &[], &rows).unwrap();
+    let folds = evaluate_selected_array_lengths(
+        &mut typed,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &rows,
+        },
+    )
+    .unwrap();
     let mut forged = folds.clone();
     forged[0].value = 1;
     typed
@@ -398,7 +438,15 @@ fn folded_payload_retains_its_exact_variant_parent() {
         "Float",
         "data Main { case First(bytes:[u8;length()]); case Second; }",
     );
-    let folds = evaluate_with_selected_operators(&mut typed, None, &rows, &[]).unwrap();
+    let folds = evaluate_selected_array_lengths(
+        &mut typed,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &rows,
+            provider_bodies: &[],
+        },
+    )
+    .unwrap();
     validate_folded_array_lengths(&typed, &folds, &rows, &[], None).unwrap();
     let owner = typed
         .data_definitions()

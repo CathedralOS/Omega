@@ -29,9 +29,7 @@ mod desugaring;
 mod layout_installation;
 
 pub use desugaring::desugar_plan_laid_value_types;
-pub use layout_installation::{
-    compute_plan_laid_layouts, compute_plan_laid_layouts_with_authority,
-};
+pub use layout_installation::compute_plan_laid_layouts;
 
 /// One plan-laid instantiation discovered by the desugar: the synthesized
 /// data definition plus the (policy, schema) pair whose validated plan will

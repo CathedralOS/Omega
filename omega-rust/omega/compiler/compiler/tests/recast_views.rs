@@ -4,6 +4,7 @@
 //! carry its own end-to-end oracle without making that shared file responsible
 //! for another subsystem.
 
+use checked_interpreter::InterpretOptions;
 #[path = "fixture_rosters/recast_views.rs"]
 mod fixture_roster;
 
@@ -14,9 +15,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, checked
+    interpret_entry(
+        checked,
+        checked
             .selected_program_entry_machine()
-            .expect("recast fixture selects an exact ProgramEntry"), stdin, InterpretOptions::default())
+            .expect("recast fixture selects an exact ProgramEntry"),
+        stdin,
+        InterpretOptions::default(),
+    )
 }
 
 fn repo_root() -> PathBuf {

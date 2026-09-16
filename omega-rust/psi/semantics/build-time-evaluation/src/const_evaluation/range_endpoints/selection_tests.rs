@@ -1,7 +1,7 @@
 use super::{
     ArithmeticDomain, ExpressionHandle, ExpressionNode, IntegerLanding, IntegerLiteral,
-    IntegerRadix, LandedIntegerType, TypedTrees, arguments,
-    evaluate_const_range_endpoints_with_authority, pending_endpoints,
+    IntegerRadix, LandedIntegerType, TypedTrees, arguments, evaluate_const_range_endpoints,
+    pending_endpoints,
 };
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
@@ -124,11 +124,8 @@ fn own_call_and_qualifier_selections_reject_before_body_evaluation() {
             };
             assert!(selected.is_valid());
             retain_qualifier_selection(&mut program, selected, retained_source);
-            let errors = evaluate_const_range_endpoints_with_authority(
-                &mut program,
-                Some(Arc::new(authority)),
-            )
-            .expect_err("callee authority cannot authorize a retained qualifier occurrence");
+            let errors = evaluate_const_range_endpoints(&mut program, Some(Arc::new(authority)))
+                .expect_err("callee authority cannot authorize a retained qualifier occurrence");
             assert_eq!(errors.len(), 1, "{errors:?}");
             assert!(
                 errors[0].message.contains("retained-requester")

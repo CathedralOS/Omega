@@ -1,7 +1,7 @@
 use super::integer_type::IntegerPosition;
 use super::{
     ExpressionNode, TypeConstraintNode, TypeReferenceHandle, TypedTrees,
-    evaluate_const_range_endpoints_with_authority,
+    evaluate_const_range_endpoints,
 };
 use numerics::bignum::BigInt;
 use typed_trees::types::TypeReferenceNode;
@@ -244,7 +244,7 @@ fn retained_constant_bound_selection_is_admitted_before_the_body() {
         program
             .expression_table
             .attach_authored_selection_occurrences(maximum, [occurrence]);
-        let errors = evaluate_const_range_endpoints_with_authority(
+        let errors = evaluate_const_range_endpoints(
             &mut program,
             Some(Arc::new(Selection(retained_requester))),
         )

@@ -51,7 +51,7 @@ fn static_array_constant_projections_execute_checked_and_decoded_terminal_values
                 .iter()
                 .find(|machine| checked.symbols.display_path(machine.symbol, "::") == path)
                 .expect("projection consumer");
-            let execution = BuildTimeAdmissionPlan::infer(&checked.typed)
+            let execution = BuildTimeAdmissionPlan::infer(&checked.typed, None)
                 .evaluate_machine_symbol_for_invocation_measured(
                     &checked.typed,
                     machine.symbol,

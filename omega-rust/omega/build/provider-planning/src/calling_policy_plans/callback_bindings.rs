@@ -604,7 +604,7 @@ pub fn close_outbound_callback_materializations(
     let layout_plan =
         layout::build_layout_plan(checked, native_target, opaque_representation_selections)
             .map_err(|diagnostic| vec![diagnostic])?;
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer_with_selection_authority(
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
         &checked.typed,
         package_inputs.map(|inputs| {
             std::sync::Arc::new(inputs.clone())

@@ -103,7 +103,7 @@ fn package_qualified_case_values_and_membership_select_the_declaring_owner() {
                 .iter()
                 .find(|machine| checked.symbols.display_path(machine.symbol, "::") == entry)
                 .expect("membership consumer");
-            let result = BuildTimeAdmissionPlan::infer(&checked.typed)
+            let result = BuildTimeAdmissionPlan::infer(&checked.typed, None)
                 .evaluate_machine_symbol_for_invocation_measured(
                     &checked.typed,
                     machine.symbol,

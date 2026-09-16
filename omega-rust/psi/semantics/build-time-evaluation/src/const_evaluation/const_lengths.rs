@@ -34,14 +34,7 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 use crate::BuildTimeAdmissionPlan;
 mod receivers;
 
-/// Evaluate every `FixedArrayLength::ConstCall` in the program and substitute
-/// the concrete `Literal` length in place. Errors name the array-length
-/// position (the spelled type) and the failing machine.
-pub fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    evaluate_const_array_lengths_with_authority(typed, None)
-}
-
-pub fn evaluate_const_array_lengths_with_authority(
+pub fn evaluate_const_array_lengths(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -65,8 +58,7 @@ pub fn evaluate_const_array_lengths_with_authority(
     // source-owned type handles; only evaluated lengths are published below.
     let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
     let execution = prepared.typed();
-    let admission =
-        BuildTimeAdmissionPlan::infer_with_selection_authority(execution, selection_authority);
+    let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
 
     let mut diagnostics = Vec::new();
     let mut substitutions: Vec<(TypeReferenceHandle, usize)> = Vec::new();
@@ -131,7 +123,7 @@ pub(crate) fn evaluate_independent_lengths(
     let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
     let execution = prepared.typed();
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
-    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(execution, authority);
+    let admission = BuildTimeAdmissionPlan::infer(execution, authority);
     let mut deferred = false;
     let mut evaluated = Vec::new();
     let mut diagnostics = Vec::new();
@@ -165,12 +157,15 @@ pub(crate) fn evaluate_independent_lengths(
     }
 }
 
-pub(crate) fn evaluate_with_selected_operators(
+pub(crate) fn evaluate_selected_array_lengths(
     typed: &mut TypedTrees,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-    operators: &[crate::SelectedBuildTimeBinaryOperator],
-    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
+    selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<Vec<FoldedArrayLength>, Vec<Diagnostic>> {
+    let crate::SelectedBuildTimeOperators {
+        operators,
+        provider_bodies,
+    } = selected;
     let pending: Vec<_> = typed
         .type_reference_table
         .fixed_array_lengths()
@@ -198,7 +193,7 @@ pub(crate) fn evaluate_with_selected_operators(
         )
     };
     let execution = selected_program.as_ref().unwrap_or(typed);
-    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(execution, authority)
+    let admission = BuildTimeAdmissionPlan::infer(execution, authority)
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let roots = receivers::roots(typed);
@@ -258,7 +253,7 @@ pub fn validate_folded_array_lengths(
         )
     };
     let execution = selected_program.as_ref().unwrap_or(typed);
-    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(execution, authority)
+    let admission = BuildTimeAdmissionPlan::infer(execution, authority)
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let roots = receivers::roots(typed);
@@ -329,12 +324,12 @@ fn evaluate_one(
     machine_name: &str,
     source_span: source::SourceSpan,
 ) -> Result<usize, String> {
-    let value = evaluate_zero_argument_machine_for_invocation(
+    let value = evaluate_zero_argument_machine(
         typed,
         admission,
         machine_name,
         "array length",
-        crate::BuildTimeInvocationCustody::Source(source_span),
+        Some(crate::BuildTimeInvocationCustody::Source(source_span)),
     )?;
     if value.is_negative() {
         return Err(format!(
@@ -347,41 +342,7 @@ fn evaluate_one(
         .ok_or_else(|| format!("the call returned {value}, which does not fit an array length"))
 }
 
-/// Evaluate an admitted integer result as a mathematical value, not host-signed
-/// interpreter bits. Each receiving const position owns its final fit check.
 pub fn evaluate_zero_argument_machine(
-    typed: &TypedTrees,
-    admission: &BuildTimeAdmissionPlan,
-    machine_name: &str,
-    position: &str,
-) -> Result<BigInt, String> {
-    evaluate_zero_argument_machine_with_optional_custody(
-        typed,
-        admission,
-        machine_name,
-        position,
-        None,
-    )
-}
-
-/// Preserve source invocation custody while decoding the declared result carrier.
-pub fn evaluate_zero_argument_machine_for_invocation(
-    typed: &TypedTrees,
-    admission: &BuildTimeAdmissionPlan,
-    machine_name: &str,
-    position: &str,
-    custody: crate::BuildTimeInvocationCustody,
-) -> Result<BigInt, String> {
-    evaluate_zero_argument_machine_with_optional_custody(
-        typed,
-        admission,
-        machine_name,
-        position,
-        Some(custody),
-    )
-}
-
-fn evaluate_zero_argument_machine_with_optional_custody(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     machine_name: &str,

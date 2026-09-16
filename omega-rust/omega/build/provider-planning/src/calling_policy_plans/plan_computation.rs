@@ -290,7 +290,7 @@ pub fn compute_boundary_calling_plans(
     if pending.is_empty() {
         return Ok(Vec::new());
     }
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer_with_selection_authority(
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
         typed,
         package_inputs.map(|inputs| {
             std::sync::Arc::new(inputs.clone())
@@ -358,7 +358,7 @@ pub fn evaluate_calling_policy_plan(
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
     let materialized = materialized_boundary_signature_from_abi(signature)?;
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(typed);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(typed, None);
     evaluate_materialized_calling_policy_plan(
         typed,
         &admission,

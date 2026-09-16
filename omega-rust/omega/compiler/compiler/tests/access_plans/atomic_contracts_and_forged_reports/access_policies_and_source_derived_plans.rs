@@ -40,7 +40,7 @@ data Main {}
     let main = write_program("missing-access-slot", &source);
     let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("invalid policy source should compile");
-    let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers")
+    let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers", None)
         .expect("layout should validate");
     let error = compute_access_plan(&checked.typed, "Missing::plan", "Registers", &layout)
         .expect_err("a partial source access plan must reject");
@@ -90,7 +90,7 @@ machine Main::main(&mut self) {}
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("access policy source should type");
-    let layout = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+    let layout = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples", None)
         .expect("the aggregate At layout should validate");
     let error = compute_access_plan(&checked.typed, "ArrayAccess::plan", "Samples", &layout)
         .expect_err("aggregate Stable access must remain outside this layout slice");
@@ -125,7 +125,7 @@ data Main {}
     let main = write_program("forged-access-key", &source);
     let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("forged policy source should compile");
-    let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers")
+    let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers", None)
         .expect("layout should validate");
     let error = compute_access_plan(&checked.typed, "Forged::plan", "Registers", &layout)
         .expect_err("foreign schema keys must not be ignored by the seed replacement helper");
@@ -140,7 +140,7 @@ fn access_evaluation_rejects_a_forged_layout_report() {
     let main = write_program("forged-layout-report", POLICY_SOURCE);
     let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("source policy should compile");
-    let mut layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers")
+    let mut layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers", None)
         .expect("layout should validate");
     layout.offsets = Some(vec![0, 4, 6, 8, 17]);
 

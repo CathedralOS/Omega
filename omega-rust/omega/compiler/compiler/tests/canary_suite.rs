@@ -139,7 +139,9 @@ fn compile_with_auxiliary_artifacts(
     compile_with_artifact_policy(spec, ArtifactEmissionPolicy::Full)
 }
 
-use checked_interpreter::{FilesystemServiceBinding, InterpretOptions, InterpretOutcome, interpret_entry};
+use checked_interpreter::{
+    FilesystemServiceBinding, InterpretOptions, InterpretOutcome, interpret_entry,
+};
 use diagnostics::Diagnostic;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
@@ -175,7 +177,12 @@ fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
         filesystem.declaration_symbol(),
     )
     .expect("accepted filesystem fixture binding resolves one exact declaration");
-    interpret_entry(checked, "Main::main", stdin, InterpretOptions::default().with_filesystem_service_binding(binding))
+    interpret_entry(
+        checked,
+        "Main::main",
+        stdin,
+        InterpretOptions::default().with_filesystem_service_binding(binding),
+    )
 }
 
 #[path = "fixture_rosters/canary_suite.rs"]

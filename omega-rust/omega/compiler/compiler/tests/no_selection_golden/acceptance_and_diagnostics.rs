@@ -1,3 +1,4 @@
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;

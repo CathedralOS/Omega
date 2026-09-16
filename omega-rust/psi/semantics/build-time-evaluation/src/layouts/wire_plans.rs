@@ -65,19 +65,8 @@ impl FieldShape {
     }
 }
 
-pub fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    compute_wire_plans_with_authority(typed, None)
-}
-
-pub fn compute_wire_plans_with_authority(
-    typed: &mut TypedTrees,
-    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-) -> Result<(), Vec<Diagnostic>> {
-    compute_wire_plans_with_authority_from(typed, selection_authority, 0)
-}
-
 /// Compute plans only for wire schemas appended after a retained checkpoint.
-pub fn compute_wire_plans_with_authority_from(
+pub fn compute_wire_plans(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     wire_schema_frontier: usize,
@@ -136,9 +125,8 @@ pub fn compute_wire_plans_with_authority_from(
         .machines()
         .iter()
         .any(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY);
-    let admission = policy_exists.then(|| {
-        crate::BuildTimeAdmissionPlan::infer_with_selection_authority(typed, selection_authority)
-    });
+    let admission =
+        policy_exists.then(|| crate::BuildTimeAdmissionPlan::infer(typed, selection_authority));
 
     let mut plans = Vec::with_capacity(classified.len());
     for (symbol, schema_name, fields) in classified {

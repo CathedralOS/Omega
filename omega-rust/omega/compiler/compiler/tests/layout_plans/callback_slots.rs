@@ -694,7 +694,7 @@ fn c_layout_policy_plans_a_uefi_ish_schema() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("pilot should compile");
 
-    let report = compute_layout_plan(&checked.typed, "CLayout::plan", "GdtEntryish")
+    let report = compute_layout_plan(&checked.typed, "CLayout::plan", "GdtEntryish", None)
         .expect("the C layout plan should evaluate and validate");
 
     // u16 @ 0, u32 @ 4 (padded past 2), u8 @ 8, u64 @ 16 (padded past 9);
@@ -728,7 +728,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("fixed array should reflect");
-    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples", None)
         .expect("one At placement should admit the complete fixed-array extent");
     assert_eq!(report.offsets, Some(vec![8]));
     assert_eq!(report.size, Some(16));
@@ -760,7 +760,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("nested fixed array should reflect");
-    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples", None)
         .expect("one At placement should admit the complete nested-array extent");
     assert_eq!(report.offsets, Some(vec![8]));
     assert_eq!(report.size, Some(16));

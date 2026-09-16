@@ -35,7 +35,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("fixed record should reflect");
-    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples", None)
         .expect("one At placement should admit the complete fixed-record extent");
     assert_eq!(report.offsets, Some(vec![8]));
     assert_eq!(report.size, Some(24));
@@ -79,7 +79,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("fixed record should reflect");
-    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples", None)
         .expect("one At placement should admit the typed record extent");
     let value = BuildTimeValue::Struct {
         type_name: "Samples".to_owned(),
@@ -165,7 +165,7 @@ machine Main::main(&mut self) { }
     );
     let legacy = compile_to_checked(CheckedCompileRequest::new(&legacy_path, None))
         .expect("legacy numbered schema should check");
-    let retained = compute_layout_plan(&legacy.typed, "RecordLayout::plan", "Samples")
+    let retained = compute_layout_plan(&legacy.typed, "RecordLayout::plan", "Samples", None)
         .expect("legacy numbered aggregate layout should validate");
     assert_eq!(retained.entries[0].field, "legacy_pair");
     assert_eq!(retained.entries[0].member_identity, Some(7));
@@ -250,7 +250,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("owned record producer should check");
-    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples", None)
         .expect("owned record should have one whole-field placement");
     let mut bytes = [0xa5; 24];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -305,7 +305,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("closed copy-valued materialization fixture should check");
-    let layout = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
+    let layout = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples", None)
         .expect("fixture layout should validate");
     let value = BuildTimeValue::Struct {
         type_name: "Samples".into(),
@@ -427,7 +427,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("closed non-NaN float materialization fixture should check");
-    let layout = compute_layout_plan(&checked.typed, "FloatLayout::plan", "Samples")
+    let layout = compute_layout_plan(&checked.typed, "FloatLayout::plan", "Samples", None)
         .expect("fixture layout should validate");
     let value = BuildTimeValue::Struct {
         type_name: "Samples".into(),
@@ -532,7 +532,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("owned array producer should check");
-    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples", None)
         .expect("owned array should have one whole-field placement");
     let mut bytes = [0xa5; 12];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -583,7 +583,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("tiled fixed array should check");
-    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples", None)
         .expect("one element At per fixed-array element should validate");
     assert_eq!(report.offsets, None);
     assert_eq!(
@@ -660,7 +660,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("owned fixed-record array should check");
-    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "ArrayLayout::plan", "Samples", None)
         .expect("fixed-record array should have one whole-field placement");
     let mut bytes = [0xa5; 32];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -852,7 +852,7 @@ machine Main::main(&mut self) { }
     assert_ne!(narrow.symbol, wide.symbol);
     assert!(narrow.type_parameters.is_empty() && wide.type_parameters.is_empty());
 
-    let report = compute_layout_plan(&checked.typed, "Split::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "Split::plan", "Samples", None)
         .expect("closed specialized records should derive exact nested extents");
     let mut little = [0xa5; 24];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -995,7 +995,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("erased field producer should check");
-    let report = compute_layout_plan(&checked.typed, "Spread::plan", "Certified")
+    let report = compute_layout_plan(&checked.typed, "Spread::plan", "Certified", None)
         .expect("only relevant fields should enter the normalized layout");
     let mut bytes = [0xa5; 20];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -1057,7 +1057,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("nested erased field producer should check");
-    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope")
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope", None)
         .expect("the nested record should retain one relevant whole-field extent");
     let mut bytes = [0xa5; 16];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -1144,7 +1144,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("record array with erased fields should check");
-    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Batch")
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Batch", None)
         .expect("record array should retain one whole repeated extent");
     let mut bytes = [0xa5; 24];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -1232,7 +1232,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("tiled record array with erased fields should check");
-    let report = compute_layout_plan(&checked.typed, "Tiled::plan", "Batch")
+    let report = compute_layout_plan(&checked.typed, "Tiled::plan", "Batch", None)
         .expect("the repeated field should accept one At per physical element");
     let mut bytes = [0xa5; 28];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -1279,7 +1279,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("all-erased owned record should remain a checked semantic value");
-    let report = compute_layout_plan(&checked.typed, "Whole::plan", "ProofBox")
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "ProofBox", None)
         .expect("an all-erased owned record should require no physical field entries");
     assert!(report.entries.is_empty());
     let mut bytes = [0xa5; 8];

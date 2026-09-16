@@ -96,9 +96,15 @@ fn boolean_index_probe_retains_exact_literal_value_and_rejects_missing_nodes() {
             .iter_expressions()
             .find_map(|(handle, node)| matches!(node, ExpressionNode::Boolean(_)).then_some(handle))
             .expect("Boolean literal");
-        let (canonical, warnings) =
-            super::value::evaluate(&program, machine, state, expression, PrimitiveType::Bool)
-                .expect("selected Boolean literal");
+        let (canonical, warnings) = super::value::evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            PrimitiveType::Bool,
+            None,
+        )
+        .expect("selected Boolean literal");
         assert_eq!(
             canonical,
             language_semantics::const_value::CanonicalConstValue::boolean(value)
@@ -110,7 +116,8 @@ fn boolean_index_probe_retains_exact_literal_value_and_rejects_missing_nodes() {
                 machine,
                 state,
                 ExpressionHandle::invalid(),
-                PrimitiveType::Bool
+                PrimitiveType::Bool,
+                None
             )
             .is_err()
         );
@@ -118,9 +125,15 @@ fn boolean_index_probe_retains_exact_literal_value_and_rejects_missing_nodes() {
     let (program, expression) = typed_binary();
     let machine = program.machines().iter().next().expect("integer machine");
     let state = &program.machine_states(machine)[0];
-    let (canonical, _) =
-        super::value::evaluate(&program, machine, state, expression, PrimitiveType::Bool)
-            .expect("landed integer retains its carrier for the caller's destination check");
+    let (canonical, _) = super::value::evaluate(
+        &program,
+        machine,
+        state,
+        expression,
+        PrimitiveType::Bool,
+        None,
+    )
+    .expect("landed integer retains its carrier for the caller's destination check");
     assert_eq!(canonical.type_name, "u64");
 }
 
@@ -400,9 +413,15 @@ fn short_circuit_anonymous_landing_warns_once_whether_executed_or_skipped() {
         let machine = program.machines().iter().next().expect("probe machine");
         let state = &program.machine_states(machine)[0];
         let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::Or).then_some(handle)).expect("Boolean root");
-        let (canonical, warnings) =
-            super::value::evaluate(&program, machine, state, expression, PrimitiveType::Bool)
-                .expect("valid anonymous landing");
+        let (canonical, warnings) = super::value::evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            PrimitiveType::Bool,
+            None,
+        )
+        .expect("valid anonymous landing");
         assert_eq!(
             canonical,
             language_semantics::const_value::CanonicalConstValue::boolean(true)
@@ -430,9 +449,15 @@ fn anonymous_rational_comparisons_do_not_create_integer_landing_warnings() {
         let machine = program.machines().iter().next().expect("probe machine");
         let state = &program.machine_states(machine)[0];
         let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::Or).then_some(handle)).expect("Boolean root");
-        let (canonical, warnings) =
-            super::value::evaluate(&program, machine, state, expression, PrimitiveType::Bool)
-                .expect("exact rational comparison");
+        let (canonical, warnings) = super::value::evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            PrimitiveType::Bool,
+            None,
+        )
+        .expect("exact rational comparison");
         assert_eq!(
             canonical,
             language_semantics::const_value::CanonicalConstValue::boolean(true)

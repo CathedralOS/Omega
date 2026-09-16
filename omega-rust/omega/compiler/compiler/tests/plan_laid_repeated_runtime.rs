@@ -5,6 +5,7 @@ use build_time_evaluation::{
     BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
     materialize_typed_owned_layout_into,
 };
+use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, compile_to_checked};
 
@@ -74,9 +75,14 @@ fn assert_runtime_canary(canary_name: &str, tag: &str) {
         Some(host.target_name()),
     ))
     .expect("gapped outer-array canary should reach checked trees");
-    let interpreted = interpret_entry(&checked, checked
+    let interpreted = interpret_entry(
+        &checked,
+        checked
             .selected_program_entry_machine()
-            .expect("gapped outer-array canary selects an exact ProgramEntry"), &[], InterpretOptions::default());
+            .expect("gapped outer-array canary selects an exact ProgramEntry"),
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(
         interpreted.exit_code, 70,
         "interpreter must preserve the validated element stride: {interpreted:?}"
@@ -167,7 +173,7 @@ fn gapped_record_outer_array_materializes_from_checked_owned_value() {
         Some(host.target_name()),
     ))
     .expect("gapped record-array canary should reach checked trees");
-    let layout = compute_layout_plan(&checked.typed, "TiledRecordArray::plan", "Samples")
+    let layout = compute_layout_plan(&checked.typed, "TiledRecordArray::plan", "Samples", None)
         .expect("gapped record-array plan should validate");
 
     let mut little = [0xa5; 24];
@@ -216,7 +222,7 @@ fn gapped_nested_array_outer_array_materializes_from_checked_owned_value() {
         Some(host.target_name()),
     ))
     .expect("gapped nested-array canary should reach checked trees");
-    let layout = compute_layout_plan(&checked.typed, "TiledNestedArray::plan", "Samples")
+    let layout = compute_layout_plan(&checked.typed, "TiledNestedArray::plan", "Samples", None)
         .expect("gapped nested-array plan should validate");
 
     let mut little = [0xa5; 20];
@@ -261,8 +267,13 @@ fn gapped_record_nested_array_materialization_is_exact_and_atomic() {
         Some(host.target_name()),
     ))
     .expect("gapped record-nested-array canary should reach checked trees");
-    let layout = compute_layout_plan(&checked.typed, "TiledRecordNestedArray::plan", "Samples")
-        .expect("gapped record-nested-array plan should validate");
+    let layout = compute_layout_plan(
+        &checked.typed,
+        "TiledRecordNestedArray::plan",
+        "Samples",
+        None,
+    )
+    .expect("gapped record-nested-array plan should validate");
 
     let mut little = [0xa5; 28];
     evaluate_and_materialize_typed_owned_layout_into(
@@ -386,8 +397,13 @@ fn multiple_whole_aggregate_fields_materialize_by_key_and_reject_atomically() {
         Some(host.target_name()),
     ))
     .expect("multiple-aggregate-fields canary should reach checked trees");
-    let layout = compute_layout_plan(&checked.typed, "MultipleAggregateFields::plan", "Samples")
-        .expect("multiple whole aggregate fields should validate");
+    let layout = compute_layout_plan(
+        &checked.typed,
+        "MultipleAggregateFields::plan",
+        "Samples",
+        None,
+    )
+    .expect("multiple whole aggregate fields should validate");
 
     let mut little = [0xa5; 28];
     evaluate_and_materialize_typed_owned_layout_into(

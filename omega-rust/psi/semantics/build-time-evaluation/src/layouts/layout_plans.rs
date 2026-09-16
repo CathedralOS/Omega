@@ -71,18 +71,16 @@ pub(crate) use schema_value::{build_schema_value, local_schema_field_discriminat
 
 const SCHEMA_FIELD_CAPACITY: usize = 32;
 
+/// Compute the layout plan a policy machine produces for a schema; a plan
+/// that also produced private native-layout demands is refused here and
+/// must be consumed through [`compute_native_layout_plan`].
 pub fn compute_layout_plan(
     typed: &TypedTrees,
     policy_machine: &str,
     schema_data: &str,
+    selection: Option<crate::AuthorizedSelection>,
 ) -> Result<LayoutPlanReport, String> {
-    let report = compute_native_layout_plan_with_optional_authority(
-        typed,
-        policy_machine,
-        schema_data,
-        None,
-        None,
-    )?;
+    let report = compute_native_layout_plan(typed, policy_machine, schema_data, selection)?;
     if !report.private_callback_demands.is_empty() {
         return Err(format!(
             "policy `{policy_machine}` produced private native-layout demands; consume it through the native layout-plan path so those demands cannot be discarded"
@@ -91,69 +89,18 @@ pub fn compute_layout_plan(
     Ok(report.layout)
 }
 
-pub fn compute_layout_plan_with_authority(
-    typed: &TypedTrees,
-    policy_machine: &str,
-    schema_data: &str,
-    selection_authority: std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>,
-    custody: crate::BuildTimeInvocationCustody,
-) -> Result<LayoutPlanReport, String> {
-    let report = compute_native_layout_plan_with_optional_authority(
-        typed,
-        policy_machine,
-        schema_data,
-        Some(selection_authority),
-        Some(custody),
-    )?;
-    if !report.private_callback_demands.is_empty() {
-        return Err(format!(
-            "policy `{policy_machine}` produced private native-layout demands; consume it through the native layout-plan path so those demands cannot be discarded"
-        ));
-    }
-    Ok(report.layout)
-}
-
-/// Evaluate one native layout policy while retaining source-authored private
-/// callback destinations. The demands are target-neutral here: the selected
-/// calling-plan realization later supplies callback-address size/alignment and
-/// proves final bounds/non-overlap.
+/// Compute the native layout plan a policy machine produces for a schema,
+/// under an authorized selection when the caller holds one.
 pub fn compute_native_layout_plan(
     typed: &TypedTrees,
     policy_machine: &str,
     schema_data: &str,
+    selection: Option<crate::AuthorizedSelection>,
 ) -> Result<NativeLayoutPlanReport, String> {
-    compute_native_layout_plan_with_optional_authority(
-        typed,
-        policy_machine,
-        schema_data,
-        None,
-        None,
-    )
-}
-
-pub fn compute_native_layout_plan_with_authority(
-    typed: &TypedTrees,
-    policy_machine: &str,
-    schema_data: &str,
-    selection_authority: std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>,
-    custody: crate::BuildTimeInvocationCustody,
-) -> Result<NativeLayoutPlanReport, String> {
-    compute_native_layout_plan_with_optional_authority(
-        typed,
-        policy_machine,
-        schema_data,
-        Some(selection_authority),
-        Some(custody),
-    )
-}
-
-fn compute_native_layout_plan_with_optional_authority(
-    typed: &TypedTrees,
-    policy_machine: &str,
-    schema_data: &str,
-    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-    custody: Option<crate::BuildTimeInvocationCustody>,
-) -> Result<NativeLayoutPlanReport, String> {
+    let (selection_authority, custody) = match selection {
+        Some(selection) => (Some(selection.authority), Some(selection.custody)),
+        None => (None, None),
+    };
     let (schema_fields, schema_report_fingerprint) = schema_fields(typed, schema_data)?;
     let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
 
@@ -162,8 +109,7 @@ fn compute_native_layout_plan_with_optional_authority(
         .iter()
         .find(|machine| machine.name.as_str() == policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
-    let admission =
-        BuildTimeAdmissionPlan::infer_with_selection_authority(typed, selection_authority);
+    let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
     match custody {
         Some(custody) => admission.require_common_floor_for_invocation(typed, machine, custody)?,
         None => admission.require_common_floor(typed, machine)?,
@@ -531,7 +477,7 @@ pub fn evaluate_and_materialize_typed_owned_layout_into(
             "typed owned value machine `{value_machine}` must take no arguments"
         )));
     }
-    BuildTimeAdmissionPlan::infer(typed)
+    BuildTimeAdmissionPlan::infer(typed, None)
         .require_common_floor(typed, machine)
         .map_err(MaterializationDiagnostic)?;
     let value = checked_interpreter::evaluate_build_time_machine(
