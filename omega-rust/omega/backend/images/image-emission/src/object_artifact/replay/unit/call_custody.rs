@@ -4,11 +4,19 @@
 //! calling-policy placements, projected structural arguments, claim transfers,
 //! exact copy bytes, and call-span containment. It neither assigns layouts nor
 //! emits relocations or executable bytes.
+//!
+//! `validate_internal_unit_call_custody` is the entry: it establishes the
+//! call's facts through `call_facts`, checks the roster against the callee
+//! ABI in `roster`, and checks the call site and each argument's custody
+//! in `argument_custody`.
 
+mod argument_custody;
+mod call_facts;
 mod packed_fragment;
 pub(crate) mod parameter_staging;
 mod projected_copy;
 pub(crate) mod result_home;
+mod roster;
 
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use machine_code::{
@@ -16,17 +24,15 @@ use machine_code::{
 };
 use semantic_vocabulary::MachineId;
 use target::{Architecture, NativeTarget};
-use target_operations::{CallSiteOwner, MixedStructuralScalarFunctionAbi, TerminalPsiProvenance};
+use target_operations::{MixedStructuralScalarFunctionAbi, TerminalPsiProvenance};
 
 use super::super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_memory_load, expected_aarch64_stack_load,
     expected_x86_memory_load, expected_x86_stack_load, x86_terminal_register,
 };
-use super::scalar_call_custody::{
-    expected_aarch64_stack_store, expected_argument_bytes, expected_x86_stack_store,
-    validate_source,
-};
+use super::scalar_call_custody::{expected_aarch64_stack_store, expected_x86_stack_store};
 use crate::{ObjectError, ObjectScalarCallStack, ObjectUnitCallStack, ObjectUnitStack};
+use call_facts::{CallInputs, CallSpan, CalleeAbi, ProjectionFacts, StackFacts};
 
 pub(crate) fn validate_unit_affine_scalar_records(
     function: &MachineCodeFunction,
@@ -350,6 +356,22 @@ pub(crate) fn exact_borrowed_projection(
         )
 }
 
+/// One internal Unit call with a roster, once its shape, span, stack facts,
+/// expected plan and projection facts are established: what the roster
+/// checks in `roster` and the call-site and argument checks in
+/// `argument_custody` read.
+struct InternalUnitCallCustody<'a> {
+    inputs: CallInputs<'a>,
+    span: CallSpan<'a>,
+    stacks: StackFacts<'a>,
+    expected_plan: calling_conventions::CallPlan,
+    projection: ProjectionFacts<'a>,
+}
+
+/// Validates one authored internal Unit call: its shape and span, then (for
+/// a call with a roster) its stack facts, callee ABI, expected plan and
+/// projection facts, the roster against that ABI, and the call site and
+/// each argument's custody.
 pub(crate) fn validate_internal_unit_call_custody(
     target: NativeTarget,
     function: &MachineCodeFunction,
@@ -371,890 +393,57 @@ pub(crate) fn validate_internal_unit_call_custody(
     affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
     fully_consumed_affine_parameter: bool,
 ) -> Result<(), ObjectError> {
-    let invalid = || ObjectError::InvalidInternalUnitCallEvidence(machine);
-    if function.machine != machine
-        || function.bytes.as_slice() != function_bytes
-        || !matches!(
-            custody.source,
-            machine_code::InternalUnitCallSource::Authored
-        )
-        || parameter_homes
-            .iter()
-            .any(|home| home.location.stack_byte_offset().is_none())
-        || custody
-            .arguments
-            .iter()
-            .any(|argument| argument.source_location.stack_byte_offset().is_none())
-    {
-        return Err(invalid());
-    }
-    let Some(relocation) = relocations.iter().find(|relocation| {
-        relocation.owner == custody.owner
-            && relocation.target == custody.target
-            && (relocation.unit_stack.is_some()
-                || (affine_cleanup.is_some()
-                    && matches!(relocation.owner, CallSiteOwner::CleanupAction { .. })
-                    && relocation.scalar_stack.is_some()))
-    }) else {
-        return Err(invalid());
-    };
-    if validated_call_stack.is_none() == validated_scalar_call_stack.is_none() {
-        return Err(invalid());
-    }
-    let end = custody
-        .code_offset
-        .checked_add(custody.byte_count)
-        .ok_or_else(invalid)?;
-    let relocation_end = relocation.offset.checked_add(4).ok_or_else(invalid)?;
-    let linkage_bytes = match target.architecture {
-        Architecture::X86_64 => 8,
-        Architecture::Aarch64 => 0,
-    };
-    if custody.result.is_some() && custody.structural_result.is_some() {
-        return Err(invalid());
-    }
-    if custody.structural_result.as_ref().is_some_and(|result| {
-        custody
-            .arguments
-            .iter()
-            .any(|argument| argument.place == result.operation_result.place)
-    }) {
-        return Err(invalid());
-    }
-    if custody.scalar_arguments.is_empty()
-        && custody.arguments.is_empty()
-        && custody.claim_transfers.is_empty()
-    {
-        if custody.result.is_some() || custody.structural_result.is_some() {
-            return Err(invalid());
-        }
-        let owner_valid = match custody.owner {
-            CallSiteOwner::Operation(operation) => {
-                provenance.operations.contains(&operation)
-                    && attribution
-                        .iter()
-                        .filter(|attribution| {
-                            attribution.site == SemanticCodeSite::Operation(operation)
-                                && attribution.operation_ordinal == custody.operation_ordinal
-                                && attribution.code_offset == custody.code_offset
-                                && attribution.byte_count == custody.byte_count
-                        })
-                        .count()
-                        == 1
-            }
-            CallSiteOwner::CleanupAction {
-                edge,
-                action_ordinal,
-            } => {
-                let Some(cleanup) = affine_cleanup else {
-                    return Err(invalid());
-                };
-                let Some(terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal)) =
-                    usize::try_from(action_ordinal)
-                        .ok()
-                        .and_then(|ordinal| cleanup.actions.get(ordinal))
-                else {
-                    return Err(invalid());
-                };
-                let cleanup_end = cleanup
-                    .code_offset
-                    .checked_add(cleanup.byte_count)
-                    .ok_or_else(invalid)?;
-                provenance.edges.contains(&edge)
-                    && cleanup.psi_edge == edge
-                    && nominal.cleanup_machine == custody.target
-                    && cleanup.code_offset <= custody.code_offset
-                    && end <= cleanup_end
-                    && attribution
-                        .iter()
-                        .filter(|attribution| {
-                            attribution.site == SemanticCodeSite::Edge(edge)
-                                && attribution.operation_ordinal == custody.operation_ordinal
-                                && attribution.code_offset == cleanup.code_offset
-                                && attribution.byte_count == cleanup.byte_count
-                        })
-                        .count()
-                        == 1
-            }
-        };
-        if custody.byte_count == 0
-            || custody.code_offset > relocation.offset
-            || relocation_end > end
-            || !owner_valid
-        {
-            return Err(invalid());
-        }
-        return Ok(());
-    }
-    let validated_function_stack = validated_function_stack.ok_or_else(invalid)?;
-    let validated_call_stack = validated_call_stack.ok_or_else(invalid)?;
-    let expected_call_stack_bytes = validated_call_stack
-        .transient_bytes
-        .checked_sub(linkage_bytes)
-        .ok_or_else(invalid)?;
-    let CallSiteOwner::Operation(operation) = custody.owner else {
-        return Err(invalid());
-    };
-    let operation_position = provenance
-        .operations
-        .iter()
-        .position(|candidate| *candidate == operation)
-        .ok_or_else(invalid)?;
-    let callee_mixed_structural_return = callee_structural_return.filter(|returned| {
-        !returned.scalar_parameters.is_empty()
-            || crate::object_artifact::replay::structural::return_record::has_claim_free_affine_identity_custody(returned)
-    });
-    if usize::from(callee_parameter_abi.is_some())
-        + usize::from(callee_mixed_abi.is_some())
-        + usize::from(callee_mixed_structural_return.is_some())
-        > 1
-    {
-        return Err(invalid());
-    }
-    let expected_plan = calling_conventions::evaluate_call_plan(
-        calling_conventions::CallingPolicy::native_for_target(target),
-        &calling_conventions::CallSignature {
-            parameters: if let Some(abi) = callee_parameter_abi {
-                abi.parameters
-                    .iter()
-                    .map(|parameter| unit_scalar_shape(parameter.scalar_type).ok_or_else(invalid))
-                    .chain(
-                        callee_unit_parameters
-                            .iter()
-                            .map(|parameter| Ok(parameter.shape)),
-                    )
-                    .collect::<Result<Vec<_>, _>>()?
-            } else if let Some(abi) = callee_mixed_abi {
-                abi.scalar_parameters
-                    .iter()
-                    .map(|parameter| {
-                        fixed_integer_abi_shape(parameter.scalar_type).ok_or_else(invalid)
-                    })
-                    .chain(
-                        abi.structural_parameters
-                            .iter()
-                            .map(|parameter| Ok(parameter.shape)),
-                    )
-                    .collect::<Result<Vec<_>, _>>()?
-            } else if let Some(returned) = callee_mixed_structural_return {
-                returned
-                    .scalar_parameters
-                    .iter()
-                    .map(|parameter| {
-                        fixed_integer_abi_shape(parameter.scalar_type).ok_or_else(invalid)
-                    })
-                    .chain(
-                        returned
-                            .parameter_placements
-                            .iter()
-                            .map(|placement| Ok(placement.shape)),
-                    )
-                    .collect::<Result<Vec<_>, _>>()?
-            } else {
-                custody
-                    .arguments
-                    .iter()
-                    .map(|argument| argument.shape)
-                    .collect()
-            },
-            result: if let Some(result) = custody.result {
-                let bytes = match result {
-                    semantic_vocabulary::ScalarType::Boolean => 1,
-                    semantic_vocabulary::ScalarType::Integer(integer) => integer.bits().div_ceil(8),
-                    semantic_vocabulary::ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ) => 4,
-                    semantic_vocabulary::ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ) => 8,
-                };
-                Some(match result {
-                    semantic_vocabulary::ScalarType::IeeeFloat(_) => {
-                        calling_conventions::ValueShape::float(bytes)
-                    }
-                    _ => calling_conventions::ValueShape::integer(
-                        bytes,
-                        bytes.next_power_of_two().min(8),
-                    ),
-                })
-            } else if custody.structural_result.is_some() {
-                callee_structural_return.map(|returned| returned.shape)
-            } else {
-                None
-            },
-        },
-    )
-    .map_err(|_| invalid())?;
-    let exact_borrowed_argument =
-        |index: usize, argument: &machine_code::InternalUnitCallArgumentRecord| {
-            parameter_homes
-                .iter()
-                .find(|home| home.place == argument.place)
-                .zip(callee_unit_parameters.get(index))
-                .zip(affine_cleanup)
-                .is_some_and(|((source, destination), cleanup)| {
-                    exact_borrowed_projection(
-                        argument,
-                        source,
-                        destination,
-                        &cleanup.structural_types,
-                    )
-                })
-        };
-    if let Some(abi) = callee_parameter_abi {
-        if expected_plan != abi.call_plan
-            || custody.result.is_some()
-            || custody.structural_result.is_some()
-            || custody.scalar_arguments.len() != abi.parameters.len()
-            || custody.arguments.len() != callee_unit_parameters.len()
-            || custody
-                .scalar_arguments
-                .iter()
-                .zip(&abi.parameters)
-                .enumerate()
-                .any(|(index, (argument, parameter))| {
-                    usize::try_from(argument.parameter_index) != Ok(index)
-                        || argument.destination != parameter.placement
-                        || argument.source.scalar_type() != parameter.scalar_type
-                })
-            || custody
-                .arguments
-                .iter()
-                .zip(callee_unit_parameters)
-                .zip(&abi.call_plan.parameters[abi.parameters.len()..])
-                .enumerate()
-                .any(|(index, ((argument, parameter), placement))| {
-                    !exact_borrowed_argument(index, argument)
-                        && (argument.root_structural_type != parameter.structural_type
-                            || argument.structural_type != parameter.structural_type
-                            || argument.access != parameter.access
-                            || argument.shape != parameter.shape
-                            || argument.destination != *placement)
-                })
-        {
-            return Err(invalid());
-        }
-        validate_mixed_argument_bytes_and_order(
-            target,
-            function,
-            validated_function_stack,
-            &expected_plan,
-            relocation,
-            custody,
-        )?;
-    } else if let Some(abi) = callee_mixed_abi {
-        if expected_plan != abi.call_plan
-            || custody.result != Some(abi.result.scalar_type)
-            || custody.scalar_arguments.len() != abi.scalar_parameters.len()
-            || custody.arguments.len() != abi.structural_parameters.len()
-            || custody
-                .scalar_arguments
-                .iter()
-                .zip(&abi.scalar_parameters)
-                .enumerate()
-                .any(|(index, (argument, parameter))| {
-                    usize::try_from(argument.parameter_index) != Ok(index)
-                        || argument.destination != parameter.placement
-                        || argument.source.scalar_type() != parameter.scalar_type
-                })
-            || custody
-                .arguments
-                .iter()
-                .zip(&abi.structural_parameters)
-                .any(|(argument, parameter)| {
-                    !argument.path.is_empty()
-                        || argument.root_structural_type != parameter.structural_type
-                        || argument.access != parameter.access
-                        || argument.structural_type != parameter.structural_type
-                        || argument.shape != parameter.shape
-                        || argument.destination != parameter.placement
-                })
-        {
-            return Err(invalid());
-        }
-        validate_mixed_argument_bytes_and_order(
-            target,
-            function,
-            validated_function_stack,
-            &expected_plan,
-            relocation,
-            custody,
-        )?;
-    } else if let Some(returned) = callee_mixed_structural_return {
-        if custody.result.is_some()
-            || custody.structural_result.is_none()
-            || expected_plan.parameters.len()
-                != returned.scalar_parameters.len() + returned.parameters.len()
-            || expected_plan.parameters[..returned.scalar_parameters.len()]
-                != returned
-                    .scalar_parameters
-                    .iter()
-                    .map(|parameter| parameter.placement.clone())
-                    .collect::<Vec<_>>()
-            || expected_plan.parameters[returned.scalar_parameters.len()..]
-                != returned.parameter_placements
-            || expected_plan.result.as_ref() != Some(&returned.result_placement)
-            || custody.scalar_arguments.len() != returned.scalar_parameters.len()
-            || custody.arguments.len() != returned.parameters.len()
-            || custody
-                .scalar_arguments
-                .iter()
-                .zip(&returned.scalar_parameters)
-                .enumerate()
-                .any(|(index, (argument, parameter))| {
-                    usize::try_from(argument.parameter_index) != Ok(index)
-                        || argument.destination != parameter.placement
-                        || argument.source.scalar_type() != parameter.scalar_type
-                })
-            || custody
-                .arguments
-                .iter()
-                .zip(&returned.parameters)
-                .zip(&returned.parameter_placements)
-                .any(|((argument, parameter), placement)| {
-                    !argument.path.is_empty()
-                        || argument.root_structural_type != parameter.structural_type
-                        || argument.access != parameter.access
-                        || argument.structural_type != parameter.structural_type
-                        || argument.shape != placement.shape
-                        || argument.destination != *placement
-                })
-        {
-            return Err(invalid());
-        }
-        validate_mixed_argument_bytes_and_order(
-            target,
-            function,
-            validated_function_stack,
-            &expected_plan,
-            relocation,
-            custody,
-        )?;
-    }
-    let projected_argument_indexes = custody
-        .arguments
-        .iter()
-        .enumerate()
-        .filter_map(|(index, argument)| (!argument.path.is_empty()).then_some(index))
-        .collect::<std::collections::BTreeSet<_>>();
-    let transferred_argument_indexes = custody
-        .claim_transfers
-        .iter()
-        .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
-        .collect::<std::collections::BTreeSet<_>>();
-    let projected_result = crate::object_artifact::replay::structural::affine_projected_calls::exact_projected_affine_result(
-        parameter_homes,
+    let inputs = CallInputs {
+        target,
+        function,
+        machine,
+        provenance,
+        function_bytes,
+        attribution,
+        relocations,
         internal_unit_calls,
+        parameter_homes,
+        validated_function_stack,
+        validated_call_stack,
+        validated_scalar_call_stack,
+        callee_parameter_abi,
+        callee_unit_parameters,
+        callee_mixed_abi,
+        callee_structural_return,
+        custody,
         affine_cleanup,
-    )
-    .or_else(|| {
-        let disposed = crate::object_artifact::replay::unit::continuations::completed_roots(
-            parameter_homes,
-            internal_unit_calls,
-            &function.unit_continuations,
-            function.unit_affine_cleanup.as_ref(),
-        )?;
-        crate::object_artifact::replay::unit::continuations::result_for_call(internal_unit_calls, &disposed, custody)
-    });
-    if custody
-        .structural_result
-        .as_ref()
-        .is_some_and(|result| result.result_home.is_some())
-        && projected_result.is_none()
-    {
-        return Err(invalid());
-    }
-    let projected_home = if projected_argument_indexes.is_empty()
-        || projected_result.is_some_and(|result| {
-            custody
-                .arguments
-                .iter()
-                .all(|argument| argument.place == result.operation_result.place)
-        }) {
-        None
-    } else if !function.unit_continuations.is_empty() {
-        let [argument] = custody.arguments.as_slice() else {
-            return Err(invalid());
-        };
-        Some(
-            parameter_homes
-                .iter()
-                .find(|home| home.place == argument.place)
-                .ok_or_else(invalid)?,
-        )
-    } else {
-        let [home] = parameter_homes else {
-            return Err(invalid());
-        };
-        if home.location.stack_byte_offset() != Some(0)
-            || home.indirect
-                != matches!(
-                    home.source.locations.as_slice(),
-                    [calling_conventions::ValueLocation::Indirect { .. }]
-                )
-        {
-            return Err(invalid());
-        }
-        let caller_scalar_shapes = function.parameter_abi.as_ref().map_or_else(
-            || Ok(Vec::new()),
-            |abi| {
-                abi.parameters
-                    .iter()
-                    .map(|parameter| unit_scalar_shape(parameter.scalar_type).ok_or_else(invalid))
-                    .collect::<Result<Vec<_>, _>>()
-            },
-        )?;
-        let expected_caller_plan = calling_conventions::evaluate_call_plan(
-            calling_conventions::CallingPolicy::native_for_target(target),
-            &calling_conventions::CallSignature {
-                parameters: caller_scalar_shapes
-                    .into_iter()
-                    .chain(std::iter::once(home.shape))
-                    .collect(),
-                result: None,
-            },
-        )
-        .map_err(|_| invalid())?;
-        if function
-            .parameter_abi
-            .as_ref()
-            .is_some_and(|abi| abi.call_plan != expected_caller_plan)
-            || expected_caller_plan.parameters.last() != Some(&home.source)
-        {
-            return Err(invalid());
-        }
-        let stored_bytes = if home.indirect {
-            8
-        } else {
-            u32::from(home.shape.byte_size)
-        };
-        let expected_frame_bytes = match target.architecture {
-            Architecture::X86_64 => stored_bytes.next_multiple_of(16),
-            Architecture::Aarch64 => stored_bytes
-                .next_multiple_of(8)
-                .checked_add(8)
-                .map(|bytes| bytes.next_multiple_of(16))
-                .ok_or_else(invalid)?,
-        };
-        if validated_function_stack.frame_bytes != expected_frame_bytes {
-            return Err(invalid());
-        }
-        Some(home)
+        fully_consumed_affine_parameter,
     };
-    let scalar_count = custody.scalar_arguments.len();
-    if custody.byte_count == 0
-        || custody.code_offset > relocation.offset
-        || relocation_end > end
-        || !provenance.operations.contains(&operation)
-        || attribution
-            .iter()
-            .filter(|attribution| {
-                attribution.site == SemanticCodeSite::Operation(operation)
-                    && attribution.operation_ordinal == custody.operation_ordinal
-                    && attribution.code_offset == custody.code_offset
-                    && attribution.byte_count == custody.byte_count
-            })
-            .count()
-            != 1
-        || expected_plan.parameters.len() != scalar_count + custody.arguments.len()
-        || custody.arguments.windows(2).any(|pair| {
-            pair[0]
-                .code_offset
-                .checked_add(pair[0].byte_count)
-                .is_none_or(|end| end > pair[1].code_offset)
-        })
-        || custody
-            .arguments
-            .iter()
-            .zip(&expected_plan.parameters[scalar_count..])
-            .enumerate()
-            .any(|(argument_index, (argument, destination))| {
-                let Some(source_placement) = argument.source.placement() else {
-                    return true;
-                };
-                let parameter_source = parameter_homes
-                    .iter()
-                    .find(|home| home.place == argument.place)
-                    .is_some_and(|home| {
-                        argument.root_structural_type == home.structural_type
-                            && *source_placement == home.source
-                            && source_placement.shape == home.shape
-                            && home.location.stack_byte_offset().is_some_and(|offset| argument.source_location.stack_byte_offset() == Some(offset))
-                            && (argument.path.is_empty()
-                                || projected_home.is_some_and(|projected| {
-                                    projected.place == home.place
-                                        && projected.structural_type == home.structural_type
-                                }))
-                    });
-                let result_source = projected_result.zip(affine_cleanup).is_some_and(|(result, cleanup)| {
-                    crate::object_artifact::replay::structural::affine_projected_calls::exact_owned_result_projection(
-                        argument, result, &cleanup.structural_types)
-                });
-                let local_source = affine_cleanup
-                    .and_then(|cleanup| {
-                        cleanup.locals.iter().find(|(_, place, structural_type)| {
-                            place.id == argument.place
-                                && argument.path.is_empty()
-                                && argument.access == terminal_psi::StructuralAccess::Owned
-                                && argument.root_structural_type == structural_type.id
-                                && argument.structural_type == structural_type.id
-                                && argument.shape
-                                    == calling_conventions::ValueShape::integer(0, 1)
-                                && source_placement.shape == argument.shape
-                                && source_placement.locations.is_empty()
-                                && argument.destination.shape == argument.shape
-                                && argument.destination.locations.is_empty()
-                                && argument.source_location.stack_byte_offset() == Some(0)
-                                && matches!(
-                                    place.kind,
-                                    semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
-                                        structural_type: local_type,
-                                        construction: None,
-                                        ..
-                                    } if local_type == structural_type.id
-                                )
-                                && matches!(
-                                    structural_type.shape,
-                                    terminal_psi::StructuralTypeShape::Record { ref fields }
-                                        if fields.is_empty()
-                                )
-                        })
-                    })
-                    .is_some_and(|(establishment, _, _)| {
-                        provenance
-                            .operations
-                            .iter()
-                            .position(|candidate| candidate == establishment)
-                            .is_some_and(|position| position < operation_position)
-                            && internal_unit_calls
-                                .iter()
-                                .flat_map(|call| &call.arguments)
-                                .filter(|candidate| {
-                                    candidate.place == argument.place && candidate.path.is_empty()
-                                })
-                                .count()
-                                == 1
-                    });
-                let affine_scalar_record_source = function
-                    .unit_affine_scalar_records
-                    .iter()
-                    .find(|record| record.result.place == argument.place)
-                    .is_some_and(|record| {
-                        record.operation_ordinal < custody.operation_ordinal
-                            && record.shape == ValueShape::integer(8, 8)
-                            && record.result.structural_type == argument.structural_type
-                            && argument.path.is_empty()
-                            && argument.access == terminal_psi::StructuralAccess::Owned
-                            && argument.root_structural_type == argument.structural_type
-                            && argument.shape == record.shape
-                            && source_placement.shape == record.shape
-                            && source_placement.locations.is_empty()
-                            && argument.source_location.stack_byte_offset() == Some(0)
-                            && record.result.multiplicity
-                                == terminal_psi::StructuralMultiplicity::Affine
-                            && record.result.qualifications.is_empty()
-                            && record.result.projected_qualifications.is_empty()
-                            && record.result.claims.is_empty()
-                            && matches!(record.value, semantic_vocabulary::IntegerValue::Signed(value)
-                                if i64::try_from(value).is_ok())
-                            && provenance
-                                .operations
-                                .iter()
-                                .position(|candidate| candidate == &record.psi_operation)
-                                .is_some_and(|position| position < operation_position)
-                            && internal_unit_calls
-                                .iter()
-                                .flat_map(|call| &call.arguments)
-                                .filter(|candidate| {
-                                    candidate.place == argument.place
-                                        && candidate.path.is_empty()
-                                        && candidate.access == terminal_psi::StructuralAccess::Owned
-                                })
-                                .count()
-                                == 1
-                    });
-                let zero_byte_argument = (parameter_source || local_source)
-                    && argument.path.is_empty()
-                    && argument.byte_count == 0
-                    && argument.bytes.is_empty()
-                    && argument.shape == calling_conventions::ValueShape::integer(0, 1)
-                    && source_placement.locations.is_empty()
-                    && argument.destination.locations.is_empty();
-                argument.destination != *destination
-                    || argument.call_stack_bytes != expected_call_stack_bytes
-                    || (!parameter_source && !result_source && !local_source && !affine_scalar_record_source)
-                    || (argument.byte_count == 0 && !zero_byte_argument)
-                    || argument.bytes.len() != argument.byte_count
-                    || argument
-                        .code_offset
-                        .checked_add(argument.byte_count)
-                        .and_then(|end| function_bytes.get(argument.code_offset..end))
-                        != Some(argument.bytes.as_slice())
-                    || (!argument.path.is_empty()
-                        && expected_projected_copy_bytes(target, argument).as_deref()
-                            != Some(argument.bytes.as_slice()))
-                    || (affine_scalar_record_source
-                        && expected_affine_scalar_record_argument_bytes(target, argument, function)
-                            .as_deref()
-                            != Some(argument.bytes.as_slice()))
-                    || argument.code_offset < custody.code_offset
-                    || argument
-                        .code_offset
-                        .checked_add(argument.byte_count)
-                        .is_none_or(|argument_end| argument_end > end)
-                    || argument
-                        .source_byte_offset
-                        .checked_add(u32::from(argument.shape.byte_size))
-                        .is_none_or(|end| end > u32::from(source_placement.shape.byte_size))
-                    || match argument.path.as_slice() {
-                        [] => {
-                            argument.source_byte_offset != 0
-                                || source_placement.shape != argument.shape
-                                || argument.root_structural_type != argument.structural_type
-                                || argument.fixed_array_length.is_some()
-                                || argument.element_stride.is_some()
-                        }
-                        _ if exact_borrowed_argument(argument_index, argument) => false,
-                        _ if result_source => false,
-                        _ if argument.access == terminal_psi::StructuralAccess::Owned
-                            && parameter_homes.iter().any(|home| {
-                                home.place == argument.place
-                                    && home.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                            }) =>
-                        {
-                            parameter_homes.iter().find(|home| home.place == argument.place)
-                                .zip(affine_cleanup)
-                                .is_none_or(|(home, cleanup)| {
-                                    !crate::object_artifact::replay::structural::affine_projected_calls::exact_owned_projection(
-                                        argument, home, &cleanup.structural_types,
-                                    )
-                                })
-                        }
-                        [terminal_psi::StructuralPathSegment::FixedIndex(index)] => {
-                            let expected_stride = u32::from(argument.shape.byte_size)
-                                .next_multiple_of(u32::from(argument.shape.alignment));
-                            let Some(length) = argument.fixed_array_length else {
-                                return true;
-                            };
-                            let Some(stride) = argument.element_stride else {
-                                return true;
-                            };
-                            argument.root_structural_type == argument.structural_type
-                                || *index >= length
-                                || stride != expected_stride
-                                || u64::from(stride).checked_mul(*index)
-                                    != Some(u64::from(argument.source_byte_offset))
-                                || u64::from(stride).checked_mul(length)
-                                    != Some(u64::from(source_placement.shape.byte_size))
-                                || source_placement.shape.alignment != argument.shape.alignment
-                        }
-                        [
-                            terminal_psi::StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                            terminal_psi::StructuralPathSegment::FixedIndex(
-                                inner @ (0..=15),
-                            ),
-                        ] => {
-                            let leaf_stride = u32::from(argument.shape.byte_size)
-                                .next_multiple_of(u32::from(argument.shape.alignment));
-                            let Some(outer_stride) = argument.element_stride else {
-                                return true;
-                            };
-                            let Some(inner_length) =
-                                [
-                                    3_u32, 4_u32, 5_u32, 6_u32, 7_u32, 8_u32, 9_u32, 10_u32,
-                                    11_u32, 12_u32, 13_u32, 14_u32, 15_u32, 16_u32,
-                                ]
-                                    .into_iter()
-                                    .find(|length| {
-                                        leaf_stride.checked_mul(*length) == Some(outer_stride)
-                                    })
-                            else {
-                                return true;
-                            };
-                            let expected_offset = outer_stride
-                                .checked_mul(u32::try_from(*outer).unwrap_or(u32::MAX))
-                                .and_then(|offset| {
-                                    leaf_stride
-                                        .checked_mul(u32::try_from(*inner).unwrap_or(u32::MAX))
-                                        .and_then(|inner| offset.checked_add(inner))
-                                });
-                            argument.root_structural_type == argument.structural_type
-                                || argument.fixed_array_length != Some(2)
-                                || *inner >= u64::from(inner_length)
-                                || Some(argument.source_byte_offset) != expected_offset
-                                || outer_stride.checked_mul(2)
-                                    != Some(u32::from(source_placement.shape.byte_size))
-                                || source_placement.shape.alignment != argument.shape.alignment
-                        }
-                        path @ [terminal_psi::StructuralPathSegment::Field(_), ..]
-                            if path.iter().all(|segment| {
-                                matches!(segment,
-                                    terminal_psi::StructuralPathSegment::Field(identity)
-                                        if !identity.is_empty())
-                            }) =>
-                        {
-                            path.is_empty()
-                                || argument.root_structural_type == argument.structural_type
-                                || argument.fixed_array_length.is_some()
-                                || argument.element_stride.is_some()
-                                || !argument
-                                    .source_byte_offset
-                                    .is_multiple_of(u32::from(argument.shape.alignment))
-                        }
-                        _ => true,
-                    }
-            })
-        || projected_argument_indexes.iter().any(|index| {
-            if transferred_argument_indexes.contains(index) {
-                return false;
-            }
-            let Some(argument) = custody.arguments.get(*index) else {
-                return true;
-            };
-            if exact_borrowed_argument(*index, argument) {
-                return false;
-            }
-            argument.path.is_empty()
-                || (!fully_consumed_affine_parameter && projected_result.is_none()
-                    && affine_cleanup.is_none_or(|cleanup| {
-                        !cleanup.actions.iter().any(|action| {
-                            matches!(action,
-                            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(residual)
-                                if residual.place == argument.place
-                                    && !residual.path.is_empty()
-                                    && !residual.path.starts_with(&argument.path)
-                                    && !argument.path.starts_with(&residual.path)
-                                    && residual.structural_type
-                                        != argument.root_structural_type)
-                        })
-                    }))
-        })
-        || custody.claim_transfers.iter().any(|transfer| {
-            usize::try_from(transfer.argument_index)
-                .map_or(true, |index| index >= custody.arguments.len())
-        })
-        || custody
-            .claim_transfers
-            .iter()
-            .map(|transfer| transfer.claim)
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != custody.claim_transfers.len()
-    {
-        return Err(invalid());
+    inputs.validate_call_shape()?;
+    let span = inputs.call_span()?;
+    if inputs.is_argument_free() {
+        return roster::validate_argument_free_call(&inputs, &span);
     }
-    Ok(())
-}
-
-fn validate_mixed_argument_bytes_and_order(
-    target: NativeTarget,
-    function: &MachineCodeFunction,
-    function_stack: &ObjectUnitStack,
-    call_plan: &calling_conventions::CallPlan,
-    relocation: &machine_code::InternalCallRelocation,
-    custody: &machine_code::InternalUnitCallRecord,
-) -> Result<(), ObjectError> {
-    let invalid = || ObjectError::InvalidInternalUnitCallEvidence(function.machine);
-    let outbound = relocation.unit_stack.ok_or_else(invalid)?.outbound;
-    let outbound_bytes = outbound.map_or(0, |area| area.byte_size);
-    let mut cursor = match outbound {
-        Some(area) => {
-            if custody.code_offset != area.allocation_offset {
-                return Err(invalid());
-            }
-            area.allocation_offset
-                .checked_add(area.allocation_byte_count)
-                .ok_or_else(invalid)?
-        }
-        None => custody.code_offset,
+    let stacks = inputs.stack_facts(&span)?;
+    let callee_abi = inputs.callee_abi()?;
+    let expected_plan = inputs.expected_callee_plan(callee_abi)?;
+    let projection = inputs.projection_facts(&stacks)?;
+    let call = InternalUnitCallCustody {
+        inputs,
+        span,
+        stacks,
+        expected_plan,
+        projection,
     };
-    for (argument_index, argument) in custody.scalar_arguments.iter().enumerate() {
-        if argument.code_offset != cursor {
-            return Err(invalid());
+    match callee_abi {
+        CalleeAbi::Parameter(abi) => roster::validate_parameter_abi(&call, abi)?,
+        CalleeAbi::Mixed(abi) => roster::validate_mixed_abi(&call, abi)?,
+        CalleeAbi::MixedStructuralReturn(returned) => {
+            roster::validate_mixed_structural_return(&call, returned)?
         }
-        validate_source(
-            function,
-            custody.operation_ordinal,
-            custody.code_offset,
-            argument.source,
-        )
-        .map_err(|_| invalid())?;
-        let expected = expected_argument_bytes(
-            target,
-            call_plan,
-            &custody.scalar_arguments,
-            argument_index,
-            function_stack.frame_bytes,
-            outbound_bytes,
-        )
-        .ok_or_else(invalid)?;
-        let argument_end = cursor.checked_add(expected.len()).ok_or_else(invalid)?;
-        if argument.byte_count != expected.len()
-            || function.bytes.get(cursor..argument_end) != Some(expected.as_slice())
-        {
-            return Err(invalid());
-        }
-        cursor = argument_end;
+        CalleeAbi::Untyped => {}
     }
-    for argument in &custody.arguments {
-        if argument.code_offset != cursor {
-            return Err(invalid());
-        }
-        cursor = cursor
-            .checked_add(argument.byte_count)
-            .ok_or_else(invalid)?;
-    }
-    let native_call_start = match target.architecture {
-        Architecture::X86_64 => relocation.offset.checked_sub(1).ok_or_else(invalid)?,
-        Architecture::Aarch64 => relocation.offset,
-    };
-    if cursor != native_call_start {
-        return Err(invalid());
-    }
-    cursor = relocation.offset.checked_add(4).ok_or_else(invalid)?;
-    if let Some(area) = outbound {
-        if area.release_offset != cursor {
-            return Err(invalid());
-        }
-        cursor = area
-            .release_offset
-            .checked_add(area.release_byte_count)
-            .ok_or_else(invalid)?;
-    }
-    if let Some(home) = custody
-        .structural_result
-        .as_ref()
-        .and_then(|result| result.result_home.as_ref())
+    if call.call_site_is_malformed()
+        || call.arguments_are_malformed()
+        || call.projected_arguments_are_unsettled()
+        || call.claim_transfers_are_malformed()
     {
-        if home.code_offset != cursor
-            || !result_home::exact_storage(
-                target,
-                custody,
-                &function.internal_unit_calls,
-                function_stack.frame_bytes,
-                &function.unit_parameter_homes,
-                &function.unit_scalar_homes,
-                function.parameter_abi.as_ref(),
-                function
-                    .unit_stack
-                    .and_then(|stack| stack.aarch64_return_link)
-                    .map(|link| link.frame_byte_offset),
-                !function.unit_continuations.is_empty(),
-            )
-        {
-            return Err(invalid());
-        }
-        cursor = cursor.checked_add(home.byte_count).ok_or_else(invalid)?;
-        if function.bytes.get(home.code_offset..cursor) != Some(home.bytes.as_slice()) {
-            return Err(invalid());
-        }
-    }
-    if custody
-        .code_offset
-        .checked_add(custody.byte_count)
-        .is_none_or(|end| end != cursor)
-    {
-        return Err(invalid());
+        return Err(ObjectError::InvalidInternalUnitCallEvidence(machine));
     }
     Ok(())
 }
