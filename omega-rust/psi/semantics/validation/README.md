@@ -126,8 +126,12 @@ only covers call sites at the entry state. A prefix store before a component
 call is judged against the member's premise carriers
 (`ranking_range_premise_symbols`: subjects, endpoints, requires-named inputs,
 and range-constrained entries), located in the site state through that same
-telescope; a mutable input or role-less slot outside the set may be stored to,
-while any store into a carrier still invalidates the entry-relative ranking.
+telescope. A slot sharing its role with another slot, and every role-carrying
+slot of a mixed-range component, stay protected too: the site query installs
+the copies' equality and endpoint conservation reads each entry input's arrival
+atom. A mutable input or role-less slot outside those sets may be stored to,
+while any store into a protected slot still invalidates the entry-relative
+ranking.
 
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
 scalar ranks, slice lengths, and exact direct-field coordinates. `fields.rs`

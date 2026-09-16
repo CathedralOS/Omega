@@ -132,9 +132,11 @@ pub(super) fn check_component(
     };
     // A prefix store is judged against the premise carriers the call-site
     // judgment actually reads (subjects, endpoints, requires facts, and
-    // constrained entries), located in each state through the same telescope.
-    // A member whose witness resolves no scalar premise set keeps every
-    // store rejected; the reader fails closed on `None`.
+    // constrained entries), located in each state through the same telescope,
+    // plus the slots whose arrival value the site query or the mixed-range
+    // endpoint conservation assumes (see `prefix::preserves_rank`). A member
+    // whose witness resolves no scalar premise set keeps every store
+    // rejected; the reader fails closed on `None`.
     let member_premises = ranks
         .iter()
         .zip(component)
@@ -171,6 +173,7 @@ pub(super) fn check_component(
                         &ranks[position],
                         member_premises[position].as_deref(),
                         &mappings[state_position],
+                        mixed_ranges,
                         statement,
                         frames.as_ref(),
                     ) {
