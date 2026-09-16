@@ -245,12 +245,14 @@ pub(super) fn validate<'a>(
                 }
             }
             CheckedUnitEffectOperationPlan::BoundaryCall {
+                coordinate,
                 target_machine,
                 target_state,
                 target_contract_report_fingerprint,
                 service_reach,
                 ..
             } => {
+                retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
                 retain_exact_unit_boundary(
                     checked,
                     plans,
