@@ -2347,9 +2347,14 @@ Owners include
   parameter places and splices residual parameter custody through the same
   positional selection-edge roster, and selected parameters stay out of
   unconditional return drops (`pass/expressions/owned_match_parameter_values`,
-  macOS). Remaining: projected-parameter, borrowed, and linear custody joins
-  plus the borrowed-subject and operator-result obligations below; preserve
-  exact origins and actual death edges.
+  macOS). `8f65df406e` projects affine children out of a prior selection's
+  join result: the chained source arrives on a join block parameter, both
+  downstream contracts root partial-affine residual custody at the target
+  block's declared parameter roster, and the chained fixture replays all four
+  input combinations with mutation coverage on the residual path, join
+  arguments, and origin receipt (macOS). Remaining: borrowed and linear
+  custody joins plus the borrowed-subject and operator-result obligations
+  below; preserve exact origins and actual death edges.
   Owners: `validation/src/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
   canonical package-review contract/index projection. Preserve a once-evaluated
