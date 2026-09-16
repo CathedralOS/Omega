@@ -951,6 +951,59 @@ machine Inspector::inspect(
         .iter()
         .find(|input| input.machine == inspect.symbol)
         .expect("checked direct placed-view input");
+
+    // Substitution controls for the plan identity rejoin. Each variant edits
+    // one sealed axis inside `UartPlacement` — the referent extent (range),
+    // one field's access grant (access), or the boundary service reach
+    // (backing) — and still validates, so a rejection below is a stale-plan
+    // substitution rejection rather than a malformed-input rejection.
+    fn uart_placement_variant(edit: impl FnOnce(&mut String)) -> String {
+        let marker = "pub data UartPlacement";
+        let split = POLICY_SOURCE
+            .find(marker)
+            .expect("UartPlacement policy section");
+        let mut policy = POLICY_SOURCE.to_string();
+        let mut tail = policy.split_off(split);
+        edit(&mut tail);
+        policy.push_str(&tail);
+        policy
+    }
+    fn variant_placement(name: &str, policy: &str) -> access_plans::ValidatedPlacementPlan {
+        let main = write_program(name, policy);
+        let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
+            .expect("variant placement policy should compile");
+        compute_placement_plan(&checked.typed, "UartPlacement::plan", "Registers")
+            .expect("variant placement policy should still validate")
+    }
+    let stale_range_placement = variant_placement(
+        "placed-view-stale-range",
+        &uart_placement_variant(|tail| {
+            *tail = tail.replacen("size_fixed: 24", "size_fixed: 32", 1);
+        }),
+    );
+    let stale_access_placement = variant_placement(
+        "placed-view-stale-access",
+        &uart_placement_variant(|tail| {
+            *tail = tail.replacen("write: false", "write: true", 1);
+        }),
+    );
+    let stale_backing_placement = variant_placement(
+        "placed-view-stale-backing",
+        &uart_placement_variant(|tail| {
+            *tail = tail.replacen("self.services[0] = 19;", "self.services[0] = 23;", 1);
+        }),
+    );
+    for stale_plan in [
+        &stale_range_placement,
+        &stale_access_placement,
+        &stale_backing_placement,
+    ] {
+        assert_ne!(
+            stale_plan.content_interpretation().commitment(),
+            source_input.placement.content_interpretation().commitment()
+        );
+    }
+
     let canonical_artifact = || {
         terminal_codec::CanonicalTerminalArtifact::from_parts(
             &lowered.semantic_module,
@@ -1051,6 +1104,49 @@ machine Inspector::inspect(
             Err(abstract_operations_to_target_operations::
                 PlacedViewInputTranslationError::CandidateInputRosterMismatch)
         );
+
+        // A stale validated plan offered at the selection boundary rejects on
+        // each sealed axis: substituting the referent range, the access
+        // grants, or the backing service reach changes the plan's
+        // compatibility fingerprint and content commitment, so the rejoin
+        // fails before ABI derivation — at lowering and again at independent
+        // translation validation.
+        for stale_plan in [
+            &stale_range_placement,
+            &stale_access_placement,
+            &stale_backing_placement,
+        ] {
+            let stale_selections = [
+                abstract_operations_to_target_operations::SelectedPlacedViewInputPlan {
+                    terminal_input: &placed.placed_view_inputs[0],
+                    placement_plan: stale_plan,
+                },
+            ];
+            assert!(matches!(
+                abstract_operations_to_target_operations::
+                    lower_to_target_operations_with_placed_view_inputs(
+                        &placed,
+                        target,
+                        &stale_selections,
+                    ),
+                Err(abstract_operations_to_target_operations::
+                    LoweringError::PlacedViewInput(
+                        abstract_operations_to_target_operations::
+                            PlacedViewInputTranslationError::PlacementPlanIdentityMismatch
+                    ))
+            ));
+            assert_eq!(
+                abstract_operations_to_target_operations::
+                    validate_placed_view_input_translation(
+                        &placed,
+                        &stale_selections,
+                        target,
+                        &target_plan,
+                    ),
+                Err(abstract_operations_to_target_operations::
+                    PlacedViewInputTranslationError::PlacementPlanIdentityMismatch)
+            );
+        }
 
         // The complete optimized plan reaches the physical stage, and the
         // emitted object rejoins the canonical Terminal artifact with the
