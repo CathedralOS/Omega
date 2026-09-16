@@ -5,13 +5,16 @@
 //! and machine boundaries, and then replay the artifact in the terminal
 //! interpreter at every fuel pause so the exact captured subject, its contract
 //! obligations, and generic-to-generic forwarding are witnessed on the
-//! published representation rather than only at check time.
+//! published representation rather than only at check time. The rejection
+//! half is witnessed against the checked fail-corpus fixtures: invalid bounds,
+//! duplicated or lost linear custody, and static-only uses of a runtime-bound
+//! binder must keep their named diagnostics.
 
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use semantic_vocabulary::{MachineId, ValueId};
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 use terminal_fuel::TerminalFuelMeter;
@@ -670,6 +673,154 @@ machine Main::main(&mut self) reaches Trace {
         "each transition arm stores its own forwarded subject where main observes it",
         &array_backing(&published, 8),
     );
+}
+
+/// The runtime-bound subject need not be scalar: a `Value` binder over a
+/// `data` carrier realizes its trailing parameter as a structural argument, so
+/// `take` binds the caller's `Token` by value and reads its `id`. Two distinct
+/// subjects ride the one shared dynamic body, and each replays its own
+/// captured record through the terminal interpreter. Linear-carrier custody
+/// obligations — duplicated or dropped `V` subjects — are checked rejections
+/// pinned by the fail-corpus fixtures below; checked-unit planning does not
+/// yet admit `[linear]` data, so the positive direction is witnessed here on
+/// the ordinary structural lane.
+#[test]
+fn runtime_bound_structural_subject_shares_one_dynamic_body() {
+    let published = publish(
+        "structural-subject",
+        r#"
+use omega::language::core::external_binding;
+
+boundary trait Trace { machine record(value: u64); }
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+
+data Main {
+    values: [u8; 8];
+}
+
+data Token {
+    id: u32;
+}
+
+machine take<V: Token>() -> u32 {
+    V.id
+}
+
+machine Main::main(&mut self) reaches Trace {
+    let t: Token = Token { id: 7 };
+    let first: u32 = take<t>();
+    Trace::record(first as u64);
+    let u: Token = Token { id: 8 };
+    let second: u32 = take<u>();
+    Trace::record(second as u64);
+}
+"#,
+    );
+    let module = &published.module;
+    let entry_calls = receiver_calls(module, module.entry);
+    assert_eq!(
+        entry_calls.len(),
+        2,
+        "entry places exactly the two `take` calls; Trace::record stays a boundary call"
+    );
+    for (index, (_, scalars, structurals, _)) in entry_calls.iter().enumerate() {
+        assert_eq!(
+            (*scalars, *structurals),
+            (0, 1),
+            "call {index} carries only its captured subject, on the structural lane"
+        );
+    }
+    assert_eq!(
+        entry_calls[0].0, entry_calls[1].0,
+        "distinct structural subjects share the one dynamic body"
+    );
+    let take = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == entry_calls[0].0)
+        .unwrap();
+    assert_eq!(
+        take.structural_parameters.len(),
+        1,
+        "the dynamic body realizes `V` as its single structural parameter"
+    );
+    assert_eq!(
+        module.machines.len(),
+        2,
+        "entry plus the dynamic `take` body, no per-value bodies"
+    );
+
+    // `main` never indexes `self.values`, so the receiver is dropped from the
+    // entry's structural parameters and there is no array field to back.
+    replay(
+        &published,
+        &[7, 8],
+        "each call returns its own captured subject's id",
+        &[],
+    );
+}
+
+/// Compile a fail-corpus fixture through the ordinary check product and return
+/// its rendered diagnostics. The corpus pair (`main.omg`, `expected.txt`)
+/// pins the rejection surface each scenario must keep producing; the
+/// canary-suite fail driver claims its own list, so this target drives the
+/// value-binder rejections directly.
+fn reject(path: &str) {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("compiler crate should live under omega-rust/omega/compiler/compiler")
+        .join("tests/omega/fail")
+        .join(path);
+    let expected = fs::read_to_string(canary.join("expected.txt"))
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", canary.display()))
+        .trim()
+        .to_owned();
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let fixture = Fixture(std::env::temp_dir().join(format!(
+        "omega-runtime-value-generics-reject-{}-{stamp}",
+        std::process::id(),
+    )));
+    fs::create_dir(&fixture.0).unwrap();
+    let diagnostics = compile(CompileRequest::new(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(fixture.0.join("build")),
+        target_name: Some("linux_x86_64".to_owned()),
+    }))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect_err("runtime value binder misuse should be rejected");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(&expected),
+        "{} missing expected fragment {expected:?}:\n{combined}",
+        canary.display(),
+    );
+}
+
+/// The remaining rejection surface of the runtime/value-binder contract:
+/// invalid bounds on the declared carrier or `requires` bound, duplicated or
+/// dropped linear custody of the bound subject, and static-only uses of a
+/// runtime-bound binder in array extents and nested static arguments.
+#[test]
+fn runtime_value_generic_rejections_keep_their_diagnostics() {
+    for path in [
+        "generics/value_generic_static_argument_out_of_range",
+        "generics/value_generic_runtime_subject_out_of_range",
+        "generics/value_generic_static_requires_violation",
+        "generics/value_generic_linear_subject_duplicated",
+        "generics/value_generic_linear_subject_dropped",
+        "generics/value_generic_runtime_static_length",
+        "generics/value_generic_static_nested_argument",
+    ] {
+        reject(path);
+    }
 }
 
 /// Exact initialized backing for the entry receiver's sole fixed byte-array
