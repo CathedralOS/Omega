@@ -2421,12 +2421,25 @@ pub(super) fn staged_saturating_add_inputs(
     literal_operand: u16,
     block0: BlockZeroTerminator,
 ) -> Inputs {
+    staged_saturating_add_carrier_inputs(target, SaturatingCarrier::U64, literal_operand, block0)
+}
+
+/// The same zero-literal fixture for `SaturatingAdd` on `carrier`: every
+/// non-u64 carrier binds the clamped row — two `Use` operands, an
+/// early-clobber `Def` result, and a bound scratch `Def` at operand 3 the
+/// fold drops under occurrence-free custody — so the staged consumer
+/// carries four operands and the scratch register the consumer alone
+/// defines.
+pub(super) fn staged_saturating_add_carrier_inputs(
+    target: NativeTarget,
+    carrier: SaturatingCarrier,
+    literal_operand: u16,
+    block0: BlockZeroTerminator,
+) -> Inputs {
     staged_literal_binary_inputs(
         target,
         literal_operand,
-        SelectedInstructionKind::SaturatingAdd {
-            carrier: SaturatingCarrier::U64,
-        },
+        SelectedInstructionKind::SaturatingAdd { carrier },
         LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
         0,
         block0,

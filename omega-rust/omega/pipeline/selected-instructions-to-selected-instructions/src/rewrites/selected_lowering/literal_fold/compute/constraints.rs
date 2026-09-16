@@ -178,13 +178,15 @@ fn validate_immediate_row(
     };
     match (rule.operand_shape(), rule.result(), row.operands.as_slice()) {
         // Scalar-result form: `result = surviving <op> immediate`, or the
-        // auxiliary-`Use` grammar's copy rewrite — the surviving `Use`
-        // binds operand 0 and the `Def` result binds operand 1 whichever
-        // consumer grammar the literal occupied.
+        // auxiliary-`Use` and scratch-defs grammars' copy rewrite — the
+        // surviving `Use` binds operand 0 and the `Def` result binds
+        // operand 1 whichever consumer grammar the literal occupied.
         (
             PairOperandShape::BinaryRightLiteral
             | PairOperandShape::BinaryLeftLiteral
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUses,
+            | PairOperandShape::BinaryRightLiteralAuxiliaryUses
+            | PairOperandShape::BinaryRightLiteralScratchDefs
+            | PairOperandShape::BinaryLeftLiteralScratchDefs,
             PairResultDisposition::ScalarRegister,
             [left, result],
         ) => {

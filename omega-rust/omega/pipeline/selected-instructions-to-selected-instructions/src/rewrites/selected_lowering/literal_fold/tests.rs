@@ -18,8 +18,9 @@ mod wrapping_add_zero_copies;
 use staged_arithmetic_inputs::{
     BlockZeroTerminator, staged_add_inputs, staged_and_inputs, staged_and_ones_inputs,
     staged_divide_inputs, staged_divide_zero_dividend_inputs, staged_remainder_inputs,
-    staged_remainder_zero_dividend_inputs, staged_saturating_add_inputs, staged_subtract_inputs,
-    staged_wrapping_add_inputs, staged_xor_inputs,
+    staged_remainder_zero_dividend_inputs, staged_saturating_add_carrier_inputs,
+    staged_saturating_add_inputs, staged_subtract_inputs, staged_wrapping_add_inputs,
+    staged_xor_inputs,
 };
 use staged_memory_inputs::{
     staged_byte_view_address_inputs, staged_copy_inputs, staged_extension_inputs,
