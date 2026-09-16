@@ -734,6 +734,21 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   scratch-`Def` rejection under the exact copy grammar, decision-field
   substitution, and wrong-policy negatives; the replay restates both
   grammars through its own `XorZero`/`XorZeroLeft` source shapes and
+  never consults the pair descriptor).
+  `WRAPPING_ADD_ZERO_COPIES` declares one pair per `Use` position,
+  folding `MaterializeI64(0)` feeding `WrappingAddI64` at either operand
+  into a `CopyI64` of the surviving `Use` at the result register under
+  `LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1` — `x + 0` and `0 + x` are
+  both `x` modulo `2^64` — with the left pair declaring
+  `BinaryLeftLiteral`, the commutation attestation the
+  surviving-operand binding requires, and both grammars rewriting
+  through the `CopyI64` row under an isolated unit and machine-effect
+  surface (396 crate tests pass, including firing on both Linux targets
+  at either operand position, exact-zero versus nonzero literals,
+  wrong-position claims, forbidden operand bindings, scratch-`Def`
+  rejection under the exact copy grammar, decision-field substitution,
+  and wrong-policy negatives; the replay restates both grammars through
+  its own `WrappingAddZero`/`WrappingAddZeroLeft` source shapes and
   never consults the pair descriptor). Remaining: further
   unit roles and the other non-isolated relationships — trap-, stack-,
   and control-flow-carrying forms still have no descriptor variant.
