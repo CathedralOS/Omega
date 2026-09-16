@@ -3217,10 +3217,20 @@ Owners include
   contracts retain each authored floating entry range as
   `ClosedFloatRangeRequirement` -- IEEE bit-exact endpoints at the declared
   carrier plus the authored boundary kind -- on
-  `ClosedScalarValueContractPlan::float_entry_ranges`. Open: lowered-psi
-  emission and independent Terminal Psi replay; the requires tail keeps an
+  `ClosedScalarValueContractPlan::float_entry_ranges`. Lowered-psi emission
+  and independent Terminal Psi replay now retain each authored range as a
+  canonical `ScalarFloatRange` catalog row on dense terminal IDs: the codec
+  carries a fourth counted catalog section in `(machine, parameter)` order,
+  the verifier admits delivery when an `IeeeFloatConstant` is contained or a
+  caller-parameter range subsumes it (all else fails closed), and retention
+  roots keep evidence-named declarations from pruning
+  (`terminal-psi` `ScalarQualificationCatalog.float_entry_ranges`,
+  `checked-trees-to-lowered-psi` emission, `terminal-codec`
+  `scalar_qualification_wire`, `terminal-verifier`
+  `validation/scalar_qualifications.rs`; 25 integration tests under
+  `float_ranges*`/`float_entry_ranges_source`). The requires tail keeps an
   explicit unsupported row until the scalar predicate vocabulary carries
-  IEEE comparisons.
+  IEEE comparisons — the one remaining leg.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
