@@ -2427,12 +2427,25 @@ Owners include
   realizations, `boundary requirement`, and conformance members
   (`tokens-to-syntax-trees/src/declarations/machines.rs`, `declarations/parse_declaration.rs`,
   `declarations/conformance.rs`; tests in
-  `tests/properties_and_requirements.rs`). Next frontier: carry
-  `spelling` into symbol-resolved/typed/checked representations
-  (`lowering/machine.rs` notes the current inert drop), then operand-directed
-  selection, semantic-home ownership and duplicate checks, `operator`
-  introducer removal, supply-mode wiring, Terminal codec, and native call
-  realization per the acceptance above.
+  `tests/properties_and_requirements.rs`). The token now reaches every
+  declaration representation: symbol-resolved, typed, and checked machines
+  carry `spelling: Option<OperatorSpelling>` (`None` is the tokenless named
+  form) and snapshots print it, and symbol resolution rejects two direct
+  machines binding the same token to the same normalized operand shape
+  under one owner at the second declaration
+  (`syntax-trees-to-symbol-resolved-trees/src/lowering/machine/token_bindings.rs`;
+  distinct shapes overload, distinct owners and tokens never collide). A
+  token-bearing machine still lowers and executes exactly like its named
+  form. Next frontier: operand-directed selection at use sites consuming
+  `Machine::spelling`, cross-package closed-family semantic-home ownership
+  (the current check is owner-local within one program; the unqualified
+  operand-tuple home needs typing), the token joining canonical machine
+  signature identity in package-review evidence capture
+  (`review/evidence/src/capture/semantics/types/identity.rs`, which reads
+  neither the machine nor the trait `StateSignature` spelling although a
+  changed binding is a breaking revision), then `operator` introducer
+  removal, supply-mode wiring, Terminal codec, and native call realization
+  per the acceptance above.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
