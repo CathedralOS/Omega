@@ -1,9 +1,9 @@
 use super::{
-    IntegerValue, ProofError, ProofNode, ProofRule, Proposition, PropositionContext, ScalarTerm,
-    ValueId, check_certificate, lift_fixed_integer_relation,
+    ProofError, ProofNode, ProofRule, Proposition, PropositionContext, ValueId, check_certificate,
+    lift_fixed_integer_relation,
 };
 use crate::PrimitiveJudgment;
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType};
 
 fn fixture(
     strict: bool,
