@@ -183,16 +183,15 @@ pub fn code_signature_identifier(bytes: &[u8]) -> Option<String> {
     for _ in 0..command_count {
         let command_size = little(bytes, cursor + 4)? as usize;
         let end = cursor.checked_add(command_size)?;
-        if little(bytes, cursor)? == 0x1d {
-            if signature
+        if little(bytes, cursor)? == 0x1d
+            && signature
                 .replace((
                     little(bytes, cursor + 8)? as usize,
                     little(bytes, cursor + 12)? as usize,
                 ))
                 .is_some()
-            {
-                return None;
-            }
+        {
+            return None;
         }
         cursor = end;
     }
