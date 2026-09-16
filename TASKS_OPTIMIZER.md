@@ -400,7 +400,39 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   address-carrier or out-of-width scalar type, an unadmitted or
   sign-mismatched value, non-increasing or successor-overtaking ordinals,
   defining-operation and source-value collisions, and swapped or
-  duplicated rows are rejected at encoding as non-canonical.
+  duplicated rows are rejected at encoding as non-canonical. Landed:
+  fixed-frame
+  function-relative realization manifests, custody receipts, and
+  retained exit contracts
+  (`compiler/tests/realization_custody.rs`,
+  `fixed_frame_realization_custody_rejects_every_one_field_substitution`)
+  — every representable manifest field (the four phase-selection
+  identities, selected-lowering completion, both manifest identities,
+  selected plan, machine-effect and post-allocation machine identities,
+  both encoding identities, both resolved-layout identities, the
+  optional branch-relaxation and post-allocation-optimization custody
+  slots, the exit-contract identity, all four target axes, layout
+  policy, the fixed-frame disposition and both member identities, and
+  all six statistics), each of the eight custody-receipt fields
+  (allocation evidence, machine, callee-saved requirements and storage,
+  frame layout and protocol, exit contract, and the manifest itself),
+  and every representable retained exit-contract field (the five joined
+  identities, layout custody, policy, frame disposition, entry
+  assumption, stack pointer, alignment, red zone, result view,
+  callee-saved roster, and each function row's machine, entry block,
+  stack delta, modified units, and process-exit roster plus every
+  return row's block, source edge, instruction, offset, bytes, value,
+  trap, and mechanism) is independently representable under honestly
+  recomputed containing identities and rejected by independent replay
+  across all four declared targets; detached foreign allocation and
+  exit-contract records and corrupted encoding and baseline-layout
+  bytes reject through their component replays; stale or foreign
+  manifest and contract identities, the single-variant stage, scope,
+  and seven unavailable markers, unknown completion, relaxation,
+  optimization-custody, optimization, architecture, object-format,
+  layout-policy, and frame-disposition tags, conflicting physical
+  transformations, trailing bytes, and truncation are rejected at
+  canonical decoding.
 
 ## Psi optimization and loops
 
