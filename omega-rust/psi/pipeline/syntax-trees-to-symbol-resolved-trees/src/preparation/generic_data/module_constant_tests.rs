@@ -644,6 +644,108 @@ fn module_local_indexed_family_outranks_a_same_leaf_root_family() {
 }
 
 #[test]
+fn probe_open_template_domain_index_downstream() {
+    let source = "domain<const N: u64> u64::Counted<N> requires self < N;
+         data Buffer<const N: u64> { value: u64 in Counted<N>; }
+         data Main { field: Buffer<3>; }";
+    let syntax =
+        normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[&source])))
+            .expect("open domain index defers binder selection");
+    let outcome = crate::resolve(crate::ResolutionRequest::new(&syntax));
+    match &outcome {
+        Ok(program) => {
+            eprintln!("PROBE: resolve OK");
+            for definition in &program.data_definitions {
+                eprintln!("PROBE: data {}", definition.name.as_str());
+            }
+            // Find the resolved field type of Buffer<3>.value
+            let instance = program
+                .data_definitions
+                .iter()
+                .find(|d| d.name.as_str() == "Buffer<3>")
+                .expect("instance");
+            let [symbol_resolved_trees::data::DataMember::Field(field)] =
+                program.data_members(instance.members)
+            else {
+                panic!("one field");
+            };
+            eprintln!("PROBE: field type = {:?}", field.type_reference);
+        }
+        Err(errors) => {
+            for error in errors {
+                eprintln!("PROBE: resolve error: {}", error.message);
+            }
+        }
+    }
+    // Also inspect the syntax-side domain constraint.
+    for constraint in syntax.type_references.domain_constraints() {
+        let args: Vec<String> = syntax
+            .type_references
+            .type_reference_handles(constraint.arguments)
+            .iter()
+            .map(|a| format!("{:?}", syntax.type_references.type_reference(*a)))
+            .collect();
+        eprintln!("PROBE: domain constraint {} args {:?}", constraint.name.as_str(), args);
+    }
+
+    // Probe: range constraint endpoints naming a const binder.
+    let ranged = "data Buffer<const N: u64> { value: u64 [0..N]; }
+         data Main { field: Buffer<3>; }";
+    match normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[ranged]))) {
+        Ok(syntax) => {
+            eprintln!("PROBE: ranged normalize OK");
+            let outcome = crate::resolve(crate::ResolutionRequest::new(&syntax));
+            match &outcome {
+                Ok(_) => eprintln!("PROBE: ranged resolve OK"),
+                Err(errors) => {
+                    for error in errors {
+                        eprintln!("PROBE: ranged resolve error: {}", error.message);
+                    }
+                }
+            }
+        }
+        Err(errors) => {
+            for error in &errors {
+                eprintln!("PROBE: ranged normalize error: {}", error.message);
+            }
+        }
+    }
+
+    // Probe: ConstExpression domain index argument on a binder.
+    let expression_index = "domain<const N: u64> u64::Counted<N> requires self < N;
+         data Buffer<const N: u64> { value: u64 in Counted<N + 1>; }
+         data Main { field: Buffer<3>; }";
+    match normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[expression_index]))) {
+        Ok(syntax) => {
+            eprintln!("PROBE: expr-index normalize OK");
+            for constraint in syntax.type_references.domain_constraints() {
+                let args: Vec<String> = syntax
+                    .type_references
+                    .type_reference_handles(constraint.arguments)
+                    .iter()
+                    .map(|a| format!("{:?}", syntax.type_references.type_reference(*a)))
+                    .collect();
+                eprintln!("PROBE: expr-index constraint {} args {:?}", constraint.name.as_str(), args);
+            }
+            let outcome = crate::resolve(crate::ResolutionRequest::new(&syntax));
+            match &outcome {
+                Ok(_) => eprintln!("PROBE: expr-index resolve OK"),
+                Err(errors) => {
+                    for error in errors {
+                        eprintln!("PROBE: expr-index resolve error: {}", error.message);
+                    }
+                }
+            }
+        }
+        Err(errors) => {
+            for error in &errors {
+                eprintln!("PROBE: expr-index normalize error: {}", error.message);
+            }
+        }
+    }
+}
+
+#[test]
 fn open_template_domain_indices_keep_their_binder_at_root_and_in_modules() {
     // `Counted<N>` inside an open template defers binder selection; the
     // synthesized instance inherits the authored constraint verbatim at both
