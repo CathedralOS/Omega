@@ -1,4 +1,3 @@
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use super::{
     AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget, OperationKind,
     ScalarType, TargetLoweringRequest, TerminalExecutionResult, TerminalScalarValue,
@@ -8,6 +7,7 @@ use super::{
     verify_module,
 };
 use compiler::CheckedCompileRequest;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 #[cfg(unix)]
 #[test]

@@ -3,7 +3,6 @@
 //! Discarding that custody before production is corruption, not frontend disposal.
 //! The source-free boundary is the produced artifact: the round-trip test drops
 //! both checked trees and producer output before independent consumption.
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use super::{
     AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan,
     AbstractParameter, AdmissionProfile, BlockId, DebugSubject, EdgeId, IntegerSign, IntegerType,
@@ -15,6 +14,7 @@ use super::{
     validate_artifact_manifest, validate_fixed_entry_fuel, verify_module,
 };
 use compiler::CheckedCompileRequest;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 #[test]
 fn checked_source_survives_frontend_drop_as_verified_psi() {

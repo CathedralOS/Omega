@@ -1,5 +1,4 @@
 //! Mixed scalar/view helpers retain runtime inputs and original reference identity.
-use super::{AdmissionProfile, NativeTarget, OperationId, OperationKind, OptimizationSelections, TerminalModule, assert_byte_read_proof_rejected, compiler_baseline_request_v1, optimize_artifact_sections, stage_byte_view};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -8,6 +7,11 @@ use super::{AdmissionProfile, NativeTarget, OperationId, OperationKind, Optimiza
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{
+    AdmissionProfile, NativeTarget, OperationId, OperationKind, OptimizationSelections,
+    TerminalModule, assert_byte_read_proof_rejected, compiler_baseline_request_v1,
+    optimize_artifact_sections, stage_byte_view,
+};
 #[path = "mixed_helpers/calls.rs"]
 mod calls;
 #[path = "mixed_helpers/proof.rs"]

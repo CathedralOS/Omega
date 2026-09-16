@@ -1,9 +1,9 @@
 //! Nested record results retain their original homes through receiver calls.
-use terminal_interpreter::{AcceptTerminalEffects};
-use terminal_interpreter::{TerminalStructuralInputs};
 use proof_admission::AdmissionProfile;
 use target::NativeTarget;
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 
 #[cfg(any(
     all(
@@ -154,7 +154,9 @@ fn interpreted_nested_receivers_preserve_original_referents_across_suspension() 
             let mut completed = false;
             let mut trace = Vec::new();
             for _ in 0..2_048 {
-                let status = execution.resume(&mut fuel, &mut AcceptTerminalEffects).unwrap();
+                let status = execution
+                    .resume(&mut fuel, &mut AcceptTerminalEffects)
+                    .unwrap();
                 trace.push(execution.structural_primitive_values()[1].value);
                 match status {
                     TerminalExecutionStatus::Complete(result) => {

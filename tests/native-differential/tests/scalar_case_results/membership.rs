@@ -1,5 +1,4 @@
 //! Source observation and source-free consumers retain real source-produced constructors.
-use super::{AdmissionProfile, CanonicalTerminalArtifact, NativeTarget, OptimizationSelections, compiler_baseline_request_v1, optimize_artifact_sections, produce, produce_source, publish};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -8,6 +7,10 @@ use super::{AdmissionProfile, CanonicalTerminalArtifact, NativeTarget, Optimizat
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{
+    AdmissionProfile, CanonicalTerminalArtifact, NativeTarget, OptimizationSelections,
+    compiler_baseline_request_v1, optimize_artifact_sections, produce, produce_source, publish,
+};
 use semantic_vocabulary::{
     OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralPlaceKind, ValueId,
 };

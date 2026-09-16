@@ -1,6 +1,5 @@
 //! Source-proved fixed-extent writes retain ordinary native descriptor custody.
 
-use super::{AdmissionProfile, NativeTarget, calls};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -9,6 +8,7 @@ use super::{AdmissionProfile, NativeTarget, calls};
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{AdmissionProfile, NativeTarget, calls};
 #[path = "mutable_writes/admission.rs"]
 mod admission;
 

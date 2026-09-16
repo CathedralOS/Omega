@@ -1,7 +1,7 @@
-#[cfg(windows)]
-use crate::compile_rooted_canary_for_target;
 use super::assert_float_trapping_policy_canary_aborts;
 use super::fixture_roster;
+#[cfg(windows)]
+use crate::compile_rooted_canary_for_target;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_reviewed_repository_fixture,
     compile_rooted_canary_for_native_host, executable_name, fs, interpret, pass_canary,

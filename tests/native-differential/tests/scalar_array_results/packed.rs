@@ -1,6 +1,5 @@
 //! Odd-sized arrays retain exact bytes through ordinary owned calls and returns.
 
-use super::{NativeTarget, publish};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -9,6 +8,7 @@ use super::{NativeTarget, publish};
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{NativeTarget, publish};
 #[test]
 fn packed_array_fragments_preserve_three_byte_tails() {
     check_lengths([3, 11]);

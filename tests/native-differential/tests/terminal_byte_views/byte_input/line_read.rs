@@ -1,6 +1,5 @@
 //! Bounded line completion composes the byte leaf with ordinary scalar-sum returns.
 
-use super::{NativeTarget, lower_reader, publish_reader};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -9,6 +8,7 @@ use super::{NativeTarget, lower_reader, publish_reader};
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{NativeTarget, lower_reader, publish_reader};
 #[test]
 fn concrete_byte_leaf_line_reader_preserves_source_custody_and_native_outcomes() {
     let source = format!(

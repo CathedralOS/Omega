@@ -1,5 +1,4 @@
 //! Native execution retains checked subslice bounds and the derived view.
-use super::{AdmissionProfile, NativeTarget, ObligationId, OperationId, OperationKind, OptimizationSelections, PlaceId, ProofBundle, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalModule, ValueId, assert_byte_read_proof_rejected, compiler_baseline_request_v1, optimize_artifact_sections, stage_byte_view};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -8,6 +7,12 @@ use super::{AdmissionProfile, NativeTarget, ObligationId, OperationId, Operation
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{
+    AdmissionProfile, NativeTarget, ObligationId, OperationId, OperationKind,
+    OptimizationSelections, PlaceId, ProofBundle, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalModule, ValueId, assert_byte_read_proof_rejected, compiler_baseline_request_v1,
+    optimize_artifact_sections, stage_byte_view,
+};
 use proof_admission::{EvidenceRoute, ProofRule};
 
 #[path = "subslice/fixtures.rs"]

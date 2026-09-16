@@ -1,6 +1,5 @@
 //! Owned array payloads remain real values after argument registers are exhausted.
 
-use super::{NativeTarget, publish, target_plan};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -9,6 +8,7 @@ use super::{NativeTarget, publish, target_plan};
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{NativeTarget, publish, target_plan};
 #[test]
 fn outgoing_stack_array_replay_binds_argument_extent_and_exact_writes() {
     use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};

@@ -1,4 +1,11 @@
-use super::{LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_METADATA, LocalSourceLimits, SourceContentDigest, SourceResolveError, SourceTreePolicy, VerifiedPackageSourceEntryKind, capture_local_source, capture_verified_package_source_snapshot, local_snapshot_custody_identity, make_snapshot_read_only, make_tree_owner_writable, publish_local_snapshot, resolve_local_source, resolve_local_source_snapshot, resolve_local_source_snapshot_at_path, resolve_materialized_source, temp_root};
+use super::{
+    LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_METADATA, LocalSourceLimits, SourceContentDigest,
+    SourceResolveError, SourceTreePolicy, VerifiedPackageSourceEntryKind, capture_local_source,
+    capture_verified_package_source_snapshot, local_snapshot_custody_identity,
+    make_snapshot_read_only, make_tree_owner_writable, publish_local_snapshot,
+    resolve_local_source, resolve_local_source_snapshot, resolve_local_source_snapshot_at_path,
+    resolve_materialized_source, temp_root,
+};
 #[cfg(unix)]
 use super::{Path, PathBuf};
 #[test]

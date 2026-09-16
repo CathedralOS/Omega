@@ -1,4 +1,3 @@
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_target_operations::{TargetLoweringRequest, lower_to_target_operations};
 use proof_admission::AdmissionProfile;
@@ -10,6 +9,7 @@ use target::NativeTarget;
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     interpret_terminal_artifact_measured,
@@ -265,7 +265,9 @@ fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
     .expect("start resumable call");
     let mut meter = TerminalFuelMeter::with_allowance(2);
     assert_eq!(
-        execution.resume(&mut meter, &mut AcceptTerminalEffects).expect("exhaust in callee"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("exhaust in callee"),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(edge_id(2)),
@@ -275,7 +277,9 @@ fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
     );
     meter.replenish(1).expect("fund callee return");
     assert_eq!(
-        execution.resume(&mut meter, &mut AcceptTerminalEffects).expect("exhaust in caller"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("exhaust in caller"),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(edge_id(1)),
@@ -285,7 +289,9 @@ fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
     );
     meter.replenish(1).expect("fund caller return");
     assert_eq!(
-        execution.resume(&mut meter, &mut AcceptTerminalEffects).expect("complete call"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("complete call"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
         ))

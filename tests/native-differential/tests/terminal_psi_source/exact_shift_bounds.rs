@@ -1,4 +1,3 @@
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use super::{
     AbstractOperation, AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget,
     OperationKind, ScalarType, TargetLoweringRequest, TerminalExecutionResult,
@@ -21,6 +20,7 @@ use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_current_value_range_fact,
     validate_current_value_range_fact_at,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 #[test]
 fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidence() {

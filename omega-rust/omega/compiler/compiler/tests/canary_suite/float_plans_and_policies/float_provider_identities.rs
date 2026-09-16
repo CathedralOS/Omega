@@ -1,5 +1,3 @@
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
-use checked_interpreter::{InterpretOptions};
 use super::fixture_roster;
 use super::{
     optional_intrinsic_diagnostic_label, retained_float_differential_result_identity,
@@ -14,7 +12,9 @@ use crate::{
     reviewed_repository_fixture_package_inputs,
 };
 use checked_interpreter::InterpretOptions;
+use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 #[test]

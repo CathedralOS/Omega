@@ -1,8 +1,14 @@
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
-use super::{AbstractOperation, AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget, OperationKind, ScalarType, TargetLoweringRequest, TerminalExecutionResult, TerminalFuelSchedule, TerminalScalarValue, VocabularyMarker, compile_to_checked, decode_module, decode_proof_bundle, encode_module, encode_proof_section, interpret_terminal_artifact_measured, lower_artifact, lower_machine, lower_to_target_operations, source_canary, verify_module};
+use super::{
+    AbstractOperation, AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget,
+    OperationKind, ScalarType, TargetLoweringRequest, TerminalExecutionResult,
+    TerminalFuelSchedule, TerminalScalarValue, VocabularyMarker, compile_to_checked, decode_module,
+    decode_proof_bundle, encode_module, encode_proof_section, interpret_terminal_artifact_measured,
+    lower_artifact, lower_machine, lower_to_target_operations, source_canary, verify_module,
+};
 #[cfg(unix)]
 use super::{ScratchDirectory, fresh_scratch_directory};
 use compiler::CheckedCompileRequest;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 #[test]
 fn checked_source_exact_divide_uses_known_nonzero_divisor() {

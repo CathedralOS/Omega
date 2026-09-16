@@ -2,7 +2,7 @@
 //! selects the host target's authored `ProgramEntry`, interprets it, forwards its
 //! stdout/stderr, and exits with its exit code.
 
-use checked_interpreter::{InterpretOptions};
+use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 use std::io::{Read, Write};
 use std::path::Path;

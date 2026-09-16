@@ -1,5 +1,4 @@
 //! Calls receive a descriptor computed inside the caller, not a substituted input.
-use super::{AdmissionProfile, IntegerValue, NativeTarget, ObligationId, OperationId, OperationKind, PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalModule, ValueId, calls, fixtures, subslice};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -8,6 +7,11 @@ use super::{AdmissionProfile, IntegerValue, NativeTarget, ObligationId, Operatio
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{
+    AdmissionProfile, IntegerValue, NativeTarget, ObligationId, OperationId, OperationKind,
+    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalModule, ValueId, calls,
+    fixtures, subslice,
+};
 use semantic_vocabulary::{BlockId, EdgeId, ScalarType};
 use terminal_psi::{
     Block, Operation, OperationResult, StructuralMultiplicity, StructuralOperationResult,

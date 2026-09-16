@@ -1,6 +1,5 @@
 //! Empty arrays retain typed call custody without physical payload storage.
 
-use super::{NativeTarget, publish};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -9,6 +8,7 @@ use super::{NativeTarget, publish};
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{NativeTarget, publish};
 #[test]
 fn empty_arrays_return_without_a_physical_payload() {
     for (shape, value) in [
