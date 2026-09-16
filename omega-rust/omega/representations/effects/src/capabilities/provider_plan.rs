@@ -37,6 +37,16 @@ pub use typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 
 use crate::capabilities::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 
+/// Uninhabited marker for the retired string-backed import bootstrap.
+///
+/// Raw foreign bytes are data, never Omega symbol names or ambient lookup
+/// authority: an import binds through one evaluated
+/// [`EvaluatedForeignImport`] whose target-normalized locator was produced by
+/// checked Omega code. Keeping this type empty makes the retirement a
+/// compile-time fact rather than a convention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetiredStringBackedImportBootstrap {}
+
 /// How one method binds on one target. Instructions are checked `asm` bodies
 /// whose catalog contracts contribute their obligations; they are deliberately
 /// not a second, bodiless provider-binding mechanism.
@@ -48,12 +58,17 @@ pub enum ProviderBinding {
     Import { evaluated: EvaluatedForeignImport },
     /// Retired source `via Binding::DllImport("library", "symbol")` bridge.
     ///
-    /// The parser no longer produces this carrier; it is retained only for
-    /// decoded artifacts and snapshots. This is intentionally distinct from
-    /// [`Self::Import`]: string pairs are not normalized evaluated binding
-    /// data and cannot silently enter the new locator path. Remove it with
-    /// the decoded-artifact readers.
-    StringBackedImportBootstrap { library: String, symbol: String },
+    /// No producer, codec, or report constructs this variant any more: its
+    /// only field is the uninhabited [`RetiredStringBackedImportBootstrap`],
+    /// so a value of this variant cannot exist and every consumer arm is
+    /// statically dead. Versioned encodings that once carried it reject the
+    /// retired tag on decode instead of reinterpreting two authored strings
+    /// as one physical locator. The variant name survives only because
+    /// `native-realization` still spells `StringBackedImportBootstrap { .. }`
+    /// rejection arms; delete this variant together with those arms.
+    StringBackedImportBootstrap {
+        retired: RetiredStringBackedImportBootstrap,
+    },
     /// Direct system call by number.
     Syscall { number: i64 },
     /// A compiler-known operation furnished by the selected target package.
@@ -337,9 +352,7 @@ impl ProviderPlan {
                         locator.non_authoritative_compatibility_fingerprint(),
                     )
                 }
-                ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-                    format!("StringBackedImportBootstrap:{library:?}/{symbol:?}")
-                }
+                ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
                 ProviderBinding::CompilerIntrinsic { machine, .. } => {
                     format!("CompilerIntrinsic {{ machine: {machine:?} }}")
                 }
@@ -720,20 +733,7 @@ impl ProviderPlan {
                         ));
                     }
                 }
-                ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-                    if library.is_empty() {
-                        errors.push(format!(
-                            "plan `{}` row `{}` import has no exact library identity",
-                            self.name, row.method,
-                        ));
-                    }
-                    if symbol.is_empty() {
-                        errors.push(format!(
-                            "plan `{}` row `{}` import has no exact symbol identity",
-                            self.name, row.method,
-                        ));
-                    }
-                }
+                ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
                 ProviderBinding::Syscall { number } => {
                     if u32::try_from(*number).is_err() {
                         errors.push(format!(

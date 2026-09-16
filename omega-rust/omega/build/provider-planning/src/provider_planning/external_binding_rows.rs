@@ -116,12 +116,7 @@ fn extract_external_binding_rows_for_scope(
                     // coordinates.
                     locator: evaluated.locator().clone(),
                 },
-                ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-                    ExternalBindingKind::StringBackedImportBootstrap {
-                        module: library.clone(),
-                        symbol: symbol.clone(),
-                    }
-                }
+                ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
                 ProviderBinding::Syscall { number } => {
                     ExternalBindingKind::Syscall { number: *number }
                 }

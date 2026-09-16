@@ -138,28 +138,19 @@ fn windows_console_plan() -> ProviderPlan {
                 method: "write_line".to_owned(),
                 requirement_identity: "Console::write_line".to_owned(),
                 requirement_lifetime_partition: Vec::new(),
-                binding: ProviderBinding::StringBackedImportBootstrap {
-                    library: "kernel32.dll".to_owned(),
-                    symbol: "WriteFile".to_owned(),
-                },
+                binding: normalized_windows_import(b"kernel32.dll", b"WriteFile"),
             },
             ProviderPlanRow {
                 method: "read_byte".to_owned(),
                 requirement_identity: "Console::read_byte".to_owned(),
                 requirement_lifetime_partition: Vec::new(),
-                binding: ProviderBinding::StringBackedImportBootstrap {
-                    library: "kernel32.dll".to_owned(),
-                    symbol: "ReadFile".to_owned(),
-                },
+                binding: normalized_windows_import(b"kernel32.dll", b"ReadFile"),
             },
             ProviderPlanRow {
                 method: "exit_process".to_owned(),
                 requirement_identity: "Console::exit_process".to_owned(),
                 requirement_lifetime_partition: Vec::new(),
-                binding: ProviderBinding::StringBackedImportBootstrap {
-                    library: "kernel32.dll".to_owned(),
-                    symbol: "ExitProcess".to_owned(),
-                },
+                binding: normalized_windows_import(b"kernel32.dll", b"ExitProcess"),
             },
         ],
         origin_package_identity: None,
@@ -1001,6 +992,11 @@ fn schema_validation_requires_selection_and_readable_names() {
     let mut valid = windows_console_plan();
     valid.target.clear();
     valid.provider_type.clear();
+    // An evaluated import is bound to its normalized target, so a free
+    // universal plan carries target-free leaves.
+    for row in &mut valid.rows {
+        row.binding = ProviderBinding::Syscall { number: 60 };
+    }
     valid.schema.trait_name = "DerivedConsole".to_owned();
     valid.schema.methods[0].requirement_owner = "BaseConsole".to_owned();
     valid.schema.methods[0].name = "operation".to_owned();
@@ -1059,10 +1055,6 @@ fn schema_validation_requires_canonical_binding_payloads() {
 
     let valid_bindings = [
         normalized_windows_import(b"kernel32.dll", b"WriteFile"),
-        ProviderBinding::StringBackedImportBootstrap {
-            library: "kernel32.dll".to_owned(),
-            symbol: "WriteFile".to_owned(),
-        },
         ProviderBinding::Syscall { number: 0 },
         ProviderBinding::Syscall {
             number: i64::from(u32::MAX),
@@ -1104,10 +1096,6 @@ fn schema_validation_requires_canonical_binding_payloads() {
     );
 
     for binding in [
-        ProviderBinding::StringBackedImportBootstrap {
-            library: "kernel32.dll".to_owned(),
-            symbol: "WriteFile".to_owned(),
-        },
         ProviderBinding::Syscall { number: 0 },
         ProviderBinding::CompilerIntrinsic {
             machine: "Console::write_line".to_owned(),
@@ -1117,6 +1105,9 @@ fn schema_validation_requires_canonical_binding_payloads() {
         let mut free = plan_with_binding(binding);
         free.target.clear();
         free.provider_type.clear();
+        for row in &mut free.rows[1..] {
+            row.binding = ProviderBinding::Syscall { number: 60 };
+        }
         assert!(
             free.validate_candidate_against_schema().is_empty(),
             "irreducible non-table leaves remain valid without a target or nominal provider type"
@@ -1124,20 +1115,6 @@ fn schema_validation_requires_canonical_binding_payloads() {
     }
 
     let corruptions = [
-        (
-            ProviderBinding::StringBackedImportBootstrap {
-                library: String::new(),
-                symbol: "WriteFile".to_owned(),
-            },
-            "import has no exact library identity",
-        ),
-        (
-            ProviderBinding::StringBackedImportBootstrap {
-                library: "kernel32.dll".to_owned(),
-                symbol: String::new(),
-            },
-            "import has no exact symbol identity",
-        ),
         (ProviderBinding::Syscall { number: -1 }, "syscall number -1"),
         (
             ProviderBinding::Syscall {

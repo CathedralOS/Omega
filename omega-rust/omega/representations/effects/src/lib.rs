@@ -67,9 +67,8 @@
 //!
 //! @Incomplete: `derive_static_manifest` maps `ProviderBinding::Syscall` to
 //! `None` - neither a known executable entry nor an attributed incompleteness
-//! cause. Every other non-checked binding (`Import`,
-//! `StringBackedImportBootstrap`, `VtableSlot`, `VtableField`, `TableFunction`)
-//! produces one or the other. A syscall row therefore vanishes from the
+//! cause. Every other non-checked binding (`Import`, `VtableSlot`,
+//! `VtableField`, `TableFunction`) produces one or the other. A syscall row therefore vanishes from the
 //! manifest silently, and a TCB manifest that omits syscalls understates the
 //! trusted computing base rather than reporting that it could not describe it.
 //!

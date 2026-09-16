@@ -325,16 +325,13 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
             .find(|machine| machine.symbol == fixture.producer)
             .expect("producer machine");
 
-        let mut legacy_fallback = derived.clone();
-        legacy_fallback[0].plan.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
-            library: "kernel32.dll".to_owned(),
-            symbol: "ExitProcess".to_owned(),
-        };
+        let mut slot_fallback = derived.clone();
+        slot_fallback[0].plan.rows[0].binding = ProviderBinding::VtableSlot { index: 0 };
         assert!(
             !validate_derived_provider_plan_candidates(
                 &fixture.typed,
                 &fixture.table,
-                &legacy_fallback,
+                &slot_fallback,
             )
             .is_empty()
         );

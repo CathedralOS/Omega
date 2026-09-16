@@ -71,7 +71,7 @@ fn trust_report_rejects_compact_equal_selected_plan_substitution() {
 }
 
 #[test]
-fn trust_realization_retains_normalized_locator_and_keeps_bootstrap_distinct() {
+fn trust_realization_retains_normalized_locator() {
     let locator = effects::normalize_foreign_locator(
         effects::ForeignLocatorCandidate::ElfVersioned {
             object: b"libopaque.so".to_vec(),
@@ -111,24 +111,6 @@ fn trust_realization_retains_normalized_locator_and_keeps_bootstrap_distinct() {
     assert_eq!(
         normalized.foreign_locator_compatibility_report_identity(),
         Some(locator.non_authoritative_compatibility_fingerprint()),
-    );
-
-    let bootstrap = trust_provider_realization(
-        &effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
-            library: "libopaque.so".to_owned(),
-            symbol: "invoke_raw".to_owned(),
-        },
-    );
-    assert_eq!(
-        bootstrap,
-        TrustProviderRealization::StringBackedImportBootstrap {
-            library: "libopaque.so".to_owned(),
-            symbol: "invoke_raw".to_owned(),
-        }
-    );
-    assert_eq!(
-        bootstrap.foreign_locator_compatibility_report_identity(),
-        None
     );
 }
 

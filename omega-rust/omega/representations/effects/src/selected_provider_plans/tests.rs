@@ -68,6 +68,44 @@ fn candidate(name: &str, method: &str) -> ProviderPlan {
     }
 }
 
+/// One opaque Windows import spelled through the evaluated locator route, as
+/// the selected-plan row and as the matching opaque admission binding.
+fn opaque_import(
+    library: &[u8],
+    export: &[u8],
+    seed: u8,
+) -> (ProviderBinding, crate::OpaqueInProcessBinding) {
+    let locator = crate::normalize_foreign_locator(
+        crate::ForeignLocatorCandidate::PeByName {
+            library: library.to_vec(),
+            export: export.to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    )
+    .expect("normalized opaque import");
+    let evaluated = evaluated_import(locator, seed);
+    (
+        ProviderBinding::Import {
+            evaluated: evaluated.clone(),
+        },
+        crate::OpaqueInProcessBinding::Import { evaluated },
+    )
+}
+
+fn opaque_candidate(
+    name: &str,
+    method: &str,
+    library: &[u8],
+    export: &[u8],
+    seed: u8,
+) -> (ProviderPlan, crate::OpaqueInProcessBinding) {
+    let mut plan = candidate(name, method);
+    plan.target = "windows_x86_64".into();
+    let (binding, opaque_binding) = opaque_import(library, export, seed);
+    plan.rows[0].binding = binding;
+    (plan, opaque_binding)
+}
+
 #[test]
 fn selected_plans_are_retained_in_canonical_order() {
     let alpha = candidate("Alpha", "read");
@@ -456,11 +494,8 @@ fn selected_plan_identity_retains_macho_install_name_and_symbol() {
 
 #[test]
 fn pinned_opaque_entry_remains_incomplete_without_executable_closure_evidence() {
-    let mut opaque = candidate("Opaque", "read");
-    opaque.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
-        library: "vendor-storage".into(),
-        symbol: "read".into(),
-    };
+    let (opaque, opaque_binding) =
+        opaque_candidate("Opaque", "read", b"vendor-storage", b"read", 41);
     let plan_identity = opaque.report_fingerprint();
     let selected = SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&opaque),
@@ -472,10 +507,7 @@ fn pinned_opaque_entry_remains_incomplete_without_executable_closure_evidence() 
         provider_plan_digest: opaque.identity_digest(),
         method: "read".into(),
         requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
-        binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
-            library: "vendor-storage".into(),
-            symbol: "read".into(),
-        },
+        binding: opaque_binding.clone(),
         executable_identity: "sha256:0123456789abcdef".into(),
         implementation_evidence_identity: "receipt:vendor-storage-v1".into(),
         execution_scope: crate::ExecutionScope::CallerAddressSpace,
@@ -502,11 +534,7 @@ fn pinned_opaque_entry_remains_incomplete_without_executable_closure_evidence() 
 
 #[test]
 fn exact_closure_and_containment_receipts_complete_the_opaque_scope() {
-    let mut opaque = candidate("Opaque", "read");
-    opaque.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
-        library: "platform".into(),
-        symbol: "read".into(),
-    };
+    let (opaque, opaque_binding) = opaque_candidate("Opaque", "read", b"platform", b"read", 42);
     let plan_identity = opaque.report_fingerprint();
     let selected = SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&opaque),
@@ -518,10 +546,7 @@ fn exact_closure_and_containment_receipts_complete_the_opaque_scope() {
         provider_plan_digest: opaque.identity_digest(),
         method: "read".into(),
         requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
-        binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
-            library: "platform".into(),
-            symbol: "read".into(),
-        },
+        binding: opaque_binding.clone(),
         executable_identity: "platform-baseline:read-v1".into(),
         implementation_evidence_identity: "receipt:platform-read-v1".into(),
         execution_scope: crate::ExecutionScope::CallerAddressSpace,
@@ -557,16 +582,9 @@ fn exact_closure_and_containment_receipts_complete_the_opaque_scope() {
 
 #[test]
 fn exact_closure_evidence_survives_an_unrelated_incomplete_row() {
-    let mut closed = candidate("Closed", "read");
-    closed.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
-        library: "closed-platform".into(),
-        symbol: "read".into(),
-    };
-    let mut open = candidate("Open", "write");
-    open.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
-        library: "open-vendor".into(),
-        symbol: "write".into(),
-    };
+    let (closed, closed_binding) =
+        opaque_candidate("Closed", "read", b"closed-platform", b"read", 43);
+    let (open, _open_binding) = opaque_candidate("Open", "write", b"open-vendor", b"write", 44);
     let closed_identity = closed.report_fingerprint();
     let selected = SelectedProviderPlanFacts::from_selection(
         &[closed.clone(), open.clone()],
@@ -578,10 +596,7 @@ fn exact_closure_evidence_survives_an_unrelated_incomplete_row() {
         provider_plan_digest: closed.identity_digest(),
         method: "read".into(),
         requirement_identity: closed.schema.methods[0].requirement_identity.clone(),
-        binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
-            library: "closed-platform".into(),
-            symbol: "read".into(),
-        },
+        binding: closed_binding.clone(),
         executable_identity: "platform-baseline:closed-read-v1".into(),
         implementation_evidence_identity: "receipt:closed-read-v1".into(),
         execution_scope: crate::ExecutionScope::CallerAddressSpace,
@@ -616,11 +631,8 @@ fn exact_closure_evidence_survives_an_unrelated_incomplete_row() {
 
 #[test]
 fn opaque_admission_rejects_binding_drift_and_duplicate_containment_axes() {
-    let mut opaque = candidate("Opaque", "read");
-    opaque.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
-        library: "platform".into(),
-        symbol: "read".into(),
-    };
+    let (opaque, opaque_binding) = opaque_candidate("Opaque", "read", b"platform", b"read", 45);
+    let (_, drifted_binding) = opaque_import(b"other", b"read", 45);
     let plan_identity = opaque.report_fingerprint();
     let selected = SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&opaque),
@@ -632,10 +644,7 @@ fn opaque_admission_rejects_binding_drift_and_duplicate_containment_axes() {
         provider_plan_digest: opaque.identity_digest(),
         method: "read".into(),
         requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
-        binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
-            library: "other".into(),
-            symbol: "read".into(),
-        },
+        binding: drifted_binding,
         executable_identity: "sha256:0123456789abcdef".into(),
         implementation_evidence_identity: "receipt:opaque-v1".into(),
         execution_scope: crate::ExecutionScope::CallerAddressSpace,
@@ -662,10 +671,7 @@ fn opaque_admission_rejects_binding_drift_and_duplicate_containment_axes() {
     );
 
     let mut candidate = candidate;
-    candidate.binding = crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
-        library: "platform".into(),
-        symbol: "read".into(),
-    };
+    candidate.binding = opaque_binding;
     candidate.containment = vec![
         crate::ContainmentEvidence {
             guarantee: crate::ContainmentGuarantee::FaultContainment,

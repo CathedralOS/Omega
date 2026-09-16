@@ -33,12 +33,7 @@ pub(super) fn project(
                 producer: producer(compilation, row)?,
             }
         }
-        ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-            PackagePolicyProviderBinding::StringBackedImportBootstrap {
-                library: library.clone(),
-                symbol: symbol.clone(),
-            }
-        }
+        ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
         ProviderBinding::Syscall { number } => {
             let evaluated = evaluated_row(compilation, requirement, realization)?
                 .map(|row| {

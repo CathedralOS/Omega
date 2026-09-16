@@ -230,11 +230,10 @@ impl ProviderPlanDigestEncoder {
                 }
                 self.bytes(&evaluated.receipt().identity_digest());
             }
-            ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-                self.byte(1);
-                self.string(library);
-                self.string(symbol);
-            }
+            // Tag byte 1 belonged to the retired string-backed import
+            // bootstrap. It stays unassigned so no later mechanism can
+            // collide with digests of plans that once carried it.
+            ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
             ProviderBinding::Syscall { number } => {
                 self.byte(2);
                 self.i64(*number);

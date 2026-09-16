@@ -172,10 +172,6 @@ pub enum OpaqueInProcessBinding {
     Import {
         evaluated: crate::provider_plan::EvaluatedForeignImport,
     },
-    StringBackedImportBootstrap {
-        library: String,
-        symbol: String,
-    },
     VtableSlot {
         index: i64,
     },
@@ -701,8 +697,8 @@ pub(crate) fn derive_static_manifest(
                     execution_scope: scope,
                     containment: Vec::new(),
                 }),
+                ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
                 ProviderBinding::Import { .. }
-                | ProviderBinding::StringBackedImportBootstrap { .. }
                 | ProviderBinding::VtableSlot { .. }
                 | ProviderBinding::VtableField { .. }
                 | ProviderBinding::TableFunction { .. } => {
@@ -801,12 +797,7 @@ fn opaque_binding(binding: &ProviderBinding) -> Option<OpaqueInProcessBinding> {
         ProviderBinding::Import { evaluated } => Some(OpaqueInProcessBinding::Import {
             evaluated: evaluated.clone(),
         }),
-        ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-            Some(OpaqueInProcessBinding::StringBackedImportBootstrap {
-                library: library.clone(),
-                symbol: symbol.clone(),
-            })
-        }
+        ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
         ProviderBinding::VtableSlot { index } => {
             Some(OpaqueInProcessBinding::VtableSlot { index: *index })
         }

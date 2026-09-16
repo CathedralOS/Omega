@@ -8,7 +8,10 @@ use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
 };
 use effects::provider_plan::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+    EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
+    EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
+    EvaluatedForeignImport, ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
+    ServiceSchema,
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -189,24 +192,52 @@ fn resolve(fixture: &Fixture, schema_name: &str) -> Result<Option<BoundaryEntryP
     .map_err(|diagnostic| diagnostic.message)
 }
 
-fn add_bootstrap_row(fixture: &mut Fixture) {
-    fixture.plans[0].target = "retained-target".to_owned();
+fn evaluated_windows_import(library: &[u8], export: &[u8]) -> EvaluatedForeignImport {
+    let locator = effects::normalize_foreign_locator(
+        effects::ForeignLocatorCandidate::PeByName {
+            library: library.to_vec(),
+            export: export.to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    )
+    .expect("normalized fixture import");
+    let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)
+        .expect("valid fixture usage");
+    let receipt = EvaluatedBindingReceipt::from_evaluation(
+        None,
+        "fixture::producer".to_owned(),
+        EvaluatedBindingProducerClosureDigest::from_bytes([11; 32]).unwrap(),
+        1,
+        usage,
+        EvaluatedBindingEvaluationDigest::from_bytes([12; 32]).unwrap(),
+        1,
+        EvaluatedBindingMaterializationDigest::from_bytes([13; 32]).unwrap(),
+        locator.identity_digest(),
+    )
+    .expect("valid fixture receipt");
+    EvaluatedForeignImport::from_retained_evidence(locator, receipt)
+        .expect("receipt matches fixture locator")
+}
+
+fn add_import_row(fixture: &mut Fixture) -> EvaluatedForeignImport {
+    let evaluated = evaluated_windows_import(b"retained-library.dll", b"retained_symbol");
+    fixture.plans[0].target = "windows_x86_64".to_owned();
     fixture.plans[0].provider_type = "RetainedProvider".to_owned();
     fixture.plans[0].rows.push(ProviderPlanRow {
         method: METHOD_NAME.to_owned(),
         requirement_identity: fixture.requirement_identity.clone(),
         requirement_lifetime_partition: Vec::new(),
-        binding: ProviderBinding::StringBackedImportBootstrap {
-            library: "retained-library".to_owned(),
-            symbol: "retained-symbol".to_owned(),
+        binding: ProviderBinding::Import {
+            evaluated: evaluated.clone(),
         },
     });
+    evaluated
 }
 
 #[test]
 fn checked_surface_settlement_retains_exact_rows_and_preserves_equal_arc_identity() {
     let mut fixture = fixture(false);
-    add_bootstrap_row(&mut fixture);
+    add_import_row(&mut fixture);
     let expected = extract_external_binding_rows(
         None,
         target::NativeTarget::host(),
@@ -268,7 +299,7 @@ fn empty_settlement_preserves_arc_identity() {
 #[test]
 fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
     let mut fixture = fixture(false);
-    add_bootstrap_row(&mut fixture);
+    add_import_row(&mut fixture);
     let mut retained = Arc::from([]);
     settle_external_binding_rows(
         &mut retained,
@@ -308,7 +339,7 @@ fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
 #[test]
 fn external_abi_rows_derive_from_the_selected_provider_plan() {
     let mut fixture = fixture(false);
-    add_bootstrap_row(&mut fixture);
+    let evaluated = add_import_row(&mut fixture);
 
     let rows = extract_external_binding_rows(
         None,
@@ -323,7 +354,7 @@ fn external_abi_rows_derive_from_the_selected_provider_plan() {
         panic!("one selected external ABI row")
     };
 
-    assert_eq!(row.target_name, "retained-target");
+    assert_eq!(row.target_name, "windows_x86_64");
     assert_eq!(row.trait_name, SCHEMA_NAME);
     assert_eq!(row.method, METHOD_NAME);
     assert_eq!(row.requirement_identity, fixture.requirement_identity);
@@ -331,9 +362,8 @@ fn external_abi_rows_derive_from_the_selected_provider_plan() {
     assert_eq!(row.boundary_entry_plan, Some(fixture.expected));
     assert_eq!(
         row.binding,
-        calling_conventions::ExternalBindingKind::StringBackedImportBootstrap {
-            module: "retained-library".to_owned(),
-            symbol: "retained-symbol".to_owned(),
+        calling_conventions::ExternalBindingKind::Import {
+            locator: evaluated.locator().clone(),
         }
     );
 }
@@ -341,7 +371,7 @@ fn external_abi_rows_derive_from_the_selected_provider_plan() {
 #[test]
 fn native_external_projection_retains_syscall_custody_without_unrelated_abi_planning() {
     let mut fixture = fixture(false);
-    add_bootstrap_row(&mut fixture);
+    add_import_row(&mut fixture);
     fixture.plans[0].target = "linux_x86_64".to_owned();
     fixture.plans[0].rows[0].binding = ProviderBinding::Syscall { number: 231 };
     let expected = extract_external_binding_rows(
@@ -362,10 +392,7 @@ fn native_external_projection_retains_syscall_custody_without_unrelated_abi_plan
             table: "RetainedProvider".to_owned(),
             field: "grant".to_owned(),
         },
-        ProviderBinding::StringBackedImportBootstrap {
-            library: "legacy".to_owned(),
-            symbol: "entry".to_owned(),
-        },
+        ProviderBinding::VtableSlot { index: 2 },
     ] {
         fixture.plans[0].rows.push(ProviderPlanRow {
             method: "separate_route".to_owned(),

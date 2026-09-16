@@ -297,13 +297,6 @@ pub(super) fn external_binding_matches_provider_binding(
                 })
             }),
         (
-            PackageReviewExternalBinding::Import { library, symbol },
-            effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
-                library: selected_library,
-                symbol: selected_symbol,
-            },
-        ) => library == selected_library && symbol == selected_symbol,
-        (
             PackageReviewExternalBinding::Syscall { number },
             effects::provider_plan::ProviderBinding::Syscall {
                 number: selected_number,

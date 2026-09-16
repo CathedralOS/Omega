@@ -340,16 +340,19 @@ fn adapter_satisfies_canary_selects_exact_checked_adapter_plan() {
 
 #[test]
 fn external_leaf_via_canary_selects_exact_free_import_plan() {
+    // The leaf is one evaluated typed PE locator produced by `halt_binding`;
+    // ordinary external `via` evaluation requires the canary's own selected
+    // Windows target.
     let canary = pass_canary(fixture_roster::EXTERNAL_LEAF_VIA_COMPILE);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
-        None,
+        Some("windows_x86_64"),
     ))
-    .expect("free external leaf should resolve the Shutdown slot");
+    .expect("evaluated external leaf should resolve the Shutdown slot for its Windows target");
     assert_eq!(
         checked.selected_program_entry_machine(),
-        None,
-        "targetless checking must not select an authored target entry"
+        Some("Main::main"),
+        "the reviewed Windows fixture selects the authored main entry"
     );
     let shutdown_plan = checked
         .selected_provider_plans()
@@ -361,25 +364,39 @@ fn external_leaf_via_canary_selects_exact_free_import_plan() {
     assert!(shutdown_plan.covers_schema());
     assert_eq!(shutdown_plan.rows.len(), 1);
     assert_eq!(shutdown_plan.rows[0].method, "halt");
-    assert!(matches!(
-        &shutdown_plan.rows[0].binding,
-        effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { library, symbol }
-            if library == "kernel32.dll" && symbol == "ExitProcess"
-    ));
+    let effects::provider_plan::ProviderBinding::Import { evaluated } =
+        &shutdown_plan.rows[0].binding
+    else {
+        panic!("Shutdown must retain one evaluated import binding, never a string-backed row");
+    };
+    assert_eq!(
+        evaluated.locator().target(),
+        target::TargetProfile::WindowsX64
+    );
+    assert_eq!(
+        evaluated.locator().locator(),
+        &target::ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"ExitProcess".to_vec(),
+        }
+    );
 }
 
 #[test]
 fn external_leaf_dllimport_canary_selects_exact_free_import_plan() {
+    // The leaf is one evaluated typed Mach-O locator produced by
+    // `leaf_binding`; ordinary external `via` evaluation requires the
+    // canary's own selected Darwin target.
     let canary = pass_canary(fixture_roster::EXTERNAL_LEAF_DLLIMPORT_COMPILE);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
-        None,
+        Some("macos_arm64"),
     ))
-    .expect("free DllImport leaf should resolve the Leaf slot");
+    .expect("evaluated DllImport leaf should resolve the Leaf slot for its Darwin target");
     assert_eq!(
         checked.selected_program_entry_machine(),
-        None,
-        "targetless checking must not select an authored target entry"
+        Some("Main::main"),
+        "the reviewed Darwin fixture selects the authored main entry"
     );
     let leaf_plan = checked
         .selected_provider_plans()
@@ -391,11 +408,21 @@ fn external_leaf_dllimport_canary_selects_exact_free_import_plan() {
     assert!(leaf_plan.covers_schema());
     assert_eq!(leaf_plan.rows.len(), 1);
     assert_eq!(leaf_plan.rows[0].method, "exit");
-    assert!(matches!(
-        &leaf_plan.rows[0].binding,
-        effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { library, symbol }
-            if library == "libSystem.B.dylib" && symbol == "_exit"
-    ));
+    let effects::provider_plan::ProviderBinding::Import { evaluated } = &leaf_plan.rows[0].binding
+    else {
+        panic!("Leaf must retain one evaluated import binding, never a string-backed row");
+    };
+    assert_eq!(
+        evaluated.locator().target(),
+        target::TargetProfile::MacosArm64
+    );
+    assert_eq!(
+        evaluated.locator().locator(),
+        &target::ForeignLocatorCandidate::MachODylibSymbol {
+            install_name: b"libSystem.B.dylib".to_vec(),
+            symbol: b"_exit".to_vec(),
+        }
+    );
 }
 
 #[test]

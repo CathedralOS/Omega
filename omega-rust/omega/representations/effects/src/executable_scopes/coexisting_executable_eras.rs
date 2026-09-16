@@ -542,10 +542,7 @@ mod tests {
             provider_plan_digest: ProviderPlan::default().identity_digest(),
             method: "decode".into(),
             requirement_identity: "Codec::decode".into(),
-            binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
-                library: "codec".into(),
-                symbol: "decode".into(),
-            },
+            binding: OpaqueInProcessBinding::VtableSlot { index: 3 },
         };
         set.admit_era(
             10,
