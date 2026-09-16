@@ -14,8 +14,8 @@
 //! unchanged image rejects it with `ImageBindingMismatch`.
 
 use super::{
-    edge_id, edge_owned_cleanup_plan, machine_id, operation_id, promote_x86_cleanup_to_scalar,
-    scalar_three_leaf_cleanup_plan, stored_dynamic_call_plan,
+    continuation_unit_call_plan, edge_id, edge_owned_cleanup_plan, machine_id, operation_id,
+    promote_x86_cleanup_to_scalar, scalar_three_leaf_cleanup_plan, stored_dynamic_call_plan,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
@@ -1812,4 +1812,243 @@ fn installation_function_scalar_transport_rejects_every_one_field_substitution()
             row.mixed_structural_scalar_abi = Some(abi);
         },
     );
+}
+
+/// Every representable leaf of an installed Unit continuation row is
+/// authenticated: the source and target blocks, each binding's parameter and
+/// argument identities, and inserted or dropped bindings still encode and are
+/// rejected by independent replay, while the operation ordinals, a revisited
+/// target block, the nested zero-byte cleanup's edge, interval, locals,
+/// structural types and actions, bindings naming live or unknown values or
+/// mismatched types, and dropped or duplicated continuation rows are rejected
+/// at canonical encoding.
+#[test]
+fn installation_function_unit_continuations_reject_every_one_field_substitution() {
+    let plan = continuation_unit_call_plan();
+    let artifact = build_object_artifact(&plan).expect("continuation artifact");
+    let image = emit_executable_image(&artifact, 3).expect("continuation image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("continuation installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = record.functions()[0].clone();
+    assert_eq!(authentic.unit_continuations.len(), 1);
+    assert_eq!(authentic.unit_continuations[0].operation_ordinal, 1);
+    assert_eq!(
+        authentic.unit_continuations[0].successor_operation_ordinal,
+        2
+    );
+    assert_eq!(authentic.unit_continuations[0].bindings.len(), 1);
+    assert_eq!(authentic.unit_continuations[0].cleanup.byte_count, 0);
+    assert!(authentic.unit_affine_cleanup.is_some());
+
+    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
+        (
+            "unit_continuations[0].source_block",
+            Box::new(|row| {
+                row.unit_continuations[0].source_block = block_id(9);
+            }),
+        ),
+        (
+            "unit_continuations[0].target_block",
+            Box::new(|row| {
+                row.unit_continuations[0].target_block = block_id(9);
+            }),
+        ),
+        (
+            "unit_continuations[0].bindings[0].parameter",
+            Box::new(|row| {
+                row.unit_continuations[0].bindings[0].parameter = value_id(52);
+            }),
+        ),
+        // The other live integer parameter is a representable argument.
+        (
+            "unit_continuations[0].bindings[0].argument",
+            Box::new(|row| {
+                row.unit_continuations[0].bindings[0].argument = value_id(46);
+            }),
+        ),
+        (
+            "unit_continuations[0].bindings::insert",
+            Box::new(|row| {
+                row.unit_continuations[0]
+                    .bindings
+                    .push(abstract_operations::ValueBinding {
+                        parameter: value_id(51),
+                        argument: value_id(46),
+                        scalar_type: i32_scalar(),
+                    });
+            }),
+        ),
+        (
+            "unit_continuations[0].bindings::drop",
+            Box::new(|row| {
+                row.unit_continuations[0].bindings.pop();
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        assert_substitution_rejected_by_replay(
+            field,
+            &record,
+            &image,
+            &authentic_fingerprint,
+            0,
+            mutate,
+        );
+    }
+
+    let rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut InstalledFunction)>,
+        InstallationError,
+    )> = vec![
+        // The call owns ordinal 0; the continuation must chain at ordinal 1.
+        (
+            "unit_continuations[0].operation_ordinal",
+            Box::new(|row| {
+                row.unit_continuations[0].operation_ordinal = 0;
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations[0].successor_operation_ordinal",
+            Box::new(|row| {
+                row.unit_continuations[0].successor_operation_ordinal = 4;
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        // A continuation may not loop back to a block already on the chain.
+        (
+            "unit_continuations[0].target_block::revisit",
+            Box::new(|row| {
+                row.unit_continuations[0].target_block = row.unit_continuations[0].source_block;
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        // The nested cleanup edge must carry its own zero-byte attribution.
+        (
+            "unit_continuations[0].cleanup.psi_edge",
+            Box::new(|row| {
+                row.unit_continuations[0].cleanup.psi_edge = edge_id(8);
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        // Nor may it reuse the final return edge.
+        (
+            "unit_continuations[0].cleanup.psi_edge::returned-edge",
+            Box::new(|row| {
+                row.unit_continuations[0].cleanup.psi_edge =
+                    row.unit_affine_cleanup.as_ref().expect("cleanup").psi_edge;
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations[0].cleanup.code_offset",
+            Box::new(|row| {
+                row.unit_continuations[0].cleanup.code_offset += 1;
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations[0].cleanup.byte_count",
+            Box::new(|row| {
+                row.unit_continuations[0].cleanup.byte_count = 1;
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations[0].cleanup.locals::insert",
+            Box::new(|row| {
+                row.unit_continuations[0].cleanup.locals.push(extra_local());
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        // The continuation cleanup retains exactly the returned cleanup's
+        // structural type roster.
+        (
+            "unit_continuations[0].cleanup.structural_types",
+            Box::new(|row| {
+                row.unit_continuations[0].cleanup.structural_types = extra_type_catalog();
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        // Residual discards name a partially consumed root; this caller moves
+        // nothing across the boundary.
+        (
+            "unit_continuations[0].cleanup.actions::insert-residual",
+            Box::new(|row| {
+                row.unit_continuations[0].cleanup.actions.push(
+                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                        terminal_psi::StructuralAffineDiscard {
+                            place: place_id(1),
+                            path: Vec::new(),
+                            structural_type: structural_type(1),
+                        },
+                    ),
+                );
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations[0].cleanup.actions::insert-root",
+            Box::new(|row| {
+                row.unit_continuations[0].cleanup.actions.push(
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place_id(9)),
+                );
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        // A binding may not rename a value already live across the boundary.
+        (
+            "unit_continuations[0].bindings[0].parameter::live-value",
+            Box::new(|row| {
+                row.unit_continuations[0].bindings[0].parameter = value_id(46);
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations[0].bindings[0].argument::unknown-value",
+            Box::new(|row| {
+                row.unit_continuations[0].bindings[0].argument = value_id(99);
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations[0].bindings[0].scalar_type",
+            Box::new(|row| {
+                row.unit_continuations[0].bindings[0].scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations[0].bindings::insert-duplicate",
+            Box::new(|row| {
+                let binding = row.unit_continuations[0].bindings[0].clone();
+                row.unit_continuations[0].bindings.push(binding);
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        // Dropping the row strands the zero-byte edge attribution the record
+        // still carries; duplicating it breaks the strict ordinal chain.
+        (
+            "unit_continuations::drop",
+            Box::new(|row| {
+                row.unit_continuations.pop();
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+        (
+            "unit_continuations::insert-duplicate",
+            Box::new(|row| {
+                let continuation = row.unit_continuations[0].clone();
+                row.unit_continuations.push(continuation);
+            }),
+            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
+    }
 }

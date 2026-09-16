@@ -306,6 +306,265 @@ pub(super) fn edge_owned_cleanup_plan() -> MachineCodePlan {
     }
 }
 
+/// A Unit caller whose scalar-parameter ABI spills both incoming registers
+/// into its 16-byte frame before an argument-free internal call, then crosses
+/// one continuation boundary that rebinds the first parameter to a successor
+/// parameter behind a zero-byte edge cleanup, and returns under the final
+/// edge cleanup.
+pub(super) fn continuation_unit_call_plan() -> MachineCodePlan {
+    let i32_scalar = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+            .expect("i32"),
+    );
+    let i32_shape = ValueShape::integer(4, 4);
+    let call_plan = calling_conventions::evaluate_call_plan(
+        calling_conventions::CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+        &calling_conventions::CallSignature {
+            parameters: vec![i32_shape, i32_shape],
+            result: None,
+        },
+    )
+    .expect("parameter call plan");
+    let parameter_abi = machine_code::ParameterFunctionAbiRecord {
+        call_plan: call_plan.clone(),
+        parameters: vec![
+            target_operations::ScalarAbiValue {
+                value: semantic_vocabulary::ValueId::new(45).expect("parameter value"),
+                scalar_type: i32_scalar,
+                placement: call_plan.parameters[0].clone(),
+            },
+            target_operations::ScalarAbiValue {
+                value: semantic_vocabulary::ValueId::new(46).expect("parameter value"),
+                scalar_type: i32_scalar,
+                placement: call_plan.parameters[1].clone(),
+            },
+        ],
+        entry_register_spills: vec![
+            machine_code::UnitEntryRegisterSpillRecord {
+                source_value: semantic_vocabulary::ValueId::new(45).expect("parameter value"),
+                parameter_index: 0,
+                register: calling_conventions::MachineRegister::X86Rdi,
+                byte_offset: 0,
+                code_offset: 4,
+                byte_count: 5,
+            },
+            machine_code::UnitEntryRegisterSpillRecord {
+                source_value: semantic_vocabulary::ValueId::new(46).expect("parameter value"),
+                parameter_index: 1,
+                register: calling_conventions::MachineRegister::X86Rsi,
+                byte_offset: 8,
+                code_offset: 9,
+                byte_count: 5,
+            },
+        ],
+    };
+    MachineCodePlan {
+        psi: identity(),
+        target: NativeTarget::linux_x64(),
+        entry: machine_id(1),
+        functions: vec![
+            MachineCodeFunction {
+                scalar_abi: None,
+                mixed_structural_scalar_abi: None,
+                structural_call_scalar_return: None,
+                parameter_abi: Some(parameter_abi),
+                internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
+                dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
+                dynamic_parameter_calls: Vec::new(),
+                forwarded_dynamic_parameter_calls: Vec::new(),
+                forwarded_dynamic_descriptor_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
+                unit_write_only_primitive_stores: Vec::new(),
+                scalar_structural_scalar_field_stores: Vec::new(),
+                machine: machine_id(1),
+                attachment: Some(StructuralTypeId::new(1).expect("attachment type")),
+                provenance: TerminalPsiProvenance {
+                    operations: vec![operation_id(1)],
+                    edges: vec![edge_id(9), edge_id(1)],
+                },
+                bytes: vec![
+                    0x48, 0x83, 0xec, 0x10, // 0: sub rsp, 16 — frame allocation
+                    0x48, 0x89, 0x7c, 0x24, 0x00, // 4: mov [rsp], rdi — parameter spill
+                    0x48, 0x89, 0x74, 0x24, 0x08, // 9: mov [rsp+8], rsi — parameter spill
+                    0x48, 0x83, 0xec, 0x08, // 14: sub rsp, 8 — call area
+                    0xe8, 0, 0, 0, 0, // 18: call rel32 — relocation at 19
+                    0x48, 0x83, 0xc4, 0x08, // 23: add rsp, 8 — call area release
+                    0x48, 0x83, 0xc4, 0x10, // 27: add rsp, 16 — frame release
+                    0xc3, // 31: ret
+                ],
+                x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
+                unit_stack: Some(UnitStackEvidence {
+                    frame: Some(StackAdjustmentPair {
+                        byte_size: 16,
+                        allocation_offset: 0,
+                        allocation_byte_count: 4,
+                        release_offset: 27,
+                        release_byte_count: 4,
+                    }),
+                    aarch64_return_link: None,
+                    stack_alignment: 16,
+                }),
+                unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
+                scalar_stack: None,
+                internal_calls: vec![InternalCallRelocation {
+                    owner: CallSiteOwner::Operation(operation_id(1)),
+                    target: machine_id(2),
+                    unit_stack: Some(UnitCallStackEvidence {
+                        outbound: Some(StackAdjustmentPair {
+                            byte_size: 8,
+                            allocation_offset: 14,
+                            allocation_byte_count: 4,
+                            release_offset: 23,
+                            release_byte_count: 4,
+                        }),
+                    }),
+                    scalar_stack: None,
+                    offset: 19,
+                }],
+                foreign_calls: Vec::new(),
+                internal_unit_calls: vec![InternalUnitCallRecord {
+                    source: machine_code::InternalUnitCallSource::Authored,
+                    owner: CallSiteOwner::Operation(operation_id(1)),
+                    target: machine_id(2),
+                    result: None,
+                    semantic_result: None,
+                    structural_result: None,
+                    scalar_arguments: Vec::new(),
+                    arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    operation_ordinal: 0,
+                    code_offset: 14,
+                    byte_count: 13,
+                }],
+                unit_continuations: vec![machine_code::UnitContinuationRecord {
+                    operation_ordinal: 1,
+                    successor_operation_ordinal: 2,
+                    source_block: semantic_vocabulary::BlockId::new(1).expect("source block"),
+                    target_block: semantic_vocabulary::BlockId::new(2).expect("target block"),
+                    bindings: vec![abstract_operations::ValueBinding {
+                        parameter: semantic_vocabulary::ValueId::new(50).expect("bound parameter"),
+                        argument: semantic_vocabulary::ValueId::new(45).expect("parameter value"),
+                        scalar_type: i32_scalar,
+                    }],
+                    cleanup: UnitAffineCleanupRecord {
+                        structural_types: Vec::new().into(),
+                        psi_edge: edge_id(9),
+                        locals: Vec::new(),
+                        actions: Vec::new(),
+                        code_offset: 27,
+                        byte_count: 0,
+                    },
+                }],
+                unit_affine_cleanup: Some(UnitAffineCleanupRecord {
+                    structural_types: Vec::new().into(),
+                    psi_edge: edge_id(1),
+                    locals: Vec::new(),
+                    actions: Vec::new(),
+                    code_offset: 27,
+                    byte_count: 5,
+                }),
+                semantic_code_attribution: vec![
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Operation(operation_id(1)),
+                        operation_ordinal: 0,
+                        code_offset: 14,
+                        byte_count: 13,
+                    },
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Edge(edge_id(9)),
+                        operation_ordinal: 1,
+                        code_offset: 27,
+                        byte_count: 0,
+                    },
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Edge(edge_id(1)),
+                        operation_ordinal: 2,
+                        code_offset: 27,
+                        byte_count: 5,
+                    },
+                ],
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
+                structural_return: None,
+            },
+            MachineCodeFunction {
+                scalar_abi: None,
+                mixed_structural_scalar_abi: None,
+                structural_call_scalar_return: None,
+                parameter_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
+                dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
+                dynamic_parameter_calls: Vec::new(),
+                forwarded_dynamic_parameter_calls: Vec::new(),
+                forwarded_dynamic_descriptor_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
+                unit_write_only_primitive_stores: Vec::new(),
+                scalar_structural_scalar_field_stores: Vec::new(),
+                machine: machine_id(2),
+                attachment: Some(StructuralTypeId::new(2).expect("attachment type")),
+                provenance: TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: vec![edge_id(2)],
+                },
+                bytes: vec![0xc3],
+                x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
+                unit_stack: Some(UnitStackEvidence {
+                    frame: None,
+                    aarch64_return_link: None,
+                    stack_alignment: 16,
+                }),
+                unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
+                scalar_stack: None,
+                internal_calls: Vec::new(),
+                foreign_calls: Vec::new(),
+                internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
+                unit_affine_cleanup: Some(UnitAffineCleanupRecord {
+                    structural_types: Vec::new().into(),
+                    psi_edge: edge_id(2),
+                    locals: Vec::new(),
+                    actions: Vec::new(),
+                    code_offset: 0,
+                    byte_count: 1,
+                }),
+                semantic_code_attribution: vec![SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(edge_id(2)),
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 1,
+                }],
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
+                structural_return: None,
+            },
+        ],
+    }
+}
+
 /// The edge-owned cleanup caller extended with one byte-exact rebound dynamic
 /// call so object construction materializes an ordinary dynamic conformance
 /// table with one resolved and one unresolved slot.

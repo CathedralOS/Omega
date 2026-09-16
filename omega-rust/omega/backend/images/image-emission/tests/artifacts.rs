@@ -32,8 +32,8 @@ mod provider_execution;
 mod scalar_plans;
 
 use dynamic_and_cleanup_plans::{
-    add_empty_unit_cleanup, dynamic_conformance_table_plan, dynamic_parameter_call_plan,
-    edge_owned_cleanup_plan, forwarded_dynamic_descriptor_call_plan,
+    add_empty_unit_cleanup, continuation_unit_call_plan, dynamic_conformance_table_plan,
+    dynamic_parameter_call_plan, edge_owned_cleanup_plan, forwarded_dynamic_descriptor_call_plan,
     forwarded_dynamic_parameter_call_plan, mixed_edge_owned_cleanup_plan, stored_dynamic_call_plan,
     two_call_edge_owned_cleanup_plan,
 };
