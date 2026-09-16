@@ -14,7 +14,10 @@ use super::{
 /// relocation instead preserves the structural view result its operation
 /// spells — the fresh root's place, type, multiplicity, and qualifications
 /// stay byte-exact inside the moved operation rather than re-spelling a
-/// scalar result.
+/// scalar result. An `EstablishByteSequenceLiteral` defines no scalar
+/// either: the relocation preserves the literal place declaration its
+/// operation carries — the fresh immutable view root's identity and
+/// declaration kind stay byte-exact inside the moved operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoopInvariantNodeResult {
     /// A preserved scalar definition: the result value and its declared type.
@@ -27,15 +30,22 @@ pub enum LoopInvariantNodeResult {
     /// byte-exact, so the transformed unit's structural custody still sees
     /// the same producer declaring the same place.
     Structural(terminal_psi::StructuralOperationResult),
+    /// A preserved literal place declaration — the fresh immutable view root
+    /// an `EstablishByteSequenceLiteral` establishes. The moved operation
+    /// keeps the declaration and payload byte-exact, so the transformed
+    /// unit's structural custody still sees the same producer declaring the
+    /// same place and every consumer keeps spelling the same place identity.
+    LiteralPlace(terminal_psi::StructuralPlaceDeclaration),
 }
 
 impl LoopInvariantNodeResult {
     /// The scalar value this result preserves — `None` for a
-    /// structural-producing relocation, which defines no scalar.
+    /// structural-producing or place-declaring relocation, which defines no
+    /// scalar.
     pub const fn scalar_value(&self) -> Option<ValueId> {
         match self {
             Self::Scalar { value, .. } => Some(*value),
-            Self::Structural(_) => None,
+            Self::Structural(_) | Self::LiteralPlace(_) => None,
         }
     }
 }
@@ -293,6 +303,24 @@ pub(super) fn candidate_identity(
                             .expect("result roster length fits u64")
                             .to_le_bytes(),
                     );
+                }
+            }
+            LoopInvariantNodeResult::LiteralPlace(place) => {
+                canonical.push(2);
+                canonical.extend_from_slice(&place.id.get().to_le_bytes());
+                match place.kind {
+                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                        declaration_ordinal,
+                        structural_type,
+                    } => {
+                        canonical.push(0);
+                        canonical.extend_from_slice(&declaration_ordinal.to_le_bytes());
+                        canonical.extend_from_slice(&structural_type.get().to_le_bytes());
+                    }
+                    // Admission only produces a byte-sequence-literal
+                    // declaration; any other kind still commits byte-exact
+                    // through the output unit identity.
+                    _ => canonical.push(1),
                 }
             }
         }

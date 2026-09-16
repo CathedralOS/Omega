@@ -227,6 +227,33 @@ pub(crate) fn admissible_invariant_subslice(
     .then_some((*source, *start, *end, *length))
 }
 
+/// An `EstablishByteSequenceLiteral` is the first structural establishment
+/// admitted for loop-invariant motion — the byte family's non-observation
+/// member. The node declares a fresh immutable borrowed-view place over
+/// constant bytes: it reads no scalar or structural operand, mutates no
+/// existing place, and its declared root can never anchor another
+/// parameter's invariant representative because
+/// [`invariant_member_place_parameters`] already refuses member-produced
+/// roots. The relocated operation therefore moves byte-exact — the place
+/// declaration, structural type, and payload stay inside it — while every
+/// consumer keeps spelling the same place identity. The node must still
+/// name its own operation as the first provenance row, define no scalar
+/// value (its result is the declared place), and carry no uses, successors,
+/// or ownership events. Whether it may leave its member block at all is the
+/// shared non-speculative gate applied by the proposal and replayed by the
+/// freeze fence: establishing the view performs work a bypassed traversal
+/// would not, so no leaf exemption applies.
+pub(crate) fn admissible_invariant_byte_literal(node: &OptimizationNode) -> bool {
+    let O::EstablishByteSequenceLiteral { psi_operation, .. } = &node.operation else {
+        return false;
+    };
+    node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.is_empty()
+        && node.uses.is_empty()
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+}
+
 /// The storage root an admitted place observation, byte read, or subslice
 /// names — whichever observation gate the node's operation shape admits
 /// through. `same_relocated_node` needs the expected root to replay the
@@ -242,9 +269,11 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// movement at all: no store, record establishment, atomic event, or
 /// ownership event inside a member, no call that could reach a caller place
 /// through a mutating structural argument or a transferred claim, and no
-/// affine discard on any component-adjacent edge. A `ByteSequenceSubslice` is
-/// the one establishment this bound tolerates: it reads its source root's
-/// extent without mutating the root and its result is a fresh view root —
+/// affine discard on any component-adjacent edge. A `ByteSequenceSubslice` and
+/// an `EstablishByteSequenceLiteral` are the only establishments this bound
+/// tolerates: the subslice reads its source root's extent without mutating
+/// the root and the literal reads nothing at all — each establishes only a
+/// fresh view root —
 /// [`invariant_member_place_parameters`] already refuses member-produced
 /// roots as representatives, so the fresh view can never anchor a rebind and
 /// no member observation of an existing root changes across traversals. When
@@ -295,8 +324,10 @@ pub(crate) fn component_preserves_place_observations(
 /// to every member node. Pure scalar work and scalar constants name no place;
 /// read-only place observations cannot change what they observe; a byte
 /// subslice reads its source root's extent and establishes only a fresh view
-/// root — no existing place mutates, and a fresh member-produced root can
-/// never anchor another parameter's invariant representative; control
+/// root, and a byte-sequence literal establishes only a fresh immutable view
+/// root over constant bytes — no existing place mutates, and a fresh
+/// member-produced root can never anchor another parameter's invariant
+/// representative; control
 /// nodes carry their custody on their successor edges, which the edge scan
 /// checks; a port write touches a service port rather than a place; a plain
 /// scalar `Call` has no place or claim surface at all; and a unit or scalar
@@ -354,6 +385,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::StructuralCase { .. }
         | O::PortWrite { .. }
         | O::DynamicDescriptorParameter { .. }
+        | O::EstablishByteSequenceLiteral { .. }
         | O::Call { .. } => true,
         O::CallUnit {
             structural_arguments,
