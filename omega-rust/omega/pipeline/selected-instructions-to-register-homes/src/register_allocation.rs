@@ -4,14 +4,19 @@
 //! selected-lowering run takes `assignment::transformed` homes; otherwise an
 //! admitted recovery rule takes `assignment::recovery`; otherwise legality is
 //! staged and the direct assignment either succeeds into `assignment::baseline`
-//! homes or, on `NoCompatibleHome` pressure, enters `assignment::runtime_spill`.
+//! homes, splits authenticated entry-fixed-view transitions through the
+//! leaf-local fixed/precolored sequence in `assignment::recovery`, or, on
+//! `NoCompatibleHome` pressure, enters `assignment::runtime_spill`.
 //! Every branch publishes one `RetainedAllocation`.
 
+#[cfg(test)]
+mod route_tests;
 #[cfg(test)]
 mod selected_rewrite_tests;
 
 use crate::assignment::recovery::{
     stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
+    stage_leaf_local_fixed_view_register_allocation,
 };
 use optimization_core::{Optimization, OptimizationExecutionPhase};
 
@@ -66,6 +71,14 @@ pub fn stage_register_allocation(
         stage_optimized_allocation_legality(ranges).map_err(RegisterAllocationError::Legality)?;
     let assignment = match crate::assignment::runtime_spill::assign_source(&legality) {
         Ok(homes) => homes,
+        Err(crate::RegisterHomeError::UnresolvedEntryTransitions { .. }) => {
+            // The transitions recorded in legality are exactly the boundaries
+            // the leaf-local fixed-view policy admits; any other failure class
+            // keeps the direct-assignment surface below.
+            let recovered = stage_leaf_local_fixed_view_register_allocation(legality)?;
+            return RetainedAllocation::try_from(recovered)
+                .map_err(RegisterAllocationError::Replay);
+        }
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {
             let recovered = crate::assignment::runtime_spill::recover(legality)
                 .map_err(RegisterAllocationError::RuntimeSpill)?;
