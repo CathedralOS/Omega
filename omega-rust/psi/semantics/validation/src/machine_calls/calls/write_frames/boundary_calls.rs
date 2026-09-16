@@ -6,9 +6,12 @@
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::isolation::{aggregate_storage_types_match, type_is_caller_isolated_local};
-use super::place_paths::{FramePathPrecision, FramePlaceOrigin, FrameSourcePlace};
+use super::place_paths::{
+    FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, split_place_root,
+};
 use super::receiver_member_chain;
 use super::reference_origins::{exclusive_reference_origin, referent_has_only_owned_storage};
+use super::stored_origins::StoredLocalOrigins;
 use super::type_capabilities::type_may_carry_write;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
@@ -17,6 +20,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
+use typed_trees::signature::StateParameter;
 use typed_trees::statement::TableCall;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -364,6 +368,12 @@ fn boundary_argument_origins(
 /// whose stored exclusive references could still reach the referent — and
 /// therefore route the result into untracked storage — keeps the whole
 /// result opaque, as does a result with no admitted caller route at all.
+///
+/// An origin's precision says whether the referent is that place exactly or
+/// an unknown position inside it. Only the single-candidate consumer in
+/// `single_boundary_result_origin` reads the distinction; write-path
+/// consumers read `path` alone, where a storage root already covers every
+/// interior subpath.
 fn boundary_result_origins(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -398,11 +408,12 @@ fn boundary_result_origins(
     let mut origins = Vec::new();
     if has_runtime_receiver {
         // The implementor's storage is opaque to the caller: an exclusive
-        // result may point anywhere inside it, and the receiver place covers
-        // every such subpath.
+        // result may point anywhere inside it. The receiver place covers
+        // every such subpath, but a member projection must not narrow it to
+        // a fabricated subpath, so the candidate stays collection-coarse.
         origins.push(FramePlaceOrigin {
             path: receiver.join("."),
-            precision: FramePathPrecision::Exact,
+            precision: FramePathPrecision::CollectionCoarse,
             source: FrameSourcePlace::from_expression(program, call.receiver),
         });
     }
@@ -433,6 +444,11 @@ fn boundary_result_origins(
         }
         match owned_storage_may_hold(program, *referee, referent) {
             Some(true) => {
+                // The admitted route places name the storage the result may
+                // reach. Unless that storage can hold the referent only at
+                // its root, the referent's offset inside stays unknown and a
+                // projected origin must not narrow beneath the root.
+                let root_only = storage_holds_referent_only_at_root(program, *referee, referent);
                 for origin in boundary_argument_origins(
                     program,
                     current_machine,
@@ -441,7 +457,17 @@ fn boundary_result_origins(
                     *actual,
                     inference,
                 )? {
-                    push_unique_origin(&mut origins, origin);
+                    push_unique_origin(
+                        &mut origins,
+                        if root_only {
+                            origin
+                        } else {
+                            FramePlaceOrigin {
+                                precision: FramePathPrecision::CollectionCoarse,
+                                ..origin
+                            }
+                        },
+                    );
                 }
             }
             Some(false) => {}
@@ -449,6 +475,112 @@ fn boundary_result_origins(
         }
     }
     (!origins.is_empty()).then_some(origins)
+}
+
+/// The proven referent of a boundary call's exclusive result bound to a
+/// local. The alias relation holds one already-canonical origin per
+/// binding, so admission needs the signature's candidate routes to name
+/// exactly one caller storage place: the result must reach it. Routes that
+/// agree on the place but disagree on referent position or source collapse
+/// to a coarse origin; a multi-place or unresolved result stays opaque.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn single_boundary_result_origin(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    call: &TableCallExpression,
+    expression: ExpressionHandle,
+    inference: &mut FrameInference,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    allow_isolated_local: bool,
+    stored: &[StoredLocalOrigins],
+) -> Option<FramePlaceOrigin> {
+    let origins = boundary_result_origins(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        call,
+        expression,
+        inference,
+    )?;
+    let mut merged: Option<FramePlaceOrigin> = None;
+    for candidate in origins {
+        let origin = caller_canonical_result_origin(
+            candidate,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            allow_isolated_local,
+            stored,
+        )?;
+        match &mut merged {
+            None => merged = Some(origin),
+            Some(merged) if merged.path == origin.path => {
+                if origin.precision == FramePathPrecision::CollectionCoarse
+                    || origin.source != merged.source
+                {
+                    merged.precision = FramePathPrecision::CollectionCoarse;
+                }
+            }
+            _ => return None,
+        }
+    }
+    merged
+}
+
+/// Canonicalize one admitted candidate path through the caller's current
+/// alias and stored-carrier evidence. `boundary_result_origins` answers in
+/// caller spellings — a binding argument names its local, and a carrier
+/// leaf names its symbolic local path — while the alias relation stores
+/// canonical origins, so a bound local must keep the referent the argument
+/// holds at bind time even when that binding is later rebound. A candidate
+/// whose root no caller storage, established alias, isolated local, or
+/// tracked stored carrier owns is not a proven single origin.
+fn caller_canonical_result_origin(
+    candidate: FramePlaceOrigin,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    allow_isolated_local: bool,
+    stored: &[StoredLocalOrigins],
+) -> Option<FramePlaceOrigin> {
+    let mut origin = candidate;
+    for _ in 0..=aliases.len() {
+        let (root, suffix) = split_place_root(&origin.path);
+        if root == "self"
+            || parameters
+                .iter()
+                .any(|parameter| parameter.name.as_str() == root)
+        {
+            return Some(origin);
+        }
+        if let Some((_, prior)) = aliases.iter().find(|(name, _)| name == root) {
+            let source = prior.source.append_source(&origin.source);
+            origin = match prior.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: append_place_suffix(&prior.path, suffix),
+                    precision: origin.precision,
+                    source,
+                },
+                FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
+                    path: prior.path.clone(),
+                    precision: FramePathPrecision::CollectionCoarse,
+                    source,
+                },
+            };
+            continue;
+        }
+        return (allow_isolated_local && isolated_local_roots.iter().any(|local| local == root)
+            || stored
+                .iter()
+                .any(|local| local.local_symbol == origin.source.root))
+        .then_some(origin);
+    }
+    None
 }
 
 fn push_unique_origin(origins: &mut Vec<FramePlaceOrigin>, origin: FramePlaceOrigin) {
@@ -562,6 +694,93 @@ fn owned_storage_may_hold_inner(
         TypeReferenceNode::ConstExpression(_) => None,
         // `live_unconstrained_type` above already erased every constraint.
         TypeReferenceNode::Constrained { .. } => None,
+    }
+}
+
+/// Is `container`'s root the only position inside its declared storage that
+/// can hold a `referent`-typed value? When true, an exclusive result routed
+/// to this storage points at the root itself, so member projections of the
+/// bound local stay exact. Any admitted deeper position — or a proof that
+/// cannot finish — leaves the referent offset unknown.
+fn storage_holds_referent_only_at_root(
+    program: &TypedTrees,
+    container: TypeReferenceHandle,
+    referent: TypeReferenceHandle,
+) -> bool {
+    let Some(container) = live_unconstrained_type(program, container) else {
+        return false;
+    };
+    aggregate_storage_types_match(program, container, referent)
+        && storage_member_may_hold(program, container, referent, &mut Vec::new()) == Some(false)
+}
+
+/// `Some` answers whether a proper member or element position inside
+/// `container`'s declared storage may hold `referent`; `None` means the
+/// proof cannot finish. `container` already matched `referent` at its root,
+/// so recursion only ever inspects strictly interior positions.
+fn storage_member_may_hold(
+    program: &TypedTrees,
+    container: TypeReferenceHandle,
+    referent: TypeReferenceHandle,
+    visiting: &mut Vec<SymbolHandle>,
+) -> Option<bool> {
+    if program.primitive_type_reference(container).is_some() {
+        return Some(false);
+    }
+    match program.type_reference_table.type_reference(container) {
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            owned_storage_may_hold_inner(program, *element_type, referent, visiting)
+        }
+        TypeReferenceNode::Named { symbol, .. }
+        | TypeReferenceNode::Generic {
+            base_symbol: symbol,
+            ..
+        } => {
+            let mut definitions = program
+                .data_definitions()
+                .iter()
+                .filter(|definition| definition.symbol == *symbol);
+            let definition = definitions.next()?;
+            if definitions.next().is_some() || visiting.contains(&definition.symbol) {
+                // An ambiguous nominal cannot be inspected, and a recursive
+                // shape cannot prove its interior excludes the referent.
+                return Some(true);
+            }
+            visiting.push(definition.symbol);
+            let result = (|| {
+                for member in program.data_members(definition) {
+                    let field_types: Vec<TypeReferenceHandle> = match member {
+                        DataMember::Field(field) => vec![field.type_reference],
+                        DataMember::Variant(variant) => program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .map(|field| field.type_reference)
+                            .collect(),
+                    };
+                    for field_type in field_types {
+                        match owned_storage_may_hold_inner(program, field_type, referent, visiting)
+                        {
+                            Some(false) => {}
+                            outcome => return outcome.map(|_| true),
+                        }
+                    }
+                }
+                Some(false)
+            })();
+            visiting.pop();
+            result
+        }
+        // Provider-opaque and proof-static storage cannot prove their
+        // interior excludes the referent. Constrained nodes are already
+        // erased by `live_unconstrained_type`; a reference slot stores the
+        // reference, never the referent value.
+        TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::ConstExpression(_) => {
+            Some(true)
+        }
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::Unit
+        | TypeReferenceNode::Constrained { .. } => Some(false),
     }
 }
 
