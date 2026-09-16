@@ -15,6 +15,7 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::Item;
+use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
@@ -643,113 +644,44 @@ fn module_local_indexed_family_outranks_a_same_leaf_root_family() {
     .expect("root and module applications select their own telescopes");
 }
 
-#[test]
-fn probe_open_template_domain_index_downstream() {
-    let source = "domain<const N: u64> u64::Counted<N> requires self < N;
-         data Buffer<const N: u64> { value: u64 in Counted<N>; }
-         data Main { field: Buffer<3>; }";
-    let syntax =
-        normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[&source])))
-            .expect("open domain index defers binder selection");
-    let outcome = crate::resolve(crate::ResolutionRequest::new(&syntax));
-    match &outcome {
-        Ok(program) => {
-            eprintln!("PROBE: resolve OK");
-            for definition in &program.data_definitions {
-                eprintln!("PROBE: data {}", definition.name.as_str());
-            }
-            // Find the resolved field type of Buffer<3>.value
-            let instance = program
-                .data_definitions
-                .iter()
-                .find(|d| d.name.as_str() == "Buffer<3>")
-                .expect("instance");
-            let [symbol_resolved_trees::data::DataMember::Field(field)] =
-                program.data_members(instance.members)
-            else {
-                panic!("one field");
-            };
-            eprintln!("PROBE: field type = {:?}", field.type_reference);
-        }
-        Err(errors) => {
-            for error in errors {
-                eprintln!("PROBE: resolve error: {}", error.message);
-            }
-        }
-    }
-    // Also inspect the syntax-side domain constraint.
-    for constraint in syntax.type_references.domain_constraints() {
-        let args: Vec<String> = syntax
-            .type_references
-            .type_reference_handles(constraint.arguments)
-            .iter()
-            .map(|a| format!("{:?}", syntax.type_references.type_reference(*a)))
-            .collect();
-        eprintln!("PROBE: domain constraint {} args {:?}", constraint.name.as_str(), args);
-    }
+fn field_type_reference(syntax: &SyntaxTrees, data_name: &str) -> TypeReferenceHandle {
+    let definition = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == data_name => Some(definition),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("missing {data_name}"));
+    let [DataMember::Field(field)] = syntax.items.data_members(definition.members) else {
+        panic!("one field on {data_name}");
+    };
+    field.type_reference
+}
 
-    // Probe: range constraint endpoints naming a const binder.
-    let ranged = "data Buffer<const N: u64> { value: u64 [0..N]; }
-         data Main { field: Buffer<3>; }";
-    match normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[ranged]))) {
-        Ok(syntax) => {
-            eprintln!("PROBE: ranged normalize OK");
-            let outcome = crate::resolve(crate::ResolutionRequest::new(&syntax));
-            match &outcome {
-                Ok(_) => eprintln!("PROBE: ranged resolve OK"),
-                Err(errors) => {
-                    for error in errors {
-                        eprintln!("PROBE: ranged resolve error: {}", error.message);
-                    }
-                }
-            }
-        }
-        Err(errors) => {
-            for error in &errors {
-                eprintln!("PROBE: ranged normalize error: {}", error.message);
-            }
-        }
-    }
-
-    // Probe: ConstExpression domain index argument on a binder.
-    let expression_index = "domain<const N: u64> u64::Counted<N> requires self < N;
-         data Buffer<const N: u64> { value: u64 in Counted<N + 1>; }
-         data Main { field: Buffer<3>; }";
-    match normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[expression_index]))) {
-        Ok(syntax) => {
-            eprintln!("PROBE: expr-index normalize OK");
-            for constraint in syntax.type_references.domain_constraints() {
-                let args: Vec<String> = syntax
-                    .type_references
-                    .type_reference_handles(constraint.arguments)
-                    .iter()
-                    .map(|a| format!("{:?}", syntax.type_references.type_reference(*a)))
-                    .collect();
-                eprintln!("PROBE: expr-index constraint {} args {:?}", constraint.name.as_str(), args);
-            }
-            let outcome = crate::resolve(crate::ResolutionRequest::new(&syntax));
-            match &outcome {
-                Ok(_) => eprintln!("PROBE: expr-index resolve OK"),
-                Err(errors) => {
-                    for error in errors {
-                        eprintln!("PROBE: expr-index resolve error: {}", error.message);
-                    }
-                }
-            }
-        }
-        Err(errors) => {
-            for error in &errors {
-                eprintln!("PROBE: expr-index normalize error: {}", error.message);
-            }
-        }
-    }
+fn domain_index_arguments(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+) -> &[TypeReferenceHandle] {
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        syntax.type_references.type_reference(type_reference)
+    else {
+        panic!("a constrained field type");
+    };
+    let [TypeConstraintNode::Domain(domain)] = syntax.type_references.constraints(*constraints)
+    else {
+        panic!("one domain constraint");
+    };
+    syntax
+        .type_references
+        .type_reference_handles(domain.arguments)
 }
 
 #[test]
-fn open_template_domain_indices_keep_their_binder_at_root_and_in_modules() {
-    // `Counted<N>` inside an open template defers binder selection; the
-    // synthesized instance inherits the authored constraint verbatim at both
-    // scopes. Instance-side domain-constraint replay is a later stage's job.
+fn open_template_domain_index_substitutes_on_the_closed_instance() {
+    // `Counted<N>` keeps its binder on the open template; the synthesized
+    // `Buffer<3>` carries `Counted<3>` -- the index leaves the template's
+    // telescope with the field, at root and inside a module alike. Resolution
+    // then sees only closed indices on the instance.
     for prefix in ["", "module buffers; "] {
         let source = format!(
             "{prefix}domain<const N: u64> u64::Counted<N> requires self < N;
@@ -759,47 +691,191 @@ fn open_template_domain_indices_keep_their_binder_at_root_and_in_modules() {
         let syntax =
             normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[&source])))
                 .expect("open domain index defers binder selection");
-        // The instance shares the template's constrained type node verbatim:
-        // both fields carry the same `Counted<N>` constraint handle.
-        let field_types: Vec<TypeReferenceHandle> = ["Buffer", "Buffer<3>"]
-            .into_iter()
-            .map(|expected| {
-                let definition = syntax
-                    .root_items()
-                    .find_map(|item| match item {
-                        Item::Data(definition) if definition.name.as_str() == expected => {
-                            Some(definition)
-                        }
-                        _ => None,
-                    })
-                    .unwrap_or_else(|| panic!("missing {expected}"));
-                let [DataMember::Field(field)] = syntax.items.data_members(definition.members)
-                else {
-                    panic!("one field on {expected}");
-                };
-                field.type_reference
-            })
-            .collect();
-        assert_eq!(
-            field_types[0], field_types[1],
-            "domain-constrained field type is shared verbatim: prefix {prefix:?}"
+        let template = field_type_reference(&syntax, "Buffer");
+        let instance = field_type_reference(&syntax, "Buffer<3>");
+        assert_ne!(
+            template, instance,
+            "the instance rebuilds the constrained node: prefix {prefix:?}"
         );
-        for constraint in syntax.tables.type_references.domain_constraints() {
-            assert_eq!(constraint.name.as_str(), "Counted");
-            let [argument] = syntax
-                .tables
-                .type_references
-                .type_reference_handles(constraint.arguments)
-            else {
-                panic!("one index argument");
-            };
-            assert!(
-                matches!(
-                    syntax.type_references.type_reference(*argument),
-                    TypeReferenceNode::Named(name) if name.as_str() == "N"
-                ),
-                "the authored binder rides verbatim: prefix {prefix:?}"
-            );
-        }
+        let [template_argument] = domain_index_arguments(&syntax, template) else {
+            panic!("one index argument on the template: prefix {prefix:?}");
+        };
+        assert!(
+            matches!(
+                syntax.type_references.type_reference(*template_argument),
+                TypeReferenceNode::Named(name) if name.as_str() == "N"
+            ),
+            "the template keeps the authored binder: prefix {prefix:?}"
+        );
+        let [instance_argument] = domain_index_arguments(&syntax, instance) else {
+            panic!("one index argument on the instance: prefix {prefix:?}");
+        };
+        assert!(
+            matches!(
+                syntax.type_references.type_reference(*instance_argument),
+                TypeReferenceNode::Named(name) if name.as_str() == "3"
+            ),
+            "the instance carries the closed index: prefix {prefix:?}"
+        );
+        let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect("the closed instance resolves");
+        let resolved_instance = program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name.as_str() == "Buffer<3>")
+            .expect("resolved instance");
+        let [symbol_resolved_trees::data::DataMember::Field(field)] =
+            program.data_members(resolved_instance.members)
+        else {
+            panic!("one resolved field: prefix {prefix:?}");
+        };
+        let symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
+            &field.type_reference
+        else {
+            panic!("resolved constrained field: prefix {prefix:?}");
+        };
+        let [symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = program
+            .tables
+            .types
+            .constraints
+            .span_or_empty(field_type.constraints)
+        else {
+            panic!("resolved domain constraint: prefix {prefix:?}");
+        };
+        assert_eq!(domain.name.as_str(), "Counted");
+        let [argument] = program
+            .tables
+            .declarations
+            .child_type_references
+            .span_or_empty(domain.arguments)
+        else {
+            panic!("one resolved index argument: prefix {prefix:?}");
+        };
+        assert!(
+            matches!(
+                argument,
+                symbol_resolved_trees::types::TypeReference::Named { name, .. }
+                    if name.as_str() == "3"
+            ),
+            "the resolved instance carries the closed index: prefix {prefix:?}"
+        );
     }
+}
+
+#[test]
+fn open_template_domain_expression_index_keeps_the_authored_operator_on_the_instance() {
+    // `Counted<N + 1>` cannot fold during synthesis: `+` is an authored
+    // operator whose exact overload is selected later. The instance receives a
+    // copied `3 + 1` subtree -- the binder leaf rewritten to the closed
+    // argument, the operator spelling intact -- while the template keeps
+    // `N + 1` untouched.
+    let source = "domain<const N: u64> u64::Counted<N> requires self < N;
+         data Buffer<const N: u64> { value: u64 in Counted<N + 1>; }
+         data Main { field: Buffer<3>; }";
+    let syntax = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect("open expression index defers binder selection");
+    let template = field_type_reference(&syntax, "Buffer");
+    let instance = field_type_reference(&syntax, "Buffer<3>");
+    let [template_argument] = domain_index_arguments(&syntax, template) else {
+        panic!("one index argument on the template");
+    };
+    let [instance_argument] = domain_index_arguments(&syntax, instance) else {
+        panic!("one index argument on the instance");
+    };
+    assert_ne!(
+        *template_argument, *instance_argument,
+        "the open index copies into the instance rather than sharing the node"
+    );
+    let TypeReferenceNode::ConstExpression(template_expression) =
+        syntax.type_references.type_reference(*template_argument)
+    else {
+        panic!("the template keeps its authored const expression");
+    };
+    let ExpressionNode::Binary(template_binary) =
+        syntax.expressions.expression(*template_expression)
+    else {
+        panic!("the template index stays `N + 1`");
+    };
+    assert!(
+        matches!(
+            syntax.expressions.expression(template_binary.left),
+            ExpressionNode::Name(_)
+        ),
+        "the template's binder leaf is untouched"
+    );
+    let TypeReferenceNode::ConstExpression(instance_expression) =
+        syntax.type_references.type_reference(*instance_argument)
+    else {
+        panic!("the instance keeps the authored operator spelling");
+    };
+    let ExpressionNode::Binary(instance_binary) =
+        syntax.expressions.expression(*instance_expression)
+    else {
+        panic!("the instance index stays an authored `+` application");
+    };
+    assert_eq!(
+        instance_binary.operator,
+        syntax_trees::expression::BinaryOperator::Add,
+        "the copied subtree preserves the authored operator"
+    );
+    assert!(
+        matches!(
+            syntax.expressions.expression(instance_binary.left),
+            ExpressionNode::Integer(literal) if literal.value_u64() == Some(3)
+        ),
+        "the instance's binder leaf rewrote to the closed argument"
+    );
+    assert!(
+        matches!(
+            syntax.expressions.expression(instance_binary.right),
+            ExpressionNode::Integer(literal) if literal.value_u64() == Some(1)
+        ),
+        "the authored right operand is preserved"
+    );
+}
+
+#[test]
+fn open_template_range_endpoint_substitutes_on_the_closed_instance() {
+    // `[0..N]` copies its binder endpoint onto `Buffer<3>` so the instance's
+    // bound is the closed `0..3`; the template keeps `0..N` (the non-constant
+    // template bound is still rejected downstream, deliberately).
+    let source = "data Buffer<const N: u64> { value: u64 [0..N]; }
+         data Main { field: Buffer<3>; }";
+    let syntax = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect("open range endpoint defers binder selection");
+    let template = field_type_reference(&syntax, "Buffer");
+    let instance = field_type_reference(&syntax, "Buffer<3>");
+    let range_maximum = |syntax: &SyntaxTrees, type_reference: TypeReferenceHandle| {
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            syntax.type_references.type_reference(type_reference)
+        else {
+            panic!("a constrained field type");
+        };
+        let [TypeConstraintNode::Range { maximum, .. }] =
+            syntax.type_references.constraints(*constraints)
+        else {
+            panic!("one range constraint");
+        };
+        *maximum
+    };
+    assert!(
+        matches!(
+            syntax
+                .expressions
+                .expression(range_maximum(&syntax, template)),
+            ExpressionNode::Name(_)
+        ),
+        "the template keeps the open `N` bound"
+    );
+    assert!(
+        matches!(
+            syntax
+                .expressions
+                .expression(range_maximum(&syntax, instance)),
+            ExpressionNode::Integer(literal) if literal.value_u64() == Some(3)
+        ),
+        "the instance's bound rewrote to the closed `3`"
+    );
+    crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("the closed range endpoint resolves");
 }

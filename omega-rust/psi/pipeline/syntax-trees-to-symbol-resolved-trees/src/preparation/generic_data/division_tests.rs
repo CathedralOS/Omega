@@ -420,8 +420,10 @@ fn failed_substitution_discards_only_its_own_warnings() {
     let substitution = HashMap::from([("N".to_owned(), argument)]);
     let previous = Diagnostic::warning("earlier successful evaluation");
     let mut warnings = vec![previous.clone()];
+    let snapshot = syntax.clone();
     let substituted = substitute_type_reference(
         &mut syntax,
+        &snapshot,
         field_type,
         &substitution,
         &HashMap::new(),

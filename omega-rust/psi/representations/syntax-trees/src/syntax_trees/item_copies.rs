@@ -20,6 +20,19 @@ impl SyntaxTrees {
         self.copy_item(other, item)
     }
 
+    /// Deep-copy one expression from a snapshot of this tree. Generic-instance
+    /// synthesis rebuilds a template's constrained-type range endpoints and
+    /// open domain-index expressions through this copy so the instance's
+    /// const-binder rewrite lands on its own subtree, never on the template's
+    /// shared nodes.
+    pub fn copy_expression_from(
+        &mut self,
+        other: &SyntaxTrees,
+        handle: crate::expression::ExpressionHandle,
+    ) -> crate::expression::ExpressionHandle {
+        self.copy_expression_handle(other, handle)
+    }
+
     /// Deep-copy one proof fact from another syntax tree. Generic-instance
     /// synthesis uses this to retain field-dependent default-domain facts
     /// while discharging facts that depend only on concrete const arguments.

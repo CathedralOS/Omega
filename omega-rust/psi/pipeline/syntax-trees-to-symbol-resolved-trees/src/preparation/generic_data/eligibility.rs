@@ -10,6 +10,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
 use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 
@@ -290,6 +291,47 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
             *element_type,
             parameters,
         ),
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            // The base recurses; each constraint follows the substitution it
+            // receives. `Named`/`ArithmeticDomain` carry no type or
+            // expression leaves. A `Domain` index admits the same leaf shapes
+            // a generic const argument does -- a substituted `N`, or an open
+            // `ConstExpression` copied for the binder rewrite -- or any
+            // parameter-free spelling shared verbatim. `Range` endpoints are
+            // expression copies whose binder mentions rewrite to the closed
+            // argument on the instance's own subtree, so they are always
+            // faithful under substitution.
+            type_reference_handle_is_substitutable(
+                syntax,
+                generic_data,
+                selection,
+                base_info,
+                *base_type,
+                parameters,
+            ) && syntax
+                .tables
+                .type_references
+                .constraints(*constraints)
+                .iter()
+                .all(|constraint| match constraint {
+                    TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => true,
+                    TypeConstraintNode::Domain(domain) => syntax
+                        .tables
+                        .type_references
+                        .type_reference_handles(domain.arguments)
+                        .iter()
+                        .all(|&argument| {
+                            matches!(
+                                syntax.tables.type_references.type_reference(argument),
+                                TypeReferenceNode::Named(_) | TypeReferenceNode::ConstExpression(_)
+                            ) || !type_reference_mentions_parameter(syntax, argument, parameters)
+                        }),
+                    TypeConstraintNode::Range { .. } => true,
+                })
+        }
         _ => !type_reference_mentions_parameter(syntax, type_reference, parameters),
     }
 }
