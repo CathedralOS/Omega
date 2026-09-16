@@ -1,8 +1,8 @@
 //! Declared-field domain coverage for fixed-array collection elements. Every
 //! element carries its declared field predicates at the exact `FixedIndex`
 //! place; coverage flows through indexing, element borrows, whole-array calls,
-//! and transitions. A corrupted element or stale alias retires only that
-//! element's facts, so the rejecting call names the retired coordinate.
+//! copies, and transitions. A corrupted element or stale alias retires only
+//! that element's facts, so the rejecting call names the retired coordinate.
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -298,6 +298,160 @@ fn locally_constructed_arrays_carry_element_coverage() {
         machine caller() {{
             let rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
             consume(rows[0]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn copied_element_carries_its_constructed_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let r: Row = rows[0];
+            consume(&r);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn copied_collection_carries_every_elements_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let copy: [Row; 2] = rows;
+            consume(&copy[0]);
+            consume(&copy[1]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn element_copy_through_assignment_carries_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let mut r: Row = rows[0];
+            r = rows[1];
+            consume(&r);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn corrupted_source_element_retires_the_copied_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let mut rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            corrupt(&mut rows[0].bytes);
+            let r: Row = rows[0];
+            consume(&r);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
+fn copied_sibling_survives_a_corrupt_call_to_its_source_element() {
+    // The copied value is independent storage: invalidating `rows[0]` after
+    // the copy retires the source's evidence, never the copy's.
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let mut rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let r: Row = rows[1];
+            corrupt(&mut rows[0].bytes);
+            consume(&r);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn element_copied_after_a_sibling_write_still_proves() {
+    // A write to a different element leaves `rows[1]`'s evidence live in its
+    // own transfer context, so the copy still carries it.
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let mut rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            corrupt(&mut rows[0].bytes);
+            rows[1].bytes = "okay";
+            let r: Row = rows[1];
+            consume(&r);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn copied_element_write_retires_its_own_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let mut r: Row = rows[0];
+            corrupt(&mut r.bytes);
+            consume(&r);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
+fn corrupting_the_source_after_the_copy_keeps_the_copy_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data CopyRow [copy] {{ bytes: [u8; 4] in Utf8; tag: u64; }}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &CopyRow) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let mut rows: [CopyRow; 2] = [CopyRow {{bytes: "okay", tag: 0}}, CopyRow {{bytes: "okay", tag: 1}}];
+            let r: CopyRow = rows[0];
+            corrupt(&mut rows[0].bytes);
+            consume(&r);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn element_copy_into_machine_field_carries_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Main {{ slot: Row; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine Main::run(&mut self) {{
+            let rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            self.slot = rows[0];
+            consume(&self.slot);
         }}
     "#
     );

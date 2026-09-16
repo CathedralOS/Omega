@@ -1,9 +1,18 @@
-//! Whole-place assignment transports live predicates on its contained fields.
+//! Whole-place assignment transports live evidence on its contained fields.
+//! Predicates, literal leaf values, folded scalar snapshots, and per-byte
+//! predicate classes all describe the copied VALUE, so each stored fact below
+//! the source place reappears at the destination under the same relative path:
+//! `let copy = rows` carries `rows[i].bytes` evidence onto `copy[i].bytes`, and
+//! `let r = rows[0]` carries `rows[0].bytes` onto `r.bytes`. This is the
+//! below-source sibling of the exact-place lane in
+//! `propagate_statement_transfers`, which transports the same payloads at the
+//! source place itself. Runtime-indexed segments still stop the transport -- a
+//! copy cannot promise which element supplied the evidence.
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::ExpressionHandle;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
@@ -64,7 +73,7 @@ pub(super) fn append_copied_field_predicates(
         .map(|reference| *semantic.facts.get(reference.fact))
         .collect();
     for fact in facts {
-        let (domain, domain_symbol, semantic_domain) = match fact.payload {
+        let payload = match fact.payload {
             FactPayload::DomainMembership {
                 domain,
                 domain_symbol,
@@ -76,19 +85,48 @@ pub(super) fn append_copied_field_predicates(
                 domain_symbol,
                 semantic_domain,
                 ..
-            } => (domain, domain_symbol, semantic_domain),
+            } => {
+                // A field predicate follows the copied value. Routed
+                // qualifications require their own custody correspondence,
+                // not this predicate rule.
+                if !program.domain_definitions().iter().any(|definition| {
+                    definition.symbol == domain_symbol
+                        && definition.establishment_routes.is_empty()
+                        && definition.alias.is_none()
+                        && definition.predicate_body.is_present()
+                }) {
+                    continue;
+                }
+                FactPayload::DomainMembership {
+                    value: ExpressionHandle::invalid(),
+                    domain,
+                    domain_symbol,
+                    semantic_domain,
+                }
+            }
+            // Value evidence below the source describes the copied contents
+            // the same way a predicate does: the element literal a constructor
+            // recorded at `rows[i].bytes`, the folded scalar at `rows[i].tag`,
+            // or the per-byte class a checked element write preserved. Only
+            // literal `AssignedValue` leaves qualify -- a call occurrence is
+            // retained as provenance at its root place and can never name a
+            // copied field's value.
+            FactPayload::AssignedValue { value }
+                if program.expression_table.expression_is_valid(value)
+                    && matches!(
+                        program.expression_table.expression(value),
+                        ExpressionNode::Integer(_)
+                            | ExpressionNode::Boolean(_)
+                            | ExpressionNode::String(_)
+                    ) =>
+            {
+                fact.payload
+            }
+            FactPayload::AssignedScalarValue { .. } | FactPayload::BytePredicate { .. } => {
+                fact.payload
+            }
             _ => continue,
         };
-        // A field predicate follows the copied value. Routed qualifications
-        // require their own custody correspondence, not this predicate rule.
-        if !program.domain_definitions().iter().any(|definition| {
-            definition.symbol == domain_symbol
-                && definition.establishment_routes.is_empty()
-                && definition.alias.is_none()
-                && definition.predicate_body.is_present()
-        }) {
-            continue;
-        }
         let FactPlace::Place(place) = fact.place else {
             continue;
         };
@@ -114,12 +152,7 @@ pub(super) fn append_copied_field_predicates(
             point,
             origin: FactOrigin::StatementTransfer,
             evidence: fact.evidence,
-            payload: FactPayload::DomainMembership {
-                value: ExpressionHandle::invalid(),
-                domain,
-                domain_symbol,
-                semantic_domain,
-            },
+            payload,
         });
         semantic.append_ref(references, copied_fact);
     }
