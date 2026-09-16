@@ -1,12 +1,20 @@
+//! `project` turns one optimization node into its legalized scalar
+//! instruction: short operation kinds are projected here and the long ones
+//! by `value_instructions`, `storage_instructions`, `call_instructions` and
+//! `scalar_instructions`.
+
 use super::{
-    AbstractOperation, AbstractOperationPlan, Error, LegalizedExactIntegerOperator,
-    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarComparison,
-    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
-    NativeCallOrigin, PsiOptimizationUnit, TargetOperationPlan,
+    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, LegalizedValueDefinition, PsiOptimizationUnit,
+    TargetOperationPlan,
 };
+mod call_instructions;
+mod scalar_instructions;
+mod storage_instructions;
+
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use semantic_vocabulary::{IntegerValue, ScalarType};
+use semantic_vocabulary::IntegerValue;
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -74,50 +82,9 @@ pub(super) fn project(
             left: *left,
             right: *right,
         },
-        AbstractOperation::CallStructural {
-            result,
-            callee,
-            arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-            ..
-        } => {
-            let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            let called = unit
-                .functions
-                .iter()
-                .find(|function| function.machine == *callee)
-                .ok_or(Error::SourceCustodyMismatch)?;
-            let mut lowered = arguments
-                .iter()
-                .zip(&call_plan.parameters)
-                .map(|(source, placement)| LegalizedScalarArgument::Scalar {
-                    source: *source,
-                    placement: placement.clone(),
-                })
-                .collect::<Vec<_>>();
-            for (position, semantic) in structural_arguments.iter().enumerate() {
-                lowered.push(LegalizedScalarArgument::Structural {
-                    semantic: semantic.clone(),
-                    target: scalar_graph_input::aggregate_results::call_argument(
-                        semantic, position, operation, optimized, called, &call_plan, native, plan,
-                    )?,
-                });
-            }
-            LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-                callee: *callee,
-                arguments: lowered,
-                structural_result: Some(result.clone()),
-                result_placement: call_plan.result.clone(),
-                call_plan,
-                source: NativeCallOrigin::Authored,
-                claim_transfers: claim_transfers.clone(),
-                requirement_obligations: requirement_obligations.clone(),
-                crash_continuations: crash_continuations.clone(),
-            })
-        }
+        AbstractOperation::CallStructural { .. } => call_instructions::project_call_structural(
+            node, optimized, native, plan, unit, operation,
+        )?,
         AbstractOperation::EstablishRecord { result, fields, .. } => {
             LegalizedScalarInstructionKind::EstablishRecord {
                 result: result.clone(),
@@ -157,27 +124,8 @@ pub(super) fn project(
             destination: *destination,
             value: *value,
         },
-        AbstractOperation::StructuralCaseMembership {
-            source,
-            path,
-            case,
-            result,
-            ..
-        } => {
-            if result.scalar_type != ScalarType::Boolean {
-                return Err(Error::SourceCustodyMismatch);
-            }
-            let (case_tag, tag_byte_offset) =
-                scalar_graph_input::structural_case::membership_layout(
-                    optimized, *source, path, *case, plan,
-                )?;
-            LegalizedScalarInstructionKind::StructuralCaseMembership {
-                source: *source,
-                path: path.clone(),
-                case: *case,
-                case_tag,
-                tag_byte_offset,
-            }
+        AbstractOperation::StructuralCaseMembership { .. } => {
+            storage_instructions::project_structural_case_membership(node, optimized, plan)?
         }
         AbstractOperation::PrimitiveScalarRead { source, path, .. } => {
             LegalizedScalarInstructionKind::PrimitiveScalarRead {
@@ -200,76 +148,14 @@ pub(super) fn project(
                 layout: scalar_graph_input::read_byte::layout(result, plan)?,
             }
         }
-        AbstractOperation::BoundaryCall {
-            boundary,
-            arguments,
-            ..
-        } => {
-            let [source] = arguments.as_slice() else {
-                return Err(Error::SourceCustodyMismatch);
-            };
-            match scalar_graph_input::hosted_realization(native, optimized.machine, operation)? {
-                target_operations::BoundaryRealization::HostedWriteByteI32(_) => {
-                    LegalizedScalarInstructionKind::HostedWriteByteI32 {
-                        boundary: *boundary,
-                        source: *source,
-                    }
-                }
-                target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
-                    LegalizedScalarInstructionKind::HostedExitProcessI32 {
-                        boundary: *boundary,
-                        source: *source,
-                    }
-                }
-                _ => return Err(Error::SourceCustodyMismatch),
-            }
+        AbstractOperation::BoundaryCall { .. } => {
+            call_instructions::project_boundary_call(node, optimized, native, operation)?
         }
-        AbstractOperation::WriteOnlyPrimitiveStore {
-            destination,
-            path,
-            value,
-            ..
-        } => {
-            let (byte_offset, byte_size) =
-                crate::structural_inputs::structural_reference_input::primitive_store(
-                    destination,
-                    path,
-                    value.scalar_type,
-                    &unit.structural_types,
-                )
-                .ok_or(Error::SourceCustodyMismatch)?;
-            LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
-                destination: destination.clone(),
-                path: path.clone(),
-                value: *value,
-                byte_offset,
-                byte_size,
-            }
+        AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
+            storage_instructions::project_write_only_primitive_store(node, unit)?
         }
-        AbstractOperation::StructuralScalarFieldStore {
-            destination,
-            path,
-            field,
-            value,
-            ..
-        } => {
-            let (byte_offset, byte_size) =
-                crate::structural_inputs::structural_reference_input::store(
-                    destination.structural_type,
-                    path,
-                    *field,
-                    value.scalar_type,
-                    &unit.structural_types,
-                )
-                .ok_or(Error::SourceCustodyMismatch)?;
-            LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-                destination: destination.clone(),
-                path: path.clone(),
-                field: *field,
-                value: *value,
-                byte_offset,
-                byte_size,
-            }
+        AbstractOperation::StructuralScalarFieldStore { .. } => {
+            storage_instructions::project_structural_scalar_field_store(node, unit)?
         }
         AbstractOperation::EstablishByteSequenceLiteral {
             place,
@@ -281,211 +167,27 @@ pub(super) fn project(
             structural_type: structural_type.clone(),
             bytes: bytes.clone(),
         },
-        AbstractOperation::ByteSequenceSubslice {
-            psi_operation,
-            result,
-            source,
-            start,
-            end,
-            length,
-            obligation,
-        } => {
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            LegalizedScalarInstructionKind::ByteSequenceSubslice {
-                result: result.clone(),
-                source: *source,
-                start: *start,
-                end: *end,
-                length: *length,
-                obligation: *obligation,
-                accepted_fact: fact.identity,
-            }
+        AbstractOperation::ByteSequenceSubslice { .. } => {
+            storage_instructions::project_byte_sequence_subslice(node, optimized, unit)?
         }
-        AbstractOperation::CallUnit {
-            callee,
-            arguments: scalar_arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-            ..
+        AbstractOperation::CallUnit { .. } | AbstractOperation::CallStructuralScalar { .. } => {
+            call_instructions::project_call_unit(node, optimized, native, plan, unit, operation)?
         }
-        | AbstractOperation::CallStructuralScalar {
-            callee,
-            arguments: scalar_arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-            ..
-        } => {
-            let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            let called = unit
-                .functions
-                .iter()
-                .find(|function| function.machine == *callee)
-                .ok_or(Error::SourceCustodyMismatch)?;
-            if called.parameters.len() != scalar_arguments.len()
-                || called.structural_parameters.len() != structural_arguments.len()
-                || call_plan.parameters.len() != scalar_arguments.len() + structural_arguments.len()
-            {
-                return Err(Error::SourceCustodyMismatch);
-            }
-            let mut arguments = scalar_arguments
-                .iter()
-                .zip(&call_plan.parameters)
-                .map(|(source, placement)| LegalizedScalarArgument::Scalar {
-                    source: *source,
-                    placement: placement.clone(),
-                })
-                .collect::<Vec<_>>();
-            for (position, semantic) in structural_arguments.iter().enumerate() {
-                let target = scalar_graph_input::structural_call::argument_at(
-                    semantic, position, operation, optimized, called, &call_plan, native, plan,
-                )?;
-                arguments.push(LegalizedScalarArgument::Structural {
-                    semantic: semantic.clone(),
-                    target,
-                });
-            }
-            LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-                structural_result: None,
-                callee: *callee,
-                arguments,
-                result_placement: call_plan.result.clone(),
-                source: NativeCallOrigin::Authored,
-                claim_transfers: claim_transfers.clone(),
-                call_plan,
-                requirement_obligations: requirement_obligations.clone(),
-                crash_continuations: crash_continuations.clone(),
-            })
+        AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
+            storage_instructions::project_structural_byte_sequence_field_byte_store(
+                node, optimized, unit,
+            )?
         }
-        AbstractOperation::StructuralByteSequenceFieldByteStore {
-            psi_operation,
-            field,
-            index,
-            value,
-            length,
-            obligation,
-            ..
-        } => {
-            let destination =
-                crate::legalization::scalar_graph_input::structural_fields::replacement(
-                    optimized,
-                    &node.operation,
-                    &unit.structural_types,
-                )
-                .ok_or(Error::SourceCustodyMismatch)?;
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
-                destination,
-                field: *field,
-                index: *index,
-                value: *value,
-                length: *length,
-                obligation: *obligation,
-                accepted_fact: fact.identity,
-            }
+        AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
+            storage_instructions::project_structural_byte_sequence_field_store(
+                node, optimized, unit,
+            )?
         }
-        AbstractOperation::StructuralByteSequenceFieldStore {
-            psi_operation,
-            field,
-            source,
-            length,
-            obligation,
-            ..
-        } => {
-            let destination =
-                crate::legalization::scalar_graph_input::structural_fields::replacement(
-                    optimized,
-                    &node.operation,
-                    &unit.structural_types,
-                )
-                .ok_or(Error::SourceCustodyMismatch)?;
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
-                destination,
-                field: *field,
-                source: *source,
-                length: *length,
-                obligation: *obligation,
-                accepted_fact: fact.identity,
-            }
+        AbstractOperation::ByteSequenceWrite { .. } => {
+            storage_instructions::project_byte_sequence_write(node, optimized, unit)?
         }
-        AbstractOperation::ByteSequenceWrite {
-            psi_operation,
-            destination,
-            index,
-            value,
-            length,
-            obligation,
-        } => {
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            LegalizedScalarInstructionKind::ByteSequenceWrite {
-                destination: *destination,
-                index: *index,
-                value: *value,
-                length: *length,
-                obligation: *obligation,
-                accepted_fact: fact.identity,
-            }
-        }
-        AbstractOperation::ByteSequenceRead {
-            psi_operation,
-            source,
-            index,
-            length,
-            obligation,
-            ..
-        } => {
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            LegalizedScalarInstructionKind::ByteSequenceRead {
-                source: *source,
-                index: *index,
-                length: *length,
-                obligation: *obligation,
-                accepted_fact: fact.identity,
-            }
+        AbstractOperation::ByteSequenceRead { .. } => {
+            storage_instructions::project_byte_sequence_read(node, optimized, unit)?
         }
         AbstractOperation::ByteSequenceLength { source, .. } => {
             LegalizedScalarInstructionKind::ByteSequenceLength {
@@ -504,33 +206,8 @@ pub(super) fn project(
             operand: *operand,
             source_type: *source_type,
         },
-        AbstractOperation::IntegerExactCast {
-            psi_operation,
-            operand,
-            source_type,
-            obligation,
-            ..
-        } => {
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            if !optimized.facts.iter().any(|fact| matches!(fact,
-                optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                if referenced == obligation && support == psi_operation)) {
-                return Err(Error::SourceCustodyMismatch);
-            }
-            LegalizedScalarInstructionKind::IntegerExactCast {
-                operand: *operand,
-                source_type: *source_type,
-                obligation: *obligation,
-                accepted_fact: fact.identity,
-            }
+        AbstractOperation::IntegerExactCast { .. } => {
+            scalar_instructions::project_integer_exact_cast(node, optimized, unit)?
         }
         AbstractOperation::IntegerConstant { value, .. } => {
             LegalizedScalarInstructionKind::Constant(*value)
@@ -545,32 +222,8 @@ pub(super) fn project(
         AbstractOperation::BooleanConstant { value, .. } => {
             LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(u128::from(*value)))
         }
-        AbstractOperation::Call {
-            callee,
-            arguments,
-            requirement_obligations,
-            crash_continuations,
-            ..
-        } => {
-            let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-                structural_result: None,
-                callee: *callee,
-                arguments: arguments
-                    .iter()
-                    .zip(&call_plan.parameters)
-                    .map(|(source, placement)| LegalizedScalarArgument::Scalar {
-                        source: *source,
-                        placement: placement.clone(),
-                    })
-                    .collect(),
-                result_placement: call_plan.result.clone(),
-                source: NativeCallOrigin::Authored,
-                claim_transfers: Vec::new(),
-                call_plan,
-                requirement_obligations: requirement_obligations.clone(),
-                crash_continuations: crash_continuations.clone(),
-            })
+        AbstractOperation::Call { .. } => {
+            call_instructions::project_call(node, native, plan, unit)?
         }
         AbstractOperation::SaturatingIntegerSubtract { left, right, .. } => {
             LegalizedScalarInstructionKind::SaturatingSubtractU64 {
@@ -590,115 +243,19 @@ pub(super) fn project(
                 right: *right,
             }
         }
-        AbstractOperation::WrappingIntegerRemainder {
-            psi_operation,
-            obligation,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => {
-            if !scalar_graph_input::supports_signed_wrapping_remainder(*scalar_type)
-                || [left, right].iter().any(|value| {
-                    scalar_graph_input::value_type(optimized, **value)
-                        != Some(ScalarType::Integer(*scalar_type))
-                })
-            {
-                return Err(Error::SourceCustodyMismatch);
-            }
-            // Wrapping defines MIN % -1 as zero, not a failed Exact quotient.
-            // It does not define division by zero: retain that accepted fact.
-            let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
-                fact.machine == optimized.machine
-                    && fact.operation == *psi_operation
-                    && fact.obligation == *obligation
-            });
-            let fact = facts.next().ok_or(Error::SourceCustodyMismatch)?;
-            if facts.next().is_some()
-                || !optimized.facts.iter().any(|fact| matches!(fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                    if referenced == obligation && support == psi_operation))
-            {
-                return Err(Error::SourceCustodyMismatch);
-            }
-            LegalizedScalarInstructionKind::WrappingRemainder {
-                left: *left,
-                right: *right,
-                obligation: *obligation,
-                accepted_fact: fact.identity,
-            }
+        AbstractOperation::WrappingIntegerRemainder { .. } => {
+            scalar_instructions::project_wrapping_integer_remainder(node, optimized, unit)?
         }
-        AbstractOperation::ExactIntegerAdd {
-            psi_operation,
-            obligation,
-            left,
-            right,
-            ..
+        AbstractOperation::ExactIntegerAdd { .. }
+        | AbstractOperation::ExactIntegerSubtract { .. }
+        | AbstractOperation::ExactIntegerDivide { .. } => {
+            scalar_instructions::project_exact_integer_add(node, optimized, unit)?
         }
-        | AbstractOperation::ExactIntegerSubtract {
-            psi_operation,
-            obligation,
-            left,
-            right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerDivide {
-            psi_operation,
-            obligation,
-            left,
-            right,
-            ..
-        } => {
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            if !optimized.facts.iter().any(|fact| matches!(fact,
-                        optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                        if referenced == obligation && support == psi_operation)) {
-                        return Err(Error::SourceCustodyMismatch);
-                    }
-            LegalizedScalarInstructionKind::ExactBinary {
-                operator: if matches!(node.operation, AbstractOperation::ExactIntegerAdd { .. }) {
-                    LegalizedExactIntegerOperator::Add
-                } else if matches!(node.operation, AbstractOperation::ExactIntegerDivide { .. }) {
-                    LegalizedExactIntegerOperator::Divide
-                } else {
-                    LegalizedExactIntegerOperator::Subtract
-                },
-                left: *left,
-                right: *right,
-                obligation: *obligation,
-                accepted_fact: fact.identity,
-            }
-        }
-        AbstractOperation::BooleanEqual { left, right, .. }
-        | AbstractOperation::IntegerEqual { left, right, .. }
-        | AbstractOperation::IntegerLessThan { left, right, .. }
-        | AbstractOperation::IntegerLessOrEqual { left, right, .. } => {
-            let predicate = match node.operation {
-                AbstractOperation::BooleanEqual { .. } | AbstractOperation::IntegerEqual { .. } => {
-                    LegalizedScalarComparison::Equal
-                }
-                AbstractOperation::IntegerLessThan { .. } => LegalizedScalarComparison::LessThan,
-                AbstractOperation::IntegerLessOrEqual { .. } => {
-                    LegalizedScalarComparison::LessOrEqual
-                }
-                _ => return Err(Error::SourceCustodyMismatch),
-            };
-            let operand_type = scalar_graph_input::value_type(optimized, *left)
-                .ok_or(Error::SourceCustodyMismatch)?;
-            LegalizedScalarInstructionKind::Compare {
-                predicate,
-                operand_type,
-                left: *left,
-                right: *right,
-            }
+        AbstractOperation::BooleanEqual { .. }
+        | AbstractOperation::IntegerEqual { .. }
+        | AbstractOperation::IntegerLessThan { .. }
+        | AbstractOperation::IntegerLessOrEqual { .. } => {
+            scalar_instructions::project_boolean_equal(node, optimized)?
         }
         _ => return Err(Error::SourceCustodyMismatch),
     };
