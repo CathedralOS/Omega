@@ -457,11 +457,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   route (`prepare(remaining, remaining)` then `prepare(left - 1, right)`
   fails "cannot prove rank range"; diverged copies select no convenient
   representative), so admitting them needs an arrival mapping that names
-  the ranked copy, not a positional guess. Declared identity measures
-  inside call components still reject ("a member lacks a supported exact
-  ranking witness": `RankProjection::resolve` accepts builtin canonical
-  paths only), and non-identity scalar views need the measure-body
-  recognizer in `checks/termination/order.rs`.
+  the ranked copy, not a positional guess. Runtime call components admit
+  declared identity measures at b6ebf8073b through the validation-owned
+  classification (`declared_identity_view` in
+  `ranking_range/identity_views.rs`) that the checked stage's
+  `checks/termination/order.rs` now imports
+  (`pass/termination/identity_measure_call_component`,
+  `fail/termination/identity_measure_call_component_{domain,mixed_view}`);
+  non-identity scalar views still need `measure_body_shape` extended there
+  with formation proofs.
   Still open on this item: diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
   premises, borrowed and nested
