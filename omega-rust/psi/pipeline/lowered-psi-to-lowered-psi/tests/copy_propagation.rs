@@ -5,10 +5,11 @@
 
 mod common;
 
-use common::{block_id, copy_fixture, dead_scalar_fixture, value};
+use common::{block_id, copy_fixture, dead_scalar_fixture, machine_id, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::Terminator;
+use terminal_verifier::{CopyPropagationRewriteError, validate_copy_propagation};
 
 fn selections() -> PsiOptimizationSelections {
     PsiOptimizationSelections::new([PsiOptimization::CopyPropagation]).unwrap()
@@ -224,6 +225,149 @@ fn structurally_invalid_inputs_fail_before_rewrite() {
     assert!(matches!(
         run_psi_optimization(bad_debug, selections()),
         Err(PsiOptimizationStageError::InvalidDebugMap(_))
+    ));
+}
+
+#[test]
+fn proof_bearing_closure_remains_unchanged() {
+    let mut lowered = copy_fixture();
+    lowered.semantic_module.machines[0]
+        .contract
+        .ensures
+        .push(terminal_psi::ContractClause {
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            proposition: semantic_vocabulary::Proposition::Truth,
+        });
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("a proof-bearing closure remains unchanged");
+    assert_eq!(
+        optimized.lowered(),
+        &lowered,
+        "reconstructed obligations freeze the whole closure until \
+         proof-context transport is implemented"
+    );
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the frozen run records an identity"
+    );
+}
+
+#[test]
+fn independent_check_rejects_unjustified_collapses() {
+    let before = copy_fixture().semantic_module;
+
+    // v42 binds a different resolved value per edge: removing it is not a
+    // copy collapse no matter how the producer substitutes its uses.
+    let mut removed_non_copy = before.clone();
+    let merge = &mut removed_non_copy.machines[0].blocks[3];
+    merge
+        .parameters
+        .retain(|parameter| parameter.id != value(42));
+    merge.operations[0].kind = terminal_psi::OperationKind::WrappingIntegerAdd {
+        left: value(41),
+        right: value(2),
+    };
+    let Terminator::Jump { arguments, .. } = &mut removed_non_copy.machines[0].blocks[1].terminator
+    else {
+        panic!("b2 is a jump")
+    };
+    *arguments = vec![value(2)];
+    let Terminator::Jump { arguments, .. } = &mut removed_non_copy.machines[0].blocks[2].terminator
+    else {
+        panic!("b3 is a jump")
+    };
+    *arguments = vec![value(2)];
+    assert!(matches!(
+        validate_copy_propagation(&before, &removed_non_copy),
+        Err(CopyPropagationRewriteError::RemovedNonCopyParameter(block))
+            if block == block_id(4)
+    ));
+
+    // Reordering the surviving parameter list is a block-shape change, not a
+    // copy removal.
+    let mut reordered = before.clone();
+    reordered.machines[0].blocks[3].parameters.swap(0, 1);
+    assert!(matches!(
+        validate_copy_propagation(&before, &reordered),
+        Err(CopyPropagationRewriteError::ChangedBlockParameters(block))
+            if block == block_id(4)
+    ));
+
+    // Removing the copy but substituting a different source than the resolved
+    // one is drift the replayed reconstruction catches.
+    let mut wrong_source = before.clone();
+    let merge = &mut wrong_source.machines[0].blocks[3];
+    merge
+        .parameters
+        .retain(|parameter| parameter.id != value(41));
+    merge.operations[0].kind = terminal_psi::OperationKind::WrappingIntegerAdd {
+        left: value(42),
+        right: value(42),
+    };
+    for index in [1usize, 2] {
+        let Terminator::Jump { arguments, .. } =
+            &mut wrong_source.machines[0].blocks[index].terminator
+        else {
+            panic!("b{index} is a jump")
+        };
+        *arguments = vec![match index {
+            1 => value(20),
+            _ => value(30),
+        }];
+    }
+    assert!(matches!(
+        validate_copy_propagation(&before, &wrong_source),
+        Err(CopyPropagationRewriteError::ChangedMachine(machine))
+            if machine == machine_id(1)
+    ));
+
+    // A machine added to the module is a structural change, not a collapse.
+    let mut added = before.clone();
+    added.machines.push(common::machine(
+        2,
+        Vec::new(),
+        terminal_psi::TerminalMachineResult::Unit,
+        block_id(10),
+        vec![common::block(
+            10,
+            Vec::new(),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: common::edge(10),
+                trivial_affine_discards: Vec::new(),
+            },
+        )],
+    ));
+    assert!(matches!(
+        validate_copy_propagation(&before, &added),
+        Err(CopyPropagationRewriteError::ChangedProgramStructure)
+    ));
+}
+
+#[test]
+fn independent_check_rejects_a_changed_proof_question() {
+    // A structurally exact collapse still refuses when the reconstructed
+    // proof question cannot be carried verbatim: both sides publish the same
+    // ensures clause, but the substituted uses change its reconstructed
+    // axioms. This is the refusal the proof-bearing freeze above observes.
+    let clause = terminal_psi::ContractClause {
+        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        proposition: semantic_vocabulary::Proposition::Truth,
+    };
+    let mut before = copy_fixture();
+    before.semantic_module.machines[0]
+        .contract
+        .ensures
+        .push(clause.clone());
+    let mut after = run_psi_optimization(copy_fixture(), selections())
+        .unwrap()
+        .into_lowered()
+        .semantic_module;
+    after.machines[0].contract.ensures.push(clause);
+    assert!(matches!(
+        validate_copy_propagation(&before.semantic_module, &after),
+        Err(CopyPropagationRewriteError::ChangedProofQuestion)
     ));
 }
 

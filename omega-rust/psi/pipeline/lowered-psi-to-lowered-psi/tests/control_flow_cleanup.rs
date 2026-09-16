@@ -135,6 +135,26 @@ fn fold_keeps_the_false_arm_when_the_condition_is_false() {
 }
 
 #[test]
+fn foldable_conditionals_survive_when_cleanup_is_not_selected() {
+    // Disabled coverage: the literal-conditional workload under an
+    // SCCP-only selection keeps every branch — cleanup is not selected. The
+    // `v10`/`v11` rows are already literals, so the selected rule folds no
+    // leaf either.
+    let lowered = control_flow_fixture();
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::SparseConditionalConstantPropagation])
+            .unwrap(),
+    )
+    .expect("the stage executes");
+    assert_eq!(optimized.lowered(), &lowered);
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+}
+
+#[test]
 fn non_literal_conditionals_are_retained() {
     // The copy fixture's entry branches on a machine parameter: nothing in it
     // is a `BooleanConstant` result, so the module passes through unchanged.

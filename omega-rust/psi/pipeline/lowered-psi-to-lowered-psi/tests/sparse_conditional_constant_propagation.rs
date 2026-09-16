@@ -223,11 +223,28 @@ fn independent_check_rejects_a_changed_proof_question() {
 
 #[test]
 fn no_constant_workload_records_the_identity() {
-    // Disabled coverage against a sibling fixture: no literal-resolved leaf
+    // Boundary coverage against a sibling fixture: no literal-resolved leaf
     // exists, so the selected rule leaves the module untouched.
     let lowered = copy_fixture();
     let optimized =
         run_psi_optimization(lowered.clone(), selections()).expect("constant folding executes");
+    assert_eq!(optimized.lowered(), &lowered);
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+}
+
+#[test]
+fn foldable_leaves_survive_when_constant_propagation_is_not_selected() {
+    // Disabled coverage: the foldable workload under a CopyPropagation-only
+    // selection keeps every leaf unfolded — constant folding is not selected.
+    let lowered = sccp_fixture();
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::CopyPropagation]).unwrap(),
+    )
+    .expect("the stage executes");
     assert_eq!(optimized.lowered(), &lowered);
     assert_eq!(
         optimized.execution().input_semantic(),
