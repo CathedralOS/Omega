@@ -11,7 +11,8 @@ use super::super::diagnostics::{
     unknown_length_range_failure,
 };
 use super::super::expressions::{
-    expression_indexable_length, expression_integer_value, provable_range_bounds,
+    ensured_call_result_bounds, expression_indexable_length, expression_integer_value,
+    provable_range_bounds,
 };
 use super::super::facts::RangeFacts;
 use super::super::proofs::{unknown_length_index_is_proven, unknown_length_range_is_proven};
@@ -322,6 +323,14 @@ fn check_known_length_index(
                 // bound, low >= 0 the lower.
                 let declared_range =
                     expression_enforced_declared_range(program, machine, state, index);
+                // A call index carries its callee's own result contract:
+                // `ensures result < K` / `<= K` / `== K` (and `>=`/`>` for the
+                // lower half) is discharged at every callee exit, so it bounds
+                // THIS occurrence's return value the same way the declared
+                // return range does. Unproved spellings and shadowed `result`
+                // names contribute nothing and keep the ordinary rejection.
+                let (ensured_low, ensured_high) =
+                    ensured_call_result_bounds(program, index).unwrap_or_default();
                 // A hoisted computed-index temp (`__hoist_N`, the
                 // compiler-reserved prefix) is assigned by its synthesized
                 // `let` IMMEDIATELY before the indexing statement -- no user
@@ -340,6 +349,9 @@ fn check_known_length_index(
                     || declared_range.is_some_and(|(_, high)| {
                         i64::try_from(length).is_ok_and(|length| high < length)
                     })
+                    || ensured_high.is_some_and(|high| {
+                        i64::try_from(length).is_ok_and(|length| high < length)
+                    })
                     || initializer_label.is_some_and(|label| {
                         facts.index_is_proven(&collection_label, label)
                             || facts.index_upper_bound_is_proven(label, length)
@@ -350,6 +362,7 @@ fn check_known_length_index(
                         || facts.non_negative_is_proven(&index_label)
                         || facts.non_negative_is_proven_via_ordering(&index_label)
                         || declared_range.is_some_and(|(low, _)| low >= 0)
+                        || ensured_low.is_some_and(|low| low >= 0)
                         || initializer_label.is_some_and(|label| {
                             facts.non_negative_is_proven(label)
                                 || facts.non_negative_is_proven_via_ordering(label)

@@ -119,6 +119,184 @@ fn unrecognized_collection_is_not_a_bounds_admission() {
     assert_eq!(result("u64", "[0]", false), BoundsCheckResult::Unsupported);
 }
 
+/// A call used as an index proves through the callee's own `ensures` result
+/// contract: `result < K` / `result <= K` / `result == K` (with `>=`/`>`
+/// covering the non-negative half a signed result still owes) bound THIS
+/// occurrence's return value exactly like a declared return range — the
+/// contract is discharged at every callee exit, so the caller may rely on it.
+/// Unbounded spellings, insufficient bounds, and `result`-shadowed signatures
+/// keep the ordinary rejection; nothing here replays the callee's body.
+#[test]
+fn call_index_proves_through_ensured_result_bounds() {
+    fn check(source: &str) -> Result<(), Vec<String>> {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        crate::lower_typed_trees(program)
+            .map(|_| ())
+            .map_err(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.clone())
+                    .collect()
+            })
+    }
+    for (callee, accepted) in [
+        // `ensures result` bounds discharge the call-index obligation.
+        ("machine idx() -> u64 ensures result < 4 { 1 }", true),
+        ("machine idx() -> u64 ensures result <= 3 { 1 }", true),
+        ("machine idx() -> u64 ensures result == 1 { 1 }", true),
+        (
+            "machine idx() -> u64 ensures result <= 3 && result >= 0 { 1 }",
+            true,
+        ),
+        // A signed result needs its non-negative half from the contract too.
+        (
+            "machine idx() -> i64 ensures result >= 0 && result <= 3 { 1 }",
+            true,
+        ),
+        ("machine idx() -> i64 ensures result <= 3 { 1 }", false),
+        // A bound at the collection length is still out of range.
+        ("machine idx() -> u64 ensures result <= 4 { 1 }", false),
+        // No contract bound at all keeps the ordinary rejection.
+        ("machine idx() -> u64 { 1 }", false),
+        // A `result`-named parameter shadows the binder: the conjunct then
+        // bounds that parameter, never the return value.
+        (
+            "machine pick(result: u64 [0..=3]) -> u64 ensures result <= 3 { result }",
+            false,
+        ),
+    ] {
+        let call = if callee.starts_with("machine pick") {
+            "pick(2)"
+        } else {
+            "idx()"
+        };
+        let source =
+            format!("{callee} machine write(output: &mut [u8; 4]) {{ output[{call}] = 65; }}");
+        match (check(&source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")),
+                "{callee}: {messages:?}"
+            ),
+            (result, _) => panic!("{callee}: {result:?}"),
+        }
+    }
+}
+
+/// The byte-write leg: a statement can carry two call occurrences — the index
+/// selector and the assigned source call. The selector's bound comes from its
+/// callee's `ensures`; the written byte's bound comes from the captured source
+/// call. Neither occurrence disturbs the other's evidence.
+#[test]
+fn call_index_alongside_the_source_call_keeps_occurrence_custody() {
+    fn check(source: &str) -> Result<(), Vec<String>> {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        crate::lower_typed_trees(program)
+            .map(|_| ())
+            .map_err(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.clone())
+                    .collect()
+            })
+    }
+    let digit = "machine digit(value: u64) -> u8 { ((value % 10 + 48) as u8 in Wrapping) as u8 }";
+    // The ensured selector and the captured byte source compose into one
+    // proved write; the domain contract mirrors the indexed-text writer case.
+    let source = format!(
+        "domain [u8; 4]::Ascii requires ascii_only(self); \
+         machine idx() -> u64 ensures result <= 3 {{ 1 }} {digit} \
+         machine write(output: &mut [u8; 4], unknown: u64) \
+         requires output in Ascii ensures output in Ascii \
+         {{ output[idx()] = digit(unknown); }}"
+    );
+    check(&source).unwrap_or_else(|messages| {
+        panic!("ensured call index + captured byte source must compose: {messages:?}")
+    });
+    // An unbounded selector still rejects — the byte evidence never implies
+    // the index proof.
+    let source = format!(
+        "domain [u8; 4]::Ascii requires ascii_only(self); \
+         machine idx() -> u64 {{ 1 }} {digit} \
+         machine write(output: &mut [u8; 4], unknown: u64) \
+         requires output in Ascii ensures output in Ascii \
+         {{ output[idx()] = digit(unknown); }}"
+    );
+    let Err(messages) = check(&source) else {
+        panic!("an unbounded call index must still reject");
+    };
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("cannot prove index")),
+        "{messages:?}"
+    );
+}
+
+/// A receiver call's `ensures` contract bounds the result the same way — the
+/// receiver supplies `self`, never the return value.
+#[test]
+fn receiver_call_index_reads_the_callee_ensures() {
+    fn check(source: &str) -> Result<(), Vec<String>> {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        crate::lower_typed_trees(program)
+            .map(|_| ())
+            .map_err(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.clone())
+                    .collect()
+            })
+    }
+    for (callee, accepted) in [
+        (
+            "data Pad { cell: u64 [0..=9]; } \
+             machine Pad::idx(&mut self) -> u64 ensures result <= 3 { 1 }",
+            true,
+        ),
+        (
+            "data Pad { cell: u64 [0..=9]; } \
+             machine Pad::idx(&mut self) -> u64 { 1 }",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "{callee} machine write(output: &mut [u8; 4], pad: &mut Pad) {{ output[pad.idx()] = 65; }}"
+        );
+        let result = check(&source);
+        assert_eq!(result.is_ok(), accepted, "{callee}: {result:?}");
+    }
+}
+
 #[test]
 fn nested_index_traversal_checks_each_collection_extent() {
     for (access, accepted) in [("[3][1]", true), ("[4][1]", false), ("[3][2]", false)] {

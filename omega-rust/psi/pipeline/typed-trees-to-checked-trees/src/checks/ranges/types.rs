@@ -298,6 +298,16 @@ pub(in crate::checks::ranges) fn expression_type_reference(
         ExpressionNode::Borrow(inner) => {
             expression_type_reference(program, machine, state, inner.target)
         }
+        ExpressionNode::Call(call) => {
+            // A call result's declared type is its target state's return type —
+            // the same reader `expression_enforced_declared_range` uses. A
+            // `u64` result is non-negative by construction, discharging the
+            // lower half of an index obligation by type alone.
+            if call.static_requirement_dispatch.is_some() {
+                return None;
+            }
+            validation::declared_place_type_raw(program, machine, Some(state), expression)
+        }
         ExpressionNode::Indexed(indexed)
             if !matches!(
                 program.expression_table.expression(indexed.index),
