@@ -1007,3 +1007,53 @@ actual before/after receipts, then test a changed recipe on a fresh handoff. Rep
 these five is development, not fresh validation. Git -z semantics checked against
 official git-status documentation; TypeSafe State docs refreshed. Python syntax,
 literal source/choice identity, resumed session and diff/skill checks pass.
+
+## 2026-09-16: caller/helper bundles fail the compound-handoff gate
+
+Local artifacts: `build/experiments/evidence-bundles/` (trial.py, PROTOCOL.md,
+sources.json, labels-before-models.json, SUMMARY.json, REPORT.md). Reused ranking,
+API and Devin runners. One-hop same-file caller/helper bundles, capped at 15k
+characters, plus before/after execution receipts. TypeSafe State docs refreshed:
+https://docs.typesafe.ai/concepts/state.md; related facts require explicit context.
+
+Fresh follow-up review of the SAME actual filename repair f7d95d710c, not an
+independent second workload. New real validation passed all five focused tests on
+Windows (52.539s test time, 53.206s process). Source acquisition including tests
+took 55.981s. Read-only SWE-2 Max review took 355.493s, zero tools, six unchanged
+claims. No invented negative claims; producer format was instructed. Separate
+review findings remain unverified suggestions, not newly established defects.
+
+Labels froze before either selector. One selected bundle must support every
+assertion. Candidate generation did not consult labels. Same input for selectors:
+
+| Selector | Correct / 6 | Incomplete bindings | Selection seconds |
+| --- | ---: | ---: | ---: |
+| Lexical top-one | 2 | 4 | Included in preparation |
+| Always none | 3 | 0 | No positive cases completed |
+| Jev | 1 | 3 | .4255 |
+| Resumed SWE-2 Max | 4 | 2 | 245.668 |
+
+Jev preparation .0125s, API .4124s, packet .0007s; 8,227 input / 465 output tokens.
+SWE session identity confirmed and zero tools; CLI restarted, not resident KV.
+One run each; no latency distribution, cost calculation or correctness retries.
+Acquisition, tests and producer review above are additional, not hidden selection
+costs. Shadow saved zero actual time and did not approve or publish anything.
+
+Source bundles resolve function fragmentation, but prose still mixes source
+changes, test definitions and execution observations. review0 required patch AND
+failure receipt; review4 needed receipts AND source/test semantics. Jev chose
+partial bundles instead of none. review1 said "every status record" despite an
+explicit untracked/short-record skip and also mixed parser/test observations.
+Two supportable claims received conservative Jev abstentions. The review2 label
+interprets "confirmed by [test] expecting" as a test-definition assertion, not
+execution; review3 is scoped to staged D/A/R collection, not ignored files. These
+interpretations froze before outputs; the strict score is not universal capability.
+
+Decision: reject for automatic use; stop expanding this arbitrary-prose citation
+recipe. Preserve the previous 4/5 result unchanged. A next experiment should test
+a fixed, narrow caller-defined decision over a complete bounded task packet,
+including genuine no-match controls, instead of repeatedly repairing the answer
+producer's compound claims. No post-hoc confidence threshold. Python bundle
+self-check/compilation, payload hashes, clean source revision, comparator identity
+and literal packet checks passed. macOS not run. Raw exports/credentials stay
+ignored; only public final claims were consumed, not private reasoning.
