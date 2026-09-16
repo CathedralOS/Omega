@@ -797,9 +797,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `AddressOffset` to that producer's own base, carrying the combined
   displacement at the scaled unsigned bound every target encoder shares
   while nothing inside the open interval redefines the base and the
-  semantic access roster stays untouched (crate `nextest`: 354 pass).
-  Remaining: scheduling and left-operand literal folding (immediate forms
-  fix the literal as the subtrahend).
+  semantic access roster stays untouched (crate `nextest`: 354 pass)
+  — and `rewrites/literal_minuend` rewrites a `CompareI64` whose left
+  operand's unique producer is a `MaterializeI64` inside the same
+  twelve-bit unsigned immediate bound to `CompareI64Immediate` — or
+  `CompareI64Zero` for a literal of zero — which fixes the literal as the
+  subtrahend and so computes the swapped subtraction: the zero condition
+  survives but ordering predicates invert, so admission walks every
+  condition-state unit the compare defines through successor edges until
+  a redefinition or clobber ends it and admits only when every reached
+  reader is `MaterializeBooleanEqual` or `ConditionalBranchNonZero`,
+  under the same replayed restore-by-content validation (crate `nextest`:
+  431 pass). Remaining: scheduling.
 
 ## Proof-, ownership-, and state-aware optimization
 
