@@ -1,3 +1,6 @@
+//! Start here. The contiguous `Arena`: one per node kind, addressed by
+//! `Handle` and iterated in insertion order.
+
 use std::marker::PhantomData;
 use std::ops::Range;
 
