@@ -6,6 +6,7 @@ use source::SourceMap;
 use source_files_to_tokens::Lexer;
 
 mod clamped;
+mod computed;
 mod distance;
 mod identity;
 mod increasing;

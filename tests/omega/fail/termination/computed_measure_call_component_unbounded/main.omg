@@ -1,0 +1,30 @@
+// FAIL CANARY. Without an authored range, `scan_b`'s unconstrained `u8`
+// subject cannot prove that `value * 2` forms inside `u8` at its call site,
+// so the produced rank is unproven there.
+data Countdown {}
+
+measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
+
+data Main {}
+
+machine Main::main(&mut self) -> u8 {
+    transition { _ -> self.scan_a(100) }
+}
+
+machine Main::scan_a(&mut self, remaining: u8 [0..=100])
+terminates by remaining -> Countdown::Doubled;
+-> u8 {
+    transition remaining > 0 {
+        true -> self.scan_b(remaining)
+        false -> remaining
+    }
+}
+
+machine Main::scan_b(&mut self, pending: u8)
+terminates by pending -> Countdown::Doubled;
+-> u8 {
+    transition pending > 0 {
+        true -> self.scan_a(pending - 1)
+        false -> pending
+    }
+}

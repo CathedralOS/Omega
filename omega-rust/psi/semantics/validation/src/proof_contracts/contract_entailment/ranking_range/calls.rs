@@ -99,7 +99,7 @@ pub(crate) fn prove_ranking_range_call_entry(
             RankingRangeMeasure::SliceLength(subject) => {
                 length_coordinate(program, state, subject, &length_bindings)?
             }
-            _ => rank_coordinate(&mut engine, measure)?,
+            _ => rank_coordinate(program, member.machine, &mut engine, measure)?,
         };
         let floor = engine.normalize(range.start)?;
         let ceiling = engine.normalize(range.end)?;
@@ -108,14 +108,14 @@ pub(crate) fn prove_ranking_range_call_entry(
         }
         Some(
             engine.requires_unsatisfiable
-                || membership(
+                || (membership(
                     &engine,
                     measure,
                     &coordinate,
                     &floor,
                     &ceiling,
                     range.end_inclusive,
-                ),
+                ) && forms_in_carrier(&engine, measure, &coordinate)),
         )
     };
     prove() == Some(true)
@@ -155,6 +155,9 @@ pub(crate) fn prove_ranking_range_call(
         ) | (
             RankingRangeMeasure::SliceLength(_),
             RankingRangeMeasure::SliceLength(_)
+        ) | (
+            RankingRangeMeasure::Computed { .. },
+            RankingRangeMeasure::Computed { .. }
         )
     ) {
         return None;
@@ -262,7 +265,7 @@ pub(crate) fn prove_ranking_range_call(
         RankingRangeMeasure::SliceLength(subject) => {
             length_coordinate(program, entry, subject, &length_bindings)?
         }
-        _ => rank_coordinate(&mut engine, source_measure)?,
+        _ => rank_coordinate(program, caller.machine, &mut engine, source_measure)?,
     };
     let view_bound = match source_measure {
         RankingRangeMeasure::IncreasingTo { limit, .. } => Some(engine.normalize(limit)?),
@@ -328,13 +331,14 @@ pub(crate) fn prove_ranking_range_call(
                 &mut engine,
             )?
         }
-        _ => rank_coordinate(&mut engine, destination_measure)?,
+        _ => rank_coordinate(program, caller.machine, &mut engine, destination_measure)?,
     };
     let pinned_view_bound = match (view_bound, destination_measure) {
         (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. }) => {
             Some((bound, engine.normalize(limit)?))
         }
         (None, RankingRangeMeasure::Single(_))
+        | (None, RankingRangeMeasure::Computed { .. })
         | (None, RankingRangeMeasure::Distance { .. })
         | (None, RankingRangeMeasure::SliceLength(_)) => None,
         _ => return None,
@@ -353,6 +357,13 @@ pub(crate) fn prove_ranking_range_call(
     };
     if engine.requires_unsatisfiable {
         return Some(RankingRangeCallProgress::Strict);
+    }
+    // A computed rank is a carrier value only while its body forms there,
+    // on both sides of the call, from the caller's own hypotheses.
+    if !forms_in_carrier(&engine, source_measure, &rank)
+        || !forms_in_carrier(&engine, destination_measure, &next_rank)
+    {
+        return None;
     }
     let prove = |polynomial: Polynomial, minimum: i64| {
         engine.prove_at_least(&engine.substituted(&polynomial), &BigInt::from_i64(minimum))
@@ -459,6 +470,7 @@ fn membership(
         // A slice length is already the produced natural coordinate; its
         // membership shape matches the scalar views.
         RankingRangeMeasure::Single(_)
+        | RankingRangeMeasure::Computed { .. }
         | RankingRangeMeasure::Distance { .. }
         | RankingRangeMeasure::SliceLength(_) => {
             prove(coordinate.clone(), 0)
@@ -491,9 +503,34 @@ fn length_coordinate(
     Some(Polynomial::atom(identity.clone()))
 }
 
-fn rank_coordinate(engine: &mut Engine<'_>, measure: RankingRangeMeasure) -> Option<Polynomial> {
+/// A computed rank forms inside its carrier; every other measure already
+/// denotes a carrier value or a produced natural.
+fn forms_in_carrier(engine: &Engine<'_>, measure: RankingRangeMeasure, rank: &Polynomial) -> bool {
+    let RankingRangeMeasure::Computed { carrier, .. } = measure else {
+        return true;
+    };
+    super::carrier_maximum(carrier).is_some_and(|maximum| {
+        engine.prove_at_least(
+            &engine.substituted(&maximum.sub(rank)),
+            &BigInt::from_i64(0),
+        )
+    })
+}
+
+fn rank_coordinate(
+    program: &TypedTrees,
+    machine: &Machine,
+    engine: &mut Engine<'_>,
+    measure: RankingRangeMeasure,
+) -> Option<Polynomial> {
     match measure {
         RankingRangeMeasure::Single(subject) => engine.normalize(subject),
+        RankingRangeMeasure::Computed {
+            subject,
+            parameter,
+            body,
+            ..
+        } => super::computed_rank(program, machine, engine, subject, parameter, body),
         // Keep the raw coordinate polynomial; the call-owned membership and
         // comparison predicates interpret its max(0,d) normalization.
         RankingRangeMeasure::IncreasingTo { subject, limit } => {
@@ -628,9 +665,11 @@ fn scalar_entry<'program>(
     }
     let state = program.machine_states(machine).first()?;
     if Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path() {
-        // A declared identity view: the shared classification admits the
-        // measure for this exact subject, and the produced rank is the
-        // subject itself. Any other authored path has no scalar transport.
+        // A declared scalar view: the shared classification admits the
+        // measure for this exact subject. An identity forward produces the
+        // subject itself; a computation produces its body over the subject,
+        // and the judgments prove that rank's formation inside the carrier.
+        // Any other authored path has no scalar transport.
         let [subject] = custody.subjects.as_slice() else {
             return None;
         };
@@ -639,12 +678,21 @@ fn scalar_entry<'program>(
             || !custody.view_arguments.is_empty()
             || *subject != member.subject
             || member.paired_subject.is_valid()
-            || super::declared_identity_view(program, state, *subject, &witness.view_path).is_none()
         {
             return None;
         }
+        let view = super::declared_scalar_view(program, state, *subject, &witness.view_path)?;
         entry_scalar_parameter(program, state, *subject)?;
-        return Some((state, RankingRangeMeasure::Single(member.subject)));
+        let measure = match view.computation {
+            None => RankingRangeMeasure::Single(member.subject),
+            Some(computation) => RankingRangeMeasure::Computed {
+                subject: member.subject,
+                parameter: computation.parameter,
+                body: computation.body,
+                carrier: view.carrier,
+            },
+        };
+        return Some((state, measure));
     }
     let measure = match witness.ranking_view {
         language_semantics::RankingViewId::NAT_DESCENDING

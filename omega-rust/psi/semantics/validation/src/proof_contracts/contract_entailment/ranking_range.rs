@@ -3,8 +3,7 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
-    StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding, TypedTrees,
-    inductive_judgment,
+    StrictArithmeticSymbolBinding, TypedTrees, inductive_judgment,
 };
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
@@ -506,7 +505,7 @@ fn prove_edge(
             parameter,
             body,
             ..
-        } => computed_rank(&mut engine, subject, parameter, body)?,
+        } => computed_rank(program, machine, &mut engine, subject, parameter, body)?,
         RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
         RankingRangeMeasure::SliceLength(subject) => {
             let parameter = lengths::parameter(program, root, subject)?;
@@ -726,27 +725,47 @@ fn prove_edge(
     })
 }
 
-/// The produced rank of a declared computation view: the measure body with
-/// its parameter bound to the subject's current atom, so destination
-/// substitution of the subject reaches the rank through that binding.
-fn computed_rank(
+/// The produced rank of a declared computation view: the measure body,
+/// normalized once over a private parameter atom, with that atom replaced by
+/// the subject's polynomial in `engine`'s namespace. Substituting instead of
+/// binding the parameter symbol lets two members that select one measure --
+/// and therefore share its parameter symbol -- each produce their own rank
+/// in one engine, and lets destination substitution of the subject reach the
+/// rank through the subject's atoms.
+pub(super) fn computed_rank(
+    program: &TypedTrees,
+    machine: &Machine,
     engine: &mut Engine<'_>,
     subject: ExpressionHandle,
     parameter: symbols::SymbolHandle,
     body: ExpressionHandle,
 ) -> Option<Polynomial> {
-    if !engine.bind_strict_arguments(&[StrictArithmeticExpressionBinding {
-        symbol: parameter,
-        expression: subject,
-    }]) {
+    const PARAMETER_ATOM: &str = "\0ranking:view:parameter";
+    let subject = engine.normalize(subject)?;
+    let mut template = Engine::strict_with_symbol_bindings(
+        program,
+        machine,
+        &[StrictArithmeticSymbolBinding {
+            symbol: parameter,
+            value: StrictArithmeticBindingValue::Atom {
+                identity: PARAMETER_ATOM.to_owned(),
+                unsigned: true,
+            },
+        }],
+    );
+    if !template.strict_symbol_bindings_are_valid() {
         return None;
     }
-    engine.normalize(body)
+    let body = template.normalize(body)?;
+    inductive_judgment::apply_argument_map(
+        &body,
+        &BTreeMap::from([(PARAMETER_ATOM.to_owned(), subject)]),
+    )
 }
 
 /// The greatest value of an unsigned carrier, as the formation ceiling of a
 /// computed rank.
-fn carrier_maximum(carrier: symbols::BuiltinTypeAtom) -> Option<Polynomial> {
+pub(super) fn carrier_maximum(carrier: symbols::BuiltinTypeAtom) -> Option<Polynomial> {
     let maximum = match carrier {
         symbols::BuiltinTypeAtom::U8 => u64::from(u8::MAX),
         symbols::BuiltinTypeAtom::U16 => u64::from(u16::MAX),

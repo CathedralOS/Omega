@@ -122,7 +122,14 @@ parameter, result and subject share one unsigned carrier, and every declared
 range refinement covers the subject's enforced bounds) is shared with the
 checked termination stage, the produced rank is the subject itself, and the
 authored measure stays private witness identity -- members share the order
-only through the same measure, never with `Nat::Descending`. No parallel edge may supply an unclassified call's certificate.
+only through the same measure, never with `Nat::Descending`. A member may
+also select a declared computation view (`declared_scalar_view` with a
+`+`/`*` body): the produced rank is the body over the subject
+(`RankingRangeMeasure::Computed`), strict monotonicity remains the only
+reason the subject's descent stands for the rank's descent, the call
+judgment proves membership, nonincrease or descent, and formation inside the
+carrier on both sides of every call from the caller's own hypotheses, and
+members share the order only through the same measure and carrier. No parallel edge may supply an unclassified call's certificate.
 Members may issue component calls from subordinate states: the state's
 discovered telescope aliases each carried entry role onto the site's own atom,
 so authored subjects and endpoints keep naming the same value. Internal
