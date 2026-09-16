@@ -46,6 +46,9 @@ mod u64_kernels;
 #[path = "scalar_case_results/i32_saturating_kernels.rs"]
 mod i32_saturating_kernels;
 
+#[path = "scalar_case_results/saturating_width_kernels.rs"]
+mod saturating_width_kernels;
+
 #[cfg(any(
     all(
         target_os = "linux",
