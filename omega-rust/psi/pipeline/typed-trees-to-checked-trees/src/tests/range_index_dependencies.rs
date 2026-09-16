@@ -247,6 +247,36 @@ fn members_below_indexes_preserve_field_and_element_disjointness() {
     }
 }
 
+/// A builtin `[]` over a literal-constructed collection field owns no element
+/// place: the premise's reads are exactly the evaluated initializer and
+/// selector places, so writes reaching any of them retire it while disjoint
+/// writes cannot.
+#[test]
+fn temporary_collection_indexes_keep_only_their_producing_reads() {
+    for (mutation, accepted) in [
+        ("", true),
+        ("unrelated = 1;", true),
+        ("left = replacement;", false),
+        ("right = replacement;", false),
+        ("index = 1;", false),
+    ] {
+        check(
+            &format!(
+                "data Pair {{ a: [i64; 4]; b: i64; }}
+                 machine window(items: &[i32; 4], mut left: i64, mut right: i64,
+                     mut index: u64 [0..=3], mut unrelated: i64, replacement: i64) -> u64
+                 requires 0 <= (Pair {{ a: [left, 0, 0, 0], b: right }}).a[index]
+                     && (Pair {{ a: [left, 0, 0, 0], b: right }}).a[index] <= 4; {{
+                     {mutation}
+                     let view: &[i32] = items[0..(Pair {{ a: [left, 0, 0, 0], b: right }}).a[index]];
+                     view.len
+                 }}"
+            ),
+            accepted,
+        );
+    }
+}
+
 #[test]
 fn indexed_start_and_tail_bounds_use_the_same_dependencies() {
     for access in ["original[0]..4", "original[0].."] {

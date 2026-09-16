@@ -318,6 +318,268 @@ fn a_temporary_member_with_unresolved_identity_stays_incomplete() {
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
 
+/// A builtin `[]` on a member of a call's returned temporary owns no element
+/// place: `compute(seed).a[index]` reads whatever producing the collection
+/// read plus the selector operand — the producing call's footprint extended
+/// through the projection, nothing more.
+#[test]
+fn an_index_of_a_temporary_member_reads_the_producing_footprint() {
+    let program = typed_source(
+        "data Pair { a: [i64; 4]; b: i64; }
+        machine compute(seed: i64) -> Pair { Pair { a: [seed, 0, 0, 0], b: 0 } }
+        machine window(seed: i64, index: u64, unrelated: i64) {
+            let cut: i64 = compute(seed).a[index];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let (borrows, flow, frames) = checked_facts(&program);
+    let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_calls = Some(&context);
+    let label = record_label(&mut facts, &program, machine, state);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("index-of-temporary footprint");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "seed"),
+            parameter_place(&program, state, "index"),
+        ]
+        .as_slice(),
+        "{reads:?}"
+    );
+    for (name, survives) in [("seed", false), ("index", false), ("unrelated", true)] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// A builtin `[..]` window over a temporary's collection field reads the
+/// producing footprint plus each present bound — there is still no window
+/// place, so every evaluated operand contributes its own reads.
+#[test]
+fn a_window_of_a_temporary_member_reads_its_bounds_and_producer() {
+    let program = typed_source(
+        "data Pair { a: [i64; 4]; b: i64; }
+        machine compute(seed: i64) -> Pair { Pair { a: [seed, 0, 0, 0], b: 0 } }
+        machine window(seed: i64, low: u64, high: u64, unrelated: i64) {
+            let cut: &[i64] = compute(seed).a[low..high];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let (borrows, flow, frames) = checked_facts(&program);
+    let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_calls = Some(&context);
+    let label = record_label(&mut facts, &program, machine, state);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("temporary window footprint");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "seed"),
+            parameter_place(&program, state, "low"),
+            parameter_place(&program, state, "high"),
+        ]
+        .as_slice(),
+        "{reads:?}"
+    );
+    for (name, survives) in [
+        ("seed", false),
+        ("low", false),
+        ("high", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// Indexing a call result directly — `compute(seed)[index]` — is the same
+/// temporary-collection shape without a member hop: the footprint is the
+/// checked call's reads plus the selector's.
+#[test]
+fn an_index_of_a_call_result_reads_the_call_footprint() {
+    let program = typed_source(
+        "machine compute(seed: i64) -> [i64; 4] { [seed, 0, 0, 0] }
+        machine window(seed: i64, index: u64, unrelated: i64) {
+            let cut: i64 = compute(seed)[index];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let (borrows, flow, frames) = checked_facts(&program);
+    let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_calls = Some(&context);
+    record_label(&mut facts, &program, machine, state);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("call-result index footprint");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "seed"),
+            parameter_place(&program, state, "index"),
+        ]
+        .as_slice(),
+        "{reads:?}"
+    );
+}
+
+/// A literal collection field evaluates every initializer where it appears:
+/// `Pair { a: [left, 0, 0, 0], b: right }.a[index]` reads both field values
+/// and the selector, needing no call custody because no call produced it.
+#[test]
+fn a_literal_member_index_reads_each_initializer_and_the_selector() {
+    let program = typed_source(
+        "data Pair { a: [i64; 4]; b: i64; }
+        machine window(left: i64, right: i64, index: u64, unrelated: i64) {
+            let cut: i64 = Pair { a: [left, 0, 0, 0], b: right }.a[index];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    let label = record_label(&mut facts, &program, machine, state);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("literal-collection index footprint");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "left"),
+            parameter_place(&program, state, "right"),
+            parameter_place(&program, state, "index"),
+        ]
+        .as_slice(),
+        "{reads:?}"
+    );
+    for (name, survives) in [
+        ("left", false),
+        ("right", false),
+        ("index", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// A member below the indexed temporary keeps the same producing footprint:
+/// `compute(seed).a[index].v` still reads only what `compute(seed)` read plus
+/// the selector, since no projection in the chain names caller storage.
+#[test]
+fn a_member_below_an_index_of_a_temporary_keeps_the_producing_footprint() {
+    let program = typed_source(
+        "data Cell { v: i64; }
+        data Pair { a: [Cell; 4]; b: i64; }
+        machine compute(seed: i64) -> Pair {
+            Pair { a: [Cell { v: seed }, Cell { v: 0 }, Cell { v: 0 }, Cell { v: 0 }], b: 0 }
+        }
+        machine window(seed: i64, index: u64, unrelated: i64) {
+            let cut: i64 = compute(seed).a[index].v;
+        }",
+    );
+    let (machine, state) = window(&program);
+    let (borrows, flow, frames) = checked_facts(&program);
+    let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_calls = Some(&context);
+    let label = record_label(&mut facts, &program, machine, state);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("member-over-temporary-index footprint");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "seed"),
+            parameter_place(&program, state, "index"),
+        ]
+        .as_slice(),
+        "{reads:?}"
+    );
+    let writes = [parameter_place(&program, state, "unrelated")];
+    assert!(
+        facts
+            .preserved_expression_labels(&program, machine, state, Some(&writes))
+            .contains(&label),
+        "a disjoint write preserves the premise"
+    );
+}
+
+/// Without the exact checked call occurrence at this statement, the temporary
+/// collection's construction cannot enumerate what it read — the same
+/// statement-use custody floor the member projection already requires — so
+/// `compute(seed).a[index]` stays incomplete.
+#[test]
+fn an_index_of_a_temporary_without_call_custody_stays_incomplete() {
+    let program = typed_source(
+        "data Pair { a: [i64; 4]; b: i64; }
+        machine compute(seed: i64) -> Pair { Pair { a: [seed, 0, 0, 0], b: 0 } }
+        machine window(seed: i64, index: u64, unrelated: i64) {
+            let cut: i64 = compute(seed).a[index];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    // No checked-call context at all: the producing call's operand footprint
+    // cannot be authenticated, so the collection scan stays opaque.
+    let mut facts = RangeFacts::new(&[]);
+    facts.statement_index = statement_index_of(&program, state, "cut");
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+    // A present context whose statement index cannot join the authored call
+    // is the same incomplete answer.
+    let (borrows, flow, frames) = checked_facts(&program);
+    let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_calls = Some(&context);
+    facts.statement_index = statement_index_of(&program, state, "cut") + 1;
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+/// A `match` collection recovers no element type the range checker's own
+/// reader can stand on, so builtin index meaning cannot be established and
+/// the temporary collection keeps an incomplete read set — the same boundary
+/// the match-receiver member keeps.
+#[test]
+fn a_match_collection_index_stays_incomplete() {
+    let program = typed_source(
+        "machine window(flag: i64, left: &[i64; 4], right: &[i64; 4], index: u64, unrelated: i64) {
+            let cut: i64 = match flag { 0 -> left, _ -> right }[index];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    record_label(&mut facts, &program, machine, state);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
 /// Member identity on a `match` result temporary cannot be recovered from
 /// the receiver's position — the match carries no declared result type the
 /// member walk can stand on — so `match .. .a` keeps an incomplete read set.

@@ -225,12 +225,17 @@ pub(super) fn collect_reads(
             depth,
         ),
         // Builtin `items[i]`/`items[a..b]` syntax projects element or window
-        // storage and keeps the ordinary place footprint. Once an authored
-        // `[]`/`[..]` declaration governs the occurrence the application is
-        // call-shaped instead: its complete footprint is the operand reads
-        // authenticated by the exact checked use row, so a missing or
-        // unstable selection stays incomplete rather than pretending to be
-        // element storage.
+        // storage and keeps the ordinary place footprint while the chain
+        // bottoms out at caller storage. A collection that produces a
+        // temporary instead — `compute(seed).a[i]`, `Pair { .. }.a[i]`,
+        // `compute()[i]` — owns no element place at all, so its complete
+        // footprint is whatever producing that collection read plus the
+        // selector operand reads under the same builtin bound floor the
+        // place scan applies. Once an authored `[]`/`[..]` declaration
+        // governs the occurrence the application is call-shaped instead:
+        // its complete footprint is the operand reads authenticated by the
+        // exact checked use row, so a missing or unstable selection stays
+        // incomplete rather than pretending to be element storage.
         ExpressionNode::Indexed(indexed) => {
             if has_builtin_index_meaning(
                 program,
@@ -240,17 +245,53 @@ pub(super) fn collect_reads(
                 expression,
                 indexed,
             ) {
-                collect_place_read(
+                // Place-rootedness is hereditary: the canonical root comes
+                // from the leftmost leaf of the selector chain, so the whole
+                // expression's root decides which footprint applies — the
+                // same split `collect_member_reads` makes for temporary
+                // receivers.
+                if canonical_place_from_expression_in_state(
                     program,
-                    machine,
-                    state,
+                    state.symbol,
                     statement_index,
                     expression,
-                    calls,
-                    operators,
-                    reads,
-                    depth,
                 )
+                .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Symbol(_)))
+                {
+                    collect_place_read(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        expression,
+                        calls,
+                        operators,
+                        reads,
+                        depth,
+                    )
+                } else {
+                    collect_reads(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        indexed.collection,
+                        calls,
+                        operators,
+                        reads,
+                        depth + 1,
+                    ) && collect_operand_reads(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        indexed.index,
+                        calls,
+                        operators,
+                        reads,
+                        depth,
+                    )
+                }
             } else {
                 collect_selected_index_reads(
                     program,
