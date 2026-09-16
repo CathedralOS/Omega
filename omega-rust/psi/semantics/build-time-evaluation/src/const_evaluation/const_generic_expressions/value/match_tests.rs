@@ -50,7 +50,7 @@ fn surrounding_arithmetic_warns_for_each_exact_fractional_result_path() {
         let (program, expression) = program(body);
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
-        let (value, warnings) = evaluate(&program, machine, state, expression, destination)
+        let (value, warnings) = evaluate(&program, machine, state, expression, destination, None)
             .expect("all-arm landing, no skipped subject evaluation");
         assert_eq!(value.display, expected);
         assert_eq!(warnings.len(), 2, "{body}: {warnings:?}");
@@ -74,8 +74,15 @@ fn nested_fractional_result_edges_restore_each_exact_diagnostic_context() {
     );
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
-    let (value, warnings) = evaluate(&program, machine, state, expression, PrimitiveType::U8)
-        .expect("nested alternatives share no stale arm selection");
+    let (value, warnings) = evaluate(
+        &program,
+        machine,
+        state,
+        expression,
+        PrimitiveType::U8,
+        None,
+    )
+    .expect("nested alternatives share no stale arm selection");
     assert_eq!(value.display, "9");
     assert_eq!(warnings.len(), 4, "{warnings:?}");
     for expected in [7, 9, 11, 13] {
@@ -94,8 +101,15 @@ fn match_static_landing_retains_each_fractional_warning_once() {
     let (program, expression) = program("match true { true -> 7 / 2 * 2, false -> 0.1 * 90 }");
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
-    let (value, warnings) =
-        evaluate(&program, machine, state, expression, PrimitiveType::U8).expect("exact landings");
+    let (value, warnings) = evaluate(
+        &program,
+        machine,
+        state,
+        expression,
+        PrimitiveType::U8,
+        None,
+    )
+    .expect("exact landings");
     assert_eq!(value.display, "7");
     assert_eq!(warnings.len(), 2);
     assert_ne!(warnings[0].source_span, warnings[1].source_span);
@@ -122,8 +136,15 @@ fn match_scalar_probe_rejects_stale_children_and_cycles_before_type_readers() {
         *program.expression_table.expression_mut(expression) = ExpressionNode::Match(dispatch);
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
-        let error = evaluate(&program, machine, state, expression, PrimitiveType::U8)
-            .expect_err("malformed subject");
+        let error = evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            PrimitiveType::U8,
+            None,
+        )
+        .expect_err("malformed subject");
         assert!(error.contains("invalid or cyclic"), "{error}");
     }
 }
@@ -133,7 +154,17 @@ fn match_wildcard_does_not_erase_undefined_anonymous_subject() {
     let (program, expression) = program("match (1 / 0) { _ -> 1 }");
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
-    assert!(evaluate(&program, machine, state, expression, PrimitiveType::U8).is_err());
+    assert!(
+        evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            PrimitiveType::U8,
+            None
+        )
+        .is_err()
+    );
 }
 
 #[test]

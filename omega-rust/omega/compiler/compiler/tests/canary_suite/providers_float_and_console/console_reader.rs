@@ -199,7 +199,12 @@ fn selected_console_line_reader_preserves_raw_prefix_count_and_unread_suffix() {
             assert_eq!(outcome.exit_code, expected_exit, "{target}: byte {byte}");
             assert_eq!(outcome.stdout, expected_output, "{target}: byte {byte}");
         }
-        let repeated = interpret_entry(&checked, "Main::repeat", b"ab\nc", InterpretOptions::default());
+        let repeated = interpret_entry(
+            &checked,
+            "Main::repeat",
+            b"ab\nc",
+            InterpretOptions::default(),
+        );
         assert_eq!(repeated.error, None, "{target}: repeated middle window");
         assert_eq!(repeated.exit_code, 70);
         assert_eq!(repeated.stdout, b"\xa5ab\xa5\xa5\nb\xa5");

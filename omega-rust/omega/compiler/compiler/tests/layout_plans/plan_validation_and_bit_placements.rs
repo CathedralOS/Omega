@@ -48,7 +48,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("nested all-erased record should remain semantically checked");
-    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope")
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope", None)
         .expect("only the physically relevant scalar should require placement");
     assert_eq!(report.entries.len(), 1);
     let mut bytes = [0xa5; 12];
@@ -126,7 +126,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("an array of erased-only records should remain semantically checked");
-    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope")
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Envelope", None)
         .expect("only the physically relevant scalar should require placement");
     assert_eq!(report.entries.len(), 1);
     let mut bytes = [0xa5; 12];
@@ -205,7 +205,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("u64 schema should check");
-    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Samples")
+    let report = compute_layout_plan(&checked.typed, "Whole::plan", "Samples", None)
         .expect("u64 should have one whole-field placement");
     let value = BuildTimeValue::Struct {
         type_name: "Samples".to_owned(),
@@ -252,7 +252,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("program should type");
-    let error = compute_layout_plan(&checked.typed, "ArrayBits::plan", "Samples")
+    let error = compute_layout_plan(&checked.typed, "ArrayBits::plan", "Samples", None)
         .expect_err("aggregate bit placement must stay outside the fixed-array At slice");
     assert!(error.contains("aggregate fields support only `At` placement"));
 }
@@ -283,7 +283,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("effectful program should compile");
-    let error = compute_layout_plan(&checked.typed, "Chatty::plan", "Simple")
+    let error = compute_layout_plan(&checked.typed, "Chatty::plan", "Simple", None)
         .expect_err("an effectful policy must be rejected");
     assert!(
         error.contains("not build-time admissible") && error.contains("service reach [Console]"),
@@ -318,7 +318,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("overlap program should compile");
-    let error = compute_layout_plan(&checked.typed, "Overlapper::plan", "Pair")
+    let error = compute_layout_plan(&checked.typed, "Overlapper::plan", "Pair", None)
         .expect_err("an overlapping plan must be rejected");
     assert!(
         error.contains("overlap"),
@@ -359,7 +359,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("fragment policy should compile");
-    let report = compute_layout_plan(&checked.typed, "SplitAddress::plan", "EntryTarget")
+    let report = compute_layout_plan(&checked.typed, "SplitAddress::plan", "EntryTarget", None)
         .expect("complete fragments should validate");
 
     assert_eq!(report.offsets, None);
@@ -432,8 +432,13 @@ machine Main::main(&mut self) { }
     let mut checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("stored integer policy should compile")
         .into_program();
-    let report = compute_layout_plan(&checked.typed, "ForeignIntegers::plan", "PortableStat")
-        .expect("both stored integer ranges fit their semantic carriers");
+    let report = compute_layout_plan(
+        &checked.typed,
+        "ForeignIntegers::plan",
+        "PortableStat",
+        None,
+    )
+    .expect("both stored integer ranges fit their semantic carriers");
 
     assert_eq!(report.offsets, None);
     assert_eq!(report.entries.len(), 2);
@@ -638,7 +643,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("stored integer policy should compile");
-    let error = compute_layout_plan(&checked.typed, "BadInteger::plan", "UnsignedOnly")
+    let error = compute_layout_plan(&checked.typed, "BadInteger::plan", "UnsignedOnly", None)
         .expect_err("a signed stored range cannot totally decode into an unsigned carrier");
     assert!(
         error.contains("cannot totally decode a 32-bit signed integer into `u64`"),
@@ -673,7 +678,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("compact bit policy should compile");
-    let report = compute_layout_plan(&checked.typed, "CompactBits::plan", "PackedFlags")
+    let report = compute_layout_plan(&checked.typed, "CompactBits::plan", "PackedFlags", None)
         .expect("bool and range-constrained fields should use their declared bit width");
     assert_eq!(report.size, Some(1));
     assert_eq!(report.entries.len(), 2);
@@ -725,7 +730,7 @@ machine Main::main(&mut self) { }
         let main_path = write_program(&format!("fractional-bit-policy-{width}"), &source);
         let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
             .expect("the exact anonymous endpoint is the integer eight");
-        let report = compute_layout_plan(&checked.typed, "CompactBits::plan", "PackedFlags");
+        let report = compute_layout_plan(&checked.typed, "CompactBits::plan", "PackedFlags", None);
         if width == 3 {
             let error = report.expect_err("eight cannot fit in a three-bit field");
             assert!(error.contains("end at bit 3, expected 4"), "{error}");
@@ -776,7 +781,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("compact gap should parse");
-    let error = compute_layout_plan(&checked.typed, "TooNarrow::plan", "PackedMode")
+    let error = compute_layout_plan(&checked.typed, "TooNarrow::plan", "PackedMode", None)
         .expect_err("a constrained field must still tile every representable bit");
     assert!(
         error.contains("end at bit 2, expected 3"),
@@ -811,7 +816,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("gap policy should compile");
-    let error = compute_layout_plan(&checked.typed, "Gap::plan", "EntryTarget")
+    let error = compute_layout_plan(&checked.typed, "Gap::plan", "EntryTarget", None)
         .expect_err("source gaps must reject");
     assert!(
         error.contains("tile exactly"),
@@ -849,7 +854,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("full-width u64 policy should compile");
-    let error = compute_layout_plan(&checked.typed, "Excess::plan", "Simple")
+    let error = compute_layout_plan(&checked.typed, "Excess::plan", "Simple", None)
         .expect_err("a full-width entry count must exceed the plan capacity");
     assert!(
         error.contains("entry_count 18446744073709551615 is outside 0..=64"),
@@ -905,7 +910,7 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("case schema should compile");
-    let report = compute_layout_plan(&checked.typed, "InspectCases::plan", "Choice")
+    let report = compute_layout_plan(&checked.typed, "InspectCases::plan", "Choice", None)
         .expect("case identity should reach the build-time Schema value");
     assert_eq!(
         report.size,
@@ -943,8 +948,9 @@ machine Main::main(&mut self) { }
     );
     let reordered = compile_to_checked(CheckedCompileRequest::new(&reordered_path, None))
         .expect("reordered case schema should compile");
-    let reordered_report = compute_layout_plan(&reordered.typed, "InspectCases::plan", "Choice")
-        .expect("reordered case schema should normalize");
+    let reordered_report =
+        compute_layout_plan(&reordered.typed, "InspectCases::plan", "Choice", None)
+            .expect("reordered case schema should normalize");
     assert_eq!(
         report.schema_report_fingerprint, reordered_report.schema_report_fingerprint,
         "numbered case names and authored order are presentation/runtime-discriminant inputs, not stable schema identity"

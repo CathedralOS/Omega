@@ -60,7 +60,7 @@ machine PairLayout::plan(&mut self, schema: Schema) -> Plan {
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("inaccessible-seed source should check");
-    let layout = compute_layout_plan(&checked.typed, "PairLayout::plan", "Pair")
+    let layout = compute_layout_plan(&checked.typed, "PairLayout::plan", "Pair", None)
         .expect("pair geometry should validate");
     let access = compute_access_plan(&checked.typed, "PairAccess::plan", "Pair", &layout)
         .expect("corpus access policy should evaluate");
@@ -97,7 +97,7 @@ fn source_access_policy_evaluates_against_validated_layout() {
     let main = write_program("source-access", POLICY_SOURCE);
     let checked = compile_to_checked(CheckedCompileRequest::new(&main, None))
         .expect("source policy should compile");
-    let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers")
+    let layout = compute_layout_plan(&checked.typed, "UartLayout::plan", "Registers", None)
         .expect("layout should validate before access evaluation");
     let access = compute_access_plan(&checked.typed, "UartAccess::plan", "Registers", &layout)
         .expect("source access policy should evaluate and normalize");
@@ -196,7 +196,7 @@ machine Main::main(&mut self) {}
     );
     let legacy = compile_to_checked(CheckedCompileRequest::new(&legacy, None))
         .expect("legacy numbered schema should check");
-    let retained = compute_layout_plan(&legacy.typed, "RetainedLayout::plan", "Registers")
+    let retained = compute_layout_plan(&legacy.typed, "RetainedLayout::plan", "Registers", None)
         .expect("legacy numbered layout should validate");
     assert_eq!(retained.entries[0].field, "legacy_status");
     assert_eq!(retained.entries[0].member_identity, Some(7));

@@ -19,7 +19,7 @@ fn declared_range_inference_returns_the_selected_endpoint() {
         None,
     ))
     .expect("computed declared endpoints select closed calls");
-    let admission = BuildTimeAdmissionPlan::infer(&checked.typed);
+    let admission = BuildTimeAdmissionPlan::infer(&checked.typed, None);
     for (name, arguments, expected) in [
         ("inferred", vec![BuildTimeValue::Int(0)], 256),
         ("computed", vec![BuildTimeValue::Int(0)], 256),

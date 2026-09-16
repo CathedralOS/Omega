@@ -24,7 +24,7 @@ mod closure_validation;
 mod const_evaluable;
 mod selection_authority;
 
-use closure_validation::checked_closure_violation_with_premise_discharge;
+use closure_validation::checked_closure_violation;
 use const_evaluable::require_const_evaluable_result;
 use selection_authority::selection_authority_violation;
 pub(crate) use selection_authority::{
@@ -103,11 +103,7 @@ struct BuildTimeCallEdge {
 }
 
 impl BuildTimeAdmissionPlan {
-    pub fn infer(program: &TypedTrees) -> Self {
-        Self::infer_with_selection_authority(program, None)
-    }
-
-    pub fn infer_with_selection_authority(
+    pub fn infer(
         program: &TypedTrees,
         selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Self {
@@ -173,7 +169,7 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         machine: &Machine,
     ) -> Result<(), String> {
-        self.require_common_floor_with_custody(program, machine, None)
+        self.require_floor(program, machine, None, false)
     }
 
     pub fn require_common_floor_for_invocation(
@@ -182,7 +178,7 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), String> {
-        self.require_common_floor_with_premise_discharge(program, machine, Some(custody), false)
+        self.require_floor(program, machine, Some(custody), false)
     }
 
     /// Common floor for one concrete invocation whose own checked probe
@@ -198,7 +194,7 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), String> {
-        self.require_common_floor_with_premise_discharge(program, machine, Some(custody), true)
+        self.require_floor(program, machine, Some(custody), true)
     }
 
     /// Whether `machine`'s call closure carries any authored `requires`
@@ -213,16 +209,7 @@ impl BuildTimeAdmissionPlan {
         closure_validation::closure_has_authored_requires(&self.call_edges, program, machine.symbol)
     }
 
-    fn require_common_floor_with_custody(
-        &self,
-        program: &TypedTrees,
-        machine: &Machine,
-        custody: Option<BuildTimeInvocationCustody>,
-    ) -> Result<(), String> {
-        self.require_common_floor_with_premise_discharge(program, machine, custody, false)
-    }
-
-    fn require_common_floor_with_premise_discharge(
+    fn require_floor(
         &self,
         program: &TypedTrees,
         machine: &Machine,
@@ -269,7 +256,7 @@ impl BuildTimeAdmissionPlan {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let closure_violation = checked_closure_violation_with_premise_discharge(
+        let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,
             machine,
@@ -526,7 +513,7 @@ impl BuildTimeAdmissionPlan {
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
     ) -> Result<BuildTimeValue, String> {
-        self.evaluate_const_evaluable_machine_symbol_for_invocation_measured_with_premise_discharge(
+        self.evaluate_const_evaluable_invocation_measured(
             program,
             machine_symbol,
             arguments,
@@ -548,7 +535,7 @@ impl BuildTimeAdmissionPlan {
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
     ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
-        self.evaluate_const_evaluable_machine_symbol_for_invocation_measured_with_premise_discharge(
+        self.evaluate_const_evaluable_invocation_measured(
             program,
             machine_symbol,
             arguments,
@@ -557,7 +544,7 @@ impl BuildTimeAdmissionPlan {
         )
     }
 
-    fn evaluate_const_evaluable_machine_symbol_for_invocation_measured_with_premise_discharge(
+    fn evaluate_const_evaluable_invocation_measured(
         &self,
         program: &TypedTrees,
         machine_symbol: SymbolHandle,

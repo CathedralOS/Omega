@@ -13,7 +13,7 @@ fn assert_body_value(checked: &CheckedCompilation, path: &str, expected: i64) {
         .iter()
         .find(|machine| checked.symbols.display_path(machine.symbol, "::") == path)
         .expect("constant body consumer");
-    let result = BuildTimeAdmissionPlan::infer(&checked.typed)
+    let result = BuildTimeAdmissionPlan::infer(&checked.typed, None)
         .evaluate_machine_symbol_for_invocation_measured(
             &checked.typed,
             machine.symbol,

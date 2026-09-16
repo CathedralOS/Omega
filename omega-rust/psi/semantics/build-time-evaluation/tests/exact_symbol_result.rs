@@ -42,7 +42,7 @@ fn exact_symbol_structured_evaluation_never_reselects_a_sibling_by_name() {
         .expect("right producer");
     assert_ne!(left.symbol, right.symbol);
 
-    let admission = BuildTimeAdmissionPlan::infer(&typed);
+    let admission = BuildTimeAdmissionPlan::infer(&typed, None);
     let evaluated = admission
         .evaluate_machine_symbol_for_invocation_measured(
             &typed,
@@ -73,7 +73,7 @@ fn exact_symbol_structured_evaluation_rejects_a_non_machine_symbol() {
         .find(|definition| definition.name.as_str() == "BindingLookalike")
         .expect("data declaration")
         .symbol;
-    let admission = BuildTimeAdmissionPlan::infer(&typed);
+    let admission = BuildTimeAdmissionPlan::infer(&typed, None);
     let error = admission
         .evaluate_machine_symbol_for_invocation_measured(
             &typed,

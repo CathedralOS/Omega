@@ -26,22 +26,20 @@
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
-use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
-pub fn evaluate_const_generic_calls(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    evaluate_const_generic_calls_with_optional_sources(syntax, None, &[], None)
-}
-
-pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
+pub fn evaluate_const_generic_calls(
     mut syntax: SyntaxTrees,
-    sources: Option<Arc<source::SourceMap>>,
-    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
-    selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    context: crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let crate::BuildTimeSources {
+        sources,
+        source_scoped_top_level_bindings,
+        selection_authority,
+    } = context;
     let mut pending = Vec::new();
     let mut pending_type_references = Vec::new();
     let mut applications = Vec::new();
@@ -139,18 +137,15 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
     )?;
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let admission = crate::BuildTimeAdmissionPlan::infer_with_selection_authority(
-        &typed,
-        selection_authority.clone(),
-    );
+    let admission = crate::BuildTimeAdmissionPlan::infer(&typed, selection_authority.clone());
 
     for (expression, machine_name, source_span) in pending {
-        let value = crate::evaluate_zero_argument_machine_for_invocation(
+        let value = crate::evaluate_zero_argument_machine(
             &typed,
             &admission,
             &machine_name,
             "generic argument",
-            crate::BuildTimeInvocationCustody::Source(source_span),
+            Some(crate::BuildTimeInvocationCustody::Source(source_span)),
         )
         .map_err(|reason| {
             vec![Diagnostic::error(format!(
@@ -260,10 +255,7 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
         // post-typing admission exactly. Only leaves the gate actually closed
         // are written back; an endpoint it leaves authored keeps its original
         // expression and its ordinary post-typing route.
-        crate::evaluate_const_range_endpoints_with_authority(
-            &mut typed,
-            selection_authority.clone(),
-        )?;
+        crate::evaluate_const_range_endpoints(&mut typed, selection_authority.clone())?;
         for (expression, source_span) in endpoint_leaves {
             let value = typed
                 .expression_table

@@ -52,8 +52,13 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("indexed dispatch table should check");
-    let report = compute_layout_plan(&checked.typed, "DispatchLayout::plan", "DispatchTable")
-        .expect("one element At per fixed-array element should validate");
+    let report = compute_layout_plan(
+        &checked.typed,
+        "DispatchLayout::plan",
+        "DispatchTable",
+        None,
+    )
+    .expect("one element At per fixed-array element should validate");
     assert_eq!(
         report
             .entries
@@ -181,8 +186,13 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("nested dispatch table should check");
-    let report = compute_layout_plan(&checked.typed, "DispatchLayout::plan", "DispatchTable")
-        .expect("a nested record field placed as one At extent should validate");
+    let report = compute_layout_plan(
+        &checked.typed,
+        "DispatchLayout::plan",
+        "DispatchTable",
+        None,
+    )
+    .expect("a nested record field placed as one At extent should validate");
     assert_eq!(
         report
             .entries
@@ -194,8 +204,9 @@ machine Main::main(&mut self) { }
             ("slot", LayoutPlacementReport::At { offset: 8 }),
         ]
     );
-    let inner_report = compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot")
-        .expect("the record's own policy supplies its interior geometry");
+    let inner_report =
+        compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot", None)
+            .expect("the record's own policy supplies its interior geometry");
     let inner = SymbolicFieldInnerLayout::new("slot", inner_report);
 
     let target = RelocationTarget::Entry(
@@ -321,8 +332,13 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("nested indexed dispatch table should check");
-    let report = compute_layout_plan(&checked.typed, "DispatchLayout::plan", "DispatchTable")
-        .expect("a repeated record field retains one element At per element");
+    let report = compute_layout_plan(
+        &checked.typed,
+        "DispatchLayout::plan",
+        "DispatchTable",
+        None,
+    )
+    .expect("a repeated record field retains one element At per element");
     assert_eq!(
         report
             .entries
@@ -335,8 +351,9 @@ machine Main::main(&mut self) { }
             ("slots", LayoutPlacementReport::At { offset: 32 }),
         ]
     );
-    let inner_report = compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot")
-        .expect("the record's own policy supplies its interior geometry");
+    let inner_report =
+        compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot", None)
+            .expect("the record's own policy supplies its interior geometry");
     assert_eq!(
         inner_report
             .entries
@@ -510,8 +527,13 @@ machine Main::main(&mut self) { }
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("deeply nested dispatch table should check");
-    let report = compute_layout_plan(&checked.typed, "DispatchLayout::plan", "DispatchTable")
-        .expect("a nested record field placed as one At extent should validate");
+    let report = compute_layout_plan(
+        &checked.typed,
+        "DispatchLayout::plan",
+        "DispatchTable",
+        None,
+    )
+    .expect("a nested record field placed as one At extent should validate");
     assert_eq!(
         report
             .entries
@@ -523,10 +545,11 @@ machine Main::main(&mut self) { }
             ("slot", LayoutPlacementReport::At { offset: 8 }),
         ]
     );
-    let slot_report = compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot")
+    let slot_report = compute_layout_plan(&checked.typed, "SlotLayout::plan", "DispatchSlot", None)
         .expect("the slot record's own policy supplies its interior geometry");
-    let inner_report = compute_layout_plan(&checked.typed, "InnerLayout::plan", "DispatchInner")
-        .expect("the inner record's own policy supplies its interior geometry");
+    let inner_report =
+        compute_layout_plan(&checked.typed, "InnerLayout::plan", "DispatchInner", None)
+            .expect("the inner record's own policy supplies its interior geometry");
     let inner = SymbolicFieldInnerLayout::new("slot", slot_report)
         .with_inner_layout(SymbolicFieldInnerLayout::new("inner", inner_report));
 

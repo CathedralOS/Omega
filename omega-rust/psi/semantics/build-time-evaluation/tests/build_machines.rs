@@ -182,7 +182,7 @@ fn prepared_entry_from_another_program_rejects_even_a_colliding_raw_symbol() {
 #[test]
 fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
     let typed = typed(SOURCE);
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     let value = admission
         .evaluate_const_evaluable_machine(&typed, "policy_value", vec![])
@@ -206,7 +206,7 @@ fn exported_wrapper_reach_controls_evaluation_admission() {
         ));
         let checked = typed_trees_to_checked_trees::lower_typed_trees(program)
             .expect("ordinary wrappers propagate their helper's service row");
-        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked);
+        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked, None);
         let result = admission.evaluate_const_evaluable_machine(&checked, "exported", vec![]);
         if declaration.is_empty() {
             assert_eq!(
@@ -235,7 +235,7 @@ fn nominal_callback_selection_controls_const_array_length_admission() {
             source.to_owned()
         };
         let mut program = typed(&source);
-        let result = evaluate_const_array_lengths(&mut program);
+        let result = evaluate_const_array_lengths(&mut program, None);
         if reaches_console {
             let diagnostics =
                 result.expect_err("a selected public Console contribution cannot evaluate");
@@ -277,7 +277,8 @@ fn nominal_and_structural_callbacks_keep_distinct_specialized_reach() {
         let program = typed(&source);
         let prepared = PreparedBuildMachineProgram::prepare(&program)
             .expect("both fixed and nominal callback contracts accept the quiet implementation");
-        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(prepared.typed());
+        let admission =
+            build_time_evaluation::BuildTimeAdmissionPlan::infer(prepared.typed(), None);
         let result = admission.evaluate_const_evaluable_machine(prepared.typed(), "length", vec![]);
         if admitted {
             assert_eq!(
@@ -316,7 +317,8 @@ fn selected_quiet_callbacks_do_not_narrow_operational_requirements() {
             let program = typed(&source);
             let prepared = PreparedBuildMachineProgram::prepare(&program)
                 .expect("a quiet implementation satisfies either operational upper bound");
-            let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(prepared.typed());
+            let admission =
+                build_time_evaluation::BuildTimeAdmissionPlan::infer(prepared.typed(), None);
             let error = admission
                 .evaluate_const_evaluable_machine(prepared.typed(), "length", vec![])
                 .expect_err("selection does not change the fixed operational envelope");
@@ -332,7 +334,7 @@ fn invocation_const_boundary_admits_an_exact_boolean_snapshot() {
         machine is_positive(value: u64) -> bool { value > 0 }
         "#,
     );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     let value = admission
         .evaluate_const_evaluable_machine_for_invocation(
@@ -348,7 +350,7 @@ fn invocation_const_boundary_admits_an_exact_boolean_snapshot() {
 #[test]
 fn exact_width_quoted_literal_evaluates_as_an_owned_raw_byte_array() {
     let typed = typed(SOURCE);
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     let value = admission
         .evaluate_const_evaluable_machine(&typed, "raw_bytes", vec![])
@@ -362,7 +364,7 @@ fn exact_width_quoted_literal_evaluates_as_an_owned_raw_byte_array() {
 #[test]
 fn closed_copy_record_and_realized_copy_sum_case_cross_as_owned_snapshots() {
     let typed = typed(SOURCE);
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     assert_eq!(
         admission
@@ -401,7 +403,7 @@ fn opt_in_const_boundary_rejects_an_affine_nominal_record() {
         machine receipt() -> Receipt { Receipt { code: 1 } }
         "#,
     );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     assert!(
         admission
@@ -427,30 +429,31 @@ fn zero_argument_integer_position_uses_const_evaluable_admission_and_exact_int_d
         data Buffer { bytes: [u8; count()]; }
         "#,
     );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     assert_eq!(
-        evaluate_zero_argument_machine(&typed, &admission, "count", "array length"),
+        evaluate_zero_argument_machine(&typed, &admission, "count", "array length", None),
         Ok(numerics::bignum::BigInt::from_u64(3))
     );
 
     let non_integer =
-        evaluate_zero_argument_machine(&typed, &admission, "decision", "array length")
+        evaluate_zero_argument_machine(&typed, &admission, "decision", "array length", None)
             .expect_err("a copyable non-integer snapshot must not cross an integer const position");
     assert_eq!(
         non_integer,
         "machine `decision` returns `bool`, not an integer type"
     );
 
-    let affine = evaluate_zero_argument_machine(&typed, &admission, "receipt", "array length")
-        .expect_err("the position helper must apply ConstEvaluable before decoding");
+    let affine =
+        evaluate_zero_argument_machine(&typed, &admission, "receipt", "array length", None)
+            .expect_err("the position helper must apply ConstEvaluable before decoding");
     assert!(affine.contains("not ConstEvaluable"), "{affine}");
     assert!(
         affine.contains("affine or linear type `Receipt`"),
         "{affine}"
     );
 
-    evaluate_const_array_lengths(&mut typed)
+    evaluate_const_array_lengths(&mut typed, None)
         .expect("the fixed-array integration should retain its literal substitution");
     assert!(
         typed
@@ -470,7 +473,7 @@ fn integer_const_positions_decode_the_callees_declared_carrier() {
          machine narrow_unsigned() -> u8 { 255 }
          machine narrow_signed() -> i8 { -128 }",
     );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
     for (name, expected) in [
         ("wide", "18446744073709551615"),
         ("high_bit", "9223372036854775808"),
@@ -479,8 +482,9 @@ fn integer_const_positions_decode_the_callees_declared_carrier() {
         ("narrow_unsigned", "255"),
         ("narrow_signed", "-128"),
     ] {
-        let value = evaluate_zero_argument_machine(&program, &admission, name, "range endpoint")
-            .expect("admitted integer call decodes");
+        let value =
+            evaluate_zero_argument_machine(&program, &admission, name, "range endpoint", None)
+                .expect("admitted integer call decodes");
         assert_eq!(value.to_string(), expected, "{name}");
     }
 }
@@ -501,7 +505,7 @@ fn sum_admission_walks_only_the_realized_case_payload() {
         }
         "#,
     );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     assert_eq!(
         admission
@@ -915,7 +919,7 @@ fn admission_rejects_explicit_self_loops_before_interpretation() {
              -> u32 {{ transition {{ _ -> self }} }}
              machine length() -> u32 {{ spin(3) }}"
         ));
-        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
         for (name, path) in [("spin", "spin"), ("length", "length -> spin")] {
             let machine = program
                 .machines()
@@ -972,7 +976,7 @@ fn admission_rejects_a_transitive_progress_premise_before_interpretation() {
         .iter()
         .find(|machine| machine.name.as_str() == "build")
         .expect("build machine");
-    let error = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed)
+    let error = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None)
         .require_common_floor(&typed, machine)
         .expect_err("pre-check evaluation has no proof context for the progress premise");
 
@@ -1008,7 +1012,7 @@ fn case_membership_evaluates_tags_without_comparing_payloads() {
              wrapper.choices[0] in Choice::Ready
          }",
     );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
     for (machine, expected) in [("ready", true), ("empty", false), ("nested", true)] {
         let value = admission
             .evaluate_const_evaluable_machine(&program, machine, vec![])
@@ -1029,7 +1033,7 @@ fn case_membership_accepts_temporary_values() {
             "data Choice [copy] {{ case Ready(value: u64); case Empty; }}
              machine member() -> bool {{ {subject} in Choice::{case} }}"
         ));
-        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program)
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None)
             .evaluate_const_evaluable_machine(&program, "member", vec![])
             .expect("membership does not require an otherwise unused local binding");
         assert_eq!(value, BuildTimeValue::Bool(expected), "{subject} in {case}");
@@ -1042,7 +1046,7 @@ fn case_membership_requires_a_value_subject_not_a_payload_domain() {
         "data Choice [copy] { case Ready(value: u64); case Empty; }
          machine member() -> bool { Choice::Ready in Choice::Ready }",
     );
-    let error = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program)
+    let error = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None)
         .evaluate_const_evaluable_machine(&program, "member", vec![])
         .expect_err("a bare payload case denotes a domain, not a constructed subject value");
     assert!(
@@ -1066,7 +1070,7 @@ fn case_membership_is_distinct_from_authored_equality() {
              choice == Choice::Ready
          }",
     );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
     for machine in ["member", "inline_member"] {
         assert_eq!(
             admission
@@ -1098,7 +1102,7 @@ fn authored_binary_operator_cannot_fall_back_to_builtin_during_evaluation() {
              (Choice::Ready { value: 7u64 % 2 }) in Choice::Ready
          }",
     );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
     for machine in ["count", "indirect", "member"] {
         let error = admission
             .evaluate_const_evaluable_machine(&program, machine, vec![])
@@ -1120,7 +1124,7 @@ fn unrelated_typed_operator_does_not_prevent_builtin_evaluation() {
         let program = typed(&format!(
             "{declaration} machine count() -> u64 {{ 7u64 % 2 }}"
         ));
-        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program)
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None)
             .evaluate_const_evaluable_machine(&program, "count", vec![])
             .expect("unrelated declarations retain builtin meaning");
         assert_eq!(value, BuildTimeValue::Int(1));
@@ -1131,7 +1135,7 @@ fn unrelated_typed_operator_does_not_prevent_builtin_evaluation() {
 fn builtin_evaluation_does_not_inherit_a_bound_proof_depth_limit() {
     let expression = vec!["1u64"; 140].join(" + ");
     let program = typed(&format!("machine count() -> u64 {{ {expression} }}"));
-    let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program)
+    let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None)
         .evaluate_const_evaluable_machine(&program, "count", vec![])
         .expect("builtin meaning is checked at each visited node");
     assert_eq!(value, BuildTimeValue::Int(140));
@@ -1176,7 +1180,7 @@ fn closed_generic_binding_result_is_const_evaluable_for_invocation() {
         .iter()
         .find(|machine| machine.name.as_str() == "write_binding")
         .expect("producer machine");
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
     let measured = admission
         .evaluate_const_evaluable_machine_symbol_for_invocation_measured(
             &program,
@@ -1249,7 +1253,7 @@ fn closed_generic_record_result_is_const_evaluable() {
         .iter()
         .find(|machine| machine.name.as_str() == "write_holder")
         .expect("producer machine");
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
     let value = admission
         .evaluate_const_evaluable_machine_symbol_for_invocation(
             &program,

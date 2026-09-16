@@ -80,55 +80,28 @@ enum Value {
     Landed(LandedIntegerType, IntegerValue),
 }
 
-/// Only a wholly anonymous final value lands at `destination`. A previously
-/// landed result retains its carrier for this legacy API's caller to check.
+/// Validate every operand and landing boundary without invoking landed calls.
+pub(crate) fn validate(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: Option<&dyn ConstantCalls>,
+) -> Result<Vec<Diagnostic>, String> {
+    match_dispatch::validate_graph(program, expression)?;
+    Ok(validate_shapes(program, machine, state, expression, destination, calls)?.warnings)
+}
+
 pub(crate) fn evaluate(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
     destination: PrimitiveType,
+    calls: Option<&dyn ConstantCalls>,
 ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-    evaluate_internal(program, machine, state, expression, destination, None)
-}
-
-/// Validate every operand and landing boundary without invoking landed calls.
-pub(crate) fn validate_with_calls(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    destination: PrimitiveType,
-    calls: &dyn ConstantCalls,
-) -> Result<Vec<Diagnostic>, String> {
-    match_dispatch::validate_graph(program, expression)?;
-    Ok(validate_shapes(
-        program,
-        machine,
-        state,
-        expression,
-        destination,
-        Some(calls),
-    )?
-    .warnings)
-}
-
-pub(crate) fn evaluate_with_calls(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    destination: PrimitiveType,
-    calls: &dyn ConstantCalls,
-) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-    evaluate_internal(
-        program,
-        machine,
-        state,
-        expression,
-        destination,
-        Some(calls),
-    )
+    evaluate_internal(program, machine, state, expression, destination, calls)
 }
 
 fn evaluate_internal(

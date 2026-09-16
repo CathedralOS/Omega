@@ -44,6 +44,7 @@
 //! Remaining endpoint arithmetic stays authored for ordinary checking, including
 //! its overflow obligations and fractional diagnostics.
 
+use crate::SelectedBuildTimeOperators;
 use diagnostics::Diagnostic;
 use numerics::{
     arithmetic::ArithmeticDomain,
@@ -65,11 +66,18 @@ struct PendingEndpoint {
     source_span: source::SourceSpan,
 }
 
-pub fn evaluate_const_range_endpoints_with_authority(
+pub fn evaluate_const_range_endpoints(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
-    evaluate_const_range_endpoints_with_selected(typed, selection_authority, &[], &[])
+    evaluate_selected_range_endpoints(
+        typed,
+        selection_authority,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &[],
+        },
+    )
 }
 
 /// Whether any still-authored endpoint call's reachable machine closure holds
@@ -90,8 +98,7 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
     let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
     let execution = prepared.typed();
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
-    let admission =
-        BuildTimeAdmissionPlan::infer_with_selection_authority(execution, selection_authority);
+    let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
     Ok(pending.iter().any(|endpoint| {
         admission.closure_needs_operator_selection(execution, endpoint.machine, &facts)
     }))
@@ -117,12 +124,15 @@ pub(crate) fn defer_pending_endpoint_calls(typed: &mut TypedTrees) -> Result<(),
 /// execution copy -- the caller's tree keeps its authored selection and
 /// source-owned handles for final checking, exactly as deferred fixed-array
 /// lengths do.
-pub(crate) fn evaluate_const_range_endpoints_with_selected(
+pub(crate) fn evaluate_selected_range_endpoints(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-    operators: &[crate::SelectedBuildTimeBinaryOperator],
-    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
+    selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let crate::SelectedBuildTimeOperators {
+        operators,
+        provider_bodies,
+    } = selected;
     let pending = pending_endpoints(typed)?;
     if pending.is_empty() {
         return Ok(());
@@ -143,12 +153,9 @@ pub(crate) fn evaluate_const_range_endpoints_with_selected(
     let execution = selected_execution
         .as_ref()
         .unwrap_or_else(|| prepared.typed());
-    let admission = BuildTimeAdmissionPlan::infer_with_selection_authority(
-        execution,
-        selection_authority.clone(),
-    )
-    .with_selected_operators(execution, operators)
-    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority.clone())
+        .with_selected_operators(execution, operators)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
 
     let mut diagnostics = Vec::new();
     let mut substitutions = Vec::new();

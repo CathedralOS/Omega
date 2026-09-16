@@ -65,11 +65,13 @@ pub fn evaluate_pre_resolution(
         source_scoped_top_level_bindings,
         selection_authority.as_deref(),
     )?;
-    let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls_with_optional_sources(
+    let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls(
         syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.clone(),
+        BuildTimeSources {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings,
+            selection_authority: selection_authority.clone(),
+        },
     )?;
     syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
         &mut syntax_trees,
@@ -80,11 +82,13 @@ pub fn evaluate_pre_resolution(
         source_scoped_top_level_bindings,
         selection_authority.as_deref(),
     )?;
-    let placed_view_records = placed_views::desugar_placed_views_with_optional_sources(
+    let placed_view_records = placed_views::desugar_placed_views(
         &mut syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.clone(),
+        BuildTimeSources {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings,
+            selection_authority: selection_authority.clone(),
+        },
     )?;
     let mut syntax_trees = crate::machine_execution::syntax_probes::normalize_generic_data(
         syntax_trees,
@@ -111,6 +115,32 @@ pub fn evaluate_pre_resolution(
 /// Target selection remains an Omega orchestration concern and may run on the
 /// returned syntax after this service has finished owning language-level
 /// elaboration.
+/// The build-time operators and provider bodies one evaluation runs with:
+/// the selected binary operators and the ordinary checked provider bodies a
+/// selected use means.
+#[derive(Clone, Copy, Default)]
+pub struct SelectedBuildTimeOperators<'a> {
+    pub operators: &'a [SelectedBuildTimeBinaryOperator],
+    pub provider_bodies: &'a [SelectedBuildTimeProviderBody],
+}
+
+/// The sources one syntax-phase evaluation resolves against: the source map,
+/// the source-scoped top-level bindings, and the selection authority.
+#[derive(Clone, Default)]
+pub struct BuildTimeSources<'a> {
+    pub sources: Option<Arc<source::SourceMap>>,
+    pub source_scoped_top_level_bindings: &'a [symbols::SourceScopedTopLevelBinding],
+    pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+}
+
+/// A selection authority together with the invocation custody it admitted:
+/// the pair a layout policy evaluation runs under when it is authorized.
+#[derive(Clone)]
+pub struct AuthorizedSelection {
+    pub authority: Arc<dyn BuildTimeSelectionAuthority>,
+    pub custody: crate::BuildTimeInvocationCustody,
+}
+
 #[must_use = "pre-resolution syntax and its matching pre-check continuation must stay paired"]
 pub struct PreResolutionEvaluation {
     syntax_trees: syntax_trees::SyntaxTrees,
@@ -179,20 +209,18 @@ impl PreCheckEvaluation {
     /// selection can never stand in for the current one. The remaining typed
     /// const positions (range endpoints today) observe the same rows when the
     /// continuation resumes.
-    pub fn evaluate_with_selected_operators(
+    pub fn evaluate_selected_operators(
         mut self,
         typed: &mut typed_trees::TypedTrees,
-        operators: &[SelectedBuildTimeBinaryOperator],
-        provider_bodies: &[SelectedBuildTimeProviderBody],
+        selected: SelectedBuildTimeOperators<'_>,
     ) -> Result<Vec<FoldedArrayLength>, Vec<diagnostics::Diagnostic>> {
-        let folds = const_lengths::evaluate_with_selected_operators(
+        let folds = const_lengths::evaluate_selected_array_lengths(
             typed,
             self.selection_authority.clone(),
-            operators,
-            provider_bodies,
+            selected,
         )?;
-        self.selected_operators = operators.to_vec();
-        self.provider_bodies = provider_bodies.to_vec();
+        self.selected_operators = selected.operators.to_vec();
+        self.provider_bodies = selected.provider_bodies.to_vec();
         self.evaluate(typed)?;
         Ok(folds)
     }
@@ -206,36 +234,28 @@ impl PreCheckEvaluation {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        const_lengths::evaluate_const_array_lengths_with_authority(
+        const_lengths::evaluate_const_array_lengths(typed, self.selection_authority.clone())?;
+        range_endpoints::evaluate_selected_range_endpoints(
             typed,
             self.selection_authority.clone(),
+            SelectedBuildTimeOperators {
+                operators: &self.selected_operators,
+                provider_bodies: &self.provider_bodies,
+            },
         )?;
-        range_endpoints::evaluate_const_range_endpoints_with_selected(
-            typed,
-            self.selection_authority.clone(),
-            &self.selected_operators,
-            &self.provider_bodies,
-        )?;
-        const_domain_facts::evaluate_const_domain_facts_with_authority(
-            typed,
-            self.selection_authority.clone(),
-        )?;
+        const_domain_facts::evaluate_const_domain_facts(typed, self.selection_authority.clone())?;
         const_initializers::validate_retained_invocations(typed, self.selection_authority.clone())?;
-        plan_laid::compute_plan_laid_layouts_with_authority(
+        plan_laid::compute_plan_laid_layouts(
             typed,
             &self.plan_laid_records,
             self.selection_authority.clone(),
         )?;
-        placed_views::validate_placed_view_plans_with_authority(
+        placed_views::validate_placed_view_plans(
             typed,
             &self.placed_view_records,
             self.selection_authority.clone(),
         )?;
-        wire_plans::compute_wire_plans_with_authority_from(
-            typed,
-            self.selection_authority,
-            self.wire_schema_frontier,
-        )
+        wire_plans::compute_wire_plans(typed, self.selection_authority, self.wire_schema_frontier)
     }
 
     /// Consume the continuation for syntax appended to an already evaluated

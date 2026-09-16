@@ -10,7 +10,7 @@ use super::BuildTimeCallEdge;
 /// The premise is still enforced there — at the exact concrete call — so the
 /// closure walk stands down on that axis alone; termination, linear carriers,
 /// and the other floor obligations keep applying unchanged.
-pub(super) fn checked_closure_violation_with_premise_discharge(
+pub(super) fn checked_closure_violation(
     call_edges: &[BuildTimeCallEdge],
     program: &TypedTrees,
     root: &Machine,

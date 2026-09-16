@@ -59,7 +59,7 @@ fn module_scoped_scalars_keep_distinct_body_values_and_machine_indices() {
                 .iter()
                 .find(|machine| checked.symbols.display_path(machine.symbol, "::") == path)
                 .expect("body constant consumer");
-            let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed)
+            let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed, None)
                 .evaluate_machine_symbol_for_invocation_measured(
                     &checked.typed,
                     machine.symbol,
@@ -160,7 +160,7 @@ fn module_scoped_scalars_preserve_boolean_and_floating_landings() {
                 checked.symbols.display_path(machine.symbol, "::") == "settings::selected"
             })
             .expect("module consumer");
-        let result = BuildTimeAdmissionPlan::infer(&checked.typed)
+        let result = BuildTimeAdmissionPlan::infer(&checked.typed, None)
             .evaluate_machine_symbol_for_invocation_measured(
                 &checked.typed,
                 machine.symbol,
@@ -317,7 +317,7 @@ fn module_scoped_scalars_attach_to_foreign_module_carriers() {
             .iter()
             .find(|machine| checked.symbols.display_path(machine.symbol, "::") == path)
             .expect("foreign-carrier constant consumer");
-        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed)
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed, None)
             .evaluate_machine_symbol_for_invocation_measured(
                 &checked.typed,
                 machine.symbol,

@@ -7,17 +7,7 @@ use typed_trees::{
 
 use super::PlanLaidRecord;
 
-/// Evaluate + validate each discovered policy application (the L2/L3
-/// pipeline), require a fully static plan, and record the placements for the
-/// native layout builder.
 pub fn compute_plan_laid_layouts(
-    typed: &mut TypedTrees,
-    records: &[PlanLaidRecord],
-) -> Result<(), Vec<Diagnostic>> {
-    compute_plan_laid_layouts_with_authority(typed, records, None)
-}
-
-pub fn compute_plan_laid_layouts_with_authority(
     typed: &mut TypedTrees,
     records: &[PlanLaidRecord],
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
@@ -39,10 +29,7 @@ pub fn compute_plan_laid_layouts_with_authority(
                         record.synthetic_name, record.policy_machine
                     ))]
                 })?;
-            let admission = crate::BuildTimeAdmissionPlan::infer_with_selection_authority(
-                typed,
-                Some(selection_authority),
-            );
+            let admission = crate::BuildTimeAdmissionPlan::infer(typed, Some(selection_authority));
             for source in &record.invocation_sources {
                 admission
                     .require_common_floor_for_invocation(
@@ -58,14 +45,18 @@ pub fn compute_plan_laid_layouts_with_authority(
                     })?;
             }
         }
-        let native_report =
-            crate::compute_native_layout_plan(typed, &record.policy_machine, &record.schema_data)
-                .map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}`: {reason}",
-                    record.synthetic_name
-                ))]
-            })?;
+        let native_report = crate::compute_native_layout_plan(
+            typed,
+            &record.policy_machine,
+            &record.schema_data,
+            None,
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "plan-laid value type `{}`: {reason}",
+                record.synthetic_name
+            ))]
+        })?;
         let report = &native_report.layout;
         let Some(size) = report.size else {
             return Err(vec![Diagnostic::error(format!(

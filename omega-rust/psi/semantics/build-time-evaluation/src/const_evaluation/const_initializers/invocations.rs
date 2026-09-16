@@ -69,8 +69,7 @@ impl CheckedInitializers {
         for probe in probes {
             typed.push_machine(probe);
         }
-        let admission =
-            BuildTimeAdmissionPlan::infer_with_selection_authority(&typed, authority.clone());
+        let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone());
         Ok(Self {
             typed,
             admission,
@@ -233,13 +232,13 @@ impl Invocation<'_> {
         expression: ExpressionHandle,
         destination: PrimitiveType,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-        value::evaluate_with_calls(
+        value::evaluate(
             self.program.typed(),
             self.machine,
             self.state,
             expression,
             destination,
-            self,
+            Some(self),
         )
     }
 
@@ -337,13 +336,13 @@ impl ConstantCalls for Invocation<'_> {
                 .ok_or(
                     "constant call argument needs an exact builtin integer or Boolean carrier",
                 )?;
-            for warning in value::validate_with_calls(
+            for warning in value::validate(
                 typed,
                 self.machine,
                 self.state,
                 *argument,
                 carrier,
-                self,
+                Some(self),
             )? {
                 if !warnings.contains(&warning) {
                     warnings.push(warning);
@@ -459,13 +458,13 @@ impl Invocation<'_> {
                     parameter.type_reference,
                 )
                 .ok_or("constant call argument lost its exact carrier")?;
-            let (value, argument_warnings) = value::evaluate_with_calls(
+            let (value, argument_warnings) = value::evaluate(
                 typed,
                 self.machine,
                 self.state,
                 *argument,
                 destination,
-                self,
+                Some(self),
             )?;
             if needs_concrete_discharge {
                 snapshots.push(scalar_snapshot(&value, destination)?);

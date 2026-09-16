@@ -43,7 +43,6 @@ impl InterpretOptions {
 }
 
 /// [`interpret_entry`] with explicit [`InterpretOptions`].
-
 pub fn interpret_entry(
     checked: &CheckedTrees,
     entry_machine_name: &str,

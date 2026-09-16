@@ -102,16 +102,13 @@ type Discovery = (
 
 pub fn desugar_placed_views(
     syntax: &mut SyntaxTrees,
+    context: crate::BuildTimeSources<'_>,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
-    desugar_placed_views_with_optional_sources(syntax, None, &[], None)
-}
-
-pub(crate) fn desugar_placed_views_with_optional_sources(
-    syntax: &mut SyntaxTrees,
-    sources: Option<Arc<source::SourceMap>>,
-    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
-    selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
-) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
+    let crate::BuildTimeSources {
+        sources,
+        source_scoped_top_level_bindings,
+        selection_authority,
+    } = context;
     let (applications, rewrites, schemas) =
         discover_applications(syntax, sources.as_deref(), selection_authority.as_deref())?;
     if applications.is_empty() {
@@ -140,13 +137,9 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
     )?;
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    crate::evaluate_const_array_lengths_with_authority(&mut typed, selection_authority.clone())?;
-    crate::evaluate_const_domain_facts_with_authority(&mut typed, selection_authority.clone())?;
-    crate::compute_plan_laid_layouts_with_authority(
-        &mut typed,
-        &probe_plan_laid,
-        selection_authority.clone(),
-    )?;
+    crate::evaluate_const_array_lengths(&mut typed, selection_authority.clone())?;
+    crate::evaluate_const_domain_facts(&mut typed, selection_authority.clone())?;
+    crate::compute_plan_laid_layouts(&mut typed, &probe_plan_laid, selection_authority.clone())?;
 
     let mut plans = BTreeMap::new();
     for application in &applications {
@@ -193,13 +186,6 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
 }
 
 pub fn validate_placed_view_plans(
-    typed: &mut TypedTrees,
-    records: &[PlacedViewRecord],
-) -> Result<(), Vec<Diagnostic>> {
-    validate_placed_view_plans_with_authority(typed, records, None)
-}
-
-pub fn validate_placed_view_plans_with_authority(
     typed: &mut TypedTrees,
     records: &[PlacedViewRecord],
     selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
@@ -250,10 +236,7 @@ fn admit_policy_invocations(
         .iter()
         .find(|machine| machine.name.as_str() == policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
-    let admission = crate::BuildTimeAdmissionPlan::infer_with_selection_authority(
-        typed,
-        Some(selection_authority),
-    );
+    let admission = crate::BuildTimeAdmissionPlan::infer(typed, Some(selection_authority));
     for source in invocation_sources {
         admission.require_common_floor_for_invocation(
             typed,

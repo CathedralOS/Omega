@@ -20,16 +20,13 @@ pub use checked_interpreter::{
     CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,
     SelectedBuildTimeBinaryOperator,
 };
-pub use const_evaluation::const_domain_facts::{
-    evaluate_const_domain_facts, evaluate_const_domain_facts_with_authority,
-};
+pub use const_evaluation::const_domain_facts::evaluate_const_domain_facts;
 pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;
 pub use const_evaluation::const_lengths::{FoldedArrayLength, validate_folded_array_lengths};
 pub use const_evaluation::const_lengths::{
-    evaluate_const_array_lengths, evaluate_const_array_lengths_with_authority,
-    evaluate_zero_argument_machine, evaluate_zero_argument_machine_for_invocation,
+    evaluate_const_array_lengths, evaluate_zero_argument_machine,
 };
-pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints_with_authority;
+pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use layouts::access_plans::{compute_access_plan, compute_placement_plan};
 pub use layouts::layout_plans::{
     BuildTimeValue, ValidatedConstMaterialization,
@@ -42,8 +39,7 @@ pub use layouts::layout_plans::{
     ValidatedConstRecordWithRecursiveNestedSumsMaterialization,
     ValidatedConstRecordWithSumArrayMaterialization,
     ValidatedConstRecordWithSumArraysMaterialization, ValidatedConstRecordWithSumMaterialization,
-    ValidatedConstSumMaterialization, compute_layout_plan, compute_layout_plan_with_authority,
-    compute_native_layout_plan, compute_native_layout_plan_with_authority,
+    ValidatedConstSumMaterialization, compute_layout_plan, compute_native_layout_plan,
     evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
     normalized_schema_report_fingerprint, validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sum,
@@ -57,13 +53,11 @@ pub use layouts::layout_plans::{
 };
 pub use layouts::placed_views::{
     PlacedViewRecord, desugar_placed_views, validate_placed_view_plans,
-    validate_placed_view_plans_with_authority,
 };
 pub use layouts::plan_laid::{
-    PlanLaidRecord, compute_plan_laid_layouts, compute_plan_laid_layouts_with_authority,
-    desugar_plan_laid_value_types,
+    PlanLaidRecord, compute_plan_laid_layouts, desugar_plan_laid_value_types,
 };
-pub use layouts::wire_plans::{compute_wire_plans, compute_wire_plans_with_authority};
+pub use layouts::wire_plans::compute_wire_plans;
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeSelectionAuthority,
 };
@@ -88,6 +82,9 @@ pub use machine_execution::selected_operators::{
     SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,
 };
 
+pub use build_time_evaluation::{
+    AuthorizedSelection, BuildTimeSources, SelectedBuildTimeOperators,
+};
 pub use build_time_evaluation::{
     BuildTimeEvaluationRequest, BuildTimeSourceContext, PreCheckEvaluation,
     PreResolutionEvaluation, evaluate_pre_resolution,

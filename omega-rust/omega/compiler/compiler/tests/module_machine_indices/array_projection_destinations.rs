@@ -212,7 +212,7 @@ fn matching_array_projection_values_evaluate_with_exact_module_selection() {
             .iter()
             .find(|machine| machine.name.as_str() == name)
             .expect("projection consumer");
-        let result = BuildTimeAdmissionPlan::infer(&checked.typed)
+        let result = BuildTimeAdmissionPlan::infer(&checked.typed, None)
             .evaluate_machine_symbol_for_invocation_measured(
                 &checked.typed,
                 machine.symbol,

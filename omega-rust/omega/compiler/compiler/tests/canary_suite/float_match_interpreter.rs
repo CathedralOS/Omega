@@ -21,7 +21,12 @@ fn selected_float_match_interpreter_preserves_ieee_values_and_effect_order() {
             ("projection", 7),
         ] {
             let machine = format!("{case}{format}");
-            let outcome = checked_interpreter::interpret_entry(&checked, &machine, &[], InterpretOptions::default());
+            let outcome = checked_interpreter::interpret_entry(
+                &checked,
+                &machine,
+                &[],
+                InterpretOptions::default(),
+            );
             assert_eq!(outcome.error, None, "{machine}");
             assert_eq!(outcome.exit_code, expected, "{machine}");
         }
@@ -37,7 +42,12 @@ fn selected_float_match_interpreter_rejects_integer_runtime_substitution() {
     ))
     .expect("floating projection customer checks with exact providers");
     for machine in ["projection32", "projection64"] {
-        let positive = checked_interpreter::interpret_entry(&checked, machine, &[], InterpretOptions::default());
+        let positive = checked_interpreter::interpret_entry(
+            &checked,
+            machine,
+            &[],
+            InterpretOptions::default(),
+        );
         assert_eq!(
             positive.error, None,
             "{machine} must work before substitution"
@@ -72,7 +82,12 @@ fn selected_float_match_interpreter_rejects_integer_runtime_substitution() {
     // runtime operands now appear integral, retained floating selection must
     // prevent them from borrowing builtin integer equality.
     for machine in ["projection32", "projection64"] {
-        let outcome = checked_interpreter::interpret_entry(&changed, machine, &[], InterpretOptions::default());
+        let outcome = checked_interpreter::interpret_entry(
+            &changed,
+            machine,
+            &[],
+            InterpretOptions::default(),
+        );
         assert!(
             outcome.error.is_some(),
             "{machine} cannot execute substituted operands"
@@ -88,7 +103,8 @@ fn selected_float_match_interpreter_rejects_stale_or_substituted_execution_custo
         Some("macos_arm64"),
     ))
     .expect("float match customer checks");
-    let positive = checked_interpreter::interpret_entry(&checked, "launch", &[], InterpretOptions::default());
+    let positive =
+        checked_interpreter::interpret_entry(&checked, "launch", &[], InterpretOptions::default());
     assert_eq!(
         positive.error, None,
         "negative controls need working execution"
@@ -227,7 +243,12 @@ fn selected_float_match_interpreter_rejects_stale_or_substituted_execution_custo
                 || change == "duplicate",
             "{change} must invalidate the retained child"
         );
-        let outcome = checked_interpreter::interpret_entry(&changed, "launch", &[], InterpretOptions::default());
+        let outcome = checked_interpreter::interpret_entry(
+            &changed,
+            "launch",
+            &[],
+            InterpretOptions::default(),
+        );
         assert!(outcome.error.is_some(), "{change} cannot execute");
     }
 }

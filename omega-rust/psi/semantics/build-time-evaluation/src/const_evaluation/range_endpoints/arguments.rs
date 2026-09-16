@@ -68,6 +68,7 @@ pub(super) fn evaluate(
                 entry,
                 *argument,
                 destination,
+                None,
             )?;
         if value.type_name != destination.name() {
             return Err(format!(

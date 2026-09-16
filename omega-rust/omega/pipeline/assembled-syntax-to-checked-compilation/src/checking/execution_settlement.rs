@@ -8,6 +8,7 @@ use crate::checking::phase_transitions::{
     TypedToCheckedSettlementInput, settle_selected_execution, typed_trees_to_checked_trees,
 };
 use artifacts::compile_timings::CompileTimings;
+use build_time_evaluation::SelectedBuildTimeOperators;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 
@@ -141,10 +142,12 @@ pub(super) fn check_selected_execution(
         for pre_check in pending_pre_checks {
             const_evaluation
                 .folds
-                .extend(pre_check.evaluate_with_selected_operators(
+                .extend(pre_check.evaluate_selected_operators(
                     &mut typed,
-                    &const_evaluation.operators,
-                    &const_evaluation.provider_bodies,
+                    SelectedBuildTimeOperators {
+                        operators: &const_evaluation.operators,
+                        provider_bodies: &const_evaluation.provider_bodies,
+                    },
                 )?);
         }
     }

@@ -1,7 +1,7 @@
 use super::{
     CanonicalConstIdentity, CanonicalConstValue, ConstantCalls, Diagnostic, ExpressionHandle,
     ExpressionNode, LandedIntegerType, Machine, PrimitiveType, Shape, State, TypedTrees,
-    call_value, evaluate, evaluate_with_calls, validate_with_calls,
+    call_value, evaluate, validate,
 };
 use std::cell::Cell;
 
@@ -83,13 +83,13 @@ impl ConstantCalls for Calls<'_> {
                 .program
                 .primitive_type_reference(parameter.type_reference)
                 .ok_or("primitive parameter")?;
-            warnings.extend(validate_with_calls(
+            warnings.extend(validate(
                 self.program,
                 caller,
                 state,
                 *argument,
                 primitive,
-                self,
+                Some(self),
             )?);
         }
         Ok((
@@ -130,7 +130,7 @@ impl ConstantCalls for Calls<'_> {
             return Err("identity call requires one argument".into());
         };
         let caller = &self.program.machines()[0];
-        evaluate_with_calls(
+        evaluate(
             self.program,
             caller,
             &self.program.machine_states(caller)[0],
@@ -138,7 +138,7 @@ impl ConstantCalls for Calls<'_> {
             self.program
                 .primitive_type_reference(parameter.type_reference)
                 .ok_or("primitive parameter")?,
-            self,
+            Some(self),
         )
     }
 }
@@ -185,16 +185,29 @@ fn scalar_calls_compose_with_arithmetic_boolean_logic_and_match() {
             program: &program,
             executed: Cell::new(0),
         };
-        validate_with_calls(&program, machine, state, expression, destination, &calls)
-            .expect("static call shapes");
+        validate(
+            &program,
+            machine,
+            state,
+            expression,
+            destination,
+            Some(&calls),
+        )
+        .expect("static call shapes");
         assert_eq!(calls.executed.get(), 0, "static pass does not invoke calls");
-        let (value, _) =
-            evaluate_with_calls(&program, machine, state, expression, destination, &calls)
-                .unwrap_or_else(|error| panic!("{body}: {error}"));
+        let (value, _) = evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            destination,
+            Some(&calls),
+        )
+        .unwrap_or_else(|error| panic!("{body}: {error}"));
         assert_eq!(value.display, expected, "{body}");
         assert_eq!(calls.executed.get(), executions, "{body}");
         assert!(
-            evaluate(&program, machine, state, expression, destination).is_err(),
+            evaluate(&program, machine, state, expression, destination, None).is_err(),
             "call-free API cannot acquire invocation authority"
         );
     }
@@ -216,13 +229,13 @@ fn skipped_calls_still_validate_argument_carriers_and_anonymous_landings() {
             executed: Cell::new(0),
         };
         assert!(
-            evaluate_with_calls(
+            evaluate(
                 &program,
                 machine,
                 state,
                 expression,
                 PrimitiveType::Bool,
-                &calls
+                Some(&calls)
             )
             .is_err(),
             "{body}"
@@ -253,13 +266,13 @@ fn call_graph_rejects_stale_argument_spans_and_cycles_before_callbacks() {
             program: &program,
             executed: Cell::new(0),
         };
-        let error = evaluate_with_calls(
+        let error = evaluate(
             &program,
             machine,
             state,
             expression,
             PrimitiveType::U8,
-            &calls,
+            Some(&calls),
         )
         .expect_err("malformed argument graph");
         assert!(error.contains("invalid or cyclic"), "{error}");
@@ -280,13 +293,13 @@ fn call_graph_rejects_stale_argument_spans_and_cycles_before_callbacks() {
         program: &program,
         executed: Cell::new(0),
     };
-    let error = validate_with_calls(
+    let error = validate(
         &program,
         machine,
         &program.machine_states(machine)[0],
         expression,
         PrimitiveType::U8,
-        &calls,
+        Some(&calls),
     )
     .expect_err("stale argument span");
     assert!(error.contains("argument span"), "{error}");
