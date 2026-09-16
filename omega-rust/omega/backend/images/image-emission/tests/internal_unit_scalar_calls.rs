@@ -15,8 +15,9 @@
 //! against the unchanged image.
 
 use calling_conventions::{
-    CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
-    evaluate_call_plan,
+    CallSignature, CallbackMaterialization, CallingPolicy, EntryControl, MachineRegister,
+    NativeParameterId, NativePlace, RegisterSet, StaticMachineBinderId, ValueLocation,
+    ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use image_emission::{
     InstallationError, InstalledFunction, InstalledInternalUnitScalarCall,
@@ -648,6 +649,353 @@ fn installation_internal_unit_scalar_call_row_rejects_every_one_field_substituti
                 mutate(&mut changed.internal_unit_scalar_calls_mut_for_test()[row_index]);
             }
         }
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: substituted row is rejected at canonical encoding"
+        );
+    }
+}
+
+/// Authenticated one-field mutation coverage for the callee's retained
+/// `scalar_abi`: every `ScalarFunctionAbi` leaf is a canonical projection the
+/// record shape recomputes from the parameter and result scalar types or
+/// rejoins against the caller's scalar calls. Semantic value identities are
+/// the bounded slack — each still encodes, recomputes a distinct installation
+/// fingerprint, and is rejected by independent replay against the unchanged
+/// image; every other substitution is rejected at canonical encoding, either
+/// by the callee row's own canonical shape or by the caller's call join.
+#[test]
+fn installation_function_scalar_abi_row_rejects_every_one_field_substitution() {
+    let plan = attached_unit_scalar_call_plan();
+    let artifact = build_object_artifact(&plan).expect("scalar-call artifact");
+    let image = emit_executable_image(&artifact, 3).expect("scalar-call image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("scalar-call installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = record.functions()[1].clone();
+    let abi = authentic.scalar_abi.as_ref().expect("retained scalar ABI");
+    assert_eq!(abi.parameters.len(), 1);
+    assert_eq!(abi.parameters[0].value, value_id(11));
+    assert_eq!(abi.result.value, value_id(12));
+
+    let i32_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("i32"));
+    let i32_shape = ValueShape::integer(4, 4);
+    let wrong_placement = move || ValuePlacement {
+        shape: i32_shape,
+        locations: vec![ValueLocation::Register {
+            register: MachineRegister::X86Rsi,
+            value_byte_offset: 0,
+            byte_size: 4,
+        }],
+    };
+    let u32_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
+    let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("i64"));
+    let callback_row = CallbackMaterialization {
+        binder: StaticMachineBinderId::new(1).expect("binder"),
+        destination: NativePlace::Parameter(NativeParameterId::new(1).expect("parameter")),
+    };
+
+    // Semantic value identities are not part of the recomputed native plan:
+    // a fresh parameter or result value still encodes, decodes to the same
+    // record, recomputes a distinct installation identity, and is rejected by
+    // independent replay against the unchanged image.
+    type SlackMutation = (&'static str, Box<dyn Fn(&mut InstalledFunction)>);
+    let slack_mutations: Vec<SlackMutation> = vec![
+        (
+            "scalar_abi.parameters[0].value",
+            Box::new(|row| {
+                row.scalar_abi.as_mut().expect("scalar ABI").parameters[0].value = value_id(41);
+            }),
+        ),
+        (
+            "scalar_abi.result.value",
+            Box::new(|row| {
+                row.scalar_abi.as_mut().expect("scalar ABI").result.value = value_id(41);
+            }),
+        ),
+    ];
+    for (field, mutate) in slack_mutations {
+        let mut changed = record.clone();
+        mutate(&mut changed.functions_mut_for_test()[1]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: slack substitution encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: slack substitution decodes: {error:?}"));
+        assert_eq!(replayed, changed, "{field}: codec round trip is exact");
+        assert_ne!(
+            installation_fingerprint(&replayed).expect("substituted fingerprint"),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted row"
+        );
+    }
+
+    // The callee row's own canonical shape recomputes the native call plan
+    // from the parameter and result scalar types and requires exact
+    // placements, distinct value identities, and a roster matching the plan.
+    let abi_shape = InstallationError::InvalidUnitAffineCleanup(machine_id(2));
+    // Substitutions the ABI's own shape admits are still rejected by the
+    // caller's scalar-call join: the argument's source type and the produced
+    // result home rejoin the retained parameter and result scalar types.
+    let call_join = InstallationError::InvalidInternalUnitScalarCall(machine_id(1));
+    type AbiMutation = (
+        &'static str,
+        Box<dyn Fn(&mut InstalledFunction)>,
+        InstallationError,
+    );
+    let mutations: Vec<AbiMutation> = vec![
+        (
+            "scalar_abi::drop",
+            Box::new(|row| {
+                row.scalar_abi = None;
+            }),
+            call_join.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.policy",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .policy = CallingPolicy::MicrosoftX64;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.parameters::drop",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .parameters
+                    .clear();
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.parameters::insert",
+            Box::new(move |row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .parameters
+                    .push(wrong_placement());
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.parameters[0]",
+            Box::new(move |row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .parameters[0] = wrong_placement();
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.result",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .result = None;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.callback_materializations::insert",
+            Box::new(move |row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .callback_materializations
+                    .push(callback_row.clone());
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.ordinary_clobbers",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .ordinary_clobbers = RegisterSet::new([MachineRegister::X86Rbx]);
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.stack_alignment",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .stack_alignment = 8;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.shadow_bytes",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .shadow_bytes = 32;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.call_plan.entry_control",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .call_plan
+                    .entry_control = EntryControl::InterruptReturn;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.parameters[0].scalar_type::u32",
+            Box::new(move |row| {
+                row.scalar_abi.as_mut().expect("scalar ABI").parameters[0].scalar_type = u32_scalar;
+            }),
+            call_join.clone(),
+        ),
+        (
+            "scalar_abi.parameters[0].scalar_type::i64",
+            Box::new(move |row| {
+                row.scalar_abi.as_mut().expect("scalar ABI").parameters[0].scalar_type = i64_scalar;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.parameters[0].scalar_type::boolean",
+            Box::new(|row| {
+                row.scalar_abi.as_mut().expect("scalar ABI").parameters[0].scalar_type =
+                    ScalarType::Boolean;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.parameters[0].placement",
+            Box::new(move |row| {
+                row.scalar_abi.as_mut().expect("scalar ABI").parameters[0].placement =
+                    wrong_placement();
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.parameters[0].value::result_collision",
+            Box::new(|row| {
+                row.scalar_abi.as_mut().expect("scalar ABI").parameters[0].value = value_id(12);
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.parameters::insert",
+            Box::new(move |row| {
+                let abi = row.scalar_abi.as_mut().expect("scalar ABI");
+                abi.parameters.push(ScalarAbiValue {
+                    value: value_id(13),
+                    scalar_type: i32_scalar,
+                    placement: wrong_placement(),
+                });
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.parameters::drop",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .parameters
+                    .clear();
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.parameters::insert-duplicate",
+            Box::new(|row| {
+                let abi = row.scalar_abi.as_mut().expect("scalar ABI");
+                let parameter = abi.parameters[0].clone();
+                abi.parameters.push(parameter);
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.result.scalar_type::u32",
+            Box::new(move |row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .result
+                    .scalar_type = u32_scalar;
+            }),
+            call_join.clone(),
+        ),
+        (
+            "scalar_abi.result.scalar_type::i64",
+            Box::new(move |row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .result
+                    .scalar_type = i64_scalar;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.result.scalar_type::boolean",
+            Box::new(|row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .result
+                    .scalar_type = ScalarType::Boolean;
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.result.placement",
+            Box::new(move |row| {
+                row.scalar_abi
+                    .as_mut()
+                    .expect("scalar ABI")
+                    .result
+                    .placement = wrong_placement();
+            }),
+            abi_shape.clone(),
+        ),
+        (
+            "scalar_abi.result.value::parameter_collision",
+            Box::new(|row| {
+                row.scalar_abi.as_mut().expect("scalar ABI").result.value = value_id(11);
+            }),
+            abi_shape.clone(),
+        ),
+    ];
+    for (field, mutate, expected) in mutations {
+        let mut changed = record.clone();
+        mutate(&mut changed.functions_mut_for_test()[1]);
         assert_ne!(changed, record, "{field}: substitution changes the row");
         assert_eq!(
             encode_installation_record(&changed),

@@ -16,7 +16,7 @@
 use super::{
     WriteExitProvider, continuation_unit_call_plan, edge_id, edge_owned_cleanup_plan, machine_id,
     operation_id, promote_x86_cleanup_to_scalar, scalar_three_leaf_cleanup_plan,
-    stored_dynamic_call_plan, windows_foreign_call_plan,
+    stored_dynamic_call_plan, structural_call_scalar_return_plan, windows_foreign_call_plan,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
@@ -152,6 +152,48 @@ fn matching_mixed_abi(
     .expect("mixed call plan");
     target_operations::MixedStructuralScalarFunctionAbi {
         scalar_parameters: Vec::new(),
+        structural_parameters: vec![target_operations::TargetStructuralParameter {
+            place: retained.place,
+            structural_type: retained.structural_type,
+            multiplicity: retained.multiplicity,
+            access: retained.access,
+            projected_qualifications: Vec::new(),
+            shape: retained.shape,
+            placement: retained_home.source.clone(),
+        }],
+        result: ScalarAbiValue {
+            value: value_id(49),
+            scalar_type: i32_scalar(),
+            placement: call_plan.result.clone().expect("mixed result"),
+        },
+        call_plan,
+    }
+}
+
+/// The exact mixed ABI a promoted scalar-cleanup row can retain: one i32
+/// scalar parameter on the canonical plan's leading placement, the retained
+/// structural parameter joined field-for-field to its roster row and home
+/// source, and one i32 result placement.
+fn retained_mixed_abi(
+    function: &machine_code::MachineCodeFunction,
+) -> target_operations::MixedStructuralScalarFunctionAbi {
+    let retained = function.scalar_structural_parameters[0];
+    let retained_home = &function.scalar_structural_parameter_homes[0];
+    let i32_shape = ValueShape::integer(4, 4);
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+        &CallSignature {
+            parameters: vec![i32_shape, retained.shape],
+            result: Some(i32_shape),
+        },
+    )
+    .expect("mixed call plan");
+    target_operations::MixedStructuralScalarFunctionAbi {
+        scalar_parameters: vec![ScalarAbiValue {
+            value: value_id(51),
+            scalar_type: i32_scalar(),
+            placement: call_plan.parameters[0].clone(),
+        }],
         structural_parameters: vec![target_operations::TargetStructuralParameter {
             place: retained.place,
             structural_type: retained.structural_type,
@@ -2167,6 +2209,1207 @@ fn installation_function_unit_continuations_reject_every_one_field_substitution(
                 row.unit_continuations.push(continuation);
             }),
             InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
+    }
+}
+
+/// Authenticated one-field mutation coverage for the continuation caller's
+/// retained `parameter_abi`: the call plan, both scalar parameters, and both
+/// entry register spills are canonical projections the record shape recomputes
+/// from the parameter scalar types and independently rejoins to the frame
+/// prologue and the continuation bindings. The unbound second parameter's
+/// same-shape scalar type is the bounded slack — it still encodes, recomputes
+/// a distinct installation fingerprint, and is rejected by independent replay;
+/// every other substitution is rejected at canonical encoding.
+#[test]
+fn installation_function_parameter_abi_rejects_every_one_field_substitution() {
+    let plan = continuation_unit_call_plan();
+    let artifact = build_object_artifact(&plan).expect("continuation artifact");
+    let image = emit_executable_image(&artifact, 3).expect("continuation image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("continuation installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = record.functions()[0].clone();
+    let abi = authentic
+        .parameter_abi
+        .as_ref()
+        .expect("retained parameter ABI");
+    assert_eq!(abi.parameters.len(), 2);
+    assert_eq!(abi.parameters[0].value, value_id(45));
+    assert_eq!(abi.parameters[1].value, value_id(46));
+    assert_eq!(abi.entry_register_spills.len(), 2);
+    assert_eq!(abi.entry_register_spills[0].byte_offset, 0);
+    assert_eq!(abi.entry_register_spills[1].byte_offset, 8);
+
+    let u32_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
+    let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("i64"));
+
+    // The second parameter is not bound by any continuation: a same-shape
+    // scalar type still satisfies the recomputed caller plan and every join,
+    // so the substitution encodes, decodes exactly, recomputes a distinct
+    // identity, and is rejected by independent replay against the unchanged
+    // image.
+    assert_substitution_rejected_by_replay(
+        "parameter_abi.parameters[1].scalar_type::u32",
+        &record,
+        &image,
+        &authentic_fingerprint,
+        0,
+        |row| {
+            row.parameter_abi
+                .as_mut()
+                .expect("parameter ABI")
+                .parameters[1]
+                .scalar_type = u32_scalar;
+        },
+    );
+
+    // Every other leaf is a canonical projection: the caller plan is
+    // recomputed from the parameter scalar types, each placement and the
+    // distinct value identities rejoin the plan and the spill roster, each
+    // spill rejoins its parameter, register, frame offset and code interval,
+    // and the continuation bindings rejoin the bound parameter's type.
+    let invalid = InstallationError::InvalidUnitAffineCleanup(machine_id(1));
+    let rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut InstalledFunction)>,
+        InstallationError,
+    )> = vec![
+        (
+            "parameter_abi::drop",
+            Box::new(|row| {
+                row.parameter_abi = None;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.policy",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .policy = CallingPolicy::MicrosoftX64;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.parameters::drop",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .parameters
+                    .clear();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.parameters::insert",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .parameters
+                    .push(register_placement());
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.parameters[0]",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .parameters[0] = register_placement();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.parameters[1]",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .parameters[1] = register_placement();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.parameters::swap",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .parameters
+                    .swap(0, 1);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.parameters::insert-duplicate",
+            Box::new(|row| {
+                let abi = row.parameter_abi.as_mut().expect("parameter ABI");
+                let placement = abi.call_plan.parameters[0].clone();
+                abi.call_plan.parameters.push(placement);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.result",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .result = Some(register_placement());
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.callback_materializations::insert",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .callback_materializations
+                    .push(calling_conventions::CallbackMaterialization {
+                        binder: calling_conventions::StaticMachineBinderId::new(1).expect("binder"),
+                        destination: calling_conventions::NativePlace::Parameter(
+                            calling_conventions::NativeParameterId::new(1).expect("parameter"),
+                        ),
+                    });
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.ordinary_clobbers",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .ordinary_clobbers = calling_conventions::RegisterSet::new([
+                    calling_conventions::MachineRegister::X86Rbx,
+                ]);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.stack_alignment",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .stack_alignment = 8;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.shadow_bytes",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .shadow_bytes = 32;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.call_plan.entry_control",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .call_plan
+                    .entry_control = calling_conventions::EntryControl::InterruptReturn;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[0].value",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[0]
+                    .value = value_id(47);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[0].value::other_parameter",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[0]
+                    .value = value_id(46);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[0].scalar_type::u32",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[0]
+                    .scalar_type = u32_scalar;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[0].scalar_type::i64",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[0]
+                    .scalar_type = i64_scalar;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[0].scalar_type::boolean",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[0]
+                    .scalar_type = ScalarType::Boolean;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[0].placement",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[0]
+                    .placement = register_placement();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[1].value",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[1]
+                    .value = value_id(47);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[1].value::other_parameter",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[1]
+                    .value = value_id(45);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[1].scalar_type::i64",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[1]
+                    .scalar_type = i64_scalar;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[1].scalar_type::boolean",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[1]
+                    .scalar_type = ScalarType::Boolean;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters[1].placement",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[1]
+                    .placement = register_placement();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters::insert",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters
+                    .push(ScalarAbiValue {
+                        value: value_id(47),
+                        scalar_type: i32_scalar(),
+                        placement: register_placement(),
+                    });
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters::drop",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters
+                    .pop();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters::swap",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters
+                    .swap(0, 1);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.parameters::insert-duplicate",
+            Box::new(|row| {
+                let abi = row.parameter_abi.as_mut().expect("parameter ABI");
+                let parameter = abi.parameters[0].clone();
+                abi.parameters.push(parameter);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[0].source_value",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[0]
+                    .source_value = value_id(47);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[0].parameter_index",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[0]
+                    .parameter_index = 1;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[0].register",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[0]
+                    .register = calling_conventions::MachineRegister::X86Rdx;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[0].byte_offset",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[0]
+                    .byte_offset = 8;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[0].code_offset",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[0]
+                    .code_offset += 1;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[0].byte_count",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[0]
+                    .byte_count = 4;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[1].source_value",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[1]
+                    .source_value = value_id(45);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[1].parameter_index",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[1]
+                    .parameter_index = 0;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[1].register",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[1]
+                    .register = calling_conventions::MachineRegister::X86Rdx;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[1].byte_offset",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[1]
+                    .byte_offset = 0;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[1].code_offset",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[1]
+                    .code_offset += 1;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills[1].byte_count",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills[1]
+                    .byte_count = 6;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills::insert",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills
+                    .push(machine_code::UnitEntryRegisterSpillRecord {
+                        source_value: value_id(47),
+                        parameter_index: 2,
+                        register: calling_conventions::MachineRegister::X86Rdx,
+                        byte_offset: 16,
+                        code_offset: 14,
+                        byte_count: 5,
+                    });
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills::drop",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills
+                    .pop();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills::swap",
+            Box::new(|row| {
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .entry_register_spills
+                    .swap(0, 1);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "parameter_abi.entry_register_spills::insert-duplicate",
+            Box::new(|row| {
+                let abi = row.parameter_abi.as_mut().expect("parameter ABI");
+                let spill = abi.entry_register_spills[0];
+                abi.entry_register_spills.push(spill);
+            }),
+            invalid.clone(),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
+    }
+}
+
+/// Authenticated one-field mutation coverage for a scalar-cleanup row's
+/// retained `mixed_structural_scalar_abi`: the call plan is recomputed from
+/// the scalar and structural shapes, every scalar parameter and the result
+/// rejoin their plan placements and carry distinct value identities, and the
+/// structural parameter rejoins the retained scalar-structural roster row and
+/// home source. Semantic scalar value identities, the unbound same-shape
+/// scalar types, the structural parameter's projected qualifications, and a
+/// dropped ABI are the bounded slack; every other substitution is rejected at
+/// canonical encoding.
+#[test]
+fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
+    let mut plan = edge_owned_cleanup_plan();
+    promote_x86_cleanup_to_scalar(&mut plan.functions[2]);
+    plan.functions[2].mixed_structural_scalar_abi = Some(retained_mixed_abi(&plan.functions[2]));
+    let artifact = build_object_artifact(&plan).expect("mixed-ABI artifact");
+    let image = emit_executable_image(&artifact, 3).expect("mixed-ABI image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("mixed-ABI installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = record.functions()[2].clone();
+    let abi = authentic
+        .mixed_structural_scalar_abi
+        .as_ref()
+        .expect("retained mixed ABI");
+    assert_eq!(abi.scalar_parameters.len(), 1);
+    assert_eq!(abi.scalar_parameters[0].value, value_id(51));
+    assert_eq!(abi.structural_parameters.len(), 1);
+    assert_eq!(abi.result.value, value_id(49));
+
+    let u32_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
+    let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("i64"));
+
+    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
+        (
+            "mixed_structural_scalar_abi::drop",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi = None;
+            }),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters[0].value",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .scalar_parameters[0]
+                    .value = value_id(59);
+            }),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters[0].scalar_type::u32",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .scalar_parameters[0]
+                    .scalar_type = u32_scalar;
+            }),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters[0].projected_qualifications::insert",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters[0]
+                    .projected_qualifications
+                    .push(terminal_psi::StructuralPathQualification {
+                        path: vec![StructuralPathSegment::Field("projected".to_string())],
+                        domain: semantic_vocabulary::StructuralDomainId::new(1).expect("domain"),
+                    });
+            }),
+        ),
+        (
+            "mixed_structural_scalar_abi.result.value",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .result
+                    .value = value_id(59);
+            }),
+        ),
+        (
+            "mixed_structural_scalar_abi.result.scalar_type::u32",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .result
+                    .scalar_type = u32_scalar;
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        assert_substitution_rejected_by_replay(
+            field,
+            &record,
+            &image,
+            &authentic_fingerprint,
+            2,
+            mutate,
+        );
+    }
+
+    let invalid = InstallationError::InvalidUnitAffineCleanup(machine_id(3));
+    let rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut InstalledFunction)>,
+        InstallationError,
+    )> = vec![
+        (
+            "mixed_structural_scalar_abi.call_plan.policy",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .policy = CallingPolicy::MicrosoftX64;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.parameters::drop",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .parameters
+                    .clear();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.parameters::insert",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .parameters
+                    .push(register_placement());
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.parameters[0]",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .parameters[0] = register_placement();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.parameters[1]",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .parameters[1] = register_placement();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.parameters::swap",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .parameters
+                    .swap(0, 1);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.parameters::insert-duplicate",
+            Box::new(|row| {
+                let abi = row.mixed_structural_scalar_abi.as_mut().expect("mixed ABI");
+                let placement = abi.call_plan.parameters[0].clone();
+                abi.call_plan.parameters.push(placement);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.result",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .result = None;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.callback_materializations::insert",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .callback_materializations
+                    .push(calling_conventions::CallbackMaterialization {
+                        binder: calling_conventions::StaticMachineBinderId::new(1).expect("binder"),
+                        destination: calling_conventions::NativePlace::Parameter(
+                            calling_conventions::NativeParameterId::new(1).expect("parameter"),
+                        ),
+                    });
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.ordinary_clobbers",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .ordinary_clobbers = calling_conventions::RegisterSet::new([
+                    calling_conventions::MachineRegister::X86Rbx,
+                ]);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.stack_alignment",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .stack_alignment = 8;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.shadow_bytes",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .shadow_bytes = 32;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.call_plan.entry_control",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .call_plan
+                    .entry_control = calling_conventions::EntryControl::InterruptReturn;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters[0].value::result_collision",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .scalar_parameters[0]
+                    .value = value_id(49);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters[0].scalar_type::i64",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .scalar_parameters[0]
+                    .scalar_type = i64_scalar;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters[0].scalar_type::boolean",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .scalar_parameters[0]
+                    .scalar_type = ScalarType::Boolean;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters[0].placement",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .scalar_parameters[0]
+                    .placement = register_placement();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters::insert",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .scalar_parameters
+                    .push(ScalarAbiValue {
+                        value: value_id(59),
+                        scalar_type: i32_scalar(),
+                        placement: register_placement(),
+                    });
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters::drop",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .scalar_parameters
+                    .clear();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.scalar_parameters::insert-duplicate",
+            Box::new(|row| {
+                let abi = row.mixed_structural_scalar_abi.as_mut().expect("mixed ABI");
+                let parameter = abi.scalar_parameters[0].clone();
+                abi.scalar_parameters.push(parameter);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters[0].place",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters[0]
+                    .place = place_id(9);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters[0].structural_type",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters[0]
+                    .structural_type = structural_type(9);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters[0].multiplicity",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters[0]
+                    .multiplicity = StructuralMultiplicity::Unrestricted;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters[0].access",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters[0]
+                    .access = StructuralAccess::SharedBorrow;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters[0].shape",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters[0]
+                    .shape = ValueShape::integer(8, 8);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters[0].placement",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters[0]
+                    .placement = register_placement();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters::insert",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters
+                    .push(target_operations::TargetStructuralParameter {
+                        place: place_id(9),
+                        structural_type: structural_type(9),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        projected_qualifications: Vec::new(),
+                        shape: ValueShape::integer(0, 1),
+                        placement: empty_placement(),
+                    });
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters::drop",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .structural_parameters
+                    .clear();
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.structural_parameters::insert-duplicate",
+            Box::new(|row| {
+                let abi = row.mixed_structural_scalar_abi.as_mut().expect("mixed ABI");
+                let parameter = abi.structural_parameters[0].clone();
+                abi.structural_parameters.push(parameter);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.result.scalar_type::i64",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .result
+                    .scalar_type = i64_scalar;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.result.scalar_type::boolean",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .result
+                    .scalar_type = ScalarType::Boolean;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.result.placement",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .result
+                    .placement = ValuePlacement {
+                    shape: ValueShape::integer(4, 4),
+                    locations: vec![ValueLocation::Register {
+                        register: calling_conventions::MachineRegister::X86Rsi,
+                        value_byte_offset: 0,
+                        byte_size: 4,
+                    }],
+                };
+            }),
+            invalid.clone(),
+        ),
+        (
+            "mixed_structural_scalar_abi.result.value::parameter_collision",
+            Box::new(|row| {
+                row.mixed_structural_scalar_abi
+                    .as_mut()
+                    .expect("mixed ABI")
+                    .result
+                    .value = value_id(51);
+            }),
+            invalid.clone(),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
+    }
+}
+
+/// Authenticated one-field mutation coverage for the caller's retained
+/// `structural_call_scalar_return`: every leaf rejoins the one
+/// Operation-owned scalar-result call, its attribution, and the empty
+/// return-edge cleanup, so a one-field substitution is rejected at canonical
+/// encoding; dropping the row still encodes, recomputes a distinct
+/// installation fingerprint, and is rejected by independent replay against
+/// the unchanged image.
+#[test]
+fn installation_function_structural_call_scalar_return_rejects_every_one_field_substitution() {
+    let plan = structural_call_scalar_return_plan();
+    let artifact = build_object_artifact(&plan).expect("structural-call artifact");
+    let image = emit_executable_image(&artifact, 3).expect("structural-call image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("structural-call installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = record.functions()[0].clone();
+    let returned = authentic
+        .structural_call_scalar_return
+        .as_ref()
+        .expect("retained structural-call scalar return");
+    assert_eq!(returned.psi_edge, edge_id(1));
+    assert_eq!(returned.psi_operation, operation_id(1));
+    assert_eq!(returned.source_value, value_id(80));
+    assert_eq!(returned.callee, machine_id(2));
+
+    assert_substitution_rejected_by_replay(
+        "structural_call_scalar_return::drop",
+        &record,
+        &image,
+        &authentic_fingerprint,
+        0,
+        |row| {
+            row.structural_call_scalar_return = None;
+        },
+    );
+
+    let invalid = InstallationError::InvalidUnitAffineCleanup(machine_id(1));
+    let rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut InstalledFunction)>,
+        InstallationError,
+    )> = vec![
+        (
+            "structural_call_scalar_return.psi_edge",
+            Box::new(|row| {
+                row.structural_call_scalar_return
+                    .as_mut()
+                    .expect("scalar return")
+                    .psi_edge = edge_id(8);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "structural_call_scalar_return.psi_operation",
+            Box::new(|row| {
+                row.structural_call_scalar_return
+                    .as_mut()
+                    .expect("scalar return")
+                    .psi_operation = operation_id(9);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "structural_call_scalar_return.source_value",
+            Box::new(|row| {
+                row.structural_call_scalar_return
+                    .as_mut()
+                    .expect("scalar return")
+                    .source_value = value_id(9);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "structural_call_scalar_return.scalar_type::u32",
+            Box::new(|row| {
+                row.structural_call_scalar_return
+                    .as_mut()
+                    .expect("scalar return")
+                    .scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
+            }),
+            invalid.clone(),
+        ),
+        (
+            "structural_call_scalar_return.scalar_type::boolean",
+            Box::new(|row| {
+                row.structural_call_scalar_return
+                    .as_mut()
+                    .expect("scalar return")
+                    .scalar_type = ScalarType::Boolean;
+            }),
+            invalid.clone(),
+        ),
+        (
+            "structural_call_scalar_return.callee::unknown",
+            Box::new(|row| {
+                row.structural_call_scalar_return
+                    .as_mut()
+                    .expect("scalar return")
+                    .callee = machine_id(9);
+            }),
+            invalid.clone(),
+        ),
+        (
+            "structural_call_scalar_return.callee::caller",
+            Box::new(|row| {
+                row.structural_call_scalar_return
+                    .as_mut()
+                    .expect("scalar return")
+                    .callee = machine_id(1);
+            }),
+            invalid.clone(),
         ),
     ];
     for (field, mutate, expected) in rejected {
