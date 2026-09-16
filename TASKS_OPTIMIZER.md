@@ -618,16 +618,24 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   subtract realization, which depends on neither input home (crate
   `nextest`: 42 pass; the register-environment forgery sweeps moved the
   newly structural rejections from canonical-replay mismatch to
-  `InvalidEncodedEffects`). Remaining: provenance, cleanup, and
-  logical-fuel dimensions; Windows and macOS runs were unavailable on
-  this host. Witnessed while adding the i32 saturating family: selected
-  liveness (`analyses/liveness/compute.rs`) admits early-clobber outputs
-  only as one early `Def` among `Use`s or as all-`Def`s-early, and
-  `fixed_precolored_intervals` rejects early-clobber on a fixed view, yet
-  the x86-64 `WrappingRemainderI64` row declares a fixed `rax` `Def` beside
-  an early-clobber fixed `rdx`, which those checks would refuse; the row has
-  only ever executed on the ARM64 host. Validate it under the same rules
-  before an x86-64 host runs it.
+  `InvalidEncodedEffects`). Landed: the x86-64 `WrappingRemainderI64`
+  row no longer declares the early-clobber fixed `rdx` output that
+  liveness and fixed-precolored interval validation refuse — the divisor
+  is pinned to `rcx` (a fixed view disjoint from `rax` and the scratch)
+  so the realized form may zero `rdx` before reading it, and the `rdx`
+  scratch is an ordinary late definition; selected construction unshares
+  a dividend/divisor register through a witnessed copy that independent
+  replay mirrors, a catalog-wide invariant now proves no operand may
+  carry a fixed early-clobber view, and a liveness witness derives the
+  real `X86_64_REMAINDER_I64` and `AARCH64_REMAINDER_I64` rows and admits
+  them while the replaced shape still rejects (crate `nextest`: all
+  isa-x86_64, register-environment, target-operations, and
+  selected-instructions lib tests pass on Linux x86-64; the remainder
+  contract forgery suite now covers all-fixed rows, and the host-native
+  modulo canaries' upstream failures predate this row — verified
+  byte-identical against base `86328e9b`). Remaining: provenance,
+  cleanup, and logical-fuel dimensions; Windows and macOS runs were
+  unavailable on this host.
 
 ## Register allocation and frames
 
