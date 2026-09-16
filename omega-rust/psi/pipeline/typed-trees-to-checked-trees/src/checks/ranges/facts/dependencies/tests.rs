@@ -7,6 +7,7 @@ mod atomics;
 mod borrows;
 pub(crate) mod calls;
 mod indexes;
+mod members;
 
 fn typed_source(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)

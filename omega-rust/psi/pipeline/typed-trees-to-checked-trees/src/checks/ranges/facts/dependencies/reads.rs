@@ -201,12 +201,24 @@ pub(super) fn collect_reads(
             }
             true
         }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => collect_place_read(
+        ExpressionNode::Name(_) => collect_place_read(
             program,
             machine,
             state,
             statement_index,
             expression,
+            calls,
+            operators,
+            reads,
+            depth,
+        ),
+        ExpressionNode::Member(member) => collect_member_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            expression,
+            member,
             calls,
             operators,
             reads,
@@ -915,6 +927,70 @@ fn collect_place_read(
         reads.push(place);
     }
     true
+}
+
+/// A member on a place chain reads its projected place. A member whose
+/// receiver produces a temporary instead of naming storage — `compute().a`,
+/// `Pair { .. }.a`, `compute().inner.a` — reads exactly whatever producing
+/// that temporary read; the projection itself touches no caller place, so
+/// the member expression's canonical place is expression-rooted and the
+/// place path cannot describe it. That shape admits only when the member
+/// still resolves to a declared field of the receiver's exact type — the
+/// same `effective_member_symbol` identity the canonical-place production
+/// would stamp — and the receiver's own read scan completes, so a missing
+/// call-occurrence custody row or an unproven operand still leaves the set
+/// incomplete. A `Borrow` receiver keeps the place floor either way:
+/// `(&x).f` is `x.f`, while a borrow of a temporary has no statement-use
+/// place custody to lend the projection.
+fn collect_member_reads(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    member: &typed_trees::expression::TableMemberExpression,
+    calls: Option<&RangeCallContext<'_>>,
+    operators: Option<&CheckedOperatorFacts>,
+    reads: &mut Vec<CanonicalPlace>,
+    depth: usize,
+) -> bool {
+    let receiver_is_borrow = matches!(
+        program.expression_table.expression(member.receiver),
+        ExpressionNode::Borrow(_)
+    );
+    let place_shaped = receiver_is_borrow
+        || canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            expression,
+        )
+        .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Symbol(_)));
+    if place_shaped {
+        return collect_place_read(
+            program,
+            machine,
+            state,
+            statement_index,
+            expression,
+            calls,
+            operators,
+            reads,
+            depth,
+        );
+    }
+    crate::flow::effective_member_symbol(program, member.receiver, member).is_valid()
+        && collect_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            member.receiver,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+        )
 }
 
 /// A selected `[]`/`[..]` application is a checked occurrence, not a place:
