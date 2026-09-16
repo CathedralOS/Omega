@@ -4,6 +4,7 @@ use crate::signature::SignatureContract;
 use crate::state::State;
 use crate::types::TypeReference;
 use arena::{Handle, HandleSpan};
+use language_core::operator_spelling::OperatorSpelling;
 use std::ops::{Deref, DerefMut};
 use symbols::SymbolHandle;
 
@@ -20,6 +21,14 @@ pub struct Machine {
     /// binder scope. Its arguments retain declaration identity without
     /// changing the nominal `Self` type used by receiver contracts.
     pub attached_data_application: Option<TypeReference>,
+    /// The fixed operator token written immediately after `machine`
+    /// (`machine + Vec2::add(...)`), copied once from the syntax declaration.
+    /// `None` is the ordinary named form. Symbol resolution rejects a second
+    /// direct binding of one token for the same owner and operand shape;
+    /// operand-directed selection, cross-package semantic-home ownership, and
+    /// executable-supply wiring consume this downstream
+    /// (OPERATOR-MACHINE-SUPPLY).
+    pub spelling: Option<OperatorSpelling>,
     /// Retained source-level package visibility. Public checked bodies publish
     /// strict effect and operational ceilings without changing supply mode.
     pub is_public: bool,

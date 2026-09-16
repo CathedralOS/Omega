@@ -141,7 +141,8 @@ fn begin(
 /// The route. Each phase is one call into its owner, in the one order their
 /// preconditions allow: operator homes need no symbols; constants need the
 /// table; the authored-selection ledger needs substituted constants; operator
-/// obligations need the ledger; every remaining selection needs all of it.
+/// obligations need the ledger; every remaining selection needs all of it;
+/// duplicate machine token bindings compare settled operand identities.
 fn drive(
     mut lowerer: Lowerer,
     syntax: &SyntaxTrees,
@@ -154,6 +155,7 @@ fn drive(
     selection::finalize_authored_selections(&mut lowerer)?;
     constant::finalize_operator_obligations(&mut lowerer)?;
     selection::finalize(&mut lowerer)?;
+    lowering::machine::reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;
     Ok((lowerer.into_trees(), constant_selection))
 }
 

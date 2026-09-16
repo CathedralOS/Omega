@@ -454,6 +454,7 @@ mod tests {
             attached_data: None,
             attached_data_symbol: SymbolHandle::invalid(),
             attached_data_application: None,
+            spelling: None,
             is_public: false,
             supply_mode: Default::default(),
             body_is_present: true,
