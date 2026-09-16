@@ -7,8 +7,8 @@
 //! prevents wire layouts from acquiring MMIO vocabulary and prevents an
 //! arbitrary-offset volatile escape hatch from bypassing plan validation.
 //!
-//! `access_plan.rs` is the root: the plan, its validated form and the sealed
-//! field descriptors. Around it, `access_operations.rs` names what a field
+//! Start at `access_plan.rs`: the plan, its validated form, the sealed field
+//! descriptors and the diagnostic every operation reports. Around it, `access_operations.rs` names what a field
 //! can be asked to do, `boundary_reach.rs` which services a placement may
 //! reach, `resource_profile.rs` what a provider region supplies, and
 //! `placement_plan.rs` joins layout, access and reach. The remaining modules
@@ -21,7 +21,6 @@
 //! lands on a range, and `primitive_access/` how one access lowers.
 
 mod access_plan;
-mod diagnostic;
 mod placements;
 mod plan_policy;
 mod primitive_access;
@@ -29,13 +28,13 @@ mod resources;
 #[cfg(test)]
 mod tests;
 
+pub use access_plan::diagnostic::AccessPlanDiagnostic;
 pub use access_plan::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessPermissions, AccessPlan, AccessPlanId,
     AtomicPermissions, AuthorizedFieldAccess, EffectFootprint, ExternalRead, FieldAccess,
     FieldAccessDescriptor, LogicalFieldExtent, LogicalFieldFragment, ObservationModel,
     RelativeEffectFootprint, ValidatedAccessPlan,
 };
-pub use diagnostic::AccessPlanDiagnostic;
 pub use placements::atomic_resident_views::{
     BorrowedAtomicResidentRetirementError, EstablishedBorrowedAtomicResidentPlacement,
 };

@@ -2,6 +2,8 @@
 //! each slot carries, and the validated plan with its sealed field
 //! descriptors that lowering consumes.
 
+pub(crate) mod diagnostic;
+
 use crate::plan_policy::authorization::authorize_descriptor;
 use crate::plan_policy::normalized_identities::authoritative_access_layout_commitment;
 use crate::{AccessOperation, AccessPlanDiagnostic, BorrowPolarity};
