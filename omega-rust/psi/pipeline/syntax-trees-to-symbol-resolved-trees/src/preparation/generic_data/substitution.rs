@@ -19,7 +19,9 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::ProofFact;
+use syntax_trees::types::DomainConstraint;
 use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 
@@ -42,6 +44,7 @@ pub(in crate::preparation::generic_data) fn substitute_member(
     let member = match member {
         DataMember::Field(field) => DataMember::Field(substitute_data_field(
             syntax,
+            snapshot,
             field,
             substitution,
             const_values,
@@ -56,8 +59,14 @@ pub(in crate::preparation::generic_data) fn substitute_member(
             let mut first = Handle::invalid();
             let mut count = 0u32;
             for field in payload {
-                let field =
-                    substitute_data_field(syntax, field, substitution, const_values, warnings);
+                let field = substitute_data_field(
+                    syntax,
+                    snapshot,
+                    field,
+                    substitution,
+                    const_values,
+                    warnings,
+                );
                 let handle = syntax.tables.items.append_data_payload_field(field);
                 if count == 0 {
                     first = handle;
@@ -342,6 +351,7 @@ fn closed_name_identity(
 
 pub(in crate::preparation::generic_data) fn substitute_data_field(
     syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
     mut field: syntax_trees::item::DataField,
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
@@ -349,6 +359,7 @@ pub(in crate::preparation::generic_data) fn substitute_data_field(
 ) -> syntax_trees::item::DataField {
     field.type_reference = substitute_type_reference(
         syntax,
+        snapshot,
         field.type_reference,
         substitution,
         const_values,
@@ -359,6 +370,7 @@ pub(in crate::preparation::generic_data) fn substitute_data_field(
 
 pub(in crate::preparation::generic_data) fn substitute_type_reference(
     syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
@@ -432,6 +444,7 @@ pub(in crate::preparation::generic_data) fn substitute_type_reference(
                     }
                     _ => substitute_type_reference(
                         syntax,
+                        snapshot,
                         argument,
                         substitution,
                         const_values,
@@ -459,6 +472,7 @@ pub(in crate::preparation::generic_data) fn substitute_type_reference(
         } => {
             let substituted_element = substitute_type_reference(
                 syntax,
+                snapshot,
                 element_type,
                 substitution,
                 const_values,
@@ -490,8 +504,14 @@ pub(in crate::preparation::generic_data) fn substitute_type_reference(
             access,
             lifetime,
         } => {
-            let referee =
-                substitute_type_reference(syntax, referee, substitution, const_values, warnings);
+            let referee = substitute_type_reference(
+                syntax,
+                snapshot,
+                referee,
+                substitution,
+                const_values,
+                warnings,
+            );
             syntax
                 .tables
                 .type_references
@@ -504,6 +524,7 @@ pub(in crate::preparation::generic_data) fn substitute_type_reference(
         TypeReferenceNode::Slice { element_type } => {
             let element_type = substitute_type_reference(
                 syntax,
+                snapshot,
                 element_type,
                 substitution,
                 const_values,
@@ -514,7 +535,218 @@ pub(in crate::preparation::generic_data) fn substitute_type_reference(
                 .type_references
                 .insert(TypeReferenceNode::Slice { element_type })
         }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => substitute_constrained_type_reference(
+            syntax,
+            snapshot,
+            type_reference,
+            base_type,
+            constraints,
+            substitution,
+            const_values,
+            warnings,
+        ),
         _ => type_reference,
+    }
+}
+
+/// Substitute through one constrained type. A constraint that carries no
+/// substituted binder keeps the template's node so identity and provenance
+/// keyed on the authored occurrence still match; a `Counted<N>` domain index
+/// or a `0..N` range endpoint that does mention one is rebuilt onto the
+/// instance so the open binder never escapes its owning telescope.
+fn substitute_constrained_type_reference(
+    syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    base_type: TypeReferenceHandle,
+    constraints: HandleSpan<TypeConstraintNode>,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+    const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
+) -> TypeReferenceHandle {
+    let substituted_base = substitute_type_reference(
+        syntax,
+        snapshot,
+        base_type,
+        substitution,
+        const_values,
+        warnings,
+    );
+    let source_constraints = syntax
+        .tables
+        .type_references
+        .constraints(constraints)
+        .to_vec();
+    let mut changed = substituted_base != base_type;
+    let mut rewritten = Vec::with_capacity(source_constraints.len());
+    for constraint in source_constraints {
+        let (constraint, constraint_changed) = match constraint {
+            TypeConstraintNode::Domain(domain) => {
+                let arguments = syntax
+                    .tables
+                    .type_references
+                    .type_reference_handles(domain.arguments)
+                    .to_vec();
+                let mut domain_changed = false;
+                let mut substituted_arguments = Vec::with_capacity(arguments.len());
+                for argument in arguments {
+                    let substituted = substitute_domain_index_argument(
+                        syntax,
+                        snapshot,
+                        argument,
+                        substitution,
+                        const_values,
+                        warnings,
+                    );
+                    domain_changed |= substituted != argument;
+                    substituted_arguments.push(substituted);
+                }
+                if domain_changed {
+                    let arguments = syntax
+                        .tables
+                        .type_references
+                        .insert_type_reference_handles(substituted_arguments);
+                    (
+                        TypeConstraintNode::Domain(DomainConstraint {
+                            name: domain.name,
+                            arguments,
+                        }),
+                        true,
+                    )
+                } else {
+                    (TypeConstraintNode::Domain(domain), false)
+                }
+            }
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => {
+                let substituted_minimum =
+                    substitute_bound_expression(syntax, snapshot, minimum, substitution);
+                let substituted_maximum =
+                    substitute_bound_expression(syntax, snapshot, maximum, substitution);
+                (
+                    TypeConstraintNode::Range {
+                        minimum: substituted_minimum,
+                        maximum: substituted_maximum,
+                        end_inclusive,
+                    },
+                    substituted_minimum != minimum || substituted_maximum != maximum,
+                )
+            }
+            constraint => (constraint, false),
+        };
+        changed |= constraint_changed;
+        rewritten.push(constraint);
+    }
+    if !changed {
+        return type_reference;
+    }
+    // A fresh constraint span on a fresh owner: retained range normalizations
+    // key on the exact authored occurrence, so nothing stale can match here.
+    let constraints = syntax.tables.type_references.insert_constraints(rewritten);
+    syntax
+        .tables
+        .type_references
+        .insert(TypeReferenceNode::Constrained {
+            base_type: substituted_base,
+            constraints,
+        })
+}
+
+/// Substitute one domain-index argument inside a constrained type. A bare
+/// `N` takes the closed argument handle directly; an open `ConstExpression`
+/// is copied out of the snapshot so the caller's const-binder rewrite lands
+/// on the instance's own subtree and the authored operator spelling (and any
+/// retained normalization provenance on the template node) is preserved;
+/// anything richer recurses through the ordinary substitution.
+fn substitute_domain_index_argument(
+    syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
+    argument: TypeReferenceHandle,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+    const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
+) -> TypeReferenceHandle {
+    match syntax
+        .tables
+        .type_references
+        .type_reference(argument)
+        .clone()
+    {
+        TypeReferenceNode::Named(name) => {
+            substitution.get(name.as_str()).copied().unwrap_or(argument)
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            if !expression_mentions_parameter(syntax, expression, substitution) {
+                return argument;
+            }
+            let copied = syntax.copy_expression_from(snapshot, expression);
+            syntax
+                .tables
+                .type_references
+                .insert(TypeReferenceNode::ConstExpression(copied))
+        }
+        _ => substitute_type_reference(
+            syntax,
+            snapshot,
+            argument,
+            substitution,
+            const_values,
+            warnings,
+        ),
+    }
+}
+
+/// Copy one range endpoint into the instance when it mentions a substituted
+/// binder (the caller's const-binder rewrite then reduces the fresh `Name`
+/// leaf to the closed literal). A parameter-free endpoint keeps the template's
+/// authored expression handle.
+fn substitute_bound_expression(
+    syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
+    endpoint: ExpressionHandle,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+) -> ExpressionHandle {
+    if !expression_mentions_parameter(syntax, endpoint, substitution) {
+        return endpoint;
+    }
+    syntax.copy_expression_from(snapshot, endpoint)
+}
+
+/// Whether an expression mentions a bare name the substitution rewrites. Only
+/// the expression shapes generic substitution rebuilds leaf-by-leaf unfold;
+/// anything richer conservatively counts as a mention so the endpoint or index
+/// is copied rather than shared into the instance unchanged.
+fn expression_mentions_parameter(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+) -> bool {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let [member] = syntax.expressions.identifier_path_members(*path) else {
+                return false;
+            };
+            substitution.contains_key(member.as_str())
+        }
+        ExpressionNode::Binary(binary) => {
+            expression_mentions_parameter(syntax, binary.left, substitution)
+                || expression_mentions_parameter(syntax, binary.right, substitution)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_mentions_parameter(syntax, unary.operand, substitution)
+        }
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::SelfValue => false,
+        _ => true,
     }
 }
 
@@ -536,11 +768,40 @@ pub(in crate::preparation::generic_data) fn type_reference_mentions_parameter(
             .iter()
             .any(|&argument| type_reference_mentions_parameter(syntax, argument, substitution)),
         // The common composite shells recurse precisely, so a parameter-FREE
-        // field like `touched: i32 in Wrapping` (Constrained) or
-        // `tags: [u8; 4]` shares unchanged instead of refusing the whole
-        // container (constraints carry domain names, not type references).
-        TypeReferenceNode::Constrained { base_type, .. } => {
+        // field like `touched: i32 in Wrapping` or `tags: [u8; 4]` shares
+        // unchanged instead of refusing the whole container. An indexed
+        // domain or range constraint does carry parameter-bearing leaves --
+        // `Counted<N>`'s index is a type reference and `0..N`'s endpoints are
+        // expressions -- so those are inspected too.
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
             type_reference_mentions_parameter(syntax, *base_type, substitution)
+                || syntax
+                    .tables
+                    .type_references
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| match constraint {
+                        TypeConstraintNode::Domain(domain) => syntax
+                            .tables
+                            .type_references
+                            .type_reference_handles(domain.arguments)
+                            .iter()
+                            .any(|&argument| {
+                                type_reference_mentions_parameter(syntax, argument, substitution)
+                            }),
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
+                            expression_mentions_parameter(syntax, *minimum, substitution)
+                                || expression_mentions_parameter(syntax, *maximum, substitution)
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {
+                            false
+                        }
+                    })
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
             type_reference_mentions_parameter(syntax, *element_type, substitution)
