@@ -1,6 +1,7 @@
 //! Operator contract paths, requires clauses and operand signatures.
 
 use crate::TypedTrees;
+use crate::type_identity::TypeIdentityRequest;
 use crate::typed_trees::declarations::operator::OperatorDefinition;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::operator_spelling::OperatorSpelling;
@@ -91,7 +92,10 @@ pub fn operator_operand_signature(program: &TypedTrees, operator: &OperatorDefin
     normalized_operand_parameters(parameters)
         .map(|parameter| {
             program
-                .normalized_type_identity_with_binders(parameter.type_reference, &binders)
+                .type_identity(TypeIdentityRequest {
+                    binders: &binders,
+                    ..TypeIdentityRequest::ordinary(parameter.type_reference)
+                })
                 .into_string()
         })
         .collect::<Vec<_>>()

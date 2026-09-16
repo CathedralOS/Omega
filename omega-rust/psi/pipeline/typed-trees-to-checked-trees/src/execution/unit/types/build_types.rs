@@ -11,6 +11,7 @@ use super::{
     TypeReferenceNode, TypedTrees,
 };
 use checked_trees::CheckedStructuralPathQualification;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 #[path = "scalar_fields.rs"]
 mod scalar_fields;
@@ -798,11 +799,11 @@ pub(super) fn byte_sequence_type_identity(
     }
     Some(
         program
-            .normalized_type_identity_with_binders_and_substitutions(
-                identity_type,
+            .type_identity(TypeIdentityRequest {
                 binders,
                 substitutions,
-            )
+                ..TypeIdentityRequest::ordinary(identity_type)
+            })
             .into_string(),
     )
 }
@@ -838,7 +839,10 @@ pub(super) fn base_type_identity(
             } => {
                 return Some(
                     program
-                        .normalized_type_identity_with_binders(type_reference, binders)
+                        .type_identity(TypeIdentityRequest {
+                            binders,
+                            ..TypeIdentityRequest::ordinary(type_reference)
+                        })
                         .into_string(),
                 );
             }
@@ -870,7 +874,10 @@ fn closed_data_identity(
     // generic application identity, including the exact argument tuple.
     if let Some(application) = data.generic_instance {
         return program
-            .normalized_type_identity_with_binders(application, binders)
+            .type_identity(TypeIdentityRequest {
+                binders,
+                ..TypeIdentityRequest::ordinary(application)
+            })
             .into_string();
     }
     let path = program.symbols.display_path(data.symbol, "::");
@@ -1125,7 +1132,10 @@ impl<'program> ShapeCollector<'program> {
         let referent_identity = self.add_type(referent, binders, &[])?;
         let identity = self
             .program
-            .normalized_type_identity_with_binders_and_substitutions(reference, binders, &[])
+            .type_identity(TypeIdentityRequest {
+                binders,
+                ..TypeIdentityRequest::ordinary(reference)
+            })
             .into_string();
         let plan = CheckedUnitStructuralTypePlan {
             identity: identity.clone(),
@@ -1195,11 +1205,11 @@ impl<'program> ShapeCollector<'program> {
         }
         let identity = self
             .program
-            .normalized_type_identity_with_binders_and_substitutions(
-                type_reference,
+            .type_identity(TypeIdentityRequest {
                 binders,
                 substitutions,
-            )
+                ..TypeIdentityRequest::ordinary(type_reference)
+            })
             .into_string();
         if self.types.contains_key(&identity) {
             return Some(identity);
@@ -1492,11 +1502,11 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: self
                     .program
-                    .normalized_type_identity_with_binders_and_substitutions(
-                        field.type_reference,
+                    .type_identity(TypeIdentityRequest {
                         binders,
                         substitutions,
-                    )
+                        ..TypeIdentityRequest::ordinary(field.type_reference)
+                    })
                     .into_string(),
             }
         } else if super::reference_results::parts(self.program, field.type_reference).is_some() {
@@ -1508,11 +1518,11 @@ impl<'program> ShapeCollector<'program> {
         {
             let provider_type_identity = self
                 .program
-                .normalized_type_identity_with_binders_and_substitutions(
-                    field.type_reference,
+                .type_identity(TypeIdentityRequest {
                     binders,
                     substitutions,
-                )
+                    ..TypeIdentityRequest::ordinary(field.type_reference)
+                })
                 .into_string();
             match fused_service_erasure {
                 Some(erasure) => CheckedUnitStructuralFieldType::FusedServiceBacked {
@@ -1586,7 +1596,10 @@ impl<'program> ShapeCollector<'program> {
         }
         let type_identity = self
             .program
-            .normalized_type_identity_with_binders(base_type, binders)
+            .type_identity(TypeIdentityRequest {
+                binders,
+                ..TypeIdentityRequest::ordinary(base_type)
+            })
             .into_string();
         let plan = CheckedUnitStructuralTypePlan {
             identity: type_identity.clone(),
@@ -1607,7 +1620,10 @@ impl<'program> ShapeCollector<'program> {
                 source_parameter,
                 carrier_type_identity: self
                     .program
-                    .normalized_type_identity_with_binders(type_reference, binders)
+                    .type_identity(TypeIdentityRequest {
+                        binders,
+                        ..TypeIdentityRequest::ordinary(type_reference)
+                    })
                     .into_string(),
                 requirement: carrier.requirement,
                 provider_plan_digest: authorization.provider_plan_digest,

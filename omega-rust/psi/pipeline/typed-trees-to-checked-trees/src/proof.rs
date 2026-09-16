@@ -98,7 +98,7 @@ pub(crate) fn build_proof_facts_with_operators(
                         unreachable!("validated named guarded guarantee must bind a proposition")
                     };
                     let normalized = program
-                        .normalize_nominal_proposition_application(application)
+                        .normalize_nominal_proposition_application(application, None)
                         .expect("validated named guarded guarantee must have a nominal endpoint");
                     let (evidence_type, evidence_interface) = match &normalized.classification {
                         typed_trees::proposition::PropositionEvidenceClassification::Witness {

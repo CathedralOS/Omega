@@ -1,4 +1,5 @@
 use symbols::SymbolHandle;
+use typed_trees::proposition::ProofSubstitutions;
 
 /// The reserved binder naming a call's return value inside an `ensures` clause.
 pub(crate) const RESULT_BINDER: &str = "result";
@@ -42,7 +43,7 @@ fn call_result_label(program: &typed_trees::TypedTrees, call_site: &crate::CallS
             .expression_table
             .expression_handles(arguments)
             .iter()
-            .map(|argument| program.render_proof_expression_with_symbols(*argument, &[]))
+            .map(|argument| program.render_proof_expression(*argument, ProofSubstitutions::None))
             .collect::<Vec<_>>()
             .join(", ")
     };
@@ -65,7 +66,7 @@ fn call_result_label(program: &typed_trees::TypedTrees, call_site: &crate::CallS
             if call.receiver.is_valid() {
                 format!(
                     "{}.{}({arguments})",
-                    program.render_proof_expression_with_symbols(call.receiver, &[]),
+                    program.render_proof_expression(call.receiver, ProofSubstitutions::None),
                     call.target
                 )
             } else {
@@ -360,7 +361,10 @@ pub(crate) fn instantiate_call_contract_expression_label(
                             crate::CallSite::Expression { call, .. }
                                 if call.receiver.is_valid() =>
                             {
-                                program.render_proof_expression_with_symbols(call.receiver, &[])
+                                program.render_proof_expression(
+                                    call.receiver,
+                                    ProofSubstitutions::None,
+                                )
                             }
                             crate::CallSite::Statement(call) if !call.receiver.is_empty() => {
                                 typed_trees::expression::display_name_path(
@@ -394,7 +398,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                                 ) => borrow.target,
                                 _ => argument,
                             };
-                            program.render_proof_expression_with_symbols(argument, &[])
+                            program.render_proof_expression(argument, ProofSubstitutions::None)
                         })
                         .unwrap_or_else(|| parameter.name.to_string());
                 }
@@ -423,7 +427,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 }
             }
 
-            program.render_proof_expression_with_symbols(expression, &[])
+            program.render_proof_expression(expression, ProofSubstitutions::None)
         }
         typed_trees::expression::ExpressionNode::StructLiteral(literal) => program
             .render_proof_constructor_value(literal, |value| {

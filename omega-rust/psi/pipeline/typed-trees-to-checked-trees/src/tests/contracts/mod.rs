@@ -1,5 +1,6 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::lower_typed_trees;
+use typed_trees::proposition::ProofSubstitutions;
 
 mod anonymous_array_landing;
 mod anonymous_integer_exits;
@@ -1079,7 +1080,7 @@ fn constructor_proof_labels_rejoin_selected_owners_and_retained_case_names() {
     };
     let first = returned("first");
     let second = returned("second");
-    let original = program.render_proof_expression_with_symbols(first, &[]);
+    let original = program.render_proof_expression(first, ProofSubstitutions::None);
     let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(first).clone()
     else {
@@ -1093,7 +1094,7 @@ fn constructor_proof_labels_rejoin_selected_owners_and_retained_case_names() {
     other.type_name = literal.type_name.clone();
     assert_ne!(
         original,
-        program.render_proof_expression_with_symbols(second, &[]),
+        program.render_proof_expression(second, ProofSubstitutions::None),
         "diagnostic spelling cannot equate different selected owners"
     );
 
@@ -1121,7 +1122,7 @@ fn constructor_proof_labels_rejoin_selected_owners_and_retained_case_names() {
         });
     assert_eq!(
         original,
-        program.render_proof_expression_with_symbols(first, &[]),
+        program.render_proof_expression(first, ProofSubstitutions::None),
         "an exact retained case Name agrees with its normalized empty literal"
     );
 }

@@ -3,6 +3,7 @@ use super::{
     array_length, atom, index,
 };
 use crate::name::Identifier;
+use crate::type_identity::TypeIdentityRequest;
 use crate::types::FixedArrayLength;
 use std::cell::Cell;
 
@@ -120,11 +121,10 @@ fn inherited_nested_array_argument_matches_direct_concrete_argument() {
             length: FixedArrayLength::Literal(7),
         });
     assert_eq!(
-        program.normalized_type_identity_with_binders_and_substitutions(
-            inherited,
-            &[],
-            &[(count, actual)]
-        ),
+        program.type_identity(TypeIdentityRequest {
+            substitutions: &[(count, actual)],
+            ..TypeIdentityRequest::ordinary(inherited)
+        }),
         program.normalized_type_identity(concrete)
     );
 }

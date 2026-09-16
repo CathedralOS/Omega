@@ -1,6 +1,7 @@
 //! Satisfied boundary and checked operators and specialized applications.
 
 use crate::TypedTrees;
+use crate::type_identity::TypeIdentityRequest;
 use crate::typed_trees::declarations::operator::applications::{
     ClosedOperatorRealizationApplication, closed_operator_realization_application,
 };
@@ -190,22 +191,23 @@ fn satisfied_operator_candidates<'program>(
                     actual.is_self == required.is_self
                         && actual.is_const == required.is_const
                         && actual.is_mutable == required.is_mutable
-                        && program.normalized_type_identity_with_binders(
-                            actual.type_reference,
-                            &machine_binders,
-                        ) == program.normalized_type_identity_with_binders(
-                            required.type_reference,
-                            &operator_binders,
-                        )
+                        && program.type_identity(TypeIdentityRequest {
+                            binders: &machine_binders,
+                            ..TypeIdentityRequest::ordinary(actual.type_reference)
+                        }) == program.type_identity(TypeIdentityRequest {
+                            binders: &operator_binders,
+                            ..TypeIdentityRequest::ordinary(required.type_reference)
+                        })
                 })
             && state.return_type.is_valid() == operator.return_type.is_valid()
             && (!state.return_type.is_valid()
-                || program
-                    .normalized_type_identity_with_binders(state.return_type, &machine_binders)
-                    == program.normalized_type_identity_with_binders(
-                        operator.return_type,
-                        &operator_binders,
-                    ))
+                || program.type_identity(TypeIdentityRequest {
+                    binders: &machine_binders,
+                    ..TypeIdentityRequest::ordinary(state.return_type)
+                }) == program.type_identity(TypeIdentityRequest {
+                    binders: &operator_binders,
+                    ..TypeIdentityRequest::ordinary(operator.return_type)
+                }))
     })
 }
 
@@ -255,12 +257,13 @@ fn operator_realization_static_binders(
                     type_reference: operator_carrier,
                 },
             ) if machine_parameter.bounds == operator_parameter.bounds
-                && program
-                    .normalized_type_identity_with_binders(*machine_carrier, &machine_binders)
-                    == program.normalized_type_identity_with_binders(
-                        *operator_carrier,
-                        &operator_binders,
-                    ) => {}
+                && program.type_identity(TypeIdentityRequest {
+                    binders: &machine_binders,
+                    ..TypeIdentityRequest::ordinary(*machine_carrier)
+                }) == program.type_identity(TypeIdentityRequest {
+                    binders: &operator_binders,
+                    ..TypeIdentityRequest::ordinary(*operator_carrier)
+                }) => {}
             _ => return None,
         }
     }

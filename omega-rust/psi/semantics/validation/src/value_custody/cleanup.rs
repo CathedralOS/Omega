@@ -9,6 +9,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// True when automatic disposal would have to run a reachable nominal
@@ -54,7 +55,10 @@ fn type_graph_requires_nominal_drop_with_substitutions(
     }
 
     let identity = program
-        .normalized_type_identity_with_binders_and_substitutions(type_reference, &[], substitutions)
+        .type_identity(TypeIdentityRequest {
+            substitutions,
+            ..TypeIdentityRequest::ordinary(type_reference)
+        })
         .into_string();
     if !visited.insert(identity) {
         return false;

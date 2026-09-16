@@ -4,6 +4,7 @@ use crate::proof_contracts::contract_entailment::{
     BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Machine, StateSignature,
     StructuralTerm, TraitDefinition, TypedTrees,
 };
+use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn check_proposition_law_conformance(
@@ -89,13 +90,18 @@ pub(crate) fn check_proposition_law_conformance(
             .expression_handles(instantiated.arguments)
             .iter()
             .map(|argument| {
-                program.render_proof_expression_with_parameters(*argument, &substitutions)
+                program.render_proof_expression(
+                    *argument,
+                    ProofSubstitutions::ByParameter(&substitutions),
+                )
             })
             .collect::<Vec<_>>();
-        let Some(expected_formula) = program.normalize_proposition_application_with_labels(
+        let Some(expected_formula) = program.normalize_proposition_application(
             &instantiated,
-            &binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &binder_labels,
+                argument_labels: &argument_labels,
+            }),
         ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies `{}::{}` but its proposition law `{}` does not normalize after trait-family and indexed-binder substitution",
@@ -107,15 +113,17 @@ pub(crate) fn check_proposition_law_conformance(
             continue;
         };
         let expected = expected_formula.identity_label();
-        let expected_nominal = program.normalize_nominal_proposition_application_with_labels(
+        let expected_nominal = program.normalize_nominal_proposition_application(
             &instantiated,
-            &binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &binder_labels,
+                argument_labels: &argument_labels,
+            }),
         );
         let matched = if let Some(expected_nominal) = expected_nominal {
             proven_propositions.iter().any(|proven| {
                 program
-                    .normalize_nominal_proposition_application(proven)
+                    .normalize_nominal_proposition_application(proven, None)
                     .is_some_and(|actual| actual == expected_nominal)
             })
         } else if let typed_trees::proposition::NormalizedPropositionFormula::Boolean {
@@ -124,13 +132,14 @@ pub(crate) fn check_proposition_law_conformance(
         {
             proven_propositions.iter().any(|proven| {
                 matches!(
-                    program.normalize_proposition_application(proven),
+                    program.normalize_proposition_application(proven, None),
                     Some(typed_trees::proposition::NormalizedPropositionFormula::Boolean {
                         label,
                     }) if label == *expected_boolean
                 )
             }) || proven_expressions.iter().any(|proven| {
-                program.render_proof_expression_with_symbols(*proven, &[]) == *expected_boolean
+                program.render_proof_expression(*proven, ProofSubstitutions::None)
+                    == *expected_boolean
             })
         } else {
             false

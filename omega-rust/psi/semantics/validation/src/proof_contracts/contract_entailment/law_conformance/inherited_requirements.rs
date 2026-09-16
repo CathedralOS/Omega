@@ -3,6 +3,7 @@
 
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::synthesize_indexed_law_binder_labels;
 use crate::proof_contracts::contract_entailment::{StateSignature, TraitDefinition, TypedTrees};
+use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 /// The proposition endpoint one requirement contract application carries once
 /// it migrates onto a satisfying machine state through an exact conformance
@@ -109,13 +110,18 @@ pub fn inherited_requirement_proposition_label(
         .expression_table
         .expression_handles(endpoint.application.arguments)
         .iter()
-        .map(|argument| program.render_proof_expression_with_parameters(*argument, &substitutions))
+        .map(|argument| {
+            program
+                .render_proof_expression(*argument, ProofSubstitutions::ByParameter(&substitutions))
+        })
         .collect::<Vec<_>>();
     program
-        .normalize_proposition_application_with_labels(
+        .normalize_proposition_application(
             &endpoint.application,
-            &endpoint.binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &endpoint.binder_labels,
+                argument_labels: &argument_labels,
+            }),
         )
         .map(|formula| formula.identity_label())
 }

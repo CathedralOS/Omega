@@ -18,6 +18,7 @@ use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
 use symbols::SymbolHandle;
+use typed_trees::proposition::PropositionLabels;
 
 pub(super) struct ResolvedOperatorStatementCall<'program> {
     pub(super) operator: &'program typed_trees::operator::OperatorDefinition,
@@ -383,10 +384,12 @@ pub(super) fn append_operator_statement_ensures(
                         })
                         .collect::<Vec<_>>();
                     let instantiated = program
-                        .normalize_proposition_application_with_labels(
+                        .normalize_proposition_application(
                             application,
-                            &binder_labels,
-                            &argument_labels,
+                            Some(PropositionLabels {
+                                binder_labels: &binder_labels,
+                                argument_labels: &argument_labels,
+                            }),
                         )
                         .map(|formula| {
                             semantic.append_instantiated_expression(formula.identity_label())

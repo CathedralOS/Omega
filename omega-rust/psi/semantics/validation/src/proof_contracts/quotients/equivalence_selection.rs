@@ -7,6 +7,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
+use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_equivalence_selection(
@@ -311,9 +312,9 @@ pub(crate) fn fact_is_exact_relation_pair(
             let [relation_left, relation_right] = relation_parameters else {
                 return false;
             };
-            let expected = program.render_proof_expression_with_parameters(
+            let expected = program.render_proof_expression(
                 expected,
-                &[
+                ProofSubstitutions::ByParameter(&[
                     (
                         relation_left.symbol,
                         relation_left.name.as_str().to_owned(),
@@ -324,7 +325,7 @@ pub(crate) fn fact_is_exact_relation_pair(
                         relation_right.name.as_str().to_owned(),
                         "$right".to_owned(),
                     ),
-                ],
+                ]),
             );
             let substitutions = parameters
                 .iter()
@@ -343,7 +344,11 @@ pub(crate) fn fact_is_exact_relation_pair(
                     )
                 })
                 .collect::<Vec<_>>();
-            expected == program.render_proof_expression_with_parameters(*actual, &substitutions)
+            expected
+                == program.render_proof_expression(
+                    *actual,
+                    ProofSubstitutions::ByParameter(&substitutions),
+                )
         }
         typed_trees::domain::ProofFact::Membership(_) => false,
     }

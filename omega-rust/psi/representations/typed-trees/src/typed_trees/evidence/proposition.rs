@@ -1,6 +1,7 @@
 use crate::data::DataProperties;
 use crate::expression::ExpressionHandle;
 use crate::name::Identifier;
+use crate::type_identity::TypeIdentityRequest;
 use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -163,7 +164,10 @@ fn normalize_evidence_interface(
     let arguments = arguments
         .iter()
         .map(|argument| {
-            program.normalized_type_identity_with_binders(*argument, &exact_substitutions)
+            program.type_identity(TypeIdentityRequest {
+                binders: &exact_substitutions,
+                ..TypeIdentityRequest::ordinary(*argument)
+            })
         })
         .collect::<Vec<_>>();
     let root_arguments = arguments
@@ -230,7 +234,10 @@ fn normalized_evidence_requirements(
                 .iter()
                 .map(|argument| {
                     program
-                        .normalized_type_identity_with_binders(*argument, &substitutions)
+                        .type_identity(TypeIdentityRequest {
+                            binders: &substitutions,
+                            ..TypeIdentityRequest::ordinary(*argument)
+                        })
                         .into_string()
                 })
                 .collect::<Vec<_>>();
@@ -524,35 +531,60 @@ impl NormalizedPropositionFormula {
     }
 }
 
+/// How bound symbols are replaced while rendering a proof expression.
+#[derive(Clone, Copy)]
+pub enum ProofSubstitutions<'a> {
+    /// Render symbols as authored.
+    None,
+    /// Replace each symbol with the given spelling.
+    BySymbol(&'a [(SymbolHandle, String)]),
+    /// Replace each parameter, by symbol and by its authored name, with the
+    /// given spelling.
+    ByParameter(&'a [(SymbolHandle, String, String)]),
+}
+
+/// The rendered binder and argument labels one proposition application
+/// normalizes under.
+#[derive(Clone, Copy)]
+pub struct PropositionLabels<'a> {
+    pub binder_labels: &'a [String],
+    pub argument_labels: &'a [String],
+}
+
+/// Owned labels rendered by [`TypedTrees::proposition_labels`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OwnedPropositionLabels {
+    pub binder_labels: Vec<String>,
+    pub argument_labels: Vec<String>,
+}
+
+impl OwnedPropositionLabels {
+    pub fn borrow(&self) -> PropositionLabels<'_> {
+        PropositionLabels {
+            binder_labels: &self.binder_labels,
+            argument_labels: &self.argument_labels,
+        }
+    }
+}
+
 impl crate::TypedTrees {
+    /// Normalize one nominal proposition application. Callers that already
+    /// rendered the binder and argument labels pass them; otherwise they are
+    /// rendered here.
     pub fn normalize_nominal_proposition_application(
         &self,
         application: &PropositionApplication,
+        labels: Option<PropositionLabels<'_>>,
     ) -> Option<NormalizedPropositionApplicationIdentity> {
-        let binder_labels = application
-            .binder_arguments
-            .iter()
-            .map(display_binder_argument)
-            .collect::<Vec<_>>();
-        let argument_labels = self
-            .expression_table
-            .expression_handles(application.arguments)
-            .iter()
-            .map(|argument| self.render_proof_expression_with_symbols(*argument, &[]))
-            .collect::<Vec<_>>();
-        self.normalize_nominal_proposition_application_with_labels(
-            application,
-            &binder_labels,
-            &argument_labels,
-        )
-    }
-
-    pub fn normalize_nominal_proposition_application_with_labels(
-        &self,
-        application: &PropositionApplication,
-        binder_labels: &[String],
-        argument_labels: &[String],
-    ) -> Option<NormalizedPropositionApplicationIdentity> {
+        let rendered;
+        let labels = match labels {
+            Some(labels) => labels,
+            None => {
+                rendered = self.proposition_labels(application);
+                rendered.borrow()
+            }
+        };
+        let (binder_labels, argument_labels) = (labels.binder_labels, labels.argument_labels);
         let binder_identities =
             binder_argument_identities_for_labels(self, application, binder_labels)?;
         self.normalize_nominal_proposition_application_inner(
@@ -700,58 +732,68 @@ impl crate::TypedTrees {
         .unwrap_or_else(|| format!("invalid-constructor:{}", literal.type_name))
     }
 
-    pub fn render_proof_expression_with_symbols(
+    /// Render one proof expression, replacing bound symbols as requested.
+    pub fn render_proof_expression(
         &self,
         expression: ExpressionHandle,
-        substitutions: &[(SymbolHandle, String)],
+        substitutions: ProofSubstitutions<'_>,
     ) -> String {
-        render_expression(self, expression, substitutions, &[])
+        match substitutions {
+            ProofSubstitutions::None => render_expression(self, expression, &[], &[]),
+            ProofSubstitutions::BySymbol(substitutions) => {
+                render_expression(self, expression, substitutions, &[])
+            }
+            ProofSubstitutions::ByParameter(substitutions) => {
+                let symbol_substitutions = substitutions
+                    .iter()
+                    .map(|(symbol, _, replacement)| (*symbol, replacement.clone()))
+                    .collect::<Vec<_>>();
+                let name_substitutions = substitutions
+                    .iter()
+                    .map(|(_, name, replacement)| (name.clone(), replacement.clone()))
+                    .collect::<Vec<_>>();
+                render_expression(self, expression, &symbol_substitutions, &name_substitutions)
+            }
+        }
     }
 
-    pub fn render_proof_expression_with_parameters(
+    /// Render the binder and argument labels of one proposition application.
+    pub fn proposition_labels(
         &self,
-        expression: ExpressionHandle,
-        substitutions: &[(SymbolHandle, String, String)],
-    ) -> String {
-        let symbol_substitutions = substitutions
-            .iter()
-            .map(|(symbol, _, replacement)| (*symbol, replacement.clone()))
-            .collect::<Vec<_>>();
-        let name_substitutions = substitutions
-            .iter()
-            .map(|(_, name, replacement)| (name.clone(), replacement.clone()))
-            .collect::<Vec<_>>();
-        render_expression(self, expression, &symbol_substitutions, &name_substitutions)
+        application: &PropositionApplication,
+    ) -> OwnedPropositionLabels {
+        OwnedPropositionLabels {
+            binder_labels: application
+                .binder_arguments
+                .iter()
+                .map(display_binder_argument)
+                .collect(),
+            argument_labels: self
+                .expression_table
+                .expression_handles(application.arguments)
+                .iter()
+                .map(|argument| self.render_proof_expression(*argument, ProofSubstitutions::None))
+                .collect(),
+        }
     }
 
+    /// Normalize one proposition application to its formula. Callers that
+    /// already rendered the binder and argument labels pass them; otherwise
+    /// they are rendered here.
     pub fn normalize_proposition_application(
         &self,
         application: &PropositionApplication,
+        labels: Option<PropositionLabels<'_>>,
     ) -> Option<NormalizedPropositionFormula> {
-        let binder_labels = application
-            .binder_arguments
-            .iter()
-            .map(display_binder_argument)
-            .collect::<Vec<_>>();
-        let argument_labels = self
-            .expression_table
-            .expression_handles(application.arguments)
-            .iter()
-            .map(|argument| self.render_proof_expression_with_symbols(*argument, &[]))
-            .collect::<Vec<_>>();
-        self.normalize_proposition_application_with_labels(
-            application,
-            &binder_labels,
-            &argument_labels,
-        )
-    }
-
-    pub fn normalize_proposition_application_with_labels(
-        &self,
-        application: &PropositionApplication,
-        binder_labels: &[String],
-        argument_labels: &[String],
-    ) -> Option<NormalizedPropositionFormula> {
+        let rendered;
+        let labels = match labels {
+            Some(labels) => labels,
+            None => {
+                rendered = self.proposition_labels(application);
+                rendered.borrow()
+            }
+        };
+        let (binder_labels, argument_labels) = (labels.binder_labels, labels.argument_labels);
         let binder_identities =
             binder_argument_identities_for_labels(self, application, binder_labels)?;
         let mut visiting = Vec::new();

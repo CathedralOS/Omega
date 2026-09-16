@@ -26,8 +26,10 @@ pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) qualification: TypeIdentityQualification,
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) enum TypeIdentityQualification {
+/// Whether a normalized identity spells nominals locally or with their
+/// exact package owner.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TypeIdentityQualification {
     #[default]
     Ordinary,
     PackageQualified,

@@ -79,11 +79,7 @@ fn borrowed_scalar_locals_retain_exact_roster_and_normalized_shapes() {
                     symbol: local.symbol,
                     primitive_type,
                     type_identity: checked
-                        .normalized_type_identity_with_binders_and_substitutions(
-                            local.type_reference,
-                            &[],
-                            &[],
-                        )
+                        .normalized_type_identity(local.type_reference)
                         .into_string(),
                 }
             })

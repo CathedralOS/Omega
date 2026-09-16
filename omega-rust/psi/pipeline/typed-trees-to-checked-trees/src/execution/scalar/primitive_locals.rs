@@ -287,7 +287,7 @@ fn local_plan(
         // This is ShapeCollector's normalization for an already plain primitive:
         // no reference stripping, generic substitution, or invented nominal name.
         type_identity: program
-            .normalized_type_identity_with_binders_and_substitutions(local.type_reference, &[], &[])
+            .normalized_type_identity(local.type_reference)
             .into_string(),
     })
 }

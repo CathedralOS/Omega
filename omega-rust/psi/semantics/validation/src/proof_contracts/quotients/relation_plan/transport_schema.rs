@@ -28,6 +28,7 @@ use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::state::State;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct VerifiedTransportFact {
@@ -270,14 +271,14 @@ fn verify_parameters(
                     position,
                 ));
             }
-            let expected_identity = program.normalized_type_identity_with_binders(
-                expected.type_reference,
-                &representative_type_bindings,
-            );
-            let actual_identity = program.normalized_type_identity_with_binders(
-                actual.type_reference,
-                &theorem_type_bindings,
-            );
+            let expected_identity = program.type_identity(TypeIdentityRequest {
+                binders: &representative_type_bindings,
+                ..TypeIdentityRequest::ordinary(expected.type_reference)
+            });
+            let actual_identity = program.type_identity(TypeIdentityRequest {
+                binders: &theorem_type_bindings,
+                ..TypeIdentityRequest::ordinary(actual.type_reference)
+            });
             if expected_identity != actual_identity {
                 return Err(RelationPlanError::TheoremSchemaParameterTypeMismatch(
                     position,

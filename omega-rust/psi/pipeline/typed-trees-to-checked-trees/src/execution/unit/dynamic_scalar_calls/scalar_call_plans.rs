@@ -18,6 +18,7 @@ use crate::execution::terminal_unit::{
     TypedTrees, machine_binders, structural_access_for_type_reference, terminal_field_identity,
 };
 use typed_trees::name::Identifier;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_checked_dynamic_scalar_call(
@@ -492,10 +493,10 @@ pub(crate) fn build_checked_dynamic_scalar_call(
             return None;
         }
         let destination_type_identity = program
-            .normalized_type_identity_with_binders(
-                destination.type_reference,
-                &machine_binders(program, machine),
-            )
+            .type_identity(TypeIdentityRequest {
+                binders: &machine_binders(program, machine),
+                ..TypeIdentityRequest::ordinary(destination.type_reference)
+            })
             .into_string();
         let destination_field_identity =
             terminal_field_identity(program, storage.destination_field)?;

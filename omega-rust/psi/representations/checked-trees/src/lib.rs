@@ -6,3 +6,6 @@
 pub mod checked_trees;
 
 pub use checked_trees::*;
+/// The identity request a consumer builds when it asks the typed program
+/// behind a checked carrier for a binder-aware type identity.
+pub use typed_trees::type_identity::TypeIdentityRequest;

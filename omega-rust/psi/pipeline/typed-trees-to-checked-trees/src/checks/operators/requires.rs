@@ -32,6 +32,7 @@ use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::OperatorDefinition;
+use typed_trees::proposition::PropositionLabels;
 use typed_trees::signature::{SignatureContractKind, StateParameter};
 
 use super::super::contracts::labels::domain_proves_expression_label;
@@ -335,10 +336,12 @@ fn requires_fact_proven(
                 })
                 .collect::<Vec<_>>();
             let Some(required_label) = program
-                .normalize_proposition_application_with_labels(
+                .normalize_proposition_application(
                     application,
-                    &binder_labels,
-                    &argument_labels,
+                    Some(PropositionLabels {
+                        binder_labels: &binder_labels,
+                        argument_labels: &argument_labels,
+                    }),
                 )
                 .map(|formula| formula.identity_label())
             else {

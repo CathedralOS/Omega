@@ -1,5 +1,6 @@
 //! Type identity tests: normalized identities, contexts, open index and constraint normalization.
 
+use crate::type_identity::{ExactOwnerTypeIdentityRequest, TypeIdentityRequest};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -384,10 +385,14 @@ fn package_qualified_binder_identity_is_alpha_normalized_without_an_owner() {
             name: Identifier::generated("RenamedElement"),
         });
 
-    let first = program
-        .package_qualified_type_identity_with_binders(first, &[(first_symbol, "$T0".to_owned())]);
-    let second = program
-        .package_qualified_type_identity_with_binders(second, &[(second_symbol, "$T0".to_owned())]);
+    let first = program.type_identity(TypeIdentityRequest {
+        binders: &[(first_symbol, "$T0".to_owned())],
+        ..TypeIdentityRequest::package_qualified(first)
+    });
+    let second = program.type_identity(TypeIdentityRequest {
+        binders: &[(second_symbol, "$T0".to_owned())],
+        ..TypeIdentityRequest::package_qualified(second)
+    });
 
     assert_eq!(first, second);
     assert_eq!(first.as_str(), "named(name($T0))");
@@ -623,25 +628,28 @@ fn exact_toolchain_type_owners_follow_source_and_generated_provenance() {
         });
 
     let first = program
-        .package_qualified_type_identity_with_binders_and_toolchain_sources(
-            packet_type,
-            &[],
-            &[(source_id, [0x33; 32])],
-        )
+        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+            type_reference: packet_type,
+            binders: &[],
+            substitutions: &[],
+            exact_toolchain_sources: &[(source_id, [0x33; 32])],
+        })
         .expect("exact toolchain source owner");
     let generated = program
-        .package_qualified_type_identity_with_binders_and_toolchain_sources(
-            generated_type,
-            &[],
-            &[(source_id, [0x33; 32])],
-        )
+        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+            type_reference: generated_type,
+            binders: &[],
+            substitutions: &[],
+            exact_toolchain_sources: &[(source_id, [0x33; 32])],
+        })
         .expect("generated exact toolchain source owner");
     let changed = program
-        .package_qualified_type_identity_with_binders_and_toolchain_sources(
-            packet_type,
-            &[],
-            &[(source_id, [0x44; 32])],
-        )
+        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+            type_reference: packet_type,
+            binders: &[],
+            substitutions: &[],
+            exact_toolchain_sources: &[(source_id, [0x44; 32])],
+        })
         .expect("changed exact toolchain source owner");
 
     assert!(first.as_str().contains("toolchain-source-owner"), "{first}");
@@ -652,11 +660,12 @@ fn exact_toolchain_type_owners_follow_source_and_generated_provenance() {
 
     assert!(
         program
-            .package_qualified_type_identity_with_binders_and_toolchain_sources(
-                packet_type,
-                &[],
-                &[],
-            )
+            .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+                type_reference: packet_type,
+                binders: &[],
+                substitutions: &[],
+                exact_toolchain_sources: &[]
+            })
             .is_none(),
         "exact package identity must fail closed when toolchain custody is missing"
     );
@@ -669,11 +678,12 @@ fn exact_toolchain_type_owners_follow_source_and_generated_provenance() {
         });
     assert!(
         program
-            .package_qualified_type_identity_with_binders_and_toolchain_sources(
-                unresolved_type,
-                &[],
-                &[(source_id, [0x33; 32])],
-            )
+            .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+                type_reference: unresolved_type,
+                binders: &[],
+                substitutions: &[],
+                exact_toolchain_sources: &[(source_id, [0x33; 32])]
+            })
             .is_none(),
         "exact package identity must reject unresolved nominal ownership"
     );

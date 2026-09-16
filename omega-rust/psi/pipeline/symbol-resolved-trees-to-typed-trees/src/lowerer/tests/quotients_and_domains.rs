@@ -297,7 +297,7 @@ fn transparent_proposition_alias_normalizes_to_its_expansion() {
                 panic!("contract should retain one proposition application");
             };
             typed
-                .normalize_proposition_application(application)
+                .normalize_proposition_application(application, None)
                 .expect("application should normalize")
                 .identity_label()
         })

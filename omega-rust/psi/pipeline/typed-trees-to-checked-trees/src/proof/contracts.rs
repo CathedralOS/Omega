@@ -115,7 +115,7 @@ pub(crate) fn append_machine_contract_facts(
                     unreachable!("validated named contract must bind a proposition")
                 };
                 let normalized = program
-                    .normalize_nominal_proposition_application(application)
+                    .normalize_nominal_proposition_application(application, None)
                     .expect("validated named contract must have a nominal proposition endpoint");
                 let (evidence_type, evidence_interface) = match &normalized.classification {
                     typed_trees::proposition::PropositionEvidenceClassification::Witness {
@@ -214,7 +214,7 @@ pub(crate) fn append_state_contract_facts(
                     unreachable!("validated named state contract must bind a proposition")
                 };
                 let normalized = program
-                    .normalize_nominal_proposition_application(application)
+                    .normalize_nominal_proposition_application(application, None)
                     .expect(
                         "validated named state contract must have a nominal proposition endpoint",
                     );
@@ -300,7 +300,7 @@ pub(crate) fn append_state_signature_contract_facts(
                         unreachable!("validated named signature contract must bind a proposition")
                     };
                     let normalized = program
-                        .normalize_nominal_proposition_application(application)
+                        .normalize_nominal_proposition_application(application, None)
                         .expect(
                             "validated named signature contract must have a nominal proposition endpoint",
                         );

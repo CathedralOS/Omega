@@ -10,6 +10,7 @@ use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
 use symbols::SymbolHandle;
+use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::statement::TransitionGuardNode;
 
 #[allow(clippy::too_many_arguments)]
@@ -106,7 +107,7 @@ fn append_case_constraint_context(
         ) else {
             continue;
         };
-        let subject_label = program.render_proof_expression_with_symbols(subject, &[]);
+        let subject_label = program.render_proof_expression(subject, ProofSubstitutions::None);
         let mut substitutions = Vec::new();
         for field in program.data_payload_fields(variant) {
             substitutions.push((
@@ -138,9 +139,11 @@ fn append_case_constraint_context(
             else {
                 continue;
             };
-            let instantiated = semantic.append_instantiated_expression(
-                program.render_proof_expression_with_parameters(*fact_expression, &substitutions),
-            );
+            let instantiated =
+                semantic.append_instantiated_expression(program.render_proof_expression(
+                    *fact_expression,
+                    ProofSubstitutions::ByParameter(&substitutions),
+                ));
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point,
