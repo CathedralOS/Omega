@@ -229,12 +229,50 @@ Prompt telemetry was 27,978 / 31,572 / 28,576 tokens respectively, including cac
 tokens; common preparation and coordinator review were not timed. The quality
 signal is promising on this constructed batch, not compiler productivity proof.
 
+## Fresh isolated owner-confusion replication
+
+`build/experiments/context-owner-holdout/` contains the frozen protocol, six fresh
+queries and owner rubrics, `owners.py`, API responses, twelve worker exports,
+`semantic-review.json` and `REPORT.md`. Each question had its own fresh SWE-2 Max
+session per arm, alternating which arm ran first. The same broad question,
+centered extraction and 0.5 cutoff were retained. Six Jev calls took 2.088s with
+45,003 input and 2,877 output tokens. No answers were retried.
+
+Questions contrasted work-claim renewal versus landing nonrenewal, assignment
+recovery versus active-reservation cancellation, and test-selection dirty-input
+coverage versus publication's clean-worktree requirement. These are new questions
+in familiar domains, not a broad independent task sample.
+
+| Strategy | Correct choices | Strictly supported | Partial support | Total seconds | Worker prompt tokens including cached |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Centered lexical | 6/6 | 5/6 | 1/6 | 161.96 | 133,861 |
+| Centered Jev | 6/6 | 5/6 | 1/6 | 142.24 | 133,516 |
+
+Primary quality replication failed: a tie. Aggregate time was 12.2% lower with Jev,
+but median paired Jev/lexical time ratio was 0.951, missing the frozen 0.8 target.
+The earlier dramatic latency gap did not replicate. Totals include window
+construction, selection and worker process time, not common snapshot loading,
+prompt construction or coordinator review. All quotations matched supplied text,
+all workers made zero tool calls, and the working directory remained empty.
+
+Both cancellation answers inferred the prohibition from the separate examples
+`cancel --ticket <waiting-ticket>` and `release --claim <active-claim>`. Their
+identical excerpts cut off before the explicit prohibition. The frozen strict
+rubric marks that incomplete; a permissive reading would give BOTH 6/6, still
+no advantage. This common failure belongs to excerpt boundaries, not Jev ranking.
+
+Lexical retrieval's renewal answer is supported by a swarm template explicitly
+invoking `claims.py renew`. Its missing preferred `claims.md` document is not a
+semantic failure. Grade the rule's actual owner rather than requiring one filename.
+Coordinator support review remains unblinded; no coding productivity or generic
+speed advantage has been established.
+
 ## Next tuning step
 
-Keep centered excerpts plus the broad-relevance cutoff as the candidate. Replicate
-on fresh ambiguous-owner questions with per-question worker isolation and rotated
-arm order, including a strong centered lexical baseline. Freeze supporting-owner
-rubrics before calls, not just answer choices. Measure quality and total latency;
-avoid claiming the large observed single-run time difference as established gain.
-These 16 exposed retrieval queries are now development data. Do not rerun them as
-fresh generalization evidence or tighten their prompts until every answer passes.
+The isolated replication is complete; do not repeat it as fresh evidence. The next
+specific hypothesis is paragraph-aware extraction under the same context budget:
+fixed character windows can retain a command example while cutting off its decisive
+restriction. Test that input repair on fresh queries against current centered
+lexical retrieval before spending more worker sessions. Keep Jev optional until it
+shows incremental value over that stronger baseline. The 22 exposed retrieval
+queries are now development data, not a reusable blind holdout.
