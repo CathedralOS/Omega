@@ -434,10 +434,10 @@ fn machine_linear_carrier_violation(
     None
 }
 
-fn callable_signature<'program>(
-    program: &'program TypedTrees,
+fn callable_signature(
+    program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&'program typed_trees::signature::StateSignature> {
+) -> Option<&typed_trees::signature::StateSignature> {
     if !symbol.is_valid()
         || matches!(
             program.symbols.get(symbol).kind,
