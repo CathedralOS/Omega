@@ -4,6 +4,8 @@ use super::super::super::super::super::super::{
     StagedFunctionFragmentFrameApplication, validate_function_fragment_frame_application,
 };
 
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+
 use super::{
     AdmissionProfile, IntegerValue, NativeTarget, Operation, OperationId, OperationKind,
     OperationResult, Optimization, OptimizationSelections, Terminator, ValueDeclaration, ValueId,
