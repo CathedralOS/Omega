@@ -340,9 +340,18 @@ parameter and declared field identity. Every checked arrival substitutes the exa
 reconstructed fields and scalar actuals simultaneously and proves endpoint
 equality and membership; cyclic edges also establish strict descent. Entry facts
 may recur only if every edge re-establishes them; a backedge guard cannot prove
-initial membership. Prefix stores need complete disjoint frames, and calls in
-edge operands cannot supply immutable snapshots. Unrelated mutable scratch
-locals introduce no ranking facts and do not invalidate preserved inputs.
+initial membership. Prefix stores need complete frames disjoint from every
+premise carrier -- the formals (or telescoped slots) carrying the rank subjects,
+range endpoints, requires-named inputs, and range-constrained entries, as
+validation's `ranking_range_premise_symbols` names them -- and calls in edge
+operands cannot supply immutable snapshots. A mutable scratch input or local
+outside that set introduces no ranking fact and may be stored to before the
+transition; a store into any carrier still invalidates the ranking, whatever
+value it writes. The
+[scratch-input store](../../../../tests/omega/pass/termination/rank_range_scratch_input_write/main.omg)
+and its
+[subject](../../../../tests/omega/fail/termination/rank_range_subject_intervening_write/main.omg)/[endpoint](../../../../tests/omega/fail/termination/rank_range_endpoint_intervening_write/main.omg)
+controls pin that boundary.
 The [relational countdown](../../../../tests/omega/pass/termination/measure_field_relational_range/README.md)
 exercises that boundary. Computed scalar endpoints still need independent
 immutable-expression formation; the relational fallback cannot excuse overflow

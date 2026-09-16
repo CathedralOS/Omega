@@ -3,7 +3,7 @@
 
 use super::super::super::{graph, patterns};
 
-use super::preserved_entry_prefix;
+use super::{preserved_entry_prefix, protected_input_paths};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -16,6 +16,7 @@ pub(super) fn prove<'program>(
     measure: validation::RankingRangeMeasure,
     frames: Option<&validation::CallFrameResolver<'program>>,
     premises: validation::RankingRangePremises,
+    premise_inputs: &[SymbolHandle],
 ) -> bool {
     let states = program.machine_states(machine);
     let mut adjacency = graph::machine_adjacency(program, machine);
@@ -82,6 +83,14 @@ pub(super) fn prove<'program>(
     };
     let components = graph::strongly_connected_components(&adjacency);
     for (source_position, source) in states.iter().enumerate() {
+        // The same telescope that aliases entry roles onto this state's slots
+        // decides which slots a prefix store must leave untouched.
+        let protected = protected_input_paths(
+            program,
+            source,
+            Some(&mappings[source_position]),
+            premise_inputs,
+        );
         for &target_position in &adjacency[source_position] {
             if source_position == 0 && target_position == 0 {
                 continue;
@@ -99,6 +108,7 @@ pub(super) fn prove<'program>(
                     source,
                     frames,
                     edge.statement_ordinal,
+                    &protected,
                 ) else {
                     return false;
                 };

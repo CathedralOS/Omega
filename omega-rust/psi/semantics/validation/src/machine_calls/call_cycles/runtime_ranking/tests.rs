@@ -10,6 +10,7 @@ mod distance;
 mod increasing;
 mod meaning;
 mod ranges;
+mod scratch_writes;
 mod slice;
 
 fn typed(body: &str) -> TypedTrees {

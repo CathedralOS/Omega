@@ -1,0 +1,19 @@
+// FAIL CANARY. The ranked subject `index` is stored to before the transition.
+// A premise carrier's arrival value no longer describes the edge, so the rank
+// range cannot be proved even though the transition spelling is unchanged.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.walk(0, 4, 0) }
+}
+
+machine Main::walk(&mut self, mut index: u64, limit: u64, mut count: u64)
+requires index <= limit;
+terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
+-> u64 {
+    index = 0;
+    transition index < limit {
+        true -> walk(index + 1, limit, count)
+        false -> count
+    }
+}

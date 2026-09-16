@@ -25,7 +25,8 @@ pub use telescope::{discover_state_entry_mappings, discover_state_entry_mappings
 
 pub(crate) use calls::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
+    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
+    prove_ranking_range_call_entry,
 };
 
 #[cfg(test)]
@@ -66,9 +67,10 @@ pub enum RankingRangePremises {
 /// This query neither mutates source/evidence nor admits an unknown judgment.
 /// The caller must provide an exact root self-edge and its live guard facts;
 /// arbitrary state-to-root substitutions are deliberately not inferred here.
-/// `evaluated_prefix` must come from a parameter-preserving prefix: live
-/// write-frame evidence that no earlier statement writes any parameter's path,
-/// so a mutable parameter still denotes its arrival value at the transition.
+/// `evaluated_prefix` must come from a premise-preserving prefix: live
+/// write-frame evidence that no earlier statement writes the path of any
+/// premise carrier (`ranking_range_premise_symbols`), so each such mutable
+/// parameter still denotes its arrival value at the transition.
 pub fn prove_ranking_range_edge(
     program: &TypedTrees,
     machine: &Machine,
@@ -112,9 +114,10 @@ pub struct RankingRangeState<'program> {
 /// reentered roots. Every destination formal receives its exact actual in
 /// one simultaneous substitution; graph ownership decides whether strict
 /// decrease is additionally required for this edge. `evaluated_prefix` must
-/// come from a parameter-preserving prefix: live write-frame evidence that no
-/// earlier statement writes any parameter's path, so a mutable parameter still
-/// denotes its arrival value at the transition.
+/// come from a premise-preserving prefix: live write-frame evidence that no
+/// earlier statement writes the path of any slot carrying a premise role
+/// (`ranking_range_premise_symbols` through the telescope), so each such
+/// mutable parameter still denotes its arrival value at the transition.
 pub fn prove_ranking_range_transition(
     program: &TypedTrees,
     machine: &Machine,
@@ -175,6 +178,30 @@ pub fn ranking_range_required_symbols(
         return None;
     };
     state_aliases::required_symbols(program, machine, range, measure, premises)
+}
+
+/// The root formals, in every carrier, whose arrival value some range judgment
+/// on this witness may read: the produced-rank subjects, the range endpoints,
+/// every requires fact, and every range-constrained integer formal. A prefix
+/// store whose complete write frame is disjoint from each path carrying one of
+/// these roles preserves the entry-relative ranking; a store into any of them
+/// invalidates it, whatever value it stores. An invalid `range` means the
+/// witness authored no range and contributes no endpoint.
+pub fn ranking_range_premise_symbols(
+    program: &TypedTrees,
+    machine: &Machine,
+    range: ExpressionHandle,
+    measure: RankingRangeMeasure,
+) -> Option<Vec<symbols::SymbolHandle>> {
+    let range = if range.is_valid() {
+        let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
+            return None;
+        };
+        Some(range)
+    } else {
+        None
+    };
+    state_aliases::premise_symbols(program, machine, range, measure, true)
 }
 
 /// Establish the produced rank at entry, including an acyclic invocation.
@@ -303,8 +330,10 @@ fn prove_edge(
     let parameters = program.state_parameters(state);
     // A mutable parameter's live value equals its arrival value only while no
     // intervening write touches its path. The evaluated-prefix callers prove
-    // that per edge with complete write frames disjoint from every parameter
-    // path before this judgment runs; the entry query has no prefix at all.
+    // that per edge with complete write frames disjoint from every premise
+    // carrier's path before this judgment runs; the entry query has no prefix
+    // at all. A formal outside the premise set may have been written: nothing
+    // here assumes its arrival value, and the actual it feeds is read live.
     // Mutability is then a storage capability, not a value distinction, and an
     // integer atom names the same live value it would for an immutable formal.
     if arguments.is_some_and(|arguments| {

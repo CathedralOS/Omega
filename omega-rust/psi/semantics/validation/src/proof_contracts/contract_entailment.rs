@@ -113,14 +113,15 @@ pub(crate) use proof_integer::{
 };
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
+    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
+    prove_ranking_range_call_entry,
 };
 pub use ranking_range::{
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
     arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
     discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
     prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
-    ranking_range_required_symbols,
+    ranking_range_premise_symbols, ranking_range_required_symbols,
 };
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
 pub use strict_arithmetic::{
