@@ -173,7 +173,8 @@ fn exact_divide_replay_rejects_missing_proof_changed_policy_and_forged_fact() {
                 }
                 4 => row.operation = semantic_vocabulary::OperationId::new(999999).unwrap(),
                 _ => {
-                    row.kind = Instruction::SaturatingSubtractU64 {
+                    row.kind = Instruction::SaturatingSubtract {
+                        carrier: legalized_operations::SaturatingCarrier::U64,
                         left: *left,
                         right: *right,
                     }
@@ -398,7 +399,9 @@ fn saturating_subtract_selection_rejects_changed_operation_operands_and_custody(
                 .find(|instruction| {
                     matches!(
                         instruction.kind,
-                        SelectedInstructionKind::SaturatingSubtractU64
+                        SelectedInstructionKind::SaturatingSubtract {
+                            carrier: selected_instructions::SaturatingCarrier::U64
+                        }
                     )
                 })
                 .unwrap();

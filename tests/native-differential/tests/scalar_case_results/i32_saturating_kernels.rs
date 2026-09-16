@@ -97,6 +97,7 @@ fn saturating_divide_i32_publishes_four_targets_and_clamps_minimum_over_minus_on
 fn saturating_divide_i32_legalization_replay_rejects_forged_proof_and_other_carriers() {
     use legalized_operations::{
         LegalizedExactIntegerOperator as Operator, LegalizedScalarInstructionKind as Instruction,
+        SaturatingCarrier,
     };
     use target_operations_to_selected_instructions::{
         legalize_target_operations, validate_legalized_operations,
@@ -132,19 +133,26 @@ fn saturating_divide_i32_legalization_replay_rejects_forged_proof_and_other_carr
                 .iter()
                 .flat_map(|function| &function.blocks)
                 .flat_map(|block| &block.instructions)
-                .any(|row| matches!(row.kind, Instruction::SaturatingDivideI32 { .. })),
+                .any(|row| matches!(
+                    row.kind,
+                    Instruction::SaturatingDivide {
+                        carrier: SaturatingCarrier::I32,
+                        ..
+                    }
+                )),
             "{target:?} legalizes the signed i32 saturating divide"
         );
-        for mutation in 0..8 {
+        for mutation in 0..9 {
             let mut proposed = legalized.plan().clone();
             let row = proposed
                 .scalar_functions
                 .iter_mut()
                 .flat_map(|function| &mut function.blocks)
                 .flat_map(|block| &mut block.instructions)
-                .find(|row| matches!(row.kind, Instruction::SaturatingDivideI32 { .. }))
+                .find(|row| matches!(row.kind, Instruction::SaturatingDivide { .. }))
                 .unwrap();
-            let Instruction::SaturatingDivideI32 {
+            let Instruction::SaturatingDivide {
+                carrier,
                 left,
                 right,
                 obligation,
@@ -181,17 +189,22 @@ fn saturating_divide_i32_legalization_replay_rejects_forged_proof_and_other_carr
                     }
                 }
                 6 => {
-                    row.kind = Instruction::SaturatingSubtractU64 {
+                    row.kind = Instruction::SaturatingSubtract {
+                        carrier: SaturatingCarrier::U64,
                         left: *left,
                         right: *right,
                     }
                 }
-                _ => {
-                    row.kind = Instruction::SaturatingAddI32 {
+                7 => {
+                    row.kind = Instruction::SaturatingAdd {
+                        carrier: SaturatingCarrier::I32,
                         left: *left,
                         right: *right,
                     }
                 }
+                // The same divide under a narrower carrier would clamp
+                // i32 quotients to the i16 bounds.
+                _ => *carrier = SaturatingCarrier::I16,
             }
             assert!(
                 validate_legalized_operations(
@@ -209,7 +222,7 @@ fn saturating_divide_i32_legalization_replay_rejects_forged_proof_and_other_carr
 
 #[test]
 fn saturating_i32_selection_rejects_forged_proof_other_carriers_and_scratch_drift() {
-    use selected_instructions::SelectedInstructionKind;
+    use selected_instructions::{SaturatingCarrier, SelectedInstructionKind};
     use target_operations_to_selected_instructions::{
         selection_constraints, stage_optimized_instruction_selection,
         validate_selected_instructions,
@@ -250,12 +263,23 @@ fn saturating_i32_selection_rejects_forged_proof_other_carriers_and_scratch_drif
             validate(staged.selected().plan().clone()).unwrap();
             let is_saturating = |kind: &SelectedInstructionKind| {
                 if divides {
-                    matches!(kind, SelectedInstructionKind::SaturatingDivideI32 { .. })
+                    matches!(
+                        kind,
+                        SelectedInstructionKind::SaturatingDivide {
+                            carrier: SaturatingCarrier::I32,
+                            ..
+                        }
+                    )
                 } else {
-                    matches!(kind, SelectedInstructionKind::SaturatingAddI32)
+                    matches!(
+                        kind,
+                        SelectedInstructionKind::SaturatingAdd {
+                            carrier: SaturatingCarrier::I32
+                        }
+                    )
                 }
             };
-            for mutation in 0..7 {
+            for mutation in 0..8 {
                 let mut proposed = staged.selected().plan().clone();
                 let instruction = proposed
                     .functions
@@ -270,22 +294,37 @@ fn saturating_i32_selection_rejects_forged_proof_other_carriers_and_scratch_drif
                     "{target:?} carries a bound scratch"
                 );
                 match (mutation, &mut instruction.kind) {
-                    (0, SelectedInstructionKind::SaturatingDivideI32 { obligation, .. }) => {
+                    (0, SelectedInstructionKind::SaturatingDivide { obligation, .. }) => {
                         *obligation = semantic_vocabulary::ObligationId::new(999999).unwrap()
                     }
-                    (0, _) => instruction.kind = SelectedInstructionKind::SaturatingAddU64,
-                    (1, SelectedInstructionKind::SaturatingDivideI32 { accepted_fact, .. }) => {
+                    (0, _) => {
+                        instruction.kind = SelectedInstructionKind::SaturatingAdd {
+                            carrier: SaturatingCarrier::U64,
+                        }
+                    }
+                    (1, SelectedInstructionKind::SaturatingDivide { accepted_fact, .. }) => {
                         *accepted_fact =
                             optimization_core::AcceptedObligationFactIdentity::from_bytes(
                                 [0x5a; 32],
                             )
                     }
-                    (1, _) => instruction.kind = SelectedInstructionKind::SaturatingSubtractI32,
+                    (1, _) => {
+                        instruction.kind = SelectedInstructionKind::SaturatingSubtract {
+                            carrier: SaturatingCarrier::I32,
+                        }
+                    }
                     (2, _) => instruction.operands.swap(0, 1),
                     (3, _) => instruction.operands.swap(2, 3),
                     (4, _) => instruction.provenance.operations.clear(),
                     (5, _) => instruction.provenance.fuel.clear(),
-                    (_, SelectedInstructionKind::SaturatingDivideI32 { .. }) => {
+                    // Only the carrier changes: the same operands under the
+                    // i16 bounds must be rejected.
+                    (6, SelectedInstructionKind::SaturatingDivide { carrier, .. })
+                    | (6, SelectedInstructionKind::SaturatingAdd { carrier }) => {
+                        *carrier = SaturatingCarrier::I16
+                    }
+                    (6, _) => unreachable!(),
+                    (_, SelectedInstructionKind::SaturatingDivide { .. }) => {
                         instruction.kind = SelectedInstructionKind::WrappingRemainderI64 {
                             obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
                             accepted_fact:
