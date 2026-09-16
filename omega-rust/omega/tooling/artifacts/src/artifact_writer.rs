@@ -10,8 +10,6 @@ use diagnostics::Diagnostic;
 #[cfg(test)]
 use executable_installation::{Artifact, ContainerLimits, encode_executable_container};
 
-use crate::reports::html_report;
-
 pub struct ArtifactWriter {
     root: PathBuf,
 }
@@ -35,15 +33,6 @@ impl ArtifactWriter {
 
     pub fn write_text(&self, file_name: &str, contents: &str) -> Result<(), Diagnostic> {
         self.write_bytes(file_name, contents.as_bytes()).map(|_| ())
-    }
-
-    pub fn write_html_report(
-        &self,
-        file_name: &str,
-        title: &str,
-        contents: &str,
-    ) -> Result<(), Diagnostic> {
-        self.write_text(file_name, &html_report::render(title, contents))
     }
 
     pub fn write_bytes(&self, file_name: &str, bytes: &[u8]) -> Result<PathBuf, Diagnostic> {

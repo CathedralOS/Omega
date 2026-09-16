@@ -59,18 +59,20 @@ fn failed_installation_preserves_destination_and_removes_staging_file() {
 }
 
 #[test]
-fn html_report_escapes_title_and_body_before_writing() {
+fn timings_are_plain_text_without_html_output() {
     let directory = ReportDirectory::new();
     let writer = ArtifactWriter::new(&directory.0).unwrap();
     writer
-        .write_html_report(
-            "report.html",
-            "<title & \"name\">",
-            "<script>&\"payload\"</script>",
-        )
+        .write_timings(&[crate::PhaseTiming {
+            phase: "check <input> & retain".to_owned(),
+            microseconds: 1_250,
+            allocations: Default::default(),
+        }])
         .unwrap();
-    let html = fs::read_to_string(directory.0.join("report.html")).unwrap();
-    assert!(html.contains("<title>&lt;title &amp; &quot;name&quot;&gt;</title>"));
-    assert!(html.contains("<pre>&lt;script&gt;&amp;&quot;payload&quot;&lt;/script&gt;</pre>"));
-    assert!(!html.contains("<script>"));
+    let timings = fs::read_to_string(directory.0.join("00_timings.txt")).unwrap();
+    assert!(timings.starts_with("# Omega Phase Timings\n"));
+    assert!(timings.contains("check <input> & retain"));
+    assert!(timings.contains("1,250 us"));
+    assert!(!timings.contains("<!doctype html>"));
+    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 1);
 }

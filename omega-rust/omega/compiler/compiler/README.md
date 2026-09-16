@@ -67,7 +67,7 @@ be silently discarded. Unsupported Terminal vocabulary rejects without another
 source-shaped path. [Native artifacts](../../backend/artifacts/native-artifact/README.md)
 owns the current physical evidence limits.
 
-`ArtifactEmissionPolicy::OutputOnly` suppresses auxiliary HTML/JSON/text/Markdown,
+`ArtifactEmissionPolicy::OutputOnly` suppresses auxiliary JSON/text/Markdown,
 timing and disassembly, not semantic validation. Wire compatibility, capability
 and trust consistency, owner admissions, lock enforcement and executable-footprint
 checks still run where required by the product. Requested primary output and
@@ -83,6 +83,9 @@ timing last; OutputOnly writes nothing. A writer failure does not revise trust
 admission. Checked results
 retain first-seen ordered, repeated-stage-aggregated timing observations, but
 nondeterministic measurements do not enter semantic equality.
+
+Timings are written to `00_timings.txt`. Builds do not generate HTML graph or
+report pages; JSON manifests and text reports remain available.
 
 Boundary reporting captures source target/contract/policy rows once and later
 joins the same carrier to checked capability facts; it does not retain a syntax

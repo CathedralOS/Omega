@@ -486,7 +486,7 @@ fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
         "emits_auxiliary_artifacts(",
         "ArtifactWriter",
         "write_checked_snapshots(",
-        "00_timings.html",
+        "00_timings.txt",
     ] {
         assert!(
             !driver.contains(reporting_policy),

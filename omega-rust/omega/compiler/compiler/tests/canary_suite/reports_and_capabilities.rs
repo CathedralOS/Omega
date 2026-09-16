@@ -117,14 +117,21 @@ fn full_checked_observation_emits_ordered_timings_with_checked_snapshots() {
     for file_name in [
         "trust_report.md",
         "05_capability_manifest.json",
-        "00_timings.html",
+        "00_timings.txt",
     ] {
         assert!(
             build_dir.join(file_name).is_file(),
             "full checked observation should emit {file_name}"
         );
     }
-    let timings = fs::read_to_string(build_dir.join("00_timings.html"))
+    assert!(fs::read_dir(&build_dir).unwrap().all(|entry| {
+        entry
+            .unwrap()
+            .path()
+            .extension()
+            .is_none_or(|extension| extension != "html")
+    }));
+    let timings = fs::read_to_string(build_dir.join("00_timings.txt"))
         .expect("read checked timing observation");
     let mut prior = None;
     for stage in ["Stage 01", "Stage 02", "Stage 03", "Stage 04", "Stage 05"] {
