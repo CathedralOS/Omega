@@ -1,7 +1,5 @@
 use super::super::super::TerminationGuarantee;
 use crate::tests::termination::progress_mutation::assert_subjects;
-use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
-use crate::tests::termination::progress_mutation::fixture_source;
 use crate::tests::termination::progress_mutation::fixture_with_body;
 use crate::tests::termination::symbol_of_checked;
 
@@ -61,8 +59,11 @@ fn a_stored_helper_result_cannot_restore_a_subject_after_overlapping_effects() {
 }
 
 #[test]
-fn a_readonly_aggregate_helper_needs_result_identity_not_an_empty_write_frame() {
-    let source = fixture_source(
+fn a_readonly_aggregate_helper_result_carries_its_conditional_identity() {
+    // `choose` returns its `context` input on every arm, so the stored
+    // carrier's borrowed leaf is that same subject and the tail call's
+    // requirement proves through the conditional result relation.
+    let program = fixture_with_body(
         "let carrier: Carrier = wrap(context);
          let borrowed: &Context = carrier.context;
          transition { _ -> wait_context(borrowed) }",
@@ -77,5 +78,5 @@ fn a_readonly_aggregate_helper_needs_result_identity_not_an_empty_write_frame() 
              Carrier { context: chosen }
          }",
     );
-    assert_unproved_tail_requirement(&source);
+    assert_subjects(&program, &["context"]);
 }

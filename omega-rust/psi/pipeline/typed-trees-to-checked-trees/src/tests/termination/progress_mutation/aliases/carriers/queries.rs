@@ -82,8 +82,10 @@ fn a_shared_selected_case_requires_retained_payload_evidence() {
 }
 
 #[test]
-fn an_unknown_shared_leaf_does_not_supply_or_obscure_a_known_sibling() {
-    for (selected, expected) in [("known", Some("context")), ("unknown", None)] {
+fn conditional_shared_leaves_supply_their_own_origins_beside_a_known_sibling() {
+    // `choose` returns `context` on every guarded arm, so `wrap`'s result leaf
+    // and the `known` sibling each keep their own exact input identity.
+    for (selected, expected) in [("known", Some("context")), ("unknown", Some("replacement"))] {
         let program = typed_fixture(
             &format!(
                 "let returned: Carrier = wrap(replacement);

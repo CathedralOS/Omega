@@ -32,7 +32,7 @@ fn case_result_program_with_helpers(body: &str, helpers: &str) -> typed_trees::T
         machine project_nested(input: Nested) -> Choice {{ input.inner }}
         machine project_array(input: [Choice; 2]) -> Choice {{ input[0] }}
         machine project_runtime(input: [Choice; 2], index: u64) -> Choice {{ input[index] }}
-        machine project_unproved(input: Choice) -> View {{ input.view }}
+        machine project_case(input: Choice) -> View {{ input.view }}
         machine forward(input: Choice) -> Choice {{ identity(input) }}
         machine make_choice(value: &mut u64) -> Choice {{ Choice::Selected {{ view: View {{ body: value }} }} }}
         machine replace_empty(input: Choice) -> Choice {{ Choice::Empty {{}} }}
@@ -190,14 +190,17 @@ fn helper_result_cases_preserve_array_selectors_and_runtime_unions() {
             None,
         ),
         (
+            // A runtime-mixed payload is a checked partial access: selecting
+            // Empty traps the projection, so the Selected leaf is the only
+            // reachable write.
             "runtime_mixed",
             "let local: [Choice; 2] = identity_array([Choice::Selected { view: View { body: &mut self.value } }, Choice::Empty {}]); write_outer(Outer { inner: local[index].view });",
-            None,
+            Some(vec!["self.value"]),
         ),
         (
             "projected_runtime_mixed",
             "let local: Choice = project_runtime([Choice::Selected { view: View { body: &mut self.value } }, Choice::Empty {}], index); write_outer(Outer { inner: local.view });",
-            None,
+            Some(vec!["self.value"]),
         ),
     ] {
         let expected = expected.map(|paths| paths.into_iter().map(str::to_owned).collect());
@@ -238,14 +241,20 @@ fn helper_result_cases_do_not_cross_wire_sibling_or_prior_actuals() {
             None,
         ),
         (
+            // The parameter's case is unknown, so the payload access is a
+            // checked partial operation: only the declared leaf can be
+            // written, and no self storage is reached.
             "unknown",
             "let local: Choice = identity(input); write_outer(Outer { inner: local.view });",
-            None,
+            Some(vec![]),
         ),
         (
-            "unproved_body_projection",
-            "let local: View = project_unproved(Choice::Selected { view: View { body: &mut self.value } }); write_outer(Outer { inner: local });",
-            None,
+            // The helper's `input.view` is itself a checked partial access on
+            // the input's declared case frontier, so the returned leaf still
+            // carries the actual's origin when the payload is present.
+            "conditional_body_projection",
+            "let local: View = project_case(Choice::Selected { view: View { body: &mut self.value } }); write_outer(Outer { inner: local });",
+            Some(vec!["self.value"]),
         ),
     ] {
         let expected = expected.map(|paths| paths.into_iter().map(str::to_owned).collect());
@@ -351,35 +360,45 @@ fn helper_case_substitution_requires_frozen_owned_and_shared_inputs() {
         machine receive_plain(mut input: PlainChoice) -> PlainChoice { input.clear(); input }
         machine receive_shared(mut input: SharedChoice) -> SharedChoice { input.clear(); input }
     "#;
-    for (name, body) in [
+    // The result case is never substituted from a replaced or exposed input.
+    // An owned-carrier payload access is a checked partial operation whose
+    // projected consumers write no caller storage, while a shared carrier
+    // keeps no exclusive leaf evidence at all.
+    for (name, body, expected) in [
         (
             "owned_replacement",
             "let local: PlainChoice = replace_plain(PlainChoice::Selected { view: Plain { tag: 0 } }); write_plain(PlainOuter { inner: local.view });",
+            [Some(vec![]), Some(vec![])],
         ),
         (
             "shared_replacement",
             "let local: SharedChoice = replace_shared(SharedChoice::Selected { view: Shared { body: &self.value, tag: 0 } }); write_shared(SharedOuter { inner: local.view });",
+            [None, None],
         ),
         (
             "owned_exposure",
             "let local: PlainChoice = expose_plain(PlainChoice::Selected { view: Plain { tag: 0 } }); write_plain(PlainOuter { inner: local.view });",
+            [Some(vec![]), Some(vec![])],
         ),
         (
             "shared_exposure",
             "let local: SharedChoice = expose_shared(SharedChoice::Selected { view: Shared { body: &self.value, tag: 0 } }); write_shared(SharedOuter { inner: local.view });",
+            [None, None],
         ),
         (
             "owned_receiver",
             "let local: PlainChoice = receive_plain(PlainChoice::Selected { view: Plain { tag: 0 } }); write_plain(PlainOuter { inner: local.view });",
+            [Some(vec![]), Some(vec![])],
         ),
         (
             "shared_receiver",
             "let local: SharedChoice = receive_shared(SharedChoice::Selected { view: Shared { body: &self.value, tag: 0 } }); write_shared(SharedOuter { inner: local.view });",
+            [None, None],
         ),
     ] {
         assert_eq!(
             caller_frames(&case_result_program_with_helpers(body, helpers)),
-            [None, None],
+            expected,
             "{name}",
         );
     }
@@ -549,9 +568,11 @@ fn named_actual_cases_remove_absent_declared_reference_rows() {
             None,
         ),
         (
+            // Selecting the Empty element traps the payload access; the
+            // Selected element's leaf is the only reachable write.
             "named_mixed_runtime",
             "let source: [Choice; 2] = [Choice::Selected { view: View { body: &mut self.value } }, Choice::Empty {}]; let local: [Choice; 2] = identity_array(source); write_outer(Outer { inner: local[index].view });",
-            None,
+            Some(vec!["self.value"]),
         ),
         (
             "named_all_empty_whole",

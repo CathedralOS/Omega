@@ -215,16 +215,18 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
     let mut leaves = AggregateOrigins::default();
     for (index, selected) in segments.iter().enumerate() {
         if let PlaceSegment::Case { .. } = selected {
-            let mut candidates = established.cases.iter().filter(|case| {
-                case.len() == index + 1 && prefix_matches(&segments[..index], &case[..index])
-            });
-            // Missing and mixed active cases are not evidence that the
-            // selected payload is a private value with no reference leaves.
-            if candidates
-                .next()
-                .is_none_or(|case| case[index] != *selected)
-                || candidates.any(|case| case[index] != *selected)
-            {
+            // A case-payload projection is a checked partial operation: it
+            // traps unless the selected case is active, so every leaf it can
+            // produce exists only on arms that actually select it. The query
+            // therefore needs one possible matching case, not a universal
+            // one — a sibling case arm contributes no writes through this
+            // access. When no possible case matches, the projection is
+            // unproven rather than evidence of a private payload.
+            if !established.cases.iter().any(|case| {
+                case.len() == index + 1
+                    && case[index] == *selected
+                    && prefix_matches(&segments[..index], &case[..index])
+            }) {
                 return None;
             }
         }

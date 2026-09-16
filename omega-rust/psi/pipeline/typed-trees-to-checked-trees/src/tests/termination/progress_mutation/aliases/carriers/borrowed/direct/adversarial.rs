@@ -191,7 +191,7 @@ fn private_referents_cannot_escape_as_exact_caller_inputs() {
 }
 
 #[test]
-fn an_unknown_direct_result_and_its_copy_leave_a_known_query_independent() {
+fn a_conditional_direct_result_and_its_copy_stay_exact_beside_a_known_query() {
     let source = direct_source(
         "",
         "transition carrier.context.counter == 0 {
@@ -199,13 +199,13 @@ fn an_unknown_direct_result_and_its_copy_leave_a_known_query_independent() {
     )
     .replace(
         "let borrowed: &Context = select(carrier);",
-        "let unknown: &Context = select(carrier);
-             let copied: &Context = unknown;
+        "let conditional: &Context = select(carrier);
+             let copied: &Context = conditional;
              let borrowed: &Context = carrier.context;",
     );
     let program = typed_source(&source);
-    for (local, known) in [("unknown", false), ("copied", false), ("borrowed", true)] {
-        assert_identity(&program, local, known);
+    for local in ["conditional", "copied", "borrowed"] {
+        assert_identity(&program, local, true);
     }
     assert_input_premise(&check_source(&source));
 }

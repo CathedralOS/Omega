@@ -121,8 +121,11 @@ fn moved_aggregate_declarations_preserve_complete_caller_origins() {
         ),
         (
             "runtime_mixed_case_payload",
+            // A possibly-absent case payload is a checked partial access: the
+            // Empty element traps the projection, so the only reachable write
+            // is the Selected element's leaf.
             "let first: [Choice; 2] = [Choice::Selected { view: View { body: &mut self.value } }, Choice::Empty {}]; let second: View = first[index].view; write_view(second);",
-            None,
+            Some(vec!["self.value"]),
         ),
         (
             "empty_carrier_borrow",
