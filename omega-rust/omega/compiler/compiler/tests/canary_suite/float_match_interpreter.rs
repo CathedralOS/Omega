@@ -1,6 +1,5 @@
 use crate::{compile_reviewed_repository_fixture, pass_canary};
 use checked_interpreter::InterpretOptions;
-use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
 #[test]

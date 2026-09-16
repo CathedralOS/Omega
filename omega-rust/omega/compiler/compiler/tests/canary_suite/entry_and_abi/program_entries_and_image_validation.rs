@@ -5,7 +5,6 @@ use crate::{
     unique_no_output_build_dir,
 };
 use checked_interpreter::InterpretOptions;
-use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
 #[test]

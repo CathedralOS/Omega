@@ -12,9 +12,7 @@ use crate::{
     reviewed_repository_fixture_package_inputs,
 };
 use checked_interpreter::InterpretOptions;
-use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 #[test]

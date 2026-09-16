@@ -6,7 +6,6 @@ use crate::{
 };
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use typed_trees::types::PrimitiveType;
 
 #[test]
