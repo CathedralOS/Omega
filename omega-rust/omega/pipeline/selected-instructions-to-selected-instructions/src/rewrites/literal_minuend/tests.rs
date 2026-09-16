@@ -1079,49 +1079,100 @@ fn validation_budget_covers_the_flag_audit() {
 /// charges the flag audit at two block traversals plus the successor edges
 /// per defined flag unit — so the exact count admits the fold on both the
 /// proposal and the independent replay path while one step below rejects
-/// both.
+/// both, on the single-block fixture and on a second whose flag audit
+/// crosses an edge into the consumer's block.
 #[test]
 fn measured_validation_step_boundary_admits_and_rejects() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let source = materialize_fixture(target, IntegerValue::Unsigned(9));
-    let compare = &source.transformed().functions[0].blocks[0].instructions[2];
-    // The fixture's one block carries four body instructions plus the
-    // terminator; the compare defines one flag unit on either target.
-    let function_scan = 5u64;
-    let plan_scan = 5u64;
-    let edge_count = 0u64;
-    let exact_steps = plan_scan
-        + function_scan
-        + compare.implicit_defs.len() as u64 * (2 * function_scan + edge_count);
-    let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
-    let result = fold_selected_literal_minuend(&source, 0, COMPARE, &environment, exact).unwrap();
-    validate_literal_minuend_fold(
-        &source,
-        0,
-        COMPARE,
-        &environment,
-        exact,
-        result.transformed().clone(),
-    )
-    .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
-    assert_eq!(
-        fold_selected_literal_minuend(&source, 0, COMPARE, &environment, starved).unwrap_err(),
-        LiteralMinuendError::WorkBudgetExceeded
-    );
-    assert_eq!(
+    // The equality consumer moves into a jump target: the flag unit stays
+    // live across the edge, so the audit's edge term is nonzero.
+    let edge_crossing = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap()
+            .clone();
+        let boolean_row = environment
+            .constraint(environment.selected_keys().materialize_boolean)
+            .unwrap()
+            .clone();
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions.remove(3);
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
+            successor: successor(SelectedBlockId(1), BlockId::new(2).unwrap(), 2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![instruction(
+                BOOLEAN,
+                SelectedInstructionKind::MaterializeBooleanEqual,
+                &boolean_row,
+                &[OUTPUT],
+            )],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    for (source, plan_scan, function_scan, edge_count) in [
+        // One block carrying four body instructions plus the terminator;
+        // the flag unit dies at the return, so the audit crosses no edge.
+        (
+            materialize_fixture(target, IntegerValue::Unsigned(9)),
+            5u64,
+            5u64,
+            0u64,
+        ),
+        // Three body instructions plus the jump in the compare's block and
+        // one body instruction plus the return in the target; the flag unit
+        // reaches the consumer across the jump's one successor edge.
+        (edge_crossing, 6u64, 6u64, 1u64),
+    ] {
+        let compare = &source.transformed().functions[0].blocks[0].instructions[2];
+        let exact_steps = plan_scan
+            + function_scan
+            + compare.implicit_defs.len() as u64 * (2 * function_scan + edge_count);
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result =
+            fold_selected_literal_minuend(&source, 0, COMPARE, &environment, exact).unwrap();
         validate_literal_minuend_fold(
             &source,
             0,
             COMPARE,
             &environment,
-            starved,
+            exact,
             result.transformed().clone(),
         )
-        .unwrap_err(),
-        LiteralMinuendError::WorkBudgetExceeded
-    );
+        .unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            fold_selected_literal_minuend(&source, 0, COMPARE, &environment, starved).unwrap_err(),
+            LiteralMinuendError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_literal_minuend_fold(
+                &source,
+                0,
+                COMPARE,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            LiteralMinuendError::WorkBudgetExceeded
+        );
+    }
 }
 
 #[test]
