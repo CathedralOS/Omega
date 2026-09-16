@@ -37,6 +37,7 @@ pub struct TargetCompileConfiguration {
     target_name: Option<String>,
     build_dir: Option<PathBuf>,
     pub(super) terminal_admission_profile: proof_admission::AdmissionProfile,
+    terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
     pub(super) terminal_authority_permission_policy:
         native_realization::TerminalAuthorityPermissionPolicy,
     accepted_trust_admissions: Vec<trust_model::TrustAdmission>,
@@ -54,6 +55,7 @@ impl TargetCompileConfiguration {
             target_name,
             build_dir,
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
+            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
             accepted_trust_admissions: Vec::new(),
@@ -68,6 +70,17 @@ impl TargetCompileConfiguration {
     }
     pub fn with_admission_profile(mut self, profile: proof_admission::AdmissionProfile) -> Self {
         self.terminal_admission_profile = profile;
+        self
+    }
+    /// Supply the receiving mechanism-classification policy for this target.
+    /// Rows classify exact normalized-foreign, syscall, or checked-physical
+    /// mechanisms; the closed compiler-intrinsic inventory is never configured
+    /// here. Missing demanded rows reject at terminal-authority review.
+    pub fn with_terminal_authority_policy(
+        mut self,
+        policy: native_realization::TerminalAuthorityPolicy,
+    ) -> Self {
+        self.terminal_authority_policy = policy;
         self
     }
     pub fn with_terminal_authority_permission_policy(
@@ -161,6 +174,18 @@ impl CompileRequest {
     pub fn with_admission_profile(mut self, profile: proof_admission::AdmissionProfile) -> Self {
         for configuration in &mut self.configurations {
             configuration.terminal_admission_profile = profile.clone();
+        }
+        self
+    }
+    /// Apply a common receiving mechanism-classification policy to every
+    /// current configuration. Distinct per-target policies belong on their
+    /// configurations.
+    pub fn with_terminal_authority_policy(
+        mut self,
+        policy: native_realization::TerminalAuthorityPolicy,
+    ) -> Self {
+        for configuration in &mut self.configurations {
+            configuration.terminal_authority_policy = policy.clone();
         }
         self
     }
@@ -346,6 +371,7 @@ impl ValidatedTargetCompilation {
         native_realization::NativeProductRequest {
             root_path: self.options.root_path,
             terminal_admission_profile: self.configuration.terminal_admission_profile,
+            terminal_authority_policy: self.configuration.terminal_authority_policy,
             terminal_authority_permission_policy: self
                 .configuration
                 .terminal_authority_permission_policy,

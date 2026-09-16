@@ -19,6 +19,7 @@ pub(super) fn realize(
     checked: &CheckedCompilation,
     admission: &super::admission::NativeCompilationAdmission,
     profile: &proof_admission::AdmissionProfile,
+    terminal_authority_policy: crate::TerminalAuthorityPolicy,
     terminal_authority_permission_policy: crate::TerminalAuthorityPermissionPolicy,
     optimization_selections: &PostTerminalOptimizationSelections,
     prepared_terminal: ProgramEntryTerminalArtifact,
@@ -104,7 +105,7 @@ pub(super) fn realize(
         image_request: crate::ExecutableImageEmissionRequest::direct(checked.subsystem())
             .with_code_signature_identifier(code_signature_identifier),
         profile,
-        terminal_authority_policy: crate::current_compiler_intrinsic_terminal_authority_policy(),
+        terminal_authority_policy,
         terminal_authority_permission_policy,
         program_entry,
         optimization_selections,

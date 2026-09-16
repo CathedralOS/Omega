@@ -84,6 +84,7 @@ impl PreparedNativeCompilation {
         let NativeProductRequest {
             root_path,
             terminal_admission_profile,
+            terminal_authority_policy,
             terminal_authority_permission_policy,
             ..
         } = request;
@@ -93,6 +94,7 @@ impl PreparedNativeCompilation {
             &checked,
             &admission,
             &terminal_admission_profile,
+            terminal_authority_policy,
             terminal_authority_permission_policy,
             post_terminal.selections(),
             terminal,

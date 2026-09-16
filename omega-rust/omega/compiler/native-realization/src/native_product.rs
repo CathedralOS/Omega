@@ -15,10 +15,19 @@ use diagnostics::Diagnostic;
 
 /// One target's native product request: where the source root is, the
 /// admission profile the Terminal artifact is verified under, the receiving
-/// authority permissions, and the optimization rollback to settle.
+/// mechanism-classification and service-permission policies, and the
+/// optimization rollback to settle.
+///
+/// The terminal-authority policy is the receiving authority's explicit
+/// mechanism table: the closed compiler-intrinsic inventory classifies itself,
+/// while every demanded normalized-foreign, syscall, or checked-physical leaf
+/// needs exactly one exact explicit row. It is an independent authority axis --
+/// trust admissions, service permissions, and provider execution custody
+/// never substitute for or widen its rows.
 pub struct NativeProductRequest {
     pub root_path: std::path::PathBuf,
     pub terminal_admission_profile: proof_admission::AdmissionProfile,
+    pub terminal_authority_policy: crate::TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: crate::TerminalAuthorityPermissionPolicy,
     pub optimization_rollback: OptimizationRollback,
 }
