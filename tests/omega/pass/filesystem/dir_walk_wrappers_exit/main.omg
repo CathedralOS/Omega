@@ -23,7 +23,7 @@ data Main {
     empty_result: EmptyResult;
     present: bool;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     _ = self.fs.create_dir_all("omega_walk_a/b/c");
     transition true { true -> ck_created() _ -> bad(99) }
     state ck_created(&mut self) {

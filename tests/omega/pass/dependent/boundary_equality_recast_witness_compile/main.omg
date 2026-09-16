@@ -13,7 +13,7 @@ data Main {
     cap: u32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Firmware {
     self.fw.get_map(&mut self.size, &mut self.cap);
     transition { _ -> read(self.size, self.cap) }
 

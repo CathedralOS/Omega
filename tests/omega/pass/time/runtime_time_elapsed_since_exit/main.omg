@@ -14,7 +14,7 @@ data Main {
     elapsed: Duration;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + Clock {
     self.start_keep = self.time.now();
     self.clock.sleep(30);
     self.elapsed = self.time.elapsed_since(self.start_keep);

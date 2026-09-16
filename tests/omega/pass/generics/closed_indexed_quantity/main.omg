@@ -99,7 +99,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let meters: i64 in Quantity<Units::METER> = retag_i64(70);
     let seconds: i64 in Quantity<Units::SECOND> = retag_i64(0);
     self.console.exit_process(meters as i32);

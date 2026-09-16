@@ -6,7 +6,7 @@
 // local write fell back to a whole-descriptor copy that ignored the range, so
 // `tail.len` stayed 4.
 
-use platform::console;
+use omega_language_std::console;
 
 data Entry { value: i32; }
 
@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, sub: &[Entry]) {
+machine Main::check(&mut self, sub: &[Entry]) reaches Console {
     transition sub.len > 2 {
         true -> work(sub)
         false -> bad()

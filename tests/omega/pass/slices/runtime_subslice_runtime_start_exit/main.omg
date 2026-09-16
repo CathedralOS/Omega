@@ -4,7 +4,7 @@
 // and len = sub.len - start as a storage-storage subtraction. The guard
 // `start < sub.len` proves the bound.
 
-use platform::console;
+use omega_language_std::console;
 
 data Entry { value: i32; }
 
@@ -20,7 +20,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, sub: &[Entry], start: u64) {
+machine Main::check(&mut self, sub: &[Entry], start: u64) reaches Console {
     transition start < sub.len {
         true -> self.verify(sub[start..])
         false -> bad()
@@ -28,7 +28,7 @@ machine Main::check(&mut self, sub: &[Entry], start: u64) {
     state bad(&mut self) { self.console.exit_process(71); }
 }
 
-machine Main::verify(&mut self, sub: &[Entry]) {
+machine Main::verify(&mut self, sub: &[Entry]) reaches Console {
     transition sub.len == 3 {
         true -> good()
         false -> wrong()

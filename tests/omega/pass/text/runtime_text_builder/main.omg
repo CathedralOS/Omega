@@ -34,7 +34,7 @@ data Main {
     line: Line;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.room.label = "A1";
     self.line.text = "Room " + self.room.label;
 

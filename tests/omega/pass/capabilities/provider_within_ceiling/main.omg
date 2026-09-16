@@ -1,7 +1,7 @@
 // The admission fixtures' positive twin: a provider declaring within its
 // requirement's ceiling (and reaching nothing beyond) conforms and the
 // program RUNS exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 
 boundary trait Clock {

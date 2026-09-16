@@ -30,7 +30,7 @@ data Main {
     backwards: DurationResult;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + Clock {
     self.start_keep = self.time.now();
     self.clock.sleep(30);
     self.end_keep = self.time.now();

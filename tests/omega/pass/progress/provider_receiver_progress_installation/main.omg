@@ -28,7 +28,7 @@ data Main {
 
 machine Main::main(&mut self)
 reaches Scheduler
-requires self.scheduler in Scheduler::WeakFair
+requires self + Scheduler.scheduler in Scheduler::WeakFair
 terminates
 {
     self.scheduler.notify(65);

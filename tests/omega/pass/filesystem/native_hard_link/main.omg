@@ -19,7 +19,7 @@ data Main {
     buffer: [u8; 32];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.rdonly = 0;
     self.cap = 32;

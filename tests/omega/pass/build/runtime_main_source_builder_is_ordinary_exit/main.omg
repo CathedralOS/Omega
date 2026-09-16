@@ -11,7 +11,7 @@ machine Maker::build(&mut self, b: &mut Build) {
     b.flag = 7;
 }
 data Main { console: Console; maker: Maker; b: Build; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.maker.build(&mut self.b);
     transition self.b.flag == 7 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }

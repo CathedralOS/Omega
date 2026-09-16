@@ -43,7 +43,7 @@ data Main {
     n: i32 [0..=8];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.app_cls = self.objc.get_class("NSApplication");
     self.sel = self.objc.register_selector("sharedApplication");
     self.app = self.objc.send(self.app_cls, self.sel);

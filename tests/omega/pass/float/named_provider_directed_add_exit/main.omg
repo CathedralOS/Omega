@@ -28,7 +28,7 @@ data Main {
     ordinary64: f64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.one32 = 1.0f32;
     self.half32 = 0.000000059604644775390625f32;
     self.next32 = 1.00000011920928955078125f32;

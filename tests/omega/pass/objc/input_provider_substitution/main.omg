@@ -13,7 +13,7 @@ data Main {
     input: Input;
     esc: u64;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.esc = self.input.key_state(27);
     transition self.esc == 0 { true -> notdown() _ -> down() }
     state notdown(&mut self) { self.console.exit_process(4); }

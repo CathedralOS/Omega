@@ -121,7 +121,7 @@ data Main {
     slots: [u8; x86_baseline_float_twin_code()];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let runtime_code: u64 = x86_baseline_float_twin_code();
     self.slots[15] = 54;
     transition runtime_code == 16 && self.slots[15] == 54 {

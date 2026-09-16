@@ -20,7 +20,7 @@ data Main {
     n: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     // Bad path: the parent directory does not exist -> create fails -> Error.
     self.res = self.fs.write_all("/no_such_dir_xyz_999/f.txt", "hi");
     self.code = match self.res { UnitResult::Ok -> 1, _ -> 2 };

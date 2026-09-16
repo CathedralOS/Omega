@@ -5,7 +5,7 @@
 // a static fixed-array place. Passing `sub[1..4]` of a 5-element view must yield
 // a 3-element slice.
 
-use platform::console;
+use omega_language_std::console;
 
 data Entry { value: i32; }
 
@@ -21,7 +21,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, sub: &[Entry]) {
+machine Main::check(&mut self, sub: &[Entry]) reaches Console {
     transition sub.len > 3 {
         true -> self.verify(sub[1..4])
         false -> bad()
@@ -29,7 +29,7 @@ machine Main::check(&mut self, sub: &[Entry]) {
     state bad(&mut self) { self.console.exit_process(71); }
 }
 
-machine Main::verify(&mut self, sub: &[Entry]) {
+machine Main::verify(&mut self, sub: &[Entry]) reaches Console {
     transition sub.len == 3 {
         true -> good()
         false -> wrong()

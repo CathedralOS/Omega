@@ -17,7 +17,7 @@ data Main {
     size: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.zero_off = 0;
     self.seek_end = 2;

@@ -16,7 +16,7 @@ data Main {
     root: f64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.root = self.lib.square_root(16.0);
     transition self.root == 4.0 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(4); }

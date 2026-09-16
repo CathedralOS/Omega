@@ -17,7 +17,7 @@
 // proof obligation, independent of the indexed read). Over [10, 20, 30] with
 // i = 1: acc = 0 + 20 = 20 and big = 20. Expected exit: 70.
 
-use platform::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {
@@ -28,7 +28,7 @@ data Main {
     big: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.nums[0] = 10;
     self.nums[1] = 20;
     self.nums[2] = 30;

@@ -31,7 +31,7 @@ data Main {
     here: bool;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.here = self.probe.check();
     transition self.here { true -> bug() _ -> ok() }
     state ok(&mut self)  { self.n = self.raw.write(1, "PASS: value-call guard observed the host result (false)\n"); }

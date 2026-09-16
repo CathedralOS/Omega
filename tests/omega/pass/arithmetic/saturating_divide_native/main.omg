@@ -9,7 +9,7 @@ data Main {
     r: i32 in Saturating;
     imin: i32 in Saturating;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // normal divide/modulo: 23/5 = 4, 23%5 = 3
     self.a = 23;
     self.b = 5;

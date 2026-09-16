@@ -39,7 +39,7 @@ data Game {
     health: i32;
 }
 
-machine Game::run(&mut self) {
+machine Game::run(&mut self) reaches Console {
     self.health = 10;
     transition { _ -> prompt() }
 

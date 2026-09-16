@@ -33,7 +33,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;      // 0o644
     self.dir_mode = 493;  // 0o755
     self.ro_mode = 292;   // 0o444

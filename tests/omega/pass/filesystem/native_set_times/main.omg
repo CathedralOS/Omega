@@ -20,7 +20,7 @@ data Main {
     statbuf: [u8; 144];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.mtime = 1500000000;
     self.fd = self.fs.create("/tmp/omega_times.txt", self.mode);

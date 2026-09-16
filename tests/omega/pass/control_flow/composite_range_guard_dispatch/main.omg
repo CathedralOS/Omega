@@ -1,14 +1,14 @@
 domain [u8]::Utf8
 requires
     valid_utf8(self);
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
     roll: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.roll = 24;
     transition {
         self.roll >= 20 && self.roll < 30 -> reward()

@@ -21,7 +21,7 @@ data Main {
     size: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.fd = self.fs.create("/tmp/omega_vcl.txt", self.mode);
     transition self.fd >= 0 { true -> drive() _ -> fail() }

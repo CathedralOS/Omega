@@ -17,7 +17,7 @@ data Main {
     res: ExistsResult;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.fd = self.raw.create("/tmp/omega_try_exists_wrap.txt", self.mode);
     self.n = self.raw.close(self.fd);

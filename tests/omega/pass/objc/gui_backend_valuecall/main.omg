@@ -32,7 +32,7 @@ data Main {
     win: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.x = 0.0;
     self.y = 0.0;
     self.w = 200.0;

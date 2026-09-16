@@ -19,7 +19,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let issued: Receipt = Receipt { code: 7 };
     let state: ReceiptState = ReceiptState::Live { receipt: issued };
     let extracted: Receipt = state.receipt;

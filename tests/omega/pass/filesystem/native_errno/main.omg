@@ -13,7 +13,7 @@ data Main {
     n: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.rdonly = 0;
     self.fd = self.fs.open("/tmp/omega_definitely_absent_xyzzy.txt", self.rdonly);
     transition self.fd < 0 { true -> classify() _ -> fail() }

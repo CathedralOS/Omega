@@ -73,7 +73,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let left: i64 in Indexed<1> = indexed_left(68);
     let right: i64 in Indexed<2> = indexed_right(2);
     // `+` is the selected public operation, not compiler-known integer
