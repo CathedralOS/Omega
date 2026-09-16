@@ -1,0 +1,19 @@
+// PASS CANARY. The declared measure computes `value * 2` over its `u8`
+// parameter. Validation admits the body (builtin `*`, strictly increasing on
+// the naturals) and produces the rank from it, so the authored range
+// `0..=200` constrains the produced rank, not the `[0..=100]` subject: entry
+// proves `2 * remaining <= 200` and formation inside `u8`, and the guarded
+// self edge proves strict descent of `2 * (remaining - 1)` against
+// `2 * remaining`.
+data Countdown {}
+
+measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
+
+machine walk(remaining: u8 [0..=100])
+terminates by remaining -> Countdown::Doubled in 0..=200;
+-> u8 {
+    transition remaining > 0 {
+        true -> walk(remaining - 1)
+        false -> remaining
+    }
+}

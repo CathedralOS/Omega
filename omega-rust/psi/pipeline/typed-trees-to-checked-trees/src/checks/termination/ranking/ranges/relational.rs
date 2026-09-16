@@ -42,6 +42,7 @@ pub(super) fn prove_with_entry_requirements(
         order,
         RankingOrder::NatDescending
             | RankingOrder::CustomNatDescending
+            | RankingOrder::CustomScalarView { .. }
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
             | RankingOrder::SliceLength
@@ -64,6 +65,19 @@ pub(super) fn prove_with_entry_requirements(
             RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
             DecreaseMeasure::Single(subject),
         ) => validation::RankingRangeMeasure::Single(subject),
+        (
+            RankingOrder::CustomScalarView {
+                parameter,
+                body,
+                carrier,
+            },
+            DecreaseMeasure::Single(subject),
+        ) => validation::RankingRangeMeasure::Computed {
+            subject,
+            parameter: *parameter,
+            body: *body,
+            carrier: *carrier,
+        },
         (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
             validation::RankingRangeMeasure::SliceLength(subject)
         }

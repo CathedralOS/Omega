@@ -8,8 +8,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 
 use validation::{
-    MeasureBodyShape, find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject, unwrap_constraint_shells,
+    MeasureBodyShape, declared_scalar_view, find_declared_measure, identity_subject_matches,
+    measure_body_shape, measure_constraints_cover_subject, unwrap_constraint_shells,
 };
 
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
@@ -37,6 +37,18 @@ pub(super) enum RankingOrder {
     IncreasingTo(ExpressionHandle),
     /// A declared `measure` whose body forwards the (already numeric) parameter.
     CustomNatDescending,
+    /// A declared `measure` whose body computes over its parameter with `+`
+    /// and `*` (`{ value * 2 }`), admitted by validation's
+    /// `declared_scalar_view` as strictly increasing on the naturals with
+    /// builtin operator meaning. The produced rank is `body` with `parameter`
+    /// bound to the subject; strict monotonicity is the only reason the
+    /// subject's descent stands for that rank's descent, and the range
+    /// judgment still proves membership and formation inside `carrier`.
+    CustomScalarView {
+        parameter: symbols::SymbolHandle,
+        body: ExpressionHandle,
+        carrier: symbols::BuiltinTypeAtom,
+    },
     /// A declared `measure` whose body projects a field of a struct parameter,
     /// e.g. `measure Card::PowerOrder(card: Card) -> u64 { card.power }`. The
     /// stored field type retains its exact declaration's range constraints.
@@ -194,7 +206,18 @@ impl RankingOrder {
             return Some(Self::Lexicographic(components));
         }
 
-        match measure_body_shape(program, measure)? {
+        let Some(shape) = measure_body_shape(program, measure) else {
+            // Neither a forward nor a projection: only a computation admitted
+            // for this exact subject by the shared classification remains.
+            let view = declared_scalar_view(program, state, decreases, &order.join("::"))?;
+            let computation = view.computation?;
+            return Some(Self::CustomScalarView {
+                parameter: computation.parameter,
+                body: computation.body,
+                carrier: view.carrier,
+            });
+        };
+        match shape {
             MeasureBodyShape::ParameterForward {
                 carrier,
                 constraints,

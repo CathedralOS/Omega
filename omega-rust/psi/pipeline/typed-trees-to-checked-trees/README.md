@@ -266,6 +266,18 @@ A declared identity measure with the same bare `u8`, `u16`, `u32`, or `u64`
 parameter/result carrier shares scalar range proofs only when its body names
 its exact resolved parameter and its subject has that carrier. This does not
 widen a value or discharge qualifications on measure parameters/results.
+A declared scalar view whose body computes over its parameter with `+` and
+`*` (`{ value * 2 }`, `{ value * value + 3 }`) is admitted through validation's
+`declared_scalar_view` only when every operator has builtin meaning and the
+normalized body is strictly increasing on the naturals -- the sole reason the
+subject's descent stands for the produced rank's descent. The range judgment
+then ranks the body with the parameter bound to the subject and proves
+membership and formation inside the shared carrier on that polynomial
+(`pass/termination/computed_measure_rank_range`,
+`fail/termination/computed_measure_rank_range_overflow`); the static
+interval path never reads such a view as its subject. A body with a
+nonlinear term classifies but its goals exceed the engine's linear
+reasoning, so it rejects rather than being assumed.
 The authored custom view remains private witness identity; it is not relabeled
 `Nat::Descending` or admitted by the builtin-only Terminal countdown exporter.
 Constrained subjects retain their scalar carrier and independent range checks.

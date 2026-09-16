@@ -149,7 +149,8 @@ judgment then produces the rank from that body with the parameter bound to
 the subject (`RankingRangeMeasure::Computed`) and proves, from the same entry
 hypotheses, that the rank forms inside the shared carrier, so `{ value * 2 }`
 on an unbounded `u8` subject rejects at entry. Subtraction, constant bodies,
-authored operators, and widening carriers keep rejecting. `fields.rs`
+authored operators, and widening carriers keep rejecting, and a nonlinear
+body's goals exceed the engine's linear reasoning, so it rejects too. `fields.rs`
 binds an immutable owned parameter's selected builtin `u64` field, not its whole
 record or another same-named projection. `field_coordinates.rs` binds additional
 authored direct `u64` projections as independent coordinates, including fields

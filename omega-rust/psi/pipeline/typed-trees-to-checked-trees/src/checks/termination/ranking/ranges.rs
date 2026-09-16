@@ -104,6 +104,9 @@ fn proves_range(
             RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
             DecreaseMeasure::Single(subject),
         ) => (bounds(program, machine, subject)?, None),
+        // A computed scalar view's rank is not the subject's interval; only
+        // the relational judgment produces it from the body.
+        (RankingOrder::CustomScalarView { .. }, _) => return None,
         (RankingOrder::CustomStructView { field_type, .. }, DecreaseMeasure::Single(_)) => {
             // Order resolution already joined the exact parameter, field and
             // nominal carrier. Its store-enforced type range bounds the

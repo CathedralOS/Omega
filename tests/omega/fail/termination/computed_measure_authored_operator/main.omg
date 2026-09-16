@@ -1,0 +1,16 @@
+// FAIL CANARY. An authored `*` on `u8` owns the body's spelling, so the
+// measure body has no builtin arithmetic meaning and produces no rank fact.
+operator * u8::mul(left: u8, right: u8) -> u8;
+
+data Countdown {}
+
+measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
+
+machine walk(remaining: u8 [0..=100])
+terminates by remaining -> Countdown::Doubled in 0..=200;
+-> u8 {
+    transition remaining > 0 {
+        true -> walk(remaining - 1)
+        false -> remaining
+    }
+}
