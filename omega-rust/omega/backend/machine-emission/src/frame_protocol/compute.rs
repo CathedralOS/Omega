@@ -1,10 +1,8 @@
 use isa_aarch64::Aarch64FrameSlot;
 use isa_x86_64::X86_64FrameSlot;
-use target::Architecture;
 
-use crate::frame_protocol::{
-    ReturnAddressFrameCustody, ValidatedTargetFrameLayout, ValidatedTargetRegisterEnvironment,
-};
+use crate::frame_layout::{FrameContinuationCustody, frame_unwind_policy};
+use crate::frame_protocol::{ValidatedTargetFrameLayout, ValidatedTargetRegisterEnvironment};
 
 use super::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingError,
@@ -25,6 +23,14 @@ pub(super) fn derive(
     {
         return Err(TargetFrameProtocolEncodingError::RootMismatch);
     }
+    // The pair's declared unwind row selects the continuation mechanism the
+    // encoded protocol serves: the ISA codec follows the mechanism, and each
+    // function's recorded custody must be an instance of it. The validated
+    // layout could only exist on a declared pair, so a missing row is
+    // fail-closed defense, not a reachable target.
+    let continuation = frame_unwind_policy(environment.target())
+        .ok_or(TargetFrameProtocolEncodingError::UnsupportedTarget)?
+        .continuation;
     let mut bytes = Vec::new();
     let mut functions = Vec::with_capacity(frame.plan().functions.len());
     for function in &frame.plan().functions {
@@ -46,12 +52,9 @@ pub(super) fn derive(
         // the ISA codec's save list runs in reverse roster order so its
         // epilogue restores in roster order — a saved link register first,
         // then preservation slots in descending frame offset.
-        let (prologue_bytes, epilogue_bytes) = match environment.target().architecture {
-            Architecture::X86_64 => {
-                if !matches!(
-                    function.return_address,
-                    ReturnAddressFrameCustody::CallerActivationStack { .. }
-                ) {
+        let (prologue_bytes, epilogue_bytes) = match continuation {
+            FrameContinuationCustody::CallerActivationStack { .. } => {
+                if !continuation.admits(function.return_address) {
                     return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
                 }
                 let slots = function
@@ -76,11 +79,8 @@ pub(super) fn derive(
                 )
                 .map_err(TargetFrameProtocolEncodingError::X86)?
             }
-            Architecture::Aarch64 => {
-                if matches!(
-                    function.return_address,
-                    ReturnAddressFrameCustody::CallerActivationStack { .. }
-                ) {
+            FrameContinuationCustody::LinkRegister { .. } => {
+                if !continuation.admits(function.return_address) {
                     return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
                 }
                 let slots = function

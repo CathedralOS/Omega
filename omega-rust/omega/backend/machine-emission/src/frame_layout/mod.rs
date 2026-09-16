@@ -17,6 +17,7 @@ mod replay;
 mod save_storage;
 mod spill_requirements;
 mod stack_commit;
+mod unwind;
 mod validation;
 
 pub use error::*;
@@ -25,6 +26,8 @@ pub use model::*;
 pub use save_storage::*;
 pub use spill_requirements::*;
 pub use validation::validate_target_frame_layout;
+
+pub(crate) use unwind::{FrameContinuationCustody, frame_unwind_policy};
 
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;

@@ -358,6 +358,107 @@ fn fixed_rax_dividend_spill_stays_inside_the_sysv_red_zone() {
 }
 
 #[test]
+fn unwind_replay_rejects_custody_outside_the_declared_mechanism() {
+    // The unwind matrix pins each declared (architecture, object-format)
+    // pair's continuation mechanism: a submitted row whose recorded
+    // return-address custody belongs to another mechanism fails closed in
+    // replay even when its coordinates are self-consistent. The host Linux
+    // targets cover both declared mechanisms: linux-x64 keeps the
+    // continuation in caller-stack custody while linux-arm64 unwinds
+    // through the link register.
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        for program in [
+            artifact(),
+            super::general_call_frame::preserving_call_artifact(),
+        ] {
+            let (machine, requirements, storage, environment, plan) = frame_inputs(target, program);
+            let replay = |candidate: machine_code::TargetFrameLayoutPlan| {
+                machine_emission::frame_layout::validate_target_frame_layout(
+                    &machine,
+                    &requirements,
+                    &storage,
+                    &environment,
+                    candidate,
+                )
+            };
+            // The produced rows replay exactly before any drift is applied.
+            assert!(replay(plan.clone()).is_ok(), "{target:?}");
+            for index in 0..plan.functions.len() {
+                let row = &plan.functions[index];
+                let foreign = match row.return_address {
+                    machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+                        post_prologue_offset_bytes,
+                        size_bytes,
+                    } => machine_code::ReturnAddressFrameCustody::SavedLinkRegister {
+                        view: row.stack_pointer,
+                        frame_offset_bytes: post_prologue_offset_bytes,
+                        size_bytes,
+                    },
+                    machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. }
+                    | machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. } => {
+                        machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+                            post_prologue_offset_bytes: 0,
+                            size_bytes: 8,
+                        }
+                    }
+                };
+                // Keep the unwind roster's restated custody consistent with
+                // the drifted record so the only check that can fail is the
+                // declared mechanism gate itself.
+                let mut drifted = plan.clone();
+                drifted.functions[index].return_address = foreign;
+                drifted.functions[index].unwind.return_address = foreign;
+                assert!(
+                    replay(drifted).is_err(),
+                    "{target:?}: custody outside the declared mechanism must fail closed: {foreign:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn unwind_replay_rejects_in_mechanism_custody_drift() {
+    // A saved-link frame that drifts to the live-link form — still an
+    // instance of the pair's declared mechanism — fails the canonical-shape
+    // check inside the row rather than the mechanism gate.
+    let target = target::NativeTarget::linux_arm64();
+    let (machine, requirements, storage, environment, plan) = frame_inputs(
+        target,
+        super::general_call_frame::preserving_call_artifact(),
+    );
+    let caller = plan
+        .functions
+        .iter()
+        .position(|row| row.contains_call)
+        .expect("the preserving caller contains calls");
+    let machine_code::ReturnAddressFrameCustody::SavedLinkRegister { view, .. } =
+        plan.functions[caller].return_address
+    else {
+        panic!("a calling AArch64 frame must save its link register");
+    };
+    let mut drifted = plan.clone();
+    drifted.functions[caller].return_address =
+        machine_code::ReturnAddressFrameCustody::LiveLinkRegister { view };
+    drifted.functions[caller].unwind.return_address =
+        machine_code::ReturnAddressFrameCustody::LiveLinkRegister { view };
+    assert!(
+        machine_emission::frame_layout::validate_target_frame_layout(
+            &machine,
+            &requirements,
+            &storage,
+            &environment,
+            drifted,
+        )
+        .is_err(),
+        "{target:?}: a calling frame cannot record the leaf live-link form"
+    );
+}
+
+#[test]
 fn resident_frame_replay_rejects_every_ineligible_shape() {
     let target = target::NativeTarget::linux_x64();
     let (machine, requirements, storage, environment, plan) = frame_inputs(target, artifact());

@@ -1,14 +1,14 @@
 //! Check submitted geometry without constructing a replacement frame plan.
 
 use selected_instructions::MachineAlternativeFamily;
-use target::Architecture;
 
 use crate::frame_layout::{
-    FrameAbiPreservationConvention, FrameUnwindRestore, ReturnAddressFrameCustody,
-    StagedOptimizedPostAllocationMachinePlan, TargetFrameLayoutError as Error,
-    TargetFrameLayoutPlan, TargetFrameLayoutPolicy, ValidatedAllocatedCalleeSavedRequirements,
-    ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,
-    call_site::call_site_stack_contract, stack_commit::stack_commit_granule_bytes,
+    FrameAbiPreservationConvention, FrameContinuationCustody, FrameUnwindRestore,
+    ReturnAddressFrameCustody, StagedOptimizedPostAllocationMachinePlan,
+    TargetFrameLayoutError as Error, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
+    ValidatedAllocatedCalleeSavedRequirements, ValidatedNonAuthoritativeCalleeSaveStorage,
+    ValidatedTargetRegisterEnvironment, call_site::call_site_stack_contract,
+    stack_commit::stack_commit_granule_bytes, unwind::frame_unwind_policy,
 };
 
 pub(super) fn validate_layout(
@@ -280,18 +280,30 @@ pub(super) fn validate_layout(
             return Err(Error::NonCanonicalLayout);
         }
         let physical = environment.physical().model();
-        match (environment.target().architecture, required.abi) {
-            (
-                Architecture::X86_64,
-                convention @ (FrameAbiPreservationConvention::SystemVAMD64
-                | FrameAbiPreservationConvention::MicrosoftX64),
-            ) => {
-                let stack = physical
-                    .view_named("rsp")
-                    .ok_or(Error::MissingStackPointerView)?
-                    .id;
+        // The replay resolves the same declared unwind row the producer used.
+        // An undeclared pair fails closed, and a submitted plan whose pinned
+        // convention is not the row's has drifted off the pair and fails
+        // closed rather than replaying under a shared architecture arm. The
+        // recorded return-address custody must then be an instance of the
+        // row's declared continuation mechanism before its coordinates are
+        // checked for canonicity.
+        let unwind = frame_unwind_policy(environment.target()).ok_or(Error::UnsupportedTarget)?;
+        if unwind.abi != required.abi {
+            return Err(Error::UnsupportedTarget);
+        }
+        let stack = physical
+            .view_named(unwind.stack_pointer_view)
+            .ok_or(Error::MissingStackPointerView)?
+            .id;
+        if row.stack_pointer != stack || !unwind.continuation.admits(row.return_address) {
+            return Err(Error::NonCanonicalLayout);
+        }
+        match unwind.continuation {
+            FrameContinuationCustody::CallerActivationStack {
+                return_address_size_bytes,
+            } => {
                 let (alignment, residue) = if calls
-                    || (convention == FrameAbiPreservationConvention::MicrosoftX64 && area != 0)
+                    || (required.abi == FrameAbiPreservationConvention::MicrosoftX64 && area != 0)
                 {
                     (
                         u64::from(call_site.stack_alignment_bytes),
@@ -300,33 +312,25 @@ pub(super) fn validate_layout(
                 } else {
                     (8, 0)
                 };
-                if row.stack_pointer != stack
-                    || !minimal_aligned_extent(area, row.frame_size_bytes, alignment, residue)
+                if !minimal_aligned_extent(area, row.frame_size_bytes, alignment, residue)
                     || row.return_address
                         != (ReturnAddressFrameCustody::CallerActivationStack {
                             post_prologue_offset_bytes: committed,
-                            size_bytes: 8,
+                            size_bytes: return_address_size_bytes,
                         })
                 {
                     return Err(Error::NonCanonicalLayout);
                 }
             }
-            (
-                Architecture::Aarch64,
-                FrameAbiPreservationConvention::Aapcs64
-                | FrameAbiPreservationConvention::DarwinAapcs64,
-            ) => {
-                let stack = physical
-                    .view_named("sp")
-                    .ok_or(Error::MissingStackPointerView)?
-                    .id;
+            FrameContinuationCustody::LinkRegister {
+                view,
+                saved_size_bytes,
+            } => {
                 let link = physical
-                    .view_named("x30")
+                    .view_named(view)
                     .ok_or(Error::MissingLinkRegisterView)?
                     .id;
-                if row.stack_pointer != stack {
-                    return Err(Error::NonCanonicalLayout);
-                }
+                let saved_size = u64::from(saved_size_bytes);
                 if calls
                     || candidate.policy
                         == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
@@ -340,11 +344,11 @@ pub(super) fn validate_layout(
                         return Err(Error::NonCanonicalLayout);
                     };
                     let used = frame_offset_bytes
-                        .checked_add(8)
+                        .checked_add(saved_size)
                         .ok_or(Error::GeometryOverflow)?;
                     if view != link
-                        || size_bytes != 8
-                        || !minimal_aligned_extent(area, frame_offset_bytes, 8, 0)
+                        || size_bytes != saved_size_bytes
+                        || !minimal_aligned_extent(area, frame_offset_bytes, saved_size, 0)
                         || !minimal_aligned_extent(
                             used,
                             row.frame_size_bytes,
@@ -366,7 +370,6 @@ pub(super) fn validate_layout(
                     return Err(Error::NonCanonicalLayout);
                 }
             }
-            _ => return Err(Error::UnsupportedTarget),
         }
         // The unwind roster is recovered from the pieces already bound to
         // the inputs, never by trusting the candidate's own record: a saved
