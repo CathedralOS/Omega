@@ -616,3 +616,145 @@ fn same_leaf_generic_family_declines_constrained_argument_identity() {
     })
     .expect("the open application resolves downstream");
 }
+
+#[test]
+fn module_generic_carrier_constants_defer_value_admission_with_exact_base_selection() {
+    // A generic carrier holds no canonical const-index identity before its
+    // closed instance exists, so admission defers to lowering as at root —
+    // while the base template still selects exactly in the declaring source,
+    // preferring the module-local `Box` over the imported same-leaf one.
+    let syntax = parse(&[
+        "module other; pub data Box<T> { value: T; }",
+        "module mine; use other::Box; data Box<T> { value: T; } const B: Box<u64> = Box { value: 3 };",
+    ]);
+    let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("generic-carrier module constant resolves under its own template");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::B")
+        .expect("the module constant resolved");
+    assert!(
+        declaration.canonical_value_encoding.is_none(),
+        "a generic carrier cannot publish canonical const-index identity"
+    );
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &declaration.declared_type
+    else {
+        panic!("the declared carrier remains a generic application");
+    };
+    assert_eq!(
+        program.symbols.display_path(application.base_symbol, "::"),
+        "mine::Box",
+        "the base template selects owner-locally in the declaring source"
+    );
+}
+
+#[test]
+fn module_generic_carrier_arrays_share_the_deferral() {
+    // `[Box<u64>; 2]` peels to the same generic-leaf gate: no canonical
+    // identity, and the base still lands on the declaring module's template.
+    let syntax = parse(&[
+        "module mine; data Box<T> { value: T; } const BS: [Box<u64>; 2] = [Box { value: 1 }, Box { value: 2 }];",
+    ]);
+    let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("an array of generic-carrier values resolves");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::BS")
+        .expect("the module constant resolved");
+    assert!(
+        declaration.canonical_value_encoding.is_none(),
+        "an array of generic carriers cannot publish canonical identity either"
+    );
+    let symbol_resolved_trees::types::TypeReference::FixedArray(array) = &declaration.declared_type
+    else {
+        panic!("the declared carrier remains a fixed array");
+    };
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        program.child_type_reference(array.element_type)
+    else {
+        panic!("the array element remains a generic application");
+    };
+    assert_eq!(
+        program.symbols.display_path(application.base_symbol, "::"),
+        "mine::Box"
+    );
+}
+
+#[test]
+fn module_generic_carrier_constants_select_qualified_foreign_bases() {
+    // `geom::Box` is the complete logical path selected in the declaring
+    // source; the constant never falls back to a same-leaf sibling.
+    let syntax = parse(&[
+        "module geom; pub data Box<T> { value: T; }",
+        "module mine; const B: geom::Box<u64> = geom::Box { value: 3 };",
+    ]);
+    let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("a qualified foreign generic carrier resolves");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::B")
+        .expect("the module constant resolved");
+    let symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &declaration.declared_type
+    else {
+        panic!("the declared carrier remains a generic application");
+    };
+    assert_eq!(
+        program.symbols.display_path(application.base_symbol, "::"),
+        "geom::Box"
+    );
+}
+
+#[test]
+fn module_generic_carrier_constants_remain_usable_as_const_arguments() {
+    // Deferred value admission keeps the declaration's own identity for each
+    // use: the constant still serves as a generic const argument.
+    let syntax = parse(&[
+        "module mine; data Box<T> { value: T; } const B: Box<u64> = Box { value: 3 }; data Holder<const V: Box<u64>> { x: u64; } data Use { h: Holder<B>; }",
+    ]);
+    crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("the generic-carrier constant still serves as a const argument");
+}
+
+#[test]
+fn module_generic_carrier_constants_reject_unselected_or_ineligible_bases() {
+    for (sources, fragment) in [
+        // `Box` exists only inside the private sibling `other`; the bare leaf
+        // cannot reach it from `mine`.
+        (
+            &[
+                "module other; data Box<T> { value: T; }",
+                "module mine; const B: Box<u64> = Box { value: 3 };",
+            ][..],
+            "does not select one declared canonical data type",
+        ),
+        // The selected base is not a generic template at all.
+        (
+            &["module mine; data Box { value: u64; } const B: Box<u64> = Box { value: 3 };"][..],
+            "does not select a generic data template",
+        ),
+        // A constrained carrier keeps its declaration-site proof fence.
+        (
+            &["module mine; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 3;"][..],
+            "constrained const declarations require declaration-site proof checking",
+        ),
+        // Public constants still owe canonical declaration identity; the
+        // deferral only covers private value admission.
+        (
+            &["module mine; data Box<T> { value: T; } pub const B: Box<u64> = Box { value: 3 };"][..],
+            "canonical declaration identity",
+        ),
+    ] {
+        let syntax = parse(sources);
+        let diagnostics = crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect_err("an unselected, ineligible, or identity-owing carrier still rejects");
+        assert!(
+            diagnostics[0].message.contains(fragment),
+            "{sources:?}: {diagnostics:?}"
+        );
+    }
+}
