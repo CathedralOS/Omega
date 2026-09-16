@@ -23,12 +23,14 @@ stashed. Independently verified twice on this revision.
 
 ## compiler build-target activation
 
-`mbx nextest run -p compiler --test build_target_activation` — 16/22 pass; 6
-fail in FMA demand and service-reach fixtures (`admitted_x86_fma_demand…`,
-`aarch64_fma_demand…`, `boundary_operator_and_float_adapters…`,
-`exact_x86_fma_demand_fails_closed…`, `source_fma_then_attached_unit_call…mxcsr`,
-`terminal_product_retains_exact_fma…`). Fixtures lack service-reach
-declarations; x86 FMA provider transport is unimplemented on this host.
+`mbx nextest run -p compiler --test build_target_activation` — 49/51 pass; 2
+fail:
+`x86_feature_admission::source_fma_then_attached_unit_call_stays_inside_one_canonical_mxcsr_envelope`
+and
+`x86_feature_admission::terminal_product_retains_exact_fma_operation_plan_and_x86_admission`,
+both with `native artifact native instruction selection failed: FMA provider
+transport is not implemented in the common instruction pipeline`. x86 FMA
+provider transport is unimplemented; the failure is not host-specific.
 
 
 ## Host note (macOS)
