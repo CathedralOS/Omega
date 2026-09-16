@@ -141,10 +141,10 @@ fn resolve_member_symbol_from_place(
     place: &CanonicalPlace,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    let mut current = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => resolution::symbol_type_symbol(program, symbol)?,
+    let mut position = match place.root {
+        facts::PlaceRoot::Symbol(symbol) => resolution::symbol_type_position(program, symbol)?,
         facts::PlaceRoot::Expression(expression) => {
-            resolution::expression_type_symbol(program, expression)?
+            resolution::expression_type_position(program, expression)?
         }
         facts::PlaceRoot::Unknown | facts::PlaceRoot::TypeReference(_) => return None,
     };
@@ -153,7 +153,29 @@ fn resolve_member_symbol_from_place(
         match segment {
             facts::PlaceSegment::Case { .. } => {}
             facts::PlaceSegment::Field { symbol } => {
-                current = resolution::symbol_type_symbol(program, *symbol)?;
+                // A reference position replays the reaching generic
+                // application's own substitution (see
+                // `project_type_reference_from_segments`), so a field whose
+                // declared type is a bound parameter resumes at the supplied
+                // argument — `Box<Context>::item` continues at `Context`.
+                // When the hop does not replay (a declaration position, an
+                // opaque leaf, or a field outside the replayed declaration)
+                // the field's own declared position applies, as before.
+                position = match position {
+                    resolution::MemberPosition::Reference(reference) => {
+                        match crate::flow::project_type_reference_from_segments(
+                            program,
+                            reference,
+                            std::slice::from_ref(segment),
+                        ) {
+                            Some(projected) => resolution::MemberPosition::Reference(projected),
+                            None => resolution::symbol_type_position(program, *symbol)?,
+                        }
+                    }
+                    resolution::MemberPosition::Declaration(_) => {
+                        resolution::symbol_type_position(program, *symbol)?
+                    }
+                };
             }
             facts::PlaceSegment::FixedIndex { .. }
             | facts::PlaceSegment::FixedRange { .. }
@@ -163,5 +185,6 @@ fn resolve_member_symbol_from_place(
         }
     }
 
+    let current = resolution::position_leaf_symbol(program, position);
     resolve_member_symbol_from_type_symbol(program, current, member_name)
 }
