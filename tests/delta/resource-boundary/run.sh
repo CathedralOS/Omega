@@ -21,7 +21,7 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Delta resource boundary: skipped (python3 absent)"
@@ -30,13 +30,9 @@ command -v python3 >/dev/null 2>&1 || {
 
 RESOURCE_BOUNDARY_TMP=$(mktemp -d)
 trap 'rm -rf -- "$RESOURCE_BOUNDARY_TMP"' EXIT HUP INT TERM
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$RESOURCE_BOUNDARY_TMP/compiler.gamma" \
-    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+materialize_delta_compiler "$RESOURCE_BOUNDARY_TMP/compiler.gamma"
 materialize_gamma_evaluator "$RESOURCE_BOUNDARY_TMP/evaluator" >/dev/null
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
-    "$RESOURCE_BOUNDARY_TMP/support.bin"
+materialize_delta_support "$RESOURCE_BOUNDARY_TMP/support.bin"
 
 RESOURCE_BOUNDARY_TMP="$RESOURCE_BOUNDARY_TMP" GATE_DIR="$GATE_DIR" \
     RESOURCE_BOUNDARY_GROUP="$RESOURCE_BOUNDARY_GROUP" \
