@@ -4,9 +4,9 @@ use semantic_vocabulary::{IntegerSign, ScalarTerm, ScalarType};
 
 /// Every `(next, sibling)` reading one definition side admits for `current`.
 /// A forward reading resumes at `target` and cites the other operand as the
-/// landed sibling. A wrapping-add reading traversed toward its operand
-/// resumes at that operand instead; two `Value` addends yield both readings
-/// and the caller keeps whichever sibling lands uniquely.
+/// landed sibling. An add reading traversed toward its operand resumes at
+/// that operand instead; two `Value` addends yield both readings and the
+/// caller keeps whichever sibling lands uniquely.
 pub(super) fn select<'a>(
     target: &'a ScalarTerm,
     expression: &'a ScalarTerm,
@@ -21,7 +21,7 @@ pub(super) fn select<'a>(
         readings.push((target, sibling));
     }
     if target == current {
-        readings.extend(wrapping_add_operands(expression, expected));
+        readings.extend(add_operands(expression, expected));
     }
     readings
 }
@@ -65,25 +65,23 @@ fn forward_sibling<'a>(
     }
 }
 
-fn wrapping_add_operands(
-    expression: &ScalarTerm,
-    expected: ScalarType,
-) -> Vec<(&ScalarTerm, &ScalarTerm)> {
+fn add_operands(expression: &ScalarTerm, expected: ScalarType) -> Vec<(&ScalarTerm, &ScalarTerm)> {
     let mut readings = Vec::new();
     let unsigned = matches!(
         expected,
         ScalarType::Integer(integer_type) if integer_type.sign() == IntegerSign::Unsigned
     );
-    if !unsigned || expression.scalar_type() != expected {
+    let (left, right) = match expression {
+        ScalarTerm::WrappingIntegerAdd { left, right, .. } if unsigned => {
+            (left.as_ref(), right.as_ref())
+        }
+        ScalarTerm::ExactIntegerAdd { left, right, .. } => (left.as_ref(), right.as_ref()),
+        _ => return readings,
+    };
+    if expression.scalar_type() != expected {
         return readings;
     }
-    let ScalarTerm::WrappingIntegerAdd { left, right, .. } = expression else {
-        return readings;
-    };
-    for (operand, sibling) in [
-        (left.as_ref(), right.as_ref()),
-        (right.as_ref(), left.as_ref()),
-    ] {
+    for (operand, sibling) in [(left, right), (right, left)] {
         if matches!(operand, ScalarTerm::Value { .. }) {
             readings.push((operand, sibling));
         }

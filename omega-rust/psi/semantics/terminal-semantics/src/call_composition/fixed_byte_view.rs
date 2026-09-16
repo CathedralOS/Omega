@@ -4,15 +4,15 @@ use semantic_vocabulary::{IntegerSign, ScalarType};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeShape, TerminalModule,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 /// Rejoin a mutable byte-view argument to initialized fixed-u8-array storage.
 /// This preserves the actual type and field path; the returned length grants
 /// neither new storage nor resize permission. Callers separately check claims,
 /// exclusive aliasing, availability, and the admitted ordinary/boundary call site.
-pub fn mutable_fixed_byte_array_extent(
-    module: &TerminalModule,
+pub fn mutable_fixed_byte_array_extent<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     actual: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
     expected: &StructuralParameterDeclaration,
@@ -25,7 +25,7 @@ pub fn mutable_fixed_byte_array_extent(
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
         })
-        || !module.structural_types.iter().any(|declaration| {
+        || !types.clone().any(|declaration| {
             declaration.id == expected.structural_type
                 && declaration.shape
                     == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
@@ -38,10 +38,7 @@ pub fn mutable_fixed_byte_array_extent(
         let StructuralPathSegment::Field(identity) = segment else {
             return None;
         };
-        let declaration = module
-            .structural_types
-            .iter()
-            .find(|row| row.id == structural_type)?;
+        let declaration = types.clone().find(|row| row.id == structural_type)?;
         let StructuralTypeShape::Record { fields } = &declaration.shape else {
             return None;
         };
@@ -53,10 +50,7 @@ pub fn mutable_fixed_byte_array_extent(
         };
         structural_type = next;
     }
-    let declaration = module
-        .structural_types
-        .iter()
-        .find(|row| row.id == structural_type)?;
+    let declaration = types.clone().find(|row| row.id == structural_type)?;
     let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
         return None;
     };
@@ -64,10 +58,7 @@ pub fn mutable_fixed_byte_array_extent(
     if length == 0 {
         return None;
     }
-    let element = module
-        .structural_types
-        .iter()
-        .find(|row| row.id == element)?;
+    let element = types.clone().find(|row| row.id == element)?;
     match element.shape {
         StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
             if integer.sign() == IntegerSign::Unsigned

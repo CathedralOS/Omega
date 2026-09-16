@@ -168,7 +168,7 @@ fn derived_legs(
                     return;
                 }
                 remaining_words -= 1;
-                let Some(mapped) = wrapping::map_word(
+                let Some(mapped) = wrapping::map_derived_word(
                     context,
                     assumptions,
                     semantic_axioms,

@@ -383,7 +383,7 @@ fn byte_field_boundary_loan(
         machine, expected, argument,
     ) {
         return terminal_semantics::shared_boundary_buffer_capacity(
-            module,
+            module.structural_types.iter(),
             actual.structural_type,
             argument,
             expected,
@@ -395,14 +395,17 @@ fn byte_field_boundary_loan(
     );
     if mutable_subloan {
         return terminal_semantics::boundary_buffer_capacity(
-            module,
+            module.structural_types.iter(),
             actual.structural_type,
             argument,
             expected,
         )
         .is_some()
             || terminal_semantics::mutable_fixed_byte_array_extent(
-                module, actual, argument, expected,
+                module.structural_types.iter(),
+                actual,
+                argument,
+                expected,
             )
             .is_some();
     }

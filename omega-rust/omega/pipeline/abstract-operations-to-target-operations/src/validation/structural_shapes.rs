@@ -126,6 +126,76 @@ pub(super) fn project_static_path(
     Ok((structural_type, byte_offset))
 }
 
+/// A bounded inline byte field has no projected carrier identity: the path's
+/// last segment names a record field carrying `ByteSequence(BoundedOwned)`
+/// storage. Reconstruct the field's offset and declared capacity so an argument
+/// presenting it as a borrowed view replays geometry, not a claimed type.
+pub(super) fn bounded_byte_field_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<(u32, u64), InvalidStructuralShape> {
+    let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
+        return Err(InvalidStructuralShape);
+    };
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let (parent, parent_offset) = if prefix.is_empty() {
+        (root, 0)
+    } else {
+        project_static_path(root, prefix, declarations)?
+    };
+    let declaration = indexed.get(&parent).ok_or(InvalidStructuralShape)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Err(InvalidStructuralShape);
+    };
+    let mut local_offset = 0_u32;
+    for field in fields.iter().filter(|field| {
+        !field.relevance.is_erased()
+            && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+    }) {
+        let field_shape = field_shape(&field.field_type, &indexed, &mut cache, &mut active)?;
+        local_offset = align(local_offset, u32::from(field_shape.alignment))?;
+        if field.identity == *identity {
+            let StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
+                field.field_type
+            else {
+                return Err(InvalidStructuralShape);
+            };
+            let field_offset = parent_offset
+                .checked_add(local_offset)
+                .ok_or(InvalidStructuralShape)?;
+            // The live length word plus declared capacity must remain inside
+            // the root storage the argument points into.
+            if u64::from(field_offset)
+                .checked_add(8)
+                .and_then(|end| end.checked_add(capacity))
+                .is_none_or(|end| {
+                    end > u64::from(
+                        shape(root, &indexed, &mut cache, &mut active)
+                            .map(|shape| shape.byte_size)
+                            .unwrap_or(0),
+                    )
+                })
+            {
+                return Err(InvalidStructuralShape);
+            }
+            return Ok((field_offset, capacity));
+        }
+        local_offset = local_offset
+            .checked_add(u32::from(field_shape.byte_size))
+            .ok_or(InvalidStructuralShape)?;
+    }
+    Err(InvalidStructuralShape)
+}
+
 fn shape(
     structural_type: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

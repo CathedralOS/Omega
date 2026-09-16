@@ -111,67 +111,6 @@ pub(crate) fn structural_arguments_match(
             StructuralProjectionPolicy::Projected => true,
             StructuralProjectionPolicy::Boundary => true,
         };
-        let Some(actual_type) =
-            resolve_structural_path(types, source.structural_type, &argument.path)
-        else {
-            return false;
-        };
-        // The byte-view presentation belongs to the borrowed argument, not
-        // the call's result or whether selection crosses a boundary. Terminal
-        // admits the same exact fixed range for ordinary calls on this route
-        // and boundaries. Keep the other call routes' existing restrictions.
-        let fixed_byte_view = matches!(projection, StructuralProjectionPolicy::Unit | StructuralProjectionPolicy::Boundary)
-            && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
-            && source.access == terminal_psi::StructuralAccess::MutableBorrow
-            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && source.qualifications.is_empty()
-            && source.projected_qualifications.is_empty()
-            && argument.access == terminal_psi::StructuralAccess::MutableBorrow
-            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty()
-            && !caller.entry_claim_declarations.iter().any(|claim| claim.input == argument.place)
-            && !caller.content_entry_claims.iter().any(|claim| claim.input.root == argument.place)
-            && matches!(types.get(&parameter.structural_type).map(|declaration| &declaration.shape),
-                Some(terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
-            && types.get(&actual_type).is_some_and(|declaration| {
-                let terminal_psi::StructuralTypeShape::FixedArray { element, length: 1.. } = declaration.shape else {
-                    return false;
-                };
-                matches!(types.get(&element).map(|declaration| &declaration.shape),
-                    Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
-                        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
-            });
-        if !path_shape_matches
-            || (actual_type != parameter.structural_type && !fixed_byte_view)
-            || argument.access != parameter.access
-            || !structural_access_can_supply(source.access, argument.access)
-        {
-            return false;
-        }
-        let indexed_write_only_path_is_material = || {
-            !argument.path.iter().any(|segment| {
-                matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
-            }) || (is_material_write_only_type(types, source.structural_type)
-                && types.get(&actual_type).is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                            | terminal_psi::StructuralTypeShape::Record { .. }
-                    )
-                }))
-        };
-        let unrestricted_write_only_subloan = !argument.path.is_empty()
-            && argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            && parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            && matches!(
-                source.access,
-                terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            )
-            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && indexed_write_only_path_is_material();
         let unrestricted_mutable_subloan = static_borrowed_path
             && argument.access == terminal_psi::StructuralAccess::MutableBorrow
             && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
@@ -184,6 +123,100 @@ pub(crate) fn structural_arguments_match(
             && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
+        // A bounded owned byte-sequence field supplies a borrowed byte-view
+        // parameter without a structural type identity of its own. Boundary
+        // calls admit the presentation outright; ordinary borrowed calls admit
+        // the same unrestricted subloans the verifier's argument rule names.
+        let buffer_presentation = (projection == StructuralProjectionPolicy::Boundary
+            || (projection == StructuralProjectionPolicy::Unit && unrestricted_mutable_subloan))
+            && terminal_semantics::boundary_buffer_capacity(
+                types.values().copied(),
+                source.structural_type,
+                argument,
+                parameter,
+            )
+            .is_some();
+        let shared_buffer_presentation = (projection == StructuralProjectionPolicy::Boundary
+            || (projection == StructuralProjectionPolicy::Unit && unrestricted_shared_subloan))
+            && terminal_semantics::shared_boundary_buffer_capacity(
+                types.values().copied(),
+                source.structural_type,
+                argument,
+                parameter,
+            )
+            .is_some();
+        let byte_field_presentation = buffer_presentation || shared_buffer_presentation;
+        let actual_type = resolve_structural_path(types, source.structural_type, &argument.path);
+        if actual_type.is_none() && !byte_field_presentation {
+            return false;
+        }
+        // The byte-view presentation belongs to the borrowed argument, not
+        // the call's result or whether selection crosses a boundary. Terminal
+        // admits the same exact fixed range for ordinary calls on this route
+        // and boundaries. Keep the other call routes' existing restrictions.
+        // A readable source can also lend the same fixed extent as a shared
+        // byte view: the read-only presentation cannot outlive the call, so
+        // the same alias, extent, and element checks apply.
+        let fixed_byte_view = matches!(projection, StructuralProjectionPolicy::Unit | StructuralProjectionPolicy::Boundary)
+            && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && source.qualifications.is_empty()
+            && source.projected_qualifications.is_empty()
+            && ((source.access == terminal_psi::StructuralAccess::MutableBorrow
+                && argument.access == terminal_psi::StructuralAccess::MutableBorrow)
+                || (structural_access_can_supply(
+                    source.access,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ) && argument.access == terminal_psi::StructuralAccess::SharedBorrow))
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && !caller.entry_claim_declarations.iter().any(|claim| claim.input == argument.place)
+            && !caller.content_entry_claims.iter().any(|claim| claim.input.root == argument.place)
+            && matches!(types.get(&parameter.structural_type).map(|declaration| &declaration.shape),
+                Some(terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
+            && actual_type.and_then(|actual| types.get(&actual)).is_some_and(|declaration| {
+                let terminal_psi::StructuralTypeShape::FixedArray { element, length: 1.. } = declaration.shape else {
+                    return false;
+                };
+                matches!(types.get(&element).map(|declaration| &declaration.shape),
+                    Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
+                        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
+            });
+        if !path_shape_matches
+            || (actual_type != Some(parameter.structural_type)
+                && !fixed_byte_view
+                && !byte_field_presentation)
+            || argument.access != parameter.access
+            || !structural_access_can_supply(source.access, argument.access)
+        {
+            return false;
+        }
+        let indexed_write_only_path_is_material = || {
+            !argument.path.iter().any(|segment| {
+                matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
+            }) || (is_material_write_only_type(types, source.structural_type)
+                && actual_type
+                    .and_then(|actual| types.get(&actual))
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+                                | terminal_psi::StructuralTypeShape::Record { .. }
+                        )
+                    }))
+        };
+        let unrestricted_write_only_subloan = !argument.path.is_empty()
+            && argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            && parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            && matches!(
+                source.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            )
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && indexed_write_only_path_is_material();
         // Terminal admits indexed write-only arguments only as unrestricted
         // material subloans. Linear fallback cannot supply that authority.
         if projection == StructuralProjectionPolicy::Unit
@@ -224,6 +257,10 @@ pub(crate) fn structural_arguments_match(
             } else if unrestricted_write_only_subloan
                 || unrestricted_mutable_subloan
                 || unrestricted_shared_subloan
+                || shared_buffer_presentation
+                || (buffer_presentation
+                    && source.access == terminal_psi::StructuralAccess::MutableBorrow
+                    && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)
             {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             } else if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine

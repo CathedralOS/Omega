@@ -299,8 +299,13 @@ pub(super) fn validate_structural_argument(
     let buffer_presentation = (source_policy
         == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
         || (borrowed_call && is_unrestricted_mutable_subloan(caller, expected, argument)))
-        && terminal_semantics::boundary_buffer_capacity(module, root_type, argument, expected)
-            .is_some();
+        && terminal_semantics::boundary_buffer_capacity(
+            module.structural_types.iter(),
+            root_type,
+            argument,
+            expected,
+        )
+        .is_some();
     // The shared counterpart: a boundary reads the field's live bytes
     // through a borrowed view. The operand keeps its owning root and path;
     // the shared loan grants no mutation, storage, or extent replacement.
@@ -308,7 +313,10 @@ pub(super) fn validate_structural_argument(
         == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
         || (borrowed_call && is_unrestricted_shared_subloan(caller, expected, argument)))
         && terminal_semantics::shared_boundary_buffer_capacity(
-            module, root_type, argument, expected,
+            module.structural_types.iter(),
+            root_type,
+            argument,
+            expected,
         )
         .is_some();
     // A boundary lends the same exact initialized fixed-array range as an
@@ -317,8 +325,13 @@ pub(super) fn validate_structural_argument(
     let fixed_array_presentation = (borrowed_call
         || source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals)
         && caller.structural_parameters.iter().any(|actual| {
-            terminal_semantics::mutable_fixed_byte_array_extent(module, actual, argument, expected)
-                .is_some()
+            terminal_semantics::mutable_fixed_byte_array_extent(
+                module.structural_types.iter(),
+                actual,
+                argument,
+                expected,
+            )
+            .is_some()
                 && !caller
                     .entry_claims
                     .iter()

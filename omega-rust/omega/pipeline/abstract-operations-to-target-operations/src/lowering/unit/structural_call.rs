@@ -3,8 +3,8 @@
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::{
-    checked_align_up_u32, resolve_structural_field_path, resolve_structural_projection_path,
-    structural_parameter_shape, structural_shape,
+    bounded_byte_field_geometry, checked_align_up_u32, resolve_structural_field_path,
+    resolve_structural_projection_path, structural_parameter_shape, structural_shape,
 };
 use super::super::structural_signature::StructuralCallSignature;
 
@@ -348,6 +348,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             .path
             .iter()
             .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)));
+    let mut byte_field_capacity = None;
     let (projected_type, projected_shape, source_byte_offset, fixed_array_length, element_stride) =
         match argument.path.as_slice() {
             [] => (source_structural_type, source_shape, 0, None, None),
@@ -446,20 +447,48 @@ pub(in crate::lowering) fn lower_structural_argument(
                     .iter()
                     .all(|segment| matches!(segment, StructuralPathSegment::Field(_))) =>
             {
-                let (field_type, field_shape, offset) = resolve_structural_field_path(
+                match resolve_structural_field_path(
                     source_structural_type,
                     path,
                     structural_types,
                     shape_cache,
                     active,
-                )
-                .map_err(|_| {
-                    LoweringError::StructuralCallArgumentTypeMismatch {
-                        callee,
-                        place: argument.place,
+                ) {
+                    Ok((field_type, field_shape, offset)) => {
+                        (field_type, field_shape, offset, None, None)
                     }
-                })?;
-                (field_type, field_shape, offset, None, None)
+                    Err(_) => {
+                        // An inline bounded byte field has no structural type
+                        // identity of its own; its record still supplies exact
+                        // offset and capacity for a borrowed-view presentation.
+                        let Some((field_offset, capacity)) = bounded_byte_field_geometry(
+                            source_structural_type,
+                            path,
+                            structural_types,
+                            shape_cache,
+                            active,
+                        )?
+                        else {
+                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                                callee,
+                                place: argument.place,
+                            });
+                        };
+                        byte_field_capacity = Some(capacity);
+                        (
+                            callee_parameter.structural_type,
+                            structural_shape(
+                                callee_parameter.structural_type,
+                                structural_types,
+                                shape_cache,
+                                active,
+                            )?,
+                            field_offset,
+                            None,
+                            None,
+                        )
+                    }
+                }
             }
             _ => {
                 return Err(LoweringError::StructuralCallArgumentTypeMismatch {
@@ -525,6 +554,71 @@ pub(in crate::lowering) fn lower_structural_argument(
             source_byte_offset,
             fixed_array_length: Some(length),
             element_stride: Some(1),
+            source: source_placement.clone().into(),
+            destination: destination.clone(),
+        });
+    }
+    // A bounded inline byte field lends its live bytes through a fresh
+    // borrowed-view descriptor. `source_byte_offset` names the field itself:
+    // the descriptor's length is the live length word stored there and the
+    // bytes begin eight bytes later. Declared capacity bounds the presentation;
+    // it is never the descriptor's length.
+    if let Some(capacity) = byte_field_capacity {
+        let source_is_subloan = parameters_by_place
+            .get(&argument.place)
+            .is_some_and(|source| {
+                source.multiplicity == StructuralMultiplicity::Unrestricted
+                    && source.projected_qualifications.is_empty()
+                    && match argument.access {
+                        StructuralAccess::SharedBorrow => matches!(
+                            source.access,
+                            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+                        ),
+                        StructuralAccess::MutableBorrow => {
+                            source.access == StructuralAccess::MutableBorrow
+                        }
+                        _ => false,
+                    }
+            });
+        let presented_is_byte_view = matches!(
+            structural_types
+                .get(&callee_parameter.structural_type)
+                .map(|declaration| &declaration.shape),
+            Some(StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView
+            ))
+        );
+        if !presented_is_byte_view
+            || argument.access != callee_parameter.access
+            || !matches!(
+                argument.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
+            || callee_parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !callee_parameter.qualifications.is_empty()
+            || !callee_parameter.projected_qualifications.is_empty()
+            || !source_is_subloan
+            || shape != ValueShape::borrowed_reference(16, 8)
+            || u64::from(source_byte_offset)
+                .checked_add(8)
+                .and_then(|end| end.checked_add(capacity))
+                .is_none_or(|end| end > u64::from(source_shape.byte_size))
+        {
+            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                callee,
+                place: argument.place,
+            });
+        }
+        return Ok(TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: argument.path.clone(),
+            root_structural_type: source_structural_type,
+            structural_type: callee_parameter.structural_type,
+            shape,
+            source_byte_offset,
+            fixed_array_length: None,
+            element_stride: None,
             source: source_placement.clone().into(),
             destination: destination.clone(),
         });

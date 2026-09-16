@@ -35,13 +35,25 @@ pub(super) fn argument(
     let root_shape =
         crate::structural_inputs::structural_reference_input::shape(source.structural_type, types)
             .ok_or(invalid.clone())?;
-    let (structural_type, source_byte_offset) =
-        crate::structural_inputs::structural_reference_input::project(
-            source.structural_type,
-            &semantic.path,
-            types,
-        )
-        .ok_or(invalid.clone())?;
+    let byte_field = crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
+        source,
+        semantic,
+        destination.structural_type,
+        types,
+    );
+    let projection = crate::structural_inputs::structural_reference_input::project(
+        source.structural_type,
+        &semantic.path,
+        types,
+    );
+    // A bounded inline byte field has no projected carrier identity; its own
+    // record walk supplies the field offset and the destination supplies the
+    // borrowed-view type the descriptor presents.
+    let (structural_type, source_byte_offset) = match (projection, byte_field) {
+        (Some((projected, offset)), None) => (projected, offset),
+        (None, Some((offset, _))) => (destination.structural_type, offset),
+        _ => return Err(invalid),
+    };
     let referent =
         crate::structural_inputs::structural_reference_input::shape(structural_type, types)
             .ok_or(invalid.clone())?;
@@ -51,7 +63,8 @@ pub(super) fn argument(
         destination.structural_type,
         types,
     );
-    let shape = if byte_view.is_some() {
+    let descriptor = byte_view.is_some() || byte_field.is_some();
+    let shape = if descriptor {
         ValueShape::borrowed_reference(16, 8)
     } else {
         ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
@@ -79,7 +92,7 @@ pub(super) fn argument(
         || !source.projected_qualifications.is_empty()
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
-        || (structural_type != destination.structural_type && byte_view.is_none())
+        || (structural_type != destination.structural_type && !descriptor)
         || parameter.place != source.place
         || parameter.structural_type != source.structural_type
         || parameter.access != source.access
@@ -99,7 +112,7 @@ pub(super) fn argument(
         access: semantic.access,
         path: semantic.path.clone(),
         root_structural_type: source.structural_type,
-        structural_type: if byte_view.is_some() {
+        structural_type: if descriptor {
             destination.structural_type
         } else {
             structural_type

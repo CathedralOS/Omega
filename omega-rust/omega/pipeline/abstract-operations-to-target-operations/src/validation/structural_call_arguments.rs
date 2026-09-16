@@ -279,17 +279,23 @@ pub(super) fn validate(
                 if actual.root_structural_type != root.structural_type {
                     return Err(psi_operation);
                 }
-                let Ok((projected_type, byte_offset)) = structural_shapes::project_static_path(
+                match structural_shapes::project_static_path(
                     root.structural_type,
                     &semantic.path,
                     declarations,
-                ) else {
-                    return Err(psi_operation);
-                };
-                if !matches_projected_carrier(actual, projected_type, declarations)
-                    || actual.source_byte_offset != byte_offset
-                {
-                    return Err(psi_operation);
+                ) {
+                    Ok((projected_type, byte_offset)) => {
+                        if !matches_projected_carrier(actual, projected_type, declarations)
+                            || actual.source_byte_offset != byte_offset
+                        {
+                            return Err(psi_operation);
+                        }
+                    }
+                    Err(_) => {
+                        if !matches_bounded_byte_field(actual, root, declarations) {
+                            return Err(psi_operation);
+                        }
+                    }
                 }
             }
         }
@@ -336,6 +342,44 @@ fn matches_projected_carrier(
         )
         && actual.fixed_array_length == Some(*length)
         && actual.element_stride == Some(1)
+}
+
+/// A bounded inline byte field has no projected carrier identity of its own.
+/// The argument still names the field's storage: its live length word and bytes
+/// stay in place and the callee sees only the borrowed view. Reconstruct the
+/// field's offset and capacity rather than trusting a substituted type or a
+/// static-length descriptor's metadata.
+fn matches_bounded_byte_field(
+    actual: &TargetStructuralArgument,
+    root: &RootDeclaration,
+    declarations: &[StructuralTypeDeclaration],
+) -> bool {
+    let Ok((field_offset, _capacity)) = structural_shapes::bounded_byte_field_geometry(
+        root.structural_type,
+        &actual.path,
+        declarations,
+    ) else {
+        return false;
+    };
+    matches!(
+        actual.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && match (root.access, actual.access) {
+        (
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+        )
+        | (StructuralAccess::SharedBorrow, StructuralAccess::SharedBorrow) => true,
+        _ => false,
+    } && declarations.iter().any(|declaration| {
+        declaration.id == actual.structural_type
+            && declaration.shape
+                == terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                )
+    }) && actual.source_byte_offset == field_offset
+        && actual.fixed_array_length.is_none()
+        && actual.element_stride.is_none()
 }
 
 fn matches_argument_identity(

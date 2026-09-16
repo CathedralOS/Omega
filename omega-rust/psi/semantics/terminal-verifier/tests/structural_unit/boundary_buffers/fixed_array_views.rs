@@ -58,7 +58,7 @@ fn extent(module: &TerminalModule) -> Option<u64> {
         unreachable!()
     };
     terminal_semantics::mutable_fixed_byte_array_extent(
-        module,
+        module.structural_types.iter(),
         &module.machines[0].structural_parameters[0],
         &structural_arguments[0],
         &module.machines[1].structural_parameters[0],

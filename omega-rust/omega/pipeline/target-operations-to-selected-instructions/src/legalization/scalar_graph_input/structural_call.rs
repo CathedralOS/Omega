@@ -73,6 +73,29 @@ pub(in crate::legalization) fn argument_at(
             plan,
         );
     }
+    // A shared argument may still project a field or element of its source:
+    // nested records, stored byte views, and bounded inline byte fields all
+    // reconstruct through the same exclusive-argument custody checks.
+    if semantic.access == StructuralAccess::SharedBorrow
+        && !semantic.path.is_empty()
+        && semantic.path.iter().all(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
+        })
+    {
+        return primitive_argument(
+            semantic,
+            caller,
+            destination_parameter,
+            call,
+            parameter_ordinal,
+            native,
+            plan,
+        );
+    }
     if semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty() {
         return Err(invalid);
     }

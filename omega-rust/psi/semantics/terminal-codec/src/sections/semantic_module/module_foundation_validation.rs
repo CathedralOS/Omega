@@ -643,8 +643,13 @@ fn validate_structural_arguments(
         // The canonical form retains the real array type at both ordinary and
         // boundary calls; the shared extent check recognizes the exact loan.
         if machine.structural_parameters.iter().any(|actual| {
-            terminal_semantics::mutable_fixed_byte_array_extent(module, actual, argument, expected)
-                .is_some()
+            terminal_semantics::mutable_fixed_byte_array_extent(
+                module.structural_types.iter(),
+                actual,
+                argument,
+                expected,
+            )
+            .is_some()
                 && !machine
                     .entry_claims
                     .iter()
@@ -673,8 +678,13 @@ fn validate_structural_arguments(
             }
         };
         if inline_byte_view
-            && terminal_semantics::boundary_buffer_capacity(module, actual_type, argument, expected)
-                .is_some()
+            && terminal_semantics::boundary_buffer_capacity(
+                module.structural_types.iter(),
+                actual_type,
+                argument,
+                expected,
+            )
+            .is_some()
         {
             continue;
         }
@@ -682,7 +692,7 @@ fn validate_structural_arguments(
         // Boundary actuals admit it directly; ordinary borrowed calls admit the
         // same unrestricted subloan the verifier's shared-field rule describes.
         let shared_byte_field_loan = terminal_semantics::shared_boundary_buffer_capacity(
-            module,
+            module.structural_types.iter(),
             actual_type,
             argument,
             expected,

@@ -9,6 +9,7 @@ use super::{
     ValueId, ValueLocation, ValueShape, build, evaluate_call_plan, returned,
 };
 use crate::selection::construction::scalar_graph::tests::borrowed_calls;
+mod byte_field;
 mod shared_records;
 use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,

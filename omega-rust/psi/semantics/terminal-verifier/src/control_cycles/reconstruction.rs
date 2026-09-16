@@ -22,6 +22,30 @@ use crate::{ModuleError, validate_module_representation};
 /// Canonical topology for a producer retaining a selected source witness.
 /// No proof or progress authority is returned by this query.
 pub fn control_cycle_members(machine: &TerminalMachine) -> Result<Vec<Vec<BlockId>>, ModuleError> {
+    check_control_graph(machine)?;
+    Ok(crate::control_graph::cyclic_components(machine))
+}
+
+/// Canonical iteration entries dominating a member: the feedback-edge targets
+/// above it in the dominance tree. A member inside nested loops has one entry
+/// per enclosing natural cycle, not only the component's outermost arrival.
+/// No proof or progress authority is returned by this query.
+pub fn dominating_control_cycle_entries(
+    machine: &TerminalMachine,
+    member: BlockId,
+) -> Result<Vec<BlockId>, ModuleError> {
+    check_control_graph(machine)?;
+    let dominators = crate::control_graph::dominators(machine);
+    let mut entries = crate::control_graph::feedback_edges(machine)
+        .values()
+        .copied()
+        .filter(|entry| dominators.dominates(*entry, member))
+        .collect::<Vec<_>>();
+    entries.sort();
+    Ok(entries)
+}
+
+fn check_control_graph(machine: &TerminalMachine) -> Result<(), ModuleError> {
     let blocks = machine
         .blocks
         .iter()
@@ -46,7 +70,7 @@ pub fn control_cycle_members(machine: &TerminalMachine) -> Result<Vec<Vec<BlockI
     if let Some(block) = blocks.difference(&reached).next() {
         return Err(ModuleError::UnreachableBlock(*block));
     }
-    Ok(crate::control_graph::cyclic_components(machine))
+    Ok(())
 }
 
 pub fn reconstruct_control_cycle_obligations(

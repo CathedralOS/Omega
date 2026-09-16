@@ -6,7 +6,8 @@ pub use fixed_byte_view::mutable_fixed_byte_array_extent;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape, TerminalModule,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 use super::OperationSemanticError;
@@ -16,14 +17,14 @@ use crate::semantic_rows::OperationSemanticTag;
 /// The operand retains its owning field; this establishes neither type equality
 /// with a view nor a descriptor, qualification, or runtime writeback. Callers must
 /// separately validate source access, multiplicity, aliasing, and boundary custody.
-pub fn boundary_buffer_capacity(
-    module: &TerminalModule,
+pub fn boundary_buffer_capacity<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root_type: StructuralTypeId,
     argument: &StructuralArgument,
     expected: &StructuralParameterDeclaration,
 ) -> Option<u64> {
     inline_byte_field_capacity(
-        module,
+        types,
         root_type,
         argument,
         expected,
@@ -35,14 +36,14 @@ pub fn boundary_buffer_capacity(
 /// parameter. A shared loan observes the field's live bytes in place; it grants
 /// neither mutation, new storage, an extent change, nor a qualification. Callers
 /// must separately validate source access, multiplicity, aliasing, and custody.
-pub fn shared_boundary_buffer_capacity(
-    module: &TerminalModule,
+pub fn shared_boundary_buffer_capacity<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root_type: StructuralTypeId,
     argument: &StructuralArgument,
     expected: &StructuralParameterDeclaration,
 ) -> Option<u64> {
     inline_byte_field_capacity(
-        module,
+        types,
         root_type,
         argument,
         expected,
@@ -50,8 +51,8 @@ pub fn shared_boundary_buffer_capacity(
     )
 }
 
-fn inline_byte_field_capacity(
-    module: &TerminalModule,
+fn inline_byte_field_capacity<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     mut root_type: StructuralTypeId,
     argument: &StructuralArgument,
     expected: &StructuralParameterDeclaration,
@@ -61,7 +62,7 @@ fn inline_byte_field_capacity(
         || expected.access != access
         || !expected.qualifications.is_empty()
         || !expected.projected_qualifications.is_empty()
-        || !module.structural_types.iter().any(|declaration| {
+        || !types.clone().any(|declaration| {
             declaration.id == expected.structural_type
                 && declaration.shape
                     == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
@@ -73,9 +74,8 @@ fn inline_byte_field_capacity(
         return None;
     };
     for segment in prefix {
-        let declaration = module
-            .structural_types
-            .iter()
+        let declaration = types
+            .clone()
             .find(|declaration| declaration.id == root_type)?;
         root_type = match (segment, &declaration.shape) {
             (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
@@ -94,9 +94,8 @@ fn inline_byte_field_capacity(
             _ => return None,
         };
     }
-    let declaration = module
-        .structural_types
-        .iter()
+    let declaration = types
+        .clone()
         .find(|declaration| declaration.id == root_type)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return None;

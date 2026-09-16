@@ -1,6 +1,7 @@
 use super::{literal, value};
 use crate::integer_rules::integer_affine::{
     IntegerAffineWitness, IntegerAffineWitnessError, check_integer_affine_witness,
+    integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::Proposition;
@@ -126,6 +127,88 @@ fn checks_landed_literal_sibling_and_rejects_stale_or_unused_custody() {
             &witness,
         ),
         Err(IntegerAffineWitnessError::UnusedLiteralAxiom(1)),
+    );
+}
+
+#[test]
+fn exact_add_backward_maps_bounds_and_rejects_ambiguity() {
+    // A signed carrier traverses the exact-add backward step: the checked
+    // no-overflow obligation makes `operand = defined - literal` a true
+    // integer equation, so no wrap headroom evidence is needed.
+    let integer_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+    let operand = value(1, integer_type);
+    let defined = value(2, integer_type);
+    let sibling = value(3, integer_type);
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+    )
+    .unwrap();
+    let landing = Proposition::Equal(sibling.clone(), literal(integer_type, 1));
+    let definition = Proposition::Equal(
+        defined.clone(),
+        ScalarTerm::exact_integer_add(integer_type, operand.clone(), sibling.clone()).unwrap(),
+    );
+    let checked = check_integer_affine_witness(
+        &context,
+        &[landing, definition],
+        &IntegerAffineWitness {
+            root: defined.clone(),
+            target: operand.clone(),
+            definition_axioms: vec![1],
+            literal_axioms: vec![Some(0)],
+        },
+    )
+    .expect("exact add traverses toward its operand");
+    assert_eq!(checked.coefficient(), 1);
+    assert_eq!(checked.offset(), -1);
+    assert_eq!(
+        map_integer_affine_bound(
+            &checked,
+            &Proposition::LessThan(defined.clone(), literal(integer_type, 3)),
+        ),
+        Ok(Proposition::LessThan(
+            operand.clone(),
+            literal(integer_type, 2),
+        )),
+    );
+    assert_eq!(
+        map_integer_affine_bound(
+            &checked,
+            &Proposition::LessOrEqual(literal(integer_type, 1), defined.clone()),
+        ),
+        Ok(Proposition::LessOrEqual(
+            literal(integer_type, 0),
+            operand.clone(),
+        )),
+    );
+    // Backward traversal is a translation, so a strict bound needs no
+    // wrapping evidence at all.
+    assert_eq!(
+        integer_affine_wrapping_evidence(
+            &checked,
+            &Proposition::LessThan(defined.clone(), literal(integer_type, 3)),
+        ),
+        Ok(Vec::new()),
+    );
+
+    // Both addends landing makes the operand choice ambiguous and rejects.
+    let ambiguous = Proposition::Equal(
+        defined.clone(),
+        ScalarTerm::exact_integer_add(integer_type, operand.clone(), operand.clone()).unwrap(),
+    );
+    let landed_operand = Proposition::Equal(operand.clone(), literal(integer_type, 4));
+    assert_eq!(
+        check_integer_affine_witness(
+            &context,
+            &[landed_operand, ambiguous],
+            &IntegerAffineWitness {
+                root: defined,
+                target: operand,
+                definition_axioms: vec![1],
+                literal_axioms: vec![Some(0)],
+            },
+        ),
+        Err(IntegerAffineWitnessError::AmbiguousDefinition(1)),
     );
 }
 

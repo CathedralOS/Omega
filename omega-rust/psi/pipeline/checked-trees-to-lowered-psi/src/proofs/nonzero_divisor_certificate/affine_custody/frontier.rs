@@ -63,11 +63,12 @@ pub(in crate::proofs::nonzero_divisor_certificate) fn definition_words_to_target
                     unreachable!("definition words contain only equality rows")
                 };
                 // A word can end at an endpoint or, traversing an unsigned
-                // wrapping add backward, at one of its operand values.
+                // wrapping add or an exact add backward, at one of its
+                // operand values.
                 left == target
                     || right == target
-                    || wrapping_add_operand(left, target)
-                    || wrapping_add_operand(right, target)
+                    || add_operand(left, target)
+                    || add_operand(right, target)
             })
         })
         .cloned()
@@ -76,8 +77,10 @@ pub(in crate::proofs::nonzero_divisor_certificate) fn definition_words_to_target
     words
 }
 
-fn wrapping_add_operand(side: &ScalarTerm, target: &ScalarTerm) -> bool {
-    let ScalarTerm::WrappingIntegerAdd { left, right, .. } = side else {
+fn add_operand(side: &ScalarTerm, target: &ScalarTerm) -> bool {
+    let (ScalarTerm::WrappingIntegerAdd { left, right, .. }
+    | ScalarTerm::ExactIntegerAdd { left, right, .. }) = side
+    else {
         return false;
     };
     left.as_ref() == target || right.as_ref() == target

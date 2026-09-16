@@ -58,6 +58,7 @@ pub(super) fn validate(
                 }
                 if let Some(pointer) = super::scalar_call::argument_pointer(
                     replay,
+                    source,
                     operation,
                     argument_index,
                     semantic,
