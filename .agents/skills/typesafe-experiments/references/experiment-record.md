@@ -839,3 +839,67 @@ revision, failure, literal quotes, unchanged/whitespace-only evidence, missing
 verdicts, NaN and new-evidence reevaluation. Windows compilation, pinned citations,
 ready/held artifact checks, zero worker tools and empty workspace pass; macOS not
 run. No production changes, compiler task completion, dropped tests or publication.
+
+## Real coding trial: no Jev advantage; use owner-requested Devin bypass
+
+`build/experiments/real-audit/` contains the protocol, reused-runner adapter,
+frozen tests and same-base manifests, all requests/responses, before/after receipts,
+public metrics and report. User asked to test the hybrid on real work, not another
+classification-only replay. Main was fetched and pinned at
+`a6a8a600005528a061d9f96c8a291e43c25cfebe`. No source sabotage: existing
+`Claims.audit` swallowed a failed `git diff base...HEAD`, reporting a successful
+empty audit for both a nonexistent base and unrelated history. Both assertion
+failures were witnessed in all three isolated sparse worktrees. Common seed
+`7a7aed7991` adds tests only; mandatory AGENTS.md stays intact.
+
+Three fresh SWE-2 Max arms: normal discovery; lexical top-two documentation
+excerpts; twelve lexical candidates reranked by Jev, top two supplied to Devin.
+Whole paragraphs, 2015 characters per document, same task and focused tests.
+Official reranking cookbook refreshed via direct HTTPS Markdown after web opener
+failed. Existing retrieval, paragraph extraction, API and worker runners reused.
+
+| Arm | Worker | Independent tests | Context | Total |
+| --- | ---: | ---: | ---: | ---: |
+| Normal | 308.47s | 58.71s | 0s | 367.18s |
+| Lexical | 171.45s | 56.64s | 4.19s | 232.28s |
+| Jev, eventual bypass run | 283.29s | 57.62s | 4.63s | 345.55s |
+
+All three eventual implementations pass the three frozen tests. Additional
+independent postchecks pass for each: committed conflicting edits with valid base,
+and invalid-base error even when a conflict exists. Windows only; macOS not run.
+Jev's run additionally left an empty untracked `nul` artifact from shell usage;
+the original accepted=false scope result is preserved, not relabeled clean.
+After measurement, the coordinator moved that verified zero-byte file into the
+ignored result directory as `worker-nul-artifact`; it is recoverable, and the
+worktree now contains only its intended source edit.
+
+Initial Jev-assisted attempt stopped on a compound directory listing requiring
+confirmation (14.31s worker + 57.91s verification). One exact-command allowlist
+retry stopped on scratch Git initialization (174.71s + 60.42s). Neither edited
+source. The user then explicitly requested bypass/YOLO mode. CLI help confirmed
+`--permission-mode dangerous`; it completed without confirmation. No global
+settings changed. Retain this owner choice in the skill and use identical bypass
+mode across future comparison arms, instead of chasing individual allowlist entries.
+
+Jev practical total including both interruptions: 652.90s. Normal and lexical used
+accept-edits; the successful Jev run used dangerous. Therefore even the eventual
+timings are exploratory, not a matched permission-mode A/B. Fixed sequential order,
+other active user Devin processes, caches, variable Git-test time and one example
+also limit inference. Coordinator authoring/diagnosis/postcheck time is additional.
+Common preparation took 189.09s, including three failing suites and one 4.19s
+corpus extraction already charged to each assisted arm above; do not double count.
+
+Jev API itself took .441s, 4803 input / 283 output tokens. It selected testing.md
+and landing.md; lexical selected landing.md and the swarm prompt template. Public
+worker prompt telemetry (includes cached, not billed cost): normal 384528, lexical
+217770, Jev 383556; tool calls 12/8/13. Extra reference context did not establish a
+unique semantic-selection benefit. Lexical was about 37% faster than normal here;
+that one result needs replication, not a general productivity claim.
+
+Decision: reject promotion. The frozen 20%-against-both gate fails even if the
+stray artifact and permission costs are ignored. Bypass fixes execution friction;
+it does not make Jev faster than lexical on this task. Preserve the actual lexical
+worker repair at local checkpoint `a6b0c2a615` on `codex/typesafe-real-audit`, over
+the test-only experiment seed. No push or main integration. The next fair trial
+must use bypass for all arms and a task where semantic evidence discovery is an
+actual bottleneck; do not tune this exposed one-line error-path defect into a win.
