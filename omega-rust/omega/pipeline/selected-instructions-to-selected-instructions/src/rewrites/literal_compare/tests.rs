@@ -801,6 +801,79 @@ fn validation_budget_covers_the_producer_scan() {
     );
 }
 
+/// The measured validation-step boundary: admission charges one step per
+/// block plus one per instruction across the plan, then repeats the same
+/// scan over the admitted function to locate the literal's producers —
+/// ten steps for the four-instruction fixture, twelve once a fifth
+/// instruction joins the block — so the exact count admits the fold on
+/// both the proposal and the independent replay path while one step below
+/// rejects both.
+#[test]
+fn measured_validation_step_boundary_admits_and_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A fifth body instruction extends both scans: (1 block) + (5
+    // instructions) charged twice measures twelve steps.
+    let wider = mutated(target, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        function.virtual_registers.push(register(
+            SPARE,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            function.virtual_registers[0].class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(7),
+                source_value: ValueId::new(5).unwrap(),
+            },
+        ));
+        function.blocks[0].instructions.push(instruction(
+            SelectedInstructionId(7),
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[POINTER, SPARE],
+        ));
+    });
+    for (source, exact_steps) in [
+        (
+            materialize_fixture(target, IntegerValue::Unsigned(9)),
+            10u64,
+        ),
+        (wider, 12u64),
+    ] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result =
+            fold_selected_literal_compare(&source, 0, COMPARE, &environment, exact).unwrap();
+        validate_literal_compare_fold(
+            &source,
+            0,
+            COMPARE,
+            &environment,
+            exact,
+            result.transformed().clone(),
+        )
+        .unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            fold_selected_literal_compare(&source, 0, COMPARE, &environment, starved).unwrap_err(),
+            LiteralCompareError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_literal_compare_fold(
+                &source,
+                0,
+                COMPARE,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            LiteralCompareError::WorkBudgetExceeded
+        );
+    }
+}
+
 #[test]
 fn replay_rejects_anything_but_the_exact_form() {
     let target = NativeTarget::linux_x64();
@@ -903,5 +976,109 @@ fn fold_is_deterministic_and_terminal() {
     assert_eq!(
         fold_selected_literal_compare(&first, 0, COMPARE, &environment, budget()).unwrap_err(),
         LiteralCompareError::UnsupportedInstruction
+    );
+}
+
+/// Replay corruption in a block the fold never touched still rejects: the
+/// restore-by-content check compares the complete plan, not just the block
+/// carrying the rewritten compare.
+#[test]
+fn replay_rejects_drift_outside_the_rewritten_block() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Stretch the fixture across one edge: the compare's block folds and
+    // jumps to a second block that returns.
+    let source = mutated(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let tail = std::mem::replace(
+            &mut function.blocks[0].terminator,
+            SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: selected_instructions::SelectedSuccessor {
+                    role: selected_instructions::SelectedSuccessorRole::Semantic,
+                    structural_case: None,
+                    structural_bindings: Vec::new(),
+                    psi_edge: EdgeId::new(2).unwrap(),
+                    block: SelectedBlockId(1),
+                    source_target: BlockId::new(2).unwrap(),
+                    bindings: Vec::new(),
+                    fuel: Vec::new(),
+                },
+            },
+        );
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: Vec::new(),
+            terminator: tail,
+        });
+    });
+    let result = fold(&source, &environment).unwrap();
+    assert_eq!(result.transformed().functions[0].blocks.len(), 2);
+    // An extra instruction in the untouched landing block rejects.
+    let mut proposed = result.transformed().clone();
+    let copy = environment
+        .constraint(keys(&environment).copy_i64)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks[1]
+        .instructions
+        .push(instruction(
+            SelectedInstructionId(11),
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[POINTER, OUTPUT],
+        ));
+    assert_eq!(
+        validate_literal_compare_fold(&source, 0, COMPARE, &environment, budget(), proposed)
+            .unwrap_err(),
+        LiteralCompareError::ReplayMismatch
+    );
+    // Drift in the untouched block's terminator rejects.
+    let mut proposed = result.transformed().clone();
+    let SelectedTerminator::Return {
+        instruction: return_instruction,
+        ..
+    } = &mut proposed.functions[0].blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    return_instruction.id = SelectedInstructionId(12);
+    assert_eq!(
+        validate_literal_compare_fold(&source, 0, COMPARE, &environment, budget(), proposed)
+            .unwrap_err(),
+        LiteralCompareError::ReplayMismatch
+    );
+    // A phantom trailing block rejects.
+    let mut proposed = result.transformed().clone();
+    let return_row = environment
+        .constraint(keys(&environment).return_unit)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks.push(SelectedBlock {
+        id: SelectedBlockId(2),
+        origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::Return {
+            instruction: instruction(
+                SelectedInstructionId(13),
+                SelectedInstructionKind::ReturnUnit,
+                &return_row,
+                &[],
+            ),
+            psi_return_edge: EdgeId::new(3).unwrap(),
+        },
+    });
+    assert_eq!(
+        validate_literal_compare_fold(&source, 0, COMPARE, &environment, budget(), proposed)
+            .unwrap_err(),
+        LiteralCompareError::ReplayMismatch
     );
 }

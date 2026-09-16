@@ -962,9 +962,12 @@ fn replay_rejects_anything_but_the_exact_copy() {
     }
 }
 
-/// The admission scan is accounted: its step count covers both the
-/// instruction enumeration and the producer scan, so one fewer validation
-/// step than the exact requirement rejects while the exact requirement runs.
+/// The measured validation-step boundary: admission charges one step per
+/// block plus one per instruction across the plan, then one per instruction
+/// of the admitted function for the producer scan — seven steps for the
+/// three-instruction fixture, nine once a fourth instruction joins the
+/// block — so the exact count admits the removal on both the proposal and
+/// the independent replay path while one step below rejects both.
 #[test]
 fn validation_budget_covers_the_producer_scan() {
     let target = NativeTarget::linux_x64();
@@ -976,16 +979,62 @@ fn validation_budget_covers_the_producer_scan() {
         &[POINTER, SOURCE],
         SelectedInstructionKind::ZeroExtendU16,
     );
-    // The fixture needs seven steps: one per block plus one per instruction
-    // for the enumeration, then one per instruction for the producer scan.
-    let under = OptimizationWorkBudget::new(100, 100, 6, 100, 100).unwrap();
-    assert_eq!(
-        remove_selected_redundant_extension(&source, 0, EXTENSION, &environment, under)
+    // A fourth body instruction extends both scans: the enumeration charges
+    // (1 block) + (4 instructions) and the producer scan charges 4 more.
+    let wider = mutated(target, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        function.virtual_registers.push(register(
+            SCRATCH,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            function.virtual_registers[0].class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(6),
+                source_value: ValueId::new(5).unwrap(),
+            },
+        ));
+        function.blocks[0].instructions.push(instruction(
+            SelectedInstructionId(6),
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[SINK, SCRATCH],
+        ));
+    });
+    for (source, exact_steps) in [(source, 7u64), (wider, 9u64)] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result =
+            remove_selected_redundant_extension(&source, 0, EXTENSION, &environment, exact)
+                .unwrap();
+        validate_redundant_extension_removal(
+            &source,
+            0,
+            EXTENSION,
+            &environment,
+            exact,
+            result.transformed().clone(),
+        )
+        .unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            remove_selected_redundant_extension(&source, 0, EXTENSION, &environment, starved)
+                .unwrap_err(),
+            RedundantExtensionError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_redundant_extension_removal(
+                &source,
+                0,
+                EXTENSION,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
             .unwrap_err(),
-        RedundantExtensionError::WorkBudgetExceeded
-    );
-    let exact = OptimizationWorkBudget::new(100, 100, 7, 100, 100).unwrap();
-    remove_selected_redundant_extension(&source, 0, EXTENSION, &environment, exact).unwrap();
+            RedundantExtensionError::WorkBudgetExceeded
+        );
+    }
 }
 
 /// Two runs over the identical source produce the identical validated result,
@@ -1028,5 +1077,130 @@ fn removal_is_deterministic_and_terminal() {
         remove_selected_redundant_extension(&first, 0, EXTENSION, &environment, budget())
             .unwrap_err(),
         RedundantExtensionError::UnsupportedInstruction
+    );
+}
+
+/// Replay corruption in a block the removal never touched still rejects:
+/// the restore-by-content check compares the complete plan, not just the
+/// block carrying the collapsed extension.
+#[test]
+fn replay_rejects_drift_outside_the_rewritten_block() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Stretch the fixture across one edge: the extension's block collapses
+    // and jumps to a second block that returns.
+    let source = mutated(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let tail = std::mem::replace(
+            &mut function.blocks[0].terminator,
+            SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: selected_instructions::SelectedSuccessor {
+                    role: selected_instructions::SelectedSuccessorRole::Semantic,
+                    structural_case: None,
+                    structural_bindings: Vec::new(),
+                    psi_edge: EdgeId::new(2).unwrap(),
+                    block: SelectedBlockId(1),
+                    source_target: BlockId::new(2).unwrap(),
+                    bindings: Vec::new(),
+                    fuel: Vec::new(),
+                },
+            },
+        );
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: Vec::new(),
+            terminator: tail,
+        });
+    });
+    let result = remove(&source, &environment).unwrap();
+    assert_eq!(result.transformed().functions[0].blocks.len(), 2);
+    // An extra instruction in the untouched landing block rejects.
+    let mut proposed = result.transformed().clone();
+    let copy = environment
+        .constraint(keys(&environment).copy_i64)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks[1]
+        .instructions
+        .push(instruction(
+            SelectedInstructionId(11),
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[POINTER, SINK],
+        ));
+    assert_eq!(
+        validate_redundant_extension_removal(
+            &source,
+            0,
+            EXTENSION,
+            &environment,
+            budget(),
+            proposed
+        )
+        .unwrap_err(),
+        RedundantExtensionError::ReplayMismatch
+    );
+    // Drift in the untouched block's terminator rejects.
+    let mut proposed = result.transformed().clone();
+    let SelectedTerminator::Return {
+        instruction: return_instruction,
+        ..
+    } = &mut proposed.functions[0].blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    return_instruction.id = SelectedInstructionId(12);
+    assert_eq!(
+        validate_redundant_extension_removal(
+            &source,
+            0,
+            EXTENSION,
+            &environment,
+            budget(),
+            proposed
+        )
+        .unwrap_err(),
+        RedundantExtensionError::ReplayMismatch
+    );
+    // A phantom trailing block rejects.
+    let mut proposed = result.transformed().clone();
+    let return_row = environment
+        .constraint(keys(&environment).return_unit)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks.push(SelectedBlock {
+        id: SelectedBlockId(2),
+        origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::Return {
+            instruction: instruction(
+                SelectedInstructionId(13),
+                SelectedInstructionKind::ReturnUnit,
+                &return_row,
+                &[],
+            ),
+            psi_return_edge: EdgeId::new(3).unwrap(),
+        },
+    });
+    assert_eq!(
+        validate_redundant_extension_removal(
+            &source,
+            0,
+            EXTENSION,
+            &environment,
+            budget(),
+            proposed
+        )
+        .unwrap_err(),
+        RedundantExtensionError::ReplayMismatch
     );
 }
