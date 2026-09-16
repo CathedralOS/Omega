@@ -276,6 +276,34 @@ pub(super) fn propagate_statement_transfers(
         );
     }
 
+    // A builtin collection view lends the receiver's element storage to the
+    // binding: `let view = rows.as_mut_slice()` makes `view[i]` the same
+    // element as `rows[i]`, so live evidence below the receiver re-anchors
+    // below the destination through the same stable-segment transport.
+    if let Some(viewed_place) = projected::collection_view_source_place(
+        program,
+        semantic,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        source_expression,
+    ) {
+        projected::append_copied_field_predicates(
+            program,
+            semantic,
+            ctx,
+            *active_contexts,
+            viewed_place,
+            target_place,
+            ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            &mut refs,
+        );
+    }
+
     if stable_value_target {
         constructed::append_constructed_field_values(
             program,

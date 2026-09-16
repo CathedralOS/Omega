@@ -8,12 +8,22 @@
 //! `propagate_statement_transfers`, which transports the same payloads at the
 //! source place itself. Runtime-indexed segments still stop the transport -- a
 //! copy cannot promise which element supplied the evidence.
+//!
+//! The same rebase serves the builtin collection VIEWS: `recv.as_slice()` and
+//! `recv.as_mut_slice()` lend the receiver's element storage to the bound
+//! local element-for-element, so `view[i]` IS `recv[i]` and every fact below
+//! `recv` re-anchors below `view`. The borrows checker keeps `recv` frozen
+//! for the view's loan, and a write through a mutable view retires both the
+//! view-named and the receiver-named facts through the usual alias-closing
+//! invalidation, so transported evidence cannot go stale while it is
+//! consultable.
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
+use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_copied_field_predicates(
@@ -165,4 +175,72 @@ fn stable_segment(segment: &facts::PlaceSegment) -> bool {
         facts::PlaceSegment::FixedIndex { .. } => true,
         _ => false,
     }
+}
+
+/// The place a builtin collection-view call lends to its result, or `None`
+/// when `expression` is not a targetless `as_slice`/`as_mut_slice` on a
+/// collection receiver. This mirrors the ownership lane's
+/// `append_builtin_collection_view` gate exactly: a resolved `target_symbol`
+/// means a declared machine or boundary operator answered instead, and its
+/// returned view may be only a partial projection of the input -- evidence
+/// below the argument cannot re-anchor 1:1, so that shape stays unclaimed
+/// here. `as_view`/`bytes` are text-level views of a scalar carrier rather
+/// than element views of a collection, and stay unclaimed for the same reason.
+/// Extra operands or a non-collection receiver fail closed the same way.
+pub(super) fn collection_view_source_place(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<PlaceHandle> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+        || call.target_symbol.is_valid()
+        || !call.receiver.is_valid()
+        || !call.arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+        || !call.machine_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
+        return None;
+    }
+    let mut reference = crate::flow::expression_type_reference_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        call.receiver,
+    )?;
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return None;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+            | typed_trees::types::TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            typed_trees::types::TypeReferenceNode::FixedArray { .. }
+            | typed_trees::types::TypeReferenceNode::Slice { .. } => {
+                return super::contextual_expression_place(
+                    program,
+                    semantic,
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    call.receiver,
+                );
+            }
+            _ => return None,
+        }
+    }
+    None
 }
