@@ -4,14 +4,26 @@
 //! cannot implicitly gain or lose them: only a catalogued successor binding
 //! introduces or erases membership, creating a distinct SSA value without an opcode.
 use super::{
-    BTreeMap, BTreeSet, ModuleError, OperationKind, TerminalMachine, TerminalModule, Terminator,
-    ValueId,
+    BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, TerminalMachine, TerminalModule,
+    Terminator, ValueId,
 };
-use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId};
-use terminal_psi::{ScalarQualificationCoercion, ValueDeclaration};
+use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId, ScalarType};
+use terminal_psi::{ScalarFloatRange, ScalarQualificationCoercion, ValueDeclaration};
 
 fn invalid(reason: &'static str) -> ModuleError {
     ModuleError::InvalidScalarQualification(reason)
+}
+
+fn invalid_float_range(
+    machine: MachineId,
+    parameter: ValueId,
+    reason: &'static str,
+) -> ModuleError {
+    ModuleError::InvalidScalarFloatRange {
+        machine,
+        parameter,
+        reason,
+    }
 }
 
 pub(super) fn declarations(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {
@@ -30,9 +42,66 @@ pub(super) fn declarations(machine: &TerminalMachine) -> impl Iterator<Item = &V
 }
 
 pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
+    let catalog = &module.scalar_qualifications;
+    // Retained authored floating ranges are closed delivery requirements on
+    // direct scalar parameters: canonically ordered by `(machine, parameter)`,
+    // attached to an existing machine and one of its own parameters, and
+    // carrier-exact — the endpoints retain the parameter's declared IEEE
+    // format and must IEEE-order. Fail closed on any malformed row.
+    let mut float_ranges: BTreeMap<(MachineId, ValueId), &ScalarFloatRange> = BTreeMap::new();
+    let mut previous_range = None;
+    for range in &catalog.float_entry_ranges {
+        let key = (range.machine, range.parameter);
+        if previous_range.is_some_and(|previous| previous >= key) {
+            return Err(invalid_float_range(
+                range.machine,
+                range.parameter,
+                "noncanonical scalar float entry ranges",
+            ));
+        }
+        previous_range = Some(key);
+        let owner = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == range.machine)
+            .ok_or_else(|| {
+                invalid_float_range(
+                    range.machine,
+                    range.parameter,
+                    "unknown range owner machine",
+                )
+            })?;
+        let parameter = owner
+            .parameters
+            .iter()
+            .find(|parameter| parameter.id == range.parameter)
+            .ok_or_else(|| {
+                invalid_float_range(
+                    range.machine,
+                    range.parameter,
+                    "range is not attached to a direct scalar parameter",
+                )
+            })?;
+        if !range.ordered() {
+            return Err(invalid_float_range(
+                range.machine,
+                range.parameter,
+                "endpoints do not share the declared format or are not IEEE ordered",
+            ));
+        }
+        if parameter.scalar_type != ScalarType::IeeeFloat(range.format()) {
+            return Err(invalid_float_range(
+                range.machine,
+                range.parameter,
+                "range endpoints do not retain the parameter's declared IEEE format",
+            ));
+        }
+        float_ranges.insert(key, range);
+    }
     // Boundary scalar signatures currently carry only payload types. A
-    // provider installation cannot supply or forget membership through that
-    // older interface, even when its in-module body has a valid signature.
+    // provider installation cannot supply or forget membership — or a retained
+    // floating range — through that older interface, even when its in-module
+    // body has a valid signature.
     for provider in &module.provider_candidates {
         if module
             .machines
@@ -44,12 +113,15 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     .iter()
                     .chain(machine.result.scalar_ref())
                     .any(|value| !value.qualifications.is_empty())
+                    || machine
+                        .parameters
+                        .iter()
+                        .any(|parameter| float_ranges.contains_key(&(machine.id, parameter.id)))
             })
         {
             return Err(invalid("qualified scalar provider boundary is unsupported"));
         }
     }
-    let catalog = &module.scalar_qualifications;
     let mut domains = BTreeMap::new();
     let mut semantics = BTreeSet::new();
     let mut identities = BTreeSet::new();
@@ -104,6 +176,21 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
         let values = declarations(machine)
             .map(|value| (value.id, value))
             .collect::<BTreeMap<_, _>>();
+        // The kind that produced each local value. Only an `IeeeFloatConstant`
+        // producer lets a call site discharge a ranged parameter structurally;
+        // every other producer must route through a caller parameter whose own
+        // retained range is subsumed by the callee's.
+        let producers = machine
+            .blocks
+            .iter()
+            .flat_map(|block| block.operations.iter())
+            .filter_map(|operation| {
+                operation
+                    .result
+                    .scalar_ref()
+                    .map(|result| (result.id, &operation.kind))
+            })
+            .collect::<BTreeMap<_, _>>();
         for value in values.values() {
             if !value.qualifications.is_empty() {
                 let members = sets
@@ -155,6 +242,34 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                             != callee.result.scalar_ref().map(|value| value.qualifications)
                         {
                             return Err(invalid("call result scalar qualification mismatch"));
+                        }
+                        // A ranged callee parameter admits only deliveries
+                        // that are provably inside the authored range: a
+                        // constant whose retained bits the range contains, or
+                        // a caller parameter whose own retained range is
+                        // subsumed. Anything else — a computed value, a block
+                        // parameter, an unranged caller parameter — cannot
+                        // prove membership and is rejected.
+                        for (argument, parameter) in arguments.iter().zip(&callee.parameters) {
+                            let Some(range) = float_ranges.get(&(callee.id, parameter.id)) else {
+                                continue;
+                            };
+                            let admitted = match producers.get(argument) {
+                                Some(OperationKind::IeeeFloatConstant { value }) => {
+                                    range.contains(*value)
+                                }
+                                _ => float_ranges
+                                    .get(&(machine.id, *argument))
+                                    .is_some_and(|caller| range.contains_range(caller)),
+                            };
+                            if !admitted {
+                                return Err(ModuleError::ScalarFloatRangeDelivery {
+                                    caller: machine.id,
+                                    operation: operation.id,
+                                    callee: callee.id,
+                                    parameter: parameter.id,
+                                });
+                            }
                         }
                     }
                     _ => {

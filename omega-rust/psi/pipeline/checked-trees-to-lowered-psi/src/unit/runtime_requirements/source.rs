@@ -72,15 +72,21 @@ pub(crate) fn validate_scalar_source(
             )?;
         }
     }
-    validate_parameter_ranges(checked, state, retained.map(Some))
+    // Ordered bodies keep no floating range roster: the structural runtime
+    // requirement capsule already fails closed when an authored range cannot
+    // be retained, so no authored floating range can reach this call.
+    validate_parameter_ranges(checked, state, retained.map(Some), None)
 }
 
 /// Scalar graphs retain authored clauses separately from their appended range
-/// predicates. Check those exact retained rows, not a different contract capsule.
+/// predicates. Check those exact retained rows, not a different contract
+/// capsule. Floating ranges keep an explicit placeholder row in the requires
+/// tail while their exact IEEE endpoints ride the retained entry roster;
+/// rejoin both against the authored source constraints.
 pub(crate) fn validate_graph_parameter_ranges(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    clauses: &[Option<ClosedScalarContractValue>],
+    plan: &checked_trees::ClosedScalarValueContractPlan,
 ) -> Result<(), LoweringError> {
     let source = checked
         .machines()
@@ -102,7 +108,8 @@ pub(crate) fn validate_graph_parameter_ranges(
             contract.kind == SignatureContractKind::Requires && contract.binding.is_none()
         })
         .count();
-    let ranges = clauses
+    let ranges = plan
+        .requires()
         .get(authored_count..)
         .ok_or(LoweringError::Unsupported(
             "scalar contract lost authored requirements",
@@ -114,6 +121,7 @@ pub(crate) fn validate_graph_parameter_ranges(
             Some(ClosedScalarContractValue::Predicate(predicate)) => Some(predicate),
             _ => None,
         }),
+        plan.float_entry_ranges().map(<[_]>::iter),
     )
 }
 
@@ -121,6 +129,7 @@ fn validate_parameter_ranges<'predicate>(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
     mut retained: impl Iterator<Item = Option<&'predicate CheckedBooleanExpression>>,
+    mut float_ranges: Option<std::slice::Iter<'_, checked_trees::ClosedFloatRangeRequirement>>,
 ) -> Result<(), LoweringError> {
     let mut scalar_position = 0;
     for parameter in checked.state_parameters(state) {
@@ -156,6 +165,52 @@ fn validate_parameter_ranges<'predicate>(
                             return unsupported(
                                 "scalar entry range differs from its exact source bounds",
                             );
+                        }
+                        if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+                            // The closed scalar predicate language cannot
+                            // spell IEEE membership, so a floating range keeps
+                            // an explicit placeholder requires row while its
+                            // evidence rides the retained roster. Consume that
+                            // row, then rejoin the roster entry bit-for-bit:
+                            // authored endpoints at the declared carrier, IEEE
+                            // order, and the authored boundary kind verbatim.
+                            if !matches!(retained.next(), Some(None)) {
+                                return unsupported(
+                                    "scalar float entry range lost its explicit requires row",
+                                );
+                            }
+                            let (minimum_value, maximum_value) = validation::closed_float_range_endpoint(
+                                    &checked.typed,
+                                    *minimum,
+                                    primitive,
+                                )
+                                .zip(validation::closed_float_range_endpoint(
+                                    &checked.typed,
+                                    *maximum,
+                                    primitive,
+                                ))
+                                .filter(|(low, high)| {
+                                    validation::ieee_float_range_ordered(*low, *high)
+                                })
+                                .ok_or(LoweringError::Unsupported(
+                                    "scalar float entry range has unavailable or unordered source bounds",
+                                ))?;
+                            let range = float_ranges.as_mut().and_then(Iterator::next).ok_or(
+                                LoweringError::Unsupported(
+                                    "scalar float entry range lost its retained endpoint evidence",
+                                ),
+                            )?;
+                            if range.position != position
+                                || range.primitive_type != primitive
+                                || range.minimum != minimum_value
+                                || range.maximum != maximum_value
+                                || range.maximum_inclusive != *end_inclusive
+                            {
+                                return unsupported(
+                                    "scalar float entry range differs from its retained evidence",
+                                );
+                            }
+                            continue;
                         }
                         let (minimum_value, maximum_value) =
                             validation::closed_integer_range_bound(&checked.typed, *minimum)
@@ -230,6 +285,9 @@ fn validate_parameter_ranges<'predicate>(
     }
     if retained.next().is_some() {
         return unsupported("scalar entry requirements contain an unauthored clause");
+    }
+    if float_ranges.and_then(|mut ranges| ranges.next()).is_some() {
+        return unsupported("scalar contract retains an unauthored floating entry range");
     }
     Ok(())
 }

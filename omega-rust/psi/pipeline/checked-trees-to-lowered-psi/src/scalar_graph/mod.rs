@@ -25,7 +25,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     Block, ContentPartitionComposition, ContractClause, MachineContract, Operation, OperationKind,
-    OperationResult, StructuralAccess, StructuralArgument, StructuralFieldType,
+    OperationResult, ScalarFloatRange, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,

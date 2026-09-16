@@ -44,7 +44,8 @@ pub struct BlockLocalEvidence {
     /// theorem producers.
     pub operations: BTreeSet<OperationId>,
     /// Values named inside propositions, coercion endpoints, retained
-    /// suspension frontiers, or float-meaning projection sources.
+    /// suspension frontiers, float entry range parameters, or float-meaning
+    /// projection sources.
     pub values: BTreeSet<ValueId>,
 }
 
@@ -68,6 +69,9 @@ pub fn block_local_evidence(module: &TerminalModule) -> BlockLocalEvidence {
         evidence.edges.insert(coercion.edge);
         evidence.values.insert(coercion.source);
         evidence.values.insert(coercion.destination);
+    }
+    for range in &module.scalar_qualifications.float_entry_ranges {
+        evidence.values.insert(range.parameter);
     }
     for invariant in &module.scalar_block_invariants {
         evidence.blocks.insert(invariant.header);
@@ -234,15 +238,19 @@ pub fn retained_machines(module: &TerminalModule) -> BTreeSet<MachineId> {
 }
 
 /// Every machine identity a module-level row names is a retention root:
-/// coercions, invariants, suspensions, proof outputs, conformance
-/// applications, dynamic-dispatch custody, reborrow publications, placed
-/// views, float projections, evidence lanes, providers, and attached
-/// machines each keep their named machine regardless of call reachability.
+/// coercions, float entry ranges, invariants, suspensions, proof outputs,
+/// conformance applications, dynamic-dispatch custody, reborrow
+/// publications, placed views, float projections, evidence lanes, providers,
+/// and attached machines each keep their named machine regardless of call
+/// reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
     roots.insert(module.entry);
     for coercion in &module.scalar_qualifications.coercions {
         roots.insert(coercion.machine);
+    }
+    for range in &module.scalar_qualifications.float_entry_ranges {
+        roots.insert(range.machine);
     }
     for invariant in &module.scalar_block_invariants {
         roots.insert(invariant.machine);

@@ -1,13 +1,15 @@
 //! Canonical scalar membership catalogs. Graph custody is checked by the verifier.
 use super::{
     CodecError, decode_counted,
-    scalar_wire::{decode_scalar_type, encode_scalar_type},
+    scalar_wire::{
+        decode_ieee_float_value, decode_scalar_type, encode_ieee_float_value, encode_scalar_type,
+    },
     wire::{Reader, Writer},
 };
 use semantic_vocabulary::ScalarQualificationSetId;
 use terminal_psi::{
-    ScalarDomainDeclaration, ScalarQualificationCatalog, ScalarQualificationCoercion,
-    ScalarQualificationSet,
+    ScalarDomainDeclaration, ScalarFloatRange, ScalarQualificationCatalog,
+    ScalarQualificationCoercion, ScalarQualificationSet,
 };
 
 pub(crate) fn encode(
@@ -36,6 +38,17 @@ pub(crate) fn encode(
         writer.u32(coercion.argument_ordinal);
         writer.id(coercion.source);
         writer.id(coercion.destination);
+    }
+    writer.len(
+        "scalar float entry ranges",
+        catalog.float_entry_ranges.len(),
+    )?;
+    for range in &catalog.float_entry_ranges {
+        writer.id(range.machine);
+        writer.id(range.parameter);
+        encode_ieee_float_value(writer, range.minimum);
+        encode_ieee_float_value(writer, range.maximum);
+        writer.boolean(range.maximum_inclusive);
     }
     Ok(())
 }
@@ -66,6 +79,15 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 argument_ordinal: reader.u32()?,
                 source: reader.id("ValueId")?,
                 destination: reader.id("ValueId")?,
+            })
+        })?,
+        float_entry_ranges: decode_counted(reader, |reader| {
+            Ok(ScalarFloatRange {
+                machine: reader.id("MachineId")?,
+                parameter: reader.id("ValueId")?,
+                minimum: decode_ieee_float_value(reader)?,
+                maximum: decode_ieee_float_value(reader)?,
+                maximum_inclusive: reader.boolean()?,
             })
         })?,
     })
@@ -107,6 +129,20 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
         return Err(CodecError::NonCanonicalOrder(
             "scalar qualification coercions",
         ));
+    }
+    if catalog
+        .float_entry_ranges
+        .windows(2)
+        .any(|pair| (pair[0].machine, pair[0].parameter) >= (pair[1].machine, pair[1].parameter))
+    {
+        return Err(CodecError::NonCanonicalOrder("scalar float entry ranges"));
+    }
+    if catalog
+        .float_entry_ranges
+        .iter()
+        .any(|range| range.minimum.format() != range.maximum.format())
+    {
+        return Err(CodecError::NonCanonicalEncoding);
     }
     Ok(())
 }

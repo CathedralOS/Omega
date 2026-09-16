@@ -124,7 +124,9 @@ impl PreparedScalarContract {
             Self::ClosedLiteral(_) => 1,
             // The predicate plan's source clauses are published as one
             // canonical conjunction, including implicit parameter ranges.
-            Self::Predicates(plan) => usize::from(!plan.requires().is_empty()),
+            // Floating entry range placeholders publish no proposition: they
+            // discharge through the retained catalog rows at call delivery.
+            Self::Predicates(plan) => usize::from(plan.requires().iter().any(Option::is_some)),
         }
     }
 }

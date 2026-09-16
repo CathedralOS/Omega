@@ -682,6 +682,7 @@ pub fn coercion_edge_fixture() -> LoweredPsi {
             source: v5,
             destination: v31,
         }],
+        float_entry_ranges: Vec::new(),
     };
     lowered
 }
@@ -761,6 +762,7 @@ pub fn coercion_region_fixture() -> LoweredPsi {
             source: v30,
             destination: v51,
         }],
+        float_entry_ranges: Vec::new(),
     };
     lowered
 }
@@ -923,6 +925,7 @@ pub fn dead_machine_coercion_fixture() -> LoweredPsi {
             source: value(111),
             destination: value(121),
         }],
+        float_entry_ranges: Vec::new(),
     };
     lowered
 }
