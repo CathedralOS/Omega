@@ -33,6 +33,7 @@ pub(super) const DECLARATIONS: &str = r#"pub data Optimization {
     case SelectedIncomingBitwiseAndOnesIdentityCopy;
     case SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization;
     case SelectedIncomingExactDivideZeroDividendZeroMaterialization;
+    case SelectedIncomingSaturatingAddZeroIdentityCopy;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -70,6 +71,7 @@ pub data Optimizations {
     selected_incoming_bitwise_and_ones_identity_copy: u8 in Trapping;
     selected_incoming_wrapping_remainder_zero_dividend_zero_materialization: u8 in Trapping;
     selected_incoming_exact_divide_zero_dividend_zero_materialization: u8 in Trapping;
+    selected_incoming_saturating_add_zero_identity_copy: u8 in Trapping;
 }
 "#;
 
@@ -109,6 +111,7 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
         Optimization::SelectedIncomingBitwiseAndOnesIdentityCopy -> selected_incoming_bitwise_and_ones_identity_copy()
         Optimization::SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization -> selected_incoming_wrapping_remainder_zero_dividend_zero_materialization()
         Optimization::SelectedIncomingExactDivideZeroDividendZeroMaterialization -> selected_incoming_exact_divide_zero_dividend_zero_materialization()
+        Optimization::SelectedIncomingSaturatingAddZeroIdentityCopy -> selected_incoming_saturating_add_zero_identity_copy()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -245,6 +248,10 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
 
     state selected_incoming_exact_divide_zero_dividend_zero_materialization(&mut self) {
         self.selected_incoming_exact_divide_zero_dividend_zero_materialization = self.selected_incoming_exact_divide_zero_dividend_zero_materialization + 1;
+    }
+
+    state selected_incoming_saturating_add_zero_identity_copy(&mut self) {
+        self.selected_incoming_saturating_add_zero_identity_copy = self.selected_incoming_saturating_add_zero_identity_copy + 1;
     }
 }
 "#;

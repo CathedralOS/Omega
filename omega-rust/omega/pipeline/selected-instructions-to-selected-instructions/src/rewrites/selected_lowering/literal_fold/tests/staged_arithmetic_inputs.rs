@@ -24,10 +24,10 @@ use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
-    LivenessPosition, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualLiveRange,
-    VirtualOccurrence, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    LivenessPosition, SaturatingCarrier, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
+    VirtualLiveRange, VirtualOccurrence, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -2349,6 +2349,7 @@ pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> I
         SelectedInstructionKind::BitwiseAndI64,
         LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
         0,
+        BlockZeroTerminator::ConditionalBranch,
     )
 }
 
@@ -2364,6 +2365,7 @@ pub(super) fn staged_and_ones_inputs(target: NativeTarget, literal_operand: u16)
         SelectedInstructionKind::BitwiseAndI64,
         LiteralFoldPolicy::BITWISE_AND_ONES_V1,
         u64::MAX,
+        BlockZeroTerminator::ConditionalBranch,
     )
 }
 
@@ -2377,6 +2379,7 @@ pub(super) fn staged_xor_inputs(target: NativeTarget, literal_operand: u16) -> I
         SelectedInstructionKind::BitwiseXorI64,
         LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
         0,
+        BlockZeroTerminator::ConditionalBranch,
     )
 }
 
@@ -2390,6 +2393,43 @@ pub(super) fn staged_wrapping_add_inputs(target: NativeTarget, literal_operand: 
         SelectedInstructionKind::WrappingAddI64,
         LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
         0,
+        BlockZeroTerminator::ConditionalBranch,
+    )
+}
+
+/// The instruction record block 0's terminator wraps. Every family defaults
+/// to the flag-reading `ConditionalBranch`; the saturating-add fixture needs
+/// `Jump` for its positive aarch64 cases because that consumer implicitly
+/// defines `nzcv`, so a branch reading condition state would keep the
+/// retired definition live and the dead-definitions gate must see it go.
+#[derive(Clone, Copy)]
+pub(super) enum BlockZeroTerminator {
+    ConditionalBranch,
+    Jump,
+}
+
+/// The same zero-literal fixture for `SaturatingAdd` on the `U64` carrier:
+/// `x +| 0` and `0 +| x` fold into a `CopyI64` of the surviving operand.
+/// Unlike the isolated bitwise and wrapping consumers, this one retires
+/// target-specific unit effects — aarch64 defines `nzcv`, x86-64 clobbers
+/// `rflags` — so `block0` chooses the block-0 terminator: `Jump` keeps
+/// every condition-state reader out of the function for the positive
+/// cases, while `ConditionalBranch` stages a live `nzcv` use on aarch64
+/// that the fold must refuse.
+pub(super) fn staged_saturating_add_inputs(
+    target: NativeTarget,
+    literal_operand: u16,
+    block0: BlockZeroTerminator,
+) -> Inputs {
+    staged_literal_binary_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::SaturatingAdd {
+            carrier: SaturatingCarrier::U64,
+        },
+        LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+        0,
+        block0,
     )
 }
 
@@ -2399,14 +2439,20 @@ pub(super) fn staged_wrapping_add_inputs(target: NativeTarget, literal_operand: 
 /// register, under `policy`. The consumer's constraint row comes from the
 /// semantic's own selected key: the bitwise consumers bind the
 /// flag-clobbering subtract row — x86-64 `and`/`xor` destroy `rflags`,
-/// the aarch64 forms touch no condition state — while the wrapping-add
-/// consumer binds the flag-transparent add row, which clobbers nothing.
+/// the aarch64 forms touch no condition state — the wrapping-add
+/// consumer binds the flag-transparent add row, which clobbers nothing,
+/// and the `U64` saturating add binds its three-operand carry-select row,
+/// which defines `nzcv` on aarch64 and clobbers `rflags` on x86-64.
+/// `block0` picks the terminator record wrapping instruction 2: the
+/// default conditional branch reads condition state on both targets,
+/// while `Jump` keeps the function free of implicit condition-state uses.
 fn staged_literal_binary_inputs(
     target: NativeTarget,
     literal_operand: u16,
     kind: SelectedInstructionKind,
     policy: LiteralFoldPolicy,
     immediate: u64,
+    block0: BlockZeroTerminator,
 ) -> Inputs {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
@@ -2416,11 +2462,18 @@ fn staged_literal_binary_inputs(
     // The consumer row is the one the semantic's own effect declaration
     // binds: the flag-clobbering subtract row for the bitwise forms —
     // x86-64 `and`/`xor` destroy `rflags`, aarch64 `and`/`eor` touch no
-    // condition state — and the flag-transparent add row for the wrapping
-    // add, which clobbers nothing on either target.
+    // condition state — the flag-transparent add row for the wrapping
+    // add, which clobbers nothing on either target, and the `U64`
+    // saturating-add row, which defines `nzcv` on aarch64 and clobbers
+    // `rflags` on x86-64.
     let consumer_key = keys.for_semantic(machine_semantic_kind(kind)).unwrap();
     let consumer_row = environment.constraint(consumer_key).unwrap();
-    let branch = environment.constraint(keys.conditional_branch).unwrap();
+    let tail = environment
+        .constraint(match block0 {
+            BlockZeroTerminator::ConditionalBranch => keys.conditional_branch,
+            BlockZeroTerminator::Jump => keys.jump,
+        })
+        .unwrap();
     let terminal = environment.constraint(keys.return_unit).unwrap();
     let gpr = materialize.operands[0].class;
     let source_block = BlockId::new(1).unwrap();
@@ -2499,14 +2552,19 @@ fn staged_literal_binary_inputs(
             ..Default::default()
         },
     };
-    let branch_instruction = SelectedInstruction {
+    let tail_instruction = SelectedInstruction {
         id: SelectedInstructionId(2),
-        kind: SelectedInstructionKind::ConditionalBranchNonZero,
-        constraint: branch.key,
+        kind: match block0 {
+            BlockZeroTerminator::ConditionalBranch => {
+                SelectedInstructionKind::ConditionalBranchNonZero
+            }
+            BlockZeroTerminator::Jump => SelectedInstructionKind::Jump,
+        },
+        constraint: tail.key,
         operands: Vec::new(),
-        implicit_uses: branch.implicit_uses.clone(),
-        implicit_defs: branch.implicit_defs.clone(),
-        clobbers: branch.clobbers.clone(),
+        implicit_uses: tail.implicit_uses.clone(),
+        implicit_defs: tail.implicit_defs.clone(),
+        clobbers: tail.clobbers.clone(),
         provenance: Default::default(),
     };
     let return_instruction = SelectedInstruction {
@@ -2596,10 +2654,18 @@ fn staged_literal_binary_inputs(
                     id: SelectedBlockId(0),
                     origin: SelectedBlockOrigin::Source(source_block),
                     instructions: vec![literal, consumer],
-                    terminator: SelectedTerminator::ConditionalBranch {
-                        instruction: branch_instruction,
-                        when_nonzero: successor(1, 1),
-                        when_zero: successor(1, 2),
+                    terminator: match block0 {
+                        BlockZeroTerminator::ConditionalBranch => {
+                            SelectedTerminator::ConditionalBranch {
+                                instruction: tail_instruction,
+                                when_nonzero: successor(1, 1),
+                                when_zero: successor(1, 2),
+                            }
+                        }
+                        BlockZeroTerminator::Jump => SelectedTerminator::Jump {
+                            instruction: tail_instruction,
+                            successor: successor(1, 1),
+                        },
                     },
                 },
                 SelectedBlock {
