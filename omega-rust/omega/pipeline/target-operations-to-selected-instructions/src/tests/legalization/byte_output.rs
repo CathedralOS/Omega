@@ -15,27 +15,41 @@ use target_operations::{
 
 #[test]
 fn hosted_byte_output_replay_rejects_substituted_native_targets() {
-    let (source, target, unit) = fixture(NativeTarget::macos_arm64());
-    for native in [
-        NativeTarget::windows_x64(),
-        NativeTarget {
-            architecture: target::Architecture::X86_64,
-            ..NativeTarget::macos_arm64()
-        },
-        NativeTarget {
-            pointer_size: 4,
-            ..NativeTarget::macos_arm64()
-        },
-        NativeTarget {
-            pointer_alignment: 4,
-            ..NativeTarget::linux_arm64()
-        },
+    // The native callable matrix declares each supported (architecture,
+    // object-format) pair and fails closed on an undeclared one before this
+    // stage can observe it, so the architecture-only substitution uses the
+    // declared Elf pair (AArch64 -> x86-64) rather than a forged x86-64/Mach-O
+    // target. The other rows substitute the object format and pointer geometry.
+    for (fixture_target, native) in [
+        (NativeTarget::macos_arm64(), NativeTarget::windows_x64()),
+        (
+            NativeTarget::linux_arm64(),
+            NativeTarget {
+                architecture: target::Architecture::X86_64,
+                ..NativeTarget::linux_arm64()
+            },
+        ),
+        (
+            NativeTarget::macos_arm64(),
+            NativeTarget {
+                pointer_size: 4,
+                ..NativeTarget::macos_arm64()
+            },
+        ),
+        (
+            NativeTarget::macos_arm64(),
+            NativeTarget {
+                pointer_alignment: 4,
+                ..NativeTarget::linux_arm64()
+            },
+        ),
     ] {
+        let (source, target, unit) = fixture(fixture_target);
         let mut changed = target.clone();
         changed.target = native;
         assert!(
             legalize_target_operations(&changed, &source, &unit).is_err(),
-            "target substitution {native:?}"
+            "target substitution {fixture_target:?} -> {native:?}"
         );
     }
 }
