@@ -6,7 +6,7 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     transition {
         _ -> work()
     }
@@ -14,6 +14,5 @@ machine Main::main(&mut self) -> i32 {
     state work(&mut self) {
         let entry_slice: &mut [Entry] = self.entries.as_mut_slice();
         entry_slice[0].value = 1;
-        0
     }
 }
