@@ -647,7 +647,7 @@ fn fixed_view_instruction_uses_pin_their_reload_at_the_call_operand() {
 }
 
 #[test]
-fn address_values_and_exhausted_budget_do_not_gain_spill_authority() {
+fn compiler_address_origins_and_exhausted_budget_do_not_gain_spill_authority() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     let source = fixture(NativeTarget::linux_x64());
     let foreign_environment =
