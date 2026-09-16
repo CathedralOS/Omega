@@ -3,6 +3,7 @@ use super::{
     external_local_storage_lane, open_absolute_directory_nofollow, open_cache_custody_directory,
     resolve_local_source_snapshot_with_storage, temp_root, verify_cache_custody_from_open_root,
 };
+use crate::PrimaryGitChoices;
 use std::path::Path;
 
 #[cfg(unix)]
