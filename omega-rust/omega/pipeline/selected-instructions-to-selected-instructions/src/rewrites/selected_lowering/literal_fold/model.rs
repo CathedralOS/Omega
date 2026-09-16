@@ -289,7 +289,7 @@ impl LiteralFoldPolicy {
     }
 
     pub const fn from_canonical_bits(bits: u16) -> Option<Self> {
-        if bits == 0 || bits & !Self::KNOWN_BITS != 0 {
+        if bits == 0 || (bits as u32) & !(Self::KNOWN_BITS as u32) != 0 {
             None
         } else {
             Some(Self {
