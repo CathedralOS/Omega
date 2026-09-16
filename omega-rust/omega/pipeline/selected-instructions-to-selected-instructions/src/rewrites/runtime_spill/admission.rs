@@ -116,11 +116,13 @@ pub(super) fn admit<'source>(
     // This preserves a full GPR in its own eight-byte slot, not a source
     // referent. Narrow values keep their exact type and all resident bits;
     // neither signed widening nor a wider read of source storage is needed.
+    // The integer carrier is payload metadata the reload register retains:
+    // an address-carrier value round-trips its bits through private storage
+    // exactly like a fixed one — a materialized address constant is what
+    // rematerialization (not this rewrite) still refuses to invent.
     let scalar_payload = match victim.scalar_type {
         ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
-        ScalarType::Integer(integer) => {
-            !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64)
-        }
+        ScalarType::Integer(integer) => matches!(integer.bits(), 8 | 16 | 32 | 64),
     };
     // Semantic lineage alone does not locate physical storage definitions.
     // Instruction results and incoming parameters establish those separately.

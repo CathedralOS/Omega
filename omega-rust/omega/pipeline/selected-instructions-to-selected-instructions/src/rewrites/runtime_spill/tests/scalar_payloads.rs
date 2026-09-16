@@ -33,6 +33,11 @@ fn primitive_gpr_spills_preserve_exact_types_and_full_private_storage_on_four_ta
             scalar_types.push(ScalarType::Integer(IntegerType::new(sign, bits).unwrap()));
         }
     }
+    // Address-carrier payloads round-trip through the same eight-byte private
+    // storage; the reload register retains the exact address scalar type.
+    for bits in [8, 16, 32, 64] {
+        scalar_types.push(ScalarType::Integer(IntegerType::address(bits).unwrap()));
+    }
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -134,7 +139,7 @@ fn primitive_gpr_spills_preserve_exact_types_and_full_private_storage_on_four_ta
 }
 
 #[test]
-fn spill_admission_does_not_extend_to_address_or_other_integer_widths() {
+fn spill_admission_admits_address_carriers_and_rejects_non_gpr_integer_widths() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     for sign in [IntegerSign::Unsigned, IntegerSign::Signed] {
@@ -156,7 +161,9 @@ fn spill_admission_does_not_extend_to_address_or_other_integer_widths() {
             );
         }
     }
-    for bits in [8, 16, 32, 64] {
+    // The address carrier alone never widens the admitted widths: payloads
+    // that do not fit one GPR keep rejecting.
+    for bits in [1, 7, 24, 65, 128] {
         let source = typed_fixture(
             target,
             ScalarType::Integer(IntegerType::address(bits).unwrap()),
@@ -165,6 +172,104 @@ fn spill_admission_does_not_extend_to_address_or_other_integer_widths() {
             spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget(),)
                 .unwrap_err(),
             RuntimeSpillError::UnsupportedValue
+        );
+    }
+    // At a GPR width the carrier no longer excludes the victim: the spill and
+    // its independent replay accept, and the reload registers retain the exact
+    // address scalar type.
+    for bits in [8, 16, 32, 64] {
+        let scalar_type = ScalarType::Integer(IntegerType::address(bits).unwrap());
+        let source = typed_fixture(target, scalar_type);
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        assert!(
+            result.transformed().functions[0]
+                .virtual_registers
+                .iter()
+                .skip(5)
+                .all(|register| matches!(
+                    register.origin,
+                    VirtualRegisterOrigin::SpillAddress { .. }
+                ) || register.scalar_type == scalar_type)
+        );
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+    }
+}
+
+#[test]
+fn edge_initialized_address_parameters_spill_with_exact_carrier_bindings() {
+    let address = ScalarType::Integer(IntegerType::address(64).unwrap());
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut source = super::parameters::parameter_fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            // The block parameter, its per-edge copy arguments, and the edge
+            // bindings' declared types all carry the exact address carrier.
+            for register in &mut function.virtual_registers {
+                register.scalar_type = address;
+            }
+            for block in &mut function.blocks {
+                for successor in
+                    crate::rewrites::runtime_spill::control_successors_mut(&mut block.terminator)
+                        .into_iter()
+                        .flatten()
+                {
+                    for binding in &mut successor.bindings {
+                        binding.semantic.scalar_type = address;
+                    }
+                }
+            }
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let transformed = &result.transformed().functions[0];
+        assert_eq!(transformed.local_storage_slots.len(), 1);
+        // Both edge copies gain a following store; every produced reload
+        // register retains the address carrier rather than a fixed integer.
+        for block_index in [1, 3] {
+            assert!(matches!(
+                transformed.blocks[block_index].instructions[1].kind,
+                SelectedInstructionKind::Store64 { .. }
+            ));
+        }
+        assert!(
+            transformed
+                .virtual_registers
+                .iter()
+                .all(|register| register.scalar_type == address
+                    || matches!(register.origin, VirtualRegisterOrigin::SpillAddress { .. }))
+        );
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
         );
     }
 }

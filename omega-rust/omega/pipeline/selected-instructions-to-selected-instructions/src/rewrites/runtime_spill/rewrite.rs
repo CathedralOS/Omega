@@ -41,7 +41,7 @@ fn reload_for_use(
     Ok(reloaded)
 }
 
-/// Store one nonaddress runtime value after its definition and reload before each
+/// Store one runtime value after its definition and reload before each
 /// flexible use. The independently checked output is the only admitted result.
 pub fn spill_selected_runtime_value(
     source: &impl ValidatedSelectedAnalysis,
