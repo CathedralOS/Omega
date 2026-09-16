@@ -124,6 +124,72 @@ fn first_call_argument(
     call_argument(program, machine_symbol, state_symbol, 0)
 }
 
+/// Like `call_argument`, but selects the call whose target is named
+/// `target`, so earlier calls in the same state do not shadow it.
+fn targeted_call_argument(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    target: &str,
+) -> (usize, ExpressionHandle) {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .unwrap();
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)
+        .unwrap();
+    for (index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        let call_arguments = |call: &typed_trees::expression::TableCallExpression| {
+            (call.target.as_str() == target)
+                .then(|| {
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .first()
+                        .copied()
+                })
+                .flatten()
+        };
+        let argument = match statement {
+            StatementNode::Call(call) => (call.target.as_str() == target)
+                .then(|| {
+                    program
+                        .statement_table
+                        .expression_handles(call.arguments)
+                        .first()
+                        .copied()
+                })
+                .flatten(),
+            StatementNode::LocalData(local) => {
+                match program.expression_table.expression(local.initial_value) {
+                    ExpressionNode::Call(call) => call_arguments(call),
+                    _ => None,
+                }
+            }
+            StatementNode::Expression(expression) => {
+                match program.expression_table.expression(*expression) {
+                    ExpressionNode::Call(call) => call_arguments(call),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        if let Some(argument) = argument {
+            return (index, argument);
+        }
+    }
+    panic!("expected a `{target}` call carrying an argument");
+}
+
 #[test]
 fn state_parameter_arrival_transports_its_named_transition_argument() {
     let program = typed_program(
@@ -360,6 +426,297 @@ fn mutable_stable_carrier_parameters_transport_field_snapshots() {
         entry_operand(&program, machine, next, call_index, argument),
         None,
     );
+}
+
+#[test]
+fn mutable_field_versions_transport_unwritten_fields() {
+    // Writes and exclusive borrows confined to a sibling projection leave the
+    // read field's bound snapshot intact: `rec.value` still transports the
+    // arrival's field.
+    for source in [
+        // A write to a sibling field.
+        "data Holder { value: bool; other: bool; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             transition true { true -> next(h) false -> false }
+             state next(mut rec: Holder) -> bool {
+                 rec.other = true;
+                 sink(rec.value);
+                 rec.value
+             }
+         }",
+        // An exclusive borrow of a sibling field cannot write `value`.
+        "data Holder { value: bool; other: bool; }
+         machine corrupt(slot: &mut bool) { slot = true; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             transition true { true -> next(h) false -> false }
+             state next(mut rec: Holder) -> bool {
+                 corrupt(&mut rec.other);
+                 sink(rec.value);
+                 rec.value
+             }
+         }",
+        // A write below a different projection (`inner.flag`) does not reach
+        // the sibling `value` field.
+        "data Inner { flag: bool; }
+         data Holder { inner: Inner; value: bool; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             transition true { true -> next(h) false -> false }
+             state next(mut rec: Holder) -> bool {
+                 rec.inner.flag = true;
+                 sink(rec.value);
+                 rec.value
+             }
+         }",
+        // An indexed write inside `items` is opaque below `items`, which
+        // still diverges from the sibling `value` at the first segment.
+        "data Holder { value: bool; items: [bool; 2]; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             transition true { true -> next(h) false -> false }
+             state next(mut rec: Holder) -> bool {
+                 rec.items[0] = true;
+                 sink(rec.value);
+                 rec.value
+             }
+         }",
+    ] {
+        let program = typed_program(source);
+        let (machine, next) = named_state(&program, "value", "next");
+        let (call_index, argument) = targeted_call_argument(&program, machine, next, "sink");
+        assert_eq!(
+            entry_operand(&program, machine, next, call_index, argument),
+            Some(CrashPredicateExpression::Member {
+                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                member: "value".to_owned(),
+            }),
+            "{source}"
+        );
+    }
+
+    // A `let mut` local versions its bound record's fields the same way.
+    let program = typed_program(
+        "data Holder { value: bool; other: bool; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             let mut rec: Holder = h;
+             rec.other = true;
+             sink(rec.value);
+             rec.value
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, argument) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "value".to_owned(),
+        }),
+    );
+}
+
+#[test]
+fn mutable_field_versions_end_at_the_read_projection() {
+    // Any write or exclusive reach that can touch the read projection ends
+    // its provenance.
+    for (source, target) in [
+        // A write to the read field itself.
+        (
+            "data Holder { value: bool; other: bool; }
+             machine sink(input: bool) -> bool { input }
+             machine value(h: Holder) -> bool {
+                 transition true { true -> next(h) false -> false }
+                 state next(mut rec: Holder) -> bool {
+                     rec.value = true;
+                     sink(rec.value);
+                     rec.value
+                 }
+             }",
+            "sink",
+        ),
+        // A whole-binding write covers every field.
+        (
+            "data Holder { value: bool; other: bool; }
+             machine sink(input: bool) -> bool { input }
+             machine value(h: Holder) -> bool {
+                 transition true { true -> next(h) false -> false }
+                 state next(mut rec: Holder) -> bool {
+                     rec = h;
+                     sink(rec.value);
+                     rec.value
+                 }
+             }",
+            "sink",
+        ),
+        // An exclusive borrow of the read field may write through it.
+        (
+            "data Holder { value: bool; other: bool; }
+             machine corrupt(slot: &mut bool) { slot = true; }
+             machine sink(input: bool) -> bool { input }
+             machine value(h: Holder) -> bool {
+                 transition true { true -> next(h) false -> false }
+                 state next(mut rec: Holder) -> bool {
+                     corrupt(&mut rec.value);
+                     sink(rec.value);
+                     rec.value
+                 }
+             }",
+            "sink",
+        ),
+        // An exclusive borrow of the whole binding reaches the field.
+        (
+            "data Holder { value: bool; other: bool; }
+             machine consume(slot: &mut Holder) { slot.other = true; }
+             machine sink(input: bool) -> bool { input }
+             machine value(h: Holder) -> bool {
+                 transition true { true -> next(h) false -> false }
+                 state next(mut rec: Holder) -> bool {
+                     consume(&mut rec);
+                     sink(rec.value);
+                     rec.value
+                 }
+             }",
+            "sink",
+        ),
+        // Reading a whole field covers writes inside it: `rec.inner` still
+        // observes the `inner.flag` write.
+        (
+            "data Inner { flag: bool; }
+             data Holder { inner: Inner; }
+             machine sink_inner(input: Inner) -> bool { input.flag }
+             machine value(h: Holder) -> bool {
+                 transition true { true -> next(h) false -> false }
+                 state next(mut rec: Holder) -> bool {
+                     rec.inner.flag = true;
+                     sink_inner(rec.inner);
+                     true
+                 }
+             }",
+            "sink_inner",
+        ),
+        // An indexed position cannot be separated below its field, so a read
+        // covering `items` still observes the element write.
+        (
+            "data Holder { value: bool; items: [bool; 2]; }
+             machine sink_items(input: [bool; 2]) -> bool { input[0] }
+             machine value(h: Holder) -> bool {
+                 transition true { true -> next(h) false -> false }
+                 state next(mut rec: Holder) -> bool {
+                     rec.items[0] = true;
+                     sink_items(rec.items);
+                     rec.value
+                 }
+             }",
+            "sink_items",
+        ),
+    ] {
+        let program = typed_program(source);
+        let (machine, next) = named_state(&program, "value", "next");
+        let (call_index, argument) = targeted_call_argument(&program, machine, next, target);
+        assert_eq!(
+            entry_operand(&program, machine, next, call_index, argument),
+            None,
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn mutable_field_versions_track_uniform_projections_across_self_edges() {
+    // `-> self` rebinds the whole storage, but the produced operand only
+    // asserts `value` is uniform across arrivals — a sibling-field drift does
+    // not move it. The projection stays transportable.
+    let program = typed_program(
+        "data Holder { value: bool; other: bool; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             transition true { true -> next(h) false -> false }
+             state next(mut rec: Holder) -> bool {
+                 sink(rec.value);
+                 rec.other = true;
+                 transition true { true -> self false -> false }
+             }
+         }",
+    );
+    let (machine, next) = named_state(&program, "value", "next");
+    let (call_index, argument) = first_call_argument(&program, machine, next);
+    assert_eq!(
+        entry_operand(&program, machine, next, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "value".to_owned(),
+        }),
+        "the `-> self` edge preserves `value` even though `other` drifted"
+    );
+
+    // A write to the read projection itself before the edge still ends the
+    // snapshot: the next arrival binds a different `value`.
+    let program = typed_program(
+        "data Holder { value: bool; other: bool; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             transition true { true -> next(h) false -> false }
+             state next(mut rec: Holder) -> bool {
+                 sink(rec.value);
+                 rec.value = true;
+                 transition true { true -> self false -> false }
+             }
+         }",
+    );
+    let (machine, next) = named_state(&program, "value", "next");
+    let (call_index, argument) = first_call_argument(&program, machine, next);
+    assert_eq!(
+        entry_operand(&program, machine, next, call_index, argument),
+        None,
+        "the `-> self` edge would rebind `value` to the written storage"
+    );
+}
+
+#[test]
+fn mutable_field_snapshots_discharge_the_selected_crash_route() {
+    // `rec.value` keeps its bound snapshot across the sibling-field write, so
+    // the surviving Trap route is exactly `h.value` — covered only when
+    // `value` publishes a same-cause route for that projection.
+    for (declaration, expect_ok) in [
+        ("crashes Trap h.value", true),
+        ("crashes Trap h.other", false),
+        ("", false),
+    ] {
+        let program = typed_program(&format!(
+            "pub data Holder {{ value: bool; other: bool; }}
+             {TRIGGER}
+             pub machine value(h: Holder) -> bool
+             {declaration}
+             {{
+                 transition true {{ true -> next(h) false -> false }}
+                 state next(mut rec: Holder) -> bool {{
+                     rec.other = true;
+                     let r: bool = trigger(rec.value);
+                     r
+                 }}
+             }}"
+        ));
+        match crate::lower_typed_trees(program) {
+            Ok(_) => assert!(expect_ok, "{declaration} must not check"),
+            Err(diagnostics) => {
+                assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
+                assert!(
+                    diagnostics.iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("uncovered Trap crash route")),
+                    "{declaration}: {diagnostics:#?}"
+                );
+            }
+        }
+    }
 }
 
 #[test]

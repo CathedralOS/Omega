@@ -10,21 +10,23 @@
 //! A mutable binding additionally keeps that bound snapshot only while its
 //! storage is pristine: a write, an exclusive borrow, or a mutable receiver
 //! call before the read (or before a `-> self`/same-state forwarding edge
-//! that carries the storage into the next arrival) ends provenance. Mutable
-//! bindings with unstable contents, divergent arrivals and unresolvable
-//! cycles retain no entry identity. Substitution transports a proven origin,
-//! never re-reads an initializer after later operands execute. This is source
-//! provenance, not a Terminal certificate.
+//! that carries the storage into the next arrival) ends provenance. Field
+//! projections version the storage below the binding root, so a field read
+//! survives writes confined to disjoint siblings. Mutable bindings with
+//! unstable contents, divergent arrivals and unresolvable cycles retain no
+//! entry identity. Substitution transports a proven origin, never re-reads an
+//! initializer after later operands execute. This is source provenance, not a
+//! Terminal certificate.
 
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use validation::has_stable_observable_contents;
 
 mod mutable;
-use mutable::storage_holds_bound_value;
+use mutable::{PlaceSegment, storage_holds_bound_value};
 
 /// Arrival provenance can revisit a state parameter through a transition
 /// cycle, so the fold carries a depth bound. Exhaustion is unproven
@@ -87,17 +89,56 @@ fn entry_operand_at(
         ExpressionNode::Member(member)
             if member.member_symbol.is_valid() && member.case_variant.is_none() =>
         {
-            Some(CrashPredicateExpression::Member {
-                receiver: Box::new(entry_operand_at(
+            // Walk the contiguous field projection down to its base so a
+            // mutable root's pristine-storage check can version the bound
+            // snapshot per field: a sibling write does not overwrite this
+            // projection. Anything below a case payload or an unresolvable
+            // member is not a plain field path and keeps its own resolution.
+            let mut segments = vec![(member.member_symbol, member.member.as_str().to_owned())];
+            let mut base = member.receiver;
+            loop {
+                if !program.expression_table.expression_is_valid(base) {
+                    return None;
+                }
+                match program.expression_table.expression(base) {
+                    ExpressionNode::Member(inner)
+                        if inner.member_symbol.is_valid() && inner.case_variant.is_none() =>
+                    {
+                        segments.push((inner.member_symbol, inner.member.as_str().to_owned()));
+                        base = inner.receiver;
+                    }
+                    _ => break,
+                }
+            }
+            segments.reverse();
+            let root = match program.expression_table.expression(base) {
+                ExpressionNode::Name(path) => entry_operand_name_at(
                     program,
                     machine_symbol,
                     state_symbol,
                     before_statement,
-                    member.receiver,
+                    path,
+                    &segments
+                        .iter()
+                        .map(|(symbol, _)| PlaceSegment::Field(*symbol))
+                        .collect::<Vec<_>>(),
                     depth + 1,
-                )?),
-                member: member.member.as_str().to_owned(),
-            })
+                )?,
+                _ => entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    base,
+                    depth + 1,
+                )?,
+            };
+            Some(segments.iter().fold(root, |receiver, (_, member)| {
+                CrashPredicateExpression::Member {
+                    receiver: Box::new(receiver),
+                    member: member.clone(),
+                }
+            }))
         }
         ExpressionNode::Binary(binary)
             if matches!(
@@ -159,77 +200,101 @@ fn entry_operand_at(
                 )?),
             })
         }
-        ExpressionNode::Name(path) => {
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-                || !path.symbol.is_valid()
-                || path.head_symbol != path.symbol
+        ExpressionNode::Name(path) => entry_operand_name_at(
+            program,
+            machine_symbol,
+            state_symbol,
+            before_statement,
+            path,
+            &[],
+            depth,
+        ),
+        _ => None,
+    }
+}
+
+/// A single-member name's entry operand. `field_path` is the field projection
+/// below this binding that the enclosing `Member` chain reads: for a mutable
+/// local or parameter the pristine-storage window only has to keep that
+/// projection unwritten, since sibling fields version independently.
+fn entry_operand_name_at(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    path: &TableNamePath,
+    field_path: &[PlaceSegment],
+    depth: u32,
+) -> Option<CrashPredicateExpression> {
+    if program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        != 1
+        || !path.symbol.is_valid()
+        || path.head_symbol != path.symbol
+    {
+        return None;
+    }
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)?;
+    let preceding = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(..before_statement)?;
+    for (ordinal, statement) in preceding.iter().enumerate() {
+        if let typed_trees::statement::StatementNode::LocalData(local) = statement
+            && local.symbol == path.symbol
+        {
+            if !has_stable_observable_contents(program, local.type_reference)
+                || (local.is_mutable
+                    && !storage_holds_bound_value(
+                        program,
+                        machine_symbol,
+                        state,
+                        ordinal + 1,
+                        before_statement.saturating_add(1),
+                        local.symbol,
+                        field_path,
+                    ))
             {
                 return None;
             }
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
-            let state = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)?;
-            let preceding = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(..before_statement)?;
-            for (ordinal, statement) in preceding.iter().enumerate() {
-                if let typed_trees::statement::StatementNode::LocalData(local) = statement
-                    && local.symbol == path.symbol
-                {
-                    if !has_stable_observable_contents(program, local.type_reference)
-                        || (local.is_mutable
-                            && !storage_holds_bound_value(
-                                program,
-                                machine_symbol,
-                                state,
-                                ordinal + 1,
-                                before_statement.saturating_add(1),
-                                local.symbol,
-                            ))
-                    {
-                        return None;
-                    }
-                    // This transports the bound value, not a current read of
-                    // its storage. A mutable local is admitted only while no
-                    // statement between its initializer and this read could
-                    // have overwritten it or lent it exclusive access; the
-                    // containing statement itself stays in the window because
-                    // its earlier operands may already have run a call that
-                    // writes through an exclusive borrow. Every initializer
-                    // dependency must independently be entry-relative.
-                    // Decreasing the prefix also prevents recursive aliases.
-                    return entry_operand_at(
-                        program,
-                        machine_symbol,
-                        state_symbol,
-                        ordinal,
-                        local.initial_value,
-                        depth + 1,
-                    );
-                }
-            }
-            state_parameter_entry_operand(
+            // This transports the bound value, not a current read of its
+            // storage. A mutable local is admitted only while no statement
+            // between its initializer and this read could have overwritten
+            // the read projection or lent it exclusive access; the containing
+            // statement itself stays in the window because its earlier
+            // operands may already have run a call that writes through an
+            // exclusive borrow. Every initializer dependency must
+            // independently be entry-relative. Decreasing the prefix also
+            // prevents recursive aliases.
+            return entry_operand_at(
                 program,
-                machine,
                 machine_symbol,
                 state_symbol,
-                path.symbol,
-                before_statement,
-                depth,
-            )
+                ordinal,
+                local.initial_value,
+                depth + 1,
+            );
         }
-        _ => None,
     }
+    state_parameter_entry_operand(
+        program,
+        machine,
+        machine_symbol,
+        state_symbol,
+        path.symbol,
+        before_statement,
+        field_path,
+        depth,
+    )
 }
 
 fn builtin_binary_meaning(
@@ -260,8 +325,10 @@ fn builtin_binary_meaning(
 /// forwarding this same parameter back to its own state is tautological under
 /// the same rule. Every remaining edge must resolve to one identical
 /// entry-relative operand, or provenance stays unknown rather than picking a
-/// winner. For a mutable parameter the read itself must additionally precede
-/// any statement that could overwrite or exclusively borrow its storage.
+/// winner. For a mutable parameter the read itself and every self-referential
+/// edge must keep the projected `field_path` pristine — the produced `Member`
+/// operand asserts only that projection is uniform across arrivals, never
+/// that the whole bound record is.
 fn state_parameter_entry_operand(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -269,6 +336,7 @@ fn state_parameter_entry_operand(
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
     before_statement: usize,
+    field_path: &[PlaceSegment],
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
     let states = program.machine_states(machine);
@@ -291,6 +359,7 @@ fn state_parameter_entry_operand(
                 0,
                 before_statement.saturating_add(1),
                 parameter_symbol,
+                field_path,
             ))
     {
         return None;
@@ -329,9 +398,11 @@ fn state_parameter_entry_operand(
                 == 1
         {
             // The edge forwards the parameter's current storage back into its
-            // own arrival slot. That is tautological only while the storage
-            // still holds the bound value at the edge; the edge's own argument
-            // expressions count because they evaluate at this point.
+            // own arrival slot. That is tautological only while the read
+            // projection still holds the bound value at the edge — a sibling
+            // field may change between arrivals without moving this operand.
+            // The edge's own argument expressions count because they evaluate
+            // at this point.
             if mutable
                 && !storage_holds_bound_value(
                     program,
@@ -340,6 +411,7 @@ fn state_parameter_entry_operand(
                     0,
                     statement_ordinal.saturating_add(1),
                     parameter_symbol,
+                    field_path,
                 )
             {
                 return None;
@@ -363,9 +435,11 @@ fn state_parameter_entry_operand(
         }
     }
     if mutable {
-        // `-> self` carries the current storage into the next arrival. The
-        // bound snapshot survives only while the storage is still pristine at
-        // every self edge, including the edge's own evaluated arguments.
+        // `-> self` carries the current storage into the next arrival, so the
+        // bound snapshot survives only while the read projection is still
+        // pristine at every self edge — including the edge's own evaluated
+        // arguments. A sibling field may drift between arrivals; the produced
+        // `Member` operand only asserts the projected field is uniform.
         for ordinal in mutable::self_target_ordinals(program, state) {
             if !storage_holds_bound_value(
                 program,
@@ -374,6 +448,7 @@ fn state_parameter_entry_operand(
                 0,
                 ordinal.saturating_add(1),
                 parameter_symbol,
+                field_path,
             ) {
                 return None;
             }
