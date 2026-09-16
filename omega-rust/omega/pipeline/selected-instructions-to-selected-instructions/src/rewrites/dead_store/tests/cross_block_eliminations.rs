@@ -9,11 +9,11 @@ use crate::rewrites::dead_store::{
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
-    LocalStorageSlotId, PackedByteWidth, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
-    SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedInstructionId,
-    SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
-    SelectedStructuralBinding, SelectedStructuralCaseEdge, SelectedStructuralTransport,
-    SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+    FrameStorageSlotId, LocalStorageSlotId, PackedByteWidth, SelectedBlock, SelectedBlockId,
+    SelectedBlockOrigin, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
+    SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
+    SelectedMemoryAccessRole, SelectedStructuralBinding, SelectedStructuralCaseEdge,
+    SelectedStructuralTransport, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
@@ -58,6 +58,73 @@ fn cross_block_covering_store_eliminates_across_the_edge() {
                 .map(|access| (access.instruction, access.role))
                 .collect::<Vec<_>>(),
             vec![(KILLER, SelectedMemoryAccessRole::WritePlace)]
+        );
+        validate_dead_store_elimination(
+            &source,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
+/// The covering write may equally be a `Store64` into the dead place's own
+/// local storage — here a block-parameter slot — at the head of the crossed
+/// successor block, carrying the `WriteLocal` row for that slot.
+#[test]
+fn cross_block_local_slot_write_covers() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let slot = LocalStorageSlotId::StructuralBlockParameter {
+            block: BlockId::new(2).unwrap(),
+            place: place(),
+        };
+        let source = mutated_chained(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.blocks[1].instructions[0] = instruction(
+                KILLER,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[SCRATCH],
+            );
+            function.memory_accesses[1].role = SelectedMemoryAccessRole::WriteLocal { slot };
+        });
+        let result =
+            eliminate_selected_dead_store(&source, 0, STORE, &environment, budget()).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN]
+        );
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![(KILLER, SelectedMemoryAccessRole::WriteLocal { slot })]
         );
         validate_dead_store_elimination(
             &source,
