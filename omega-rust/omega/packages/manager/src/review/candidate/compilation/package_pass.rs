@@ -183,6 +183,22 @@ pub(super) fn compile_dependency_closure(
         } else {
             &default_entry
         };
+        // Every package build activation runs against a captured immutable
+        // snapshot of its own sealed source custody, never the live custody
+        // root: build evaluation captures the inventory from the same
+        // canonical metadata index the binding validated above, materializes
+        // a fresh private Source root for this occurrence, and records the
+        // inventory extent in the review's build observation. The invocation
+        // roster stays empty on this route. The outputs a package build must
+        // complete are declared by the build itself through
+        // `builder.output.require`, registered during evaluation, and settled
+        // against sealed staged custody before the result publishes; package
+        // review has no fixed-output requirement of its own, and a roster
+        // inferred here from the declaration would be a second roster source
+        // that scoped execution forbids (a conditional branch omitting
+        // `require` must not be reinterpreted as having checked the artifact).
+        let build_snapshot =
+            build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
         let request = CheckedCompileRequest {
             build_dir: Some(
                 package_build_root(build_session_root, &key, custody.resolution()).to_owned(),
@@ -190,6 +206,7 @@ pub(super) fn compile_dependency_closure(
             package_inputs: Some(inputs),
             filesystem_sponsor: Some(filesystem_sponsor.clone()),
             evaluation_sponsor: Some(evaluation_sponsor.clone()),
+            build_snapshot: Some(build_snapshot),
             ..CheckedCompileRequest::new(entry, Some(target))
         };
         let position = closure
