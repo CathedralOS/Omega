@@ -8,7 +8,10 @@ use super::{
     named_value_type_reference,
 };
 use language_semantics::ReferenceAccess;
+use numerics::bignum::BigInt;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::types::{FixedArrayLength, TypeConstraintNode};
 
 /// Reference correspondence does not form a loan. Array-to-slice adaptation
 /// retains element identity and readable access; callers still establish the
@@ -67,6 +70,158 @@ pub(super) fn reference_type_matches(
                 *required_referee,
                 substitutions,
             ))
+        || fixed_array_binds_open_length(
+            program,
+            *actual_referee,
+            *required_referee,
+            substitutions,
+        )
+}
+
+/// A `const` binder in a fixed-array length is an inference slot, not a closed
+/// identity: an actual literal length supplies the binding only when the
+/// literal satisfies the binder's declared carrier (primitive fit plus every
+/// declared closed range, exactly as `validate_const_integer_range` checks an
+/// explicit const argument), so `&[u8; 5]` still fails a `u64[0..=3]`
+/// parameter rather than weakening the range check. A forwarded caller binder
+/// binds only when both declared carriers match exactly -- the same rule
+/// `callee<K>()` and specialization's own `call_bindings` inference apply to
+/// explicit const arguments. The required side keeps its authored constraint
+/// shells: a `([u8; N] in Domain)` parameter cannot be satisfied by shape
+/// alone.
+fn fixed_array_binds_open_length(
+    program: &TypedTrees,
+    mut actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let TypeReferenceNode::FixedArray {
+        element_type: required_element,
+        length:
+            FixedArrayLength::ConstParameter {
+                symbol: required_symbol,
+                ..
+            },
+    } = program.type_reference_table.type_reference(required)
+    else {
+        return false;
+    };
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(actual)
+    {
+        actual = *base_type;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type: actual_element,
+        length: actual_length,
+    } = program.type_reference_table.type_reference(actual)
+    else {
+        return false;
+    };
+    if program.type_identity(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(*actual_element)
+    }) != program.normalized_type_identity(*required_element)
+    {
+        return false;
+    }
+    let Some(required_declared) = const_length_declared_type(program, *required_symbol) else {
+        return false;
+    };
+    match actual_length {
+        FixedArrayLength::Literal(length) => {
+            literal_satisfies_declared_const(program, *length, required_declared)
+        }
+        FixedArrayLength::ConstParameter {
+            symbol: actual_symbol,
+            ..
+        } => const_length_declared_type(program, *actual_symbol).is_some_and(|actual_declared| {
+            crate::value_custody::type_references::type_references_match(
+                program,
+                actual_declared,
+                required_declared,
+            )
+        }),
+        FixedArrayLength::ConstCall { .. } => false,
+    }
+}
+
+/// The declared integer carrier of a `Const`/`Value` type parameter -- the
+/// type an inferred or forwarded length argument must satisfy. Type
+/// parameters live in one flat arena across machines, data, domains,
+/// operators, conformances and signatures, so a symbol lookup finds the exact
+/// declaring telescope without knowing the call's owner.
+fn const_length_declared_type(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    program
+        .data_type_parameters
+        .iter()
+        .find(|(_, parameter)| parameter.symbol == symbol)
+        .and_then(|(_, parameter)| match parameter.kind {
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => Some(type_reference),
+            _ => None,
+        })
+}
+
+/// Whether a literal array length is admissible as the const binder's value:
+/// the declared primitive must accept the integer and every declared closed
+/// range must contain it. A range endpoint that is not closed (still open or
+/// non-integer) supplies no provable bound, so the match refuses rather than
+/// inferring a length the declared carrier might exclude.
+fn literal_satisfies_declared_const(
+    program: &TypedTrees,
+    length: usize,
+    declared: TypeReferenceHandle,
+) -> bool {
+    let Some(primitive) = program.primitive_type_reference(declared) else {
+        return false;
+    };
+    let Ok(value) = i128::try_from(length) else {
+        return false;
+    };
+    if !primitive.accepts_integer_literal()
+        || !crate::value_custody::type_references::const_integer_value_fits_primitive(
+            primitive, value,
+        )
+    {
+        return false;
+    }
+    let exact = BigInt::from_i128(value);
+    let mut carrier = declared;
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(carrier)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                continue;
+            };
+            let Some((minimum, maximum)) =
+                crate::closed_integer_range_bound(program, *minimum).zip(
+                    crate::closed_integer_range_maximum(program, *maximum, *end_inclusive),
+                )
+            else {
+                return false;
+            };
+            if exact < minimum || exact > maximum {
+                return false;
+            }
+        }
+        carrier = *base_type;
+    }
+    true
 }
 
 pub(super) fn projected_matches_reference(
@@ -105,7 +260,8 @@ pub(super) fn projected_matches_reference(
     // field's actual type. Member syntax alone cannot match an arbitrary referee.
     *required_access == ReferenceAccess::Shared
         && (actual_identity(actual) == program.normalized_type_identity(*required_referee)
-            || owned_array_projects_to_slice(program, actual, *required_referee, &substitutions))
+            || owned_array_projects_to_slice(program, actual, *required_referee, &substitutions)
+            || fixed_array_binds_open_length(program, actual, *required_referee, &substitutions))
 }
 
 /// Shape correspondence for a shared view, not a loan or a domain proof.
