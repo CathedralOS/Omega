@@ -524,7 +524,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   newly structural rejections from canonical-replay mismatch to
   `InvalidEncodedEffects`). Remaining: provenance, cleanup, and
   logical-fuel dimensions; Windows and macOS runs were unavailable on
-  this host.
+  this host. Witnessed while adding the i32 saturating family: selected
+  liveness (`analyses/liveness/compute.rs`) admits early-clobber outputs
+  only as one early `Def` among `Use`s or as all-`Def`s-early, and
+  `fixed_precolored_intervals` rejects early-clobber on a fixed view, yet
+  the x86-64 `WrappingRemainderI64` row declares a fixed `rax` `Def` beside
+  an early-clobber fixed `rdx`, which those checks would refuse; the row has
+  only ever executed on the ARM64 host. Validate it under the same rules
+  before an x86-64 host runs it.
 
 ## Register allocation and frames
 
