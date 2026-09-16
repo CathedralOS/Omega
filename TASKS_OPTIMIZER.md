@@ -925,7 +925,30 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   substitution, and wrong-policy negatives; the replay restates both
   grammars through its own `AndOnes`/`AndOnesLeft` source shapes,
   selects the family on the literal's value alone, and never consults
-  the pair descriptor). Remaining: further unit roles, stack- and
+  the pair descriptor).
+  `PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses`
+  declares the constant-result grammar extended past the scalar `Def`
+  result: the operand-0 literal alone fixes the result, the operand-1
+  `Use` drops with the form, and every `Use` past the result drops only
+  under provenance custody requiring each register to be defined in the
+  function solely by `MaterializeI64` instructions producing
+  `Unsigned(0)` — the provably-zero high-half input an x86-64 `div`
+  realization reads. `EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE` folds
+  `MaterializeI64(0)` feeding `ExactDivideU64` at operand 0 into a
+  `MaterializeI64` of zero at the result register under
+  `LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1` — `0 / x` is `0` for every
+  `x` the kind's carried nonzero-divisor obligation admits — with
+  `FaultDischargedByObligation` now covering the `ExactDivideU64` kind's
+  recorded obligation and `BoundConsumerOperands` admitting the pinned
+  form's `fixed_view` decorations while rejecting `tied_to` and
+  `early_clobber` (502 crate lib tests pass, including firing on both
+  Linux targets, nonzero-dividend, missing-obligation, auxiliary-custody,
+  forbidden-binding, decision-field substitution, and wrong-policy
+  negatives; the replay restates the grammar through its own
+  `DivideZeroDividend` source shape — re-deriving the literal, result
+  register, dropped-`Use` custody, and obligation custody from the
+  instruction record — and never consults the pair descriptor).
+  Remaining: further unit roles, stack- and
   control-flow-carrying relationships, and trap relationships beyond the
   existing `FaultDischargedByLiteral` and `FaultDischargedByObligation`
   descriptors. Those fault-discharge variants do not admit arbitrary trap
