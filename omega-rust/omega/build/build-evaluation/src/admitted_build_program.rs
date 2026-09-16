@@ -2,18 +2,18 @@
 //! build occurrence into an opaque `AdmittedBuildProgram` before anything
 //! runs.
 
-use crate::configuration::BuildConfig;
-use crate::execute_admitted_build_program;
-use crate::filesystem_scope::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
-};
-use crate::observations::{BuildEvaluationUsage, BuildObservationSummary};
-use crate::optimization;
-use crate::vocabulary;
-use crate::vocabulary::{
+use crate::admission::configuration::BuildConfig;
+use crate::admission::vocabulary;
+use crate::admission::vocabulary::{
     TargetBuildVocabulary, build_reaches_filesystem_facet, has_exact_toolchain_build_facet,
     is_build_machine, target_build_vocabulary, validate_immutable_build_target,
 };
+use crate::evidence::filesystem_scope::{
+    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
+};
+use crate::evidence::observations::{BuildEvaluationUsage, BuildObservationSummary};
+use crate::execute_admitted_build_program;
+use crate::optimization;
 use build_output::PackageGeneratedSource;
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemAccess,

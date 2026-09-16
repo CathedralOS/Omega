@@ -17,18 +17,18 @@ mod machine_evaluation;
 mod observation_projection;
 mod output_custody;
 
-use crate::admitted_build_program::{AdmittedBuildMachine, SelectedAdmittedBuildMachine};
-use crate::configuration::{BuildConfig, extract_build_config};
-use crate::declarations::{
+use crate::admission::configuration::{BuildConfig, extract_build_config};
+use crate::admission::declarations::{
     harvest_behavior_exclusions, harvest_provider_selections, harvest_root_grants,
     harvest_wire_compatibility_demands,
 };
-use crate::observations::{
+use crate::admission::selection::root_bindings::collect_root_bindings;
+use crate::admitted_build_program::{AdmittedBuildMachine, SelectedAdmittedBuildMachine};
+use crate::evidence::observations::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemReplayDisposition,
     BuildFilesystemReplayVerdict, BuildObservationClass, BuildObservationSummary,
 };
-use crate::replay_eligibility::receipted_output_entries;
-use crate::selection::root_bindings::collect_root_bindings;
+use crate::evidence::replay_eligibility::receipted_output_entries;
 use crate::{AdmittedBuildProgram, ComputedBuildConfig};
 use diagnostics::Diagnostic;
 

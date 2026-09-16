@@ -1,7 +1,7 @@
 //! Provider settlement for the checked program: plans derived, validated
 //! and selected with provenance over the settled target machines.
 
-use crate::target_machines::SelectedTargetMachineDeclarations;
+use crate::admission::target_machines::SelectedTargetMachineDeclarations;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;

@@ -2,8 +2,8 @@
 //! settling the compiler-owned required-output obligations, and selecting the
 //! generated sources the run handed off.
 
-use crate::filesystem_scope::BUILD_OUTPUT_ROOT_IDENTITY;
-use crate::observations::{BuildIncludedSourceHandoff, BuildRequiredOutputSettlement};
+use crate::evidence::filesystem_scope::BUILD_OUTPUT_ROOT_IDENTITY;
+use crate::evidence::observations::{BuildIncludedSourceHandoff, BuildRequiredOutputSettlement};
 use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, PackageGeneratedSource,
     select_included_sources,

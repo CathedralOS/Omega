@@ -1,4 +1,4 @@
-use crate::vocabulary::is_exact_toolchain_build_prelude_data;
+use crate::admission::vocabulary::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 

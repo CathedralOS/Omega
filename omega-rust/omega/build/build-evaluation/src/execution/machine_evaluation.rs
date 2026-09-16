@@ -2,7 +2,7 @@
 //! replay under the recognized filesystem replay, and the usage evidence
 //! both runs leave behind.
 
-use crate::observations::BuildEvaluationUsage;
+use crate::evidence::observations::BuildEvaluationUsage;
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
     BuildMachineFilesystemMetadataLayout, BuildTimeValue, PreparedBuildMachineEntry,
