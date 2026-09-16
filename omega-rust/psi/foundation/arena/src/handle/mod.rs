@@ -1,3 +1,7 @@
+//! Arena addressing: the typed `Handle` and the contiguous `HandleSpan`.
+
+pub(crate) mod handle_span;
+
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;

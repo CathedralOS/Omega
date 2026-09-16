@@ -1,3 +1,7 @@
+//! The generational paged arena and the free-slot stack it recycles through.
+
+pub(crate) mod free_stack;
+
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -5,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use arc_swap::ArcSwapOption;
 
 use crate::Handle;
-use crate::free_stack::FreeStack;
+use crate::generational_paged_arena::free_stack::FreeStack;
 
 const SLOT_EMPTY: u8 = 0;
 const SLOT_ACTIVE: u8 = 1;
