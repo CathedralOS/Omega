@@ -90,11 +90,11 @@ fn expected_size(
 
 /// Conditional-branch declarations share one constraint key, so branch
 /// declarations are found by (key, semantic) rather than by key alone.
-fn branch_declaration_mut<'a>(
-    catalog: &'a mut MachineEffectCatalog,
+fn branch_declaration_mut(
+    catalog: &mut MachineEffectCatalog,
     key: RegisterConstraintKey,
     semantic: MachineSemanticKind,
-) -> &'a mut MachineEffectDeclaration {
+) -> &mut MachineEffectDeclaration {
     catalog
         .declarations
         .iter_mut()
