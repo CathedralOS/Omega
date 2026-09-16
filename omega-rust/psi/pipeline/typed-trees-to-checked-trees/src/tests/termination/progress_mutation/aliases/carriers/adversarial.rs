@@ -71,7 +71,7 @@ fn explicit_mutable_exposure_retires_readonly_carrier_origins() {
 
 #[test]
 fn an_implicit_mutable_statement_receiver_retires_readonly_carrier_origins() {
-    assert_readonly_carrier_has_no_subject("carrier.touch();");
+    assert_readonly_carrier_has_no_subject("_ = carrier.touch();");
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn an_implicit_mutable_value_receiver_retires_readonly_carrier_origins() {
 #[test]
 fn an_implicit_mutable_reference_receiver_preserves_a_disjoint_subject() {
     for operation in [
-        "carrier.context.increment_counter();",
+        "_ = carrier.context.increment_counter();",
         "let ignored: u64 = carrier.context.increment_counter();",
     ] {
         assert_receiver_origin(

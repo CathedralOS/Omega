@@ -48,6 +48,26 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     // realization, so allowing an ordinary body call would turn "introduces
     // no fact" into a hidden runtime implementation hole.  Contract
     // expressions are not body call sites and remain free to name the symbol.
+    report_bodyless_boundary_symbol_call(callee_machine, target_name, diagnostics);
+    validate_type_parameter_instantiation_bounds(
+        program,
+        symbols,
+        callee_machine,
+        callee_state,
+        target_name,
+        arguments,
+        current_machine,
+        current_state,
+        self_is_argument,
+        diagnostics,
+    );
+}
+
+fn report_bodyless_boundary_symbol_call(
+    callee_machine: &Machine,
+    target_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let compiler_placed_accessor = callee_machine
         .attached_data
         .as_ref()
@@ -63,7 +83,56 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
             "bodyless boundary symbol `{target_name}` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider"
         )));
     }
+}
 
+/// The instantiation-bound half of `validate_machine_call_type_parameter_bounds`
+/// WITHOUT the execution fence. The resolved-target receiver rung adds
+/// result-use, arity, and bound checks to calls the name ladder missed; it does
+/// not re-decide whether the selected symbol may execute. Resolution admitted
+/// those targets before validation ran (a provider closure invokes its own
+/// boundary leaf directly, e.g. `ConsoleNativeProvider::write_byte(byte)`), and
+/// receiver-place legality stays with the downstream dispatch blockers -- the
+/// fence keeps its existing named-rung owners only.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_resolved_target_type_parameter_bounds(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    callee_machine: &Machine,
+    callee_state: &State,
+    target_name: &str,
+    arguments: &[ExpressionHandle],
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    self_is_argument: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_type_parameter_instantiation_bounds(
+        program,
+        symbols,
+        callee_machine,
+        callee_state,
+        target_name,
+        arguments,
+        current_machine,
+        current_state,
+        self_is_argument,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_type_parameter_instantiation_bounds(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    callee_machine: &Machine,
+    callee_state: &State,
+    target_name: &str,
+    arguments: &[ExpressionHandle],
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    self_is_argument: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let type_parameters = program.machine_type_parameters(callee_machine);
     if type_parameters.is_empty() {
         return;

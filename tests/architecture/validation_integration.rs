@@ -402,7 +402,7 @@ fn checked_progress_call_rejects_an_unpublished_subject_dependency() {
             terminates;
         }
         boundary trait SchedulerRuntime {
-            machine wait(scheduler: SchedulerHandle)
+            machine wait(scheduler: SchedulerHandle in WeakFair)
             requires scheduler in WeakFair
             terminates;
         }
@@ -646,7 +646,7 @@ fn admitted_local_progress_receipt_discharges_the_selected_call_premise() {
             terminates;
         }
         boundary trait SchedulerRuntime {
-            machine wait(scheduler: SchedulerHandle)
+            machine wait(scheduler: SchedulerHandle in WeakFair)
             requires scheduler in WeakFair
             terminates;
         }
@@ -697,7 +697,7 @@ fn progress_subject_identity_threads_through_named_state_transitions() {
             terminates;
         }
         boundary trait SchedulerRuntime {
-            machine wait(scheduler: SchedulerHandle)
+            machine wait(scheduler: SchedulerHandle in WeakFair)
             requires scheduler in WeakFair
             terminates;
         }
@@ -753,7 +753,7 @@ fn progress_subject_alternatives_across_state_predecessors_remain_explicit() {
             terminates;
         }
         boundary trait SchedulerRuntime {
-            machine wait(scheduler: SchedulerHandle)
+            machine wait(scheduler: SchedulerHandle in WeakFair)
             requires scheduler in WeakFair
             terminates;
         }

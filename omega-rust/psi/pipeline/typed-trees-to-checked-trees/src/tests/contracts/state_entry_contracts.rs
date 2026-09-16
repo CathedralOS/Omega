@@ -138,7 +138,7 @@ fn tail_calls_owe_the_selected_receivers_requirements() {
     for body in [
         "transition { _ -> other.restricted() }",
         "other.restricted()",
-        "other.restricted(); 0",
+        "_ = other.restricted(); 0",
     ] {
         for (requirement, accepted) in [("self.allowed", false), ("other.allowed", true)] {
             check(

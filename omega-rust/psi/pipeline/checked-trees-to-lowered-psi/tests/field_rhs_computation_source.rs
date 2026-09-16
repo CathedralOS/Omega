@@ -285,7 +285,7 @@ fn backedge_field_rhs_calls_read_each_previous_replacement() {
             transition { _ -> step() }
             state step(&mut self) {
                 self.value = identity(self.value + 1) as u16 in Wrapping;
-                Trace::observe(self.value);
+                Trace::observe(self.value as u16);
                 transition self.value < 3 { true -> step() _ -> done() }
             }
             state done(&mut self) {}
