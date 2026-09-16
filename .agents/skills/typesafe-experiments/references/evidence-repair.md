@@ -18,7 +18,10 @@ it unresolved, not encourage searching until something seems to agree.
    retrieve whole paragraphs with the existing lexical ranker. Keep deterministic
    top-one as a baseline; never use expected labels or handpicked answer anchors.
 4. Ask whether each candidate independently supports the complete claim for the
-   requested owner and conditions. Batch independent judgments within a budget;
+   requested owner and conditions. Distinguish support for that claim from whether
+   it answers every part of the broader question. Check answer completeness
+   separately; do not demand missing assertions within a claim-support judgment.
+   Batch independent judgments within a budget;
    isolate different experimental arms to avoid giving one a hint from the other.
 5. Copy a sufficiently supported candidate verbatim; keep the claim unchanged.
    Verify source path, revision and literal membership before retaining the patch.
@@ -36,6 +39,18 @@ correctness. This recipe does not authorize publication, suppress checks, or tur
 an unreviewed response into a trusted answer. Do not append unchecked prose.
 
 ## Measure the advantage honestly
+
+The current development prompt candidate adds this clarification to the original
+support instructions (preserving their owner, scope and partial-support rules):
+
+> Evaluate support for this single claim, not completeness of the entire answer.
+> The claim need not answer every part of the query. Use the query to resolve
+> intended entity and scope, not to demand additional assertions. Every assertion
+> actually present in the claim still requires support.
+
+This passed the exposed compiler/control replay, not a fresh holdout. Freeze it
+for the next comparison; retain the original prompt as baseline and do not relabel
+earlier results as using this candidate.
 
 Compare against lexical selection, ordinary review and safe abstention. Include
 wrong-owner, absent, contradictory and conditional evidence alongside positives;
