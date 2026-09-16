@@ -116,6 +116,56 @@ fn rejects_borrow_carrying_data_returned_from_local() {
     );
 }
 
+/// The escape rule also sees through an aggregate literal built directly at
+/// the return position: `View { body: &local }` dangles exactly like
+/// `&local` does, whether or not a `let` named the carrier first.
+#[test]
+fn rejects_inline_aggregate_literal_carrying_a_local_borrow() {
+    let source = r#"
+        data Message {
+            body: &i32;
+        }
+
+        machine bad(seed: &i32) -> Message {
+            let owned: i32 = 9;
+            transition {
+                _ -> Message { body: &owned }
+            }
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("an inline carrier borrowing a body-local should reject");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("returns a view borrowing the local `owned`"),
+        "expected the inline-carrier escape rejection, got:\n{combined}"
+    );
+}
+
+/// The same inline construction is accepted when the carried borrow reaches an
+/// input, matching the named-`let` form field for field.
+#[test]
+fn accepts_inline_aggregate_literal_carrying_an_input_borrow() {
+    let source = r#"
+        data Message {
+            body: &i32;
+        }
+
+        machine wrap(input: &i32) -> Message {
+            transition {
+                _ -> Message { body: input }
+            }
+        }
+    "#;
+
+    check_program(source).expect("an inline carrier borrowing an input should compile");
+}
+
 /// A nested record cannot erase a loan. Returning `Envelope` is sound because
 /// its nested `Message` ultimately borrows the machine input.
 #[test]

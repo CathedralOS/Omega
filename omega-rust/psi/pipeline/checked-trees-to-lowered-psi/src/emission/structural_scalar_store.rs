@@ -204,9 +204,10 @@ pub(crate) fn lower_structural_field_path<'a>(
                 path.push(StructuralPathSegment::Field(identity.clone()));
                 nested
             }
-            CheckedUnitStructuralPathSegment::FixedIndex(index)
-                if !reached_array && !path.is_empty() =>
-            {
+            // A bare borrowed fixed-array root legitimately starts its carrier
+            // path with the literal element index; record-carrier roots reach
+            // the same shape after their field hops.
+            CheckedUnitStructuralPathSegment::FixedIndex(index) if !reached_array => {
                 reached_array = true;
                 let StructuralTypeShape::FixedArray { element, length } = &field_owner.shape else {
                     return unsupported("structural scalar store carrier is not a fixed array");

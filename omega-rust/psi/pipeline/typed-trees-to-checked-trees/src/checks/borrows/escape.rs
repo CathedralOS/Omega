@@ -22,6 +22,7 @@
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 use crate::borrow::accesses::borrow_access_place;
@@ -58,44 +59,81 @@ pub(super) fn check_view_return_escape(
                 let Some(return_expression) = return_expression(program, statement) else {
                     continue;
                 };
-                let Some(place) = borrow_access_place(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    return_expression,
-                    machine.symbol,
-                ) else {
-                    continue;
-                };
 
-                let root = place.root_symbol;
-                if !locals.contains(&root) {
-                    // Rooted in a parameter, `self`, or a field thereof — outlives the call.
-                    continue;
+                // The carried leaves of the returned value: the value itself,
+                // plus every field/element value inside aggregate literals it
+                // is built from. A direct `&mut local` resolves to a single
+                // place at the top level; a carrier such as
+                // `View { body: &mut local }` resolves to no place there, so
+                // each carried field is checked on its own. Call expressions
+                // are not places, so arguments a call merely consumes are never
+                // visited here.
+                let mut leaves = vec![return_expression];
+                let mut leaf_index = 0;
+                while leaf_index < leaves.len() {
+                    match program.expression_table.expression(leaves[leaf_index]) {
+                        ExpressionNode::StructLiteral(literal) => leaves.extend(
+                            program
+                                .expression_table
+                                .struct_fields(literal.fields)
+                                .iter()
+                                .map(|field| field.value),
+                        ),
+                        ExpressionNode::ArrayLiteral(elements) => leaves.extend(
+                            program
+                                .expression_table
+                                .expression_handles(*elements)
+                                .iter()
+                                .copied(),
+                        ),
+                        _ => {}
+                    }
+                    leaf_index += 1;
                 }
-                // A body-local: sound only if it holds at least one loan and
-                // every carried loan reaches outside the body. Accepting when
-                // merely one field reached an input would let a sibling field
-                // retain a dangling local borrow.
-                let owner_loans: Vec<SymbolHandle> = loans
-                    .iter()
-                    .filter_map(|(owner, loan_root)| (*owner == root).then_some(*loan_root))
-                    .collect();
-                let escapes_through_loans = !owner_loans.is_empty()
-                    && owner_loans
+
+                let mut reported: Vec<SymbolHandle> = Vec::new();
+                for leaf in leaves {
+                    let Some(place) = borrow_access_place(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        leaf,
+                        machine.symbol,
+                    ) else {
+                        continue;
+                    };
+
+                    let root = place.root_symbol;
+                    if !locals.contains(&root) || reported.contains(&root) {
+                        // Rooted in a parameter, `self`, or a field thereof —
+                        // outlives the call — or already diagnosed below.
+                        continue;
+                    }
+                    // A body-local: sound only if it holds at least one loan and
+                    // every carried loan reaches outside the body. Accepting when
+                    // merely one field reached an input would let a sibling field
+                    // retain a dangling local borrow.
+                    let owner_loans: Vec<SymbolHandle> = loans
                         .iter()
-                        .all(|loan_root| !locals.contains(loan_root));
-                if escapes_through_loans {
-                    continue;
-                }
+                        .filter_map(|(owner, loan_root)| (*owner == root).then_some(*loan_root))
+                        .collect();
+                    let escapes_through_loans = !owner_loans.is_empty()
+                        && owner_loans
+                            .iter()
+                            .all(|loan_root| !locals.contains(loan_root));
+                    if escapes_through_loans {
+                        continue;
+                    }
 
-                let local_name = local_name(statements, root);
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` returns a view borrowing the local `{}`, which does not outlive \
-                     the call; return a borrow of an input parameter or `self` instead",
-                    state_subject(machine, state),
-                    local_name,
-                )));
+                    reported.push(root);
+                    let local_name = local_name(statements, root);
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` returns a view borrowing the local `{}`, which does not outlive \
+                         the call; return a borrow of an input parameter or `self` instead",
+                        state_subject(machine, state),
+                        local_name,
+                    )));
+                }
             }
         }
     }

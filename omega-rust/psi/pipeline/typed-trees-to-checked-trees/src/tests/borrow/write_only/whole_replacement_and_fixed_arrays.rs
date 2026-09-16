@@ -528,12 +528,15 @@ fn fixed_array_sum_elements_do_not_expose_case_or_payload_places() {
 
 #[test]
 fn fixed_array_record_elements_do_not_expose_child_places() {
+    // One literal relevant primitive field beneath an in-bounds element is the
+    // admitted content-independent store; a dynamic index or any observation
+    // of a child place stays outside that contract.
     let rendered = rendered_rejection(
         r#"
             data Leaf [copy] { value: u16; enabled: bool; }
 
-            machine update(values: &write [Leaf; 2]) {
-                values[0].value = 7;
+            machine update(values: &write [Leaf; 2], index: u64 [0..=1]) {
+                values[index].value = 7;
                 let prior: u16 = values[1].value;
             }
         "#,

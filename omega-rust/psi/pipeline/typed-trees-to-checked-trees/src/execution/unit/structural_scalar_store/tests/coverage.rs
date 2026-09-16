@@ -5,6 +5,8 @@ use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan}
 
 #[path = "arithmetic_policies.rs"]
 mod arithmetic_policies;
+#[path = "borrowed_arrays.rs"]
+mod borrowed_arrays;
 #[path = "borrowed_records.rs"]
 mod borrowed_records;
 #[path = "closed_generic_records.rs"]
