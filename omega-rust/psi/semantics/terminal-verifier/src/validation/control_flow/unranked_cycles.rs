@@ -142,11 +142,14 @@ fn cycle_operation_eligible(
                 && primitive_storage::store_type(module, machine, operation.id, *destination, path)
                     .is_ok()
         }
+        // Requirement obligations and crash continuations carry no custody:
+        // ordinary call validation still checks their arity, substitution and
+        // caller coverage symbolically, and obligation reconstruction cuts
+        // feedback edges rather than enumerating iterations. Claim transfers
+        // stay fenced until cyclic machines admit claim-bearing custody.
         OperationKind::CallStructuralScalar {
             structural_arguments,
             claim_transfers,
-            requirement_obligations,
-            crash_continuations,
             ..
         } => {
             operation.result.scalar().is_some()
@@ -158,8 +161,6 @@ fn cycle_operation_eligible(
                             || owned_argument(machine, argument))
                 })
                 && claim_transfers.is_empty()
-                && requirement_obligations.is_empty()
-                && crash_continuations.is_empty()
         }
         OperationKind::BoundaryCall {
             boundary,
@@ -215,8 +216,6 @@ fn cycle_operation_eligible(
         OperationKind::CallUnit {
             structural_arguments,
             claim_transfers,
-            requirement_obligations,
-            crash_continuations,
             ..
         } => {
             operation.result == OperationResult::Unit
@@ -245,8 +244,6 @@ fn cycle_operation_eligible(
                             || owned_argument(machine, argument))
                 })
                 && claim_transfers.is_empty()
-                && requirement_obligations.is_empty()
-                && crash_continuations.is_empty()
         }
         OperationKind::ByteSequenceSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
