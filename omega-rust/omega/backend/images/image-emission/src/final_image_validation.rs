@@ -38,8 +38,16 @@ pub(super) fn validate_terminal_image(
     )
 }
 
+/// Replay the dynamic ELF terminal image against the exact prepared object
+/// inputs. The hosted-entry shim (when one was prepared) is part of the
+/// replay boundary, so a receiver bridge cannot be dropped by the import
+/// path any more than by the direct writer.
 pub(super) fn validate_terminal_dynamic_elf_image(
     artifact: &ObjectArtifact,
+    object: &object_file::ObjectPlan,
+    relocations: &object_file::RelocationPlan,
+    text_bytes: &[u8],
+    scalar_exit_shim: Option<super::hosted_unit_entry::EntryShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     let expected_imports = artifact
@@ -51,10 +59,10 @@ pub(super) fn validate_terminal_dynamic_elf_image(
         .count();
     validate_terminal_image_with_import_count(
         artifact,
-        artifact.object(),
-        artifact.relocations(),
-        artifact.text_bytes(),
-        None,
+        object,
+        relocations,
+        text_bytes,
+        scalar_exit_shim,
         output,
         expected_imports,
     )
@@ -230,14 +238,14 @@ fn validate_terminal_image_with_import_count(
     }
     if let Some(shim) = scalar_exit_shim {
         match shim {
-            super::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset } => {
+            shim @ (super::hosted_unit_entry::EntryShim::DarwinReceiver { .. }
+            | super::hosted_unit_entry::EntryShim::LinuxReceiver { .. }) => {
                 super::hosted_receiver::validate_image(
                     artifact,
                     object,
                     text_bytes,
                     relocations,
-                    symbol,
-                    offset,
+                    shim,
                     output,
                 )?;
             }

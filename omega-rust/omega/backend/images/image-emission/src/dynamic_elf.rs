@@ -363,6 +363,11 @@ pub enum DynamicElfOrchestrationError {
     ProcedureLinkageApplication(Box<ElfProcedureLinkageApplicationError>),
     FileAssembly(Box<ElfDynamicFileAssemblyError>),
     FinalByteAdmission(Box<ElfDynamicExecutableAdmissionError>),
+    /// The hosted-entry owner rejected the artifact before any ELF stage ran:
+    /// an import-bearing object still carries its exact entry custody, so a
+    /// receiver bridge cannot be dropped merely because imports selected the
+    /// dynamic writer.
+    HostedEntryPreparation(Diagnostic),
     ProductionBridge(Box<DynamicElfImageEmissionError>),
 }
 
@@ -391,6 +396,7 @@ impl DynamicElfOrchestrationError {
             Self::ProcedureLinkageApplication(_) => "procedure-linkage-application",
             Self::FileAssembly(_) => "file-assembly",
             Self::FinalByteAdmission(_) => "final-byte-admission",
+            Self::HostedEntryPreparation(_) => "hosted-entry-preparation",
             Self::ProductionBridge(_) => "production-bridge",
         }
     }
@@ -419,6 +425,7 @@ impl DynamicElfOrchestrationError {
             Self::ProcedureLinkageApplication(error) => error.diagnostic(),
             Self::FileAssembly(error) => error.diagnostic(),
             Self::FinalByteAdmission(error) => error.diagnostic(),
+            Self::HostedEntryPreparation(diagnostic) => diagnostic,
             Self::ProductionBridge(error) => error.diagnostic(),
         }
     }
@@ -450,11 +457,34 @@ pub fn emit_dynamic_elf_image(
     artifact: &ObjectArtifact,
     interpreter: NormalizedElfInterpreterPlan,
 ) -> Result<DynamicElfImageEmission, Box<DynamicElfOrchestrationError>> {
+    // An import-bearing object still enters through the exact hosted-entry
+    // owner: a receiver binding appends its bridge text, private BSS
+    // partitions, symbols, and relocations before the dynamic writer plans
+    // sections, and the prepared entry symbol becomes e_entry.
+    let prepared_entry = crate::hosted_unit_entry::prepare(artifact).map_err(|diagnostic| {
+        Box::new(DynamicElfOrchestrationError::HostedEntryPreparation(
+            diagnostic,
+        ))
+    })?;
+    let (object, text_bytes, relocations) = prepared_entry.as_ref().map_or(
+        (
+            artifact.object(),
+            artifact.text_bytes(),
+            artifact.relocations(),
+        ),
+        |prepared| {
+            (
+                &prepared.object,
+                prepared.text.as_slice(),
+                &prepared.relocations,
+            )
+        },
+    );
     let image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
-        object: artifact.object(),
-        relocations: artifact.relocations(),
-        text_bytes: artifact.text_bytes(),
+        object,
+        relocations,
+        text_bytes,
         data_bytes: artifact.data_bytes(),
     });
     let inputs = plan_elf_dynamic_link_inputs(image, interpreter)
@@ -578,16 +608,43 @@ fn derive_output(
         ));
     }
 
+    // Replay the same hosted-entry preparation the production path consumed;
+    // the admitted image must match the prepared object/text/relocations
+    // exactly, including any receiver bridge suffix and its BSS partitions.
+    let prepared_entry = crate::hosted_unit_entry::prepare(artifact)?;
+    let (object, text_bytes, relocations, entry_shim) = prepared_entry.as_ref().map_or(
+        (
+            artifact.object(),
+            artifact.text_bytes(),
+            artifact.relocations(),
+            None,
+        ),
+        |prepared| {
+            (
+                &prepared.object,
+                prepared.text.as_slice(),
+                &prepared.relocations,
+                Some(prepared.shim),
+            )
+        },
+    );
     let mut replayed_image = image::build_final_image(FinalImageInput {
         target,
-        object: artifact.object(),
-        relocations: artifact.relocations(),
-        text_bytes: artifact.text_bytes(),
+        object,
+        relocations,
+        text_bytes,
         data_bytes: artifact.data_bytes(),
     });
     let symbol_digest = final_image_symbol_digest(&replayed_image);
     let mut output = emitted_direct_executable_output(admitted.output().clone());
-    let validation = validate_terminal_dynamic_elf_image(artifact, &output)?;
+    let validation = validate_terminal_dynamic_elf_image(
+        artifact,
+        object,
+        relocations,
+        text_bytes,
+        entry_shim,
+        &output,
+    )?;
     replayed_image.memory.text = output.final_text_bytes.clone();
     if replayed_image != *admitted.image()
         || symbol_digest != final_image_symbol_digest(admitted.image())

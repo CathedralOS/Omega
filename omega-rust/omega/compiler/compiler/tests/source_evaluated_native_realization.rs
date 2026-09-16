@@ -4,10 +4,17 @@
 
 #[path = "source_evaluated_native_realization/linux_dynamic_realization.rs"]
 mod linux_dynamic_realization;
+#[path = "source_evaluated_native_realization/linux_hosted_receiver.rs"]
+mod linux_hosted_receiver;
 #[path = "source_evaluated_native_realization/macho_and_terminal_imports.rs"]
 mod macho_and_terminal_imports;
 #[path = "source_evaluated_native_realization/windows_imports_and_mxcsr_custody.rs"]
 mod windows_imports_and_mxcsr_custody;
+
+#[path = "support/console_acceptance.rs"]
+mod console_acceptance;
+#[path = "support/linux_entry_acceptance.rs"]
+mod linux_entry_acceptance;
 
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
@@ -146,6 +153,7 @@ struct Fixture {
     root: PathBuf,
     main: PathBuf,
     target: String,
+    package_inputs: Option<package_compilation::PackageCompilationInputs>,
 }
 
 impl Fixture {
@@ -421,17 +429,43 @@ machine Main::main(&mut self) reaches Process {
             root,
             main,
             target: target.to_owned(),
+            package_inputs: None,
         }
     }
 
+    fn with_package_inputs(
+        mut self,
+        inputs: package_compilation::PackageCompilationInputs,
+    ) -> Self {
+        self.package_inputs = Some(inputs);
+        self
+    }
+
     fn compile_terminal(&self) -> compilation_report::RetainedTerminalArtifact {
-        let request = CompileRequest::new(CompileOptions {
+        let mut request = CompileRequest::new(CompileOptions {
             root_path: self.main.clone(),
             build_dir: Some(self.root.join("build")),
             target_name: Some(self.target.clone()),
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+        if let Some(inputs) = &self.package_inputs {
+            // Package acceptance declares terminal authority; the receiving
+            // permission policy mirrors the exact accepted rows, as the
+            // production compile route does.
+            let permission_policy =
+                native_realization::terminal_authority_permission_policy_with_rows(
+                    inputs
+                        .accepted_semantic_bindings()
+                        .flat_map(|binding| binding.terminal_authority_permissions())
+                        .cloned()
+                        .collect(),
+                )
+                .expect("fixture accepted permissions form a receiving policy");
+            request = request
+                .with_terminal_authority_permission_policy(permission_policy)
+                .with_package_inputs(inputs.clone());
+        }
         compile(request).and_then(compiler::CompileOutcomes::into_single_report)
             .unwrap_or_else(|diagnostics| {
                 panic!(

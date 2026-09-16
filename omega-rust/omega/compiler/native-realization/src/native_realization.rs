@@ -218,7 +218,9 @@ fn validate_executable_entry_receiver(
             ));
         }
     }
-    if has_receiver && request.target != target::NativeTarget::macos_arm64() {
+    let supported_receiver_bridge = request.target == target::NativeTarget::macos_arm64()
+        || request.target == target::NativeTarget::linux_x64();
+    if has_receiver && !supported_receiver_bridge {
         return Err(realization_error(
             "ProgramEntry receiver provisioning",
             "the executable entry retains a self parameter, but no root-backed bridge constructs and lends its receiver; source-entry settlement alone does not provision receiver storage",

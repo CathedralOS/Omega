@@ -5,6 +5,8 @@
 mod build_selection_reports;
 #[path = "support/console_acceptance.rs"]
 mod console_acceptance;
+#[path = "support/linux_entry_acceptance.rs"]
+mod linux_entry_acceptance;
 #[path = "support/macos_entry_acceptance.rs"]
 mod macos_entry_acceptance;
 #[path = "optimizer_opt_in/product_pruning.rs"]

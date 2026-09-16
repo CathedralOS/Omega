@@ -69,11 +69,24 @@ impl HostedReceiverBinding {
     }
 }
 
-fn invalid() -> Diagnostic {
-    Diagnostic::error("macOS hosted receiver bridge lost exact contract, storage, or entry custody")
+/// The retained message names the admitted bridge surface: each supported
+/// target fails closed under its own exact contract custody, and the Darwin
+/// spelling deliberately stays byte-identical for its existing readers.
+fn invalid(target: target::NativeTarget) -> Diagnostic {
+    if target == target::NativeTarget::macos_arm64() {
+        return Diagnostic::error(
+            "macOS hosted receiver bridge lost exact contract, storage, or entry custody",
+        );
+    }
+    if target == target::NativeTarget::linux_x64() {
+        return Diagnostic::error(
+            "Linux x86-64 hosted receiver bridge lost exact contract, storage, or entry custody",
+        );
+    }
+    Diagnostic::error("hosted receiver bridge lost exact contract, storage, or entry custody")
 }
 
-fn align(value: u64, alignment: u64) -> Result<u64, Diagnostic> {
+fn align(value: u64, alignment: u64, invalid: &dyn Fn() -> Diagnostic) -> Result<u64, Diagnostic> {
     if !alignment.is_power_of_two() {
         return Err(invalid());
     }
@@ -94,15 +107,22 @@ pub struct HostedReceiverPartitions {
 }
 
 impl HostedReceiverBinding {
+    /// The exact physical target this binding was admitted for. Partition and
+    /// instruction custody are derived under it, never inferred from bytes.
+    fn target(&self) -> target::NativeTarget {
+        self.physical.target_slot().owner.native_target()
+    }
+
     pub fn partitions(
         &self,
         existing_bss_bytes: u64,
     ) -> Result<HostedReceiverPartitions, Diagnostic> {
-        let saved = align(existing_bss_bytes, 16)?;
+        let invalid = || invalid(self.target());
+        let saved = align(existing_bss_bytes, 16, &invalid)?;
         let stack = saved.checked_add(16).ok_or_else(invalid)?;
-        let stack_bytes = align(self.demand.ceiling_bytes().max(16), 16)?;
+        let stack_bytes = align(self.demand.ceiling_bytes().max(16), 16, &invalid)?;
         let stack_end = stack.checked_add(stack_bytes).ok_or_else(invalid)?;
-        let receiver = align(stack_end, self.receiver_alignment.max(16))?;
+        let receiver = align(stack_end, self.receiver_alignment.max(16), &invalid)?;
         let receiver_bytes = self.receiver_byte_count.max(1);
         Ok(HostedReceiverPartitions {
             saved_continuation_offset: saved,
@@ -115,15 +135,28 @@ impl HostedReceiverBinding {
     }
 }
 
-pub(crate) fn prepare(
+/// One disjoint writable-image residence the bridge references by symbol.
+struct ReceiverStorage {
+    scratch: object_file::ObjectSymbolHandle,
+    stack_top: object_file::ObjectSymbolHandle,
+    receiver: object_file::ObjectSymbolHandle,
+}
+
+/// Extend the (possibly absent) BSS section with the exact disjoint bridge
+/// partitions and publish the three named residences the emitted entry uses.
+fn provision_receiver_storage(
     artifact: &crate::ObjectArtifact,
-) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    use object_file::{
-        RelocationKind, RelocationOrigin, RelocationRecord, SectionKind, SectionPlan, SymbolKind,
-        SymbolPlan, SymbolSection,
-    };
-    let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
-    validate_binding(artifact, binding)?;
+    binding: &HostedReceiverBinding,
+) -> Result<
+    (
+        object_file::ObjectPlan,
+        HostedReceiverPartitions,
+        ReceiverStorage,
+    ),
+    Diagnostic,
+> {
+    use object_file::{SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection};
+    let invalid = || invalid(artifact.target);
     let mut object = artifact.object.clone();
     let existing = object
         .layout
@@ -174,6 +207,74 @@ pub(crate) fn prepare(
         partitions.receiver_offset,
         partitions.receiver_byte_count,
     )?;
+    Ok((
+        object,
+        partitions,
+        ReceiverStorage {
+            scratch,
+            stack_top,
+            receiver,
+        },
+    ))
+}
+
+/// Append the emitted entry bytes, grow `.text`, and install the new symbol as
+/// the object entry. Returns the shim symbol and its exact text offset.
+fn install_entry_text(
+    mut object: object_file::ObjectPlan,
+    artifact: &crate::ObjectArtifact,
+    bytes: &[u8],
+    name: &str,
+) -> Result<
+    (
+        object_file::ObjectPlan,
+        Vec<u8>,
+        object_file::ObjectSymbolHandle,
+        usize,
+    ),
+    Diagnostic,
+> {
+    use object_file::{SectionKind, SymbolKind, SymbolPlan, SymbolSection};
+    let invalid = || invalid(artifact.target);
+    let offset = artifact.text_bytes.len();
+    let mut text = artifact.text_bytes.clone();
+    text.extend_from_slice(bytes);
+    let text_section = object
+        .layout
+        .sections
+        .iter()
+        .find(|(_, section)| section.kind == SectionKind::Text)
+        .map(|(handle, _)| handle)
+        .ok_or_else(invalid)?;
+    object.layout.sections.get_mut(text_section).size = text.len();
+    let symbol = object.layout.symbols.insert(SymbolPlan {
+        name: name.into(),
+        section: SymbolSection::Section(SectionKind::Text),
+        offset,
+        size: bytes.len(),
+        kind: SymbolKind::Function,
+        import_library: String::new(),
+    });
+    object.layout.entry_symbol = symbol;
+    Ok((object, text, symbol, offset))
+}
+
+/// Fixed Linux x86-64 hosted-receiver bridge byte width. The emitted text is
+/// `mov [rip+scratch], rsp; lea rsp, [rip+stack_top]; lea rdi, [rip+receiver];
+/// call rel32; xor edi, edi; mov eax, 231; syscall; ud2`.
+pub(crate) const LINUX_X86_64_RECEIVER_SHIM_BYTES: usize = 37;
+
+pub(crate) fn prepare(
+    artifact: &crate::ObjectArtifact,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
+    let invalid = || invalid(artifact.target);
+    let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
+    validate_binding(artifact, binding)?;
+    let (object, _partitions, storage) = provision_receiver_storage(artifact, binding)?;
+    if artifact.target == target::NativeTarget::linux_x64() {
+        return prepare_linux_x86_64(artifact, binding, object, storage);
+    }
     let offset = artifact.text_bytes.len();
     let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 9 * 4);
     if !offset.is_multiple_of(4)
@@ -202,27 +303,21 @@ pub(crate) fn prepare(
         0x5280_0000, // normal Unit -> physical i32 zero
         0xd65f_03c0, // return to exact saved loader continuation
     ];
-    let mut text = artifact.text_bytes.clone();
-    text.extend(words.into_iter().flat_map(u32::to_le_bytes));
-    let text_section = object
-        .layout
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == SectionKind::Text)
-        .map(|(handle, _)| handle)
-        .ok_or_else(invalid)?;
-    object.layout.sections.get_mut(text_section).size = text.len();
-    let symbol = object.layout.symbols.insert(SymbolPlan {
-        name: "omega_macos_hosted_receiver_entry".into(),
-        section: SymbolSection::Section(SectionKind::Text),
-        offset,
-        size: 64,
-        kind: SymbolKind::Function,
-        import_library: String::new(),
-    });
-    object.layout.entry_symbol = symbol;
+    let mut shim_bytes = Vec::with_capacity(64);
+    shim_bytes.extend(words.into_iter().flat_map(u32::to_le_bytes));
+    let (object, text, symbol, offset) = install_entry_text(
+        object,
+        artifact,
+        &shim_bytes,
+        "omega_macos_hosted_receiver_entry",
+    )?;
     let mut relocations = artifact.relocations.clone();
-    for (instruction, destination) in [(0, scratch), (4, stack_top), (7, receiver), (10, scratch)] {
+    for (instruction, destination) in [
+        (0, storage.scratch),
+        (4, storage.stack_top),
+        (7, storage.receiver),
+        (10, storage.scratch),
+    ] {
         for (relative, kind) in [
             (0, RelocationKind::Aarch64Page21),
             (1, RelocationKind::Aarch64PageOffset12),
@@ -248,7 +343,70 @@ pub(crate) fn prepare(
     })
 }
 
-pub fn bind_macos_hosted_receiver(
+/// The Linux kernel arrives with rsp at the initial process-stack image and
+/// supplies no return continuation. The bridge preserves that physical input
+/// in the saved-continuation residence, switches rsp to the exact private
+/// stack top before the application can spill, passes the receiver through
+/// the first System V integer register, calls the exact semantic
+/// continuation, and completes through exit_group with the value-free Unit
+/// result published as status zero. `ud2` fails closed if the nonreturning
+/// supervisor call ever returned.
+fn prepare_linux_x86_64(
+    artifact: &crate::ObjectArtifact,
+    _binding: &HostedReceiverBinding,
+    object: object_file::ObjectPlan,
+    storage: ReceiverStorage,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
+    let entry = artifact.entry_function();
+    let mut bytes = Vec::with_capacity(LINUX_X86_64_RECEIVER_SHIM_BYTES);
+    bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
+    bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]); // lea rsp, [rip+stack_top]
+    bytes.extend([0x48, 0x8d, 0x3d, 0, 0, 0, 0]); // lea rdi, [rip+receiver]
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 -> semantic continuation
+    bytes.extend([0x31, 0xff]); // xor edi, edi: Unit -> status zero
+    bytes.extend([0xb8, 0xe7, 0, 0, 0]); // mov eax, 231 (exit_group)
+    bytes.extend([0x0f, 0x05]); // syscall
+    bytes.extend([0x0f, 0x0b]); // ud2 if the nonreturning call ever returned
+    debug_assert_eq!(bytes.len(), LINUX_X86_64_RECEIVER_SHIM_BYTES);
+    let (object, text, symbol, offset) = install_entry_text(
+        object,
+        artifact,
+        &bytes,
+        "omega_linux_x86_64_hosted_receiver_entry",
+    )?;
+    let mut relocations = artifact.relocations.clone();
+    for (field_offset, destination) in [
+        (3, storage.scratch),
+        (10, storage.stack_top),
+        (17, storage.receiver),
+        (22, entry.symbol),
+    ] {
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Materialization {
+                object_symbol_handle: symbol,
+            },
+            section: SectionKind::Text,
+            offset: offset + field_offset,
+            byte_width: 4,
+            symbol_handle: destination,
+            addend: 0,
+            kind: RelocationKind::X86_64Relative32,
+        });
+    }
+    Ok(crate::hosted_unit_entry::PreparedEntry {
+        object,
+        text,
+        relocations,
+        shim: crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
+    })
+}
+
+/// Bind the exact hosted receiver bridge the admitted settlement selected.
+/// The target chooses the emitted bridge surface — Darwin dyld arrival on
+/// AArch64, kernel process arrival on Linux x86-64 — and `validate_binding`
+/// rejects any pairing drift before bytes exist.
+pub fn bind_hosted_receiver(
     artifact: &mut crate::ObjectArtifact,
     source: &SelectedProgramEntrySourceSignature,
     physical: &ProgramEntryPhysicalContractPlan,
@@ -256,7 +414,7 @@ pub fn bind_macos_hosted_receiver(
     demand: &crate::StackDemand,
 ) -> Result<(), Diagnostic> {
     if artifact.hosted_receiver.is_some() {
-        return Err(invalid());
+        return Err(invalid(artifact.target));
     }
     crate::function_fragments::replay::validate(artifact)?;
     let (receiver_byte_count, receiver_alignment) = receiver_layout(artifact, source, services)?;
@@ -277,10 +435,10 @@ pub(crate) fn validate_binding(
     artifact: &crate::ObjectArtifact,
     binding: &HostedReceiverBinding,
 ) -> Result<(), Diagnostic> {
-    if artifact.target != target::NativeTarget::macos_arm64()
-        || !physical_contract_matches(&binding.physical)
+    let invalid = || invalid(artifact.target);
+    if !physical_contract_matches(&binding.physical, artifact.target)
         || binding.physical.target_slot() != binding.source.target_slot()
-        || binding.source.target_slot() != target::TargetProfile::MacosArm64.program_entry_slot()
+        || binding.physical.target_slot().owner.native_target() != artifact.target
         || crate::derive_stack_demand(artifact, artifact.entry).map_err(|_| invalid())?
             != binding.demand
         || receiver_layout(artifact, &binding.source, &binding.services)?
@@ -291,7 +449,20 @@ pub(crate) fn validate_binding(
     Ok(())
 }
 
-fn physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
+fn physical_contract_matches(
+    physical: &ProgramEntryPhysicalContractPlan,
+    target: target::NativeTarget,
+) -> bool {
+    if target == target::NativeTarget::macos_arm64() {
+        return macos_physical_contract_matches(physical);
+    }
+    if target == target::NativeTarget::linux_x64() {
+        return linux_x86_64_physical_contract_matches(physical);
+    }
+    false
+}
+
+fn macos_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
     use program_entry_plan::{MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY};
     let expected = program_entry_plan::exact_macos_arm64_physical_boundary_entry_plan();
     // Native settlement separately rejoins the accepted package requirement
@@ -316,6 +487,25 @@ fn physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> boo
         && physical.guaranteed_entry_stack_application().is_none()
 }
 
+fn linux_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
+    use program_entry_plan::{LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY};
+    let expected = program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan();
+    // Same custody rule as the Darwin bridge: the accepted-package requirement
+    // may carry a qualified spelling, but the target-source bytes, slot,
+    // parameter/result identities, ABI plan, and state are all exact.
+    physical.target_slot() == target::TargetProfile::LinuxX64.program_entry_slot()
+        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::LinuxX86_64
+        && physical.target_package_source_digest()
+            == program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest()
+        && !physical.requirement_identity().is_empty()
+        && physical.parameter_type_identities() == [LINUX_X86_64_ADDRESS_TYPE_IDENTITY]
+        && physical.result_type_identity() == LINUX_X86_64_I32_TYPE_IDENTITY
+        && physical.boundary_entry_plan() == expected.plan()
+        && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
+        && physical.guaranteed_entry_stack().is_none()
+        && physical.guaranteed_entry_stack_application().is_none()
+}
+
 /// Layout-side zero checking cannot establish authored default domains or
 /// absence of nominal cleanup. Native realization must separately retain and
 /// replay its checked source receipt before installing this conditional bridge.
@@ -327,6 +517,18 @@ fn receiver_layout(
     use calling_conventions::CallingPolicy;
     use terminal_psi::{
         StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
+    };
+    let invalid = || invalid(artifact.target);
+    let (expected_policy, receiver_register) = match artifact.target {
+        target_ if target_ == target::NativeTarget::macos_arm64() => (
+            CallingPolicy::Aapcs64,
+            calling_conventions::MachineRegister::Aarch64X(0),
+        ),
+        target_ if target_ == target::NativeTarget::linux_x64() => (
+            CallingPolicy::SystemVAMD64,
+            calling_conventions::MachineRegister::X86Rdi,
+        ),
+        _ => return Err(invalid()),
     };
     let (function, target) = crate::function_fragments::replay::entry_source(artifact)?;
     let [parameter] = function.structural_parameters.as_slice() else {
@@ -352,13 +554,13 @@ fn receiver_layout(
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
         || function.attachment != Some(parameter.structural_type)
-        || target.graph.call_plan.policy != CallingPolicy::Aapcs64
+        || target.graph.call_plan.policy != expected_policy
         || target.graph.call_plan.parameters.as_slice() != [native.placement.clone()]
         || target.graph.call_plan.result.is_some()
         || native.place != parameter.place
         || native.structural_type != parameter.structural_type
         || native.access != parameter.access
-        || !receiver_pointer_matches(native.shape, &native.placement)
+        || !receiver_pointer_matches(native.shape, &native.placement, receiver_register)
     {
         return Err(invalid());
     }
@@ -478,46 +680,73 @@ fn zero_valid_record_storage(
     valid
 }
 
-/// The bridge supplies an address in x0, not an eight-byte receiver value.
-/// Indirect placement retains the referent geometry, including empty receivers.
+/// The bridge supplies an address in the target's first integer-argument
+/// register (x0 under AAPCS64, rdi under System V AMD64), not an eight-byte
+/// receiver value. Indirect placement retains the referent geometry, including
+/// empty receivers.
 fn receiver_pointer_matches(
     shape: calling_conventions::ValueShape,
     placement: &calling_conventions::ValuePlacement,
+    register: calling_conventions::MachineRegister,
 ) -> bool {
-    use calling_conventions::{
-        IndirectPointerLocation, MachineRegister, ValueClass, ValueLocation,
-    };
+    use calling_conventions::{IndirectPointerLocation, ValueClass, ValueLocation};
     shape.class == ValueClass::BorrowedReference
         && shape.alignment.is_power_of_two()
         && placement.shape == shape
         && matches!(
             placement.locations.as_slice(),
             [ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(0)),
+                pointer: IndirectPointerLocation::Register(actual),
                 copy_stack_byte_offset: None,
                 byte_size,
                 alignment,
-            }] if *byte_size == shape.byte_size && *alignment == shape.alignment
+            }] if *actual == register && *byte_size == shape.byte_size && *alignment == shape.alignment
         )
 }
 
+/// Re-derive the exact prepared entry, require byte/section/relocation/shim
+/// equality, then hand the shim bytes to the target-owned independent reader.
+/// The writer's own plan is never trusted: object, text, relocations, and the
+/// final image are all re-checked against the binding's exact custody.
 pub(crate) fn validate_image(
     artifact: &crate::ObjectArtifact,
     object: &object_file::ObjectPlan,
     text: &[u8],
     relocations: &object_file::RelocationPlan,
-    symbol: object_file::ObjectSymbolHandle,
-    offset: usize,
+    shim: crate::hosted_unit_entry::EntryShim,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
+    let invalid = || invalid(artifact.target);
     let expected = prepare(artifact)?;
-    if expected.object != *object
-        || expected.text != text
-        || expected.relocations != *relocations
-        || !matches!(expected.shim, crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol: actual, offset: actual_offset } if actual == symbol && actual_offset == offset)
-        || !crate::hosted_unit_entry::unique_region(object, symbol, offset, 64, output)
-        || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset)
-    {
+    let (_symbol, offset) = match shim {
+        crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset }
+            if expected_shim_matches(expected.shim, shim) =>
+        {
+            if !crate::hosted_unit_entry::unique_region(object, symbol, offset, 64, output)
+                || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset)
+            {
+                return Err(invalid());
+            }
+            (symbol, offset)
+        }
+        crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset }
+            if expected_shim_matches(expected.shim, shim) =>
+        {
+            if !crate::hosted_unit_entry::unique_region(
+                object,
+                symbol,
+                offset,
+                LINUX_X86_64_RECEIVER_SHIM_BYTES,
+                output,
+            ) || !elf_entry_points_to(output, offset)
+            {
+                return Err(invalid());
+            }
+            (symbol, offset)
+        }
+        _ => return Err(invalid()),
+    };
+    if expected.object != *object || expected.text != text || expected.relocations != *relocations {
         return Err(invalid());
     }
     let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
@@ -538,25 +767,85 @@ pub(crate) fn validate_image(
     // The enclosing replay has already checked the full file/VM correspondence
     // and exact dynamic fixups, including exclusion of every BSS byte. This
     // join therefore uses real mapped zero-fill, not just a section label.
-    let end = offset.checked_add(64).ok_or_else(invalid)?;
-    instructions::validate(
-        output
-            .final_text_bytes
-            .get(offset..end)
-            .ok_or_else(invalid)?,
-        output
-            .final_image_layout
-            .text_address
-            .checked_add(offset as u64)
-            .ok_or_else(invalid)?,
-        output
-            .final_image_layout
-            .text_address
-            .checked_add(artifact.entry_function().text_offset as u64)
-            .ok_or_else(invalid)?,
-        output.final_image_layout.bss_address,
-        partitions,
-    )
+    let selected_entry = output
+        .final_image_layout
+        .text_address
+        .checked_add(artifact.entry_function().text_offset as u64)
+        .ok_or_else(invalid)?;
+    let shim_address = output
+        .final_image_layout
+        .text_address
+        .checked_add(offset as u64)
+        .ok_or_else(invalid)?;
+    match shim {
+        crate::hosted_unit_entry::EntryShim::DarwinReceiver { .. } => {
+            let end = offset.checked_add(64).ok_or_else(invalid)?;
+            instructions::validate(
+                output
+                    .final_text_bytes
+                    .get(offset..end)
+                    .ok_or_else(invalid)?,
+                shim_address,
+                selected_entry,
+                output.final_image_layout.bss_address,
+                partitions,
+            )
+        }
+        crate::hosted_unit_entry::EntryShim::LinuxReceiver { .. } => {
+            let end = offset
+                .checked_add(LINUX_X86_64_RECEIVER_SHIM_BYTES)
+                .ok_or_else(invalid)?;
+            instructions::validate_x86_64(
+                output
+                    .final_text_bytes
+                    .get(offset..end)
+                    .ok_or_else(invalid)?,
+                shim_address,
+                selected_entry,
+                output.final_image_layout.bss_address,
+                partitions,
+            )
+        }
+        _ => Err(invalid()),
+    }
+}
+
+fn expected_shim_matches(
+    expected: crate::hosted_unit_entry::EntryShim,
+    actual: crate::hosted_unit_entry::EntryShim,
+) -> bool {
+    match (expected, actual) {
+        (
+            crate::hosted_unit_entry::EntryShim::DarwinReceiver {
+                symbol: expected_symbol,
+                offset: expected_offset,
+            },
+            crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
+        )
+        | (
+            crate::hosted_unit_entry::EntryShim::LinuxReceiver {
+                symbol: expected_symbol,
+                offset: expected_offset,
+            },
+            crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
+        ) => expected_symbol == symbol && expected_offset == offset,
+        _ => false,
+    }
+}
+
+/// ELF64 `e_entry` must select the emitted bridge inside `.text`; the scalar
+/// exit shim establishes the same custody for its own adapter.
+fn elf_entry_points_to(output: &image::EmittedImageOutput, offset: usize) -> bool {
+    let expected_entry = output
+        .final_image_layout
+        .text_address
+        .checked_add(offset as u64);
+    let encoded_entry = output
+        .bytes
+        .get(24..32)
+        .and_then(|bytes| <[u8; 8]>::try_from(bytes).ok())
+        .map(u64::from_le_bytes);
+    expected_entry.is_some() && encoded_entry == expected_entry
 }
 
 fn validate_partitions(
@@ -565,6 +854,7 @@ fn validate_partitions(
     original_bss_bytes: u64,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
+    let invalid = || invalid(binding.target());
     let continuation_end = partitions
         .saved_continuation_offset
         .checked_add(16)

@@ -218,13 +218,17 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
                     .unwrap();
             let native_outcome =
                 crate::realize_native_artifact(replayed_artifact, complete_request);
-            if target_profile == target::TargetProfile::MacosArm64 {
-                // macOS ARM64 declares its two-surface `MacosApplication`
-                // contract on the target slot, so native realization must
-                // fail closed when the settlement lost the exact paired
-                // semantic/physical calling plans a real selection produces.
+            if matches!(
+                target_profile,
+                target::TargetProfile::MacosArm64 | target::TargetProfile::LinuxX64
+            ) {
+                // macOS ARM64 and Linux x86-64 declare their two-surface
+                // application contracts on the target slot, so native
+                // realization must fail closed when the settlement lost the
+                // exact paired semantic/physical calling plans a real
+                // selection produces.
                 let error = native_outcome.expect_err(
-                    "MacosArm64 ProgramEntry settlement without paired calling plans must reject",
+                    "two-surface ProgramEntry settlement without paired calling plans must reject",
                 );
                 assert!(
                     error.diagnostics().iter().any(|diagnostic| diagnostic

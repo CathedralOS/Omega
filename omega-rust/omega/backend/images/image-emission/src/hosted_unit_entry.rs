@@ -18,6 +18,10 @@ pub(super) enum EntryShim {
         symbol: ObjectSymbolHandle,
         offset: usize,
     },
+    LinuxReceiver {
+        symbol: ObjectSymbolHandle,
+        offset: usize,
+    },
     LinuxScalar(LinuxX86ScalarExitShim),
     DarwinUnit {
         symbol: ObjectSymbolHandle,

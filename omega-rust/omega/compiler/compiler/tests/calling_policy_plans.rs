@@ -3,6 +3,8 @@
 
 #[path = "calling_policy_plans/calling_vocabulary_and_callbacks.rs"]
 mod calling_vocabulary_and_callbacks;
+#[path = "calling_policy_plans/linux_entry.rs"]
+mod linux_entry;
 #[path = "calling_policy_plans/macos_entry.rs"]
 mod macos_entry;
 #[path = "calling_policy_plans/opaque_boundaries.rs"]
