@@ -3,6 +3,7 @@ use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
+use checked_trees::CheckedStructuralPredicatePathSegment;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowFacts, FlowSemanticContextRef};
@@ -15,7 +16,7 @@ mod captured;
 mod conversions;
 use calls::capture_call;
 use captured::{CapturedValue, LiveValues};
-use conversions::selected_call;
+use conversions::{selected_call, selected_operand};
 
 #[cfg(test)]
 mod call_tests;
@@ -46,40 +47,60 @@ pub(super) fn capture_statement(
             context,
             state,
             statement_index,
+            selected.expression,
             selected.call,
             active,
         )
         .and_then(|value| selected.convert(value));
     }
-    let (expression, symbols) = selected_statement(
+    if let Some((expression, symbols)) = selected_statement(
         program,
         context.scalar_expressions,
         state,
         statement_index,
         statement,
-    )?;
-    crate::values::evaluate_checked_scalar(
-        expression,
-        &mut crate::values::PlaceScalarValues {
-            program,
-            parameters: program
-                .state_parameters(crate::semantic_calls::find_state(program, state)?),
-            symbols,
-            value_at_place: |place: &CanonicalPlace| {
-                crate::values::scalar_value_at_place(
-                    program,
-                    semantic,
-                    context
-                        .contexts
-                        .semantic_context_refs
-                        .span_or_empty(active)
-                        .iter()
-                        .map(|reference| semantic.contexts.get(reference.context)),
-                    place,
-                )
+    ) {
+        return crate::values::evaluate_checked_scalar(
+            expression,
+            &mut crate::values::PlaceScalarValues {
+                program,
+                parameters: program
+                    .state_parameters(crate::semantic_calls::find_state(program, state)?),
+                symbols,
+                value_at_place: |place: &CanonicalPlace| {
+                    crate::values::scalar_value_at_place(
+                        program,
+                        semantic,
+                        context
+                            .contexts
+                            .semantic_context_refs
+                            .span_or_empty(active)
+                            .iter()
+                            .map(|reference| semantic.contexts.get(reference.context)),
+                        place,
+                    )
+                },
             },
-        },
-    )
+        );
+    }
+    // The selected plan has no form for every cast policy. A place or literal
+    // operand under authored conversions still resolves its own evidence.
+    let operand = selected_operand(
+        program,
+        context.exact_integer_casts,
+        state,
+        statement_index,
+        source,
+    )?;
+    let live = LiveValues {
+        program,
+        semantic,
+        context,
+        state,
+        active,
+    };
+    ScalarValue::operand(program, &live, statement_index, operand.operand)
+        .and_then(|value| operand.convert(value))
 }
 
 pub(super) fn capture_bounds(
@@ -105,37 +126,57 @@ pub(super) fn capture_bounds(
             context,
             state,
             statement_index,
+            selected.expression,
             selected.call,
             active,
         )
         .and_then(|value| selected.convert(value));
     }
-    let (expression, symbols) = selected_statement(
+    if let Some((expression, symbols)) = selected_statement(
         program,
         context.scalar_expressions,
         state,
         statement_index,
         statement,
+    ) {
+        let contexts = context
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(active)
+            .iter()
+            .map(|reference| reference.context)
+            .collect::<Vec<_>>();
+        return crate::values::bounds::evaluate(
+            expression,
+            &mut crate::values::bounds::PlaceIntegerBounds {
+                program,
+                semantic,
+                contexts: &contexts,
+                parameters: program
+                    .state_parameters(crate::semantic_calls::find_state(program, state)?),
+                symbols,
+                state,
+            },
+        );
+    }
+    // The selected plan has no form for every cast policy. A place or literal
+    // operand under authored conversions still resolves its own evidence.
+    let operand = selected_operand(
+        program,
+        context.exact_integer_casts,
+        state,
+        statement_index,
+        source,
     )?;
-    let contexts = context
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(active)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>();
-    crate::values::bounds::evaluate(
-        expression,
-        &mut crate::values::bounds::PlaceIntegerBounds {
-            program,
-            semantic,
-            contexts: &contexts,
-            parameters: program
-                .state_parameters(crate::semantic_calls::find_state(program, state)?),
-            symbols,
-            state,
-        },
-    )
+    let live = LiveValues {
+        program,
+        semantic,
+        context,
+        state,
+        active,
+    };
+    facts::IntegerRange::operand(program, &live, statement_index, operand.operand)
+        .and_then(|value| operand.convert(value))
 }
 
 fn selected_statement<'plans>(
@@ -366,9 +407,12 @@ fn selected_scalar_argument(
 /// Call-local scratch: immutable bindings use their selected ordinal namespace;
 /// mutable locals and owned formals use exact storage symbols and cannot alias
 /// caller storage. Mutable formals leave holes in the immutable namespace.
+/// `fields` carries each retained self-field read of a receiver call, already
+/// resolved against the caller's receiver place.
 struct CallValues<Value = ScalarValue> {
     bindings: Vec<Option<Value>>,
     storage: Vec<(SymbolHandle, Value)>,
+    fields: Vec<(u32, Vec<CheckedStructuralPredicatePathSegment>, Value)>,
 }
 
 impl crate::values::ScalarValueSource for CallValues {
@@ -381,6 +425,19 @@ impl crate::values::ScalarValueSource for CallValues {
             .iter()
             .find(|(candidate, _)| *candidate == symbol)
             .map(|(_, value)| value.clone())
+    }
+
+    fn structural_field(
+        &mut self,
+        parameter_position: u32,
+        path: &[CheckedStructuralPredicatePathSegment],
+    ) -> Option<ScalarValue> {
+        self.fields
+            .iter()
+            .find(|(position, candidate, _)| {
+                *position == parameter_position && candidate.as_slice() == path
+            })
+            .map(|(_, _, value)| value.clone())
     }
 }
 
@@ -400,6 +457,7 @@ mod tests {
                 Some(ScalarValue::Boolean(true)),
             ],
             storage: vec![(symbol, ScalarValue::Boolean(false))],
+            fields: Vec::new(),
         };
         values.storage[0].1 = ScalarValue::Boolean(true);
         assert_eq!(values.binding(0), Some(ScalarValue::Boolean(false)));

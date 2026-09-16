@@ -6,6 +6,7 @@ use crate::flow::FlowBuildContext;
 use crate::flow::transfers::scalar_values::CallValues;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
+use checked_trees::expression::ExpressionHandle;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralPredicatePathSegment};
 use facts::FactPlan;
@@ -40,6 +41,27 @@ pub(super) trait CapturedValue: Sized {
     fn formal_fallback(
         _program: &typed_trees::TypedTrees,
         _parameter: &typed_trees::signature::StateParameter,
+    ) -> Option<Self> {
+        None
+    }
+    /// Evaluate a non-call operand below authored conversions: a literal or a
+    /// caller place with a live snapshot or declared storage invariant. Never
+    /// a source replay of nested computation the plan did not retain.
+    fn operand(
+        _program: &typed_trees::TypedTrees,
+        _live: &LiveValues<'_, '_>,
+        _statement_index: usize,
+        _expression: ExpressionHandle,
+    ) -> Option<Self> {
+        None
+    }
+    /// Fallback for a resolved receiver field with no live snapshot: declared
+    /// storage invariants on frozen storage, then the raw carrier. Exact
+    /// scalar values have no declared fallback.
+    fn field_fallback(
+        _program: &typed_trees::TypedTrees,
+        _reference: typed_trees::types::TypeReferenceHandle,
+        _frozen: bool,
     ) -> Option<Self> {
         None
     }
@@ -96,6 +118,24 @@ impl CapturedValue for ScalarValue {
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
         crate::values::evaluate_checked_scalar(expression, values)
+    }
+
+    fn operand(
+        program: &typed_trees::TypedTrees,
+        live: &LiveValues<'_, '_>,
+        statement_index: usize,
+        expression: ExpressionHandle,
+    ) -> Option<Self> {
+        if let Some(value) = Self::literal(program.expression_table.expression(expression)) {
+            return Some(value);
+        }
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            live.state,
+            statement_index,
+            expression,
+        )?;
+        Self::at_place(&place, live)
     }
 
     fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
@@ -207,6 +247,63 @@ impl CapturedValue for IntegerRange {
             .or_else(|| crate::values::bounds::primitive_range(primitive))
     }
 
+    fn operand(
+        program: &typed_trees::TypedTrees,
+        live: &LiveValues<'_, '_>,
+        statement_index: usize,
+        expression: ExpressionHandle,
+    ) -> Option<Self> {
+        if let Some(value) = Self::literal(program.expression_table.expression(expression)) {
+            return Some(value);
+        }
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            live.state,
+            statement_index,
+            expression,
+        )?;
+        let primitive =
+            program.primitive_type_reference(crate::flow::expression_type_reference_in_state(
+                program,
+                live.state,
+                statement_index,
+                expression,
+            )?)?;
+        let contexts = live
+            .context
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(live.active)
+            .iter()
+            .map(|reference| reference.context)
+            .collect::<Vec<_>>();
+        crate::values::bounds::PlaceIntegerBounds {
+            program,
+            semantic: live.semantic,
+            contexts: &contexts,
+            parameters: program
+                .state_parameters(crate::semantic_calls::find_state(program, live.state)?),
+            symbols: &[],
+            state: live.state,
+        }
+        .bounds_at_place(&place, primitive)
+    }
+
+    fn field_fallback(
+        program: &typed_trees::TypedTrees,
+        reference: typed_trees::types::TypeReferenceHandle,
+        frozen: bool,
+    ) -> Option<Self> {
+        let primitive = program.primitive_type_reference(reference)?;
+        // The declared storage invariant answers only while every link of the
+        // receiver path is frozen; past that the carrier still bounds any
+        // value a successful read can return.
+        (frozen
+            .then(|| crate::values::bounds::declared_bounds(program, reference, primitive))
+            .flatten())
+        .or_else(|| crate::values::bounds::primitive_range(primitive))
+    }
+
     fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
         let carrier = crate::values::bounds::primitive_range(conversion.target)?;
         // These branches mirror the cast arms of `bounds::evaluate`: widening
@@ -270,10 +367,15 @@ impl crate::values::bounds::IntegerBoundsSource for CallValues<IntegerRange> {
 
     fn structural_field(
         &mut self,
-        _: u32,
-        _: &[CheckedStructuralPredicatePathSegment],
+        position: u32,
+        path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
-        None
+        self.fields
+            .iter()
+            .find(|(candidate_position, candidate, _)| {
+                *candidate_position == position && candidate.as_slice() == path
+            })
+            .map(|(_, _, bounds)| bounds.clone())
     }
 
     fn indexed_field(

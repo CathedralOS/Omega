@@ -21,18 +21,17 @@ pub(super) fn capture_call<Value: CapturedValue>(
     context: &mut FlowBuildContext,
     caller_state: SymbolHandle,
     statement_index: usize,
+    source: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<Value> {
-    if call.receiver.is_valid()
-        || !call.machine_arguments.is_empty()
+    if !call.machine_arguments.is_empty()
         || call.static_requirement_dispatch.is_some()
         || call.quotient_operation.is_some()
         || call.private_layout_operation.is_some()
     {
         return None;
     }
-    exact_call_occurrence(program, borrow, caller_state, statement_index, call)?;
     let caller = crate::semantic_calls::find_state(program, caller_state)?;
     let caller_statements = program.statement_table.statements(caller.statement_nodes);
     let caller_statement = caller_statements.get(statement_index)?;
@@ -40,6 +39,43 @@ pub(super) fn capture_call<Value: CapturedValue>(
         matches!(statement, StatementNode::LocalData(local)
             if !local.is_mutable && program.primitive_type_reference(local.type_reference).is_some())
     }).count()).ok()?;
+    // A receiver call's `self` is one exact caller storage place; the callee's
+    // field reads on it resolve against that place's live facts below.
+    let receiver_place = if call.receiver.is_valid() {
+        let place = canonical_place_from_expression_in_state(
+            program,
+            caller_state,
+            statement_index,
+            call.receiver,
+        )?;
+        if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+            || !place.segments.iter().all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. }
+                        | facts::PlaceSegment::Case { .. }
+                        | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
+        {
+            return None;
+        }
+        Some(place)
+    } else {
+        None
+    };
+    let occurrence = exact_call_occurrence(
+        program,
+        borrow,
+        caller_state,
+        statement_index,
+        source,
+        call,
+        receiver_place.as_ref().and_then(|place| match place.root {
+            facts::PlaceRoot::Symbol(symbol) => Some(symbol),
+            _ => None,
+        }),
+    )?;
     let machine = program.machines().iter().find(|machine| {
         program
             .machine_states(machine)
@@ -58,10 +94,32 @@ pub(super) fn capture_call<Value: CapturedValue>(
     let statements = program.statement_table.statements(state.statement_nodes);
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.len() != parameters.len()
-        || parameters.iter().any(|parameter| {
-            parameter.is_self
-                || parameter.is_const
+    // The self parameter is the callee's view of the receiver, not a scalar
+    // argument; it occupies no dense binding position.
+    let mut self_positions = parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.is_self)
+        .map(|(position, _)| position);
+    let self_position = match (
+        receiver_place.is_some(),
+        self_positions.next(),
+        self_positions.next(),
+    ) {
+        (true, Some(position), None) => Some(u32::try_from(position).ok()?),
+        (false, None, None) => None,
+        _ => return None,
+    };
+    if self_position.is_some() && !machine.attached_data_symbol.is_valid() {
+        return None;
+    }
+    let scalar_parameters: Vec<_> = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect();
+    if arguments.len() != scalar_parameters.len()
+        || scalar_parameters.iter().any(|parameter| {
+            parameter.is_const
                 || (parameter.is_mutable
                     && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
                 || program
@@ -78,6 +136,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
         state: caller_state,
         active,
     };
+    let call_ordinal = u32::try_from(occurrence.call_ordinal).ok()?;
     let argument_values = arguments
         .iter()
         .enumerate()
@@ -93,7 +152,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
                     argument_ordinal,
                 },
                 StatementNode::Assignment(_) => CheckedScalarExpressionRole::UnitCallArgument {
-                    call_ordinal: 0,
+                    call_ordinal,
                     argument_ordinal,
                 },
                 _ => return None,
@@ -160,15 +219,16 @@ pub(super) fn capture_call<Value: CapturedValue>(
         })
         .collect::<Option<Vec<_>>>()?;
     let plans = context.scalar_expressions;
-    let mut symbols: Vec<_> = parameters
+    let mut symbols: Vec<_> = scalar_parameters
         .iter()
         .map(|parameter| parameter.symbol)
         .collect();
     let mut values = CallValues {
-        bindings: Vec::with_capacity(parameters.len()),
+        bindings: Vec::with_capacity(scalar_parameters.len()),
         storage: Vec::new(),
+        fields: Vec::new(),
     };
-    for (parameter, value) in parameters.iter().zip(argument_values) {
+    for (parameter, value) in scalar_parameters.iter().zip(argument_values) {
         if !parameter.symbol.is_valid()
             || parameters
                 .iter()
@@ -185,6 +245,34 @@ pub(super) fn capture_call<Value: CapturedValue>(
             values.storage.push((parameter.symbol, value));
         } else {
             values.bindings.push(Some(value));
+        }
+    }
+    if let Some(self_position) = self_position {
+        let receiver_place = receiver_place.expect("self position implies receiver");
+        // Every self-field read retained by the callee's selected plan
+        // resolves against the receiver place in the caller: a live snapshot
+        // first, then the levels `field_fallback` can still vouch for.
+        let mut paths: Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>> = Vec::new();
+        for plan in plans
+            .expressions
+            .iter()
+            .filter(|expression| expression.state == state.symbol)
+        {
+            collect_self_field_paths(&plan.expression, self_position, &mut paths);
+        }
+        for path in paths {
+            let (_, segments, reference, frozen) =
+                crate::values::resolve_structural_parameter_path(
+                    program,
+                    parameters,
+                    self_position,
+                    &path,
+                )?;
+            let mut place = receiver_place.clone();
+            place.segments.extend(segments);
+            let value = Value::at_place(&place, &live)
+                .or_else(|| Value::field_fallback(program, reference, frozen))?;
+            values.fields.push((self_position, path, value));
         }
     }
     let mut immutable_local_count = 0_u32;
@@ -304,13 +392,21 @@ pub(super) fn capture_call<Value: CapturedValue>(
     None
 }
 
-fn exact_call_occurrence(
+/// The borrow row for this exact call occurrence. A statement can carry
+/// further call occurrences beside the captured one — an index selector on
+/// the target is itself a call — so the row is selected by target, receiver
+/// presence, and receiver root, and its `call_ordinal` must resolve back to
+/// this authored call expression: the ordinal is the occurrence key, not a
+/// trusted field on the row.
+fn exact_call_occurrence<'facts>(
     program: &typed_trees::TypedTrees,
-    borrow: &BorrowFacts,
+    borrow: &'facts BorrowFacts,
     caller_state: SymbolHandle,
     statement_index: usize,
+    source: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
-) -> Option<()> {
+    receiver_root: Option<SymbolHandle>,
+) -> Option<&'facts checked_trees::BorrowCallFact> {
     let owner = program.machines().iter().find(|machine| {
         program
             .machine_states(machine)
@@ -324,19 +420,114 @@ fn exact_call_occurrence(
     if states.next().is_some() {
         return None;
     }
+    let receiver_root = receiver_root.unwrap_or_default();
     let mut calls = borrow
         .calls
         .span_or_empty(state.calls)
         .iter()
-        .filter(|candidate| candidate.statement_index == statement_index);
+        .filter(|candidate| {
+            candidate.statement_index == statement_index
+                && candidate.target_symbol == call.target_symbol
+                && candidate.has_receiver == call.receiver.is_valid()
+                && candidate.receiver_symbol == receiver_root
+                && matches!(
+                    crate::semantic_calls::find_call_site(
+                        program,
+                        owner.symbol,
+                        caller_state,
+                        statement_index,
+                        candidate.call_ordinal,
+                    ),
+                    Some(crate::semantic_calls::CallSite::Expression { expression, .. })
+                        if expression == source
+                )
+        });
     let captured = calls.next()?;
-    if calls.next().is_some()
-        || captured.call_ordinal != 0
-        || captured.target_symbol != call.target_symbol
-        || captured.has_receiver
-        || captured.receiver_symbol.is_valid()
-    {
+    if calls.next().is_some() {
         return None;
     }
-    Some(())
+    Some(captured)
+}
+
+/// Collect the self-parameter field paths retained in the callee's selected
+/// scalar plan so each can be resolved against the caller's receiver once.
+fn collect_self_field_paths(
+    expression: &checked_trees::CheckedScalarExpression,
+    self_position: u32,
+    paths: &mut Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>>,
+) {
+    use checked_trees::CheckedScalarExpression as Expression;
+    match expression {
+        Expression::StructuralParameterField {
+            parameter_position,
+            path,
+            ..
+        } if *parameter_position == self_position => {
+            if !paths.iter().any(|candidate| candidate == path) {
+                paths.push(path.clone());
+            }
+        }
+        Expression::StructuralParameterIndexedRead { index, .. } => {
+            collect_self_field_paths(index, self_position, paths);
+        }
+        Expression::IntegerBinary { left, right, .. } => {
+            collect_self_field_paths(left, self_position, paths);
+            collect_self_field_paths(right, self_position, paths);
+        }
+        Expression::IntegerBitwiseNot { operand, .. }
+        | Expression::IntegerWiden { operand, .. }
+        | Expression::IntegerExactCast { operand, .. }
+        | Expression::IntegerWrappingCast { operand, .. }
+        | Expression::IntegerTrappingCast { operand, .. } => {
+            collect_self_field_paths(operand, self_position, paths);
+        }
+        Expression::Boolean(expression) => {
+            collect_self_field_paths_boolean(expression, self_position, paths);
+        }
+        _ => {}
+    }
+}
+
+fn collect_self_field_paths_boolean(
+    expression: &checked_trees::CheckedBooleanExpression,
+    self_position: u32,
+    paths: &mut Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>>,
+) {
+    use checked_trees::CheckedBooleanExpression as Expression;
+    let mut push = |field: &checked_trees::CheckedStructuralParameterField| {
+        if field.parameter_position == self_position && !paths.contains(&field.path) {
+            paths.push(field.path.clone());
+        }
+    };
+    match expression {
+        Expression::StructuralParameterField {
+            parameter_position,
+            path,
+        } if *parameter_position == self_position => {
+            if !paths.iter().any(|candidate| candidate == path) {
+                paths.push(path.clone());
+            }
+        }
+        Expression::Not(operand) => {
+            collect_self_field_paths_boolean(operand, self_position, paths);
+        }
+        Expression::Equal { left, right }
+        | Expression::And { left, right }
+        | Expression::Or { left, right } => {
+            collect_self_field_paths_boolean(left, self_position, paths);
+            collect_self_field_paths_boolean(right, self_position, paths);
+        }
+        Expression::IntegerComparison { left, right, .. } => {
+            collect_self_field_paths(left, self_position, paths);
+            collect_self_field_paths(right, self_position, paths);
+        }
+        Expression::IeeeFloatComparison { left, right, .. }
+        | Expression::ByteSequenceEqual { left, right }
+        | Expression::PayloadlessSumEqual { left, right, .. } => {
+            push(left);
+            push(right);
+        }
+        Expression::StructuralCaseMembership { subject, .. } => push(subject),
+        _ => {}
+    }
 }

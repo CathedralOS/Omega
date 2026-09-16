@@ -18,6 +18,9 @@ mod constructed;
 mod projected;
 mod scalar_values;
 
+#[cfg(test)]
+mod byte_sequence_tests;
+
 pub(super) fn propagate_statement_transfers(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,

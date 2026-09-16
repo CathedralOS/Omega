@@ -35,6 +35,28 @@ impl PlaceIntegerBounds<'_> {
         )
     }
 
+    /// Bounds for one resolved operand place: a live snapshot first, then the
+    /// declared storage invariant a bare frozen root still carries, and
+    /// finally the raw carrier. Segment paths and nonlocal storage keep only
+    /// the levels that survive reborrowing.
+    pub(crate) fn bounds_at_place(
+        &self,
+        place: &CanonicalPlace,
+        primitive_type: PrimitiveType,
+    ) -> Option<IntegerRange> {
+        self.bounds(place).or_else(|| {
+            let declared = match place.root {
+                facts::PlaceRoot::Symbol(symbol) if place.segments.is_empty() => {
+                    self.declared_type(symbol)
+                }
+                _ => None,
+            };
+            declared
+                .and_then(|reference| declared_bounds(self.program, reference, primitive_type))
+                .or_else(|| primitive_range(primitive_type))
+        })
+    }
+
     /// The resolved place, the field's declared type, and whether the whole
     /// path is frozen (immutable end to end). Declared constraints only hold
     /// as read invariants on frozen storage: a mutable formal or exclusive
@@ -195,9 +217,14 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         // Without a live literal, a declared element range is the storage
         // invariant every checked write enforced on every element — but only
         // while the carrier is frozen; mutable storage can be reborrowed
-        // through a pointee type that drops declared constraints.
-        literal_bounds.or_else(|| {
-            frozen.then(|| declared_bounds(self.program, element_reference, PrimitiveType::U8))?
-        })
+        // through a pointee type that drops declared constraints. Past that,
+        // the element's own primitive carrier still bounds any successful
+        // read; this proves nothing about the index or the access returning.
+        literal_bounds
+            .or_else(|| {
+                frozen
+                    .then(|| declared_bounds(self.program, element_reference, PrimitiveType::U8))?
+            })
+            .or_else(|| primitive_range(PrimitiveType::U8))
     }
 }
