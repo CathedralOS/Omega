@@ -12,14 +12,16 @@
 //! is not a disposition: lookup fails closed. Demand completeness never
 //! fabricates a broad union, and an ordinary-release cohort cannot emit a
 //! mechanism row without its separately retained occurrence-specific release
-//! contract. That contract binds into a direct-syscall mechanism's checked
-//! argument-contract coordinate; a normalized foreign mechanism commits its
-//! implementation contract to the boundary calling plan instead and has no
-//! release coordinate yet.
+//! contract. That contract binds into the mechanism key's checked
+//! argument-contract coordinate: a direct syscall replaces its conservative
+//! contract with it, and a normalized foreign import keeps its admitted
+//! calling plan and carries it as the checked narrowing coordinate beside that
+//! plan, so both roles earn the row only under the exact retained occurrence.
 
 use effects::{
-    CheckedSyscallArgumentContractIdentity, PortableFilesystemAuthorityFacet,
-    ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition, TerminalMechanismIdentity,
+    CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
+    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission,
+    TerminalAuthorityDisposition, TerminalMechanismIdentity,
     provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest},
 };
 use sha2::{Digest, Sha256};
@@ -321,12 +323,13 @@ pub fn filesystem_mechanism_row(
 /// ordinary-release cohort requirement whose proved constrained occurrence
 /// carries `contract` in the mechanism's checked contract coordinate.
 ///
-/// Only a direct-syscall mechanism can carry the contract today: a normalized
-/// foreign locator commits its implementation contract to the admitted
-/// boundary calling plan and has no release coordinate, so foreign
-/// `close`/`find_close`/`close_handle` realizations still refuse rather than
-/// fabricating a union. A mechanism carrying any other contract is an
-/// unconstrained key and earns no row.
+/// A direct syscall carries the contract in place of its conservative
+/// argument contract; a normalized foreign import carries it as the checked
+/// coordinate beside its admitted calling plan, which is how a Windows or
+/// macOS `close`/`find_close`/`close_handle` import occurrence earns the row.
+/// A mechanism carrying the admitted plan alone, a different contract, or a
+/// role without an argument-contract coordinate is an unconstrained key and
+/// earns no row; no union is fabricated for it.
 pub fn filesystem_release_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     method: &ServiceMethod,
@@ -334,10 +337,20 @@ pub fn filesystem_release_mechanism_row(
 ) -> Result<TerminalAuthorityPolicyRow, UnsettledFilesystemRequirement> {
     match settled_filesystem_cohort(&method.name) {
         Some(FilesystemCohortDisposition::OrdinaryReleaseContract) => {
-            let TerminalMechanismIdentity::Syscall(syscall) = mechanism else {
-                return Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract);
+            let bound = match mechanism {
+                TerminalMechanismIdentity::Syscall(syscall) => {
+                    syscall.checked_argument_contract() == contract.checked_argument_contract()
+                }
+                TerminalMechanismIdentity::NormalizedForeign(foreign) => {
+                    foreign.argument_contract()
+                        == NormalizedForeignArgumentContract::Checked(
+                            contract.checked_argument_contract(),
+                        )
+                }
+                TerminalMechanismIdentity::CompilerIntrinsic(_)
+                | TerminalMechanismIdentity::CheckedPhysical(_) => false,
             };
-            if syscall.checked_argument_contract() != contract.checked_argument_contract() {
+            if !bound {
                 return Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract);
             }
             Ok(TerminalAuthorityPolicyRow::new(
