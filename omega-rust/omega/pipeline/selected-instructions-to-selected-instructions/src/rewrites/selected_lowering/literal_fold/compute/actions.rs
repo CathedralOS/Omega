@@ -207,6 +207,38 @@ pub(super) fn derive_action(
             }
             Some(result.virtual_register)
         }
+        // A binary left-literal consumer whose folded result is a constant
+        // of the literal alone: `[victim, right, result, scratch...]`
+        // folds the operand-0 `Use`, drops the operand-1 `Use` — the
+        // constant result never reads it — and drops every `Def` operand
+        // past the result under the same occurrence-free custody the
+        // right grammar requires. Declaring this shape attests the
+        // operand-0 literal alone fixes the result — `0 & x` is zero for
+        // every `x` — so no commutation of the surviving `Use` is
+        // implied.
+        (
+            PairOperandShape::BinaryLeftLiteralConstantResult,
+            PairResultDisposition::ScalarRegister,
+            [victim, right, result, scratch @ ..],
+        ) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // Commutative binary consumers also admit the literal as the left
         // operand: `[victim, right, result]` folds the operand-0 `Use` and
         // binds the operand-1 survivor into the rewritten row.
@@ -313,11 +345,14 @@ pub(super) fn derive_action(
     // row binds — the source operand that survives the fold. A right-literal
     // grammar — including the auxiliary-`Use` divide grammar — leaves
     // operand 0, a left-literal grammar leaves operand 1, and the `Use`-free
-    // unary fold records its folded input. The constant-result grammar
-    // binds no `Use` position; it records the dropped operand-0 dividend
-    // for custody.
+    // unary fold records its folded input. The constant-result grammars
+    // bind no `Use` position; they record the dropped non-victim `Use` for
+    // custody — the operand-0 dividend under the right grammar, the
+    // operand-1 `Use` under the left annihilator grammar.
     let surviving = match pair.rule.operand_shape() {
-        PairOperandShape::BinaryLeftLiteral => consumer.operands[1].virtual_register,
+        PairOperandShape::BinaryLeftLiteral | PairOperandShape::BinaryLeftLiteralConstantResult => {
+            consumer.operands[1].virtual_register
+        }
         PairOperandShape::BinaryRightLiteral
         | PairOperandShape::BinaryRightLiteralAuxiliaryUses
         | PairOperandShape::BinaryRightLiteralConstantResult

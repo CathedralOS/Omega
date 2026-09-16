@@ -58,6 +58,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_byte_view_address());
     assert!(policy.enables_exact_divide());
     assert!(policy.enables_wrapping_remainder());
+    assert!(policy.enables_bitwise_and_zero());
 }
 
 #[test]
@@ -72,6 +73,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         address_offset,
         divide,
         remainder,
+        and_zero,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -437,13 +439,86 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         None
     );
 
+    // The bitwise-and annihilator family declares one pair per `Use`
+    // position: a literal of exactly zero folds `BitwiseAndI64` into a
+    // `MaterializeI64` of the constant zero — `x & 0` and `0 & x` are both
+    // zero — dropping the other `Use` and every dead scratch `Def` operand.
+    // Both grammars rewrite through the materialize row the same way; the
+    // pair disambiguates by which `Use` position the folded literal
+    // occupies, and the left grammar attests no commutation — the
+    // operand-0 literal alone fixes the result.
+    let &[and_zero_rule, and_zero_left_rule] = and_zero.payload().pairs() else {
+        panic!("the and-zero family declares one pair per operand grammar")
+    };
+    assert_eq!(
+        and_zero.optimization(),
+        Optimization::SelectedIncomingBitwiseAndZeroMaterialization
+    );
+    assert_eq!(
+        and_zero_rule,
+        SelectedInstructionPairRule::BITWISE_AND_ZERO_MATERIALIZE
+    );
+    assert_eq!(
+        and_zero_left_rule,
+        SelectedInstructionPairRule::BITWISE_AND_ZERO_LEFT_MATERIALIZE
+    );
+    for pair in [and_zero_rule, and_zero_left_rule] {
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.consumer(), MachineSemanticKind::BitwiseAndI64);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(0));
+        assert!(pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(1));
+        assert!(!pair.admits_immediate(u64::MAX));
+        assert_eq!(pair.fold_immediate(0), Some(0));
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+    }
+    assert_eq!(
+        and_zero_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteralConstantResult
+    );
+    assert_eq!(and_zero_rule.victim_operand(), 1);
+    assert_eq!(
+        and_zero_left_rule.operand_shape(),
+        PairOperandShape::BinaryLeftLiteralConstantResult
+    );
+    assert_eq!(and_zero_left_rule.victim_operand(), 0);
+    let and_kind = SelectedInstructionKind::BitwiseAndI64;
+    assert_eq!(
+        and_zero_rule.rewrite_consumer(and_kind, 0, Some(u64_scalar)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0),
+        })
+    );
+    assert_eq!(
+        and_zero_left_rule.rewrite_consumer(and_kind, 0, Some(i64_scalar)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Signed(0),
+        })
+    );
+    assert_eq!(
+        and_zero_rule.rewrite_consumer(remainder_kind, 0, Some(u64_scalar)),
+        None
+    );
+    assert_eq!(and_zero_rule.rewrite_consumer(and_kind, 0, None), None);
+
     // Every landed rule's rewrite but the divide and remainder folds is
     // unit-effect isolated: no implicit unit uses or clobbers and no
     // operand unit bindings beyond the declared result channel. The divide
     // fold deliberately drops the pinned consumer's `fixed_view` bindings;
     // the remainder fold drops the pinned consumer's `fixed_view` pins and
     // `early_clobber` scratch marks.
-    for entry in [add, subtract, compare, indexed, copy, address_offset] {
+    for entry in [
+        add,
+        subtract,
+        compare,
+        indexed,
+        copy,
+        address_offset,
+        and_zero,
+    ] {
         for pair in entry.payload().pairs() {
             assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
         }
@@ -492,6 +567,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::WRAPPING_REMAINDER_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE]
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::BITWISE_AND_ZERO_V1).collect::<Vec<_>>(),
+        SelectedInstructionPairRule::BITWISE_AND_ZERO_FOLDS.to_vec()
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -558,6 +637,14 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         remainder_rule.immediate_constraint_key(&keys),
         Some(keys.materialize_i64)
     );
+    assert_eq!(
+        and_zero_rule.immediate_constraint_key(&keys),
+        Some(keys.materialize_i64)
+    );
+    assert_eq!(
+        and_zero_left_rule.immediate_constraint_key(&keys),
+        Some(keys.materialize_i64)
+    );
 }
 
 #[test]
@@ -587,6 +674,10 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // likewise unit-clean; `BoundEarlyClobberConsumerOperands`
             // relaxes only the dropped consumer's operand decorations.
             SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE,
+            // Both and-zero grammars rewrite into the same materialize
+            // row, which is itself unit-clean.
+            SelectedInstructionPairRule::BITWISE_AND_ZERO_MATERIALIZE,
+            SelectedInstructionPairRule::BITWISE_AND_ZERO_LEFT_MATERIALIZE,
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -646,7 +737,9 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         .chain([
             SelectedInstructionPairRule::COPY_LITERAL_FOLD,
             SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
-        ]) {
+        ])
+        .chain(SelectedInstructionPairRule::BITWISE_AND_ZERO_FOLDS)
+        {
             assert_eq!(rule.machine_effects(), PairMachineEffects::Isolated);
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());

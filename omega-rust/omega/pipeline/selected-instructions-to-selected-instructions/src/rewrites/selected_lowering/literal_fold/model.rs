@@ -45,6 +45,7 @@ impl LiteralFoldPolicy {
     const BYTE_VIEW_ADDRESS_BIT: u16 = 1 << 6;
     const EXACT_DIVIDE_BIT: u16 = 1 << 7;
     const WRAPPING_REMAINDER_BIT: u16 = 1 << 8;
+    const BITWISE_AND_ZERO_BIT: u16 = 1 << 9;
     const KNOWN_BITS: u16 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -53,7 +54,8 @@ impl LiteralFoldPolicy {
         | Self::COPY_BIT
         | Self::BYTE_VIEW_ADDRESS_BIT
         | Self::EXACT_DIVIDE_BIT
-        | Self::WRAPPING_REMAINDER_BIT;
+        | Self::WRAPPING_REMAINDER_BIT
+        | Self::BITWISE_AND_ZERO_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -102,6 +104,14 @@ impl LiteralFoldPolicy {
     /// discharged by the literal and its scratch `Def` outputs drop dead.
     pub const WRAPPING_REMAINDER_V1: Self = Self {
         enabled_rules: Self::WRAPPING_REMAINDER_BIT,
+    };
+    /// Bitwise-and annihilator fold: fold a materialized literal `0`
+    /// feeding its sole `BitwiseAndI64` consumer at either `Use` operand
+    /// into a `MaterializeI64` of zero at the result register — zero is
+    /// the bitwise-and annihilator, so the constant result never reads
+    /// the surviving-side `Use` the fold drops.
+    pub const BITWISE_AND_ZERO_V1: Self = Self {
+        enabled_rules: Self::BITWISE_AND_ZERO_BIT,
     };
 
     pub(crate) const fn empty() -> Self {
@@ -152,6 +162,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_wrapping_remainder(self) -> bool {
         self.enabled_rules & Self::WRAPPING_REMAINDER_BIT != 0
+    }
+
+    pub const fn enables_bitwise_and_zero(self) -> bool {
+        self.enabled_rules & Self::BITWISE_AND_ZERO_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u16 {
@@ -309,9 +323,11 @@ pub struct LiteralFoldAction {
     /// row binds — the operand that survives the fold. Under a right-literal
     /// grammar it is the consumer's operand 0, under a left-literal grammar
     /// operand 1, under the `Use`-free unary grammar it records the folded
-    /// input register, and under the constant-result grammar it records the
-    /// dropped operand-0 dividend for custody — the rewritten row binds no
-    /// `Use` position at all.
+    /// input register, and under the constant-result grammars it records
+    /// the dropped non-victim `Use` — the operand-0 dividend under the
+    /// right grammar, the operand-1 `Use` under the left annihilator
+    /// grammar — for custody; the rewritten row binds no `Use` position
+    /// at all.
     pub surviving: VirtualRegisterId,
     /// The folded consumer's scalar result. Flag-defining consumers such as
     /// `CompareI64` carry no `Def` operand and record `None`.
