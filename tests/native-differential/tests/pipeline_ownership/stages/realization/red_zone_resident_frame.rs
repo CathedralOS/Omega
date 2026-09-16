@@ -187,16 +187,14 @@ fn expected_frame_displacement(
             i64::try_from(committed + return_bytes + u64::from(abi_stack_byte_offset)).unwrap()
         }
         FrameStorageSlotId::Outgoing(id) => {
-            i64::try_from(
+            i64::from(
                 function
                     .outgoing_arguments
                     .iter()
                     .find(|slot| slot.id == id)
                     .unwrap_or_else(|| panic!("unresolved outgoing slot {id:?}"))
                     .abi_stack_byte_offset,
-            )
-            .unwrap()
-                - resident
+            ) - resident
         }
         FrameStorageSlotId::Local(id) => {
             i64::try_from(

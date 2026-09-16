@@ -5,10 +5,6 @@ use super::super::super::super::super::super::{
     validate_raw_selection,
 };
 
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
-
-use selected_instructions_to_register_homes::AllocationSource;
-
 use super::{
     AdmissionProfile, EdgeId, IntegerValue, NativeTarget, Operation, OperationId, OperationKind,
     OperationResult, OptimizationSelections, Terminator, ValueDeclaration, ValueId, artifact,
