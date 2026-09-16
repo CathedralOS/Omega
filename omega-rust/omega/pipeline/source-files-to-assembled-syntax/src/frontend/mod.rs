@@ -1,8 +1,10 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::source::{SourceStorage, ToolchainContractCustody};
 use arena::{Arena, HandleSpan};
+use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use source::{SourceId, SourceOrigin, SourcePosition};
@@ -363,10 +365,84 @@ impl ReconciledPackageImportRequest {
     }
 }
 
+/// The other dependency scope. Product and build scopes are independent:
+/// neither falls back to the other.
+fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
+    match purpose {
+        DependencyPurpose::Product => DependencyPurpose::Build,
+        DependencyPurpose::Build => DependencyPurpose::Product,
+    }
+}
+
+/// The dependency scope `source_path`'s own imports resolve in.
+///
+/// Only the compilation root's package carries build scope: its build entry
+/// and the transitive local helpers it imports execute in the build context.
+/// Every other package's sources — and any root source never claimed through
+/// the build entry — resolve product-scope imports. Scope claims are recorded
+/// per source path as imports are reconciled; an unclaimed root source
+/// defaults to product scope.
+pub(crate) fn source_import_scope(
+    packages: &PackageCompilationInputs,
+    import_scopes: &BTreeMap<PathBuf, DependencyPurpose>,
+    source_path: &Path,
+) -> DependencyPurpose {
+    if packages.package_for_source(source_path) == Some(packages.root()) {
+        import_scopes
+            .get(source_path)
+            .copied()
+            .or_else(|| {
+                source_path
+                    .canonicalize()
+                    .ok()
+                    .and_then(|canonical| import_scopes.get(&canonical).copied())
+            })
+            .unwrap_or(DependencyPurpose::Product)
+    } else {
+        DependencyPurpose::Product
+    }
+}
+
+/// Record the scope under which a resolved package import target participates.
+///
+/// Only sources owned by the compilation root carry a scope claim: a
+/// dependency's own files always resolve product-scope imports, so claims on
+/// them are meaningless. A root-owned source claimed under both scopes is a
+/// program error — the two contexts must not silently share one checked copy
+/// of a file.
+pub(crate) fn claim_import_scope(
+    packages: &PackageCompilationInputs,
+    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
+    requesting_source: &Path,
+    target_package: semantic_vocabulary::PackageKeyIdentity,
+    target: &Path,
+    purpose: DependencyPurpose,
+) -> Result<(), Vec<Diagnostic>> {
+    if target_package != packages.root() {
+        return Ok(());
+    }
+    match import_scopes.entry(target.to_path_buf()) {
+        std::collections::btree_map::Entry::Vacant(entry) => {
+            entry.insert(purpose);
+        }
+        std::collections::btree_map::Entry::Occupied(entry) if *entry.get() != purpose => {
+            return Err(vec![Diagnostic::error(format!(
+                "import in {} reaches {}, which the {} scope already claims; a source joins exactly one dependency scope",
+                requesting_source.display(),
+                target.display(),
+                entry.get().name(),
+            ))]);
+        }
+        std::collections::btree_map::Entry::Occupied(_) => {}
+    }
+    Ok(())
+}
+
 pub(crate) fn reconciled_package_import(
     requesting_source: &Path,
     members: &[Identifier],
     requester: Option<semantic_vocabulary::PackageKeyIdentity>,
+    purpose: DependencyPurpose,
     contract_root: Option<&Path>,
     packages: &PackageCompilationInputs,
 ) -> Result<ReconciledPackageImport, Vec<Diagnostic>> {
@@ -407,30 +483,53 @@ pub(crate) fn reconciled_package_import(
             requesting_source.display()
         ))]);
     };
-    let (package, source_root, path_members) =
-        match packages.dependency_target(requester, first.as_str()) {
-            Some(package) => (
-                package,
-                packages
-                    .package_root(package)
-                    .expect("validated dependency target retains a source root"),
-                &members[1..],
-            ),
-            None if packages.package_name(requester) == Some(first.as_str()) => (
-                requester,
-                packages
-                    .package_root(requester)
-                    .expect("validated requester retains a source root"),
-                &members[1..],
-            ),
-            None => (
+    let (package, source_root, path_members) = match packages.dependency_target_for_purpose(
+        requester,
+        purpose,
+        first.as_str(),
+    ) {
+        Some(package) => (
+            package,
+            packages
+                .package_root(package)
+                .expect("validated dependency target retains a source root"),
+            &members[1..],
+        ),
+        None if packages.package_name(requester) == Some(first.as_str()) => (
+            requester,
+            packages
+                .package_root(requester)
+                .expect("validated requester retains a source root"),
+            &members[1..],
+        ),
+        None => {
+            // An alias declared only in the other scope is not a missing
+            // module below the requester: name the actual authorization gap
+            // so cross-scope spellings never fall back to local paths.
+            let other = other_purpose(purpose);
+            if let Some(target) =
+                packages.dependency_target_for_purpose(requester, other, first.as_str())
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "import `{}` in {} names {} dependency `{}` (package {}); a {} import may only select {} dependencies",
+                    identifier_path_text(members),
+                    requesting_source.display(),
+                    other.name(),
+                    first.as_str(),
+                    packages.package_label(target),
+                    purpose.name(),
+                    purpose.name(),
+                ))]);
+            }
+            (
                 requester,
                 packages
                     .package_root(requester)
                     .expect("validated requester retains a source root"),
                 members,
-            ),
-        };
+            )
+        }
+    };
     let relative_path = path_members
         .iter()
         .fold(PathBuf::new(), |mut path, member| {
@@ -457,6 +556,7 @@ pub(crate) fn discover_imports_with_packages(
     generated_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
+    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let (imports, _) = discover_package_imports(
         parsed,
@@ -465,6 +565,7 @@ pub(crate) fn discover_imports_with_packages(
         PackageImportPhase::ExactTarget(generated_owner),
         retained,
         contract_custody,
+        import_scopes,
     )?;
     Ok(imports)
 }
@@ -475,6 +576,11 @@ pub(crate) enum PackageImportPhase {
 }
 
 /// Retain package requests until the exact child checks generated-source collisions.
+///
+/// `import_scopes` records which dependency scope each compilation-root source
+/// participates in: the selected build entry and the root-local files it
+/// imports are build scope; every other source is product scope. Claims
+/// propagate from importer to imported target as package imports reconcile.
 pub(crate) fn discover_package_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
@@ -482,6 +588,7 @@ pub(crate) fn discover_package_imports(
     phase: PackageImportPhase,
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
+    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
 ) -> Result<(Vec<PathBuf>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
     let generated_owner = match phase {
         PackageImportPhase::TargetIndependent => None,
@@ -494,6 +601,7 @@ pub(crate) fn discover_package_imports(
         // package association; their virtual paths need no filesystem lookup.
         let requester =
             generated_owner.or_else(|| packages.package_for_source(&parsed_source.path));
+        let purpose = source_import_scope(packages, import_scopes, &parsed_source.path);
         let contract_root = contract_custody.root_for(&parsed_source.path);
         for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
             let Item::Use(use_item) = syntax_trees.root_item(*root_item) else {
@@ -504,6 +612,7 @@ pub(crate) fn discover_package_imports(
                 &parsed_source.path,
                 members,
                 requester,
+                purpose,
                 contract_root,
                 packages,
             )? {
@@ -551,12 +660,28 @@ pub(crate) fn discover_package_imports(
                     match phase {
                         PackageImportPhase::TargetIndependent => {
                             if let Some(physical) = pending.physical_source()? {
+                                claim_import_scope(
+                                    packages,
+                                    import_scopes,
+                                    &parsed_source.path,
+                                    pending.request.package,
+                                    &physical,
+                                    purpose,
+                                )?;
                                 imports.push(physical);
                             }
                             requests.push(pending);
                         }
                         PackageImportPhase::ExactTarget(_) => {
                             let resolved = pending.resolve_for_exact_target(packages)?;
+                            claim_import_scope(
+                                packages,
+                                import_scopes,
+                                &parsed_source.path,
+                                pending.request.package,
+                                &resolved.path,
+                                purpose,
+                            )?;
                             imports.push(resolved.path.clone());
                             retained.push(resolved);
                         }

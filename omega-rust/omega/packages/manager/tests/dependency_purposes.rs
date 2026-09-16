@@ -155,16 +155,18 @@ fn purpose_tagged_edges_survive_acquisition_review_lock_and_recovery() {
         .expect("root build edge");
     assert_eq!(build_edge.dependency_index(), 0);
 
-    // Acquisition covers all four packages, yet product compilation sees only
-    // the product closure: the host packages are never import bindings.
+    // Acquisition covers all four packages and the root's build entry may
+    // import the host snapshots, so all four are compilation inputs. None of
+    // that widens product authority: the host packages hold no product-scope
+    // binding and never join the durable product closure.
     let root_key = closure.graph().root().clone();
     let product_key = package_key(&closure, "product-dep");
     let host_key = package_key(&closure, "host-tool");
     let host_lib_key = package_key(&closure, "host-lib");
     let inputs = package_compilation_inputs(&closure).unwrap();
-    assert_eq!(inputs.packages().count(), 2);
-    assert!(inputs.package_root(host_key.identity()).is_none());
-    assert!(inputs.package_root(host_lib_key.identity()).is_none());
+    assert_eq!(inputs.packages().count(), 4);
+    assert!(inputs.package_root(host_key.identity()).is_some());
+    assert!(inputs.package_root(host_lib_key.identity()).is_some());
     assert_eq!(
         inputs.dependency_target(root_key.identity(), "product_dep"),
         Some(product_key.identity())
@@ -173,6 +175,30 @@ fn purpose_tagged_edges_survive_acquisition_review_lock_and_recovery() {
         inputs.dependency_target(root_key.identity(), "host_tool"),
         None
     );
+    assert_eq!(
+        inputs.dependency_target_for_purpose(
+            root_key.identity(),
+            DependencyPurpose::Build,
+            "host_tool"
+        ),
+        Some(host_key.identity())
+    );
+    // The host tool's own product edge reaches host-lib inside this
+    // compilation, but only product-scope imports may select it.
+    assert_eq!(
+        inputs.dependency_target_for_purpose(
+            host_key.identity(),
+            DependencyPurpose::Build,
+            "host_lib"
+        ),
+        None,
+        "a dependency's build edges never project into a consumer's inputs"
+    );
+    assert_eq!(
+        inputs.dependency_target(host_key.identity(), "host_lib"),
+        Some(host_lib_key.identity())
+    );
+    assert_eq!(inputs.dependency_closure().packages().len(), 2);
 
     let (lock, request) = capture_lock(&closure, &tree.path("build"));
     let subject = lock.target(TARGET).unwrap().source();
@@ -229,10 +255,18 @@ fn purpose_tagged_edges_survive_acquisition_review_lock_and_recovery() {
         assert!(custody.snapshot_root().starts_with(&fresh_cache));
     }
     let inputs = package_compilation_inputs(&fresh).unwrap();
-    assert_eq!(inputs.packages().count(), 2);
+    assert_eq!(inputs.packages().count(), 4);
     assert_eq!(
         inputs.dependency_target(root_key.identity(), "host_tool"),
         None
+    );
+    assert_eq!(
+        inputs.dependency_target_for_purpose(
+            root_key.identity(),
+            DependencyPurpose::Build,
+            "host_tool"
+        ),
+        Some(host_key.identity())
     );
 
     // Checking reacquires and reviews every recorded package; the build-only
@@ -307,13 +341,24 @@ fn one_alias_can_select_different_packages_in_the_two_purposes() {
     .unwrap();
     assert_eq!(&fresh_subject, subject);
 
-    // Only the product-purpose binding reaches product compilation.
+    // The one alias answers each scope independently: product imports select
+    // the product package, the root's build entry selects the host package.
     let root_key = closure.graph().root().clone();
     let product_key = package_key(&closure, "product-dep");
+    let host_key = package_key(&closure, "host-tool");
     let inputs = package_compilation_inputs(&closure).unwrap();
+    assert_eq!(inputs.packages().count(), 3);
     assert_eq!(
         inputs.dependency_target(root_key.identity(), "shared"),
         Some(product_key.identity())
+    );
+    assert_eq!(
+        inputs.dependency_target_for_purpose(
+            root_key.identity(),
+            DependencyPurpose::Build,
+            "shared"
+        ),
+        Some(host_key.identity())
     );
 }
 
@@ -369,6 +414,16 @@ fn one_package_can_serve_product_and_build_purposes() {
     assert_eq!(&fresh_subject, subject);
     let inputs = package_compilation_inputs(&fresh).unwrap();
     assert_eq!(inputs.packages().count(), 2);
+    let root_key = fresh.graph().root().clone();
+    let std_key = package_key(&fresh, "std");
+    assert_eq!(
+        inputs.dependency_target(root_key.identity(), "std"),
+        Some(std_key.identity())
+    );
+    assert_eq!(
+        inputs.dependency_target_for_purpose(root_key.identity(), DependencyPurpose::Build, "std"),
+        Some(std_key.identity())
+    );
 }
 
 #[test]

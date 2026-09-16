@@ -6,6 +6,7 @@ use crate::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
     PackageSourceConsumptionCommitment,
 };
+use build_declarations::DependencyPurpose;
 use build_output::PackageGeneratedSource;
 use checked_interpreter::CanonicalFilesystemMetadataIndex;
 use diagnostics::Diagnostic;
@@ -66,24 +67,39 @@ impl PackageSourceBinding {
     }
 }
 
-/// One requester-local alias selected by the reconciled package graph.
+/// One requester-local alias selected by the reconciled package graph for one
+/// authorized dependency scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageDependencyBinding {
     requester: PackageKeyIdentity,
     alias: String,
     target: PackageKeyIdentity,
+    purpose: DependencyPurpose,
 }
 
 impl PackageDependencyBinding {
+    /// One product-scope edge. Durable `PackageDependencyClosure` rows are
+    /// product-only: build edges are compilation-local nameability and never
+    /// join a persisted closure.
     pub fn new(
         requester: PackageKeyIdentity,
         alias: impl Into<String>,
         target: PackageKeyIdentity,
     ) -> Self {
+        Self::for_purpose(requester, alias, target, DependencyPurpose::Product)
+    }
+
+    pub fn for_purpose(
+        requester: PackageKeyIdentity,
+        alias: impl Into<String>,
+        target: PackageKeyIdentity,
+        purpose: DependencyPurpose,
+    ) -> Self {
         Self {
             requester,
             alias: alias.into(),
             target,
+            purpose,
         }
     }
 
@@ -97,6 +113,10 @@ impl PackageDependencyBinding {
 
     pub const fn target(&self) -> PackageKeyIdentity {
         self.target
+    }
+
+    pub const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
     }
 }
 
@@ -220,6 +240,9 @@ impl PackageDependencyClosure {
             BTreeMap::<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>::new();
         let mut prior_coordinate: Option<(PackageKeyIdentity, &str)> = None;
         for dependency in &dependencies {
+            if dependency.purpose != DependencyPurpose::Product {
+                return Err("package dependency closure retains only product-scope edges");
+            }
             let coordinate = (dependency.requester, dependency.alias.as_str());
             if prior_coordinate.is_some_and(|prior| prior >= coordinate) {
                 return Err("package dependency closure edges are not in strict canonical order");
@@ -290,12 +313,18 @@ pub struct PackageCompilationSourceInputs {
 }
 
 /// Source custody and requester-local routing owned by one package identity.
+///
+/// `dependencies` and `build_dependencies` are distinct scopes: the same alias
+/// may bind different packages in each. Only the compilation root may hold
+/// build-scope edges — the compiled program executes exactly one package's
+/// build entry, and dependency build files never join it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PackageCompilationSourceRecord {
     source_root: PathBuf,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     dependencies: BTreeMap<String, PackageKeyIdentity>,
+    build_dependencies: BTreeMap<String, PackageKeyIdentity>,
 }
 
 impl PackageCompilationInputs {
@@ -359,6 +388,7 @@ impl PackageCompilationInputs {
                         canonical_name: package.canonical_name,
                         canonical_source_metadata: package.canonical_source_metadata,
                         dependencies: BTreeMap::new(),
+                        build_dependencies: BTreeMap::new(),
                     },
                 )
                 .is_some()
@@ -408,7 +438,23 @@ impl PackageCompilationInputs {
             let Some(requester) = canonical_packages.get_mut(&dependency.requester) else {
                 continue;
             };
-            let aliases = &mut requester.dependencies;
+            let aliases = match dependency.purpose {
+                DependencyPurpose::Product => &mut requester.dependencies,
+                DependencyPurpose::Build => {
+                    // Only this compilation's root executes a build entry:
+                    // dependency build files never join the program, so a
+                    // non-root build edge would name authority no source here
+                    // could exercise. Reject it rather than retain a lie.
+                    if dependency.requester != root {
+                        errors.push(PackageCompilationInputError::NonRootBuildDependency {
+                            requester: dependency.requester,
+                            alias: dependency.alias,
+                        });
+                        continue;
+                    }
+                    &mut requester.build_dependencies
+                }
+            };
             if aliases
                 .insert(dependency.alias.clone(), dependency.target)
                 .is_some()
@@ -421,11 +467,25 @@ impl PackageCompilationInputs {
         }
 
         if canonical_packages.contains_key(&root) {
-            let reachable = reachable_packages(root, |package| {
-                canonical_packages
-                    .get(&package)
-                    .map(|record| &record.dependencies)
-            });
+            // The root's build entry may import build-scope packages, so its
+            // build edges reach those snapshots and their product closures.
+            // Every other package contributes product edges only: a
+            // dependency's build context resolves in its own compilation,
+            // where it is the root.
+            let mut reachable = BTreeSet::new();
+            let mut pending = vec![root];
+            while let Some(identity) = pending.pop() {
+                if !reachable.insert(identity) {
+                    continue;
+                }
+                let Some(record) = canonical_packages.get(&identity) else {
+                    continue;
+                };
+                pending.extend(record.dependencies.values().copied());
+                if identity == root {
+                    pending.extend(record.build_dependencies.values().copied());
+                }
+            }
             for identity in canonical_packages.keys() {
                 if !reachable.contains(identity) {
                     errors.push(PackageCompilationInputError::UnreachablePackage {
@@ -545,12 +605,27 @@ impl PackageCompilationInputs {
         Ok(inputs)
     }
 
+    /// Product-scope edges only. Build-purpose edges are compilation-local
+    /// nameability for the root's build entry and never join the durable
+    /// closure projections produced from this iterator.
     pub fn dependencies(
         &self,
     ) -> impl Iterator<Item = (PackageKeyIdentity, &str, PackageKeyIdentity)> {
         self.source.packages.iter().flat_map(|(requester, record)| {
             record
                 .dependencies
+                .iter()
+                .map(|(alias, target)| (*requester, alias.as_str(), *target))
+        })
+    }
+
+    /// The root's build-scope edges. Only the root package may hold them.
+    pub fn build_dependencies(
+        &self,
+    ) -> impl Iterator<Item = (PackageKeyIdentity, &str, PackageKeyIdentity)> {
+        self.source.packages.iter().flat_map(|(requester, record)| {
+            record
+                .build_dependencies
                 .iter()
                 .map(|(alias, target)| (*requester, alias.as_str(), *target))
         })
@@ -601,18 +676,14 @@ impl PackageCompilationInputs {
 
     /// Project the exact validated graph without source paths, package display
     /// names, immutable source resolutions, or source bytes.
+    ///
+    /// The durable closure is the product scope: packages reachable from the
+    /// root through product edges plus the product edges between them.
+    /// Build-scope packages retain compilation-local nameability through
+    /// [`Self::dependency_target_for_purpose`] but never join this projection —
+    /// host build inputs are not product review subjects.
     pub fn dependency_closure(&self) -> PackageDependencyClosure {
-        PackageDependencyClosure {
-            root: self.source.root,
-            root_role: self.source.root_role,
-            packages: self.source.packages.keys().copied().collect(),
-            dependencies: self
-                .dependencies()
-                .map(|(requester, alias, target)| {
-                    PackageDependencyBinding::new(requester, alias, target)
-                })
-                .collect(),
-        }
+        self.dependency_closure_for(self.source.root)
     }
 
     /// Attach the complete set of fresh compiler-issued generated-source
@@ -725,6 +796,9 @@ impl PackageCompilationInputs {
         Ok(matched)
     }
 
+    /// The product-scope closure of one package inside this validated graph:
+    /// its product-reachable packages and the product edges between them.
+    /// Generated-source bundle custody compares against exactly this shape.
     #[doc(hidden)]
     pub fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
         let reachable = reachable_packages(root, |package| {
@@ -759,19 +833,38 @@ impl PackageCompilationInputs {
         }
     }
 
+    /// The product-scope target of `requester`'s `alias`, if declared.
     #[doc(hidden)]
     pub fn dependency_target(
         &self,
         requester: PackageKeyIdentity,
         alias: &str,
     ) -> Option<PackageKeyIdentity> {
-        self.source
-            .packages
-            .get(&requester)
-            .and_then(|record| record.dependencies.get(alias))
-            .copied()
+        self.dependency_target_for_purpose(requester, DependencyPurpose::Product, alias)
     }
 
+    /// The target of `requester`'s `alias` in exactly one dependency scope.
+    /// Scopes never fall back to each other: a miss here does not license
+    /// probing the other scope.
+    #[doc(hidden)]
+    pub fn dependency_target_for_purpose(
+        &self,
+        requester: PackageKeyIdentity,
+        purpose: DependencyPurpose,
+        alias: &str,
+    ) -> Option<PackageKeyIdentity> {
+        let record = self.source.packages.get(&requester)?;
+        match purpose {
+            DependencyPurpose::Product => record.dependencies.get(alias),
+            DependencyPurpose::Build => record.build_dependencies.get(alias),
+        }
+        .copied()
+    }
+
+    /// Whether `requester` directly declared `owner` as a dependency in either
+    /// scope. Which source files may *name* which scope is decided earlier at
+    /// import binding; this package-level check confirms only that a declared
+    /// direct edge exists for the selected declaration's owner.
     #[doc(hidden)]
     pub fn allows_declaration_selection(
         &self,
@@ -779,11 +872,13 @@ impl PackageCompilationInputs {
         owner: PackageKeyIdentity,
     ) -> bool {
         requester == owner
-            || self
-                .source
-                .packages
-                .get(&requester)
-                .is_some_and(|record| record.dependencies.values().any(|target| *target == owner))
+            || self.source.packages.get(&requester).is_some_and(|record| {
+                record.dependencies.values().any(|target| *target == owner)
+                    || record
+                        .build_dependencies
+                        .values()
+                        .any(|target| *target == owner)
+            })
     }
 
     #[doc(hidden)]
@@ -949,6 +1044,10 @@ pub enum PackageCompilationInputError {
         requester: PackageKeyIdentity,
         alias: String,
     },
+    NonRootBuildDependency {
+        requester: PackageKeyIdentity,
+        alias: String,
+    },
     UnreachablePackage {
         identity: PackageKeyIdentity,
     },
@@ -1065,7 +1164,12 @@ impl fmt::Display for PackageCompilationInputError {
             ),
             Self::DuplicateAlias { requester, alias } => write!(
                 formatter,
-                "package identity {} binds dependency alias `{alias}` more than once",
+                "package identity {} binds dependency alias `{alias}` more than once in one scope",
+                display_identity(*requester)
+            ),
+            Self::NonRootBuildDependency { requester, alias } => write!(
+                formatter,
+                "package identity {} declares build dependency `{alias}`; only the compilation root package may declare build dependencies",
                 display_identity(*requester)
             ),
             Self::UnreachablePackage { identity } => write!(
@@ -1274,7 +1378,12 @@ fn dependency_cycle(
         states.insert(identity, Visit::Active);
         stack.push(identity);
         if let Some(record) = packages.get(&identity) {
-            for target in record.dependencies.values().copied() {
+            for target in record
+                .dependencies
+                .values()
+                .chain(record.build_dependencies.values())
+                .copied()
+            {
                 if let Some(cycle) = visit(target, packages, states, stack) {
                     return Some(cycle);
                 }
