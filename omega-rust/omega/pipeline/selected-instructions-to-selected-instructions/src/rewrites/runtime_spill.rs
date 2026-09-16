@@ -1,5 +1,13 @@
-//! Private, bit-preserving runtime-value storage. Each use gets its own reload;
-//! no reload interval needs to survive an intervening call.
+//! Private, bit-preserving runtime-value storage. Every admitted use reads its
+//! own storage through a reload pair; when admission proves some physical view
+//! of the victim's class survives everything the block can touch — clobbers,
+//! implicit accesses, pinned operand views, and units live through the block —
+//! the first unpinned instruction-operand use in the block emits the pair and
+//! every later unpinned use names that same still-open reload register, so the
+//! produced interval can reach across an intervening call and land on a
+//! callee-saved home. ABI-pinned uses keep a private pair so the pin attaches
+//! to the load-to-use window alone, and blocks with no surviving view keep the
+//! per-use shape entirely.
 //! Admission and control projection are shared predicates; proposal inserts the
 //! private accesses while independent replay consumes them and restores source.
 //!

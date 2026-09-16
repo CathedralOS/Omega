@@ -44,7 +44,9 @@ fn instruction_defined_edge_snapshots_spill_in_any_block_order_on_every_target()
                 if before.id != SelectedBlockId(1) {
                     assert_eq!(before, after);
                 } else {
-                    assert_eq!(after.instructions.len(), 11);
+                    // One definition store plus the single shared reload pair
+                    // serving all three body uses.
+                    assert_eq!(after.instructions.len(), 7);
                     assert_eq!(after.instructions[1].id, SelectedInstructionId(1001));
                 }
             }
@@ -54,7 +56,7 @@ fn instruction_defined_edge_snapshots_spill_in_any_block_order_on_every_target()
                     .iter()
                     .map(|settlement| settlement.instruction_index)
                     .collect::<Vec<_>>(),
-                [0, 0, 4, 11, 0]
+                [0, 0, 4, 7, 0]
             );
             for reload in transformed
                 .virtual_registers
@@ -440,11 +442,11 @@ fn edge_binding_arguments_reload_at_predecessor_end_on_every_target() {
         let original = &source.transformed().functions[0];
         let transformed = &result.transformed().functions[0];
         let block = &transformed.blocks[1];
-        // Three body uses plus the edge-argument use each get their own pair;
-        // the transport pair lands after the last body instruction.
+        // The three body uses share one pair; the edge-argument use keeps a
+        // private pair landing after the last body instruction.
         assert_eq!(
             block.instructions.len(),
-            original.blocks[1].instructions.len() + 1 + 8
+            original.blocks[1].instructions.len() + 1 + 4
         );
         let tail = block.instructions.len() - 2;
         assert!(matches!(
@@ -613,9 +615,9 @@ fn branch_bindings_reload_per_edge_after_terminator_operands() {
         spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
             .unwrap();
     let block = &result.transformed().functions[0].blocks[1];
-    // One edge use per successor: two pairs after the definition store and
-    // the three body-use pairs, in successor order.
-    assert_eq!(block.instructions.len(), 4 + 1 + 6 + 4);
+    // One edge use per successor: two private pairs after the definition
+    // store and the single shared body-use pair, in successor order.
+    assert_eq!(block.instructions.len(), 4 + 1 + 2 + 4);
     let SelectedTerminator::ConditionalBranch {
         when_nonzero,
         when_zero,
@@ -624,7 +626,7 @@ fn branch_bindings_reload_per_edge_after_terminator_operands() {
     else {
         unreachable!()
     };
-    for (successor, tail) in [(when_nonzero, 12), (when_zero, 14)] {
+    for (successor, tail) in [(when_nonzero, 8), (when_zero, 10)] {
         let SelectedValueTransport::Registers { argument, .. } = successor.bindings[0].transport
         else {
             unreachable!()
@@ -747,11 +749,12 @@ fn case_payload_arguments_reload_after_binding_pairs_on_every_target() {
         let original = &source.transformed().functions[0];
         let transformed = &result.transformed().functions[0];
         let block = &transformed.blocks[1];
-        // Three body uses plus the definition store, then the binding pair and
-        // both payload pairs in declaration order at the end of the block.
+        // The three body uses share one pair; the definition store, then the
+        // private binding pair and both payload pairs follow in declaration
+        // order at the end of the block.
         assert_eq!(
             block.instructions.len(),
-            original.blocks[1].instructions.len() + 1 + 6 + 6
+            original.blocks[1].instructions.len() + 1 + 2 + 6
         );
         let tail = block.instructions.len() - 6;
         for offset in [0usize, 2, 4] {

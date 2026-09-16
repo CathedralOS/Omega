@@ -37,6 +37,11 @@ pub(crate) fn call_spanning_reload_caller() -> MachineId {
     MachineId::new(CALL_SPANNING_RELOAD_CALLER).unwrap()
 }
 
+/// The source value the reduced allowlist forces onto runtime-value storage.
+pub(crate) fn call_spanning_reload_victim() -> ValueId {
+    ValueId::new(CALL_SPANNING_RELOAD_VICTIM).unwrap()
+}
+
 /// Views an unconstrained home may occupy: the callee-saved survivor plus the
 /// exact argument-pin views the calls fix their use operands to.
 pub(crate) fn call_spanning_reload_allowlist(target: NativeTarget) -> &'static [&'static str] {

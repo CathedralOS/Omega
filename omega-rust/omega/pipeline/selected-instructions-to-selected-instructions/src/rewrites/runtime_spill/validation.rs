@@ -58,6 +58,13 @@ pub fn validate_runtime_spill(
         let mut boundaries = Vec::new();
         let mut instruction_positions = Vec::new();
         let mut consumed = 0u32;
+        // Replay reconstructs the same block-local decision independently:
+        // when admission proved a surviving view, the first unpinned
+        // instruction-operand use emits the pair and every later unpinned use
+        // names that still-open reload register with no further pair. A pinned
+        // operand or an unadmitted block consumes a fresh pair at every use.
+        let shared = admitted.shared_reload[block_index];
+        let mut open_reload: Option<VirtualRegisterId> = None;
         for original in &source_block.instructions {
             boundaries.push(consumed);
             let mut restored = original.clone();
@@ -67,23 +74,33 @@ pub fn validate_runtime_spill(
                 {
                     continue;
                 }
-                let reload = admission::reload(
-                    &admitted,
-                    register,
-                    &mut next_instruction,
-                    &mut next_register,
-                )?;
-                if values.next() != Some(&reload.address_register)
-                    || values.next() != Some(&reload.reload_register)
-                    || stream.next() != Some(&reload.address)
-                    || stream.next() != Some(&reload.load)
-                {
-                    return Err(RuntimeSpillError::ReplayMismatch);
-                }
-                consumed = consumed
-                    .checked_add(2)
-                    .ok_or(RuntimeSpillError::IdentityOverflow)?;
-                operand.virtual_register = reload.reload_register.id;
+                let share = shared && operand.fixed_view.is_none();
+                let reloaded = match (share, open_reload) {
+                    (true, Some(existing)) => existing,
+                    _ => {
+                        let reload = admission::reload(
+                            &admitted,
+                            register,
+                            &mut next_instruction,
+                            &mut next_register,
+                        )?;
+                        if values.next() != Some(&reload.address_register)
+                            || values.next() != Some(&reload.reload_register)
+                            || stream.next() != Some(&reload.address)
+                            || stream.next() != Some(&reload.load)
+                        {
+                            return Err(RuntimeSpillError::ReplayMismatch);
+                        }
+                        consumed = consumed
+                            .checked_add(2)
+                            .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                        if share {
+                            open_reload = Some(reload.reload_register.id);
+                        }
+                        reload.reload_register.id
+                    }
+                };
+                operand.virtual_register = reloaded;
             }
             instruction_positions.push(consumed);
             if stream.next() != Some(&restored) {

@@ -207,7 +207,14 @@ fn every_incoming_copy_stores_before_later_copies_and_preserves_parameter_bindin
                         );
                         assert_eq!(&after.instructions[2..], &before.instructions[1..]);
                     }
-                    2 => assert_eq!(after.instructions.len(), 6),
+                    2 => {
+                        // One shared pair serves both body uses.
+                        assert_eq!(after.instructions.len(), 4);
+                        assert_eq!(
+                            after.instructions[2].operands[0].virtual_register,
+                            after.instructions[3].operands[0].virtual_register
+                        );
+                    }
                     _ => assert_eq!(before, after),
                 }
             }
@@ -217,7 +224,7 @@ fn every_incoming_copy_stores_before_later_copies_and_preserves_parameter_bindin
                     .iter()
                     .map(|settlement| settlement.instruction_index)
                     .collect::<Vec<_>>(),
-                [0, 2, 3, 2, 6, 2]
+                [0, 2, 3, 2, 4, 2]
             );
             for reload in transformed
                 .virtual_registers
@@ -277,24 +284,28 @@ fn parameter_terminator_uses_reload_from_edge_initialized_storage() {
         let original = &source.transformed().functions[0];
         let transformed = &result.transformed().functions[0];
         let block = &transformed.blocks[2];
-        // Two body uses and the terminator use each get their own pair; the
-        // terminator's reload lands after every body instruction.
+        // The two body uses share one pair; the pinned terminator use keeps a
+        // private pair that lands after every body instruction.
         assert_eq!(
             block.instructions.len(),
-            original.blocks[2].instructions.len() + 6
+            original.blocks[2].instructions.len() + 4
         );
         assert!(matches!(
-            block.instructions[6].kind,
+            block.instructions[4].kind,
             SelectedInstructionKind::FrameAddress { .. }
         ));
         assert!(matches!(
-            block.instructions[7].kind,
+            block.instructions[5].kind,
             SelectedInstructionKind::Load64 { .. }
         ));
         let terminator = super::super::control(&block.terminator).0;
         assert_eq!(
             terminator.operands[0].virtual_register,
-            block.instructions[7].operands[1].virtual_register
+            block.instructions[5].operands[1].virtual_register
+        );
+        assert_ne!(
+            terminator.operands[0].virtual_register,
+            block.instructions[1].operands[1].virtual_register
         );
         assert_eq!(
             transformed
@@ -302,7 +313,7 @@ fn parameter_terminator_uses_reload_from_edge_initialized_storage() {
                 .iter()
                 .map(|settlement| settlement.instruction_index)
                 .collect::<Vec<_>>(),
-            [0, 2, 3, 2, 8, 2]
+            [0, 2, 3, 2, 6, 2]
         );
         assert!(
             validate_runtime_spill(
@@ -391,8 +402,8 @@ fn edge_initialized_parameters_transport_through_fresh_reload_registers() {
                 .unwrap();
         let original = &source.transformed().functions[0];
         let transformed = &result.transformed().functions[0];
-        // Both edge stores stay; the destination gains one pair per body use
-        // plus one for the outgoing transport.
+        // Both edge stores stay; the destination shares one pair across both
+        // body uses plus a private one for the outgoing transport.
         for id in [1, 3] {
             assert!(matches!(
                 transformed.blocks[id].instructions[1].kind,
@@ -402,7 +413,7 @@ fn edge_initialized_parameters_transport_through_fresh_reload_registers() {
         let block = &transformed.blocks[2];
         assert_eq!(
             block.instructions.len(),
-            original.blocks[2].instructions.len() + 6
+            original.blocks[2].instructions.len() + 4
         );
         let tail = block.instructions.len() - 1;
         assert!(matches!(
