@@ -1061,11 +1061,26 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   kind, or call-roster entry sits anywhere in the window, and no
   boundary settlement falls inside the window's span, under the
   same replayed restore-by-content validation (crate `nextest`:
-  528 pass).
-  Remaining: scheduling past the proven bounded window interchange
-  and single-member relocation — multi-member schedules and moves
-  across edges — and compare/test selection past the landed
-  literal folds.
+  528 pass) — and `rewrites/run_relocation` relocates the
+  contiguous run two named members bound in one body block to a
+  named destination instruction's position as a single body — the
+  window the move crosses rotates so the run lands on the
+  destination's edge while every crossed position keeps its
+  relative order, letting internally coupled members move together
+  through a window neither could cross alone — when no register
+  or condition-state hazard runs between any member and any
+  crossed position, no call, hosted effect, barrier kind, or
+  call-roster entry sits anywhere in the window, no boundary
+  settlement falls inside the window's span, and the validated
+  memory roster accounts for every access a memory-capable member
+  can reach — a roster-carrying run crosses only row-less
+  positions while a row-less run crosses any accounted mix —
+  under the same replayed restore-by-content validation (crate
+  `nextest`: 571 pass).
+  Remaining: scheduling past the proven bounded window
+  interchange, single-member relocation, and multi-member run
+  relocation — moves across edges — and compare/test selection
+  past the landed literal folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
