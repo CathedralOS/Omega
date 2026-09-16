@@ -1,13 +1,17 @@
 use super::{
-    AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType,
-    MachineContract, MachineId, ModuleError, Operation, OperationId, OperationKind,
-    OperationResult, PlaceId, ProofBundle, ScalarType, StructuralAccess, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalModule, Terminator,
-    ValueDeclaration, ValueId, id, ranked_countdown_with_width, validate_module,
-    verify_module_for_interpretation,
+    AdmissionProfile, Block, BlockId, CertificateEnvelope, ContractId, EdgeId, EvidenceIdentity,
+    EvidenceRoute, IntegerSign, IntegerType, MachineContract, MachineId, ModuleError,
+    ObligationEvidence, ObligationId, Operation, OperationId, OperationKind, OperationResult,
+    PlaceId, ProofBundle, ProofNode, ProofRule, ProofSystemMarker, Proposition, ScalarTerm,
+    ScalarType, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, TerminalModule, Terminator, ValueDeclaration, ValueId, id,
+    ranked_countdown_with_width, validate_module, verify_module_for_interpretation,
 };
-use terminal_psi::{ByteSequenceCarrier, StructuralArgument};
+use terminal_psi::{
+    ByteSequenceCarrier, ClaimTransfer, CrashCause, CrashRouteBucket, CrashRouteGuard,
+    StructuralArgument,
+};
 
 fn shared_parameter(place: u64) -> StructuralParameterDeclaration {
     StructuralParameterDeclaration {
@@ -130,6 +134,29 @@ fn literal_cycle() -> TerminalModule {
     module
 }
 
+fn boolean_requirement(value: u64) -> Proposition {
+    let mut terms = [
+        ScalarTerm::value(id(value, ValueId::new), ScalarType::Boolean),
+        ScalarTerm::boolean(true),
+    ];
+    terms.sort();
+    Proposition::Equal(terms[0].clone(), terms[1].clone())
+}
+
+fn evidence(obligation: u64, conclusion: Proposition, rule: ProofRule) -> ProofBundle {
+    ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: id(obligation, ObligationId::new),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: id(obligation, EvidenceIdentity::new),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode { conclusion, rule },
+            }),
+        }],
+        ..ProofBundle::default()
+    }
+}
+
 #[test]
 fn cyclic_unit_call_borrows_exact_reestablished_literal() {
     let mut module = literal_cycle();
@@ -217,6 +244,130 @@ fn cyclic_unit_view_call_rejects_forged_descriptor_producer_and_type() {
         }
         assert!(validate_module(&module).is_err());
     }
+}
+
+#[test]
+fn cyclic_unit_call_requires_independent_invocation_evidence() {
+    let mut module = literal_cycle();
+    module.machines[0].contract.requires = vec![boolean_requirement(20)];
+    module.machines[1].parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
+        id: id(30, ValueId::new),
+        scalar_type: ScalarType::Boolean,
+    }];
+    module.machines[1].contract.requires = vec![boolean_requirement(30)];
+    let OperationKind::CallUnit {
+        arguments,
+        requirement_obligations,
+        ..
+    } = &mut module.machines[0].blocks[2].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *arguments = vec![id(20, ValueId::new)];
+    requirement_obligations.push(id(40, ObligationId::new));
+    let proof = evidence(
+        40,
+        boolean_requirement(20),
+        ProofRule::Assumption { index: 0 },
+    );
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
+        .expect("cyclic Unit call discharges its callee requirement from caller assumptions");
+    assert!(
+        verify_module_for_interpretation(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        )
+        .is_err(),
+        "the declared obligation is rejected without independent evidence"
+    );
+    let mut omitted = module.clone();
+    let OperationKind::CallUnit {
+        requirement_obligations,
+        ..
+    } = &mut omitted.machines[0].blocks[2].operations[1].kind
+    else {
+        unreachable!()
+    };
+    requirement_obligations.clear();
+    assert!(matches!(
+        validate_module(&omitted),
+        Err(ModuleError::CallRequirementArityMismatch { .. })
+    ));
+    module.machines[0].contract.requires.clear();
+    assert!(
+        verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default()).is_err(),
+        "dropping the caller assumption invalidates the retained evidence"
+    );
+}
+
+#[test]
+fn cyclic_unit_call_preserves_surviving_crash_continuations() {
+    let mut module = literal_cycle();
+    let routes = vec![CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Truth],
+    }];
+    module.machines[0].contract.crash_routes = routes.clone();
+    module.machines[1].contract.crash_routes = routes.clone();
+    module.machines[1].blocks[0].terminator = Terminator::Crash {
+        edge: id(100, EdgeId::new),
+        cause: CrashCause::Trap,
+        site_guard: Vec::new(),
+        frontier_lower_bound: Vec::new(),
+    };
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut module.machines[0].blocks[2].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *crash_continuations = routes;
+    verify_module_for_interpretation(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("cyclic Unit call carries its exact substituted crash continuation");
+    let mut omitted = module.clone();
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut omitted.machines[0].blocks[2].operations[1].kind
+    else {
+        unreachable!()
+    };
+    crash_continuations.clear();
+    assert!(matches!(
+        validate_module(&omitted),
+        Err(ModuleError::CallCrashContinuationsMismatch { .. })
+    ));
+    module.machines[0].contract.crash_routes.clear();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::CallCrashContinuationUncovered { .. })
+    ));
+}
+
+#[test]
+fn cyclic_unit_call_keeps_claim_transfers_outside_bounded_eligibility() {
+    let mut module = literal_cycle();
+    let OperationKind::CallUnit {
+        claim_transfers, ..
+    } = &mut module.machines[0].blocks[2].operations[1].kind
+    else {
+        unreachable!()
+    };
+    claim_transfers.push(ClaimTransfer {
+        claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+        argument_index: 0,
+    });
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::UnitCallClaimTransferCountMismatch { .. })
+    ));
 }
 
 #[test]

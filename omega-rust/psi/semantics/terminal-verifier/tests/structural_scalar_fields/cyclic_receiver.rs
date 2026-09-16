@@ -293,7 +293,7 @@ fn receiver_cycles_reject_incompatible_access_and_malformed_claim_transfers() {
 }
 
 #[test]
-fn valid_callee_requirement_is_admitted_acyclically_but_fenced_in_cycles() {
+fn callee_requirement_keeps_independent_evidence_inside_bounded_cycles() {
     for cyclic in [false, true] {
         let mut module = receiver_module(cyclic);
         // A scalar entry requirement remains immutable across receiver writes.
@@ -326,23 +326,25 @@ fn valid_callee_requirement_is_admitted_acyclically_but_fenced_in_cycles() {
         };
         arguments.push(id(70));
         requirement_obligations.push(id(80));
-        if cyclic {
-            assert!(matches!(
-                validate_module(&module),
-                Err(ModuleError::ControlCycle(_))
-            ));
-        } else {
-            let bundle = ProofBundle {
-                evidence: vec![certificate(
-                    80,
-                    caller_requirement,
-                    ProofRule::Assumption { index: 0 },
-                )],
-                ..ProofBundle::default()
-            };
-            verify_module_for_interpretation(&module, &bundle, &AdmissionProfile::default())
-                .expect("the exact call and requirement certificate verify without the cycle");
-        }
+        let bundle = ProofBundle {
+            evidence: vec![certificate(
+                80,
+                caller_requirement,
+                ProofRule::Assumption { index: 0 },
+            )],
+            ..ProofBundle::default()
+        };
+        verify_module_for_interpretation(&module, &bundle, &AdmissionProfile::default())
+            .expect("the exact call and requirement certificate verify, cyclic={cyclic}");
+        assert!(
+            verify_module_for_interpretation(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default()
+            )
+            .is_err(),
+            "the reconstructed obligation is not discharged without evidence, cyclic={cyclic}"
+        );
     }
 }
 
