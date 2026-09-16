@@ -432,10 +432,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   remain entry-site evidence, write-frame protection covers the site's
   non-self formals, mixed-range endpoint conservation still only covers
   entry call sites, and a duplicated entry role stays unbound rather than
-  guessing between copies. Still open on this item:
-  diverging rank-input copies,
+  guessing between copies. Slice landed at e5fc9f06d6 on macOS ARM64:
+  prefix stores before a transition or component call are judged against
+  the premise carriers (`ranking_range_premise_symbols`: subjects,
+  endpoints, requires-named inputs and range-constrained entries) located
+  through each state's telescope, so a mutable scratch input may be written
+  before the edge while a store into any carrier still rejects
+  (`pass/termination/rank_range_{,call_}scratch_input_write`,
+  `fail/termination/rank_range_{subject,endpoint}_intervening_write`).
+  Still open on this item: diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
-  premises, live write-frame evidence for mutable inputs, borrowed and nested
+  premises, borrowed and nested
   custom-view projections, STATE-LOCAL-VALUE-FRONTIER retirement of generated
   operand-call states, independent arithmetic proof for computed endpoints,
   equality evidence for non-polynomial substitutions, and produced-rank facts
