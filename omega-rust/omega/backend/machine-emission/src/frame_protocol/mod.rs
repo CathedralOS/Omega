@@ -17,9 +17,7 @@ pub use machine_code::target_frame_protocol_encoding_identity;
 pub use model::*;
 pub use validation::validate_target_frame_protocol_encoding;
 
-use crate::frame_layout::{
-    ReturnAddressFrameCustody, TargetFrameLayoutIdentity, ValidatedTargetFrameLayout,
-};
+use crate::frame_layout::{TargetFrameLayoutIdentity, ValidatedTargetFrameLayout};
 use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub fn stage_target_frame_protocol_encoding(

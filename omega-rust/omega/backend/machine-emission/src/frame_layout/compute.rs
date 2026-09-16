@@ -1,5 +1,4 @@
 use selected_instructions::MachineAlternativeFamily;
-use target::Architecture;
 
 use crate::frame_layout::{
     FrameAbiPreservationConvention, StagedOptimizedPostAllocationMachinePlan,
@@ -8,10 +7,10 @@ use crate::frame_layout::{
 };
 
 use super::{
-    CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore, FunctionTargetFrameLayout,
-    ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutError, TargetFrameLayoutPlan,
-    TargetFrameLayoutPolicy, call_site::call_site_stack_contract,
-    stack_commit::stack_commit_granule_bytes,
+    CalleeSaveFrameSlot, FrameContinuationCustody, FrameUnwindPlan, FrameUnwindRestore,
+    FunctionTargetFrameLayout, ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutError,
+    TargetFrameLayoutPlan, TargetFrameLayoutPolicy, call_site::call_site_stack_contract,
+    stack_commit::stack_commit_granule_bytes, unwind::frame_unwind_policy,
 };
 
 pub(super) fn derive(
@@ -241,117 +240,115 @@ fn function_layout(
     // residue.
     let call_site = call_site_stack_contract(environment, abi)
         .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
-    let (stack_pointer, frame_size_bytes, red_zone_resident_bytes, return_address) =
-        match (environment.target().architecture, abi) {
+    // The frame's unwind policy is the declared matrix row, never a private
+    // (architecture, convention) match: the pair's row pins the preservation
+    // convention it selects, the physical view the stack pointer lives in,
+    // and the mechanism the unwind recovers the continuation through. An
+    // undeclared pair fails closed, and a requirements plan carrying a
+    // convention another pair owns has drifted off the row and fails closed
+    // rather than reaching a shared architecture arm.
+    let unwind = frame_unwind_policy(environment.target())
+        .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
+    if unwind.abi != abi {
+        return Err(TargetFrameLayoutError::UnsupportedTarget);
+    }
+    let stack_pointer = environment
+        .physical()
+        .model()
+        .view_named(unwind.stack_pointer_view)
+        .ok_or(TargetFrameLayoutError::MissingStackPointerView)?
+        .id;
+    let (frame_size_bytes, red_zone_resident_bytes, return_address) = match unwind.continuation {
+        FrameContinuationCustody::CallerActivationStack {
+            return_address_size_bytes,
+        } => {
+            // A Windows leaf with no storage preserves the incoming RSP.
+            // Once storage is allocated its body keeps the ABI alignment.
+            // Outgoing ABI storage precedes all preservation storage.
+            let frame_size = if contains_call
+                || (unwind.abi == FrameAbiPreservationConvention::MicrosoftX64
+                    && used_area_bytes != 0)
+            {
+                align_to_residue(
+                    used_area_bytes,
+                    u64::from(call_site.stack_alignment_bytes),
+                    call_site.entry_residue_bytes,
+                )?
+            } else {
+                align_up(used_area_bytes, 8)?
+            };
+            // A System V leaf whose whole storage extent fits inside the
+            // red zone commits nothing: every byte stays below the
+            // unadjusted entry RSP. Residency is admitted only when all
+            // activation storage is allocator spill slots, so no hosted
+            // or structural access can observe a below-RSP coordinate
+            // through a channel that cannot express one.
+            let red_zone_capacity = u64::from(
+                register_environment::selected_abi_preservation(environment)
+                    .map_err(|_| TargetFrameLayoutError::UnsupportedTarget)?
+                    .convention
+                    .red_zone_bytes,
+            );
+            let red_zone_resident = if unwind.abi == FrameAbiPreservationConvention::SystemVAMD64
+                && !contains_call
+                && callee_save_slots.is_empty()
+                && frame_size != 0
+                && frame_size <= red_zone_capacity
+                && local_storage.iter().all(|slot| {
+                    matches!(
+                        slot.id,
+                        selected_instructions::LocalStorageSlotId::Spill { .. }
+                    )
+                }) {
+                frame_size
+            } else {
+                0
+            };
             (
-                Architecture::X86_64,
-                convention @ (FrameAbiPreservationConvention::SystemVAMD64
-                | FrameAbiPreservationConvention::MicrosoftX64),
-            ) => {
-                let stack_pointer = environment
-                    .physical()
-                    .model()
-                    .view_named("rsp")
-                    .ok_or(TargetFrameLayoutError::MissingStackPointerView)?
-                    .id;
-                // A Windows leaf with no storage preserves the incoming RSP.
-                // Once storage is allocated its body keeps the ABI alignment.
-                // Outgoing ABI storage precedes all preservation storage.
-                let frame_size = if contains_call
-                    || (convention == FrameAbiPreservationConvention::MicrosoftX64
-                        && used_area_bytes != 0)
-                {
-                    align_to_residue(
-                        used_area_bytes,
-                        u64::from(call_site.stack_alignment_bytes),
-                        call_site.entry_residue_bytes,
-                    )?
-                } else {
-                    align_up(used_area_bytes, 8)?
-                };
-                // A System V leaf whose whole storage extent fits inside the
-                // red zone commits nothing: every byte stays below the
-                // unadjusted entry RSP. Residency is admitted only when all
-                // activation storage is allocator spill slots, so no hosted
-                // or structural access can observe a below-RSP coordinate
-                // through a channel that cannot express one.
-                let red_zone_capacity = u64::from(
-                    register_environment::selected_abi_preservation(environment)
-                        .map_err(|_| TargetFrameLayoutError::UnsupportedTarget)?
-                        .convention
-                        .red_zone_bytes,
-                );
-                let red_zone_resident = if convention
-                    == FrameAbiPreservationConvention::SystemVAMD64
-                    && !contains_call
-                    && callee_save_slots.is_empty()
-                    && frame_size != 0
-                    && frame_size <= red_zone_capacity
-                    && local_storage.iter().all(|slot| {
-                        matches!(
-                            slot.id,
-                            selected_instructions::LocalStorageSlotId::Spill { .. }
-                        )
-                    }) {
-                    frame_size
-                } else {
-                    0
-                };
+                frame_size,
+                red_zone_resident,
+                ReturnAddressFrameCustody::CallerActivationStack {
+                    post_prologue_offset_bytes: frame_size - red_zone_resident,
+                    size_bytes: return_address_size_bytes,
+                },
+            )
+        }
+        FrameContinuationCustody::LinkRegister {
+            view,
+            saved_size_bytes,
+        } => {
+            let link = environment
+                .physical()
+                .model()
+                .view_named(view)
+                .ok_or(TargetFrameLayoutError::MissingLinkRegisterView)?
+                .id;
+            let saved_size = u64::from(saved_size_bytes);
+            if contains_call
+                || policy == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
+            {
+                let link_offset = align_up(used_area_bytes, saved_size)?;
+                let used = link_offset
+                    .checked_add(saved_size)
+                    .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
                 (
-                    stack_pointer,
-                    frame_size,
-                    red_zone_resident,
-                    ReturnAddressFrameCustody::CallerActivationStack {
-                        post_prologue_offset_bytes: frame_size - red_zone_resident,
-                        size_bytes: 8,
+                    align_up(used, u64::from(call_site.stack_alignment_bytes))?,
+                    0,
+                    ReturnAddressFrameCustody::SavedLinkRegister {
+                        view: link,
+                        frame_offset_bytes: link_offset,
+                        size_bytes: saved_size_bytes,
                     },
                 )
+            } else {
+                (
+                    align_up(used_area_bytes, u64::from(call_site.stack_alignment_bytes))?,
+                    0,
+                    ReturnAddressFrameCustody::LiveLinkRegister { view: link },
+                )
             }
-            (
-                Architecture::Aarch64,
-                FrameAbiPreservationConvention::Aapcs64
-                | FrameAbiPreservationConvention::DarwinAapcs64,
-            ) => {
-                let stack_pointer = environment
-                    .physical()
-                    .model()
-                    .view_named("sp")
-                    .ok_or(TargetFrameLayoutError::MissingStackPointerView)?
-                    .id;
-                let link = environment
-                    .physical()
-                    .model()
-                    .view_named("x30")
-                    .ok_or(TargetFrameLayoutError::MissingLinkRegisterView)?
-                    .id;
-                if contains_call
-                    || policy == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
-                {
-                    let link_offset = align_up(used_area_bytes, 8)?;
-                    let used = link_offset
-                        .checked_add(8)
-                        .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
-                    (
-                        stack_pointer,
-                        align_up(used, u64::from(call_site.stack_alignment_bytes))?,
-                        0,
-                        ReturnAddressFrameCustody::SavedLinkRegister {
-                            view: link,
-                            frame_offset_bytes: link_offset,
-                            size_bytes: 8,
-                        },
-                    )
-                } else {
-                    (
-                        stack_pointer,
-                        align_up(used_area_bytes, u64::from(call_site.stack_alignment_bytes))?,
-                        0,
-                        ReturnAddressFrameCustody::LiveLinkRegister { view: link },
-                    )
-                }
-            }
-            _ => return Err(TargetFrameLayoutError::UnsupportedTarget),
-        };
+        }
+    };
 
     // Only the committed extent needs stack-commit probing; red-zone-resident
     // bytes are already below the unadjusted stack pointer.

@@ -505,6 +505,55 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
 }
 
 #[test]
+fn unwind_matrix_fails_closed_on_conventions_the_pair_does_not_declare() {
+    // Each declared (architecture, object-format) pair pins exactly one
+    // preservation convention in its unwind row: a requirements plan
+    // arriving under a convention another pair owns has drifted off the row
+    // and fails closed instead of reaching a shared architecture arm.
+    for (target, abi) in [
+        (
+            target::NativeTarget::linux_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+        ),
+        (
+            target::NativeTarget::windows_x64(),
+            FrameAbiPreservationConvention::SystemVAMD64,
+        ),
+        (
+            target::NativeTarget::uefi_x64(),
+            FrameAbiPreservationConvention::SystemVAMD64,
+        ),
+        (
+            target::NativeTarget::linux_arm64(),
+            FrameAbiPreservationConvention::DarwinAapcs64,
+        ),
+        (
+            target::NativeTarget::macos_arm64(),
+            FrameAbiPreservationConvention::Aapcs64,
+        ),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        assert_eq!(
+            function_layout(
+                &environment,
+                abi,
+                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                semantic_vocabulary::MachineId::new(1).unwrap(),
+                false,
+                &[],
+                &[],
+                Vec::new(),
+                0,
+                Vec::new(),
+            ),
+            Err(TargetFrameLayoutError::UnsupportedTarget),
+            "{target:?} must refuse the foreign convention {abi:?}"
+        );
+    }
+}
+
+#[test]
 fn windows_frames_separate_shadow_space_from_preservation_storage() {
     let environment = register_environment::baseline_target_register_environment(
         target::NativeTarget::windows_x64(),
