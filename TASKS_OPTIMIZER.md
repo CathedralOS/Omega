@@ -536,9 +536,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   keeps its fixed view, pinning the fresh reload to that physical unit
   for exactly the load-to-use window on all four targets
   (`fixed_view_instruction_uses_pin_their_reload_at_the_call_operand`).
-  Remaining: coalescing across split points, live-range splitting, and
-  sequencing the fixed/precolored interval stages on the default
-  recovery path.
+  Landed: the default allocation route sequences the fixed/precolored
+  interval stages for authenticated unresolved entry-fixed-view
+  transitions — segment homes, a leaf-local fixed-view copy policy,
+  selected reanalysis, and post-copy homes retain and publish with
+  replay-bound evidence while the declared shared-entry route and
+  runtime-spill recovery stay distinct
+  (`default_path_routes_entry_transitions_into_the_leaf_local_fixed_view_sequence`).
+  Remaining: coalescing across split points and live-range splitting.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
   CFG families: red-zone policy, probing, unwind
