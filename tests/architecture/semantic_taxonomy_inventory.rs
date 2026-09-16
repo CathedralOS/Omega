@@ -87,6 +87,10 @@ fn machine_record_carries_one_public_termination_interface() {
             // declaration identities independently of diagnostic names.
             attached_data_application: _,
             generic_data_template: _,
+            // OPERATOR-MACHINE-SUPPLY: the fixed operator token bound by the
+            // declaration head is a declaration property copied from symbol
+            // resolution; checked consumers never rediscover it from the name.
+            spelling: _,
             // Package visibility survives semantic lowering independently of
             // the normalized supply classification.
             is_public: _,

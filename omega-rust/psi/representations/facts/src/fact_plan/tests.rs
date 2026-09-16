@@ -259,6 +259,7 @@ fn expression_places_resolve_attached_data_members() {
         attached_data_symbol: main_data_symbol,
         attached_data_application: TypeReferenceHandle::invalid(),
         generic_data_template: SymbolHandle::invalid(),
+        spelling: None,
         is_public: false,
         owned_data: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
