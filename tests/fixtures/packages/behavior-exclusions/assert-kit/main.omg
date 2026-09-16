@@ -1,0 +1,37 @@
+// The shared requirement permits a guarded Trap without requiring it. Both
+// implementations satisfy it; neither edits the public ceiling. Which one an
+// application composes is ordinary build provider selection.
+//
+// The checking body routes its verdict through a scalar helper: a Unit
+// machine whose own state crashes has no checked Unit plan today, so the
+// crash site lives in `verify` and `CheckingAssert::check` keeps the
+// requirement's allowance.
+use omega::language::core::service;
+
+pub boundary trait Assert {
+    machine check(ok: bool) crashes Trap;
+}
+
+machine verify(ok: bool) -> bool
+crashes Trap
+{
+    transition ok { true -> pass() false -> fail() }
+    state pass() -> bool { true }
+    state fail() -> bool { crash Trap; }
+}
+
+pub data CheckingAssert { }
+
+machine CheckingAssert::check(ok: bool)
+satisfies Assert::check
+crashes Trap
+{
+    let verdict: bool = verify(ok);
+}
+
+pub data NoOpAssert { }
+
+machine NoOpAssert::check(ok: bool)
+satisfies Assert::check
+{
+}
