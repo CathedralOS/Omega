@@ -3018,13 +3018,21 @@ Owners include
   label-keyed bound (`checks/ranges/statements/aliases.rs`; regression
   `call_result_alias_carries_the_ensured_result_bounds`, macOS arm64
   `mbx nextest run -p typed-trees-to-checked-trees`). Unknown-length slice
-  indexes still do not consult `ensured_call_result_bounds` — the remaining
-  named leg needs the ensured literal bound met against the slice's
-  `minimum_length`/`exact_length` facts plus the signed lower half in
-  `indexes/validation/lower_bounds.rs`. Collection elements still need the
-  live declared-predicate coverage named above; the dungeon probe currently
-  stops earlier at case-literal construction and branch-local transfer joins
-  (Linux x86-64 `omega --check`, 6 diagnostics).
+  indexes now consult the same contract: a call's ensured inclusive high
+  meets the collection's `minimum_length`/`exact_length` floor like a folded
+  literal — directly for `s[idx()]`, through bound names' label-keyed bounds,
+  guard-seeded `i < K` bounds, inclusive and exclusive range ends, and
+  `len - idx()` subtrahends — while an ensured `>= 0` conjunct supplies the
+  signed lower half (`checks/ranges/proofs.rs`,
+  `indexes/validation/lower_bounds.rs`, `facts/proofs.rs`; regressions
+  `call_index_on_unknown_slice_meets_ensured_bounds_against_length_facts`,
+  `unknown_slice_index_meets_label_upper_bounds_against_length_facts`,
+  `unknown_slice_index_meets_guard_seeded_upper_bounds_against_length_facts`,
+  `length_difference_offset_reads_ensured_result_bounds`, macOS arm64
+  `mbx nextest run -p typed-trees-to-checked-trees`). Collection elements
+  still need the live declared-predicate coverage named above; the dungeon
+  probe currently stops earlier at case-literal construction and branch-local
+  transfer joins (Linux x86-64 `omega --check`, 6 diagnostics).
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
