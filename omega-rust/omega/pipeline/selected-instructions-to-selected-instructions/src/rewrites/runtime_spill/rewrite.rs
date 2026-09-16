@@ -11,9 +11,11 @@ use super::{RuntimeSpillError, ValidatedRuntimeSpill, admission, validate_runtim
 use crate::ValidatedSelectedAnalysis;
 
 /// Emit one private address/load pair for a use, or — when `share` admits a
-/// block-local shared reload — reuse the pair still open from the block's
-/// first flexible use so its interval spans every later flexible use, calls
-/// included. Returns the register the rewritten use must name.
+/// block-local shared reload — reuse the pair still open from the span's
+/// first flexible use so its interval covers every later flexible use in the
+/// span. The caller clears the open pair after any instruction that can
+/// destroy register content, so the interval never reaches across a call.
+/// Returns the register the rewritten use must name.
 fn reload_for_use(
     admitted: &admission::Admission<'_>,
     register: VirtualRegisterId,
@@ -104,6 +106,12 @@ pub fn spill_selected_runtime_value(
                     .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
             );
             instructions.push(rewritten);
+            // A clobber or implicit definition may write any unit, including
+            // the one hosting the still-open reload, so the shared interval
+            // ends here and the next flexible use opens a fresh pair.
+            if !original.clobbers.is_empty() || !original.implicit_defs.is_empty() {
+                open_reload = None;
+            }
             for definition in admitted.definitions.iter().filter(|definition| {
                 definition.block_index == block_index && original.id == definition.instruction
             }) {

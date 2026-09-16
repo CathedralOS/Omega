@@ -32,7 +32,9 @@ use super::admission::StorageDefinition;
 /// Admitted use positions for the victim, one entry per block in order. The
 /// sharing check needs positions, not just block membership: a proposed reload
 /// reads the slot immediately before its consumer's instruction, and a
-/// block-shared reload reads once at the first unpinned use.
+/// block-shared reload reads once at the first unpinned use of each span —
+/// an instruction that can destroy register content ends the span, so the
+/// next unpinned use reads the slot again.
 #[derive(Debug, Default)]
 pub(super) struct BlockUsePositions {
     /// Instruction indices holding at least one admitted unpinned use.
@@ -242,8 +244,8 @@ fn shareable(
         }
     }
     // Proposed positions: one store after each definition and one reload
-    // before each emitted load — the first unpinned use only when the block
-    // shares its reload register, every use otherwise.
+    // before each emitted load — the first unpinned use of each shared
+    // span when the block shares its reload register, every use otherwise.
     let mut events: Vec<Vec<Event>> = function
         .blocks
         .iter()
@@ -251,7 +253,7 @@ fn shareable(
         .map(|(block_index, block)| {
             let mut events = Vec::new();
             for (index, instruction) in block.instructions.iter().enumerate() {
-                if loads_before(uses, shared_reload, block_index, index) {
+                if loads_before(uses, shared_reload, block, block_index, index) {
                     events.push(Event::NewLoad);
                 }
                 if let Some(access) = accesses[block_index].get(&index) {
@@ -342,13 +344,35 @@ fn names_slot(
 fn loads_before(
     uses: &[BlockUsePositions],
     shared_reload: &[bool],
+    block: &selected_instructions::SelectedBlock,
     block_index: usize,
     index: usize,
 ) -> bool {
     let positions = &uses[block_index];
-    if shared_reload[block_index] {
-        positions.pinned.contains(&index) || positions.unpinned.first() == Some(&index)
-    } else {
-        positions.pinned.contains(&index) || positions.unpinned.contains(&index)
+    if positions.pinned.contains(&index) {
+        return true;
     }
+    if !positions.unpinned.contains(&index) {
+        return false;
+    }
+    if !shared_reload[block_index] {
+        return true;
+    }
+    // A shared reload loads at the first unpinned use of its span. An
+    // instruction that can destroy register content — a clobber or an
+    // implicit definition — ends the span, so the first unpinned use after
+    // it opens a fresh pair and reads the slot again.
+    let Some(&previous) = positions
+        .unpinned
+        .iter()
+        .rev()
+        .find(|&point| *point < index)
+    else {
+        return true;
+    };
+    block.instructions[previous..index]
+        .iter()
+        .any(|instruction| {
+            !instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty()
+        })
 }
