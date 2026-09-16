@@ -1,13 +1,17 @@
-//! Relate saved crash operands to immutable invocation-entry values.
+//! Relate saved crash operands to invocation-entry values.
 //!
 //! Ordinary calls and selected operators share this substitution boundary.
 //! A stable binding is insufficient when its contents contain mutable loans or
 //! interior authority. Reuse stable-observation validation before projecting
 //! fields; shared loans may retain immutable contents without owning them.
-//! Immutable state parameters resolve through every arrival that binds them:
-//! the invocation itself for the entry state, plus each named transition edge
+//! State parameters resolve through every arrival that binds them: the
+//! invocation itself for the entry state, plus each named transition edge
 //! into the state, which must all produce the same entry-relative operand.
-//! Mutable bindings, unknown contents, divergent arrivals and unresolvable
+//! A mutable binding additionally keeps that bound snapshot only while its
+//! storage is pristine: a write, an exclusive borrow, or a mutable receiver
+//! call before the read (or before a `-> self`/same-state forwarding edge
+//! that carries the storage into the next arrival) ends provenance. Mutable
+//! bindings with unstable contents, divergent arrivals and unresolvable
 //! cycles retain no entry identity. Substitution transports a proven origin,
 //! never re-reads an initializer after later operands execute. This is source
 //! provenance, not a Terminal certificate.
@@ -18,6 +22,9 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use validation::has_stable_observable_contents;
+
+mod mutable;
+use mutable::storage_holds_bound_value;
 
 /// Arrival provenance can revisit a state parameter through a transition
 /// cycle, so the fold carries a depth bound. Exhaustion is unproven
@@ -179,15 +186,27 @@ fn entry_operand_at(
                 if let typed_trees::statement::StatementNode::LocalData(local) = statement
                     && local.symbol == path.symbol
                 {
-                    if local.is_mutable
-                        || !has_stable_observable_contents(program, local.type_reference)
+                    if !has_stable_observable_contents(program, local.type_reference)
+                        || (local.is_mutable
+                            && !storage_holds_bound_value(
+                                program,
+                                machine_symbol,
+                                state,
+                                ordinal + 1,
+                                before_statement.saturating_add(1),
+                                local.symbol,
+                            ))
                     {
                         return None;
                     }
-                    // This transports a fixed value, not a current read
-                    // of its initializer. Every dependency must independently
-                    // be immutable and entry-relative; mutable initializers
-                    // are rejected even if their storage now has useful facts.
+                    // This transports the bound value, not a current read of
+                    // its storage. A mutable local is admitted only while no
+                    // statement between its initializer and this read could
+                    // have overwritten it or lent it exclusive access; the
+                    // containing statement itself stays in the window because
+                    // its earlier operands may already have run a call that
+                    // writes through an exclusive borrow. Every initializer
+                    // dependency must independently be entry-relative.
                     // Decreasing the prefix also prevents recursive aliases.
                     return entry_operand_at(
                         program,
@@ -205,6 +224,7 @@ fn entry_operand_at(
                 machine_symbol,
                 state_symbol,
                 path.symbol,
+                before_statement,
                 depth,
             )
         }
@@ -234,34 +254,48 @@ fn builtin_binary_meaning(
 
 /// A state parameter's saved actual is whatever every arrival binds to it:
 /// the invocation for the entry state, and each named transition edge into
-/// the state positionally. `-> self` forwards the current values and adds no
-/// new arrival; a by-name edge forwarding this same parameter back to its own
-/// state is tautological for the same reason. Every remaining edge must
-/// resolve to one identical entry-relative operand, or provenance stays
-/// unknown rather than picking a winner.
+/// the state positionally. `-> self` forwards the current values; for an
+/// immutable parameter that is always the bound snapshot, while a mutable
+/// parameter's storage must still be pristine at the edge. A by-name edge
+/// forwarding this same parameter back to its own state is tautological under
+/// the same rule. Every remaining edge must resolve to one identical
+/// entry-relative operand, or provenance stays unknown rather than picking a
+/// winner. For a mutable parameter the read itself must additionally precede
+/// any statement that could overwrite or exclusively borrow its storage.
 fn state_parameter_entry_operand(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
+    before_statement: usize,
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
     let states = program.machine_states(machine);
     let state_index = states
         .iter()
         .position(|state| state.symbol == state_symbol)?;
-    let parameters = program.state_parameters(&states[state_index]);
+    let state = &states[state_index];
+    let parameters = program.state_parameters(state);
     let (parameter_ordinal, parameter) = parameters
         .iter()
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == parameter_symbol)?;
-    if parameter.is_mutable
-        || parameter.is_self
+    if parameter.is_self
         || !has_stable_observable_contents(program, parameter.type_reference)
+        || (parameter.is_mutable
+            && !storage_holds_bound_value(
+                program,
+                machine_symbol,
+                state,
+                0,
+                before_statement.saturating_add(1),
+                parameter_symbol,
+            ))
     {
         return None;
     }
+    let mutable = parameter.is_mutable;
     // Transition arguments bind only the non-self parameters, in order.
     let argument_index = parameters[..parameter_ordinal]
         .iter()
@@ -294,6 +328,22 @@ fn state_parameter_entry_operand(
                 .len()
                 == 1
         {
+            // The edge forwards the parameter's current storage back into its
+            // own arrival slot. That is tautological only while the storage
+            // still holds the bound value at the edge; the edge's own argument
+            // expressions count because they evaluate at this point.
+            if mutable
+                && !storage_holds_bound_value(
+                    program,
+                    machine_symbol,
+                    state,
+                    0,
+                    statement_ordinal.saturating_add(1),
+                    parameter_symbol,
+                )
+            {
+                return None;
+            }
             continue;
         }
         let resolved = entry_operand_at(
@@ -310,6 +360,23 @@ fn state_parameter_entry_operand(
             }
         } else {
             provenance = Some(resolved);
+        }
+    }
+    if mutable {
+        // `-> self` carries the current storage into the next arrival. The
+        // bound snapshot survives only while the storage is still pristine at
+        // every self edge, including the edge's own evaluated arguments.
+        for ordinal in mutable::self_target_ordinals(program, state) {
+            if !storage_holds_bound_value(
+                program,
+                machine_symbol,
+                state,
+                0,
+                ordinal.saturating_add(1),
+                parameter_symbol,
+            ) {
+                return None;
+            }
         }
     }
     provenance
