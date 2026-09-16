@@ -1073,7 +1073,30 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   copy's site refuses, and a surviving chained copy whose destination
   nobody reads is dead code the rule declines. Like the memory rules,
   none of the four is an `Optimization` selection-vocabulary member, so
-  the disabled-policy axis stays absent. All six
+  the disabled-policy axis stays absent. The phase's last two
+  per-instruction rules — `literal_minuend` and `local_schedule` — now
+  carry the same matrix (480 lib tests pass on Linux x86-64).
+  `literal_minuend` already held the positive, negative, boundary,
+  corruption, determinism, and fixed-point legs — the published
+  `ValidatedLiteralMinuend` feeds back as a legal second input and the
+  folded compare's site refuses re-admission — and its measured
+  validation-step boundary now admits at the exact count and rejects
+  one step below on both the proposal and independent-replay paths at a
+  second fixture size whose flag audit crosses an edge into the
+  consumer's block. `local_schedule` gains the measured boundary at
+  three fixture sizes — the single-block scan, a two-block scan with
+  the pair in the later block, and a roster-carrying load member
+  growing the member-surface and roster terms — admitting at the exact
+  count and rejecting one step below on both paths; determinism across
+  repeated runs; and replay-corruption rejection for drift in a block
+  the interchange never touched. Its fixed-point leg is an involution:
+  the published `ValidatedLocalSchedule` is a legal second input
+  through the sealed analysis boundary, the pair's stale order refuses,
+  and the flipped order interchanges back to restore the source
+  bit-identically while a hazard-coupled pair still declines and a
+  different independent pair still admits. Neither rule is an
+  `Optimization` selection-vocabulary member, so the disabled-policy
+  axis stays absent. All six
   `lowered-psi-to-lowered-psi` rules — `ControlFlowCleanup`,
   `SparseConditionalConstantPropagation`, `CopyPropagation`,
   `GlobalValueNumbering`, `DeadPureScalarElimination`, and
