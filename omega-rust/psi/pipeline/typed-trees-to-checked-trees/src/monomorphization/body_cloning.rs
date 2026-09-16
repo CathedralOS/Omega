@@ -1,7 +1,7 @@
 //! Fresh instance storage, lexical symbol remapping, and retained source custody.
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, HandleSpan, ProofFact, StatementNode,
-    SymbolHandle, SymbolKind, TypeReferenceHandle, TypedTrees,
+    SymbolHandle, SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::monomorphization::body_rewriting::{
     cloned_expression_roots, reject_runtime_bound_static_occurrences,
@@ -472,6 +472,7 @@ pub(super) fn clone_specialized_machine(
                 },
             );
         }
+        rebind_realized_member_symbols(program, &state, &state_realized_parameters[state_index]);
         for contract in source
             .unwrap_or(program)
             .state_contracts(source_state)
@@ -956,5 +957,154 @@ pub(super) fn remap_contract_value_subjects(
         .collect();
     for root in roots {
         program.expression_table.remap_symbols_in(root, realized);
+    }
+}
+
+/// Rebind member projections rooted at a realized `Value` subject. The
+/// template types `V.field` through the binder's declared carrier but leaves
+/// `member.member_symbol` unresolved: a binder is a type parameter, not a data
+/// symbol. Realizing the subject as an ordinary parameter makes the
+/// projection an ordinary field read, so bind the same member identity an
+/// authored parameter read would have carried.
+fn rebind_realized_member_symbols(
+    program: &mut TypedTrees,
+    state: &typed_trees::state::State,
+    realized: &[(SymbolHandle, SymbolHandle)],
+) {
+    if realized.is_empty() {
+        return;
+    }
+    let mut roots = Vec::new();
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+    {
+        collect_statement_expression_trees(program, statement, &mut roots);
+    }
+    let mut members = Vec::new();
+    for root in roots {
+        crate::monomorphization::collect_expression_tree(program, root, &mut members);
+    }
+    for handle in members {
+        let ExpressionNode::Member(member) = program.expression_table.expression(handle) else {
+            continue;
+        };
+        if member.member_symbol.is_valid() || member.case_variant.is_some() {
+            continue;
+        }
+        let receiver = member.receiver;
+        let name = member.member.clone();
+        let Some(field) =
+            realized_receiver_field(program, state, realized, receiver, name.as_str())
+        else {
+            continue;
+        };
+        let ExpressionNode::Member(member) = program.expression_table.expression_mut(handle) else {
+            unreachable!();
+        };
+        member.member_symbol = field.symbol;
+    }
+}
+
+/// Resolve the exact field `name` on the declared carrier of a realized
+/// `Value` receiver. Only receivers rooted at a realized parameter qualify —
+/// an unresolved member on any other place keeps its authored identity.
+fn realized_receiver_field(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    realized: &[(SymbolHandle, SymbolHandle)],
+    receiver: ExpressionHandle,
+    name: &str,
+) -> Option<typed_trees::data::DataField> {
+    let reference = realized_receiver_type(program, state, realized, receiver, 0)?;
+    carrier_field(program, reference, name)
+}
+
+/// The declared type of a member-projection receiver rooted at a realized
+/// `Value` parameter. Nested projections walk each field's declared type in
+/// turn so `V.outer.inner` resolves against the same carriers an authored
+/// parameter chain would.
+fn realized_receiver_type(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    realized: &[(SymbolHandle, SymbolHandle)],
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<TypeReferenceHandle> {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => {
+            realized_receiver_type(program, state, realized, inner.target, depth + 1)
+        }
+        ExpressionNode::Name(path) => {
+            let symbol = path.symbol;
+            if !realized.iter().any(|(_, realized)| *realized == symbol) {
+                return None;
+            }
+            program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+                .map(|parameter| parameter.type_reference)
+        }
+        ExpressionNode::Member(member) => {
+            if member.case_variant.is_some() {
+                return None;
+            }
+            let receiver =
+                realized_receiver_type(program, state, realized, member.receiver, depth + 1)?;
+            carrier_field(program, receiver, member.member.as_str())
+                .map(|field| field.type_reference)
+        }
+        _ => None,
+    }
+}
+
+/// The one field `name` declares on the record `reference` names: peel the
+/// borrow/constraint shells a realized parameter's declared carrier may wear,
+/// then require a single data definition so the field identity is exact.
+fn carrier_field(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    name: &str,
+) -> Option<typed_trees::data::DataField> {
+    let mut reference = reference;
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            TypeReferenceNode::Named { symbol, .. } => {
+                let mut definitions = program
+                    .data_definitions()
+                    .iter()
+                    .filter(|data| data.symbol == *symbol);
+                let definition = definitions.next()?;
+                if definitions.next().is_some() {
+                    return None;
+                }
+                let mut fields = program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(|member| match member {
+                        typed_trees::data::DataMember::Field(field)
+                            if field.name.as_str() == name =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    });
+                let field = fields.next()?;
+                if fields.next().is_some() || !field.symbol.is_valid() {
+                    return None;
+                }
+                return Some(field.clone());
+            }
+            _ => return None,
+        }
     }
 }

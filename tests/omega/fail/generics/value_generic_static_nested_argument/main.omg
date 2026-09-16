@@ -1,0 +1,18 @@
+// A runtime subject bound to a `Value` binder cannot feed a nested static
+// specialization: `TinyBuffer<Count>` asks the runtime argument to decide a
+// `const` array extent, which is a static-only use and must reject instead of
+// silently strengthening the binder or caching on the source spelling.
+
+data TinyBuffer<const N: u8> {
+    items: [u8; N];
+}
+
+machine make<Count: u8>() -> u8 {
+    let buf: TinyBuffer<Count>;
+    Count
+}
+
+machine Main::main(&mut self) {
+    let n: u8 = 3;
+    let a: u8 = make<n>();
+}

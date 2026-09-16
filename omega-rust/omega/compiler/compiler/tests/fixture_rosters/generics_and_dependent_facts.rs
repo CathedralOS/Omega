@@ -137,6 +137,20 @@ pub(crate) const VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN: &str =
     "generics/value_generic_runtime_requires_unproven";
 pub(crate) const VALUE_GENERIC_RUNTIME_STATIC_BOUND: &str =
     "generics/value_generic_runtime_static_bound";
+pub(crate) const VALUE_GENERIC_STATIC_ARGUMENT_OUT_OF_RANGE: &str =
+    "generics/value_generic_static_argument_out_of_range";
+pub(crate) const VALUE_GENERIC_RUNTIME_SUBJECT_OUT_OF_RANGE: &str =
+    "generics/value_generic_runtime_subject_out_of_range";
+pub(crate) const VALUE_GENERIC_STATIC_REQUIRES_VIOLATION: &str =
+    "generics/value_generic_static_requires_violation";
+pub(crate) const VALUE_GENERIC_LINEAR_SUBJECT_DUPLICATED: &str =
+    "generics/value_generic_linear_subject_duplicated";
+pub(crate) const VALUE_GENERIC_LINEAR_SUBJECT_DROPPED: &str =
+    "generics/value_generic_linear_subject_dropped";
+pub(crate) const VALUE_GENERIC_RUNTIME_STATIC_LENGTH: &str =
+    "generics/value_generic_runtime_static_length";
+pub(crate) const VALUE_GENERIC_STATIC_NESTED_ARGUMENT: &str =
+    "generics/value_generic_static_nested_argument";
 pub(crate) const RUNTIME_MIN_MAX_GUARD_SUBJECT_HOIST_EXIT: &str =
     "calls/runtime_min_max_guard_subject_hoist_exit";
 pub(crate) const RUNTIME_INDEXED_GUARD_TRUE_FALSE_PAIR_EXIT: &str =
@@ -328,4 +342,11 @@ pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     CONST_GENERIC_RUNTIME_ARGUMENT,
     VALUE_GENERIC_RUNTIME_REQUIRES_UNPROVEN,
     VALUE_GENERIC_RUNTIME_STATIC_BOUND,
+    VALUE_GENERIC_STATIC_ARGUMENT_OUT_OF_RANGE,
+    VALUE_GENERIC_RUNTIME_SUBJECT_OUT_OF_RANGE,
+    VALUE_GENERIC_STATIC_REQUIRES_VIOLATION,
+    VALUE_GENERIC_LINEAR_SUBJECT_DUPLICATED,
+    VALUE_GENERIC_LINEAR_SUBJECT_DROPPED,
+    VALUE_GENERIC_RUNTIME_STATIC_LENGTH,
+    VALUE_GENERIC_STATIC_NESTED_ARGUMENT,
 ];
