@@ -1325,7 +1325,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Like the memory rules, `runtime_spill` is not an `Optimization`
   selection-vocabulary member — admission is an explicit per-victim
   validated call — so the disabled-policy axis stays absent.
-  Remaining: the same matrix for the other phases' exact rules.
+  Every exact rule in the current phase set now carries the full matrix,
+  re-verified on Linux x86-64: 117 `lowered-psi-to-lowered-psi` tests,
+  502 `selected-instructions-to-selected-instructions` lib tests, 378
+  `abstract-operations-to-abstract-operations` lib tests, 17
+  `resolved-layout-to-resolved-layout` tests, and the 20 checked-tree
+  product-pruning legs all pass. No uncovered exact-rule family remains:
+  the target-operations and pre-allocation selections are empty identity
+  boundaries, and the retired post-allocation machine spellings reject
+  rather than execute. Remaining: the same matrix for exact rules as
+  they land in other phases.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target.
