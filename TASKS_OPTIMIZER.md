@@ -851,7 +851,29 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   transformed instruction and the covering store. The three rules have no
   disabled-policy axis: they are not `Optimization` selection-vocabulary
   members, so admission is an explicit per-instruction validated call.
-  Remaining: the same matrix for the other phases' exact rules.
+  `address_fold` and the two allocation-recovery selection members —
+  `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` and
+  `ActiveResidentImmediateU64MultiUseRematerializationV1` — now carry the
+  same matrix (392 lib tests pass on macOS arm64). The address fold gains
+  the measured validation-step boundary at two block sizes on both the
+  proposal and independent-replay paths, replay-corruption rejection for
+  drift in blocks the fold never touched, and a producer-site terminal
+  leg; it has no disabled-policy axis for the same reason. The
+  allocation-recovery entrance pins the empty-phase decline shared by both
+  rules. The shared-entry copy carries determinism at the build core, the
+  exact two-boundary admission window — an empty boundary set admits no
+  copy while one or three refuse — and transformed-function re-admission
+  refusal on both the build and replay cores, whose second input is a
+  legal raw `SelectedFunction`; its measured staged budget boundary and
+  disabled legs live in the native-differential `fixed_view_copy_operational`
+  suite. The multiple-use rematerialization carries determinism and
+  terminal re-admission at the rule core — the transformed plan's
+  rewritten uses cannot admit a second application — with staged budget,
+  disabled, corruption, and rebuilt-analysis fixed-point legs in the
+  native-differential suite. Remaining: the same matrix for the phase's
+  `copy_removal`, `literal_compare`, `redundant_extension`,
+  `runtime_rematerialization`, and `runtime_spill` exact rules, then the
+  other phases' exact rules.
 
 - **TARGET-MATRICES.** Complete supported target/OS allocator, encoding,
   unwind, object, and callable matrices. Existing selected-lowering and
