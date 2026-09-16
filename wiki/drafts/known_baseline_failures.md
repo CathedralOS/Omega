@@ -54,6 +54,26 @@ transport is not implemented in the common instruction pipeline`. x86 FMA
 provider transport is unimplemented; the failure is not host-specific.
 
 
+## package-evidence
+
+`cargo nextest run -p package-evidence --no-fail-fast` at 34cc842d85 plus the
+three fixture commits beside this row (2026-09-16, macOS arm64): 632 run,
+631 passed, 1 failed:
+`authority::toolchain_provenance::declared_hardware_service_reach_does_not_infer_physical_authority`
+("domain `Extent::Granted` establishment route `ExtentRootProvider::grant`
+does not resolve to one exact trait"). The fixture package declares its own
+`pub boundary trait ExtentRootProvider {}` and imports nothing; since
+5d134569b6 seeded the hosted entry contract and its `core` imports into
+every hosted package-aware compilation, `core/extent.omg` is in the program
+and `syntax-trees-to-symbol-resolved-trees/src/selection/signature_free_requirements.rs`
+(`resolve_signature_free_requirement`) collects every same-named trait
+program-wide, filtered only by resolution stratum, so the package's trait and
+`core`'s collide as `TraitNotUnique`. Per wiki/spec/language/modules.md a
+package's declarations are not in `core`'s scope, so the fixture is valid and
+the resolver over-collects; the fix is scoping candidates to the occurrence's
+module/dependency scope, whose predicate lives under the live
+MODULE-NAMESPACE-RESOLUTION claim.
+
 ## native-differential `terminal_psi_source`
 
 `cargo nextest run -p omega-native-differential-test --test terminal_psi_source
