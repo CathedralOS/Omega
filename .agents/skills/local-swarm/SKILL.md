@@ -3,7 +3,7 @@ name: local-swarm
 description: >-
   Coordinate a local swarm wave on this machine: partition board items into a
   wave manifest, render per-agent prompts with tools/swarm/launch.py local,
-  spawn one subagent per worktree, keep the tank filled by backfilling, and
+  spawn one in-session subagent per worktree, keep the tank filled by backfilling, and
   recover or drain the wave cleanly. Use when the user asks to launch a local
   swarm, run N concurrent subagents on the Omega boards, fill a wave to N, or
   resume an interrupted local wave. Not for cloud waves (launch.py launch),
@@ -35,8 +35,22 @@ coordinator's procedure — the agents get rendered prompts, not this file.
 ## Launch
 
 Run `local` once with `--create-worktrees` so every slot starts from a clean
-`swarm/<wave>-<name>` branch. Then spawn one background subagent per row with
-that row's prompt file contents as its task.
+`swarm/<wave>-<name>` branch. `launch.py local` is only the validation and
+prompt renderer — it must never be the spawn mechanism.
+
+Spawn each row as a subagent **inside the coordinator session**, using the
+session's own subagent tool (Devin: `run_subagent` with `subagent_general`,
+`is_background=true`; Claude Code / Codex / Pi: their equivalent), with that
+row's prompt file contents as the task. One in-session background subagent per
+row — never a detached shell, `nohup`, `tmux`, or a second CLI session the
+coordinator cannot see. In-session subagents keep the wave visible, let the
+coordinator read reports and notification fences directly, and make death
+detection reliable instead of guessing at orphaned shells.
+
+Only when the coordinator genuinely lacks a subagent tool is a detached local
+session an acceptable fallback — and that choice must be stated explicitly in
+the wave report, because it loses in-session visibility and clean death
+detection.
 
 Concurrency is bounded by the org-wide message budget shared with cloud waves
 and other machines, not by this host. A burst of ~20 died in minutes; 8 held
