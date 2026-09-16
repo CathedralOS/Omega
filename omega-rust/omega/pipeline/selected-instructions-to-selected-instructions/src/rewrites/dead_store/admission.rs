@@ -1,13 +1,19 @@
 //! Shared admission for dead-store elimination: locate the named `Store` or
 //! `StorePacked`, prove its exact `WritePlace` row, then walk forward to the
-//! first access on the dead place and require it to be a place store whose
-//! own row covers the dead range entirely.
+//! first access on the dead place and require it to be a write of the dead
+//! place's storage whose own row covers the dead range entirely.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! dead place interferes when it can observe the stored bytes or leave them
 //! observable: any overlapping or dynamic-extent read, any write that is not
-//! the exact covering store, a place-backed local slot, or a materialized
-//! local address. Rows for other places are safe under place exclusivity.
+//! the exact covering write, or a materialized local address. Rows for other
+//! places are safe under place exclusivity. A `WriteLocal` on the dead
+//! place's own storage — its `StructuralParameter` or
+//! `StructuralBlockParameter` slot — interferes exactly like a `WritePlace`
+//! on that place: an overlapping row decides coverage below, a disjoint row
+//! walks past. A `Structural` operation slot can instead stage bytes that
+//! merely name the place (a call's staged view descriptor), so any write to
+//! it stays a barrier rather than a route to the place's storage.
 //! Instructions without a row are admitted only when their kind cannot reach
 //! semantic storage: private-slot frame accesses and pure register work.
 //! Calls, hosted effects, and unaccounted writers reject.
@@ -144,12 +150,12 @@ pub(super) fn admit<'source>(
         place_store_shape(dead_store, environment)?;
     }
     // Walk forward to the first access that can reach the dead bytes. It must
-    // be a place store whose row covers the dead range entirely; anything else
-    // leaves the bytes observable or only partially overwritten. Reaching a
-    // block's end without interference crosses into its only successor block —
-    // every edge out naming one block means each path forward from the store
-    // arrives there — checking the terminator's roster rows and each crossed
-    // edge's transports on the way.
+    // be a write of the dead place's storage whose row covers the dead range
+    // entirely; anything else leaves the bytes observable or only partially
+    // overwritten. Reaching a block's end without interference crosses into
+    // its only successor block — every edge out naming one block means each
+    // path forward from the store arrives there — checking the terminator's
+    // roster rows and each crossed edge's transports on the way.
     let mut visited = vec![false; function.blocks.len()];
     let mut crossed = Vec::new();
     let mut interval = 0usize;
@@ -403,11 +409,33 @@ fn scratch_definition_is_dead(
     occurrences == 1
 }
 
+/// Whether `slot` is `place`'s own storage, so a write into it moves the
+/// place's bytes in the place's byte coordinates and can cover a dead write:
+/// a parameter home or a block parameter. An operation-owned `Structural`
+/// slot can instead stage bytes that merely name the place — a call's
+/// staged view descriptor — so it is not the place's storage here.
+fn local_slot_is_place_storage(slot: LocalStorageSlotId, place: PlaceId) -> bool {
+    match slot {
+        LocalStorageSlotId::StructuralParameter { place: slot_place }
+        | LocalStorageSlotId::StructuralBlockParameter {
+            place: slot_place, ..
+        } => slot_place == place,
+        LocalStorageSlotId::Spill { .. }
+        | LocalStorageSlotId::Structural { .. }
+        | LocalStorageSlotId::Boundary { .. } => false,
+    }
+}
+
 /// Whether one roster row can observe the dead bytes or leave them
 /// observable. Reads must intersect the dead range; dynamic extents always
 /// reach it. Writes must target the same place root to overlap; the covering
-/// write is checked by the caller after this returns true. Local-slot and
-/// outgoing-area storage never aliases a referent place.
+/// write is checked by the caller after this returns true. A `WriteLocal`
+/// row names an exact range: whether its slot is the dead place's storage or
+/// only stages bytes naming the place, a disjoint row cannot touch the dead
+/// bytes — so range intersection decides, and an intersecting row still has
+/// to cover. A materialized local address could reach the same storage by a
+/// route the roster does not bound, so it always interferes. Outgoing-area
+/// storage never aliases a referent place.
 fn interferes(dead: &Dead, access: &SelectedMemoryAccess) -> bool {
     match access.role {
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
@@ -417,8 +445,10 @@ fn interferes(dead: &Dead, access: &SelectedMemoryAccess) -> bool {
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. } => access.place == dead.place,
-        SelectedMemoryAccessRole::WriteLocal { slot }
-        | SelectedMemoryAccessRole::AddressLocal { slot } => {
+        SelectedMemoryAccessRole::WriteLocal { slot } => {
+            slot.structural_place() == Some(dead.place) && dead.intersects(access)
+        }
+        SelectedMemoryAccessRole::AddressLocal { slot } => {
             slot.structural_place() == Some(dead.place)
         }
         SelectedMemoryAccessRole::WriteOutgoing { .. }
@@ -426,12 +456,20 @@ fn interferes(dead: &Dead, access: &SelectedMemoryAccess) -> bool {
     }
 }
 
-/// The found access must be a place store whose single `WritePlace` row
-/// covers the dead range entirely: a `Store` of any exact width or a packed
-/// `StorePacked`, each encoding the same byte range its row names. A write
-/// that only partially overlaps the dead range leaves the remaining bytes
-/// observable, and a place-backed local slot or materialized local address
-/// writes or exposes different storage — neither can cover.
+/// The found access must be a write of the dead place's storage whose single
+/// roster row covers the dead range entirely and names the same bytes the
+/// instruction encodes:
+/// - `Store` of any exact width or packed `StorePacked` carrying `WritePlace`
+///   — through a place pointer — or `WriteLocal` on the place's own
+///   parameter storage, through that slot's materialized address;
+/// - `Store64` into `Local(slot)` carrying `WriteLocal` on that same slot —
+///   directly into the place's own parameter storage.
+///
+/// A write that only partially overlaps the dead range leaves the remaining
+/// bytes observable. A `WriteLocal` on an operation-owned `Structural` slot
+/// never covers: the slot can stage bytes that merely name the place — a
+/// call's staged view descriptor — without being its storage. A
+/// materialized local address exposes storage rather than writing it.
 fn covering_source(
     instruction: &SelectedInstruction,
     dead: &Dead,
@@ -439,9 +477,19 @@ fn covering_source(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), DeadStoreEliminationError> {
     let reject = || DeadStoreEliminationError::InterveningAccess;
-    // The encoded byte range must equal the row's exact range: a `Store`
-    // writes its `byte_size` at `byte_offset` through the referent pointer,
-    // and a `StorePacked` writes its packed `width` the same way.
+    let mut rows = function
+        .memory_accesses
+        .iter()
+        .filter(|access| access.instruction == instruction.id);
+    let Some(row) = rows.next() else {
+        return Err(reject());
+    };
+    if rows.next().is_some() || row.place != dead.place {
+        return Err(reject());
+    }
+    // The encoded byte range must equal the row's exact range, and the row's
+    // role must match the route the instruction takes to the dead place's
+    // storage.
     let (encoded_offset, encoded_size) = match instruction.kind {
         SelectedInstructionKind::Store {
             byte_offset,
@@ -451,29 +499,45 @@ fn covering_source(
                 return Err(reject());
             }
             place_store_shape(instruction, environment)?;
+            match row.role {
+                SelectedMemoryAccessRole::WritePlace => {}
+                SelectedMemoryAccessRole::WriteLocal { slot }
+                    if local_slot_is_place_storage(slot, dead.place) => {}
+                _ => return Err(reject()),
+            }
             (byte_offset, u32::from(byte_size))
         }
         SelectedInstructionKind::StorePacked { byte_offset, width } => {
             if environment.selected_keys().store_packed != Some(instruction.constraint) {
                 return Err(DeadStoreEliminationError::ConstraintMismatch);
             }
+            match row.role {
+                SelectedMemoryAccessRole::WritePlace => {}
+                SelectedMemoryAccessRole::WriteLocal { slot }
+                    if local_slot_is_place_storage(slot, dead.place) => {}
+                _ => return Err(reject()),
+            }
             (byte_offset, u32::from(width.byte_size()))
+        }
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset,
+        } => {
+            if environment.selected_keys().store64 != Some(instruction.constraint) {
+                return Err(DeadStoreEliminationError::ConstraintMismatch);
+            }
+            // The direct slot store covers only when the roster names the
+            // same slot and that slot is the dead place's own storage.
+            if row.role != (SelectedMemoryAccessRole::WriteLocal { slot })
+                || !local_slot_is_place_storage(slot, dead.place)
+            {
+                return Err(reject());
+            }
+            (byte_offset, 8)
         }
         _ => return Err(reject()),
     };
-    let mut rows = function
-        .memory_accesses
-        .iter()
-        .filter(|access| access.instruction == instruction.id);
-    let Some(row) = rows.next() else {
-        return Err(reject());
-    };
-    if rows.next().is_some()
-        || row.role != SelectedMemoryAccessRole::WritePlace
-        || row.place != dead.place
-        || row.byte_offset != encoded_offset
-        || row.byte_count != encoded_size
-    {
+    if row.byte_offset != encoded_offset || row.byte_count != encoded_size {
         return Err(reject());
     }
     // Coverage is containment, not equality: the killer's bytes may start

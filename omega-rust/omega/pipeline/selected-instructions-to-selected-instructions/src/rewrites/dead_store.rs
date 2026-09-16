@@ -5,12 +5,12 @@
 //! writes its packed width the same way; either can be the dead store, the
 //! packed form only when its early-clobber scratch `Def` occurs nowhere
 //! else in the function — a surviving mention would lose its definition to
-//! the removal. A later place store whose byte range covers the first
-//! store's range entirely replaces those bytes. When no intervening
-//! instruction can observe or partially overwrite the first store's bytes,
-//! the earlier store is dead: every observer of the place sees the covering
-//! store's value, so the first instruction and its roster row can be
-//! removed without changing any reachable memory state.
+//! the removal. A later write of the place's storage whose byte range
+//! covers the first store's range entirely replaces those bytes. When no
+//! intervening instruction can observe or partially overwrite the first
+//! store's bytes, the earlier store is dead: every observer of the place
+//! sees the covering write's value, so the first instruction and its roster
+//! row can be removed without changing any reachable memory state.
 //!
 //! The alias decision is borrow-aware: it comes from the validated
 //! `memory_accesses` roster, not from pointer-register equality. Each access
@@ -22,12 +22,18 @@
 //! different place cannot observe them. Only an access on the dead place
 //! itself matters: an overlapping or dynamic-extent read observes the bytes,
 //! a partial or dynamic-extent write leaves them observable, and a
-//! place-backed local slot or materialized local address can reach the same
-//! storage by another route. The covering store must be the first access on
-//! the dead place after the removed store: a `Store` or `StorePacked`
-//! carrying exactly one `WritePlace` row on the dead place whose encoded
+//! materialized local address can reach the same storage by another route.
+//! The covering write must be the first access on the dead place after the
+//! removed store, carrying exactly one row on the dead place whose encoded
 //! byte range contains the dead range entirely — the row need only cover,
-//! not equal, the removed write.
+//! not equal, the removed write. Two routes to the place's storage qualify:
+//! a `Store` or `StorePacked` carrying `WritePlace`, and a write into the
+//! place's own local storage — its `StructuralParameter` or
+//! `StructuralBlockParameter` slot — carrying `WriteLocal`, either a
+//! `Store64` naming that slot or a place store through its materialized
+//! address. A `Structural` operation slot can instead stage bytes that
+//! merely name the place — a call's staged view descriptor — so a write to
+//! it stays interference rather than a route to the place's storage.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they

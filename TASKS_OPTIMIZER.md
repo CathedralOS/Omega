@@ -897,8 +897,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   so the removal cannot strand a surviving mention; the kill side is
   unchanged, with any later covering store — plain or packed —
   rewriting the dead range unobserved in-block or across a
-  single-successor edge (crate `nextest`: 414 pass). Remaining:
-  place-backed local-slot and dynamic-extent writes still cannot
+  single-successor edge (crate `nextest`: 414 pass). Dead-store
+  covering also admits a write into the dead place's own local
+  storage — its `StructuralParameter` or `StructuralBlockParameter`
+  slot, which is the place's storage under the same byte
+  coordinates: a `Store64` naming that slot, or a place
+  `Store`/`StorePacked` through its materialized address, each
+  carrying exactly one `WriteLocal` row whose encoded range
+  contains the dead range; a disjoint `WriteLocal` on any
+  place-backed slot now walks past by range intersection since it
+  cannot touch the dead bytes either way, while an operation-owned
+  `Structural` slot — which can stage bytes that merely name the
+  place, like a call's staged view descriptor — still interferes
+  on intersection and never covers (crate `nextest`: 450 pass).
+  Remaining: operation-slot and dynamic-extent writes still cannot
   cover, and load forwarding still stops at joins.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
