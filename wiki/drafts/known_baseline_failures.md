@@ -36,15 +36,15 @@ was refreshed, so no attribution beyond the names is recorded here.
 
 ## checked-trees-to-lowered-psi
 
-`mbx nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast` at
-3e985353b9 on 2026-09-16 (macOS arm64) reports 1 failure in this crate's lib
-tests: `tests::reach_and_scalar_lowering::direct_float_result_proof_only_contract_rejects_additional_value_clauses`.
-The test asserts `lower_machine` returns
-`Unsupported("machine must have exactly one requires and one ensures clause")`;
-the machine now lowers differently since the float-entry-range retention work
-(fed329df49 touched `src/unit/runtime_requirements/source.rs` and adjacent
-contract plumbing), so the expectation is stale relative to the landed clause
-handling rather than the task diff that observed it.
+`cargo test -p checked-trees-to-lowered-psi --test unit_scalar_result_source
+ordered_boolean_call_computations_preserve_normal_guarantees` fails at
+00d0f9c15f on 2026-09-16 (Linux x86-64) and identically at 51f21bb168:
+`boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees`
+returns `OperationProofUnavailable(ObligationId(9223372036854775809))` at
+`tests/unit_scalar_result_source/boundary_wrappers.rs:41`. The source has no
+floating ranges; reconstruction fails inside `src/proofs/operation_proofs.rs`
+for an obligation issued on the `machine_calls` call path, an area under live
+borrow-proof work.
 
 ## compiler build-target activation
 
