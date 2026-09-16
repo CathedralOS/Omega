@@ -233,6 +233,39 @@ fn aggregate_helper_results_transport_complete_reference_origins() {
             "named_state_result",
             "let local: View = routed_view(&mut self.value); write_view(local);",
             "machine routed_view(value: &mut u64) -> View { transition { _ -> finish(value) } state finish(source: &mut u64) { View { body: source } } }",
+            Some(vec!["self.value"]),
+        ),
+        (
+            "named_state_chained",
+            "let local: View = routed_twice(&mut self.value); write_view(local);",
+            "machine routed_twice(value: &mut u64) -> View { transition { _ -> middle(value) } state middle(input: &mut u64) { transition { _ -> finish(input) } } state finish(source: &mut u64) { View { body: source } } }",
+            Some(vec!["self.value"]),
+        ),
+        (
+            // The named edge's authored arguments select which input carries
+            // the returned leaf; identity substitution is not assumed.
+            "named_state_argument_redirect",
+            "let local: View = routed_swap(&mut self.value, &mut self.other); write_view(local);",
+            "machine routed_swap(first: &mut u64, second: &mut u64) -> View { transition { _ -> finish(second) } state finish(source: &mut u64) { View { body: source } } }",
+            Some(vec!["self.other"]),
+        ),
+        (
+            // Distinct routes union: the write may reach either carried leaf.
+            "named_state_split",
+            "let local: View = routed_split(&mut self.value, &mut self.other, self.audit); write_view(local);",
+            "machine routed_split(value: &mut u64, other: &mut u64, pick: u64) -> View { transition pick > 0 { true -> finish(value) false -> View { body: other } } state finish(source: &mut u64) { View { body: source } } }",
+            Some(vec!["self.other", "self.value"]),
+        ),
+        (
+            "named_state_cycle",
+            "let local: View = cyclic_view(&mut self.value); write_view(local);",
+            "machine cyclic_view(value: &mut u64) -> View { transition { _ -> finish(value) } state finish(source: &mut u64) { transition { _ -> finish(source) } } }",
+            None,
+        ),
+        (
+            "named_state_private",
+            "let local: View = routed_private(&mut self.value); write_view(local);",
+            "machine routed_private(value: &mut u64) -> View { transition { _ -> finish(value) } state finish(source: &mut u64) { let mut scratch: u64 = 0; View { body: &mut scratch } } }",
             None,
         ),
     ];
@@ -364,6 +397,12 @@ fn aggregate_helper_results_reach_checked_trees() {
         lower_typed_trees(aggregate_result_program(body, "", "u64"))
             .expect("aggregate result reaches checked trees");
     }
+    lower_typed_trees(aggregate_result_program(
+        "let local: View = routed_view(&mut self.value); write_view(local);",
+        "machine routed_view(value: &mut u64) -> View { transition { _ -> finish(value) } state finish(source: &mut u64) { View { body: source } } }",
+        "u64",
+    ))
+    .expect("named-state aggregate result reaches checked trees");
 }
 
 #[test]

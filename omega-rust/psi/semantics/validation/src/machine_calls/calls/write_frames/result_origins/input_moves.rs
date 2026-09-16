@@ -5,8 +5,10 @@ use super::super::path_instantiation::aggregate_arguments::{
     AggregateOrigins, AggregateResolver, ReferenceResolver, reference_leaves_with_origins,
 };
 use super::super::stored_origins::{self, StoredLocalOrigins, StoredWriteOrigin};
-use super::super::{FrameInference, Machine, TableCallExpression, TopLevelSymbols, TypedTrees};
+use super::super::{FrameInference, Machine, TopLevelSymbols, TypedTrees};
 use facts::PlaceSegment;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 
 pub(super) fn validate_frozen_inputs(
@@ -61,8 +63,8 @@ pub(super) fn validate_frozen_inputs(
 pub(super) fn instantiate_moves(
     program: &TypedTrees,
     caller_machine: &Machine,
-    state: &State,
-    call: &TableCallExpression,
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
     relative: &mut AggregateOrigins,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
@@ -70,8 +72,6 @@ pub(super) fn instantiate_moves(
     resolve_reference: &ReferenceResolver<'_>,
     resolve_origins: &AggregateResolver<'_>,
 ) -> Option<AggregateOrigins> {
-    let parameters = program.state_parameters(state);
-    let arguments = program.expression_table.expression_handles(call.arguments);
     let mut returned = AggregateOrigins::default();
     for moved in &relative.moves {
         let (index, parameter) = parameters
