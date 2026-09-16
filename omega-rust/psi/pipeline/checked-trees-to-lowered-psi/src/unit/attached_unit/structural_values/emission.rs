@@ -140,6 +140,26 @@ pub(crate) fn emit(
     if !sources.is_empty() && multiplicity != StructuralMultiplicity::Affine {
         return unsupported("owned selection requires uniform affine root cleanup");
     }
+    // A `&T` result rejoins borrowed custody at the selection's block
+    // parameter instead of transferring a referent owner. The authored local's
+    // declared type pins this: `&T` over a plain-owned record produces a
+    // shared-borrow join parameter; every other result stays owned.
+    let result_access = match checked
+        .statement_table
+        .statements(authored_state.statement_nodes)
+        .get(result.statement_index as usize)
+    {
+        Some(checked_trees::statement::StatementNode::LocalData(local))
+            if source_custody::shared_borrow_record_referent(checked, local.type_reference)
+                .is_some() =>
+        {
+            StructuralAccess::SharedBorrow
+        }
+        _ => StructuralAccess::Owned,
+    };
+    if result_access == StructuralAccess::SharedBorrow && !sources.is_empty() {
+        return unsupported("borrowed selection cannot carry owned residual custody");
+    }
     let owners = if sources.is_empty() {
         Vec::new()
     } else {
@@ -188,6 +208,7 @@ pub(crate) fn emit(
         operations,
         sources,
         owners,
+        result_access,
     };
     let place = emission.value(*value, None)?;
     let place = if emission.sources.is_empty()
@@ -478,6 +499,9 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) operations: &'b mut OperationBuffer,
     sources: Vec<StructuralArgument>,
     owners: Vec<argument_evaluation::StructuralValueOwner>,
+    /// The join result slot's custody: `Owned` for an owned selection,
+    /// `SharedBorrow` for a `&T` result whose branches rejoin shared borrows.
+    result_access: StructuralAccess,
 }
 
 pub(super) struct ValueContinuation {
@@ -534,6 +558,28 @@ impl Emission<'_, '_, '_> {
             .clone();
         match node.kind {
             CheckedStructuralValueKind::Reference { source } => {
+                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                    // A `&T` branch borrows its exact referent place: resolve
+                    // the authored root/path against the current locals and
+                    // signature parameters, then join that shared custody at
+                    // the selection's block parameter. No owner moves and no
+                    // residual custody dies on this edge.
+                    let continuation = continuation.ok_or(LoweringError::Unsupported(
+                        "borrowed selection requires a structural continuation",
+                    ))?;
+                    if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type
+                    {
+                        return unsupported("borrowed selection changed its referent type");
+                    }
+                    let argument = crate::expression_preparation::bindings::ScalarBindings::new(
+                        self.values.len(),
+                    )
+                    .with_structural_parameters(&self.evaluation.structural_parameters)
+                    .with_structural_locals(&self.evaluation.structural_locals)
+                    .shared_structural_argument(&source)?;
+                    self.complete_borrowed(argument, continuation)?;
+                    return Ok(continuation.place);
+                }
                 let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index,
                 } = source.source
@@ -814,6 +860,7 @@ impl Emission<'_, '_, '_> {
                             .map_or((self.structural_type, self.multiplicity), |owner| {
                                 (owner.value.structural_type, owner.value.multiplicity)
                             });
+                        let is_result_slot = position == remaining_owners.len();
                         let owner = remaining_owners.get_mut(position);
                         let position = u32::try_from(position).map_err(|_| {
                             LoweringError::Unsupported(
@@ -847,7 +894,14 @@ impl Emission<'_, '_, '_> {
                             is_self: false,
                             structural_type,
                             multiplicity,
-                            access: StructuralAccess::Owned,
+                            // Owner slots keep owned custody; the result slot
+                            // carries the result's own access (`SharedBorrow`
+                            // for a `&T` branch join, `Owned` otherwise).
+                            access: if is_result_slot {
+                                self.result_access
+                            } else {
+                                StructuralAccess::Owned
+                            },
                             qualifications: Vec::new(),
                             projected_qualifications: Vec::new(),
                         });
@@ -1463,6 +1517,48 @@ impl Emission<'_, '_, '_> {
             structural_arguments: edge.structural_arguments,
             trivial_affine_discards,
             residual_affine_discards,
+        });
+        Ok(())
+    }
+
+    /// A borrowed branch joins one shared referent place at the result
+    /// parameter. Unlike `complete_value` there is no owner roster, no
+    /// displaced candidate and no residual schedule: the referent's owner
+    /// stays live, and the single structural parameter must be the
+    /// `SharedBorrow` result slot this edge's argument fills.
+    fn complete_borrowed(
+        &mut self,
+        argument: StructuralArgument,
+        continuation: &ValueContinuation,
+    ) -> Result<(), LoweringError> {
+        if continuation.structural_parameters.len() != 1
+            || !continuation.pass_through.is_empty()
+            || !continuation.residuals.is_empty()
+        {
+            return unsupported("borrowed selection joined residual ownership");
+        }
+        let parameter = &continuation.structural_parameters[0];
+        if parameter.place != continuation.place
+            || parameter.access != StructuralAccess::SharedBorrow
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || parameter.structural_type != self.structural_type
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return unsupported("borrowed selection parameter changed its custody");
+        }
+        let edge = self.edge(
+            continuation.block,
+            self.values.iter().map(|value| value.id).collect(),
+            vec![argument],
+        )?;
+        self.finish(Terminator::Jump {
+            edge: edge.edge,
+            target: edge.target,
+            arguments: edge.arguments,
+            structural_arguments: edge.structural_arguments,
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         });
         Ok(())
     }

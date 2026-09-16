@@ -223,6 +223,25 @@ fn reference_local_borrow_loans(
         returned_carriers::attenuate(&mut loans, &local_access);
         return loans;
     }
+    // A match joining borrowed arms lends every arm's exact target for the
+    // result's whole live range: the run-time edge decides which source
+    // carried the borrow, so each source stays constrained as if that edge
+    // ran. Non-borrow arms contribute no loan rather than a fabricated source;
+    // result admission elsewhere keeps the selected set uniform.
+    if let checked_trees::expression::ExpressionNode::Match(dispatch) = program
+        .expression_table
+        .expression(local_data.initial_value)
+    {
+        return selected_arm_borrow_loans(
+            program,
+            state.symbol,
+            statement_index,
+            machine_symbol,
+            local_data,
+            dispatch,
+            loan_trackers,
+        );
+    }
     let indexed_recast_place = literal_indexed_recast_borrow_place(
         program,
         state,
@@ -334,6 +353,67 @@ fn reference_local_borrow_loans(
                 force_unretained,
             ),
             kind: local_access.clone(),
+        })
+        .collect()
+}
+
+/// One loan per match arm that forms a borrow. Each arm's loan records the
+/// arm's own access kind against the arm's exact target place, rebased
+/// through any live local loans the same way a direct `let` initializer is.
+/// A match arm is not an explicit reborrow, so direct sources keep
+/// `DirectRoot` lineage and rebased sources stay deliberately unretained.
+fn selected_arm_borrow_loans(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+    dispatch: &checked_trees::expression::TableMatchExpression,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
+    program
+        .expression_table
+        .match_arms(dispatch.arms)
+        .iter()
+        .flat_map(|arm| {
+            let checked_trees::expression::ExpressionNode::Borrow(borrow) =
+                program.expression_table.expression(arm.value)
+            else {
+                return Vec::new();
+            };
+            let kind = match borrow.access {
+                language_semantics::ReferenceAccess::Shared => {
+                    checked_trees::BorrowAccessKind::Read
+                }
+                language_semantics::ReferenceAccess::Mutable => {
+                    checked_trees::BorrowAccessKind::Mutable
+                }
+                language_semantics::ReferenceAccess::WriteOnly => {
+                    checked_trees::BorrowAccessKind::WriteOnly
+                }
+            };
+            let Some(place) = borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                borrow.target,
+                machine_symbol,
+            ) else {
+                return Vec::new();
+            };
+            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+            rebased
+                .iter()
+                .map(|source| StatementBorrowLoan {
+                    owner_symbol: local_data.symbol,
+                    owner_name: local_data.name.clone(),
+                    owner_path: Vec::new(),
+                    place: source.place.clone(),
+                    source_owner_symbol: source.source_owner_symbol,
+                    lineage: retained_reference_lineage(source, &rebased, false, false),
+                    kind: kind.clone(),
+                })
+                .collect::<Vec<_>>()
         })
         .collect()
 }
