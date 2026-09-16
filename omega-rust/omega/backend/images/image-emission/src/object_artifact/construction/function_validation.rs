@@ -1,7 +1,8 @@
 //! The validating pass over every retained machine-code function: each
 //! function's records are replayed against its final bytes before the object
-//! is laid out. `validate_functions` walks the plan in canonical order and
-//! keeps the validated stacks the later emission phases consume.
+//! is laid out. `validate_functions` walks the plan in canonical order; each
+//! phase of one function's validation is a named function below it, and the
+//! pass keeps the validated stacks the emission phases consume.
 
 use crate::object_artifact::call_sites::{
     validate_foreign_call_floating_control, validate_foreign_call_site,
@@ -48,7 +49,7 @@ use crate::object_artifact::{
 };
 use machine_code::MachineCodeFunction;
 use machine_code::{MachineCodePlan, SemanticCodeSite};
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use target::{Architecture, NativeTarget};
 use target_operations::{BoundaryRealization, CallSiteOwner};
 
@@ -97,759 +98,39 @@ pub(super) fn validate_functions(
             x86_scalar_fma_provider,
         )?;
         validate_foreign_calls(plan, function)?;
-        let mut validated_function_stack = function
-            .unit_stack
-            .map(|stack| {
-                validate_unit_function_stack(
-                    plan.target.architecture,
-                    function.machine,
-                    &function.bytes,
-                    stack,
-                    0,
-                )
-            })
-            .transpose()?;
-        if function.boundary_settlements.iter().any(|settlement| {
-            hosted_write_byte_custody_is_exact(
-                plan.target,
-                settlement,
-                &function.boundary_settlements,
-                &function.unit_integer_constants,
-                &function.unit_scalar_homes,
-                |home, consumer_ordinal, consumer_offset| {
-                    crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
-                        &function.internal_unit_scalar_calls,
-                        home,
-                        consumer_ordinal,
-                        consumer_offset,
-                    )
-                },
-                Some(&function.bytes),
-            )
-        }) {
-            let stack = validated_function_stack
-                .as_mut()
-                .ok_or(ObjectError::UnaccountedTerminalStack(function.machine))?;
-            stack.local_peak_bytes = stack
-                .frame_bytes
-                .checked_add(16)
-                .ok_or(ObjectError::UnaccountedTerminalStack(function.machine))?;
+        let mut validated_function_stack = validate_unit_stack(plan, function)?;
+        validate_stack_and_return_evidence(plan, function)?;
+        if let Some(scalar) = validate_scalar_stack_evidence(plan, function)? {
+            validated_scalar_stacks.insert(function.machine, scalar);
         }
-        if function.unit_stack.is_some() && function.scalar_stack.is_some() {
-            return Err(ObjectError::ConflictingTerminalStackEvidence(
-                function.machine,
-            ));
+        let (validated_call_stacks, foreign_live_bytes) =
+            validate_call_stacks(plan, function, &mut validated_function_stack)?;
+        for (owner, live_bytes) in foreign_live_bytes {
+            validated_foreign_call_stacks.insert((function.machine, owner), live_bytes);
         }
-        if let Some(returned) = function.structural_call_scalar_return
-            && !(function.unit_stack.is_some()
-                && function.scalar_stack.is_none()
-                && function.provenance.operations.as_slice() == [returned.psi_operation]
-                && function.provenance.edges.as_slice() == [returned.psi_edge]
-                && matches!(
-                    (
-                        function.internal_unit_calls.as_slice(),
-                        function.semantic_code_attribution.as_slice(),
-                        function.unit_affine_cleanup.as_ref(),
-                    ),
-                    ([call], [call_attribution, return_attribution], Some(cleanup))
-                        if call.owner == CallSiteOwner::Operation(returned.psi_operation)
-                            && call.target == returned.callee
-                            && call.operation_ordinal == 0
-                            && call.result == Some(returned.scalar_type)
-                            && call.semantic_result.as_ref().is_some_and(|result| {
-                                result.value == returned.source_value
-                                    && result.scalar_type == returned.scalar_type
-                            })
-                            && call_attribution.site
-                                == SemanticCodeSite::Operation(returned.psi_operation)
-                            && call_attribution.operation_ordinal == call.operation_ordinal
-                            && call_attribution.code_offset == call.code_offset
-                            && call_attribution.byte_count == call.byte_count
-                            && return_attribution.site == SemanticCodeSite::Edge(returned.psi_edge)
-                            && return_attribution.operation_ordinal == 1
-                            && return_attribution.code_offset == cleanup.code_offset
-                            && return_attribution.byte_count == cleanup.byte_count
-                            && cleanup.psi_edge == returned.psi_edge
-                            && cleanup.locals.is_empty()
-                            && cleanup.actions.is_empty()
-                ))
-        {
-            return Err(ObjectError::InvalidInternalUnitCallEvidence(
-                function.machine,
-            ));
-        }
-        if let Some(returned) = &function.structural_return {
-            validate_structural_return_record(
-                plan.target,
-                function.machine,
-                &function.provenance,
-                &function.bytes,
-                &function.semantic_code_attribution,
-                returned,
-            )?;
-            if function.unit_stack.is_some()
-                || function.scalar_stack.is_some()
-                || !function.internal_calls.is_empty()
-                || !function.port_effects.is_empty()
-                || !function.boundary_settlements.is_empty()
-            {
-                return Err(ObjectError::StructuralReturnEvidenceConflict(
-                    function.machine,
-                ));
-            }
-        }
-        if let Some(stack) = &function.scalar_stack {
-            validate_scalar_cleanup_preservation(
-                plan.target.architecture,
-                function.machine,
-                &function.bytes,
-                stack,
-                function.scalar_affine_cleanup.as_ref(),
-            )?;
-            validate_scalar_control_cleanup_evidence(
-                plan.target.architecture,
-                function.machine,
-                &function.provenance,
-                &function.bytes,
-                stack,
-                &function.scalar_control_affine_cleanups,
-            )?;
-            validated_scalar_stacks.insert(
-                function.machine,
-                validate_scalar_stack(
-                    plan.target.architecture,
-                    function.machine,
-                    &function.bytes,
-                    &function.internal_calls,
-                    &function.dynamic_parameter_calls,
-                    &function.provenance,
-                    &function.semantic_code_attribution,
-                    stack,
-                    function.scalar_affine_cleanup.as_ref(),
-                    &function.scalar_control_affine_cleanups,
-                    &function.scalar_structural_parameter_homes,
-                )?,
-            );
-        }
-        let mut validated_call_stacks = Vec::new();
-        let mut call_owner_paths =
-            std::collections::BTreeMap::<CallSiteOwner, Vec<Option<Vec<(usize, bool)>>>>::new();
-        for call in &function.internal_calls {
-            let owner_in_provenance = match call.owner {
-                CallSiteOwner::Operation(operation) => {
-                    function.provenance.operations.contains(&operation)
-                }
-                CallSiteOwner::CleanupAction { edge, .. } => {
-                    function.provenance.edges.contains(&edge)
-                }
-            };
-            if !owner_in_provenance {
-                return Err(ObjectError::InternalCallOperationNotInProvenance {
-                    caller: function.machine,
-                    owner: call.owner,
-                });
-            }
-            let path = conditional_call_path(
-                plan.target.architecture,
-                &function.bytes,
-                function.scalar_stack.as_ref(),
-                call,
-            );
-            let prior_paths = call_owner_paths.entry(call.owner).or_default();
-            if !prior_paths.is_empty()
-                && (!matches!(call.owner, CallSiteOwner::Operation(_))
-                    || path.as_ref().is_none_or(|path| {
-                        prior_paths.iter().any(|prior| {
-                            prior
-                                .as_ref()
-                                .is_none_or(|prior| !conditional_paths_are_exclusive(prior, path))
-                        })
-                    }))
-            {
-                return Err(ObjectError::DuplicateInternalCallOperation {
-                    caller: function.machine,
-                    owner: call.owner,
-                });
-            }
-            prior_paths.push(path);
-            match (function.unit_stack, call.unit_stack) {
-                (Some(_), Some(call_stack)) => {
-                    let validated = validate_unit_call_stack(
-                        plan.target.architecture,
-                        function.machine,
-                        &function.bytes,
-                        *call,
-                        function.unit_stack.expect("Unit stack evidence exists"),
-                        validated_function_stack.expect("validated Unit stack exists"),
-                        call_stack,
-                    )?;
-                    let function_stack = validated_function_stack
-                        .as_mut()
-                        .expect("validated Unit stack exists");
-                    function_stack.local_peak_bytes = function_stack
-                        .local_peak_bytes
-                        .max(validated.caller_live_bytes);
-                    validated_call_stacks.push(validated);
-                }
-                (Some(_), None) => {
-                    return Err(ObjectError::MissingUnitCallStackEvidence {
-                        caller: function.machine,
-                        owner: call.owner,
-                    });
-                }
-                (None, Some(_)) => {
-                    return Err(ObjectError::UnexpectedUnitCallStackEvidence {
-                        caller: function.machine,
-                        owner: call.owner,
-                    });
-                }
-                (None, None) => {}
-            }
-            match (function.scalar_stack.as_ref(), call.scalar_stack) {
-                (Some(_), Some(_)) => {}
-                (Some(_), None) => {
-                    return Err(ObjectError::MissingScalarCallStackEvidence {
-                        caller: function.machine,
-                        owner: call.owner,
-                    });
-                }
-                (None, Some(_)) => {
-                    return Err(ObjectError::UnexpectedScalarCallStackEvidence {
-                        caller: function.machine,
-                        owner: call.owner,
-                    });
-                }
-                (None, None) => {}
-            }
-        }
-        for call in &function.foreign_calls {
-            let Some(stack) = function.unit_stack else {
-                return Err(ObjectError::UnexpectedUnitCallStackEvidence {
-                    caller: function.machine,
-                    owner: call.owner,
-                });
-            };
-            let caller_live_bytes = validate_foreign_unit_call_stack(
-                plan.target.architecture,
-                function.machine,
-                &function.bytes,
-                call,
-                stack,
-                validated_function_stack.expect("validated Unit stack exists"),
-            )?;
-            let function_stack = validated_function_stack
-                .as_mut()
-                .expect("validated Unit stack exists");
-            let admitted_alignment = call.same_stack_contribution.alignment();
-            if admitted_alignment > u64::from(function_stack.stack_alignment) {
-                return Err(ObjectError::UnsupportedForeignStackAlignment {
-                    caller: function.machine,
-                    owner: call.owner,
-                    admitted_alignment,
-                    physical_alignment: function_stack.stack_alignment,
-                });
-            }
-            function_stack.local_peak_bytes =
-                function_stack.local_peak_bytes.max(caller_live_bytes);
-            validated_foreign_call_stacks.insert((function.machine, call.owner), caller_live_bytes);
-        }
-        let is_unit_custody_relocation = |call: &&machine_code::InternalCallRelocation| {
-            call.unit_stack.is_some()
-                || ((function.scalar_affine_cleanup.is_some()
-                    || cleanup_for_owner(&function.scalar_control_affine_cleanups, call.owner)
-                        .is_some())
-                    && matches!(call.owner, CallSiteOwner::CleanupAction { .. })
-                    && call.scalar_stack.is_some())
-        };
-        let unit_custody_count = function
-            .internal_unit_calls
-            .len()
-            .checked_add(function.internal_unit_scalar_calls.len())
-            .and_then(|count| count.checked_add(function.forwarded_dynamic_descriptor_calls.len()))
-            .and_then(|count| {
-                count.checked_add(
-                    function
-                        .forwarded_dynamic_parameter_calls
-                        .iter()
-                        .filter(|call| {
-                            matches!(
-                                call.call_stack,
-                                machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
-                            )
-                        })
-                        .count(),
-                )
-            })
-            .and_then(|count| {
-                count.checked_add(function.installed_provider_unit_scalar_calls.len())
-            })
-            .ok_or(ObjectError::InvalidInternalUnitCallEvidence(
-                function.machine,
-            ))?;
-        if unit_custody_count
-            != function
-                .internal_calls
-                .iter()
-                .filter(is_unit_custody_relocation)
-                .count()
-        {
-            return Err(ObjectError::InvalidInternalUnitCallEvidence(
-                function.machine,
-            ));
-        }
-        let relocation_identities = function
-            .internal_calls
-            .iter()
-            .filter(is_unit_custody_relocation)
-            .map(|call| (call.owner, call.target))
-            .collect::<std::collections::BTreeSet<_>>();
-        let custody_identities = function
-            .internal_unit_calls
-            .iter()
-            .map(|call| (call.owner, call.target))
-            .chain(
-                function
-                    .internal_unit_scalar_calls
-                    .iter()
-                    .map(|call| (call.owner, call.target)),
-            )
-            .chain(
-                function
-                    .forwarded_dynamic_descriptor_calls
-                    .iter()
-                    .map(|call| (CallSiteOwner::Operation(call.psi_operation), call.callee)),
-            )
-            .chain(
-                function
-                    .forwarded_dynamic_parameter_calls
-                    .iter()
-                    .filter_map(|call| {
-                        matches!(
-                            call.call_stack,
-                            machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
-                        )
-                        .then_some((CallSiteOwner::Operation(call.psi_operation), call.callee))
-                    }),
-            )
-            .chain(
-                function
-                    .installed_provider_unit_scalar_calls
-                    .iter()
-                    .map(|call| (call.owner, call.provider.candidate)),
-            )
-            .collect::<std::collections::BTreeSet<_>>();
-        if custody_identities.len() != unit_custody_count
-            || custody_identities != relocation_identities
-        {
-            return Err(ObjectError::InvalidInternalUnitCallEvidence(
-                function.machine,
-            ));
-        }
-        let scalar_cleanup_custody = function.scalar_affine_cleanup.is_some()
-            || !function.scalar_control_affine_cleanups.is_empty();
-        let scalar_boundary_custody = function.boundary_settlements.iter().any(|settlement| {
-            matches!(
-                settlement.realization,
-                BoundaryRealization::DirectPortReadU8(_)
-                    | BoundaryRealization::HostedExitProcessI32(_)
-            )
-        });
-        let scalar_custody = scalar_cleanup_custody
-            || scalar_boundary_custody
-            || function.mixed_structural_scalar_abi.is_some()
-            || !function.scalar_structural_scalar_field_stores.is_empty();
-        let parameter_homes = if scalar_custody {
-            function.scalar_structural_parameter_homes.as_slice()
-        } else {
-            function.unit_parameter_homes.as_slice()
-        };
-        let default_affine_cleanup = if let Some(cleanup) = function.scalar_affine_cleanup.as_ref()
-        {
-            Some(cleanup)
-        } else {
-            function.unit_affine_cleanup.as_ref()
-        };
-        let continuation_discards =
-            crate::object_artifact::replay::unit::continuations::validate_function(function)?;
-        if !function.unit_continuations.is_empty()
-            && crate::object_artifact::replay::unit::scalar_call_custody::entry_spills::validate_shape(
-                plan.target,
-                parameter_homes,
-                function.parameter_abi.as_ref(),
-                true,
-                validated_function_stack
-                    .as_ref()
-                    .map_or(0, |stack| stack.frame_bytes),
-            )
-            .is_none_or(|end| {
-                validated_function_stack.as_ref().is_none_or(|stack| {
-                    end > stack.frame_bytes
-                        || (function
-                            .internal_unit_calls
-                            .iter()
-                            .all(|call| call.structural_result.is_none())
-                            && !crate::object_artifact::replay::unit::call_custody::result_home::exact_frame(
-                                plan.target,
-                                end,
-                                stack.frame_bytes,
-                                function
-                                    .unit_stack
-                                    .and_then(|stack| stack.aarch64_return_link)
-                                    .map(|link| link.frame_byte_offset),
-                            ))
-                })
-            })
-        {
-            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
-                function.machine,
-            ));
-        }
-        if !function.unit_continuations.is_empty()
-            && !crate::object_artifact::replay::unit::scalar_call_custody::entry_spills::exact_prologue(
-                plan.target,
-                &function.bytes,
-                function.parameter_abi.as_ref(),
-                parameter_homes,
-                validated_function_stack
-                    .as_ref()
-                    .map_or(0, |stack| stack.frame_bytes),
-                function
-                    .semantic_code_attribution
-                    .first()
-                    .map_or(usize::MAX, |row| row.code_offset),
-            )
-        {
-            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
-                function.machine,
-            ));
-        }
-        let fully_consumed_affine_parameter = exact_fully_consumed_affine_parameter(
-            parameter_homes,
-            &function.internal_unit_calls,
-            default_affine_cleanup,
-        );
-        let partially_consumed_affine_parameter = exact_partially_consumed_affine_parameter(
-            parameter_homes,
-            &function.internal_unit_calls,
-            default_affine_cleanup,
-        );
-        for custody in &function.internal_unit_calls {
-            let target_returns_scalar = machine_functions
-                .get(&custody.target)
-                .copied()
-                .is_some_and(|target| {
-                    target.scalar_stack.is_some() || target.structural_call_scalar_return.is_some()
-                });
-            let target_structural_return = machine_functions
-                .get(&custody.target)
-                .and_then(|target| target.structural_return.as_ref());
-            let structural_result_valid =
-                match (&custody.structural_result, target_structural_return) {
-                    (None, None) => true,
-                    (Some(result), Some(target)) => {
-                        custody.result.is_none() && structural_result_matches_return(result, target)
-                    }
-                    _ => false,
-                };
-            if custody.result.is_some() != target_returns_scalar
-                || custody
-                    .semantic_result
-                    .as_ref()
-                    .map(|result| result.scalar_type)
-                    != custody.result
-                || !structural_result_valid
-                || (custody.structural_result.is_some() && target_returns_scalar)
-                || machine_functions
-                    .get(&custody.target)
-                    .is_some_and(|target| {
-                        target
-                            .structural_call_scalar_return
-                            .is_some_and(|returned| custody.result != Some(returned.scalar_type))
-                    })
-            {
-                return Err(ObjectError::InvalidInternalUnitCallEvidence(
-                    function.machine,
-                ));
-            }
-            let unit_call_stack = validated_call_stacks
-                .iter()
-                .find(|call| call.owner == custody.owner && call.target == custody.target);
-            let scalar_call_stack =
-                validated_scalar_stacks
-                    .get(&function.machine)
-                    .and_then(|(_, calls)| {
-                        calls.iter().find(|call| {
-                            call.owner == custody.owner && call.target == custody.target
-                        })
-                    });
-            if unit_call_stack.is_none() == scalar_call_stack.is_none() {
-                return Err(ObjectError::InvalidInternalUnitCallEvidence(
-                    function.machine,
-                ));
-            }
-            let affine_cleanup =
-                cleanup_for_owner(&function.scalar_control_affine_cleanups, custody.owner)
-                    .or_else(|| {
-                        crate::object_artifact::replay::unit::continuations::cleanup_for_call(
-                            &function.unit_continuations,
-                            custody.operation_ordinal,
-                        )
-                    })
-                    .or(default_affine_cleanup);
-            if !function.unit_continuations.is_empty()
-                && custody
-                    .arguments
-                    .iter()
-                    .any(|argument| !argument.path.is_empty())
-                && machine_functions.get(&custody.target).is_none_or(|callee| {
-                    callee.scalar_abi.is_some()
-                        || default_affine_cleanup.is_none_or(|cleanup| {
-                            !crate::object_artifact::replay::unit::continuations::exact_projected_callee(
-                                custody,
-                                &callee.unit_parameters,
-                                callee.unit_affine_cleanup.as_ref(),
-                                cleanup,
-                                &callee.semantic_code_attribution,
-                            )
-                        })
-                })
-            {
-                return Err(ObjectError::InvalidInternalUnitCallEvidence(
-                    function.machine,
-                ));
-            }
-            validate_internal_unit_call_custody(
-                plan.target,
-                function,
-                function.machine,
-                &function.provenance,
-                &function.bytes,
-                &function.semantic_code_attribution,
-                &function.internal_calls,
-                &function.internal_unit_calls,
-                parameter_homes,
-                validated_function_stack.as_ref(),
-                unit_call_stack,
-                scalar_call_stack,
-                machine_functions
-                    .get(&custody.target)
-                    .and_then(|callee| callee.parameter_abi.as_ref()),
-                machine_functions
-                    .get(&custody.target)
-                    .map_or(&[][..], |callee| callee.unit_parameters.as_slice()),
-                machine_functions
-                    .get(&custody.target)
-                    .and_then(|callee| callee.mixed_structural_scalar_abi.as_ref()),
-                target_structural_return,
-                custody,
-                affine_cleanup,
-                fully_consumed_affine_parameter
-                    || custody
-                        .arguments
-                        .iter()
-                        .any(|argument| continuation_discards.contains(&argument.place)),
-            )?;
-        }
-        validate_unit_affine_scalar_records(function)?;
-        validate_internal_unit_scalar_calls(
-            plan.target,
+        validate_unit_custody_identities(function)?;
+        let facts = affine_parameter_facts(plan, function, validated_function_stack.as_ref())?;
+        validate_internal_unit_call_custodies(
+            plan,
             function,
             &machine_functions,
+            &facts,
             validated_function_stack.as_ref(),
             &validated_call_stacks,
+            validated_scalar_stacks
+                .get(&function.machine)
+                .map(|(_, calls)| calls.as_slice()),
         )?;
-        validate_installed_provider_unit_scalar_calls(
-            plan.target,
+        validate_unit_operations(
+            plan,
             function,
             &machine_functions,
+            &mut validated_function_stack,
             &validated_call_stacks,
         )?;
-        let dynamic_peak = validate_dynamic_calls(
-            plan.target,
-            function,
-            &machine_functions,
-            validated_function_stack.as_ref(),
-        )?;
-        let stored_dynamic_peak = validate_stored_dynamic_calls(
-            plan.target,
-            function,
-            &machine_functions,
-            validated_function_stack.as_ref(),
-        )?;
-        if let Some(stack) = validated_function_stack.as_mut() {
-            stack.local_peak_bytes = stack
-                .local_peak_bytes
-                .max(dynamic_peak)
-                .max(stored_dynamic_peak);
-        }
-        validate_unit_write_only_primitive_stores(
-            plan.target,
-            function,
-            validated_function_stack.as_ref(),
-        )?;
-        validate_unit_structural_scalar_field_stores(
-            plan.target,
-            function,
-            validated_function_stack.as_ref(),
-        )?;
-        validate_scalar_structural_scalar_field_stores(plan.target, function)?;
-        match (&function.unit_stack, &function.unit_affine_cleanup) {
-            (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
-                function.machine,
-                &function.provenance,
-                &function.bytes,
-                &function.semantic_code_attribution,
-                &function.unit_parameter_homes,
-                &function.internal_unit_calls,
-                &function.boundary_settlements,
-                &attachments,
-                &machine_functions,
-                cleanup,
-                false,
-                fully_consumed_affine_parameter,
-                partially_consumed_affine_parameter,
-                &continuation_discards,
-            )?,
-            (None, None) => {}
-            _ => {
-                return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
-                    function.machine,
-                ));
-            }
-        }
-        if let Some(cleanup) = &function.scalar_affine_cleanup {
-            if function.unit_stack.is_some() || function.scalar_stack.is_none() {
-                return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
-                    function.machine,
-                ));
-            }
-            validate_unit_affine_cleanup(
-                function.machine,
-                &function.provenance,
-                &function.bytes,
-                &function.semantic_code_attribution,
-                &function.scalar_structural_parameter_homes,
-                &function.internal_unit_calls,
-                &function.boundary_settlements,
-                &attachments,
-                &machine_functions,
-                cleanup,
-                true,
-                false,
-                false,
-                &[],
-            )?;
-        }
-        if !function.scalar_control_affine_cleanups.is_empty() {
-            if function.unit_stack.is_some()
-                || function.scalar_stack.is_none()
-                || function.scalar_affine_cleanup.is_some()
-            {
-                return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
-                    function.machine,
-                ));
-            }
-            for record in &function.scalar_control_affine_cleanups {
-                let cleanup_end = record
-                    .cleanup
-                    .code_offset
-                    .checked_add(record.cleanup.byte_count)
-                    .ok_or(ObjectError::InvalidUnitAffineCleanupEvidence(
-                        function.machine,
-                    ))?;
-                validate_unit_affine_cleanup(
-                    function.machine,
-                    &function.provenance,
-                    function.bytes.get(..cleanup_end).ok_or(
-                        ObjectError::InvalidUnitAffineCleanupEvidence(function.machine),
-                    )?,
-                    &function.semantic_code_attribution,
-                    &function.scalar_structural_parameter_homes,
-                    &function.internal_unit_calls,
-                    &function.boundary_settlements,
-                    &attachments,
-                    &machine_functions,
-                    &record.cleanup,
-                    true,
-                    false,
-                    false,
-                    &[],
-                )?;
-            }
-        }
-        if function.unit_parameters.len() != function.unit_parameter_homes.len()
-            || function
-                .unit_parameters
-                .iter()
-                .zip(&function.unit_parameter_homes)
-                .any(|(parameter, home)| {
-                    parameter.place != home.place
-                        || parameter.structural_type != home.structural_type
-                        || parameter.multiplicity != home.multiplicity
-                        || parameter.access != home.access
-                        || parameter.shape != home.shape
-                })
-        {
-            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
-                function.machine,
-            ));
-        }
-        if function.scalar_structural_parameters.len()
-            != function.scalar_structural_parameter_homes.len()
-            || function
-                .scalar_structural_parameters
-                .iter()
-                .zip(&function.scalar_structural_parameter_homes)
-                .any(|(parameter, home)| {
-                    parameter.place != home.place
-                        || parameter.structural_type != home.structural_type
-                        || parameter.multiplicity != home.multiplicity
-                        || parameter.access != home.access
-                        || parameter.shape != home.shape
-                })
-            || (!scalar_custody
-                && (!function.scalar_structural_parameters.is_empty()
-                    || !function.scalar_structural_parameter_homes.is_empty()))
-        {
-            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
-                function.machine,
-            ));
-        }
-        if let Some(stack) = function.unit_stack {
-            let inline_data = function
-                .boundary_settlements
-                .iter()
-                .filter(|settlement| {
-                    linux_write_line_custody_is_exact(
-                        plan.target,
-                        settlement,
-                        Some(&function.bytes),
-                    )
-                })
-                .flat_map(|settlement| &settlement.byte_sequence_arguments)
-                .filter_map(|argument| {
-                    argument
-                        .data_offset
-                        .checked_add(argument.data_byte_count)
-                        .map(|end| argument.data_offset..end)
-                })
-                .collect::<Vec<_>>();
-            validate_complete_unit_stack_evidence(
-                plan.target,
-                function.machine,
-                &function.bytes,
-                stack,
-                &function.internal_calls,
-                &function.foreign_calls,
-                &function.dynamic_calls,
-                &function.stored_dynamic_calls,
-                &function.boundary_settlements,
-                &function.unit_integer_constants,
-                &function.unit_scalar_homes,
-                &function.internal_unit_scalar_calls,
-                &inline_data,
-            )?;
-        }
+        validate_affine_cleanups(function, &attachments, &machine_functions, &facts)?;
+        validate_parameter_homes(function, facts.scalar_custody)?;
+        validate_complete_unit_stack(plan, function)?;
         if let Some(stack) = validated_function_stack {
             validated_unit_stacks.insert(function.machine, (stack, validated_call_stacks));
         }
@@ -871,6 +152,881 @@ pub(super) fn validate_functions(
         validated_scalar_stacks,
         validated_foreign_call_stacks,
     })
+}
+
+/// What the custody, cleanup and home phases share about one function's
+/// affine parameter and the homes its calls consume.
+struct AffineParameterFacts<'a> {
+    scalar_custody: bool,
+    parameter_homes: &'a [machine_code::UnitParameterHomeRecord],
+    default_affine_cleanup: Option<&'a machine_code::UnitAffineCleanupRecord>,
+    continuation_discards: Vec<PlaceId>,
+    fully_consumed_affine_parameter: bool,
+    partially_consumed_affine_parameter: bool,
+}
+
+/// The function's Unit stack evidence, replayed against its bytes; a hosted
+/// write settlement reserves its scratch slot on top of the frame.
+fn validate_unit_stack(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+) -> Result<Option<ObjectUnitStack>, ObjectError> {
+    let mut validated_function_stack = function
+        .unit_stack
+        .map(|stack| {
+            validate_unit_function_stack(
+                plan.target.architecture,
+                function.machine,
+                &function.bytes,
+                stack,
+                0,
+            )
+        })
+        .transpose()?;
+    if function.boundary_settlements.iter().any(|settlement| {
+        hosted_write_byte_custody_is_exact(
+            plan.target,
+            settlement,
+            &function.boundary_settlements,
+            &function.unit_integer_constants,
+            &function.unit_scalar_homes,
+            |home, consumer_ordinal, consumer_offset| {
+                crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
+                    &function.internal_unit_scalar_calls,
+                    home,
+                    consumer_ordinal,
+                    consumer_offset,
+                )
+            },
+            Some(&function.bytes),
+        )
+    }) {
+        let stack = validated_function_stack
+            .as_mut()
+            .ok_or(ObjectError::UnaccountedTerminalStack(function.machine))?;
+        stack.local_peak_bytes = stack
+            .frame_bytes
+            .checked_add(16)
+            .ok_or(ObjectError::UnaccountedTerminalStack(function.machine))?;
+    }
+    Ok(validated_function_stack)
+}
+
+/// Unit and scalar stack evidence exclude each other; a structural-call
+/// scalar return and a structural return each admit exactly one retained shape.
+fn validate_stack_and_return_evidence(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+) -> Result<(), ObjectError> {
+    if function.unit_stack.is_some() && function.scalar_stack.is_some() {
+        return Err(ObjectError::ConflictingTerminalStackEvidence(
+            function.machine,
+        ));
+    }
+    if let Some(returned) = function.structural_call_scalar_return
+        && !(function.unit_stack.is_some()
+            && function.scalar_stack.is_none()
+            && function.provenance.operations.as_slice() == [returned.psi_operation]
+            && function.provenance.edges.as_slice() == [returned.psi_edge]
+            && matches!(
+                (
+                    function.internal_unit_calls.as_slice(),
+                    function.semantic_code_attribution.as_slice(),
+                    function.unit_affine_cleanup.as_ref(),
+                ),
+                ([call], [call_attribution, return_attribution], Some(cleanup))
+                    if call.owner == CallSiteOwner::Operation(returned.psi_operation)
+                        && call.target == returned.callee
+                        && call.operation_ordinal == 0
+                        && call.result == Some(returned.scalar_type)
+                        && call.semantic_result.as_ref().is_some_and(|result| {
+                            result.value == returned.source_value
+                                && result.scalar_type == returned.scalar_type
+                        })
+                        && call_attribution.site
+                            == SemanticCodeSite::Operation(returned.psi_operation)
+                        && call_attribution.operation_ordinal == call.operation_ordinal
+                        && call_attribution.code_offset == call.code_offset
+                        && call_attribution.byte_count == call.byte_count
+                        && return_attribution.site == SemanticCodeSite::Edge(returned.psi_edge)
+                        && return_attribution.operation_ordinal == 1
+                        && return_attribution.code_offset == cleanup.code_offset
+                        && return_attribution.byte_count == cleanup.byte_count
+                        && cleanup.psi_edge == returned.psi_edge
+                        && cleanup.locals.is_empty()
+                        && cleanup.actions.is_empty()
+            ))
+    {
+        return Err(ObjectError::InvalidInternalUnitCallEvidence(
+            function.machine,
+        ));
+    }
+    if let Some(returned) = &function.structural_return {
+        validate_structural_return_record(
+            plan.target,
+            function.machine,
+            &function.provenance,
+            &function.bytes,
+            &function.semantic_code_attribution,
+            returned,
+        )?;
+        if function.unit_stack.is_some()
+            || function.scalar_stack.is_some()
+            || !function.internal_calls.is_empty()
+            || !function.port_effects.is_empty()
+            || !function.boundary_settlements.is_empty()
+        {
+            return Err(ObjectError::StructuralReturnEvidenceConflict(
+                function.machine,
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The function's scalar stack evidence: cleanup preservation, control
+/// cleanup evidence, then the stack and its call stacks replayed from bytes.
+fn validate_scalar_stack_evidence(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+) -> Result<Option<(ObjectScalarStack, Vec<ObjectScalarCallStack>)>, ObjectError> {
+    let Some(stack) = &function.scalar_stack else {
+        return Ok(None);
+    };
+    validate_scalar_cleanup_preservation(
+        plan.target.architecture,
+        function.machine,
+        &function.bytes,
+        stack,
+        function.scalar_affine_cleanup.as_ref(),
+    )?;
+    validate_scalar_control_cleanup_evidence(
+        plan.target.architecture,
+        function.machine,
+        &function.provenance,
+        &function.bytes,
+        stack,
+        &function.scalar_control_affine_cleanups,
+    )?;
+    Ok(Some(validate_scalar_stack(
+        plan.target.architecture,
+        function.machine,
+        &function.bytes,
+        &function.internal_calls,
+        &function.dynamic_parameter_calls,
+        &function.provenance,
+        &function.semantic_code_attribution,
+        stack,
+        function.scalar_affine_cleanup.as_ref(),
+        &function.scalar_control_affine_cleanups,
+        &function.scalar_structural_parameter_homes,
+    )?))
+}
+
+/// Every internal and foreign call site's stack evidence: provenance
+/// ownership, one call per owner (or exclusive conditional paths), the Unit
+/// call stacks that raise the function's live peak, and each foreign call's
+/// live bytes.
+fn validate_call_stacks(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+    validated_function_stack: &mut Option<ObjectUnitStack>,
+) -> Result<(Vec<ObjectUnitCallStack>, Vec<(CallSiteOwner, u32)>), ObjectError> {
+    let mut foreign_live_bytes = Vec::new();
+    let mut validated_call_stacks = Vec::new();
+    let mut call_owner_paths =
+        std::collections::BTreeMap::<CallSiteOwner, Vec<Option<Vec<(usize, bool)>>>>::new();
+    for call in &function.internal_calls {
+        let owner_in_provenance = match call.owner {
+            CallSiteOwner::Operation(operation) => {
+                function.provenance.operations.contains(&operation)
+            }
+            CallSiteOwner::CleanupAction { edge, .. } => function.provenance.edges.contains(&edge),
+        };
+        if !owner_in_provenance {
+            return Err(ObjectError::InternalCallOperationNotInProvenance {
+                caller: function.machine,
+                owner: call.owner,
+            });
+        }
+        let path = conditional_call_path(
+            plan.target.architecture,
+            &function.bytes,
+            function.scalar_stack.as_ref(),
+            call,
+        );
+        let prior_paths = call_owner_paths.entry(call.owner).or_default();
+        if !prior_paths.is_empty()
+            && (!matches!(call.owner, CallSiteOwner::Operation(_))
+                || path.as_ref().is_none_or(|path| {
+                    prior_paths.iter().any(|prior| {
+                        prior
+                            .as_ref()
+                            .is_none_or(|prior| !conditional_paths_are_exclusive(prior, path))
+                    })
+                }))
+        {
+            return Err(ObjectError::DuplicateInternalCallOperation {
+                caller: function.machine,
+                owner: call.owner,
+            });
+        }
+        prior_paths.push(path);
+        match (function.unit_stack, call.unit_stack) {
+            (Some(_), Some(call_stack)) => {
+                let validated = validate_unit_call_stack(
+                    plan.target.architecture,
+                    function.machine,
+                    &function.bytes,
+                    *call,
+                    function.unit_stack.expect("Unit stack evidence exists"),
+                    validated_function_stack.expect("validated Unit stack exists"),
+                    call_stack,
+                )?;
+                let function_stack = validated_function_stack
+                    .as_mut()
+                    .expect("validated Unit stack exists");
+                function_stack.local_peak_bytes = function_stack
+                    .local_peak_bytes
+                    .max(validated.caller_live_bytes);
+                validated_call_stacks.push(validated);
+            }
+            (Some(_), None) => {
+                return Err(ObjectError::MissingUnitCallStackEvidence {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            (None, Some(_)) => {
+                return Err(ObjectError::UnexpectedUnitCallStackEvidence {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            (None, None) => {}
+        }
+        match (function.scalar_stack.as_ref(), call.scalar_stack) {
+            (Some(_), Some(_)) => {}
+            (Some(_), None) => {
+                return Err(ObjectError::MissingScalarCallStackEvidence {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            (None, Some(_)) => {
+                return Err(ObjectError::UnexpectedScalarCallStackEvidence {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            (None, None) => {}
+        }
+    }
+    for call in &function.foreign_calls {
+        let Some(stack) = function.unit_stack else {
+            return Err(ObjectError::UnexpectedUnitCallStackEvidence {
+                caller: function.machine,
+                owner: call.owner,
+            });
+        };
+        let caller_live_bytes = validate_foreign_unit_call_stack(
+            plan.target.architecture,
+            function.machine,
+            &function.bytes,
+            call,
+            stack,
+            validated_function_stack.expect("validated Unit stack exists"),
+        )?;
+        let function_stack = validated_function_stack
+            .as_mut()
+            .expect("validated Unit stack exists");
+        let admitted_alignment = call.same_stack_contribution.alignment();
+        if admitted_alignment > u64::from(function_stack.stack_alignment) {
+            return Err(ObjectError::UnsupportedForeignStackAlignment {
+                caller: function.machine,
+                owner: call.owner,
+                admitted_alignment,
+                physical_alignment: function_stack.stack_alignment,
+            });
+        }
+        function_stack.local_peak_bytes = function_stack.local_peak_bytes.max(caller_live_bytes);
+        foreign_live_bytes.push((call.owner, caller_live_bytes));
+    }
+    Ok((validated_call_stacks, foreign_live_bytes))
+}
+
+/// Every Unit custody record (internal, scalar, forwarded and installed
+/// provider calls) has exactly one relocation, and the two rosters name the
+/// same owners and targets.
+fn validate_unit_custody_identities(function: &MachineCodeFunction) -> Result<(), ObjectError> {
+    let is_unit_custody_relocation = |call: &&machine_code::InternalCallRelocation| {
+        call.unit_stack.is_some()
+            || ((function.scalar_affine_cleanup.is_some()
+                || cleanup_for_owner(&function.scalar_control_affine_cleanups, call.owner)
+                    .is_some())
+                && matches!(call.owner, CallSiteOwner::CleanupAction { .. })
+                && call.scalar_stack.is_some())
+    };
+    let unit_custody_count = function
+        .internal_unit_calls
+        .len()
+        .checked_add(function.internal_unit_scalar_calls.len())
+        .and_then(|count| count.checked_add(function.forwarded_dynamic_descriptor_calls.len()))
+        .and_then(|count| {
+            count.checked_add(
+                function
+                    .forwarded_dynamic_parameter_calls
+                    .iter()
+                    .filter(|call| {
+                        matches!(
+                            call.call_stack,
+                            machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
+                        )
+                    })
+                    .count(),
+            )
+        })
+        .and_then(|count| count.checked_add(function.installed_provider_unit_scalar_calls.len()))
+        .ok_or(ObjectError::InvalidInternalUnitCallEvidence(
+            function.machine,
+        ))?;
+    if unit_custody_count
+        != function
+            .internal_calls
+            .iter()
+            .filter(is_unit_custody_relocation)
+            .count()
+    {
+        return Err(ObjectError::InvalidInternalUnitCallEvidence(
+            function.machine,
+        ));
+    }
+    let relocation_identities = function
+        .internal_calls
+        .iter()
+        .filter(is_unit_custody_relocation)
+        .map(|call| (call.owner, call.target))
+        .collect::<std::collections::BTreeSet<_>>();
+    let custody_identities = function
+        .internal_unit_calls
+        .iter()
+        .map(|call| (call.owner, call.target))
+        .chain(
+            function
+                .internal_unit_scalar_calls
+                .iter()
+                .map(|call| (call.owner, call.target)),
+        )
+        .chain(
+            function
+                .forwarded_dynamic_descriptor_calls
+                .iter()
+                .map(|call| (CallSiteOwner::Operation(call.psi_operation), call.callee)),
+        )
+        .chain(
+            function
+                .forwarded_dynamic_parameter_calls
+                .iter()
+                .filter_map(|call| {
+                    matches!(
+                        call.call_stack,
+                        machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
+                    )
+                    .then_some((CallSiteOwner::Operation(call.psi_operation), call.callee))
+                }),
+        )
+        .chain(
+            function
+                .installed_provider_unit_scalar_calls
+                .iter()
+                .map(|call| (call.owner, call.provider.candidate)),
+        )
+        .collect::<std::collections::BTreeSet<_>>();
+    if custody_identities.len() != unit_custody_count || custody_identities != relocation_identities
+    {
+        return Err(ObjectError::InvalidInternalUnitCallEvidence(
+            function.machine,
+        ));
+    }
+    Ok(())
+}
+
+/// The custody facts the remaining phases share: which parameter homes
+/// apply, the default affine cleanup, the continuation discards, and whether
+/// the affine parameter is fully or partially consumed.
+fn affine_parameter_facts<'a>(
+    plan: &MachineCodePlan,
+    function: &'a MachineCodeFunction,
+    validated_function_stack: Option<&ObjectUnitStack>,
+) -> Result<AffineParameterFacts<'a>, ObjectError> {
+    let scalar_cleanup_custody = function.scalar_affine_cleanup.is_some()
+        || !function.scalar_control_affine_cleanups.is_empty();
+    let scalar_boundary_custody = function.boundary_settlements.iter().any(|settlement| {
+        matches!(
+            settlement.realization,
+            BoundaryRealization::DirectPortReadU8(_) | BoundaryRealization::HostedExitProcessI32(_)
+        )
+    });
+    let scalar_custody = scalar_cleanup_custody
+        || scalar_boundary_custody
+        || function.mixed_structural_scalar_abi.is_some()
+        || !function.scalar_structural_scalar_field_stores.is_empty();
+    let parameter_homes = if scalar_custody {
+        function.scalar_structural_parameter_homes.as_slice()
+    } else {
+        function.unit_parameter_homes.as_slice()
+    };
+    let default_affine_cleanup = if let Some(cleanup) = function.scalar_affine_cleanup.as_ref() {
+        Some(cleanup)
+    } else {
+        function.unit_affine_cleanup.as_ref()
+    };
+    let continuation_discards =
+        crate::object_artifact::replay::unit::continuations::validate_function(function)?;
+    if !function.unit_continuations.is_empty()
+        && crate::object_artifact::replay::unit::scalar_call_custody::entry_spills::validate_shape(
+            plan.target,
+            parameter_homes,
+            function.parameter_abi.as_ref(),
+            true,
+            validated_function_stack
+                .as_ref()
+                .map_or(0, |stack| stack.frame_bytes),
+        )
+        .is_none_or(|end| {
+            validated_function_stack.as_ref().is_none_or(|stack| {
+                end > stack.frame_bytes
+                    || (function
+                        .internal_unit_calls
+                        .iter()
+                        .all(|call| call.structural_result.is_none())
+                        && !crate::object_artifact::replay::unit::call_custody::result_home::exact_frame(
+                            plan.target,
+                            end,
+                            stack.frame_bytes,
+                            function
+                                .unit_stack
+                                .and_then(|stack| stack.aarch64_return_link)
+                                .map(|link| link.frame_byte_offset),
+                        ))
+            })
+        })
+    {
+        return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+            function.machine,
+        ));
+    }
+    if !function.unit_continuations.is_empty()
+        && !crate::object_artifact::replay::unit::scalar_call_custody::entry_spills::exact_prologue(
+            plan.target,
+            &function.bytes,
+            function.parameter_abi.as_ref(),
+            parameter_homes,
+            validated_function_stack
+                .as_ref()
+                .map_or(0, |stack| stack.frame_bytes),
+            function
+                .semantic_code_attribution
+                .first()
+                .map_or(usize::MAX, |row| row.code_offset),
+        )
+    {
+        return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+            function.machine,
+        ));
+    }
+    let fully_consumed_affine_parameter = exact_fully_consumed_affine_parameter(
+        parameter_homes,
+        &function.internal_unit_calls,
+        default_affine_cleanup,
+    );
+    let partially_consumed_affine_parameter = exact_partially_consumed_affine_parameter(
+        parameter_homes,
+        &function.internal_unit_calls,
+        default_affine_cleanup,
+    );
+    Ok(AffineParameterFacts {
+        scalar_custody,
+        parameter_homes,
+        default_affine_cleanup,
+        continuation_discards,
+        fully_consumed_affine_parameter,
+        partially_consumed_affine_parameter,
+    })
+}
+
+/// Each internal Unit call's custody record: result agreement with the
+/// callee, exactly one of a Unit or scalar call stack, the affine cleanup it
+/// runs under, projected-callee continuations, then the full custody replay.
+fn validate_internal_unit_call_custodies(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+    machine_functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
+    facts: &AffineParameterFacts<'_>,
+    validated_function_stack: Option<&ObjectUnitStack>,
+    validated_call_stacks: &[ObjectUnitCallStack],
+    scalar_call_stacks: Option<&[ObjectScalarCallStack]>,
+) -> Result<(), ObjectError> {
+    let parameter_homes = facts.parameter_homes;
+    let default_affine_cleanup = facts.default_affine_cleanup;
+    let fully_consumed_affine_parameter = facts.fully_consumed_affine_parameter;
+    let continuation_discards = &facts.continuation_discards;
+    for custody in &function.internal_unit_calls {
+        let target_returns_scalar =
+            machine_functions
+                .get(&custody.target)
+                .copied()
+                .is_some_and(|target| {
+                    target.scalar_stack.is_some() || target.structural_call_scalar_return.is_some()
+                });
+        let target_structural_return = machine_functions
+            .get(&custody.target)
+            .and_then(|target| target.structural_return.as_ref());
+        let structural_result_valid = match (&custody.structural_result, target_structural_return) {
+            (None, None) => true,
+            (Some(result), Some(target)) => {
+                custody.result.is_none() && structural_result_matches_return(result, target)
+            }
+            _ => false,
+        };
+        if custody.result.is_some() != target_returns_scalar
+            || custody
+                .semantic_result
+                .as_ref()
+                .map(|result| result.scalar_type)
+                != custody.result
+            || !structural_result_valid
+            || (custody.structural_result.is_some() && target_returns_scalar)
+            || machine_functions
+                .get(&custody.target)
+                .is_some_and(|target| {
+                    target
+                        .structural_call_scalar_return
+                        .is_some_and(|returned| custody.result != Some(returned.scalar_type))
+                })
+        {
+            return Err(ObjectError::InvalidInternalUnitCallEvidence(
+                function.machine,
+            ));
+        }
+        let unit_call_stack = validated_call_stacks
+            .iter()
+            .find(|call| call.owner == custody.owner && call.target == custody.target);
+        let scalar_call_stack = scalar_call_stacks.and_then(|calls| {
+            calls
+                .iter()
+                .find(|call| call.owner == custody.owner && call.target == custody.target)
+        });
+        if unit_call_stack.is_none() == scalar_call_stack.is_none() {
+            return Err(ObjectError::InvalidInternalUnitCallEvidence(
+                function.machine,
+            ));
+        }
+        let affine_cleanup =
+            cleanup_for_owner(&function.scalar_control_affine_cleanups, custody.owner)
+                .or_else(|| {
+                    crate::object_artifact::replay::unit::continuations::cleanup_for_call(
+                        &function.unit_continuations,
+                        custody.operation_ordinal,
+                    )
+                })
+                .or(default_affine_cleanup);
+        if !function.unit_continuations.is_empty()
+            && custody
+                .arguments
+                .iter()
+                .any(|argument| !argument.path.is_empty())
+            && machine_functions.get(&custody.target).is_none_or(|callee| {
+                callee.scalar_abi.is_some() || default_affine_cleanup.is_none_or(|cleanup| {
+                    !crate::object_artifact::replay::unit::continuations::exact_projected_callee(
+                        custody,
+                        &callee.unit_parameters,
+                        callee.unit_affine_cleanup.as_ref(),
+                        cleanup,
+                        &callee.semantic_code_attribution,
+                    )
+                })
+            })
+        {
+            return Err(ObjectError::InvalidInternalUnitCallEvidence(
+                function.machine,
+            ));
+        }
+        validate_internal_unit_call_custody(
+            plan.target,
+            function,
+            function.machine,
+            &function.provenance,
+            &function.bytes,
+            &function.semantic_code_attribution,
+            &function.internal_calls,
+            &function.internal_unit_calls,
+            parameter_homes,
+            validated_function_stack,
+            unit_call_stack,
+            scalar_call_stack,
+            machine_functions
+                .get(&custody.target)
+                .and_then(|callee| callee.parameter_abi.as_ref()),
+            machine_functions
+                .get(&custody.target)
+                .map_or(&[][..], |callee| callee.unit_parameters.as_slice()),
+            machine_functions
+                .get(&custody.target)
+                .and_then(|callee| callee.mixed_structural_scalar_abi.as_ref()),
+            target_structural_return,
+            custody,
+            affine_cleanup,
+            fully_consumed_affine_parameter
+                || custody
+                    .arguments
+                    .iter()
+                    .any(|argument| continuation_discards.contains(&argument.place)),
+        )?;
+    }
+    Ok(())
+}
+
+/// The remaining operation families: affine scalar records, internal and
+/// installed-provider Unit scalar calls, dynamic calls (whose peaks raise the
+/// frame), and the primitive and structural scalar stores.
+fn validate_unit_operations(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+    machine_functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
+    validated_function_stack: &mut Option<ObjectUnitStack>,
+    validated_call_stacks: &[ObjectUnitCallStack],
+) -> Result<(), ObjectError> {
+    validate_unit_affine_scalar_records(function)?;
+    validate_internal_unit_scalar_calls(
+        plan.target,
+        function,
+        machine_functions,
+        validated_function_stack.as_ref(),
+        validated_call_stacks,
+    )?;
+    validate_installed_provider_unit_scalar_calls(
+        plan.target,
+        function,
+        machine_functions,
+        validated_call_stacks,
+    )?;
+    let dynamic_peak = validate_dynamic_calls(
+        plan.target,
+        function,
+        machine_functions,
+        validated_function_stack.as_ref(),
+    )?;
+    let stored_dynamic_peak = validate_stored_dynamic_calls(
+        plan.target,
+        function,
+        machine_functions,
+        validated_function_stack.as_ref(),
+    )?;
+    if let Some(stack) = validated_function_stack.as_mut() {
+        stack.local_peak_bytes = stack
+            .local_peak_bytes
+            .max(dynamic_peak)
+            .max(stored_dynamic_peak);
+    }
+    validate_unit_write_only_primitive_stores(
+        plan.target,
+        function,
+        validated_function_stack.as_ref(),
+    )?;
+    validate_unit_structural_scalar_field_stores(
+        plan.target,
+        function,
+        validated_function_stack.as_ref(),
+    )?;
+    validate_scalar_structural_scalar_field_stores(plan.target, function)?;
+    Ok(())
+}
+
+/// The affine cleanups: a Unit stack pairs with a Unit affine cleanup, a
+/// scalar stack with a scalar affine cleanup or a control cleanup family, and
+/// each cleanup replays exactly.
+fn validate_affine_cleanups(
+    function: &MachineCodeFunction,
+    attachments: &std::collections::BTreeMap<MachineId, Option<StructuralTypeId>>,
+    machine_functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
+    facts: &AffineParameterFacts<'_>,
+) -> Result<(), ObjectError> {
+    let fully_consumed_affine_parameter = facts.fully_consumed_affine_parameter;
+    let partially_consumed_affine_parameter = facts.partially_consumed_affine_parameter;
+    let continuation_discards = &facts.continuation_discards;
+    match (&function.unit_stack, &function.unit_affine_cleanup) {
+        (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
+            function.machine,
+            &function.provenance,
+            &function.bytes,
+            &function.semantic_code_attribution,
+            &function.unit_parameter_homes,
+            &function.internal_unit_calls,
+            &function.boundary_settlements,
+            attachments,
+            machine_functions,
+            cleanup,
+            false,
+            fully_consumed_affine_parameter,
+            partially_consumed_affine_parameter,
+            continuation_discards,
+        )?,
+        (None, None) => {}
+        _ => {
+            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+                function.machine,
+            ));
+        }
+    }
+    if let Some(cleanup) = &function.scalar_affine_cleanup {
+        if function.unit_stack.is_some() || function.scalar_stack.is_none() {
+            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+                function.machine,
+            ));
+        }
+        validate_unit_affine_cleanup(
+            function.machine,
+            &function.provenance,
+            &function.bytes,
+            &function.semantic_code_attribution,
+            &function.scalar_structural_parameter_homes,
+            &function.internal_unit_calls,
+            &function.boundary_settlements,
+            attachments,
+            machine_functions,
+            cleanup,
+            true,
+            false,
+            false,
+            &[],
+        )?;
+    }
+    if !function.scalar_control_affine_cleanups.is_empty() {
+        if function.unit_stack.is_some()
+            || function.scalar_stack.is_none()
+            || function.scalar_affine_cleanup.is_some()
+        {
+            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+                function.machine,
+            ));
+        }
+        for record in &function.scalar_control_affine_cleanups {
+            let cleanup_end = record
+                .cleanup
+                .code_offset
+                .checked_add(record.cleanup.byte_count)
+                .ok_or(ObjectError::InvalidUnitAffineCleanupEvidence(
+                    function.machine,
+                ))?;
+            validate_unit_affine_cleanup(
+                function.machine,
+                &function.provenance,
+                function.bytes.get(..cleanup_end).ok_or(
+                    ObjectError::InvalidUnitAffineCleanupEvidence(function.machine),
+                )?,
+                &function.semantic_code_attribution,
+                &function.scalar_structural_parameter_homes,
+                &function.internal_unit_calls,
+                &function.boundary_settlements,
+                attachments,
+                machine_functions,
+                &record.cleanup,
+                true,
+                false,
+                false,
+                &[],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Unit and scalar structural parameters agree with their homes field for
+/// field, and scalar homes exist only under scalar custody.
+fn validate_parameter_homes(
+    function: &MachineCodeFunction,
+    scalar_custody: bool,
+) -> Result<(), ObjectError> {
+    if function.unit_parameters.len() != function.unit_parameter_homes.len()
+        || function
+            .unit_parameters
+            .iter()
+            .zip(&function.unit_parameter_homes)
+            .any(|(parameter, home)| {
+                parameter.place != home.place
+                    || parameter.structural_type != home.structural_type
+                    || parameter.multiplicity != home.multiplicity
+                    || parameter.access != home.access
+                    || parameter.shape != home.shape
+            })
+    {
+        return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+            function.machine,
+        ));
+    }
+    if function.scalar_structural_parameters.len()
+        != function.scalar_structural_parameter_homes.len()
+        || function
+            .scalar_structural_parameters
+            .iter()
+            .zip(&function.scalar_structural_parameter_homes)
+            .any(|(parameter, home)| {
+                parameter.place != home.place
+                    || parameter.structural_type != home.structural_type
+                    || parameter.multiplicity != home.multiplicity
+                    || parameter.access != home.access
+                    || parameter.shape != home.shape
+            })
+        || (!scalar_custody
+            && (!function.scalar_structural_parameters.is_empty()
+                || !function.scalar_structural_parameter_homes.is_empty()))
+    {
+        return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+            function.machine,
+        ));
+    }
+    Ok(())
+}
+
+/// A Unit stack accounts for every retained record and inline data region
+/// once the whole function has been replayed.
+fn validate_complete_unit_stack(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+) -> Result<(), ObjectError> {
+    if let Some(stack) = function.unit_stack {
+        let inline_data = function
+            .boundary_settlements
+            .iter()
+            .filter(|settlement| {
+                linux_write_line_custody_is_exact(plan.target, settlement, Some(&function.bytes))
+            })
+            .flat_map(|settlement| &settlement.byte_sequence_arguments)
+            .filter_map(|argument| {
+                argument
+                    .data_offset
+                    .checked_add(argument.data_byte_count)
+                    .map(|end| argument.data_offset..end)
+            })
+            .collect::<Vec<_>>();
+        validate_complete_unit_stack_evidence(
+            plan.target,
+            function.machine,
+            &function.bytes,
+            stack,
+            &function.internal_calls,
+            &function.foreign_calls,
+            &function.dynamic_calls,
+            &function.stored_dynamic_calls,
+            &function.boundary_settlements,
+            &function.unit_integer_constants,
+            &function.unit_scalar_homes,
+            &function.internal_unit_scalar_calls,
+            &inline_data,
+        )?;
+    }
+    Ok(())
 }
 
 /// Shape and ordering preconditions: admitted pointer custody, ABI joins,
