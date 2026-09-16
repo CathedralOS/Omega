@@ -1036,7 +1036,20 @@ fn collect_selector_reads(
                 && symbols.iter().all(|symbol| symbol.is_valid())
         }
         ExpressionNode::Member(member) => {
-            member.member_symbol.is_valid()
+            // The typed member binder only covers `Name`/`Member`/`Indexed`/
+            // `StructLiteral` receivers, so `(&x).f` reaches this scan with
+            // `member_symbol` still unset — there the honest identity floor is
+            // `effective_member_symbol`, the same contextual resolution the
+            // canonical-place production stamps into the `Field` segment. A
+            // member on a receiver the binder did walk keeps the authored
+            // row's own identity: a symbol it saw but left unresolved cannot
+            // be recovered from the receiver's spelling.
+            (member.member_symbol.is_valid()
+                || (matches!(
+                    program.expression_table.expression(member.receiver),
+                    ExpressionNode::Borrow(_)
+                ) && crate::flow::effective_member_symbol(program, member.receiver, member)
+                    .is_valid()))
                 && collect_selector_reads(
                     program,
                     machine,
@@ -1049,6 +1062,23 @@ fn collect_selector_reads(
                     depth + 1,
                 )
         }
+        // An explicit `&`/`&mut` inside a place chain addresses exactly its
+        // target's place: `(&x).f` reads `x.f`, and both canonical-place
+        // productions already peel the borrow the same way. The peel admits
+        // no new storage — the target's own selector scan still has to clear
+        // the same floor, so `(&call()).f` or a borrow of foreign storage
+        // stays incomplete.
+        ExpressionNode::Borrow(inner) => collect_selector_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            inner.target,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+        ),
         ExpressionNode::Indexed(indexed) => {
             // The general bound-meaning query treats places as symbolic leaves.
             // Inspect each selector explicitly before syntax-based constant
