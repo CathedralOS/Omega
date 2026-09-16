@@ -4,12 +4,12 @@
 
 use crate::layout_reports::{hash_fingerprint_byte, hash_fingerprint_bytes, hash_fingerprint_u64};
 use crate::materialization::MaterializationDiagnostic;
-use crate::placement::{
-    ByteOrder, MaterializationWrite, PlacementConstraints, PlacementSite, StoredIntegerFit,
-};
-use crate::stored_integer_writes::{
+use crate::materialization::stored_integer_writes::{
     apply_write, validate_fragment, validate_stored_integer_fit, validate_stored_integer_fit_shape,
     validate_write, validate_write_source_value,
+};
+use crate::placement::{
+    ByteOrder, MaterializationWrite, PlacementConstraints, PlacementSite, StoredIntegerFit,
 };
 use crate::symbolic_values::RelocationTarget;
 

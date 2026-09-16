@@ -6,23 +6,20 @@
 //! geometry plus compiler-issued symbolic values; source programs never
 //! receive numeric code addresses or an arbitrary byte-patching primitive.
 //!
-//! Start at [`layout_reports`] for validated geometry, [`symbolic_values`]
-//! for compiler-issued identities, and [`symbolic_materialization`] for the
-//! plan derivation that joins them under [`placement`] constraints.
+//! Start at `symbolic_materialization.rs`: the plan derivation that joins
+//! validated geometry from `layout_reports` with compiler-issued identities
+//! from `symbolic_values` under `placement` constraints. `materialization`
+//! applies the derived plans and owns the field values, field identities and
+//! stored-integer writes they consume; `post_handoff_writer` plans the
+//! fragments a provider replays after handoff.
 
-mod field_values;
 mod layout_reports;
 mod materialization;
-mod materialization_field_identities;
 mod placement;
 mod post_handoff_writer;
-mod stored_integer_writes;
 mod symbolic_materialization;
 mod symbolic_values;
 
-pub use field_values::{
-    AggregateFieldSchema, AggregateFieldValue, ScalarFieldSchema, ScalarFieldValue,
-};
 pub use layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalNestedRecordSumOccurrenceLayoutReport,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,
@@ -34,6 +31,9 @@ pub use layout_reports::{
     PrivateCallbackLayoutDemandReport, conventional_sum_layout_reports_match_for_replay,
     layout_plan_reports_match_for_replay, normalized_conventional_sum_layout_report_fingerprint,
     normalized_layout_plan_report_fingerprint, normalized_native_layout_plan_report_fingerprint,
+};
+pub use materialization::field_values::{
+    AggregateFieldSchema, AggregateFieldValue, ScalarFieldSchema, ScalarFieldValue,
 };
 pub use materialization::{
     MaterializationDiagnostic, SymbolicMaterializationPlan, decode_scalar_layout,

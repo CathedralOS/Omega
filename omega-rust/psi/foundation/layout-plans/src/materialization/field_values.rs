@@ -2,7 +2,7 @@
 //! with the schemas that validate them against a plan.
 
 use crate::materialization::MaterializationDiagnostic;
-use crate::stored_integer_writes::low_mask;
+use crate::materialization::stored_integer_writes::low_mask;
 
 /// One ordinary scalar supplied to a validated dictated-layout materializer.
 /// Positional fields select compiler-validated plan entries by name; numbered
