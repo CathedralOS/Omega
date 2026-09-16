@@ -10,7 +10,7 @@ data GameView {}
 machine GameView::render_title(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("Dungeon Crawler");
 }
 

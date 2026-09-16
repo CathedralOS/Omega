@@ -1,7 +1,7 @@
 use omega::language::std::console;
 
 data RandomState {
-    seed: u64;
+    seed: u64 in Wrapping;
     calls: UInt;
 }
 
@@ -24,7 +24,7 @@ machine Random::next_u32(
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
 
-    ((state.seed >> 32) as u32)
+    ((state.seed >> 32) as u32 in Wrapping) as u32
 }
 
 machine Random::range(
@@ -53,7 +53,7 @@ data Generator {
     rng: Random;
 }
 
-machine Generator::run(&mut self) {
+machine Generator::run(&mut self) reaches Console {
     let random: RandomState;
     self.rng.seed(1, &mut random);
 
@@ -90,7 +90,7 @@ data Main {
     generator: Generator;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 reaches Console {
     self.generator.run();
     0
 }

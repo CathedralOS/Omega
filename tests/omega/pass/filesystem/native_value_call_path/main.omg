@@ -46,7 +46,7 @@ machine Main::main(&mut self) reaches FilesystemHost {
     state fail(&mut self) { self.n = self.fs.write(1, "FAIL: value-call path forwarding\n"); }
 }
 
-machine Main::reopen(&mut self, path: &[u8] in Path) -> i32 {
+machine Main::reopen(&mut self, path: &[u8] in Path) -> i32 reaches FilesystemHost {
     self.fd = self.fs.open(path, self.rdonly);
     transition self.fd >= 0 { true -> done() _ -> done() }
     state done(&mut self) -> i32 { self.fd }
