@@ -626,5 +626,40 @@ class SwarmTests(unittest.TestCase):
         self.assertEqual(hints, {})
 
 
+class ReusePathTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_launch()
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.repository = Path(self.temporary.name)
+        (self.repository / 'TASKS.md').write_text('- **ITEM-ONE.** One\n- **ITEM-TWO.** Two\n', encoding='utf-8')
+
+    def test_rejects_invalid_ownership_paths_with_session_context(self):
+        for path in ('../outside', '/absolute', 'C:\\outside', '.', '', '  ', 42, None):
+            with self.subTest(path=path):
+                with self.assertRaisesRegex(self.module.SwarmError, 'alpha'):
+                    self.module.validate_manifest(manifest({'owning_paths': [path]}), self.repository)
+
+    def test_canonical_paths_reach_returned_sessions(self):
+        record = manifest({'owning_paths': [' ./src\\one/ ', ' src/two ']})
+        sessions = self.module.validate_manifest(record, self.repository)
+        self.assertEqual(sessions[0]['owning_paths'], ['src/one', 'src/two'])
+
+    def test_same_layer_conflicts_and_siblings_stay_distinct(self):
+        record = manifest(sessions=[
+            {'name':'alpha','board':'TASKS.md','item':'ITEM-ONE','host':'local','owning_paths':['src\\one']},
+            {'name':'beta','board':'TASKS.md','item':'ITEM-TWO','host':'local','owning_paths':['src/one/child']}])
+        with self.assertRaises(self.module.SwarmError):
+            self.module.validate_manifest(record, self.repository)
+        record['sessions'][1]['owning_paths'] = ['src/one-more']
+        self.assertEqual(len(self.module.validate_manifest(record, self.repository)), 2)
+
+    def test_different_layers_keep_allowed_overlap(self):
+        record = manifest(sessions=[
+            {'name':'alpha','board':'TASKS.md','item':'ITEM-ONE','host':'local','owning_paths':['src\\one'],'layer':0},
+            {'name':'beta','board':'TASKS.md','item':'ITEM-TWO','host':'local','owning_paths':['src/one'],'layer':1}])
+        self.assertEqual(len(self.module.validate_manifest(record, self.repository)), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
