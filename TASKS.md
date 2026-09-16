@@ -2129,6 +2129,38 @@ Owners include
   and recursive operand footprints. Preserve incomplete read sets for open
   ranges and requires-scope operators without statement-use custody; further
   admission needs complete footprints, not a second indexing collector.
+  Sixth slice landed at a6c15c7990: stated ordering premises now
+  discharge indexed borrow conflicts beyond loan formation — the stated
+  premise set is collected once per state in `check_flow_call_borrows` and
+  threaded through every compatibility entry point, both segment
+  expressions evaluate to one `EvaluatedIndexExtent` inside the shared
+  selector session, and a single extent comparator consults stated
+  premises only after the structural order fails. Seventh slice landed at
+  0c37e8f707 (macOS): authored `[]`/`[..]` applications admit checked read
+  dependencies when the exact checked operator-use row at the statement
+  occurrence resolves to a single stable selection; nested operands
+  recurse through the ordinary read scan, hoisted selector operands read
+  their frozen capture identities, and missing, foreign, ambiguous,
+  drifted, or requires-scope custody stays incomplete. Eighth slice
+  landed at 5f1733161a (macOS ARM64): `collect_reads` now covers builtin
+  range windows and compound operands — `items[low..high]` reads the
+  collection place plus each valid endpoint, open `items[..high]` windows
+  read only their present bounds, and fully constant half-open selectors
+  canonicalize to `FixedRange` so extent overlap and disjointness stay
+  exact. `Match` subjects, value patterns, and arm values, array-literal
+  elements, struct-literal fields, and `ExpressionNode::Range` endpoints
+  all recurse through the read scan. Range-indexed builtins are gated on
+  the collection's builtin fixed-array/slice geometry resolved under
+  `OperatorSpelling::Range` (element-result typing intentionally returns
+  none for windows), while selected authored range operators keep exact
+  checked-occurrence custody. Incomplete read sets are preserved for
+  missing or foreign custody, unresolved or ambiguous selection, absent
+  or invalid range operands, authored bound arithmetic, and writing
+  atomics. Evidence only — disjointness and preservation still run
+  through the existing place algebra and loan checks. Witnessed by
+  `facts/dependencies/tests/indexes.rs`: 34 focused dependency tests, 79
+  range-checker tests, and 231 range integration tests pass; the crate
+  suite's 14 failures reproduce identically at base 5006b9314c.
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
   `where machine Selected satisfies Trait::requirement` binder is pinned by
