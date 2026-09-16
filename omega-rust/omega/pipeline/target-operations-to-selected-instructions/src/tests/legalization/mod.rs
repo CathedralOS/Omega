@@ -7,6 +7,7 @@ mod ieee_literal_sources;
 mod plain_unit;
 mod primitive_stores;
 mod process_exit;
+mod saturating_arithmetic;
 mod scalar_arrays;
 mod scalar_call_unit;
 mod scalar_transfers;

@@ -107,7 +107,20 @@ impl LegalizationValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizationError {
+    /// The raw target, abstract, and optimization-unit custody disagree, or a
+    /// node's own payload violates its representation. This names a producer
+    /// or consumer defect, never a missing lowering.
     SourceCustodyMismatch,
+    /// The node is well formed, but this stage has no legal scalar instruction
+    /// for its operation family at its scalar type (for example signed
+    /// saturating arithmetic, whose only legalized kinds are u64). This is an
+    /// implementation limit rather than a custody disagreement, so the rejected
+    /// operation is retained for the diagnostic instead of collapsing into
+    /// `SourceCustodyMismatch`.
+    UnsupportedScalarOperation {
+        machine: semantic_vocabulary::MachineId,
+        operation: abstract_operations::AbstractOperation,
+    },
     UnsupportedSourceShape {
         function: usize,
     },
@@ -126,7 +139,13 @@ pub enum LegalizationError {
 
 impl std::fmt::Display for LegalizationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "target legalization failed: {self:?}")
+        match self {
+            Self::UnsupportedScalarOperation { machine, operation } => write!(
+                formatter,
+                "target legalization has no legal scalar instruction for {operation:?} in machine {machine:?}"
+            ),
+            _ => write!(formatter, "target legalization failed: {self:?}"),
+        }
     }
 }
 
