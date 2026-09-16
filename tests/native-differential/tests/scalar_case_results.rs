@@ -43,6 +43,9 @@ mod case_call_arguments;
 #[path = "scalar_case_results/u64_kernels.rs"]
 mod u64_kernels;
 
+#[path = "scalar_case_results/i32_saturating_kernels.rs"]
+mod i32_saturating_kernels;
+
 #[cfg(any(
     all(
         target_os = "linux",
