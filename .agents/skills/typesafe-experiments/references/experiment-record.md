@@ -671,3 +671,57 @@ remove catalog/mandatory instructions. Next: fresh end-to-end planning work, not
 more tuning these excerpts. Hashes, response IDs, sanitization, lexical self-checks,
 Python compilation, zero worker tool calls and empty workspace checked on Windows;
 no macOS runtime or production changes. Raw sessions remain local, not uploaded.
+
+## Avoiding supervisor wakeups: positive narrow handoff replay
+
+User clarified the objective: faster completion and better decisions, not API
+equivalent dollar savings on effectively unlimited local Devin. Founder article
+https://www.completeskeptic.com/p/kv-cache-rules-everything-around motivated avoiding
+repeated large-context supervisory turns, rather than switching the full context
+between models. Read September 16 UTC; its simulated billing economics are not
+measurements of this setup. Live fan-out docs supply the independent-questions,
+code-owned-branching recipe. Neither source proves Jev infallibility or architecture.
+
+`build/experiments/planner-wakeup/` retains protocol, probe.py, frozen sources and
+labels, public answers, API receipts, supervisor exports, SUMMARY.json, REPORT.md
+and retained-answers.json. Three new read-only discovery assignments used pinned
+sources at e9b5a67dac9d1777565957c7d3a294c88dd5be4d: offline CLI boundaries,
+working-tree/manual test coverage, and publication network-error interpretation.
+Domains are familiar from previous work. One fresh SWE-2 Max producer batch took
+51.683s. All three answers were complete and source-supported before Jev review.
+
+Code checks process/source/citation boundaries, then retains only if separate
+coverage and support questions both return yes with P(yes)>=.90. Fixed development
+threshold, not calibrated confidence. Missing answers fail to review. Full source
+is provided, not just quotations; largest original request 11,579 input tokens.
+
+| Original | Jev seconds | Fresh SWE-2 Max supervisor seconds | Both |
+| --- | ---: | ---: | --- |
+| Offline boundaries | .407 | 20.720 | Retain unchanged |
+| Test-selection coverage | .277 | 33.125 | Retain unchanged |
+| Publication network error | .228 | 22.828 | Retain unchanged |
+| Total | .911 | 76.673 | 3/3 agree |
+
+Six initial authored controls (partial-true and partial-false) all reviewed.
+Three later complete-answer single-predicate inversions also reviewed, with
+support P(no)=1.0. Coverage was contaminated by factual wrongness: it also returned
+no for these full-coverage controls, so the two features are not independently
+validated. Three mechanical controls reviewed without API. Overall 15/15 routing,
+but only three natural positives and ZERO naturally occurring negatives. Literal
+quote/status checks alone would retain all nine semantic controls; this is not
+proof against a stronger custom deterministic policy. Always-review skips nothing.
+
+The three expensive supervisor calls actually ran for comparison. Candidate replay
+would skip all three; no production call was suppressed. .911s versus 76.673s is
+isolated review service cost, NOT a general agent speedup: cold fresh CLI sessions,
+one run each, fixed order, handpicked tasks, no warm persistent/grouped-review
+baseline. Producer/common setup/manual review excluded. No cache billing or coding
+completion claim. Retained artifact copies original answers/quotes unchanged.
+
+All twelve API calls including controls: 3.627s, 63,831 input / 876 output tokens.
+Zero tools in all four workers, empty workspace, no correctness retries. Windows
+hash, ID, quote, routing self-checks and Python compilation pass; macOS untested.
+Retain for natural handoff shadowing, not a production approval gate. Next highest
+value test: actual worker arrivals with natural failures and missing requirements,
+compared to a warm supervisor, measured through the next consumed workflow step.
+No dropped validation, worker cancellation, publication or authority changes.
