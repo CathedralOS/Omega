@@ -297,6 +297,117 @@ fn receiver_call_index_reads_the_callee_ensures() {
     }
 }
 
+/// `let i = idx()` binds THIS call's result, so the callee's ensured literal
+/// bounds follow the local into the index position — seeded on the local's
+/// label at the binding point and retired by reassignment like any other
+/// label-keyed bound. A chained `let j = i` inherits them through the ordinary
+/// alias transfer; a `result`-unbounded or out-of-range contract still rejects.
+#[test]
+fn call_result_alias_carries_the_ensured_result_bounds() {
+    fn check(source: &str) -> Result<(), Vec<String>> {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        crate::lower_typed_trees(program)
+            .map(|_| ())
+            .map_err(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.clone())
+                    .collect()
+            })
+    }
+    for (callee, binding, accepted) in [
+        // The ensured upper bound transfers through the binding.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "let i: u64 = idx(); output[i] = 65;",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result < 4 { 1 }",
+            "let i: u64 = idx(); output[i] = 65;",
+            true,
+        ),
+        // A signed result still owes its non-negative half to the contract.
+        (
+            "machine idx() -> i64 ensures result >= 0 && result <= 3 { 1 }",
+            "let i: i64 = idx(); output[i] = 65;",
+            true,
+        ),
+        (
+            "machine idx() -> i64 ensures result <= 3 { 1 }",
+            "let i: i64 = idx(); output[i] = 65;",
+            false,
+        ),
+        // The ensured bound at the collection length is still out of range.
+        (
+            "machine idx() -> u64 ensures result <= 4 { 1 }",
+            "let i: u64 = idx(); output[i] = 65;",
+            false,
+        ),
+        // No contract bound keeps the ordinary rejection.
+        (
+            "machine idx() -> u64 { 1 }",
+            "let i: u64 = idx(); output[i] = 65;",
+            false,
+        ),
+        // A chained copy inherits the seeded bound through alias_index.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "let i: u64 = idx(); let j: u64 = i; output[j] = 65;",
+            true,
+        ),
+        // Rebinding the name to a new ensured call re-seeds the bound.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "let mut i: u64 = idx(); i = idx(); output[i] = 65;",
+            true,
+        ),
+        // Rebinding the name retires the stale bound: an unknown store must
+        // not keep the initializer's contract.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "let mut i: u64 = idx(); i = unknown; output[i] = 65;",
+            false,
+        ),
+    ] {
+        let source =
+            format!("{callee} machine write(output: &mut [u8; 4], unknown: u64) {{ {binding} }}");
+        match (check(&source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")),
+                "{callee} | {binding}: {messages:?}"
+            ),
+            (result, _) => panic!("{callee} | {binding}: {result:?}"),
+        }
+    }
+    // A field assignment binds the call result the same way — the ensured
+    // bound keys on the member's display label.
+    for (binding, accepted) in [
+        ("self.slot = idx(); output[self.slot] = 65;", true),
+        ("self.slot = unknown; output[self.slot] = 65;", false),
+    ] {
+        let source = format!(
+            "data Holder {{ slot: u64 }} \
+             machine idx() -> u64 ensures result <= 3 {{ 1 }} \
+             machine Holder::write(&mut self, output: &mut [u8; 4], unknown: u64) {{ {binding} }}"
+        );
+        let result = check(&source);
+        assert_eq!(result.is_ok(), accepted, "{binding}: {result:?}");
+    }
+}
+
 #[test]
 fn nested_index_traversal_checks_each_collection_extent() {
     for (access, accepted) in [("[3][1]", true), ("[4][1]", false), ("[3][2]", false)] {

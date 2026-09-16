@@ -1,5 +1,6 @@
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+use super::super::expressions::ensured_call_result_bounds;
 use super::super::facts::RangeFacts;
 
 pub(super) fn seed_local_alias_facts(
@@ -16,6 +17,7 @@ pub(super) fn seed_local_alias_facts(
         return;
     }
     facts.alias_integer_place_value(program, machine, state, value, symbol, &target_label);
+    seed_ensured_call_result_bounds(program, facts, &target_label, value);
 
     // The local inherits the proven index/range facts of whatever stable place
     // the value aliases. The source label must be the full display name (e.g.
@@ -50,6 +52,32 @@ pub(super) fn seed_local_alias_facts(
     facts.prove_window_parent(target_label.clone(), source_label.clone(), None);
     facts.alias_collection(&source_label, &target_label);
     facts.alias_index(&source_label, &target_label);
+}
+
+/// Seeds a bound name's index facts from an ordinary call value's `ensures`
+/// result contract. The binding denotes THIS call occurrence's result, and the
+/// contract is discharged at every callee exit, so its literal `result` bounds
+/// hold for the name from the binding point on: the inclusive high becomes the
+/// name's exclusive index upper bound (`ensures result <= 3` proves `i < 4`),
+/// and a `>= 0` lower half supplies the non-negativity a signed index still
+/// owes. The facts key on the binding's label, so reassignment and overlapping
+/// call writes retire them like any other label-keyed bound — a later
+/// `i = unknown` must not keep the initializer's contract.
+pub(super) fn seed_ensured_call_result_bounds(
+    program: &typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    label: &str,
+    value: ExpressionHandle,
+) {
+    let Some((low, high)) = ensured_call_result_bounds(program, value) else {
+        return;
+    };
+    if let Some(exclusive) = high.and_then(|high| high.checked_add(1)) {
+        facts.prove_index_upper_bound(label.to_owned(), exclusive);
+    }
+    if low.is_some_and(|low| low >= 0) {
+        facts.prove_non_negative(label.to_owned());
+    }
 }
 
 /// Resolves the place a bound value aliases, for index/range fact inheritance.
