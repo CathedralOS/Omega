@@ -136,6 +136,53 @@ fn result_case_membership_rejects_a_foreign_nominal_classifier() {
 }
 
 #[test]
+fn boundary_call_results_carry_their_declaring_case_owner() {
+    // A boundary requirement call resolves to the trait's declared signature
+    // symbol, not a machine-body state. The declared result still supplies the
+    // exact case owner, so transition patterns and `in` membership observe it.
+    let source = format!(
+        "{DATA}
+        boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
+        data Probe {{ input: Input; buffer: [u8; 4]; }}
+        machine Probe::run(&mut self) reaches Input {{
+            transition self.input.read(&mut self.buffer) {{
+                Message::Empty -> done()
+                Message::Data {{ value }} -> got(value)
+                _ -> done()
+            }}
+            state done(&mut self) {{ }}
+            state got(&mut self, value: u8) {{ }}
+        }}
+        machine Probe::peek(&mut self) -> bool reaches Input {{
+            self.input.read(&mut self.buffer) in Message::Empty
+        }}"
+    );
+    lower_typed_trees(parse_typed_trees(&source))
+        .expect("boundary call results keep their exact declaring data type");
+}
+
+#[test]
+fn boundary_call_results_still_reject_a_foreign_case_owner() {
+    let source = format!(
+        "{DATA}
+        data Other {{ case Empty; }}
+        boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
+        data Probe {{ input: Input; buffer: [u8; 4]; }}
+        machine Probe::peek(&mut self) -> bool reaches Input {{
+            self.input.read(&mut self.buffer) in Other::Empty
+        }}"
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+        .expect_err("a foreign case owner is not evidence about the call result");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("case membership must test a value of the exact declaring data type")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn result_field_membership_observes_nested_and_distinct_fields() {
     for (condition, accepted) in [
         ("result.inner.message in Message::Data", true),
