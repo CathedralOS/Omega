@@ -42,7 +42,9 @@ pub use validate::validate_literal_fold;
 /// zero — `x & 0` is `0` for every `x` — dropping the other `Use` and dead
 /// scratch `Def` operands — or the literal `0` at either operand of a
 /// bitwise-xor into a `CopyI64` of the surviving operand — `x ^ 0` and
-/// `0 ^ x` are both `x`.
+/// `0 ^ x` are both `x` — or the literal `0` at either operand of a
+/// wrapping add into a `CopyI64` of the surviving operand — `x + 0` and
+/// `0 + x` are both `x` modulo 2^64.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,
