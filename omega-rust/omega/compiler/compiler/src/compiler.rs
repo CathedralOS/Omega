@@ -47,7 +47,6 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                 )?;
                 let admission =
                     admit_checked_compilation(&checked, target.accepted_trust_admissions())?;
-                admission.write_observations(&options.build_dir(), target.artifact_policy())?;
                 let trust_settlement = admission.into_settlement();
 
                 let report = match request.shared.requested_product {

@@ -1,9 +1,8 @@
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, check_canary,
-    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts, executable_name, fail_canary,
-    fs, interpret, pass_canary, production_compile, unique_no_output_build_dir,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
+    fail_canary, fs, interpret, pass_canary, production_compile, unique_no_output_build_dir,
 };
 use compiler::CheckedCompileRequest;
 
@@ -723,7 +722,7 @@ fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, scratch.clone())
+    compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire encode borrowed scalar-slice canary should compile");
 
     let output = Command::new(scratch.join(executable_name()))

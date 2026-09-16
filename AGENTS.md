@@ -138,7 +138,7 @@ CLI startup and dispatch live in `omega-rust/omega/src/main.rs`; typed invocatio
 are parsed in `omega-rust/omega/src/cli/arguments/`. Full surface:
 
 ```text
-omega [--check] [--offline] [--accept-admissions] [--output-only]
+omega [--check] [--offline] [--accept-admissions] [--timings]
       [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>
 omega run [--both] [--keep] [--target <name>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
@@ -154,13 +154,12 @@ omega refresh-samples [samples-dir]
 Git pins. It does not refresh selectors or sandbox later program execution.
 `run` and `inspect-terminal` do not support this flag.
 
-Compiler observations normally go into an ignored `build/` beside the
-entrypoint, or `--build-dir`. **Read the available phase reports before
-instrumenting compiler code.** Their set depends on the requested product and
-observation policy; `--output-only` suppresses auxiliary reports, not checking.
-The [compiler observation owner](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations)
-documents the current writer and required records rather than a fixed numbered
-artifact inventory here.
+Compilation emits requested products and diagnostics, not debug dumps.
+`--timings` prints command-stage durations and total elapsed time to stderr;
+normal invocations do not collect optional timing measurements. There is no
+`--output-only` switch or report-file mode. Required proof and installation
+records remain governed by the requested product. See the
+[compiler product contract](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations).
 
 The bundled `source/library/` location is derived from the compiler checkout
 captured at build time. Rebuild the binary from the retained checkout before

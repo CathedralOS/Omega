@@ -4,8 +4,8 @@ use super::{
 };
 use crate::{console_acceptance, fixtures, linux_entry_acceptance};
 use compiler::{
-    ArtifactEmissionPolicy, CheckedCompileRequest, CompileOptions, CompileRequest,
-    RequestedCompileProduct, RetainedNativeRealizationRequest, compile, compile_to_checked,
+    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
+    RetainedNativeRealizationRequest, compile, compile_to_checked,
     realize_retained_native_artifact,
 };
 
@@ -322,7 +322,6 @@ machine Main::emit(&mut self) reaches Console {
             target_name: Some("linux_x86_64".into()),
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
         .with_package_inputs(package_inputs),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
@@ -388,8 +387,7 @@ machine Main::main(&mut self) {
             build_dir: None,
             target_name: Some("linux_x86_64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("FMA Terminal custody failed: {diagnostics:#?}"));
@@ -626,8 +624,7 @@ machine Main::main(&mut self) {
             build_dir: None,
             target_name: Some("linux_x86_64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| {

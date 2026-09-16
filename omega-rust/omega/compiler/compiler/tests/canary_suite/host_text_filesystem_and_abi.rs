@@ -1,9 +1,9 @@
 use super::{
     AcceptedSemanticBindingRole, CanaryCompileProduct, CanaryCompileSpec, Command,
     FilesystemServiceBinding, InterpretOptions, Path, Stdio, compile,
-    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
-    compile_with_auxiliary_artifacts, executable_name, fs, hosted_main_program_entry_build_for,
-    interpret, interpret_entry, pass_canary, run_canary, unique_no_output_build_dir,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
+    fs, hosted_main_program_entry_build_for, interpret, interpret_entry, pass_canary, run_canary,
+    unique_no_output_build_dir,
 };
 #[cfg(windows)]
 use crate::compile_rooted_canary_for_target;
@@ -1487,7 +1487,7 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write fixed-array build source");
-        let compile_result = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        let compile_result = compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.to_owned()),
@@ -1534,7 +1534,7 @@ fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
         .expect("copy pointer/length canary");
     write_cross_target_application_build(&canary, &src_dir, "windows_x86_64");
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x86_64".to_owned()),

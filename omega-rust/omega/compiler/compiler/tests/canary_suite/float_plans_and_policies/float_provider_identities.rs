@@ -4,8 +4,8 @@ use super::{
     selected_intrinsic_diagnostic_label,
 };
 use crate::{
-    ArtifactEmissionPolicy, CanaryCompileProduct, CanaryCompileSpec, Command, CompileRequest,
-    CompilerOptions, RequestedCompileProduct, compile, compile_canary_without_output,
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileRequest, CompilerOptions,
+    RequestedCompileProduct, compile, compile_canary_without_output,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
     compile_rooted_canary_for_target, executable_name, fail_canary, fs,
     hosted_main_program_entry_build_for, interpret, pass_canary,
@@ -325,8 +325,7 @@ fn float_match_native_publication_retains_both_selected_physical_children() {
             build_dir: Some(build_dir.clone()),
             target_name: Some(target_name.to_owned()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+        .with_requested_product(RequestedCompileProduct::NativeArtifact);
         if let Some(packages) =
             reviewed_repository_fixture_package_inputs(&main_path, Some(target_name))
                 .expect("review the authored match application")

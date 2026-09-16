@@ -1,8 +1,7 @@
 use compiler::CheckedCompileRequest;
 use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
-    RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement, compile, compile_to_checked,
-    realize_retained_native_artifact,
+    CompileOptions, CompileRequest, RequestedCompileProduct, RetainedNativeRealizationRequest,
+    SourceEvaluatedImportSettlement, compile, compile_to_checked, realize_retained_native_artifact,
 };
 use effects::provider_plan::ProviderBinding;
 use installation_evidence::ProviderExecutionEvidence;
@@ -253,7 +252,6 @@ data Main { }"#,
         })
         .with_package_inputs(self.package_inputs())
         .with_requested_product(product)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
     }
 }
 

@@ -2,8 +2,8 @@ use super::{
     MACOS_HOSTED_MAIN, TempProject, application_build, diagnostic_text, exact_target_build,
 };
 use compiler::{
-    ArtifactEmissionPolicy, CheckedCompileRequest, CompileOptions, CompileRequest,
-    RequestedCompileProduct, RetainedNativeRealizationRequest, compile, compile_to_checked,
+    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
+    RetainedNativeRealizationRequest, compile, compile_to_checked,
     realize_retained_native_artifact,
 };
 use std::fs;
@@ -108,8 +108,7 @@ fn authored_identifier_reaches_the_checked_and_retained_carriers() {
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| {
@@ -182,8 +181,7 @@ fn retained_native_realization_binds_the_image_request_to_the_proposal_subsystem
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("retained Terminal custody: {diagnostics:#?}"));
@@ -241,8 +239,7 @@ fn retained_native_realization_binds_the_retained_identifier_into_signed_bytes()
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("retained Terminal custody: {diagnostics:#?}"));
@@ -303,8 +300,7 @@ fn retained_native_realization_rejects_a_conflicting_request_identifier() {
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("retained Terminal custody: {diagnostics:#?}"));
@@ -358,8 +354,7 @@ fn macos_gui_image_emission_requires_the_authored_identifier() {
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| {
@@ -411,8 +406,7 @@ fn macos_gui_image_emission_requires_the_authored_identifier() {
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("retained Terminal custody: {diagnostics:#?}"));
@@ -469,8 +463,7 @@ fn macos_gui_image_emission_requires_the_authored_identifier() {
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("direct macOS GUI realization without an identifier must reject");
@@ -497,8 +490,7 @@ fn macos_gui_publication_installs_one_app_package() {
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("macOS GUI compilation: {diagnostics:#?}"));
@@ -561,8 +553,7 @@ fn macos_console_publication_stays_flat() {
             build_dir: None,
             target_name: Some("macos_arm64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| panic!("macOS console compilation: {diagnostics:#?}"));

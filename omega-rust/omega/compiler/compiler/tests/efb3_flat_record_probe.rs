@@ -1,6 +1,4 @@
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
-};
+use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use std::fs;
 use std::path::PathBuf;
 
@@ -89,8 +87,7 @@ fn flat_record_via_call_reaches_terminal_as_source_rooted_structural_argument() 
         build_dir: Some(probe.root.join("build")),
         target_name: Some("macos_arm64".to_owned()),
     })
-    .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    .with_requested_product(RequestedCompileProduct::TerminalArtifact);
     let retained = compile(request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| {
@@ -201,8 +198,7 @@ fn flat_record_via_call_native_realization_probe() {
         build_dir: Some(probe.root.join("build")),
         target_name: Some("macos_arm64".to_owned()),
     })
-    .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    .with_requested_product(RequestedCompileProduct::TerminalArtifact);
     let retained = compile(request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .expect("terminal compile")

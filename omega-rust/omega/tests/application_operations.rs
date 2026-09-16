@@ -1,6 +1,6 @@
 //! Operations are callable in-process, including after a rejected request.
 
-use compiler::{ArtifactEmissionPolicy, CompileOptions};
+use compiler::CompileOptions;
 use omega::compilation::{
     CompileProjectError, CompileProjectRequest, ProjectProduct, compile_project,
 };
@@ -35,7 +35,7 @@ impl Project {
             target_name: None,
         });
         request.product = ProjectProduct::Check;
-        request.artifact_policy = ArtifactEmissionPolicy::OutputOnly;
+
         request
     }
 
@@ -83,6 +83,8 @@ fn compilation_returns_failure_then_success_without_terminating_the_caller() {
         project.write("main.omg", "machine main() {}\n");
         let outcome = compile_project(project.check_request()).unwrap();
         assert!(outcome.executable_path.is_none());
+        assert!(outcome.timings.phases().is_empty());
+        assert!(!project.0.join("build").exists());
         assert!(
             outcome
                 .report

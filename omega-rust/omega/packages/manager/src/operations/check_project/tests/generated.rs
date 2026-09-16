@@ -1,6 +1,6 @@
 use super::{
-    ArtifactEmissionPolicy, CheckPreparedLocalProjectError, CompileResolvedPackageReviewsError,
-    Path, Project, assert_check_only, assert_empty_directory, check_prepared_local_project, fs,
+    CheckPreparedLocalProjectError, CompileResolvedPackageReviewsError, Path, Project,
+    assert_check_only, assert_empty_directory, check_prepared_local_project, fs,
 };
 fn generated_project() -> Project {
     let project = Project::new();
@@ -22,24 +22,11 @@ fn generated_project() -> Project {
 fn generated_package_reports_after_sponsored_staging_disposal() {
     let project = generated_project();
     let authored = fs::read(project.0.join("producer/build.omg")).unwrap();
-    let report = check_prepared_local_project(
-        project
-            .request("producer/main.omg", "observations")
-            .with_artifact_policy(ArtifactEmissionPolicy::Full),
-    )
-    .expect("direct generated-source CHECK keeps sponsored staged-output custody");
+    let report = check_prepared_local_project(project.request("producer/main.omg", "observations"))
+        .expect("direct generated-source CHECK keeps sponsored staged-output custody");
     assert_check_only(&report);
     assert!(report.trust_admission_settlement().is_exactly_admitted());
-    let contracts = fs::read_to_string(project.0.join("observations/05_machine_contracts.json"))
-        .expect("normal checked observations reach the requested build directory");
-    assert!(contracts.contains("table_size"));
-    assert!(project.0.join("observations/00_timings.txt").is_file());
-    assert!(
-        fs::read_dir(project.0.join("observations"))
-            .unwrap()
-            .all(|entry| !entry.unwrap().file_type().unwrap().is_dir()),
-        "reporting leaves no sponsored session or generated staging directory"
-    );
+    assert_empty_directory(&project.0.join("observations"));
     assert_eq!(
         fs::read(project.0.join("producer/build.omg")).unwrap(),
         authored

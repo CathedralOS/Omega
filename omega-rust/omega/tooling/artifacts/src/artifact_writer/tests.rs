@@ -57,22 +57,3 @@ fn failed_installation_preserves_destination_and_removes_staging_file() {
     assert_eq!(fs::read(destination.join("keep")).unwrap(), b"existing");
     assert!(!temp_path_for(&destination).exists());
 }
-
-#[test]
-fn timings_are_plain_text_without_html_output() {
-    let directory = ReportDirectory::new();
-    let writer = ArtifactWriter::new(&directory.0).unwrap();
-    writer
-        .write_timings(&[crate::PhaseTiming {
-            phase: "check <input> & retain".to_owned(),
-            microseconds: 1_250,
-            allocations: Default::default(),
-        }])
-        .unwrap();
-    let timings = fs::read_to_string(directory.0.join("00_timings.txt")).unwrap();
-    assert!(timings.starts_with("# Omega Phase Timings\n"));
-    assert!(timings.contains("check <input> & retain"));
-    assert!(timings.contains("1,250 us"));
-    assert!(!timings.contains("<!doctype html>"));
-    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 1);
-}

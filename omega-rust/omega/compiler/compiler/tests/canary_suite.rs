@@ -1,8 +1,8 @@
 use build_declarations::{BuildDeclaration, extract_build_declaration};
 use compiler::CheckedCompileRequest;
 use compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions as CompilerOptions, CompileReport,
-    CompileRequest, RequestedCompileProduct, compile_to_checked,
+    CheckedCompilation, CompileOptions as CompilerOptions, CompileReport, CompileRequest,
+    RequestedCompileProduct, compile_to_checked,
 };
 use package_compilation::{
     AcceptedSemanticBindingRole, PackageCompilationInputs, PackageDependencyBinding,
@@ -81,10 +81,7 @@ fn production_compile(
     }
 }
 
-fn compile_with_artifact_policy(
-    spec: CanaryCompileSpec,
-    artifact_policy: ArtifactEmissionPolicy,
-) -> Result<CompileReport, Vec<Diagnostic>> {
+fn compile(spec: CanaryCompileSpec) -> Result<CompileReport, Vec<Diagnostic>> {
     let (options, product) = spec.into_request_parts();
     let build_dir = options.build_dir();
     let requested_product = match product {
@@ -97,9 +94,7 @@ fn compile_with_artifact_policy(
         &options.root_path,
         options.target_name.as_deref(),
     )?;
-    let mut request = CompileRequest::new(options)
-        .with_requested_product(requested_product)
-        .with_artifact_policy(artifact_policy);
+    let mut request = CompileRequest::new(options).with_requested_product(requested_product);
     if let Some(package_inputs) = package_inputs {
         let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
             package_inputs
@@ -124,19 +119,6 @@ fn compile_with_artifact_policy(
             .publish_retained_native_artifact(&build_dir)
             .map_err(|error| vec![Diagnostic::error(error)]),
     }
-}
-
-fn compile(spec: CanaryCompileSpec) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_artifact_policy(spec, ArtifactEmissionPolicy::OutputOnly)
-}
-
-/// Compile a canary that explicitly asserts an auxiliary compiler artifact.
-/// Disposable native/runtime canaries must use [`compile`] so their temporary
-/// build directories contain only the certified executable they consume.
-fn compile_with_auxiliary_artifacts(
-    spec: CanaryCompileSpec,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_artifact_policy(spec, ArtifactEmissionPolicy::Full)
 }
 
 use checked_interpreter::{
@@ -1792,15 +1774,12 @@ fn compile_canary_without_output_for_target(
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_artifact_policy(
-        CanaryCompileSpec {
-            root_path: canary_dir.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: Some(target.into()),
-            product: CanaryCompileProduct::Check,
-        },
-        ArtifactEmissionPolicy::OutputOnly,
-    );
+    let result = compile(CanaryCompileSpec {
+        root_path: canary_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(target.into()),
+        product: CanaryCompileProduct::Check,
+    });
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -1814,15 +1793,12 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
     // `pass_canaries_compile` vs `capability_pass_canaries_compile_in_isolation`
     // full-suite flake. Give every no-output compile its own temp dir instead.
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_artifact_policy(
-        CanaryCompileSpec {
-            root_path: canary_dir.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: None,
-            product: CanaryCompileProduct::Check,
-        },
-        ArtifactEmissionPolicy::OutputOnly,
-    );
+    let result = compile(CanaryCompileSpec {
+        root_path: canary_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        product: CanaryCompileProduct::Check,
+    });
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -1843,8 +1819,7 @@ fn compile_native_canary_without_output(
         build_dir: Some(build_dir.clone()),
         target_name: None,
     })
-    .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    .with_requested_product(RequestedCompileProduct::NativeArtifact);
     if let Some(package_inputs) = package_inputs {
         let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
             package_inputs
@@ -1902,7 +1877,6 @@ fn compile_rooted_backend_canary_without_output_for_target(
         target_name: Some(target.into()),
     })
     .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
     .with_terminal_authority_permission_policy(permission_policy);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
@@ -1926,7 +1900,6 @@ fn compile_rooted_backend_canary_without_output_for_target_and_permission_policy
         target_name: Some(target.into()),
     })
     .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
     .with_terminal_authority_permission_policy(permission_policy);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
@@ -1943,58 +1916,17 @@ fn compile_rooted_canary_for_native_host(
     compile_rooted_canary_for_target(canary_dir, build_dir, native_hosted_target())
 }
 
-fn compile_rooted_canary_for_native_host_with_auxiliary_artifacts(
-    canary_dir: &Path,
-    build_dir: PathBuf,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_rooted_canary_for_target_with_auxiliary_artifacts(
-        canary_dir,
-        build_dir,
-        native_hosted_target(),
-    )
-}
-
 fn compile_rooted_canary_for_target(
     canary_dir: &Path,
     build_dir: PathBuf,
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_rooted_canary_for_target_with_artifact_policy(
-        canary_dir,
-        build_dir,
-        target,
-        ArtifactEmissionPolicy::OutputOnly,
-    )
-}
-
-fn compile_rooted_canary_for_target_with_auxiliary_artifacts(
-    canary_dir: &Path,
-    build_dir: PathBuf,
-    target: &str,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_rooted_canary_for_target_with_artifact_policy(
-        canary_dir,
-        build_dir,
-        target,
-        ArtifactEmissionPolicy::Full,
-    )
-}
-
-fn compile_rooted_canary_for_target_with_artifact_policy(
-    canary_dir: &Path,
-    build_dir: PathBuf,
-    target: &str,
-    artifact_policy: ArtifactEmissionPolicy,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_artifact_policy(
-        CanaryCompileSpec {
-            root_path: canary_dir.join("main.omg"),
-            build_dir: Some(build_dir),
-            target_name: Some(target.into()),
-            product: CanaryCompileProduct::NativeArtifactAndPublish,
-        },
-        artifact_policy,
-    )
+    compile(CanaryCompileSpec {
+        root_path: canary_dir.join("main.omg"),
+        build_dir: Some(build_dir),
+        target_name: Some(target.into()),
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
+    })
 }
 
 // These runtime/layout/recast fixtures are deployable on every hosted target.
@@ -3575,53 +3507,6 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
                 .contains("TaskRuntime")
         );
     }
-
-    // Runtime-instance dispatch/lowering is a later rung. Exercise the exact
-    // Omega sidecar directly instead of pretending the canary provider's
-    // placeholder intrinsic is an executable backend implementation.
-    let manifest =
-        visualizations::task_activation_manifest_json(&checked, checked.task_activations());
-    let carry_manifest = visualizations::carry_manifest_json(&checked);
-    assert!(manifest.contains("\"operation\": \"start\""));
-    assert!(manifest.contains("\"operation\": \"try_start\""));
-    assert!(manifest.contains("\"start_requirement\": \"TaskRuntime::start\""));
-    assert!(manifest.contains("\"start_requirement\": \"TaskRuntime::try_start\""));
-    assert_eq!(
-        manifest
-            .matches("\"target_machine\": \"Worker::run\"")
-            .count(),
-        2
-    );
-    assert_eq!(manifest.matches("\"may_suspend\": true").count(), 2);
-    assert_eq!(manifest.matches("\"may_block\": false").count(), 2);
-    assert_eq!(manifest.matches("\"activation_plan_id\": \"0x").count(), 2);
-    assert_eq!(manifest.matches("\"selected_runtime\": {").count(), 2);
-    assert_eq!(
-        manifest
-            .matches("\"provider_plan\": \"CanaryTaskRuntime::satisfies::TaskRuntime\"")
-            .count(),
-        2
-    );
-    assert_eq!(
-        manifest
-            .matches("\"canonical_suspension_crossings\": [")
-            .count(),
-        2
-    );
-    assert_eq!(manifest.matches("\"stack_plan\": {\"bytes\":").count(), 2);
-    assert_eq!(
-        manifest
-            .matches("\"cpu_thread_preservation\": {\"preserve_cpu\":")
-            .count(),
-        2
-    );
-    assert!(!manifest.contains("\"runtime_admission\""));
-    assert!(!manifest.contains("\"asynchronous_migration\""));
-    assert!(carry_manifest.contains("\"safe_point_crossings\": [\n    {"));
-    assert!(carry_manifest.contains("\"machine\": \"Worker::run\""));
-    assert!(carry_manifest.contains("\"target\": \"Sleeper::park\""));
-    assert!(carry_manifest.contains("\"storage\": \"call_argument\""));
-    assert!(carry_manifest.contains("\"storage\": \"local\""));
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[

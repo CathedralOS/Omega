@@ -892,26 +892,13 @@ fn package_source_snapshot_has_a_physical_capture_owner() {
 }
 
 #[test]
-fn checked_observations_consume_admission_without_owning_it() {
+fn checked_admission_remains_required_without_debug_dumps() {
     let root = workspace_root();
     let coordinator = compiler_product_coordinator_source(&root);
-    let admission = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission/mod.rs",
-    ))
-    .expect("read checked trust admission");
-    let reporter = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission/observations.rs"))
-        .expect("read observation writer");
+    let admission_root = root
+        .join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission");
+    let admission = std::fs::read_to_string(admission_root.join("mod.rs")).unwrap();
     assert_eq!(coordinator.matches("admit_checked_compilation(").count(), 1);
-    assert_eq!(
-        coordinator.matches("admission.write_observations(").count(),
-        1
-    );
-    let admit = coordinator.find("admit_checked_compilation(").unwrap();
-    let observe = coordinator.find("admission.write_observations(").unwrap();
-    assert!(
-        admit < observe,
-        "mandatory admission must precede optional output"
-    );
     for required in [
         "reconstruct_trust_obligations(",
         "settle_trust_admissions(",
@@ -919,46 +906,11 @@ fn checked_observations_consume_admission_without_owning_it() {
         ".validate()",
     ] {
         assert!(admission.contains(required), "admission lost {required}");
-        assert!(
-            !reporter.contains(required),
-            "writer regained mandatory check {required}"
-        );
-        assert!(
-            !coordinator.contains(required),
-            "coordinator inlined {required}"
-        );
     }
-    for forbidden in [
-        "ArtifactWriter",
-        "emits_auxiliary_artifacts",
-        "write_timings",
-    ] {
-        assert!(
-            !admission.contains(forbidden),
-            "trust admission depends on {forbidden}"
-        );
-        assert!(
-            !coordinator.contains(forbidden),
-            "coordinator owns writer detail {forbidden}"
-        );
-    }
-    assert!(admission.contains("checked: &'checked CheckedCompilation"));
-    assert!(reporter.contains("impl CheckedAdmission<'_>"));
-    assert_eq!(reporter.matches("emits_auxiliary_artifacts()").count(), 1);
-    let gate = reporter
-        .find("if policy.emits_auxiliary_artifacts()")
-        .unwrap();
-    let trust = reporter
-        .find("write_trust_report(self.trust_report())")
-        .unwrap();
-    let snapshots = reporter.find("write_checked_snapshots(").unwrap();
-    let timings = reporter
-        .find("write_timings(checked.timings().phases())")
-        .unwrap();
-    assert!(
-        gate < trust && trust < snapshots && snapshots < timings,
-        "preserve trust, snapshot, timing output order"
-    );
+    assert!(!admission_root.join("observations.rs").exists());
+    assert!(!admission_root.join("snapshots.rs").exists());
+    assert!(!coordinator.contains("write_observations("));
+    assert!(!admission.contains("ArtifactWriter"));
 }
 
 #[test]
@@ -1705,44 +1657,12 @@ fn omega_provider_selection_consumes_psi_frontend_directly() {
 }
 
 #[test]
-fn omega_visualizations_consume_psi_semantics_directly() {
-    let graph = load_graph();
-    let visualizations = graph
-        .get("visualizations")
-        .expect("visualizations must remain in the governed workspace graph");
-
-    for stale_adapter in [
-        "omega-checked-trees",
-        "omega-facts",
-        "omega-symbol-resolved-trees",
-        "omega-syntax-trees",
-        "omega-typed-trees",
-    ] {
-        assert!(
-            !visualizations
-                .deps
-                .iter()
-                .any(|dependency| dependency == stale_adapter),
-            "Omega visualization must consume Psi directly instead of semantic compatibility package {stale_adapter}"
-        );
-    }
-
-    for psi_input in ["checked-trees", "flow-effects", "facts", "typed-trees"] {
-        assert!(
-            visualizations
-                .deps
-                .iter()
-                .any(|dependency| dependency == psi_input),
-            "Omega visualization must consume Psi-owned semantic input {psi_input} directly"
-        );
-    }
-
+fn compiler_debug_dump_crate_is_absent() {
+    assert!(!load_graph().contains_key("visualizations"));
     assert!(
-        visualizations
-            .deps
-            .iter()
-            .any(|dependency| dependency == "effects"),
-        "Omega visualization must retain the Omega-owned selected-provider-plan input"
+        !workspace_root()
+            .join("omega-rust/omega/tooling/visualizations")
+            .exists()
     );
 }
 

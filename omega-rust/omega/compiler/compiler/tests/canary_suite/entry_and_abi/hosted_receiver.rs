@@ -2,9 +2,8 @@
 //! storage grant, interpreter arguments, or replacement native entry stub.
 
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, Path, PathBuf,
-    compile_reviewed_repository_fixture, compile_with_auxiliary_artifacts, fs, repo_root,
-    unique_no_output_build_dir,
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, Path, PathBuf, compile,
+    compile_reviewed_repository_fixture, fs, repo_root, unique_no_output_build_dir,
 };
 use compiler::CheckedCompileRequest;
 struct HostedProject(PathBuf);
@@ -174,7 +173,7 @@ machine Main::main(&mut self) reaches Console {{
         ),
     )
     .expect("write receiver storage and Fused Console customer");
-    let result = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    let result = compile(CanaryCompileSpec {
         root_path: project.0.join("main.omg"),
         build_dir: Some(project.0.join("build")),
         target_name: Some("macos_arm64".into()),
@@ -389,7 +388,7 @@ machine Main::main(&mut self) {{}}
         if bound_service {
             assert_erased_service_settlement_requires_its_source_row(&project.0.join("main.omg"));
         }
-        let result = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        let result = compile(CanaryCompileSpec {
             root_path: project.0.join("main.omg"),
             build_dir: Some(project.0.join("build")),
             target_name: Some("macos_arm64".into()),

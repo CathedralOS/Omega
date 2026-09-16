@@ -1,9 +1,6 @@
 use super::fixture_roster;
 use super::write_cross_target_application_build;
-use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, compile, compile_with_auxiliary_artifacts, fs,
-    pass_canary,
-};
+use crate::{CanaryCompileProduct, CanaryCompileSpec, compile, fs, pass_canary};
 
 #[test]
 fn aarch64_hfa_entry_argument_spreads_vector_registers() {
@@ -423,7 +420,7 @@ fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),

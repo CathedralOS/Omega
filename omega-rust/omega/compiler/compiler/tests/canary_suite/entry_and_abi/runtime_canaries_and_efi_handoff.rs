@@ -1,8 +1,8 @@
 use super::assert_native_exit_code;
 use super::fixture_roster;
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, compile, compile_rooted_canary_for_native_host,
-    compile_with_auxiliary_artifacts, fs, hosted_main_program_entry_build_for, pass_canary,
+    CanaryCompileProduct, CanaryCompileSpec, compile, compile_rooted_canary_for_native_host, fs,
+    hosted_main_program_entry_build_for, pass_canary,
 };
 
 #[test]
@@ -17,7 +17,7 @@ fn entry_run_args_bytes_canary_runs() {
     let canary = pass_canary(fixture_roster::TARGETS_ENTRY_RUN_ARGS_BYTES);
     let build_dir = std::env::temp_dir().join(format!("omega-run-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    let compilation = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -219,7 +219,7 @@ fn efi_vtable_call_emits_indirect_dispatch() {
     let canary = pass_canary(fixture_roster::TARGETS_EFI_VTABLE_CALL);
     let build_dir = std::env::temp_dir().join(format!("omega-vtable-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -256,7 +256,7 @@ fn efi_ref_param_direct_faces_deref_not_flat() {
     let canary = pass_canary(fixture_roster::TARGETS_EFI_REF_PARAM_DIRECT_FACES);
     let build_dir = std::env::temp_dir().join(format!("omega-refparam-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -293,7 +293,7 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
     let canary = pass_canary(fixture_roster::TARGETS_EFI_REF_PARAM_CALL_ARG);
     let build_dir = std::env::temp_dir().join(format!("omega-refarg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x86_64".into()),

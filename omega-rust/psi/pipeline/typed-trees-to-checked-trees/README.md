@@ -197,7 +197,7 @@ a copied scalar's old facts or give that copy a new storage guarantee. No
 statement-entry fallback supplies missing invocation evidence. Assignment target
 children are evaluated after the right-hand side, before the store.
 
-Source-checking probe: `mbx run -p omega -- --check --output-only
+Source-checking probe: `mbx run -p omega -- --check
 tests/omega/pass/operators/operand_requires_after_effects/main.omg`.
 The fail twin is `tests/omega/fail/operators/operand_requires_invalidated/main.omg`.
 These probes establish selected preconditions, not provider execution or
@@ -220,7 +220,7 @@ Newer storage facts cannot discharge an earlier copy. The source-to-artifact and
 interpreter regressions are `mixed_unit_crash_arguments_source` and
 `mixed_unit_crash_requirements_source` in `checked-trees-to-lowered-psi`.
 
-The loose-source probe `mbx run -p omega -- --check --output-only
+The loose-source probe `mbx run -p omega -- --check
 tests/omega/pass/operators/crash_routes/main.omg` exercises discharge and a
 private helper's surviving route. Terminal/native production, checked and
 build-time execution, and package review/policy projection still reject selected

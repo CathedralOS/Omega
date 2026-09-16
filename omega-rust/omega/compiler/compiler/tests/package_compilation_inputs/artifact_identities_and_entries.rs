@@ -2,10 +2,9 @@ use super::{TempTree, identity};
 use crate::fixtures;
 use checked_interpreter::InterpretOptions;
 use compiler::{
-    ArtifactEmissionPolicy, CheckedCompileRequest, CompileOptions, CompileRequest,
-    RequestedCompileProduct, RetainedNativeRealizationRequest, TargetCompileConfiguration, compile,
-    compile_to_checked, realize_retained_native_artifact,
-    retained_terminal_report_from_checked_package,
+    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
+    RetainedNativeRealizationRequest, TargetCompileConfiguration, compile, compile_to_checked,
+    realize_retained_native_artifact, retained_terminal_report_from_checked_package,
 };
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
@@ -41,8 +40,7 @@ fn failing_sibling_does_not_change_successful_package_artifact_identity() {
         target_name: None,
     })
     .with_package_sources(sources)
-    .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    .with_requested_product(RequestedCompileProduct::NativeArtifact);
     let configuration_for_target = |profile: target::TargetProfile| {
         TargetCompileConfiguration::new(profile)
             .with_build_dir(output.0.join(profile.target_name()))

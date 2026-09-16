@@ -69,18 +69,31 @@ pub const TYPED_TREES_TO_CHECKED_TREES: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-use crate::PhaseTiming;
 use crate::allocations::AllocationDelta;
-use crate::allocations::snapshot as allocation_snapshot;
 use diagnostics::Diagnostic;
 use std::time::Instant;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhaseTiming {
+    pub phase: String,
+    pub microseconds: u128,
+    pub allocations: AllocationDelta,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CompileTimings {
+    enabled: bool,
     phases: Vec<PhaseTiming>,
 }
 
 impl CompileTimings {
+    pub fn enabled() -> Self {
+        Self {
+            enabled: true,
+            phases: Vec::new(),
+        }
+    }
+
     pub fn phases(&self) -> &[PhaseTiming] {
         &self.phases
     }
@@ -98,13 +111,14 @@ impl CompileTimings {
         stage: StageMeta,
         work: impl FnOnce() -> Result<T, E>,
     ) -> Result<T, E> {
-        let allocation_start = allocation_snapshot();
+        if !self.enabled {
+            return work();
+        }
         let time_start = Instant::now();
         let result = work();
         let microseconds = time_start.elapsed().as_micros();
-        let allocations = allocation_snapshot().delta_since(allocation_start);
 
-        self.add_completed(stage, microseconds, allocations);
+        self.add_completed(stage, microseconds, AllocationDelta::default());
 
         result
     }
@@ -115,6 +129,9 @@ impl CompileTimings {
         microseconds: u128,
         allocations: AllocationDelta,
     ) {
+        if !self.enabled {
+            return;
+        }
         let phase = stage.label();
         if let Some(existing) = self.phases.iter_mut().find(|timing| timing.phase == phase) {
             existing.microseconds = existing.microseconds.saturating_add(microseconds);
@@ -151,7 +168,7 @@ mod tests {
 
     #[test]
     fn repeated_phase_measurements_aggregate_without_reordering() {
-        let mut timings = CompileTimings::default();
+        let mut timings = CompileTimings::enabled();
         timings.add_completed(
             TOKENS_TO_SYNTAX_TREES,
             7,
@@ -190,12 +207,23 @@ mod tests {
 
     #[test]
     fn generic_error_measurement_preserves_the_exact_error() {
-        let mut timings = CompileTimings::default();
+        let mut timings = CompileTimings::enabled();
         let result: Result<(), &'static str> =
             timings.record_result(TOKENS_TO_SYNTAX_TREES, || Err("retained base"));
 
         assert_eq!(result, Err("retained base"));
         assert_eq!(timings.phases().len(), 1);
         assert_eq!(timings.phases()[0].phase, TOKENS_TO_SYNTAX_TREES.label());
+    }
+
+    #[test]
+    fn default_collection_runs_work_without_retaining_measurements() {
+        let mut timings = CompileTimings::default();
+        assert_eq!(
+            timings.record_result(TOKENS_TO_SYNTAX_TREES, || Ok::<_, ()>(7)),
+            Ok(7)
+        );
+        timings.add_completed(SOURCE_FILES_TO_TOKENS, 3, AllocationDelta::default());
+        assert!(timings.phases().is_empty());
     }
 }

@@ -6,8 +6,8 @@
 //! continuation, and completes through exit_group.
 
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, PathBuf,
-    compile_with_auxiliary_artifacts, fs, repo_root, unique_no_output_build_dir,
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, PathBuf, compile, fs,
+    repo_root, unique_no_output_build_dir,
 };
 
 struct HostedProject(PathBuf);
@@ -97,7 +97,7 @@ machine Main::main(&mut self) reaches Console {{
         ),
     )
     .expect("write receiver storage and Bound Console customer");
-    let result = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    let result = compile(CanaryCompileSpec {
         root_path: project.0.join("main.omg"),
         build_dir: Some(project.0.join("build")),
         target_name: Some("linux_x86_64".into()),

@@ -1,6 +1,6 @@
 use super::super::{
-    AcceptedOrdinaryEvidenceError, ArtifactEmissionPolicy, CompilePreparedLocalProjectNativeError,
-    CompileReport, PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
+    AcceptedOrdinaryEvidenceError, CompilePreparedLocalProjectNativeError, CompileReport,
+    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
     compile_prepared_local_project_for_native_with_observation,
 };
 use super::{ReviewOnlyRootPolicyDisposition, TemporaryProject};
@@ -71,14 +71,11 @@ fn accepted_project_policy_needs_no_second_native_approval() {
     let prepared = prepare_local_project_for_target(&project.entry(), target)
         .expect("prepare native candidate")
         .expect("application project");
-    let report = compile_prepared_local_project_for_native(
-        PreparedLocalProjectNativeRequest::new(
-            prepared,
-            project.workspace.join("accepted-native"),
-            target,
-        )
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-    )
+    let report = compile_prepared_local_project_for_native(PreparedLocalProjectNativeRequest::new(
+        prepared,
+        project.workspace.join("accepted-native"),
+        target,
+    ))
     .expect("accepted package policy must not need a second native approval file");
     assert_eq!(
         report.output_kind(),
@@ -131,8 +128,7 @@ machine build(builder: &mut Build) {
             prepared,
             project.workspace.join("observed"),
             target,
-        )
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        ),
         |checked| {
             observations += 1;
             let generated = checked_interpreter::interpret_entry(
@@ -176,10 +172,11 @@ fn native_project(
     let prepared = prepare_local_project_for_target(&project.entry(), target)
         .expect("prepare current source with accepted dependency pins")
         .expect("application project");
-    compile_prepared_local_project_for_native(
-        PreparedLocalProjectNativeRequest::new(prepared, project.workspace.join("native"), target)
-            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-    )
+    compile_prepared_local_project_for_native(PreparedLocalProjectNativeRequest::new(
+        prepared,
+        project.workspace.join("native"),
+        target,
+    ))
 }
 
 #[test]

@@ -67,40 +67,22 @@ be silently discarded. Unsupported Terminal vocabulary rejects without another
 source-shaped path. [Native artifacts](../../backend/artifacts/native-artifact/README.md)
 owns the current physical evidence limits.
 
-`ArtifactEmissionPolicy::OutputOnly` suppresses auxiliary JSON/text/Markdown,
-timing and disassembly, not semantic validation. Wire compatibility, capability
-and trust consistency, owner admissions, lock enforcement and executable-footprint
-checks still run where required by the product. Requested primary output and
-semantically required installation records are independent of this policy.
-An output-only check or retained-artifact compile need not create a build directory.
+Compilation produces the requested product and diagnostics. It does not construct
+or write optional JSON, HTML, text or Markdown debug dumps, disassembly reports,
+or timing files. There is no full/output-only observation policy.
 
-[Checked admission](src/compiler/admission.rs) reconstructs trust obligations,
-settles exact owner admissions, and validates the derived trust report without
-performing observation I/O. Its result borrows the exact checked program.
-[Observation writing](src/pipeline/reporting/checked_observations.rs) consumes that
-validated view: Full mode writes trust first, ordered checked snapshots next and
-timing last; OutputOnly writes nothing. A writer failure does not revise trust
-admission. Checked results
-retain first-seen ordered, repeated-stage-aggregated timing observations, but
-nondeterministic measurements do not enter semantic equality.
+[Checked admission](../../pipeline/assembled-syntax-to-checked-compilation/src/admission/mod.rs)
+still reconstructs trust obligations, settles exact owner admissions and validates
+target/report consistency. Wire compatibility, capability validation, package
+locks and required product evidence remain mandatory. A check or retained-artifact
+compile need not create a build directory; explicit build effects and primary
+publication have their own filesystem requirements.
 
-Timings are written to `00_timings.txt`. Builds do not generate HTML graph or
-report pages; JSON manifests and text reports remain available.
-
-Boundary reporting captures source target/contract/policy rows once and later
-joins the same carrier to checked capability facts; it does not retain a syntax
-clone merely to reconstruct them. Native reporting similarly captures a checked
-surface only for a full native compilation. Suppressed or non-native products
-have canonical absence, not a raw optional report passed through every stage.
-The private same-invocation checked/native observation seam rejoins source count,
-target profile, artifact and production manifest before sealing its non-clone
-carrier. The ordinary report consumes the checked half; report data does not
-grant checked trees native authority.
-
-Production defaults to full observations. Corpus cases may select output-only
-when their assertions concern diagnostics, checked results or primary output;
-report-content tests must retain full mode. This is orchestration policy, not
-language semantics.
+The CLI's `--timings` option prints preparation, compilation and native publication
+durations (where applicable), followed by total elapsed time, on stderr. These are
+command stages, not an exhaustive internal pass profile. A failed command still
+reports its elapsed total. Normal compilation leaves timing collection disabled
+and does not install an allocation-counting global allocator.
 
 Canonical source rows append directly into the retained production manifest;
 report assembly does not build a second inventory of individually allocated

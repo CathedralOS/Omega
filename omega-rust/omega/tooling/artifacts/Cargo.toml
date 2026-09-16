@@ -8,9 +8,6 @@ version.workspace = true
 name = "artifacts"
 path = "src/lib.rs"
 
-[features]
-external-root-report = ["dep:external-roots"]
-
 [dependencies]
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
@@ -19,7 +16,6 @@ diagnostics = { path = "../../../psi/foundation/diagnostics" }
 calling-conventions = { path = "../../representations/calling-conventions" }
 effects = { path = "../../representations/effects" }
 target = { path = "../../representations/target" }
-external-roots = { path = "../../backend/runtime/external-roots", optional = true }
 
 [dev-dependencies]
 executable-installation = { path = "../../backend/runtime/executable-installation" }
@@ -27,4 +23,3 @@ external-roots = { path = "../../backend/runtime/external-roots" }
 layout-plans = { path = "../../../psi/foundation/layout-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-serde_json = "1.0"

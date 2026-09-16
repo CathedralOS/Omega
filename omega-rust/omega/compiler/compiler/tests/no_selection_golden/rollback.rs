@@ -1,7 +1,4 @@
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, OptimizationRollback,
-    RequestedCompileProduct,
-};
+use compiler::{CompileOptions, CompileRequest, OptimizationRollback, RequestedCompileProduct};
 use optimization_core::Optimization;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -40,7 +37,6 @@ fn request_for(
         target_name: Some(target.to_owned()),
     })
     .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
     .with_optimization_rollback(
         OptimizationRollback::new([
             Optimization::ControlFlowCleanup,
@@ -159,8 +155,7 @@ fn empty_rollback_request_leaves_no_release_receipt() {
             build_dir: Some(output_dir.clone()),
             target_name: Some("linux_x86_64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("ordinary native compilation must succeed");

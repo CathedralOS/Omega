@@ -1,9 +1,9 @@
 use super::assert_native_exit_code;
 use super::fixture_roster;
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_target_with_auxiliary_artifacts, compile_with_auxiliary_artifacts,
-    fs, hosted_main_program_entry_build, hosted_main_program_entry_build_for, pass_canary,
+    CanaryCompileProduct, CanaryCompileSpec, compile, compile_rooted_canary_for_native_host,
+    compile_rooted_canary_for_target, fs, hosted_main_program_entry_build,
+    hosted_main_program_entry_build_for, pass_canary,
 };
 
 #[test]
@@ -15,7 +15,7 @@ fn compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch64_artif
     ));
     let _ = fs::remove_dir_all(&scratch);
     let output = scratch.join("out");
-    compile_rooted_canary_for_target_with_auxiliary_artifacts(
+    compile_rooted_canary_for_target(
         &canary,
         output.clone(),
         "linux_arm64",
@@ -60,7 +60,7 @@ fn compiler_body_text_literal_append_footprints_reach_artifacts() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body text literal-append target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -96,12 +96,13 @@ fn compiler_body_text_stored_append_footprints_reach_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target_with_auxiliary_artifacts(&canary, output.clone(), target)
-            .unwrap_or_else(|diagnostics| {
+        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+            |diagnostics| {
                 panic!(
                     "compiler-body stored-text appends should compile for {target}: {diagnostics:?}"
                 )
-            });
+            },
+        );
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body stored-text append evidence should be written");
         assert!(
@@ -137,7 +138,7 @@ fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body stored-text suffix target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -186,7 +187,7 @@ fn compiler_body_place_address_footprints_reach_artifacts() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body place-address target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -247,7 +248,7 @@ fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target_with_auxiliary_artifacts(
+        compile_rooted_canary_for_target(
             &canary,
             output.clone(),
             target,
@@ -285,10 +286,11 @@ fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target_with_auxiliary_artifacts(&canary, output.clone(), target)
-            .unwrap_or_else(|diagnostics| {
+        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+            |diagnostics| {
                 panic!("compiler-body string writes should compile for {target}: {diagnostics:?}")
-            });
+            },
+        );
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body string-write footprint evidence should be written");
         assert!(
@@ -311,7 +313,7 @@ fn compiler_body_general_x86_text_assembly_reaches_the_final_artifact() {
     ));
     let _ = fs::remove_dir_all(&scratch);
     let output = scratch.join("out");
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(output.clone()),
         target_name: Some("linux_x86_64".into()),
@@ -363,7 +365,7 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire scalar-append target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -433,7 +435,7 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire text-append target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -505,7 +507,7 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire scalar-slice target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -579,7 +581,7 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
         )
         .expect("write compiler-body wire repeated-scalar target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -656,7 +658,7 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire byte-slice target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -732,7 +734,7 @@ fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire nested-bounds target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -811,7 +813,7 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire repeated-scalar-read target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -884,7 +886,7 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire expected-byte target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -954,7 +956,7 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
         )
         .expect("write compiler-body wire ranged-scalar target");
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -1008,7 +1010,7 @@ fn aarch64_frame_descriptor_ops_with_machine_index_reach_the_final_artifact() {
     ));
     let _ = fs::remove_dir_all(&scratch);
     let output = scratch.join("out");
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(output.clone()),
         target_name: Some("linux_arm64".into()),
@@ -1052,7 +1054,7 @@ fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target_with_auxiliary_artifacts(
+        compile_rooted_canary_for_target(
             &canary,
             output.clone(),
             target,
@@ -1099,7 +1101,7 @@ fn compiler_body_storage_bit_field_write_footprints_reach_x86_and_aarch64_artifa
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body storage-bit-field-write target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -1145,7 +1147,7 @@ fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifact
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body storage-convert-write target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -1191,7 +1193,7 @@ fn compiler_body_machine_indexed_convert_write_footprints_reach_x86_and_aarch64_
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body machine-indexed convert-write target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -1238,7 +1240,7 @@ fn compiler_body_pointee_integer_write_footprints_reach_x86_and_aarch64_artifact
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body pointee integer-write target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -1306,7 +1308,7 @@ machine Main::main(&mut self) reaches Console {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-indexed integer-write target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -1380,7 +1382,7 @@ machine Main::main(&mut self) reaches Console {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body frame-base-indexed integer-write target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -1417,7 +1419,7 @@ fn compiler_body_machine_indexed_integer_write_footprints_reach_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target_with_auxiliary_artifacts(
+        compile_rooted_canary_for_target(
             &canary,
             output.clone(),
             target,
@@ -1483,7 +1485,7 @@ machine Main::main(&mut self) reaches Console {
             hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body double-indexed integer-write target");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(output.clone()),
             target_name: Some(target.into()),
@@ -1526,10 +1528,11 @@ fn runtime_value_guard_footprints_reach_x86_and_aarch64_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target_with_auxiliary_artifacts(&canary, output.clone(), target)
-            .unwrap_or_else(|diagnostics| {
+        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+            |diagnostics| {
                 panic!("runtime-value guard should compile for {target}: {diagnostics:?}")
-            });
+            },
+        );
         let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
             .expect("runtime-value guard abstract operations should be written");
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))

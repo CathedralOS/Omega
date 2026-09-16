@@ -7,7 +7,7 @@
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::InterpretOutcome;
 use compiler::CheckedCompileRequest;
-use compiler::{ArtifactEmissionPolicy, CompileOptions, CompileReport, CompileRequest};
+use compiler::{CompileOptions, CompileReport, CompileRequest};
 use diagnostics::Diagnostic;
 use package_manager::operations::{
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native_with_observation,
@@ -21,7 +21,7 @@ pub(super) struct ProbeCompilation {
 
 pub(super) fn compile(
     mut options: CompileOptions,
-    artifact_policy: ArtifactEmissionPolicy,
+
     interpret: bool,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let build_dir = options.retain_build_dir();
@@ -33,7 +33,6 @@ pub(super) fn compile(
     let admissions = trust_ledger::read_trust_admissions(&options.root_path)?;
     let (report, interpretation) = if let Some(prepared) = prepared {
         let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target)
-            .with_artifact_policy(artifact_policy)
             .with_accepted_trust_admissions(admissions);
         compile_prepared_local_project_for_native_with_observation(request, |checked| {
             interpret.then(|| interpret_checked(checked))
@@ -43,7 +42,6 @@ pub(super) fn compile(
         let report = compiler::compile(
             CompileRequest::new(options.clone())
                 .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
-                .with_artifact_policy(artifact_policy)
                 .with_accepted_trust_admissions(admissions),
         )
         .and_then(compiler::CompileOutcomes::into_single_report)?;

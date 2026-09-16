@@ -146,7 +146,7 @@ fn standalone_probe_preserves_focused_compilation_and_reads_admissions() {
     let fixture = Fixture::new();
     std::fs::remove_file(fixture.path("root/build.omg")).unwrap();
     fixture.write("root/main.omg", "machine main() {}\n");
-    let ordinary = fixture.omega(&["--output-only", "--target", "linux_x86_64", "main.omg"]);
+    let ordinary = fixture.omega(&["--target", "linux_x86_64", "main.omg"]);
     assert_status(&ordinary, 1);
     let output = fixture.omega(&["run", "--target", "linux_x86_64", "main.omg"]);
     assert_status(&output, 200);

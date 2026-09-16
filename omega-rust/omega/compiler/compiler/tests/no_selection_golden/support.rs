@@ -1,7 +1,4 @@
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
-    RetainedNativeArtifact,
-};
+use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, RetainedNativeArtifact};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -68,8 +65,7 @@ pub(super) fn compile_retained_native(target: &str) -> RetainedNativeArtifact {
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.to_owned()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|diagnostics| {

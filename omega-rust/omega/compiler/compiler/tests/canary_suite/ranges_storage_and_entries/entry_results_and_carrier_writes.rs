@@ -2,9 +2,7 @@ use super::assert_native_exit_code;
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile,
-    compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts, fs,
-    hosted_main_program_entry_build_for, pass_canary,
+    compile_rooted_canary_for_native_host, fs, hosted_main_program_entry_build_for, pass_canary,
 };
 
 #[test]
@@ -14,9 +12,8 @@ fn runtime_entry_computed_result_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_ENTRY_RETURN_FIELD_EXIT);
     let build_dir = std::env::temp_dir().join(format!("omega-entry-return-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation =
-        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-            .expect("computed helper return canary should compile");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("computed helper return canary should compile");
     let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
         .expect("computed entry return footprint evidence should be written");
     assert!(

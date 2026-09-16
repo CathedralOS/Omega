@@ -1,6 +1,6 @@
 use super::{
-    ArtifactEmissionPolicy, Command, CompileRequest, CompilerOptions, Path, PathBuf,
-    RequestedCompileProduct, fs, pass_canary,
+    Command, CompileRequest, CompilerOptions, Path, PathBuf, RequestedCompileProduct, fs,
+    pass_canary,
 };
 use terminal_interpreter::TerminalStructuralInputs;
 #[path = "../fixture_rosters/portable_terminal_reload.rs"]
@@ -66,8 +66,7 @@ fn produce_portable_terminal_product() {
             build_dir: artifact_path.parent().map(Path::to_path_buf),
             target_name: Some("linux_x86_64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("first invocation must produce standalone Terminal Psi");

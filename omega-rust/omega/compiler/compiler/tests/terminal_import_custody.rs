@@ -1,6 +1,6 @@
 use compiler::{
-    ArtifactEmissionPolicy, CheckedCompileRequest, CompileOptions, CompileRequest,
-    RequestedCompileProduct, compile, compile_to_checked,
+    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+    compile_to_checked,
 };
 use effects::provider_plan::ProviderBinding;
 use std::fs;
@@ -72,7 +72,6 @@ machine Main::main(&mut self) {}
             target_name: Some("windows_x86_64".to_owned()),
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
     }
 }
 
@@ -242,8 +241,7 @@ fn compile_called_leaf_with_policy(
         build_dir: Some(fixture.root.join("build")),
         target_name: Some("windows_x86_64".to_owned()),
     })
-    .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    .with_requested_product(RequestedCompileProduct::NativeArtifact);
     if let Some(policy) = terminal_authority_policy {
         request = request.with_terminal_authority_policy(policy);
     }
@@ -510,8 +508,7 @@ fn uncalled_evaluated_import_compiles_with_or_without_policy_row() {
             build_dir: Some(fixture.root.join("build-native")),
             target_name: Some("windows_x86_64".to_owned()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+        .with_requested_product(RequestedCompileProduct::NativeArtifact);
         if with_policy {
             request = request.with_terminal_authority_policy(fixture_foreign_policy(
                 &fixture.main,

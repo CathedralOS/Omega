@@ -1,5 +1,5 @@
 //! Process-wide allocation instrumentation for compiler phase reports.
-//! The `omega` binary installs the wrapper; this reporting owner supplies both
+//! Explicit measurement hosts may install the wrapper; this owner supplies both
 //! its counters and the snapshot/delta vocabulary consumed by phase timing.
 //!
 //! Four `AtomicU64` statics that only ever go up, and `Ordering::Relaxed` on
@@ -24,8 +24,7 @@
 //! the honest answer there is negative.
 //!
 //! @Robustness: none of this counts anything unless a binary installs the
-//! wrapper. `omega/src/main.rs` does, with `#[global_allocator] static
-//! GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();`. Under a
+//! wrapper. The normal `omega` binary does not install it. Under a
 //! test binary, a bench harness, or any other host that does not use the wrapper,
 //! every snapshot reads zero
 //! and the phase report shows zero bytes allocated — which reads as a

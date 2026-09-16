@@ -193,13 +193,9 @@ writer remain separate dependencies.
 ## Read the evidence at the boundary reached
 
 Capture the command's exit and diagnostic first. Package preparation/review can
-fail before checked phase reports are emitted. Once checked observation emission
-runs, inspect `00_timings.txt`, `05_machine_contracts.json`,
-`05_capability_manifest.json`, and `05_executable_tcb_manifest.json` in the chosen
-build directory. See [`checked_observations.rs`](../../../../omega-rust/omega/compiler/compiler/src/pipeline/reporting/checked_observations.rs)
-and [`artifacts.rs`](../../../../omega-rust/omega/compiler/compiler/src/pipeline/artifacts.rs)
-for the actual producers. Do not infer a passed stage from an old file or assume
-every numbered report mentioned elsewhere is produced on this route.
+fail before source checking. Add `--timings` to report command-stage durations and
+total elapsed time on stderr. Builds do not emit debug manifests or timing files;
+do not infer progress from old files in a build directory.
 
 After a change, report the old and new first failure under the same outer
 command. An unchanged failure with a passing helper test is dependency progress;

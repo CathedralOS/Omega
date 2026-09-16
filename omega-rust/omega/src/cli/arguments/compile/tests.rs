@@ -15,6 +15,7 @@ fn compilation_defaults_online_and_preserves_offline_in_either_order() {
             let parsed = parse_arguments(arguments.iter().map(OsString::from)).unwrap();
             assert_eq!(parsed.offline, offline_position.is_some());
             assert_eq!(parsed.check_only, check);
+            assert!(!parsed.timings);
             assert_eq!(parsed.root_path, PathBuf::from("main.omg"));
         }
     }
@@ -26,7 +27,7 @@ fn offline_combines_with_existing_compilation_options() {
         [
             "--offline",
             "--accept-admissions",
-            "--output-only",
+            "--timings",
             "--build-dir",
             "build directory",
             "--target",
@@ -41,7 +42,7 @@ fn offline_combines_with_existing_compilation_options() {
     .unwrap();
     assert!(parsed.offline);
     assert!(parsed.accept_admissions);
-    assert!(parsed.output_only);
+    assert!(parsed.timings);
     assert_eq!(parsed.build_dir, Some(PathBuf::from("build directory")));
     assert_eq!(parsed.target_name.as_deref(), Some("linux_x64"));
     assert!(!parsed.optimization_rollback.is_empty());
@@ -51,6 +52,10 @@ fn offline_combines_with_existing_compilation_options() {
 #[test]
 fn compilation_rejects_duplicate_offline_and_missing_root() {
     for (arguments, expected) in [
+        (
+            vec!["--timings", "main.omg", "--timings"],
+            "duplicate --timings",
+        ),
         (
             vec!["--offline", "main.omg", "--offline"],
             "duplicate --offline",
