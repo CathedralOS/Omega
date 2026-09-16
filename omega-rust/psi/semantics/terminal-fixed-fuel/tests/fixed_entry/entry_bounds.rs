@@ -28,7 +28,9 @@ use terminal_psi::{
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
     Terminator, ValueDeclaration,
 };
-use terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
+use terminal_verifier::{
+    ObligationEvidence, ProofBundle, reconstruct_operation_obligations, verify_module,
+};
 
 #[test]
 fn straight_line_entry_has_an_exact_recomputable_bound() {
@@ -610,12 +612,25 @@ fn contextual_scalar_cleanup_proof_metadata_adds_zero_fixed_fuel() {
             .collect(),
     };
 
+    // A cleanup requirement obligation is discharged against the return edge's
+    // live observation set, not the caller's permanent assumption list: the
+    // verifier treats owned-field entry requirements as validity-scoped
+    // observations (terminal-verifier README, "Owned/mutable-field entry
+    // requirements enter the validity-scoped observation set"), so the caller
+    // premise for an owned root is absent from the `Assumption` roster and is
+    // cited as the `SemanticAxiom` that the reconstructed cleanup question
+    // still observes at the edge. The goals below name each obligation's
+    // receiver-substituted proposition explicitly so the certificates prove the
+    // exact reconstructed question rather than whatever the verifier emits.
     let goals = [
         (obligation_id(3), place_id(901), first),
         (obligation_id(4), place_id(901), second),
         (obligation_id(1), place_id(900), first),
         (obligation_id(2), place_id(900), second),
     ];
+    let reconstructed =
+        reconstruct_operation_obligations(&module).expect("contextual scalar cleanup reconstructs");
+    assert_eq!(reconstructed.len(), goals.len());
     let mut evidence = goals
         .into_iter()
         .enumerate()
@@ -624,19 +639,23 @@ fn contextual_scalar_cleanup_proof_metadata_adds_zero_fixed_fuel() {
                 ScalarTerm::boolean(true),
                 ScalarTerm::boolean_field(root, field),
             );
+            let site = reconstructed
+                .iter()
+                .find(|site| site.obligation.id == obligation)
+                .expect("cleanup obligation is reconstructed");
+            assert_eq!(site.obligation.proposition, conclusion);
             ObligationEvidence {
                 obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                     identity: EvidenceIdentity::new(index as u64 + 1).expect("certificate"),
                     proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
-                        rule: ProofRule::Assumption {
-                            index: module.machines[0]
-                                .contract
-                                .requires
+                        rule: ProofRule::SemanticAxiom {
+                            index: site
+                                .semantic_axioms
                                 .iter()
-                                .position(|requirement| requirement == &conclusion)
-                                .expect("cleanup goal is a caller premise"),
+                                .position(|axiom| axiom == &conclusion)
+                                .expect("cleanup goal is a live owned-field observation"),
                         },
                         conclusion,
                     },

@@ -44,13 +44,6 @@ declarations; x86 FMA provider transport is unimplemented on this host.
 `function_reporting` tests fail with
 `Selection(Legalization(SourceCustodyMismatch))` before the physical gate.
 
-## terminal-fixed-fuel
-
-`mbx nextest run -p terminal-fixed-fuel` — 38/39 pass;
-`fixed_entry::contextual_scalar_cleanup_proof_metadata_adds_zero_fixed_fuel`
-fails with `RejectedEvidence { obligation: ObligationId(3), error:
-Certificate(UnknownAssumption(2)) }`.
-
 ## Host note (macOS)
 
 `rust-objcopy` emits `dyld: Library not loaded: @rpath/libLLVM.dylib` (SIGABRT)
