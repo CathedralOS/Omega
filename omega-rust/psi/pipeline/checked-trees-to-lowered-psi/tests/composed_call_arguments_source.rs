@@ -416,11 +416,13 @@ fn linear_claim_stays_live_until_selected_computed_boundary_call_succeeds() {
 
 #[test]
 fn nominal_boundary_leaf_calls_keep_authored_callable_identity() {
+    // Nominal unit callbacks require closed execution selections, so the
+    // entry invokes the boundary explicitly instead of binding an open parameter.
     let (source, state_count) = arithmetic_source(0);
-    let source = source
-        .replace("Sink::finish(", "SinkParam(")
-        .replace("machine Main::main(first: bool)",
-            "machine Main::main<machine SinkParam>(first: bool)\nwhere machine SinkParam satisfies Sink::finish;");
+    let source = source.replace(
+        "machine Main::main(first: bool) reaches Sink {",
+        "machine Main::main(first: bool) reaches Sink invokes Sink; {",
+    );
     let checked = checked(&source);
     let artifact = encoded(&checked, state_count);
     for selected in [false, true] {
@@ -438,70 +440,19 @@ fn nominal_boundary_leaf_calls_keep_authored_callable_identity() {
             vec![expected.map(|value| unsigned(16, value)).to_vec()]
         );
     }
-    for (handle, call) in checked.facts.flow.control.calls.iter() {
-        let Some((_, signature)) = checked
-            .typed
-            .machine_parameter_signature(call.target_symbol)
-        else {
-            continue;
-        };
-        assert_ne!(call.target_symbol, signature.symbol);
-        let mut changed = checked.clone();
-        changed
-            .facts
-            .flow
-            .control
-            .calls
-            .get_mut(handle)
-            .target_symbol = signature.symbol;
-        assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
-            "flow target must retain the callable parameter, not just its requirement"
-        );
-    }
-    let (state_handle, state) = checked
-        .facts
-        .flow
-        .control
-        .states
-        .iter()
-        .filter(|(_, state)| !state.calls.is_empty())
-        .max_by_key(|(_, state)| state.calls.start().arena_index() + state.calls.count())
-        .unwrap();
-    let call = checked
-        .facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
-        .iter()
-        .find(|call| call.call_ordinal == 0)
-        .unwrap();
-    let (_, signature) = checked
-        .typed
-        .machine_parameter_signature(call.target_symbol)
-        .unwrap();
-    let mut duplicate = call.clone();
-    duplicate.target_symbol = signature.symbol;
-    let mut changed = checked.clone();
-    let mut calls = state.calls;
-    changed
-        .facts
-        .flow
-        .control
-        .calls
-        .append_to_span(&mut calls, duplicate);
-    changed
-        .facts
-        .flow
-        .control
-        .states
-        .get_mut(state_handle)
-        .calls = calls;
-    assert!(
-        checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
-        "same-coordinate call duplicates reject even when targets differ"
+    // The open nominal form of the same entry does not publish: nominal unit
+    // callbacks require closed execution selections.
+    let (open, _) = arithmetic_source(0);
+    let open = open.replace("Sink::finish(", "SinkParam(").replace(
+        "machine Main::main(first: bool)",
+        "machine Main::main<machine SinkParam>(first: bool)
+where machine SinkParam satisfies Sink::finish;",
     );
+    assert!(matches!(
+        checked_trees_to_lowered_psi::lower_machine(&self::checked(&open), "Main::main"),
+        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
+            if machine == "Main::main"
+    ));
 }
 
 #[test]

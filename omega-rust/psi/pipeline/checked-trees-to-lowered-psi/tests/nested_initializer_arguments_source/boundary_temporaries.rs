@@ -3,7 +3,7 @@ use super::later_results::encoded_locals;
 use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalEffect, TerminalEffectHandler,
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
-    checked, decode_module, decode_proof_bundle, main_machine, unsigned,
+    checked, decode_module, decode_proof_bundle, invoking, main_machine, unsigned,
 };
 use std::collections::BTreeSet;
 use terminal_fuel::TerminalFuelMeter;
@@ -163,8 +163,7 @@ fn boundary_temporary_schedule_preserves_prefix_result_slots_ids_and_residual_cl
             source = source.replace("Factory::create(", "Maker::create(");
             source.push_str("pub data Maker {} boundary machine Maker::create(first: u16, second: u16) -> Token reaches Factory ensures true;");
         } else if producer == "nominal" {
-            source = source.replace("machine Main::main()", "machine Main::main<machine Create>() where machine Create satisfies Factory::create;")
-                .replace("Factory::create(", "Create(");
+            source = invoking(&source, "Factory");
         }
         let checked = checked(&source);
         let artifact = encoded_locals(&checked, &["prefix", "first", "spare", "measured"]);
@@ -494,52 +493,50 @@ fn boundary_temporary_custody_rejects_substitution_reordering_and_duplicate_clea
 }
 
 #[test]
-fn nominal_boundary_temporary_keeps_the_raw_callable_occurrence_identity() {
-    let source = source("Sink::consume(Factory::create(prefix, 19u16), prefix);")
+fn open_nominal_boundary_temporaries_require_a_closed_selection() {
+    // Nominal unit callbacks require closed execution selections: the open
+    // generic entry does not publish, while the explicit invocation of the
+    // same boundary runs the same temporary schedule.
+    let completion = "Sink::consume(Factory::create(prefix, 19u16), prefix);";
+    let open = source(completion)
         .replace(
             "machine Main::main()",
             "machine Main::main<machine Create>() where machine Create satisfies Factory::create;",
         )
         .replace("Factory::create(", "Create(");
-    let original = checked(&source);
-    let artifact = encoded_locals(&original, &["prefix", "first", "spare"]);
+    assert!(matches!(
+        checked_trees_to_lowered_psi::lower_machine(&checked(&open), "Main::main"),
+        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
+            if machine == "Main::main"
+    ));
+    let explicit = checked(&invoking(&source(completion), "Factory"));
+    let artifact = encoded_locals(&explicit, &["prefix", "first", "spare"]);
     assert_completion(
         &artifact,
         &[vec![5, 7], vec![11, 13], vec![5, 19], vec![5]],
         &[700, 701, 702],
         &[702],
     );
-    let machine = main_machine(&original);
-    let (handle, occurrence) = original
+    let machine = main_machine(&explicit);
+    let (handle, occurrence) = explicit
         .facts
         .flow
         .control
         .calls
         .iter()
-        .find(|(_, occurrence)| {
-            occurrence.statement_index == 3
-                && occurrence.call_ordinal == 1
-                && original
-                    .typed
-                    .machine_parameter_signature(occurrence.target_symbol)
-                    .is_some_and(|(owner, _)| owner.symbol == machine.symbol)
-        })
+        .find(|(_, occurrence)| occurrence.statement_index == 3 && occurrence.call_ordinal == 1)
         .unwrap();
-    let (_, requirement) = original
-        .typed
-        .machine_parameter_signature(occurrence.target_symbol)
-        .unwrap();
-    assert_ne!(occurrence.target_symbol, requirement.symbol);
-    let mut changed = original.clone();
+    let requirement = occurrence.target_symbol;
+    let mut changed = explicit.clone();
     changed
         .facts
         .flow
         .control
         .calls
         .get_mut(handle)
-        .target_symbol = requirement.symbol;
+        .target_symbol = machine.symbol;
     assert!(
         checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
-        "the same resolved signature cannot replace the authored callable parameter"
+        "the checked call occurrence keeps its authored boundary target {requirement:?}"
     );
 }

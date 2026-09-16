@@ -4,6 +4,7 @@ use super::{
     ServiceTerminalAuthorityPermission, TargetProfile, TempPackage, TerminalAuthorityDisposition,
     compile_review_fixture, fs, package_identity,
 };
+use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 use package_compilation::AcceptedSemanticBinding;
 
@@ -72,6 +73,15 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
                 "accepted_service",
                 owner,
             ));
+            if console {
+                // The build entry imports the service too; build imports select build edges.
+                dependencies.push(PackageDependencyBinding::for_purpose(
+                    package_identity(),
+                    "accepted_service",
+                    owner,
+                    DependencyPurpose::Build,
+                ));
+            }
         } else {
             root.write("main.omg", source);
         }

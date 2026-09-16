@@ -208,8 +208,7 @@ pub data Indexing {}
 pub boundary operator [] Indexing::index<Element, const Count: u64>(
     items: Buffer<Element, Count>,
     index: u64
-) -> Element
-requires index == 0u64;
+) -> Element;
 
 pub data IndexingProvider {}
 pub machine IndexingProvider::index<Value, const Length: u64>(
@@ -217,7 +216,6 @@ pub machine IndexingProvider::index<Value, const Length: u64>(
     index: u64
 ) -> Value
 satisfies Indexing::index
-requires index == 0u64
 { items.value }
 
 pub machine exercise(items: Buffer<i32, 4>, index: u64) -> i32
@@ -267,12 +265,10 @@ fn fixed_token_index_source_custody_checks_both_original_operands() {
     let checked = compile_fixture(
         r#"pub data Buffer { value: i32; }
 pub data Indexing {}
-pub boundary operator [] Indexing::index(items: Buffer, index: u64) -> i32
-requires index == 0u64;
+pub boundary operator [] Indexing::index(items: Buffer, index: u64) -> i32;
 pub data Provider {}
 pub machine Provider::index(items: Buffer, index: u64) -> i32
-satisfies Indexing::index
-requires index == 0u64 { items.value }
+satisfies Indexing::index { items.value }
 pub machine exercise(items: Buffer, index: u64) -> i32
 requires index == 0u64 { items[index] }
 "#,

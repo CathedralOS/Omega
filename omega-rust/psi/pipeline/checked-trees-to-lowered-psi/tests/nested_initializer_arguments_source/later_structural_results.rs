@@ -1,3 +1,4 @@
+use super::invoking;
 use super::later_results::{SCALAR_HELPERS, encoded_locals};
 use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, ObserveResults, StatementNode,
@@ -376,12 +377,7 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
 
 #[test]
 fn later_structural_boundary_calls_retain_nominal_requirement_targets() {
-    let source = multiple_structural_source()
-        .replace("Factory::create(", "Create(")
-        .replace(
-            "machine Main::main()",
-            "machine Main::main<machine Create>() where machine Create satisfies Factory::create;",
-        );
+    let source = invoking(&multiple_structural_source(), "Factory");
     let artifact = encoded_locals(
         &checked(&source),
         &["prefix", "chosen", "first", "between", "second"],

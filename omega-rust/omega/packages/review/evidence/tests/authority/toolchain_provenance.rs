@@ -1,4 +1,5 @@
 use crate::support::*;
+use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 
 #[test]
@@ -633,11 +634,16 @@ pub CopyTokenRepresentation:
             PackageSourceBinding::new(root_identity, "review-fixture", root.0.clone()),
             PackageSourceBinding::new(dependency_identity, "carrier-package", dependency.0.clone()),
         ],
-        vec![PackageDependencyBinding::new(
-            root_identity,
-            "carrier",
-            dependency_identity,
-        )],
+        vec![
+            PackageDependencyBinding::new(root_identity, "carrier", dependency_identity),
+            // The build entry imports the carrier; build imports select build edges.
+            PackageDependencyBinding::for_purpose(
+                root_identity,
+                "carrier",
+                dependency_identity,
+                DependencyPurpose::Build,
+            ),
+        ],
     )
     .expect("root and representation dependency graph should validate");
     let checked = compile_review_fixture(CheckedCompileRequest {

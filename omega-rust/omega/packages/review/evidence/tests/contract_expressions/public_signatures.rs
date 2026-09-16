@@ -189,7 +189,7 @@ fn public_signatures_encode_structured_const_values_without_transport_or_display
         "main.omg",
         r#"pub data UnitIndex [copy] { scale: u64; exponent: i32; }
 data UnitIndices {}
-const UnitIndices::Meters: UnitIndex = UnitIndex { scale: 1, exponent: 0 };
+pub const UnitIndices::Meters: UnitIndex = UnitIndex { scale: 1, exponent: 0 };
 
 pub domain<Carrier, const Index: UnitIndex> Carrier::Quantity<Index>;
 pub domain<Carrier, const Count: u64> Carrier::Counted<Count>;

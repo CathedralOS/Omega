@@ -489,9 +489,10 @@ mod tests {
                 "ConsoleNativeProvider::write_byte",
             ),
             (
-                "no satisfies edge",
+                "satisfies another boundary trait",
                 "i32",
-                "boundary machine ConsoleNativeProvider::write_byte(byte: i32);",
+                "boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+                    satisfies Other::write_byte;",
                 "ConsoleNativeProvider::write_byte",
             ),
             (
@@ -506,10 +507,13 @@ mod tests {
                 "pub boundary trait Console {{
                     machine write_byte(byte: {primitive}) reaches Console;
                 }}
+                pub boundary trait Other {{
+                    machine write_byte(byte: i32) reaches Other;
+                }}
                 pub data ConsoleNativeProvider {{}}
                 pub data OtherProvider {{}}
                 {declaration}
-                machine main() reaches Console {{ {target}(70); }}"
+                machine main() reaches Console + Other {{ {target}(70); }}"
             ));
             let mut evaluator = Evaluator::new_checked(&checked, &[]);
             let realization = checked

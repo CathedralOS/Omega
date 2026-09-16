@@ -249,7 +249,27 @@ fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
         .expect("bounded result boundary should lower");
     let module = &lowered.semantic_module;
 
-    assert!(module.root_service_reach.concrete.is_empty());
+    // The entry declares the services its explicit invocation may reach, and
+    // the invoked requirement keeps its own bounded installation dependency.
+    let service_name = |service: &semantic_vocabulary::ServiceId| {
+        module
+            .services
+            .iter()
+            .find(|declaration| declaration.id == *service)
+            .expect("reached service is declared")
+            .identity
+            .as_str()
+    };
+    let concrete = module
+        .root_service_reach
+        .concrete
+        .iter()
+        .map(service_name)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        concrete,
+        ["InterruptCompletion", "MachineControl", "PortIo"]
+    );
     let [dependency] = module
         .root_service_reach
         .installation_dependencies
@@ -286,7 +306,7 @@ fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
         .expect("bounded result boundary verifies");
 
     let mut missing = module.clone();
-    missing.root_service_reach.installation_dependencies.clear();
+    missing.root_service_reach.concrete.pop();
     assert!(matches!(
         terminal_verifier::validate_module_representation(&missing),
         Err(terminal_verifier::ModuleError::RootConcreteServiceReachMismatch { .. })

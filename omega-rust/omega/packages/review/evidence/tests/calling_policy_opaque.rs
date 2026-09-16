@@ -1,5 +1,6 @@
 mod support;
 
+use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 use package_evidence::project_checked_calling_policy;
 use package_evidence::record::{
@@ -104,6 +105,13 @@ fn fixture(foreign_types: bool) -> (TempPackage, Option<TempPackage>, ReviewFixt
             package_identity(),
             "carrier",
             identity,
+        ));
+        // The build entry imports the carrier too; build imports select build edges.
+        dependency_bindings.push(PackageDependencyBinding::for_purpose(
+            package_identity(),
+            "carrier",
+            identity,
+            DependencyPurpose::Build,
         ));
         "use carrier::types;\n"
     } else {

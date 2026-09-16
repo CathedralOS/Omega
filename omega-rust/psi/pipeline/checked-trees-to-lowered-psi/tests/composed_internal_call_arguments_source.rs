@@ -459,7 +459,7 @@ fn selected_unit_first_argument_crash_wins_over_later_call_and_callee_effects() 
             machine first() -> u8 crashes {first} {{ crash {first}; }}
             machine second() -> u8 crashes {second} {{ crash {second}; }}
             boundary trait Sink {{ machine finish(first: u16, second: u16); }}
-            machine consume(first: u16, second: u16) {{ Sink::finish(first, second); }}
+            machine consume(first: u16, second: u16) reaches Sink {{ Sink::finish(first, second); }}
             data Main {{}}
             machine Main::main(selected: bool) crashes Abort crashes Trap {{
                 transition selected {{ true -> yes() _ -> no() }}
