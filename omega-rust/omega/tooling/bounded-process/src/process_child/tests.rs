@@ -170,3 +170,71 @@ fn dropping_execution_kills_descendants_remaining_in_the_process_group() {
     );
     std::fs::remove_dir_all(test_root).expect("remove cleanup root");
 }
+
+#[cfg(unix)]
+#[test]
+fn terminate_closes_a_group_whose_primary_already_exited() {
+    // `cat` on a null stdin exits at once; the group then holds only its
+    // unreaped zombie, which macOS `killpg` refuses with EPERM rather than
+    // ESRCH. Termination must still close the container and reap it.
+    let executable = Path::new("/bin/cat")
+        .canonicalize()
+        .expect("canonical cat executable");
+    let mut prepared = prepared(&executable);
+    prepared.stdin_null().stdout_null().stderr_null();
+    let mut child = BoundedProcessChild::spawn(prepared).expect("spawn prepared execution");
+    std::thread::sleep(Duration::from_millis(200));
+    child
+        .terminate()
+        .expect("an exited primary is not a live process this caller cannot signal");
+    while child.try_wait().expect("poll prepared execution").is_none() {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let completion = child
+        .finish()
+        .expect("closed and reaped execution completes");
+    assert!(completion.status().success());
+}
+
+#[cfg(unix)]
+#[test]
+fn terminate_still_kills_descendants_after_the_primary_exited() {
+    let test_root = std::env::temp_dir().join(format!(
+        "omega-bounded-exited-primary-cleanup-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&test_root).expect("create cleanup root");
+    let test_root = test_root.canonicalize().expect("canonical cleanup root");
+    let marker = test_root.join("escaped-descendant");
+    let shell = Path::new("/bin/sh")
+        .canonicalize()
+        .expect("canonical shell executable");
+    let mut prepared = prepared(&shell);
+    prepared
+        .args([
+            "-c",
+            "(sleep 1; printf escaped > \"$1\") & exit 0",
+            "omega-bounded-exited-primary",
+        ])
+        .arg(&marker)
+        .stdin_null()
+        .stdout_null()
+        .stderr_null();
+
+    let mut child = BoundedProcessChild::spawn(prepared).expect("spawn cleanup execution");
+    std::thread::sleep(Duration::from_millis(200));
+    // The primary shell has exited; the backgrounded sleeper remains in the
+    // group. The retry after reaping the primary must reach it.
+    child
+        .terminate()
+        .expect("descendants of an exited primary are still terminated");
+    while child.try_wait().expect("poll cleanup execution").is_none() {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    std::thread::sleep(Duration::from_millis(1100));
+    assert!(
+        !marker.exists(),
+        "descendant survived process-group cleanup after the primary exited"
+    );
+    std::fs::remove_dir_all(test_root).expect("remove cleanup root");
+}

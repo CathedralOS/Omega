@@ -147,3 +147,28 @@ fn completed_parent_closes_descendant_held_pipes() {
     assert!(output.status.success());
     assert!(started.elapsed() < Duration::from_secs(1));
 }
+
+#[test]
+fn output_overflow_of_an_already_exited_child_reports_the_overflow() {
+    // The child prints more than the bound and exits before cleanup runs, so
+    // the group holds only its zombie. The overflow, not a cleanup failure,
+    // must be the reported error on every host (macOS refuses `killpg` on a
+    // zombie-only group with EPERM until the zombie is reaped).
+    let error = run_bounded_process(
+        shell("printf 0123456789"),
+        BoundedProcessInput::Null,
+        capture_limits(1, 16, Duration::from_secs(5)),
+        BoundedCaptureBudget::new(64),
+    )
+    .expect_err("output exceeds its bound");
+    assert!(
+        matches!(
+            error,
+            BoundedProcessRunError::OutputOverflow {
+                stream: BoundedProcessStream::Stdout,
+                limit: 1,
+            }
+        ),
+        "unexpected error: {error:?}"
+    );
+}
