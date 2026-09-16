@@ -5,29 +5,29 @@
 //! uses: exact scalar arguments bind to the callee parameters and the returned
 //! scalar commits under the caller's declared result value.
 //!
-//! The fixtures keep `provider_candidates` empty and seed the interpreter's
-//! post-verification runtime state directly — `start_verified_module` computes
-//! the Terminal-Psi identity through canonical encoding, whose representation
-//! validation routes every provider candidate row through the verifier's
-//! result conformance. Scalar-result candidate rows are that gate's missing
-//! arm, not the interpreter's dispatch decision; once verification admits
-//! them, `provider_candidates`/`provider_installation` hold exactly the sets
-//! seeded here.
+//! The fixtures carry the canonical provider-candidate row itself:
+//! `start_verified_module` computes the Terminal-Psi identity through
+//! canonical encoding, whose representation validation routes the row through
+//! the verifier's scalar result conformance, and `provider_candidates` is
+//! then the verified module's own catalog. The installation selection —
+//! artifact-level state an `AdmittedProviderInstallation` carries — is bound
+//! exactly rather than seeded into the execution.
 
 use super::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
     TerminalScalarValue,
 };
-use crate::AcceptTerminalEffects;
+use crate::{AcceptTerminalEffects, AdmittedProviderInstallation, ProviderInstallationSelection};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, IeeeFloatComparisonOperation, IeeeFloatFormat,
-    IeeeFloatValue, MachineId, OperationId, ScalarType, ValueId,
+    IeeeFloatValue, MachineId, OperationId, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, MachineContract, Operation,
-    OperationKind, OperationResult, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration,
+    OperationKind, OperationResult, ProviderCandidateConformance, ProviderRefinement,
+    ProviderSignature, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
 
 const F32: ScalarType = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
@@ -55,6 +55,10 @@ fn operation_id(raw: u64) -> OperationId {
 
 fn value_id(raw: u64) -> ValueId {
     ValueId::new(raw).unwrap()
+}
+
+fn structural_type_id(raw: u64) -> StructuralTypeId {
+    StructuralTypeId::new(raw).unwrap()
 }
 
 fn scalar_declaration(id: u64, scalar_type: ScalarType) -> ValueDeclaration {
@@ -165,6 +169,9 @@ fn scalar_provider_module(
             .map(|(ordinal, _)| scalar_declaration(ordinal as u64 + 11, F32))
             .collect(),
     );
+    // Conformance requires a nominal provider attachment; the empty record
+    // supplies it without specializing any erased field.
+    provider.attachment = Some(structural_type_id(1));
     provider.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
         id: operation_id(20),
@@ -182,7 +189,11 @@ fn scalar_provider_module(
         scalar_block_invariants: Vec::new(),
         vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
         entry: machine_id(1),
-        structural_types: Vec::new(),
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type_id(1),
+            identity: "test::Provider".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        }],
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
@@ -206,7 +217,21 @@ fn scalar_provider_module(
             published_service_ceiling: Vec::new(),
             crash_routes: Vec::new(),
         }],
-        provider_candidates: Vec::new(),
+        provider_candidates: vec![ProviderCandidateConformance {
+            boundary: boundary_id(1),
+            requirement_identity: "test::combine".into(),
+            provider_identity: "test::Provider".into(),
+            candidate_identity: "test::Provider::combine".into(),
+            candidate: machine_id(2),
+            signature: ProviderSignature {
+                parameters: Vec::new(),
+            },
+            refinement: ProviderRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        }],
         float_meaning_projections: Vec::new(),
         float_meaning_equalities: Vec::new(),
         proposition_declarations: Vec::new(),
@@ -258,13 +283,27 @@ fn boolean_compare_module() -> TerminalModule {
     )
 }
 
-/// Seed the exact runtime sets `start_verified_module` derives from the
-/// verified provider rows and the admitted installation.
-fn install_scalar_provider(execution: &mut TerminalExecution) {
-    execution.provider_candidates.insert(boundary_id(1));
-    execution
-        .provider_installation
-        .insert(boundary_id(1), machine_id(2));
+/// Encode the module into its canonical artifact sections and admit the
+/// provider selection through `admit_provider_installation_from_artifact`:
+/// the scalar row must survive decode-side representation validation and
+/// verification before the installation can bind.
+fn scalar_provider_installation(module: &TerminalModule) -> AdmittedProviderInstallation {
+    let semantic =
+        terminal_codec::encode_module(module).expect("verified scalar provider module encodes");
+    let proof =
+        terminal_codec::encode_proof_section(module, &terminal_verifier::ProofBundle::default())
+            .expect("proof section seals");
+    super::admit_provider_installation_from_artifact(
+        &semantic,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+        &[ProviderInstallationSelection {
+            boundary: boundary_id(1),
+            provider_identity: "test::Provider".into(),
+            candidate: machine_id(2),
+        }],
+    )
+    .expect("scalar provider row admits from the artifact")
 }
 
 fn run_to_completion(
@@ -287,17 +326,18 @@ fn run_to_completion(
 #[test]
 fn installed_scalar_provider_executes_its_machine_and_commits_the_float_result() {
     let module = float_fma_module();
-    // The boundary/scalar-call fixture itself is a valid verified module; only
-    // the scalar provider candidate row cannot yet be admitted or encoded.
+    // The scalar provider candidate row admits through the same verification
+    // every validation policy and the codec representation check share.
     terminal_verifier::verify_module(
         &module,
         &terminal_verifier::ProofBundle::default(),
         &proof_admission::AdmissionProfile::default(),
     )
-    .expect("scalar boundary fixture verifies");
-    let mut execution = TerminalExecution::start_verified_module(module, &[], &[], &[], &[], None)
-        .expect("scalar provider module starts");
-    install_scalar_provider(&mut execution);
+    .expect("scalar provider fixture verifies");
+    let installation = scalar_provider_installation(&module);
+    let execution =
+        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], Some(&installation))
+            .expect("scalar provider module starts");
     let (execution, result) = run_to_completion(execution);
     // round_nearest_even(2.0 * 3.0 + 4.0) = 10.0f32.
     assert_eq!(
@@ -318,10 +358,11 @@ fn installed_scalar_provider_executes_a_boolean_result() {
         &terminal_verifier::ProofBundle::default(),
         &proof_admission::AdmissionProfile::default(),
     )
-    .expect("scalar boundary fixture verifies");
-    let mut execution = TerminalExecution::start_verified_module(module, &[], &[], &[], &[], None)
-        .expect("scalar provider module starts");
-    install_scalar_provider(&mut execution);
+    .expect("scalar provider fixture verifies");
+    let installation = scalar_provider_installation(&module);
+    let execution =
+        TerminalExecution::start_verified_module(module, &[], &[], &[], &[], Some(&installation))
+            .expect("scalar provider module starts");
     let (execution, result) = run_to_completion(execution);
     assert_eq!(
         result,
@@ -332,10 +373,11 @@ fn installed_scalar_provider_executes_a_boolean_result() {
 
 #[test]
 fn scalar_provider_candidate_without_installation_still_rejects() {
+    // The verified catalog row alone is not an installation: dispatch must
+    // still find the boundary's selected candidate.
     let mut execution =
         TerminalExecution::start_verified_module(float_fma_module(), &[], &[], &[], &[], None)
             .unwrap();
-    execution.provider_candidates.insert(boundary_id(1));
     assert!(matches!(
         execution.resume(
             &mut TerminalFuelMeter::unbounded(),
@@ -348,11 +390,11 @@ fn scalar_provider_candidate_without_installation_still_rejects() {
 }
 
 #[test]
-fn scalar_provider_result_type_drift_rejects_at_dispatch() {
-    // An internally consistent F64 provider installed on an F32 boundary:
-    // scalar arguments still bind, but the callee's declared result type must
-    // equal the operation's declared result type before the frame transfers.
-    let module = scalar_provider_module(
+fn scalar_provider_result_type_drift_rejects_at_verification_and_dispatch() {
+    // An internally consistent F64 provider selected on an F32 boundary: the
+    // verifier's provider-result conformance is the first fence — the drifted
+    // row cannot enter the verified catalog.
+    let mut module = scalar_provider_module(
         &[
             IeeeFloatValue::Binary32(0x4000_0000), // 2.0
             IeeeFloatValue::Binary32(0x4040_0000), // 3.0
@@ -364,9 +406,27 @@ fn scalar_provider_result_type_drift_rejects_at_dispatch() {
             value: IeeeFloatValue::Binary64(0x3ff0_0000_0000_0000),
         },
     );
+    assert!(matches!(
+        terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        ),
+        Err(terminal_verifier::VerificationError::Module(
+            terminal_verifier::ModuleError::InvalidProviderCandidate { .. }
+        ))
+    ));
+    // If a foreign or stale installation still names the drifted machine,
+    // dispatch keeps its own defense: scalar arguments bind, but the callee's
+    // declared result type must equal the operation's before the frame
+    // transfers.
+    module.provider_candidates.clear();
     let mut execution =
         TerminalExecution::start_verified_module(module, &[], &[], &[], &[], None).unwrap();
-    install_scalar_provider(&mut execution);
+    execution.provider_candidates.insert(boundary_id(1));
+    execution
+        .provider_installation
+        .insert(boundary_id(1), machine_id(2));
     assert!(matches!(
         execution.resume(
             &mut TerminalFuelMeter::unbounded(),
