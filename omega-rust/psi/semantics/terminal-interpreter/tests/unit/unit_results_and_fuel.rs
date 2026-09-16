@@ -14,12 +14,12 @@ use semantic_vocabulary::{
 };
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
     TerminalScalarCaseResult, TerminalScalarCaseValue, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured,
-    interpret_terminal_artifact_with_structural_primitive_values_measured,
 };
 use terminal_psi::{
     Block, EntryClaim, Operation, OperationKind, OperationResult, StructuralAccess,
@@ -33,9 +33,15 @@ use terminal_verifier::{ModuleError, ProofBundle, VerificationError, verify_modu
 #[test]
 fn unit_artifact_interprets_as_a_value_less_normal_result() {
     let (semantic, proof) = artifact_sections();
-    let measured =
-        interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("unit artifact should interpret");
+    let measured = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .expect("unit artifact should interpret");
 
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), 1);
@@ -80,6 +86,8 @@ fn nearest_ieee_fma_executes_one_rounding_for_both_interchange_formats() {
             &proof,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified nearest-FMA executes");
 
@@ -142,9 +150,15 @@ fn payloadless_case_construction_returns_exact_case_and_costs_one_operation() {
     let semantic = encode_module(&module).expect("payloadless case semantics encode");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let measured =
-        interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("verified payloadless case executes");
+    let measured = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .expect("verified payloadless case executes");
 
     assert_eq!(
         measured.value(),
@@ -173,13 +187,20 @@ fn payloadless_structural_call_returns_exact_case_in_four_resumable_units() {
     let semantic = encode_module(&module).expect("payloadless call semantics encode");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("verified payloadless call starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("verified payloadless call starts");
     let mut meter = TerminalFuelMeter::with_allowance(3);
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(edge_id(1)),
@@ -190,7 +211,9 @@ fn payloadless_structural_call_returns_exact_case_in_four_resumable_units() {
     assert_eq!(meter.usage().total_units(), 3);
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
             TerminalScalarCaseResult {
                 value: TerminalScalarCaseValue {
@@ -216,13 +239,20 @@ fn payloadless_structural_call_returns_exact_case_in_four_resumable_units() {
 #[test]
 fn unit_return_fuel_exhaustion_resumes_without_advancing_or_double_charging() {
     let (semantic, proof) = artifact_sections();
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("unit artifact should start");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("unit artifact should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(edge_id(1)),
@@ -234,12 +264,16 @@ fn unit_return_fuel_exhaustion_resumes_without_advancing_or_double_charging() {
 
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 1);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 1);
@@ -283,33 +317,44 @@ fn reference_release_preserves_backing_and_is_atomic_at_fuel_exhaustion() {
             value: IntegerValue::Unsigned(7),
         },
     };
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-            &[],
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 94,
                 structural_type: structural_type_id(91),
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-            &[initial],
-        )
-        .expect("verified reference establishment and release start");
+            primitive_values: &[initial],
+            ..Default::default()
+        },
+    )
+    .expect("verified reference establishment and release start");
     let mut meter = TerminalFuelMeter::with_allowance(1);
-    let exhausted = execution.resume(&mut meter).unwrap();
+    let exhausted = execution
+        .resume(&mut meter, &mut AcceptTerminalEffects)
+        .unwrap();
     assert!(
         matches!(exhausted, TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
         site: FuelChargeSite::Operation(id), ..
     }) if id == operation_id(95))
     );
-    assert_eq!(execution.resume(&mut meter).unwrap(), exhausted);
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        exhausted
+    );
     assert_eq!(execution.structural_primitive_values(), vec![initial]);
     meter.replenish(2).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(execution.structural_primitive_values(), vec![initial]);
@@ -372,30 +417,35 @@ fn mutable_reference_temporarily_lends_shared_read_and_write_only_store() {
         let semantic = encode_module(&module).unwrap();
         let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-        let mut execution =
-            TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-                &semantic,
-                &proof,
-                &AdmissionProfile::default(),
-                &[],
-                &[TerminalStructuralValue {
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
                     opaque_identity: 94,
                     structural_type: structural_type_id(91),
                     qualifications: Vec::new(),
                     path: Vec::new(),
                 }],
-                &[TerminalStructuralPrimitiveValue {
+                primitive_values: &[TerminalStructuralPrimitiveValue {
                     argument_index: 0,
                     value: TerminalScalarValue::Integer {
                         scalar_type: integer,
                         value: IntegerValue::Unsigned(1),
                     },
                 }],
-            )
-            .expect("temporary reference permission attenuation verifies");
+                ..Default::default()
+            },
+        )
+        .expect("temporary reference permission attenuation verifies");
         assert_eq!(
             execution
-                .resume(&mut TerminalFuelMeter::unbounded())
+                .resume(
+                    &mut TerminalFuelMeter::unbounded(),
+                    &mut AcceptTerminalEffects
+                )
                 .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
@@ -428,18 +478,23 @@ fn structural_scalar_field_store_is_visible_through_a_projected_call_without_rep
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[structural],
+        TerminalStructuralInputs {
+            arguments: &[structural],
+            ..Default::default()
+        },
     )
     .expect("verified structural scalar-field call starts");
     let mut meter = TerminalFuelMeter::with_allowance(2);
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Operation(operation_id(3)),
@@ -449,7 +504,9 @@ fn structural_scalar_field_store_is_visible_through_a_projected_call_without_rep
     );
     meter.replenish(4).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
@@ -500,17 +557,22 @@ fn structural_scalar_call_binds_scalar_and_structural_arguments_together() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[structural],
+        TerminalStructuralInputs {
+            arguments: &[structural],
+            ..Default::default()
+        },
     )
     .expect("verified mixed structural-scalar call starts");
     let mut meter = TerminalFuelMeter::with_allowance(8);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
@@ -539,17 +601,22 @@ fn rebound_dynamic_scalar_call_executes_and_composes_its_fixed_fuel_callee() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[structural],
+        TerminalStructuralInputs {
+            arguments: &[structural],
+            ..Default::default()
+        },
     )
     .expect("verified rebound dynamic scalar call starts");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
@@ -574,17 +641,22 @@ fn dynamic_descriptor_parameter_crosses_a_real_interpreter_call() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[structural],
+        TerminalStructuralInputs {
+            arguments: &[structural],
+            ..Default::default()
+        },
     )
     .expect("verified dynamic descriptor parameter call starts");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Integer {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
@@ -615,17 +687,22 @@ fn dynamic_descriptor_parameter_joins_two_exact_predecessors() {
             qualifications: Vec::new(),
             path: Vec::new(),
         };
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(choose_first)],
-            &[structural],
+            TerminalStructuralInputs {
+                arguments: &[structural],
+                ..Default::default()
+            },
         )
         .expect("verified joined dynamic descriptor call starts");
         let mut meter = TerminalFuelMeter::unbounded();
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
                 TerminalScalarValue::Integer {
                     scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
@@ -652,13 +729,15 @@ fn write_only_primitive_storage_requires_an_existing_exact_value_and_never_obser
     };
 
     assert!(matches!(
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+        TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            std::slice::from_ref(&structural),
-            &[],
+            TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&structural),
+                ..Default::default()
+            }
         ),
         Err(
             terminal_interpreter::TerminalArtifactInterpretError::Execution(
@@ -670,17 +749,10 @@ fn write_only_primitive_storage_requires_an_existing_exact_value_and_never_obser
         )
     ));
     assert!(matches!(
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-            &[],
-            std::slice::from_ref(&structural),
-            &[TerminalStructuralPrimitiveValue {
+        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[], TerminalStructuralInputs { arguments: std::slice::from_ref(&structural), primitive_values: &[TerminalStructuralPrimitiveValue {
                 argument_index: 0,
                 value: TerminalScalarValue::Boolean(false),
-            }],
-        ),
+            }], ..Default::default() }),
         Err(
             terminal_interpreter::TerminalArtifactInterpretError::Execution(
                 TerminalInterpretError::StructuralPrimitiveValueType {
@@ -694,19 +766,22 @@ fn write_only_primitive_storage_requires_an_existing_exact_value_and_never_obser
 
     for prior in [1, 250] {
         let mut handler = RecordingHandler::default();
-        let measured = interpret_terminal_artifact_with_structural_primitive_values_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            std::slice::from_ref(&structural),
-            &[TerminalStructuralPrimitiveValue {
-                argument_index: 0,
-                value: TerminalScalarValue::Integer {
-                    scalar_type: integer,
-                    value: IntegerValue::Unsigned(prior),
-                },
-            }],
+            TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&structural),
+                primitive_values: &[TerminalStructuralPrimitiveValue {
+                    argument_index: 0,
+                    value: TerminalScalarValue::Integer {
+                        scalar_type: integer,
+                        value: IntegerValue::Unsigned(prior),
+                    },
+                }],
+                ..Default::default()
+            },
             &mut handler,
         )
         .expect("an existing exact primitive value supplies logical storage");
@@ -843,18 +918,23 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         qualifications: vec![domain],
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("verified structural return starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(edge),
@@ -868,7 +948,9 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
     );
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             terminal_interpreter::TerminalStructuralResult {
                 value: argument,
@@ -893,12 +975,15 @@ fn internal_structural_call_rebinds_claim_and_preserves_value_identity() {
         path: Vec::new(),
     };
 
-    let measured = terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = terminal_interpreter::interpret_terminal_artifact_measured(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
         &mut terminal_interpreter::AcceptTerminalEffects,
     )
     .expect("whole-root structural call should interpret");
@@ -925,18 +1010,21 @@ fn internal_structural_call_resumes_at_each_charge_without_replaying_custody() {
         qualifications: vec![structural_domain_id(1)],
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("verified structural call starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
 
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             site: FuelChargeSite::Operation(operation),
             ..
@@ -950,7 +1038,7 @@ fn internal_structural_call_resumes_at_each_charge_without_replaying_custody() {
 
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             site: FuelChargeSite::Edge(edge),
             ..
@@ -964,7 +1052,7 @@ fn internal_structural_call_resumes_at_each_charge_without_replaying_custody() {
 
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             site: FuelChargeSite::Edge(edge),
             ..
@@ -978,7 +1066,9 @@ fn internal_structural_call_resumes_at_each_charge_without_replaying_custody() {
 
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             terminal_interpreter::TerminalStructuralResult {
                 value: argument,
@@ -1002,12 +1092,15 @@ fn internal_multi_claim_structural_call_resumes_without_replaying_or_swapping_cl
         qualifications: vec![structural_domain_id(1)],
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("verified multi-claim structural call starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -1018,7 +1111,7 @@ fn internal_multi_claim_structural_call_resumes_without_replaying_or_swapping_cl
         (FuelChargeSite::Edge(edge_id(1)), 2),
     ] {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion { site, .. })
                 if site == expected_site
         ));
@@ -1031,7 +1124,9 @@ fn internal_multi_claim_structural_call_resumes_without_replaying_or_swapping_cl
     }
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             terminal_interpreter::TerminalStructuralResult {
                 value: argument,
@@ -1055,24 +1150,34 @@ fn crashing_structural_callee_never_produces_a_caller_result() {
         qualifications: vec![structural_domain_id(1)],
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("verified crashing structural call starts");
     let mut meter = TerminalFuelMeter::unbounded();
 
-    let crashed = execution.resume(&mut meter).unwrap();
+    let crashed = execution
+        .resume(&mut meter, &mut AcceptTerminalEffects)
+        .unwrap();
     assert!(matches!(
         &crashed,
         TerminalExecutionStatus::Crashed(crash)
             if crash.site == terminal_interpreter::TerminalCrashSite::Edge(edge_id(2))
                 && crash.frontier_lower_bound == vec![claim_id(1)]
     ));
-    assert_eq!(execution.resume(&mut meter).unwrap(), crashed);
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        crashed
+    );
     assert_eq!(meter.usage().total_units(), 2);
 }
 
@@ -1088,24 +1193,34 @@ fn crashing_multi_claim_structural_callee_preserves_the_exact_abandonment_fronti
         qualifications: vec![structural_domain_id(1)],
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("verified crashing multi-claim call starts");
     let mut meter = TerminalFuelMeter::unbounded();
 
-    let crashed = execution.resume(&mut meter).unwrap();
+    let crashed = execution
+        .resume(&mut meter, &mut AcceptTerminalEffects)
+        .unwrap();
     assert!(matches!(
         &crashed,
         TerminalExecutionStatus::Crashed(crash)
             if crash.site == terminal_interpreter::TerminalCrashSite::Edge(edge_id(2))
                 && crash.frontier_lower_bound == vec![claim_id(1), claim_id(2)]
     ));
-    assert_eq!(execution.resume(&mut meter).unwrap(), crashed);
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        crashed
+    );
     assert_eq!(meter.usage().total_units(), 2);
 }
 
@@ -1130,23 +1245,30 @@ fn unit_return_performs_affine_discard_only_after_edge_charge() {
     let semantic = encode_module(&module).expect("affine cleanup module encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[structural_value(48)],
+        TerminalStructuralInputs {
+            arguments: &[structural_value(48)],
+            ..Default::default()
+        },
     )
     .expect("verified affine cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
 
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
 }

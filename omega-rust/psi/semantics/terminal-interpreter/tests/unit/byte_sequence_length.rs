@@ -10,6 +10,7 @@ use super::{
     encode_module, encode_proof_section, interpret_terminal_artifact_measured, machine_id,
     operation_id, place_id, structural_type_id, value_id,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn byte_count_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
 }
@@ -95,6 +96,8 @@ fn literal_lengths_are_exact_u64_and_meter_once_across_resume() {
             &proof,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         assert_eq!(measured.value(), expected);
@@ -107,12 +110,20 @@ fn literal_lengths_are_exact_u64_and_meter_once_across_resume() {
                 .units(),
             1
         );
-        let mut execution =
-            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-                .unwrap();
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .unwrap();
         let mut meter = TerminalFuelMeter::with_allowance(0);
         loop {
-            match execution.resume(&mut meter).unwrap() {
+            match execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
                 TerminalExecutionStatus::Complete(result) => {
                     assert_eq!(result, expected);
@@ -210,21 +221,27 @@ fn parameter_length_requires_whole_readable_borrowed_view_and_real_contents() {
     assert_eq!(decode_module(&mutable_bytes).unwrap(), mutable);
     let semantic = encode_module(&base).unwrap();
     let proof = encode_proof_section(&base, &ProofBundle::default()).unwrap();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 1,
-            structural_type: structural_type_id(1),
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: structural_type_id(1),
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .unwrap();
     assert_eq!(
-        execution.resume(&mut TerminalFuelMeter::unbounded()),
+        execution.resume(
+            &mut TerminalFuelMeter::unbounded(),
+            &mut AcceptTerminalEffects
+        ),
         Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
             place_id(1)
         ))
@@ -324,9 +341,14 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
     let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let mut reference = None;
     for incremental in [false, true] {
-        let mut execution =
-            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-                .unwrap();
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .unwrap();
         let mut meter = if incremental {
             TerminalFuelMeter::with_allowance(0)
         } else {
@@ -334,10 +356,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
         };
         let mut handler = RecordingHandler::default();
         loop {
-            match execution
-                .resume_with_effect_handler(&mut meter, &mut handler)
-                .unwrap()
-            {
+            match execution.resume(&mut meter, &mut handler).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
                 TerminalExecutionStatus::Complete(result) => {
                     assert_eq!(result, scalar_count(3));

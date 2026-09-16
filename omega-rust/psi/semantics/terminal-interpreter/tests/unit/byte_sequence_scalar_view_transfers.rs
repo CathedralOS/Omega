@@ -11,6 +11,7 @@ use super::{
     encode_module, encode_proof_section, obligation_id, operation_id, place_id, structural_type_id,
     value_id,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 
 fn borrowed(place: u64) -> StructuralArgument {
     StructuralArgument {
@@ -26,9 +27,14 @@ fn observe(module: &TerminalModule, expected: u128) {
     assert_eq!(decode_module(&semantic).unwrap(), *module);
     let mut reference = None;
     for incremental in [false, true] {
-        let mut execution =
-            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-                .unwrap();
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .unwrap();
         let mut meter = if incremental {
             TerminalFuelMeter::with_allowance(0)
         } else {
@@ -36,10 +42,7 @@ fn observe(module: &TerminalModule, expected: u128) {
         };
         let mut handler = RecordingHandler::default();
         loop {
-            match execution
-                .resume_with_effect_handler(&mut meter, &mut handler)
-                .unwrap()
-            {
+            match execution.resume(&mut meter, &mut handler).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
                 TerminalExecutionStatus::Complete(result) => {
                     assert_eq!(

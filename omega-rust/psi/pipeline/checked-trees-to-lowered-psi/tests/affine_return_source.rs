@@ -7,6 +7,8 @@ use semantic_vocabulary::{
 };
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralResult, TerminalStructuralValue,
@@ -165,19 +167,24 @@ fn assert_identity_execution(
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         scalar_arguments,
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("verified identity artifact starts");
     assert_eq!(execution.live_claim_frontier().count(), 0);
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for _ in 0..2 {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(execution.live_claim_frontier().count(), 0);
@@ -185,7 +192,9 @@ fn assert_identity_execution(
     }
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             TerminalStructuralResult {
                 value: argument,

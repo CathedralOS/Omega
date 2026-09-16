@@ -3,6 +3,8 @@
 use super::{LoweringError, ScalarType, checked_source, lower_machine};
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
 #[test]
 fn initialized_byte_field_runtime_index_replacement_publishes_terminal() {
@@ -253,25 +255,29 @@ fn run_stores(
             }
         })
         .collect::<Vec<_>>();
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &arguments,
-            &[terminal_interpreter::TerminalStructuralValue {
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &arguments,
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
                 opaque_identity: 73,
                 structural_type: entry.structural_parameters[0].structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-        )
-        .unwrap();
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut observed = Vec::<Vec<u8>>::new();
     let mut complete = false;
     for _ in 0..100 {
-        let status = execution.resume(&mut fuel).unwrap();
+        let status = execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .unwrap();
         let bytes = execution
             .structural_byte_sequence_field(73, &path, field)
             .unwrap_or(&[])
@@ -296,7 +302,9 @@ fn run_stores(
                         .to_vec()
                 });
                 assert!(matches!(
-                    execution.resume(&mut fuel).unwrap(),
+                    execution
+                        .resume(&mut fuel, &mut AcceptTerminalEffects)
+                        .unwrap(),
                     terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
                 ));
                 assert_eq!(

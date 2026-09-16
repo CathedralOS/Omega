@@ -3,9 +3,10 @@ use super::{
     Lexer, OperationKind, Proposition, ResolutionRequest, ScalarType, TerminalExecutionResult,
     TerminalFuelSchedule, TerminalScalarValue, TerminalStructuralValue, decode_module,
     decode_proof_bundle, derive_fixed_entry_fuel, encode_module, encode_proof_section,
-    interpret_terminal_artifact_with_effect_handler_measured, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve, validate_fixed_entry_fuel,
+    interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
+    parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 const AFFINE_CAST_AFFINE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -272,12 +273,15 @@ fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
     };
     for enabled in [false, true] {
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
             &scalar_arguments(enabled),
-            &structural_arguments,
+            TerminalStructuralInputs {
+                arguments: &structural_arguments,
+                ..Default::default()
+            },
             &mut handler,
         )
         .expect("affine-cast-affine artifact interprets");

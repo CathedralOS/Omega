@@ -185,6 +185,8 @@ fn verified_integer_control_contract_slice_executes_directly() {
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("artifact-root interpretation decodes and verifies before execution");
     let second = interpret_terminal_artifact_measured(
@@ -192,6 +194,8 @@ fn verified_integer_control_contract_slice_executes_directly() {
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("equal artifact execution reproduces deterministic usage");
     assert_eq!(first, second);
@@ -323,6 +327,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("limited execution starts at the artifact boundary");
     let mut limited = TerminalFuelMeter::with_allowance(2);
@@ -342,6 +347,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("resumable execution starts at the canonical artifact boundary");
     drop(module);
@@ -485,6 +491,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("crash execution starts from its artifact");
     let mut meter = TerminalFuelMeter::unbounded();
@@ -495,7 +502,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
     assert_eq!(meter.usage().total_units(), 1);
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("crash remains terminal"),
         TerminalExecutionStatus::Crashed(expected)
     );

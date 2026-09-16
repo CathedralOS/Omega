@@ -11,6 +11,7 @@ use terminal_codec::{
 };
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarCaseResult,
     TerminalScalarCaseValue,
@@ -98,12 +99,19 @@ fn two_selected_witness_tail_uses_are_ordered_distinct_and_runtime_free() {
             .ceiling_units(),
         4
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("two-witness artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("two-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
-        execution.resume(&mut meter).expect("artifact completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("artifact completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
@@ -226,12 +234,19 @@ fn three_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .ceiling_units(),
         4
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("three-witness artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("three-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
-        execution.resume(&mut meter).expect("artifact completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("artifact completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
@@ -338,12 +353,19 @@ fn four_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .ceiling_units(),
         4
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("four-witness artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("four-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
-        execution.resume(&mut meter).expect("artifact completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("artifact completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
@@ -450,12 +472,19 @@ fn five_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .ceiling_units(),
         4
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("five-witness artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("five-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
-        execution.resume(&mut meter).expect("artifact completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("artifact completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
@@ -578,12 +607,19 @@ fn six_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .ceiling_units(),
         4
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("six-witness artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("six-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
-        execution.resume(&mut meter).expect("artifact completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("artifact completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
@@ -706,12 +742,19 @@ fn seven_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .ceiling_units(),
         4
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("seven-witness artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("seven-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
-        execution.resume(&mut meter).expect("artifact completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("artifact completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
@@ -866,12 +909,19 @@ fn fifteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .ceiling_units(),
         4
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("fifteen-witness artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("fifteen-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
-        execution.resume(&mut meter).expect("artifact completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("artifact completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
@@ -1006,13 +1056,18 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         4
     );
 
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("the guarded caller artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("the guarded caller artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("guarded caller completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
             TerminalScalarCaseResult {

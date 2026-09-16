@@ -6,6 +6,7 @@ use super::{
     TerminalFuelMeter, TerminalInterpretError, TerminalMachineResult, TerminalScalarValue,
     TerminalStructuralValue, Terminator, ValueDeclaration, ValueId, execution, successor,
 };
+use crate::AcceptTerminalEffects;
 use crate::terminal_interpreter::values::StructuralRuntimePlace;
 use crate::terminal_interpreter::values::StructuralScalarRuntimeField;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, StructuralFieldId};
@@ -231,7 +232,9 @@ fn assert_owned_execution(mut execution: TerminalExecution) {
     let cursor = execution.local_structural_identities.cursor();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.structural_values, original);
@@ -239,13 +242,17 @@ fn assert_owned_execution(mut execution: TerminalExecution) {
     assert_eq!(execution.local_structural_identities.cursor(), cursor);
     assert_eq!(execution.structural_scalar_fields, fields);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.local_structural_identities.cursor(), cursor);
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -303,14 +310,18 @@ fn assert_owned_execution(mut execution: TerminalExecution) {
     for (value, expected) in [(3, unsigned(42)), (4, TerminalScalarValue::Boolean(true))] {
         meter.replenish(1).unwrap();
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(execution.values[&ValueId::new(value).unwrap()], expected);
     }
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(unsigned(42)))
     );
     assert!(execution.live_affine_frontier.is_empty());
@@ -712,14 +723,18 @@ fn an_explicit_discard_precedes_rebinding_the_same_destination_place() {
     let frontier = execution.live_affine_frontier.clone();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.structural_values, before);
     assert_eq!(execution.live_affine_frontier, frontier);
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.structural_values[&destination], incoming);
@@ -748,7 +763,10 @@ fn invalid_discard_suffix_cannot_partially_commit_a_valid_prefix() {
         let frontier = execution.live_affine_frontier.clone();
         assert!(
             execution
-                .resume(&mut TerminalFuelMeter::with_allowance(1))
+                .resume(
+                    &mut TerminalFuelMeter::with_allowance(1),
+                    &mut AcceptTerminalEffects
+                )
                 .is_err()
         );
         assert_eq!(execution.structural_values, before);

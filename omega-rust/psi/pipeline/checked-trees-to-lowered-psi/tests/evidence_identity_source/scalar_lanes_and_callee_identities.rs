@@ -10,6 +10,7 @@ use semantic_vocabulary::{IntegerValue, OperationId};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
@@ -407,18 +408,18 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
         "erased proof-output proof metadata adds no runtime fuel"
     );
 
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &bytes,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("runtime proof-output artifact starts");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("execute runtime proof output"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
@@ -522,18 +523,18 @@ fn multi_field_proof_output_is_complete_canonical_and_runtime_erased() {
     derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
         .expect("multi-field proof-only invocation adds no runtime fuel");
 
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &bytes,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("multi-field proof-only proof output requires no runtime argument");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("execute erased proof output"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );

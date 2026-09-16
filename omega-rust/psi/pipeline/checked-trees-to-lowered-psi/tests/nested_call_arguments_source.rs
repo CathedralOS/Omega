@@ -8,10 +8,11 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
-    interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact_measured,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::statement::StatementNode;
@@ -146,12 +147,15 @@ fn execute(
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    interpret_terminal_artifact_with_effect_handler_measured(
+    interpret_terminal_artifact_measured(
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
         arguments,
-        &structural,
+        TerminalStructuralInputs {
+            arguments: &structural,
+            ..Default::default()
+        },
         observer,
     )
     .map(|execution| execution.value())

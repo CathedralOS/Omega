@@ -4,6 +4,8 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
@@ -175,24 +177,29 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
     );
     drop(checked);
     for initial_fuel in [0, 2, 1000] {
-        let mut execution =
-            terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &AdmissionProfile::default(),
-                &[],
-                &[terminal_interpreter::TerminalStructuralValue {
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs {
+                arguments: &[terminal_interpreter::TerminalStructuralValue {
                     opaque_identity: 17,
                     structural_type: receiver_type,
                     qualifications: Vec::new(),
                     path: Vec::new(),
                 }],
-            )
-            .unwrap();
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(initial_fuel);
         let mut completed = false;
         for _ in 0..256 {
-            match execution.resume(&mut fuel).unwrap() {
+            match execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 terminal_interpreter::TerminalExecutionStatus::Complete(result) => {
                     assert_eq!(result, TerminalExecutionResult::Unit);
                     completed = true;
@@ -201,7 +208,9 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
                 terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => {
                     let effects = execution.effects().to_vec();
                     assert!(matches!(
-                        execution.resume(&mut fuel).unwrap(),
+                        execution
+                            .resume(&mut fuel, &mut AcceptTerminalEffects)
+                            .unwrap(),
                         terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
                     ));
                     assert_eq!(execution.effects(), effects);

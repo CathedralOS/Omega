@@ -13,6 +13,7 @@ use super::{
     verify_module, write_only_primitive_call_module,
 };
 use terminal_interpreter::TerminalStructuralByteArrayValue;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_verifier::validate_module;
 
 fn direct_array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegment>) {
@@ -55,7 +56,9 @@ fn direct_primitive_array_paths_round_trip_and_mutate_original_backing() {
         let mut execution = start(&module, &array_path);
         let mut meter = TerminalFuelMeter::with_allowance(2);
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(
@@ -63,7 +66,12 @@ fn direct_primitive_array_paths_round_trip_and_mutate_original_backing() {
             &[11, 7, 255]
         );
         meter = TerminalFuelMeter::with_allowance(20);
-        assert_eq!(execution.resume(&mut meter).unwrap(), expected(7));
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            expected(7)
+        );
         assert_eq!(
             execution.structural_byte_array(700, &array_path).unwrap(),
             &[11, 7, 255]
@@ -99,7 +107,10 @@ fn direct_primitive_array_paths_retain_affine_borrow_and_owned_root_authority() 
         let mut execution = start(&module, &array_path);
         assert_eq!(
             execution
-                .resume(&mut TerminalFuelMeter::unbounded())
+                .resume(
+                    &mut TerminalFuelMeter::unbounded(),
+                    &mut AcceptTerminalEffects
+                )
                 .unwrap(),
             expected(7)
         );
@@ -159,17 +170,20 @@ fn direct_primitive_array_paths_update_constructed_scalar_payload_without_shadow
         *path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(selected)];
         let bytes = encode_module(&module).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), module);
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &bytes,
             &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
-            &[],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         assert_eq!(
             execution
-                .resume(&mut TerminalFuelMeter::unbounded())
+                .resume(
+                    &mut TerminalFuelMeter::unbounded(),
+                    &mut AcceptTerminalEffects
+                )
                 .unwrap(),
             expected(if selected == 0 { 11 } else { 7 })
         );
@@ -329,22 +343,25 @@ fn start(module: &TerminalModule, array_path: &[StructuralPathSegment]) -> Termi
     // Decode and independently verify the real artifact, not private execution state.
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
-    TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
+    TerminalExecution::start_artifact(
         &semantic,
         &encode_proof_section(module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 700,
-            structural_type: module.machines[0].structural_parameters[0].structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
-        &[TerminalStructuralByteArrayValue {
-            argument_index: 0,
-            path: array_path.to_vec(),
-            bytes: vec![11, 128, 255],
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 700,
+                structural_type: module.machines[0].structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            byte_arrays: &[TerminalStructuralByteArrayValue {
+                argument_index: 0,
+                path: array_path.to_vec(),
+                bytes: vec![11, 128, 255],
+            }],
+            ..Default::default()
+        },
     )
     .unwrap()
 }
@@ -366,7 +383,10 @@ fn borrowed_primitive_array_element_store_and_read_share_caller_backing() {
         let mut meter = TerminalFuelMeter::with_allowance(0);
         let mut complete = false;
         for _ in 0..32 {
-            match execution.resume(&mut meter).unwrap() {
+            match execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     let bytes = execution.structural_byte_array(700, &path).unwrap();
                     let committed = meter
@@ -405,7 +425,12 @@ fn borrowed_primitive_array_element_store_and_read_share_caller_backing() {
                 .executions(),
             1
         );
-        assert_eq!(execution.resume(&mut meter).unwrap(), expected(7));
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            expected(7)
+        );
         assert!(
             execution.structural_primitive_values().is_empty(),
             "array storage must not also be a copied primitive input"
@@ -427,7 +452,10 @@ fn borrowed_primitive_array_read_keeps_element_identity() {
     let mut execution = start(&module, &path);
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         expected(255)
     );
@@ -469,7 +497,10 @@ fn nested_array_element_loans_keep_explicit_initialized_backing() {
     let mut execution = start(&module, &path);
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         expected(7)
     );
@@ -651,7 +682,10 @@ fn mutable_array_element_loan_survives_a_structural_result_call() {
     let mut execution = start(&module, &path);
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         expected(7)
     );

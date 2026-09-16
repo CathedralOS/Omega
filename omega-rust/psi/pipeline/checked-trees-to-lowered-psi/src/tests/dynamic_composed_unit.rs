@@ -1,5 +1,6 @@
 //! Fixtures shared by the dynamic composed unit lowering tests.
 
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod direct_dynamic_units;
 mod mutating_realizations_and_effects;
 mod rebound_dynamic_custody;
@@ -782,18 +783,22 @@ fn assert_dynamic_unit_artifact_executes(artifact: &terminal_codec::CanonicalTer
         qualifications: parameter.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            &[argument],
-        )
-        .expect("dynamic Unit artifact starts");
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
+    )
+    .expect("dynamic Unit artifact starts");
     let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
     assert_eq!(
-        execution.resume(&mut meter).expect("dynamic Unit executes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("dynamic Unit executes"),
         terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Unit,
         ),
@@ -853,19 +858,22 @@ fn assert_stored_dynamic_scalar_artifact_executes(
         field,
         value: true,
     };
-    let mut execution = terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
-        &[argument],
-        &[boolean_field],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            boolean_fields: &[boolean_field],
+            ..Default::default()
+        },
     )
     .expect("stored dynamic scalar artifact starts");
     let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("stored dynamic scalar executes"),
         terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Unit,

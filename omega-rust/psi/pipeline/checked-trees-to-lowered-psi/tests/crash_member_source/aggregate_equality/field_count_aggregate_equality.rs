@@ -23,9 +23,10 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
-    TerminalStructuralValue, interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{CrashRouteGuard, OperationKind, StructuralFieldType, StructuralTypeShape};
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -299,12 +300,15 @@ fn two_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
                 path: Vec::new(),
             })
             .collect::<Vec<_>>();
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &arguments,
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
             &mut Accept,
         )
         .expect("verified two-field nested mixed equality remains executable metadata");

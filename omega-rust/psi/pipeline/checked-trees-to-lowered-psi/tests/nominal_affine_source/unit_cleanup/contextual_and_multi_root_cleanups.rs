@@ -10,9 +10,10 @@ use crate::{
     StructuralMultiplicity, StructuralTypeShape, TerminalAffineCleanupAction,
     TerminalExecutionResult, TerminalMachineResult, TerminalStructuralValue, Terminator,
     decode_module, decode_proof_bundle, encode_module, encode_proof_section,
-    interpret_terminal_artifact_with_effect_handler_measured, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve,
+    interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
+    parse_syntax_trees, resolve,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 
 #[test]
 fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
@@ -987,12 +988,15 @@ fn contextual_roots_may_share_one_executable_cleanup_target_and_helper() {
         },
     ];
     let mut handler = AcceptTerminalEffects;
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("contextual executable cleanup interprets from canonical artifact sections");

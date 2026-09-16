@@ -8,6 +8,7 @@ use super::{
     ValueDeclaration, block_id, byte, decode_module, edge_id, encode_module, encode_proof_section,
     interpret_terminal_artifact_measured, module, value_id,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> TerminalModule {
     let mut module = module(dimensions, false, false, leaves);
     let caller = &mut module.machines[0];
@@ -90,6 +91,8 @@ fn selected_array_calls_rejoin_and_resume_without_running_the_skipped_arm() {
                 &proof,
                 &AdmissionProfile::default(),
                 &arguments,
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .expect("selected branch-local arrays execute after independent verification");
             assert_eq!(measured.value(), expected);
@@ -107,18 +110,23 @@ fn selected_array_calls_rejoin_and_resume_without_running_the_skipped_arm() {
                 &proof,
                 &AdmissionProfile::default(),
                 &arguments,
+                TerminalStructuralInputs::default(),
             )
             .unwrap();
             let mut meter = TerminalFuelMeter::with_allowance(0);
             for _ in 0..measured.usage().total_units() {
                 assert!(matches!(
-                    execution.resume(&mut meter).unwrap(),
+                    execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap(),
                     TerminalExecutionStatus::SponsorExhausted(_)
                 ));
                 meter.replenish(1).unwrap();
             }
             assert_eq!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::Complete(expected)
             );
             assert_eq!(meter.usage(), measured.usage());

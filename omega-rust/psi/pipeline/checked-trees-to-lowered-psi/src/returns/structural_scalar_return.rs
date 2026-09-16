@@ -1147,19 +1147,21 @@ mod trait_operator_tests {
                 },
             )
             .collect::<Vec<_>>();
-        let mut execution =
-            terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-                &bytes,
-                &proof_bytes,
-                &proof_admission::AdmissionProfile::default(),
-                &[],
-                &structural_values,
-            )
-            .expect("start structural scalar call");
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            &bytes,
+            &proof_bytes,
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            terminal_interpreter::TerminalStructuralInputs {
+                arguments: &structural_values,
+                ..Default::default()
+            },
+        )
+        .expect("start structural scalar call");
         let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
         assert_eq!(
             execution
-                .resume(&mut meter)
+                .resume(&mut meter, &mut terminal_interpreter::AcceptTerminalEffects)
                 .expect("execute exact operator call"),
             terminal_interpreter::TerminalExecutionStatus::Complete(
                 terminal_interpreter::TerminalExecutionResult::Scalar(

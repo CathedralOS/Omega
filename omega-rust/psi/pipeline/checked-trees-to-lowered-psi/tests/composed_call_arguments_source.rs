@@ -8,6 +8,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
@@ -169,12 +170,15 @@ fn start(artifact: &(Vec<u8>, Vec<u8>), arguments: &[TerminalScalarValue]) -> Te
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    TerminalExecution::start_artifact_with_structural_arguments(
+    TerminalExecution::start_artifact(
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
         arguments,
-        &structural,
+        TerminalStructuralInputs {
+            arguments: &structural,
+            ..Default::default()
+        },
     )
     .unwrap()
 }
@@ -240,10 +244,7 @@ fn selected_leaves_evaluate_nested_operands_across_three_control_shapes() {
                 let mut observer = ObserveCalls::default();
                 assert_eq!(
                     execution
-                        .resume_with_effect_handler(
-                            &mut TerminalFuelMeter::unbounded(),
-                            &mut observer
-                        )
+                        .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
                         .unwrap(),
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
                 );
@@ -298,8 +299,7 @@ fn unselected_leaves_and_short_circuit_operands_do_not_crash() {
                 };
                 let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
                 let mut observer = ObserveCalls::default();
-                let result = execution
-                    .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer);
+                let result = execution.resume(&mut TerminalFuelMeter::unbounded(), &mut observer);
                 if let Some(cause) = cause {
                     assert!(
                         matches!(&result, Ok(TerminalExecutionStatus::Crashed(crash)) if crash.cause == cause),
@@ -356,8 +356,7 @@ fn first_leaf_argument_crash_precedes_later_call_even_under_exact_casts() {
                 } else {
                     terminal_psi::CrashCause::Abort
                 };
-                let result = execution
-                    .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer);
+                let result = execution.resume(&mut TerminalFuelMeter::unbounded(), &mut observer);
                 assert!(
                     matches!(&result, Ok(TerminalExecutionStatus::Crashed(crash)) if crash.cause == expected),
                     "selected={selected}, expected={expected:?}, actual={result:?}"
@@ -393,8 +392,7 @@ fn linear_claim_stays_live_until_selected_computed_boundary_call_succeeds() {
             ..ObserveCalls::default()
         };
         assert!(matches!(
-            execution
-                .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut rejected),
+            execution.resume(&mut TerminalFuelMeter::unbounded(), &mut rejected),
             Err(TerminalInterpretError::EffectRejected { .. })
         ));
         assert_eq!(
@@ -405,7 +403,7 @@ fn linear_claim_stays_live_until_selected_computed_boundary_call_succeeds() {
         let mut accepted = ObserveCalls::default();
         assert_eq!(
             execution
-                .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut accepted)
+                .resume(&mut TerminalFuelMeter::unbounded(), &mut accepted)
                 .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
@@ -430,7 +428,7 @@ fn nominal_boundary_leaf_calls_keep_authored_callable_identity() {
         let mut observer = ObserveCalls::default();
         assert_eq!(
             execution
-                .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+                .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
                 .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );

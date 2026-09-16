@@ -403,6 +403,8 @@ pub(super) fn atomic_establishment_artifact(
             &proof,
             &AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(condition)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         assert_eq!(
@@ -854,6 +856,8 @@ pub(super) fn transition_artifact(
             &proof,
             &AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(condition)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         assert_eq!(
@@ -1552,6 +1556,8 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
             &proof,
             &AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(condition)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         let expected_value = match expected {

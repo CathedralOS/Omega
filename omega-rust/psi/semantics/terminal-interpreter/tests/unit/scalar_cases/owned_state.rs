@@ -7,6 +7,8 @@ use super::{
     encode_proof_section, operation_id, place_id, scalar_case_call_module, structural_type_id,
     value_id, verify_module,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 fn transported_case() -> TerminalModule {
     let mut module = scalar_case_call_module();
     let caller = &mut module.machines[0];
@@ -79,6 +81,7 @@ fn assert_payload_at_every_fuel_pause(module: &TerminalModule) {
                 &proof,
                 &AdmissionProfile::default(),
                 &[count(first), count(second)],
+                TerminalStructuralInputs::default(),
             )
             .unwrap()
         };
@@ -86,18 +89,27 @@ fn assert_payload_at_every_fuel_pause(module: &TerminalModule) {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(count(first)));
         let mut execution = start();
         let mut meter = TerminalFuelMeter::with_allowance(100);
-        assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            expected
+        );
         let total = meter.usage().total_units();
         for split in 0..total {
             let mut execution = start();
             let mut meter = TerminalFuelMeter::with_allowance(split);
             assert!(matches!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
             ));
             meter.replenish(total - split).unwrap();
             assert_eq!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 expected,
                 "payload after fuel split {split}"
             );

@@ -65,6 +65,8 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(0)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified exact multiplication should interpret")
     };
@@ -143,6 +145,8 @@ fn checked_source_exact_multiply_uses_joint_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified joint-bound exact multiplication should interpret")
     };
@@ -208,6 +212,8 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified signed joint-bound exact multiplication should interpret")
     };
@@ -278,6 +284,8 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified negative signed joint-bound multiplication should interpret")
     };
@@ -355,6 +363,8 @@ fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified runtime-negation exact multiplication should interpret")
     };
@@ -427,6 +437,8 @@ fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified signed i64 runtime-bound multiplication should interpret")
     };

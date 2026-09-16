@@ -5,9 +5,10 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
-    interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact_measured,
 };
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -360,12 +361,15 @@ fn definition_affine_divisor_crosses_source_codec_and_independent_verification(
         value: IntegerValue::Signed(0),
     }];
     let mut handler = AcceptTerminalEffects;
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &module_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &scalar_arguments,
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("verified bounded-definition artifact interprets");
@@ -583,12 +587,15 @@ fn affine_to_partial_cast_exact_division_and_remainder_cross_source_codec_verifi
         value: IntegerValue::Signed(2),
     }];
     let mut handler = AcceptTerminalEffects;
-    let execution = interpret_terminal_artifact_with_effect_handler_measured(
+    let execution = interpret_terminal_artifact_measured(
         &module_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &scalar_arguments,
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("verified affine-cast artifact interprets");
@@ -730,12 +737,15 @@ fn partial_cast_to_affine_exact_division_and_remainder_cross_source_codec_verifi
         value: IntegerValue::Signed(2),
     }];
     let mut handler = AcceptTerminalEffects;
-    let execution = interpret_terminal_artifact_with_effect_handler_measured(
+    let execution = interpret_terminal_artifact_measured(
         &module_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &scalar_arguments,
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("verified post-cast affine artifact interprets");
@@ -897,12 +907,15 @@ fn affine_cast_affine_exact_division_and_remainder_cross_source_codec_verificati
         value: IntegerValue::Signed(1),
     }];
     let mut handler = AcceptTerminalEffects;
-    let execution = interpret_terminal_artifact_with_effect_handler_measured(
+    let execution = interpret_terminal_artifact_measured(
         &module_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &scalar_arguments,
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("verified affine-cast-affine artifact interprets");

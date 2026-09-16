@@ -2,6 +2,7 @@
 use super::{LoweringError, checked_source, lower_machine};
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{OperationKind, StructuralAccess, StructuralTypeShape};
 
 const ORDERED_CONSTRUCTOR: &str = r#"
@@ -103,12 +104,16 @@ fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
                 scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
                 value: IntegerValue::Signed(i128::from(input)),
             }],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::ScalarCase(result),
         ) = execution
-            .resume(&mut terminal_fuel::TerminalFuelMeter::with_allowance(1000))
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::with_allowance(1000),
+                &mut AcceptTerminalEffects,
+            )
             .unwrap()
         else {
             panic!("constructor did not return a real case for {input}");
@@ -356,21 +361,36 @@ fn ordered_structural_payload_effects_preserve_selected_mutation_and_reject_subs
         (3, "Second", 21, 22),
         (4, "Last", 31, 32),
     ] {
-        let mut execution = terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            artifact.semantic_bytes(), artifact.proof_bytes(), &proof_admission::AdmissionProfile::default(),
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
             &[terminal_interpreter::TerminalScalarValue::Integer {
-                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(), value: IntegerValue::Signed(input),
+                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                value: IntegerValue::Signed(input),
             }],
-            &[terminal_interpreter::TerminalStructuralValue {
-                opaque_identity: 91, structural_type: entry.structural_parameters[0].structural_type,
-                qualifications: Vec::new(), path: Vec::new(),
-            }],
-            &[terminal_interpreter::TerminalStructuralPrimitiveValue { argument_index: 0, value: unsigned(7) }],
-        ).unwrap();
+            TerminalStructuralInputs {
+                arguments: &[terminal_interpreter::TerminalStructuralValue {
+                    opaque_identity: 91,
+                    structural_type: entry.structural_parameters[0].structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                primitive_values: &[terminal_interpreter::TerminalStructuralPrimitiveValue {
+                    argument_index: 0,
+                    value: unsigned(7),
+                }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::ScalarCase(result),
         ) = execution
-            .resume(&mut terminal_fuel::TerminalFuelMeter::with_allowance(1000))
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::with_allowance(1000),
+                &mut AcceptTerminalEffects,
+            )
             .unwrap()
         else {
             panic!("selected payload did not return");

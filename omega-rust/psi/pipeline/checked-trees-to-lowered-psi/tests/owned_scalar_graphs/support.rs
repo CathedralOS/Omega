@@ -1,6 +1,7 @@
 use checked_trees::CheckedTrees;
 use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralBooleanFieldValue, TerminalStructuralValue,
@@ -182,24 +183,26 @@ pub fn execute(source: &str, entry: &str, left: bool, right: bool, expected: boo
             });
         }
     }
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
-            &semantic_bytes,
-            &proof_bytes,
-            &proof_admission::AdmissionProfile::default(),
-            &[
-                TerminalScalarValue::Boolean(false),
-                TerminalScalarValue::Boolean(true),
-            ],
-            &structural_arguments,
-            &fields,
-        )
-        .expect("reload with distinct owned field values");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic_bytes,
+        &proof_bytes,
+        &proof_admission::AdmissionProfile::default(),
+        &[
+            TerminalScalarValue::Boolean(false),
+            TerminalScalarValue::Boolean(true),
+        ],
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            boolean_fields: &fields,
+            ..Default::default()
+        },
+    )
+    .expect("reload with distinct owned field values");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     let mut complete = false;
     for _ in 0..256 {
         match execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("execute owned scalar graph")
         {
             TerminalExecutionStatus::Complete(result) => {

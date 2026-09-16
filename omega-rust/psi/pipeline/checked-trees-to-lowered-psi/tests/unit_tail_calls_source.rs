@@ -5,10 +5,11 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
-    interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact_measured,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
@@ -107,12 +108,12 @@ fn trailing_boundary_unit_call_executes_computed_operand_without_semicolon() {
     );
     let artifact = artifact(&checked, false, &[]);
     let mut observer = Observe::default();
-    let result = interpret_terminal_artifact_with_effect_handler_measured(
+    let result = interpret_terminal_artifact_measured(
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
         &mut observer,
     )
     .unwrap();
@@ -131,12 +132,12 @@ fn execute(
     artifact: &(Vec<u8>, Vec<u8>),
     observer: &mut Observe,
 ) -> Result<TerminalExecutionResult, TerminalArtifactInterpretError> {
-    interpret_terminal_artifact_with_effect_handler_measured(
+    interpret_terminal_artifact_measured(
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
         observer,
     )
     .map(|result| result.value())
@@ -712,12 +713,12 @@ fn multistate_pure_and_zero_operand_tails_retain_exact_source_occurrences() {
         let artifact = verified_artifact(&checked);
         for selected in [false, true] {
             let mut observer = Observe::default();
-            let result = interpret_terminal_artifact_with_effect_handler_measured(
+            let result = interpret_terminal_artifact_measured(
                 &artifact.0,
                 &artifact.1,
                 &AdmissionProfile::default(),
                 &[TerminalScalarValue::Boolean(selected)],
-                &[],
+                TerminalStructuralInputs::default(),
                 &mut observer,
             )
             .unwrap();

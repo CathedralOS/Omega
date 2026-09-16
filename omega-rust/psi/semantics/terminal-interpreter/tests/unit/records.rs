@@ -12,6 +12,7 @@ use super::{
     edge_id, encode_module, encode_proof_section, machine_id, obligation_id, operation_id,
     place_id, structural_field_id, structural_type_id, unit_module, value_id, verify_module,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{RecordFieldInitializer, RecordFieldValue};
 
 fn integer() -> ScalarType {
@@ -244,6 +245,7 @@ fn nested_record_fields_survive_borrowed_call_and_every_fuel_pause() {
                 &proof,
                 &AdmissionProfile::default(),
                 &[scalar(value), TerminalScalarValue::Boolean(true)],
+                TerminalStructuralInputs::default(),
             )
             .unwrap()
         };
@@ -251,17 +253,29 @@ fn nested_record_fields_survive_borrowed_call_and_every_fuel_pause() {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(scalar(value)));
         let mut execution = start();
         let mut meter = TerminalFuelMeter::with_allowance(100);
-        assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            expected
+        );
         let total = meter.usage().total_units();
         for split in 0..total {
             let mut execution = start();
             let mut meter = TerminalFuelMeter::with_allowance(split);
             assert!(matches!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
             ));
             meter.replenish(total - split).unwrap();
-            assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+            assert_eq!(
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
+                expected
+            );
         }
     }
 }
@@ -308,6 +322,7 @@ fn nested_scalar_reads_use_the_original_owned_record_backing_from_canonical_byte
                 &proof,
                 &AdmissionProfile::default(),
                 &[scalar(value), TerminalScalarValue::Boolean(value != 0)],
+                TerminalStructuralInputs::default(),
             )
             .unwrap();
             let mut meter = TerminalFuelMeter::with_allowance(100);
@@ -317,7 +332,9 @@ fn nested_scalar_reads_use_the_original_owned_record_backing_from_canonical_byte
                 scalar(value)
             };
             assert_eq!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(expected))
             );
         }
@@ -622,6 +639,7 @@ fn repeated_child_call_results_keep_independent_completed_storage() {
                     TerminalScalarValue::Boolean(true),
                     scalar(17),
                 ],
+                TerminalStructuralInputs::default(),
             )
             .unwrap()
         };
@@ -629,17 +647,29 @@ fn repeated_child_call_results_keep_independent_completed_storage() {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(scalar(u64::MAX)));
         let mut execution = start();
         let mut meter = TerminalFuelMeter::with_allowance(100);
-        assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            expected
+        );
         let total = meter.usage().total_units();
         for split in 0..total {
             let mut execution = start();
             let mut meter = TerminalFuelMeter::with_allowance(split);
             assert!(matches!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
             ));
             meter.replenish(total - split).unwrap();
-            assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+            assert_eq!(
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
+                expected
+            );
         }
     }
 }
@@ -701,11 +731,15 @@ fn nested_record_mutable_receiver_updates_exact_child_storage() {
             TerminalScalarValue::Boolean(true),
             scalar(17),
         ],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::with_allowance(100))
+            .resume(
+                &mut TerminalFuelMeter::with_allowance(100),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(scalar(17)))
     );
@@ -750,11 +784,15 @@ fn unrestricted_record_children_remain_available_after_parent_construction() {
         &proof,
         &AdmissionProfile::default(),
         &[scalar(u64::MAX), TerminalScalarValue::Boolean(true)],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::with_allowance(100))
+            .resume(
+                &mut TerminalFuelMeter::with_allowance(100),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(scalar(u64::MAX)))
     );
@@ -874,6 +912,7 @@ fn owned_nested_record_call_copies_payload_before_mutating_its_child() {
             &proof,
             &AdmissionProfile::default(),
             &[scalar(u64::MAX), TerminalScalarValue::Boolean(true)],
+            TerminalStructuralInputs::default(),
         )
         .unwrap()
     };
@@ -881,16 +920,28 @@ fn owned_nested_record_call_copies_payload_before_mutating_its_child() {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(scalar(u64::MAX)));
     let mut execution = start();
     let mut meter = TerminalFuelMeter::with_allowance(100);
-    assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        expected
+    );
     let total = meter.usage().total_units();
     for split in 0..total {
         let mut execution = start();
         let mut meter = TerminalFuelMeter::with_allowance(split);
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         meter.replenish(total - split).unwrap();
-        assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            expected
+        );
     }
 }

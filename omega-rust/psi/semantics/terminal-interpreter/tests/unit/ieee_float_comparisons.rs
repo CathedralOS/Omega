@@ -6,6 +6,7 @@ use super::{
     value_id, verify_module,
 };
 use semantic_vocabulary::IeeeFloatComparisonOperation;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 fn comparison_module(
     comparison: IeeeFloatComparisonOperation,
@@ -117,6 +118,8 @@ fn ieee_relations_round_trip_and_execute_both_formats_without_order_complements(
                     &proof,
                     &AdmissionProfile::default(),
                     &[],
+                    TerminalStructuralInputs::default(),
+                    &mut AcceptTerminalEffects,
                 )
                 .unwrap();
                 assert_eq!(

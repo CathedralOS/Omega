@@ -1,3 +1,4 @@
+use terminal_interpreter::{TerminalStructuralInputs};
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use std::{
     fs,
@@ -150,17 +151,20 @@ machine build(builder: &mut Build) {
         "inspect retains the owned affine ErrorKind state parameter"
     );
     let execute = || {
-        TerminalExecution::start_artifact_with_structural_arguments(
+        TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[],
-            &[TerminalStructuralValue {
-                opaque_identity: 1,
-                structural_type: receiver.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 1,
+                    structural_type: receiver.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .expect("published artifact independently verifies and reloads")
     };
@@ -169,9 +173,7 @@ machine build(builder: &mut Build) {
     let mut meter = TerminalFuelMeter::with_allowance(1000);
     let mut handler = Trace::default();
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut handler)
-            .unwrap(),
+        execution.resume(&mut meter, &mut handler).unwrap(),
         complete
     );
     assert_eq!(handler.0, [10, 20, expected]);
@@ -181,16 +183,12 @@ machine build(builder: &mut Build) {
         let mut meter = TerminalFuelMeter::with_allowance(allowance);
         let mut handler = Trace::default();
         assert!(matches!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut handler)
-                .unwrap(),
+            execution.resume(&mut meter, &mut handler).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         meter.replenish(total - allowance).unwrap();
         assert_eq!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut handler)
-                .unwrap(),
+            execution.resume(&mut meter, &mut handler).unwrap(),
             complete
         );
         assert_eq!(

@@ -15,10 +15,12 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::ScalarType;
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectRejection, TerminalEffectResult, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
-    TerminalStructuralValue, interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     BindingRelevance, Block, CompletionReceipt, OperationKind, StructuralAffineDiscard,
@@ -40,12 +42,15 @@ fn partial_affine_return_charges_edge_before_exact_residual_cleanup() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("verified partial affine cleanup should start");
     // Call operation + callee return consume the first two units. The caller's
@@ -53,7 +58,9 @@ fn partial_affine_return_charges_edge_before_exact_residual_cleanup() {
     let mut meter = TerminalFuelMeter::with_allowance(2);
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(edge_id(1)),
@@ -75,7 +82,9 @@ fn partial_affine_return_charges_edge_before_exact_residual_cleanup() {
 
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());
@@ -110,18 +119,21 @@ fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("verified nominal cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
 
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             site: FuelChargeSite::Edge(edge),
             ..
@@ -131,7 +143,7 @@ fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
 
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             site: FuelChargeSite::Edge(edge),
             ..
@@ -141,7 +153,9 @@ fn nominal_affine_cleanup_resumes_across_both_edge_charges() {
 
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());
@@ -168,12 +182,15 @@ fn ordered_nominal_affine_cleanups_run_in_reverse_parameter_order_after_one_root
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("verified ordered nominal cleanups should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -187,7 +204,7 @@ fn ordered_nominal_affine_cleanups_run_in_reverse_parameter_order_after_one_root
     .enumerate()
     {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 site: exhausted_site,
                 ..
@@ -198,7 +215,9 @@ fn ordered_nominal_affine_cleanups_run_in_reverse_parameter_order_after_one_root
     }
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 3);
@@ -233,18 +252,23 @@ fn ordered_nominal_affine_cleanups_can_invoke_the_same_cleanup_machine_twice() {
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("verified same-target nominal cleanups should start");
     let mut meter = TerminalFuelMeter::with_allowance(3);
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 3);
@@ -286,12 +310,15 @@ fn three_nominal_affine_cleanups_run_in_exact_reverse_parameter_order() {
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("verified three-action nominal cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -306,7 +333,7 @@ fn three_nominal_affine_cleanups_run_in_exact_reverse_parameter_order() {
     .enumerate()
     {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 site: exhausted_site,
                 ..
@@ -316,7 +343,9 @@ fn three_nominal_affine_cleanups_run_in_exact_reverse_parameter_order() {
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 4);
@@ -342,12 +371,15 @@ fn ordered_nominal_affine_cleanups_run_one_executable_body_before_the_empty_acti
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("verified ordered executable nominal cleanups should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -363,7 +395,7 @@ fn ordered_nominal_affine_cleanups_run_one_executable_body_before_the_empty_acti
     .enumerate()
     {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 site: exhausted_site,
                 ..
@@ -374,7 +406,9 @@ fn ordered_nominal_affine_cleanups_run_one_executable_body_before_the_empty_acti
     }
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 5);
@@ -400,12 +434,15 @@ fn ordered_nominal_affine_cleanups_run_two_distinct_executable_bodies_in_order()
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("two distinct executable nominal cleanups should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -423,7 +460,7 @@ fn ordered_nominal_affine_cleanups_run_two_distinct_executable_bodies_in_order()
     .enumerate()
     {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 site: exhausted_site,
                 ..
@@ -433,7 +470,9 @@ fn ordered_nominal_affine_cleanups_run_two_distinct_executable_bodies_in_order()
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 7);
@@ -459,17 +498,22 @@ fn ordered_nominal_affine_cleanups_repeat_a_shared_executable_target_and_helper(
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("shared executable nominal cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(7);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 7);
@@ -504,18 +548,23 @@ fn three_nominal_affine_cleanups_repeat_a_shared_executable_body_three_times() {
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("three shared executable cleanups should start");
     let mut meter = TerminalFuelMeter::with_allowance(10);
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 10);
@@ -556,12 +605,15 @@ fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order(
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("verified executable nominal cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -573,7 +625,9 @@ fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order(
         (FuelChargeSite::Edge(edge_id(2)), 3),
     ] {
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 schedule: TerminalFuelSchedule::CURRENT.identity(),
                 site,
@@ -586,7 +640,9 @@ fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order(
     }
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());
@@ -615,12 +671,15 @@ fn two_helper_nominal_affine_cleanup_charges_all_six_sites_in_source_order() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("verified two-helper nominal cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -635,7 +694,9 @@ fn two_helper_nominal_affine_cleanup_charges_all_six_sites_in_source_order() {
 
     for (consumed, site) in ordered_sites.iter().copied().enumerate() {
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 schedule: TerminalFuelSchedule::CURRENT.identity(),
                 site,
@@ -648,7 +709,9 @@ fn two_helper_nominal_affine_cleanup_charges_all_six_sites_in_source_order() {
     }
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());
@@ -672,12 +735,15 @@ fn three_helper_nominal_affine_cleanup_charges_all_eight_sites_in_source_order()
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("verified three-helper nominal cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -694,7 +760,7 @@ fn three_helper_nominal_affine_cleanup_charges_all_eight_sites_in_source_order()
 
     for (consumed, site) in ordered_sites.iter().copied().enumerate() {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 site: exhausted_site,
                 ..
@@ -704,7 +770,9 @@ fn three_helper_nominal_affine_cleanup_charges_all_eight_sites_in_source_order()
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 8);
@@ -738,23 +806,30 @@ fn scalar_return_performs_affine_discard_only_after_edge_charge() {
     let semantic = encode_module(&module).expect("scalar affine cleanup module encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(true)],
-        &[structural_value(49)],
+        TerminalStructuralInputs {
+            arguments: &[structural_value(49)],
+            ..Default::default()
+        },
     )
     .expect("verified scalar affine cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
 
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
         ))
@@ -814,28 +889,37 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
     let semantic = encode_module(&module).expect("jump affine cleanup module encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(true)],
-        &[structural_value(50)],
+        TerminalStructuralInputs {
+            arguments: &[structural_value(50)],
+            ..Default::default()
+        },
     )
     .expect("verified jump affine cleanup should start");
     let mut meter = TerminalFuelMeter::with_allowance(0);
 
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
         ))
@@ -921,27 +1005,36 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
 
     for condition in [true, false] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(condition)],
-            &[structural_value(51)],
+            TerminalStructuralInputs {
+                arguments: &[structural_value(51)],
+                ..Default::default()
+            },
         )
         .expect("verified conditional affine cleanup should start");
         let mut meter = TerminalFuelMeter::with_allowance(0);
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         meter.replenish(1).unwrap();
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         meter.replenish(1).unwrap();
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
                 TerminalScalarValue::Boolean(condition)
             ))
@@ -954,12 +1047,15 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
     let (semantic, proof) = effect_artifact_sections();
     let argument = structural_value(41);
     let mut handler = RecordingHandler::default();
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("verified Unit/effect artifact should execute");
@@ -999,12 +1095,12 @@ fn byte_sequence_literal_round_trips_non_utf8_and_reaches_boundary_exactly() {
     assert_eq!(decode_module(&semantic), Ok(module));
     let mut handler = RecordingHandler::default();
 
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
         &mut handler,
     )
     .expect("verified byte literal reaches the semantic boundary");
@@ -1050,12 +1146,12 @@ fn boundary_scalar_arguments_reach_effect_handlers_in_declared_order() {
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let mut handler = RecordingHandler::default();
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
         &mut handler,
     )
     .expect("verified scalar boundary call executes");
@@ -1083,14 +1179,19 @@ fn boundary_scalar_argument_effect_rejection_is_fail_closed() {
     let semantic = encode_module(&module).expect("scalar boundary module encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("verified scalar boundary call starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("verified scalar boundary call starts");
     let mut meter = TerminalFuelMeter::unbounded();
     let mut handler = RejectScalarBoundaryArguments;
 
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut meter, &mut handler),
+        execution.resume(&mut meter, &mut handler),
         Err(TerminalInterpretError::EffectRejected { operation, .. })
             if operation == operation_id(3)
     ));
@@ -1103,14 +1204,19 @@ fn unsupported_structural_boundary_result_rejects_before_the_effect() {
     let semantic = encode_module(&module).expect("structural boundary module encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("verified structural boundary call starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("verified structural boundary call starts");
     let mut meter = TerminalFuelMeter::unbounded();
     let mut handler = RecordingHandler::default();
 
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut meter, &mut handler),
+        execution.resume(&mut meter, &mut handler),
         Err(TerminalInterpretError::EffectRejected { operation, .. })
             if operation == operation_id(3)
     ));
@@ -1124,9 +1230,14 @@ fn structural_boundary_result_establishes_affine_custody_once_before_cleanup() {
     let semantic = encode_module(&module).expect("structural result module encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("verified structural result starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("verified structural result starts");
     let mut handler = BoundaryResultHandler {
         result: Ok(TerminalEffectResult::Structural(TerminalStructuralValue {
             opaque_identity: 71,
@@ -1139,9 +1250,7 @@ fn structural_boundary_result_establishes_affine_custody_once_before_cleanup() {
     };
     let mut meter = TerminalFuelMeter::with_allowance(3);
     assert!(matches!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut handler)
-            .unwrap(),
+        execution.resume(&mut meter, &mut handler).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(handler.requests, 1);
@@ -1161,9 +1270,7 @@ fn structural_boundary_result_establishes_affine_custody_once_before_cleanup() {
     assert!(execution.live_claim_frontier().next().is_none());
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut handler)
-            .unwrap(),
+        execution.resume(&mut meter, &mut handler).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());
@@ -1203,16 +1310,21 @@ fn malformed_structural_boundary_results_establish_no_runtime_custody() {
         let semantic = encode_module(&module).expect("structural result module encodes");
         let proof =
             encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-        let mut execution =
-            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-                .expect("verified structural result starts");
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .expect("verified structural result starts");
         let mut handler = BoundaryResultHandler {
             result: Ok(result.clone()),
             requests: 0,
             effects: Vec::new(),
         };
         assert_eq!(
-            execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut handler),
+            execution.resume(&mut TerminalFuelMeter::unbounded(), &mut handler),
             Err(TerminalInterpretError::VerifiedOperationMalformed),
             "{result:?}"
         );
@@ -1232,9 +1344,14 @@ fn rejected_structural_boundary_result_establishes_no_value_or_effect() {
     let semantic = encode_module(&module).expect("structural result module encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("verified structural result starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("verified structural result starts");
     let mut handler = BoundaryResultHandler {
         result: Err(TerminalEffectRejection::new(
             "structural result rejected by host",
@@ -1243,7 +1360,7 @@ fn rejected_structural_boundary_result_establishes_no_value_or_effect() {
         effects: Vec::new(),
     };
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut handler),
+        execution.resume(&mut TerminalFuelMeter::unbounded(), &mut handler),
         Err(TerminalInterpretError::EffectRejected { operation, .. })
             if operation == operation_id(3)
     ));
@@ -1277,17 +1394,22 @@ fn unit_calls_transfer_numbered_record_field_claims() {
     let semantic = encode_module(&module).expect("numbered field-custody module encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[structural_value(45)],
+        TerminalStructuralInputs {
+            arguments: &[structural_value(45)],
+            ..Default::default()
+        },
     )
     .expect("verified numbered field custody should start");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
 }

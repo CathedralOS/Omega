@@ -1,6 +1,7 @@
 //! Checked state-graph providers retain their exact body and ordinary call closure.
 use super::checked_source;
 use language_semantics::Multiplicity;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
@@ -162,13 +163,12 @@ fn composed_provider_candidate_preserves_helper_effects_across_every_fuel_pause(
     for flag in [false, true] {
         let mut usages = Vec::new();
         for incremental in [false, true] {
-            let mut execution = TerminalExecution::start_artifact_with_provider_installation(
+            let mut execution = TerminalExecution::start_installed_artifact(
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &profile,
                 &[TerminalScalarValue::Boolean(flag)],
-                &[],
-                &[],
+                TerminalStructuralInputs::default(),
                 &installation,
             )
             .unwrap();
@@ -184,10 +184,7 @@ fn composed_provider_candidate_preserves_helper_effects_across_every_fuel_pause(
                 terminal_fuel::TerminalFuelMeter::with_allowance(if incremental { 0 } else { 200 });
             let mut complete = false;
             for _ in 0..200 {
-                match execution
-                    .resume_with_effect_handler(&mut fuel, &mut host)
-                    .unwrap()
-                {
+                match execution.resume(&mut fuel, &mut host).unwrap() {
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
                         complete = true;
                         break;
@@ -195,9 +192,7 @@ fn composed_provider_candidate_preserves_helper_effects_across_every_fuel_pause(
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         let before = host.values.clone();
                         assert!(matches!(
-                            execution
-                                .resume_with_effect_handler(&mut fuel, &mut host)
-                                .unwrap(),
+                            execution.resume(&mut fuel, &mut host).unwrap(),
                             TerminalExecutionStatus::SponsorExhausted(_)
                         ));
                         assert_eq!(host.values, before, "paused effect is not replayed");

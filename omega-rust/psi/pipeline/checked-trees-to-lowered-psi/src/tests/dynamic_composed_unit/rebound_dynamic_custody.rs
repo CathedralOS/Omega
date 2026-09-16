@@ -6,6 +6,7 @@ use super::{
     assert_stored_dynamic_scalar_artifact_executes, unsupported_message,
 };
 use crate::tests::{checked_source, lower_machine};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, Terminator};
 
 #[test]
@@ -670,21 +671,24 @@ fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
             qualifications: self_parameter.qualifications.clone(),
             path: Vec::new(),
         };
-        let mut execution = terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[terminal_interpreter::TerminalScalarValue::Boolean(
-                    choose_first,
-                )],
-                &[structural],
-                &field_values,
-            )
-            .expect("joined dynamic artifact should start");
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[terminal_interpreter::TerminalScalarValue::Boolean(
+                choose_first,
+            )],
+            TerminalStructuralInputs {
+                arguments: &[structural],
+                boolean_fields: &field_values,
+                ..Default::default()
+            },
+        )
+        .expect("joined dynamic artifact should start");
         let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
         assert_eq!(
             execution
-                .resume(&mut meter)
+                .resume(&mut meter, &mut AcceptTerminalEffects)
                 .expect("joined dynamic artifact should execute"),
             terminal_interpreter::TerminalExecutionStatus::Complete(
                 terminal_interpreter::TerminalExecutionResult::Unit,

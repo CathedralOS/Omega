@@ -4,6 +4,8 @@ use super::{
     TerminalStructuralResult, TerminalStructuralValue, decode_module, lower_symbol_resolved_trees,
     lower_typed_trees, parse_syntax_trees, resolve,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 const NOMINAL_CALLBACK: &str = r#"
     data ByteUnit {}
     data CountedQuantity<Unit> { magnitude: u64; }
@@ -737,17 +739,22 @@ fn execute_identity(artifact: &terminal_codec::CanonicalTerminalArtifact, fuel: 
         qualifications: parameter.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("verify and execute without source custody");
     let mut meter = TerminalFuelMeter::with_allowance(fuel);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             TerminalStructuralResult {
                 value: argument,

@@ -1,5 +1,7 @@
 //! Actual local storage survives borrowed scalar-result helper calls.
 
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
@@ -117,15 +119,23 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
         let mut completed = false;
         for _ in 0..256 {
-            let status = execution.resume(&mut fuel).unwrap();
+            let status = execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap();
             match status {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
-                    assert_eq!(execution.resume(&mut fuel).unwrap(), status);
+                    assert_eq!(
+                        execution
+                            .resume(&mut fuel, &mut AcceptTerminalEffects)
+                            .unwrap(),
+                        status
+                    );
                     fuel.replenish(1).unwrap();
                 }
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
@@ -227,12 +237,16 @@ fn scalar_return_helper_reads_its_established_local_record_across_fuel() {
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(initial_fuel);
         let mut completed = false;
         for _ in 0..256 {
-            match execution.resume(&mut fuel).unwrap() {
+            match execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
                     TerminalScalarValue::Integer { value, .. },
                 )) => {

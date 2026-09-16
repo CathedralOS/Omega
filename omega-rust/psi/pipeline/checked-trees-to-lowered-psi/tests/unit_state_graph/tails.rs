@@ -3,6 +3,7 @@ use super::{
     encode_module, encode_proof_section, interpret_terminal_artifact_measured,
     lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
     machine relay(bytes: &[u8]) reaches Output {
@@ -78,13 +79,29 @@ fn cyclic_tail_operations_resume_once_per_iteration_from_serialized_proofs() {
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let profile = AdmissionProfile::default();
-    let unlimited = interpret_terminal_artifact_measured(&semantic, &proof, &profile, &[]).unwrap();
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &profile, &[]).unwrap();
+    let unlimited = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &profile,
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &profile,
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(1);
     let mut completed = false;
     for _ in 0..=unlimited.usage().total_units() {
-        let status = execution.resume(&mut meter).unwrap();
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         assert!(unlimited.effects().starts_with(execution.effects()));
         match status {
             TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
@@ -100,7 +117,9 @@ fn cyclic_tail_operations_resume_once_per_iteration_from_serialized_proofs() {
     assert_eq!(execution.effects(), unlimited.effects());
     assert_eq!(meter.usage().total_units(), unlimited.usage().total_units());
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(execution.effects(), unlimited.effects());
@@ -208,6 +227,8 @@ fn effects(source: &str) -> Vec<(Vec<u8>, i128)> {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("tail bounds and descriptor custody independently verify and execute");
     assert_eq!(execution.value(), TerminalExecutionResult::Unit);

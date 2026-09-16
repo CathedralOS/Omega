@@ -5,6 +5,7 @@ use super::{
     decode_module, decode_proof_bundle, main_machine, unsigned,
 };
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{OperationKind, OperationResult, Terminator};
 
@@ -206,6 +207,7 @@ fn nested_boundary_arguments_preserve_effect_order_result_slots_and_cleanup() {
                     &artifact.1,
                     &AdmissionProfile::default(),
                     &[],
+                    TerminalStructuralInputs::default(),
                 )
                 .unwrap();
                 let mut observer = ObserveMoves::default();
@@ -216,10 +218,7 @@ fn nested_boundary_arguments_preserve_effect_order_result_slots_and_cleanup() {
                 };
                 let mut complete = false;
                 for _ in 0..1024 {
-                    match execution
-                        .resume_with_effect_handler(&mut fuel, &mut observer)
-                        .unwrap()
-                    {
+                    match execution.resume(&mut fuel, &mut observer).unwrap() {
                         TerminalExecutionStatus::SponsorExhausted(_) => {
                             assert!(incremental);
                             fuel.replenish(1).unwrap();

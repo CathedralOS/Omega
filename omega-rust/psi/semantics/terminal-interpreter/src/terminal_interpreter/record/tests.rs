@@ -1,3 +1,5 @@
+use crate::AcceptTerminalEffects;
+use crate::TerminalStructuralInputs;
 use crate::terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
@@ -42,7 +44,9 @@ fn verified_startup_moves_the_decoded_operation_allocation() {
     );
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 2);
@@ -257,11 +261,15 @@ fn run(
         &proof,
         &AdmissionProfile::default(),
         arguments,
+        TerminalStructuralInputs::default(),
     )
     .expect("independent decoded Terminal verification");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     loop {
-        match execution.resume(&mut meter).expect("record execution") {
+        match execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("record execution")
+        {
             TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
             TerminalExecutionStatus::Complete(result) => return (execution, result),
             other => panic!("unexpected record outcome {other:?}"),
@@ -536,22 +544,27 @@ fn scalar_return_nominal_cleanup_preserves_record_locals_until_fuel_is_paid() {
     module.machines.push(cleanup);
     let semantic = encode_module(&module).unwrap();
     let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[unsigned(41)],
-        &[crate::terminal_interpreter::TerminalStructuralValue {
-            opaque_identity: 77,
-            structural_type: token,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[crate::terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 77,
+                structural_type: token,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("independently verified nominal cleanup and ordinary local");
     let mut meter = TerminalFuelMeter::with_allowance(1);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert!(
@@ -569,7 +582,10 @@ fn scalar_return_nominal_cleanup_preserves_record_locals_until_fuel_is_paid() {
     assert_eq!(execution.live_affine_frontier.len(), 1);
     loop {
         meter.replenish(1).unwrap();
-        match execution.resume(&mut meter).unwrap() {
+        match execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
             TerminalExecutionStatus::SponsorExhausted(_) => {}
             TerminalExecutionStatus::Complete(result) => {
                 assert_eq!(result, TerminalExecutionResult::Scalar(unsigned(41)));

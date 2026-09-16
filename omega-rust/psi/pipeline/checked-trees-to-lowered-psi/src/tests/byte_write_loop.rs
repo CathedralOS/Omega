@@ -5,6 +5,7 @@ use super::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalStructuralByteArrayValue, TerminalStructuralValue,
@@ -80,11 +81,15 @@ fn line_result_constructor_retains_runtime_count_in_terminal() {
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[argument],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(result)) =
             execution
-                .resume(&mut TerminalFuelMeter::with_allowance(100))
+                .resume(
+                    &mut TerminalFuelMeter::with_allowance(100),
+                    &mut AcceptTerminalEffects,
+                )
                 .unwrap()
         else {
             panic!("case return did not complete");
@@ -125,10 +130,14 @@ fn scalar_case_return_preserves_authored_multifield_identity_and_rejects_plan_dr
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &arguments,
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(result)) = execution
-        .resume(&mut TerminalFuelMeter::with_allowance(100))
+        .resume(
+            &mut TerminalFuelMeter::with_allowance(100),
+            &mut AcceptTerminalEffects,
+        )
         .unwrap()
     else {
         panic!("pair did not return");
@@ -292,24 +301,29 @@ fn scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count()
         .expect("ordinary scalar-case call composes with view and count transfers");
     for full in [false, true] {
         let path = vec![StructuralPathSegment::Field("out".into())];
-        let mut execution =
-            TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[terminal_interpreter::TerminalScalarValue::Boolean(full)],
-                &[entry_argument(&artifact)],
-                &[TerminalStructuralByteArrayValue {
+        let mut execution = TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[terminal_interpreter::TerminalScalarValue::Boolean(full)],
+            TerminalStructuralInputs {
+                arguments: &[entry_argument(&artifact)],
+                byte_arrays: &[TerminalStructuralByteArrayValue {
                     argument_index: 0,
                     path: path.clone(),
                     bytes: vec![19],
                 }],
-            )
-            .unwrap();
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let mut fuel = TerminalFuelMeter::with_allowance(0);
         let mut completed = false;
         for _ in 0..512 {
-            match execution.resume(&mut fuel).unwrap() {
+            match execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
                 TerminalExecutionStatus::Complete(result) => {
                     assert_eq!(result, TerminalExecutionResult::Unit);
@@ -389,22 +403,27 @@ fn same_named_case_payloads_preserve_identity_through_calls_and_interpretation()
                     scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                     value: IntegerValue::Unsigned(u128::from(value)),
                 });
-            let mut execution =
-                TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
-                    artifact.semantic_bytes(),
-                    artifact.proof_bytes(),
-                    &proof_admission::AdmissionProfile::default(),
-                    &arguments,
-                    &[entry_argument(&artifact)],
-                    &[TerminalStructuralByteArrayValue {
+            let mut execution = TerminalExecution::start_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &arguments,
+                TerminalStructuralInputs {
+                    arguments: &[entry_argument(&artifact)],
+                    byte_arrays: &[TerminalStructuralByteArrayValue {
                         argument_index: 0,
                         path: path.clone(),
                         bytes: vec![19],
                     }],
-                )
-                .expect("independently verify the reloaded artifact before execution");
+                    ..Default::default()
+                },
+            )
+            .expect("independently verify the reloaded artifact before execution");
             let result = execution
-                .resume(&mut TerminalFuelMeter::with_allowance(512))
+                .resume(
+                    &mut TerminalFuelMeter::with_allowance(512),
+                    &mut AcceptTerminalEffects,
+                )
                 .unwrap();
             assert_eq!(
                 result,
@@ -591,13 +610,16 @@ fn byte_write_loop_fills_each_raw_prefix_once_across_fuel_suspension() {
                 },
             ];
             let start = || {
-                TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
+                TerminalExecution::start_artifact(
                     artifact.semantic_bytes(),
                     artifact.proof_bytes(),
                     &proof_admission::AdmissionProfile::default(),
                     &[],
-                    &[entry_argument(&artifact)],
-                    &arrays,
+                    TerminalStructuralInputs {
+                        arguments: &[entry_argument(&artifact)],
+                        byte_arrays: &arrays,
+                        ..Default::default()
+                    },
                 )
                 .unwrap()
             };
@@ -606,7 +628,9 @@ fn byte_write_loop_fills_each_raw_prefix_once_across_fuel_suspension() {
             let mut prefixes = vec![initial.clone()];
             let mut completed = false;
             for _ in 0..512 {
-                let status = execution.resume(&mut fuel).unwrap();
+                let status = execution
+                    .resume(&mut fuel, &mut AcceptTerminalEffects)
+                    .unwrap();
                 let observed = execution.structural_byte_array(73, &path).unwrap().to_vec();
                 assert_eq!(observed.len(), length);
                 assert_eq!(
@@ -622,7 +646,9 @@ fn byte_write_loop_fills_each_raw_prefix_once_across_fuel_suspension() {
                         let before = fuel.clone();
                         for _ in 0..2 {
                             assert!(matches!(
-                                execution.resume(&mut fuel).unwrap(),
+                                execution
+                                    .resume(&mut fuel, &mut AcceptTerminalEffects)
+                                    .unwrap(),
                                 TerminalExecutionStatus::SponsorExhausted(_)
                             ));
                             assert_eq!(fuel, before, "unfunded resumption charges no work");
@@ -666,7 +692,9 @@ fn byte_write_loop_fills_each_raw_prefix_once_across_fuel_suspension() {
             let mut generous = start();
             let mut generous_fuel = TerminalFuelMeter::with_allowance(10_000);
             assert_eq!(
-                generous.resume(&mut generous_fuel).unwrap(),
+                generous
+                    .resume(&mut generous_fuel, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
             assert_eq!(
@@ -736,12 +764,15 @@ fn byte_write_loop_empty_initialized_view_never_writes() {
         "the untaken write must remain in the verified artifact"
     );
     let start = || {
-        TerminalExecution::start_artifact_with_structural_arguments(
+        TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[],
-            std::slice::from_ref(&argument),
+            TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&argument),
+                ..Default::default()
+            },
         )
         .unwrap()
     };
@@ -749,7 +780,10 @@ fn byte_write_loop_empty_initialized_view_never_writes() {
     let mut fuel = TerminalFuelMeter::with_allowance(0);
     let mut completed = false;
     for _ in 0..128 {
-        match execution.resume(&mut fuel).unwrap() {
+        match execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
             TerminalExecutionStatus::SponsorExhausted(_) => {
                 let before = fuel.clone();
                 let storage = [out, other].map(|field| {
@@ -758,7 +792,9 @@ fn byte_write_loop_empty_initialized_view_never_writes() {
                         .map(<[u8]>::to_vec)
                 });
                 assert!(matches!(
-                    execution.resume(&mut fuel).unwrap(),
+                    execution
+                        .resume(&mut fuel, &mut AcceptTerminalEffects)
+                        .unwrap(),
                     TerminalExecutionStatus::SponsorExhausted(_)
                 ));
                 assert_eq!(fuel, before);
@@ -797,7 +833,9 @@ fn byte_write_loop_empty_initialized_view_never_writes() {
     let mut generous = start();
     let mut generous_fuel = TerminalFuelMeter::with_allowance(10_000);
     assert_eq!(
-        generous.resume(&mut generous_fuel).unwrap(),
+        generous
+            .resume(&mut generous_fuel, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(

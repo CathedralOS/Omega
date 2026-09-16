@@ -1,6 +1,8 @@
 use super::checked;
 use checked_trees::{CheckedComposedUnitControlMachinePlan, CheckedUnitEffectOperationPlan};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalScalarValue, TerminalStructuralValue,
@@ -128,22 +130,27 @@ fn cyclic_provider_fields_reload_with_exact_roots_and_ordered_stores() {
         })
         .collect::<Vec<_>>();
     assert_eq!(helper_roots, [boundary("Output::helper")]);
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &proof_admission::AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 17,
-            structural_type: receiver.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 17,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("canonical graph independently verifies and reloads");
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(1000);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     let effects = execution

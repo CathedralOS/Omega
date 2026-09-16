@@ -41,7 +41,7 @@ fn mixed_scalar_formals_retain_ranges_and_linear_boundary_settlement() {
     let mut observer = ObserveSettlement::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(unsigned(7)))
     );
@@ -108,7 +108,7 @@ fn unit_caller_transfers_linear_claim_into_scalar_boundary_wrapper() {
     let mut observer = ObserveSettlement::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -126,9 +126,7 @@ fn boundary_crash_in_scalar_wrapper_abandons_claim_without_a_result_or_receipt()
         ..Default::default()
     };
     let mut fuel = TerminalFuelMeter::unbounded();
-    let status = execution
-        .resume_with_effect_handler(&mut fuel, &mut observer)
-        .unwrap();
+    let status = execution.resume(&mut fuel, &mut observer).unwrap();
     let TerminalExecutionStatus::Crashed(crash) = &status else {
         panic!("{status:?}")
     };
@@ -157,12 +155,7 @@ fn boundary_crash_in_scalar_wrapper_abandons_claim_without_a_result_or_receipt()
         && completion_receipts.len() == 1)
     );
     let units = fuel.usage().total_units();
-    assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap(),
-        status
-    );
+    assert_eq!(execution.resume(&mut fuel, &mut observer).unwrap(), status);
     assert_eq!(fuel.usage().total_units(), units);
     assert_eq!(observer.calls.len(), 1);
 }
@@ -204,10 +197,7 @@ fn nested_wrapper_arguments_keep_effect_order_and_the_published_scalar_result() 
         };
         let mut complete = false;
         for _ in 0..1024 {
-            match execution
-                .resume_with_effect_handler(&mut meter, &mut observer)
-                .unwrap()
-            {
+            match execution.resume(&mut meter, &mut observer).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(incremental);
                     meter.replenish(1).unwrap();
@@ -385,7 +375,7 @@ fn nested_wrapper_operand_crash_preserves_only_the_completed_effect_prefix() {
     let mut execution = start(&artifact);
     let mut observer = ObserveNestedWrapper::default();
     let status = execution
-        .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+        .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
         .unwrap();
     assert!(
         matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == terminal_psi::CrashCause::Abort)
@@ -402,7 +392,7 @@ fn nested_wrapper_operand_crash_preserves_only_the_completed_effect_prefix() {
     let effects = execution.effects().to_vec();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         status
     );

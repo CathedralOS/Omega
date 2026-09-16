@@ -6,6 +6,8 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
 };
@@ -147,13 +149,15 @@ fn check_source(source: &str) {
                 qualifications: Vec::new(),
                 path: Vec::new(),
             };
-            let mut execution = TerminalExecution::start_artifact_with_provider_installation(
+            let mut execution = TerminalExecution::start_installed_artifact(
                 &semantic,
                 &proof,
                 &profile,
                 &[],
-                &[input],
-                &[],
+                TerminalStructuralInputs {
+                    arguments: &[input],
+                    ..Default::default()
+                },
                 installation.psi_installation(),
             )
             .unwrap();
@@ -164,7 +168,10 @@ fn check_source(source: &str) {
             };
             let mut complete = false;
             for _ in 0..16 {
-                match execution.resume(&mut fuel).unwrap() {
+                match execution
+                    .resume(&mut fuel, &mut AcceptTerminalEffects)
+                    .unwrap()
+                {
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         assert!(incremental);
                         fuel.replenish(1).unwrap();

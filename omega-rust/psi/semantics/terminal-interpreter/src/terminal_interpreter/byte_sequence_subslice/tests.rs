@@ -3,6 +3,7 @@ use super::{
     StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape, TerminalExecution,
     TerminalScalarValue, TerminalStructuralValue,
 };
+use crate::AcceptTerminalEffects;
 use std::collections::BTreeMap;
 
 use crate::terminal_interpreter::execution::ExecutableMachine;
@@ -518,7 +519,9 @@ fn repeated_dispatch_rebinds_only_after_fuel_charge_and_resumes_once() {
         let previous = execution.byte_sequence_values.clone();
         let previous_operation = execution.next_operation;
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(execution.next_operation, previous_operation);
@@ -544,13 +547,17 @@ fn repeated_dispatch_rebinds_only_after_fuel_charge_and_resumes_once() {
         }
         meter.replenish(1).unwrap();
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
     }
     let mut uninterrupted_meter = TerminalFuelMeter::with_allowance(11);
     assert!(matches!(
-        uninterrupted.resume(&mut uninterrupted_meter).unwrap(),
+        uninterrupted
+            .resume(&mut uninterrupted_meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.next_operation, 2);

@@ -7,6 +7,7 @@ use super::{
     lower_symbol_resolved_trees, main_machine, parse_syntax_trees, resolve, unsigned,
 };
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{OperationResult, Terminator};
 
@@ -135,12 +136,15 @@ fn assert_anonymous_shared(source: &str, boundary: bool, names: &[&str]) {
     };
     let mut reference = None;
     for incremental in [false, true] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &artifact.0,
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
-            &arguments,
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
         )
         .unwrap();
         let mut observer = ObserveMoves::default();
@@ -154,10 +158,7 @@ fn assert_anonymous_shared(source: &str, boundary: bool, names: &[&str]) {
         let mut observed_consumer = false;
         let mut observed_next = false;
         for _ in 0..256 {
-            match execution
-                .resume_with_effect_handler(&mut fuel, &mut observer)
-                .unwrap()
-            {
+            match execution.resume(&mut fuel, &mut observer).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
                     assert!(incremental);
                     if exhaustion.site == FuelChargeSite::Operation(consumer.id) {
@@ -453,6 +454,7 @@ fn successive_anonymous_shared_results_have_distinct_cleanup_edges() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveMoves::default();
@@ -460,10 +462,7 @@ fn successive_anonymous_shared_results_have_distinct_cleanup_edges() {
     let mut cleanups = 0;
     let mut complete = false;
     for _ in 0..256 {
-        match execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap()
-        {
+        match execution.resume(&mut fuel, &mut observer).unwrap() {
             TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
                 if let FuelChargeSite::Edge(edge) = exhaustion.site
                     && cleanup_edges.contains(&edge)
@@ -569,6 +568,7 @@ fn assert_execution(artifact: &(Vec<u8>, Vec<u8>), observations: usize) {
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut observer = ObserveMoves::default();
@@ -579,10 +579,7 @@ fn assert_execution(artifact: &(Vec<u8>, Vec<u8>), observations: usize) {
         };
         let mut complete = false;
         for _ in 0..1024 {
-            match execution
-                .resume_with_effect_handler(&mut fuel, &mut observer)
-                .unwrap()
-            {
+            match execution.resume(&mut fuel, &mut observer).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(incremental);
                     fuel.replenish(1).unwrap();
@@ -750,21 +747,20 @@ fn refused_shared_reads_leave_results_live_for_retry() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut handler = RefuseSecondRead::default();
     let mut fuel = TerminalFuelMeter::unbounded();
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut fuel, &mut handler),
+        execution.resume(&mut fuel, &mut handler),
         Err(TerminalInterpretError::EffectRejected { .. })
     ));
     assert_eq!(handler.observer.produced, [700, 701]);
     assert_eq!(handler.observer.consumed, [700]);
     assert_eq!(execution.live_affine_frontier().count(), 2);
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut fuel, &mut handler)
-            .unwrap(),
+        execution.resume(&mut fuel, &mut handler).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(handler.observer.produced, [700, 701]);
@@ -788,13 +784,12 @@ fn shared_read_before_a_crashing_operand_has_no_cleanup_successor() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveMoves::default();
     let mut fuel = TerminalFuelMeter::unbounded();
-    let status = execution
-        .resume_with_effect_handler(&mut fuel, &mut observer)
-        .unwrap();
+    let status = execution.resume(&mut fuel, &mut observer).unwrap();
     assert!(matches!(&status, TerminalExecutionStatus::Crashed(crash)
         if crash.cause == terminal_psi::CrashCause::Abort));
     assert_eq!(observer.produced, [700, 701]);
@@ -809,11 +804,6 @@ fn shared_read_before_a_crashing_operand_has_no_cleanup_successor() {
         }
     }
     let effects = execution.effects().to_vec();
-    assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap(),
-        status
-    );
+    assert_eq!(execution.resume(&mut fuel, &mut observer).unwrap(), status);
     assert_eq!(execution.effects(), effects);
 }

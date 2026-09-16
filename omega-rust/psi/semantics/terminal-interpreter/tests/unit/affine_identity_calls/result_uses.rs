@@ -8,6 +8,8 @@ use super::{
     encode_proof_section, identity_call_module, machine_id, nested_shape, operation_id, place_id,
     structural_type_id, verify, verify_module,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 fn result_consumer_module() -> TerminalModule {
     let mut module = identity_call_module(&[]);
     let mut consumer = module.machines[1].clone();
@@ -88,12 +90,15 @@ fn unit_calls_consume_whole_affine_results_and_resume_through_both_cleanups() {
             qualifications: Vec::new(),
             path: Vec::new(),
         });
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &inputs,
+            TerminalStructuralInputs {
+                arguments: &inputs,
+                ..Default::default()
+            },
         )
         .unwrap();
         let sites = [
@@ -112,8 +117,10 @@ fn unit_calls_consume_whole_affine_results_and_resume_through_both_cleanups() {
         let mut meter = TerminalFuelMeter::with_allowance(0);
         for (units, (site, places)) in sites.iter().enumerate() {
             for _ in 0..2 {
-                assert!(matches!(execution.resume(&mut meter).unwrap(),
-                    TerminalExecutionStatus::SponsorExhausted(exhaustion) if exhaustion.site == *site));
+                assert!(
+                    matches!(execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
+                    TerminalExecutionStatus::SponsorExhausted(exhaustion) if exhaustion.site == *site)
+                );
                 assert_eq!(meter.usage().total_units(), units as u64);
                 assert!(execution.live_claim_frontier().next().is_none());
                 assert_eq!(
@@ -127,7 +134,9 @@ fn unit_calls_consume_whole_affine_results_and_resume_through_both_cleanups() {
             meter.replenish(1).unwrap();
         }
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert!(execution.live_affine_frontier().next().is_none());

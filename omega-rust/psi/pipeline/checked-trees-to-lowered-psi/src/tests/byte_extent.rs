@@ -6,6 +6,7 @@ use crate::terminal_identities::{obligation_id, operation_id, value_id};
 use checked_trees::types::PrimitiveType;
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::IntegerValue;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 mod rejections;
 
@@ -146,6 +147,8 @@ fn guarded_subslice_extent_proves_strict_length_descent_and_executes() {
         &proof,
         &proof_admission::AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("independent proof verification and byte execution");
     assert_eq!(

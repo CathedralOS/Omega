@@ -7,6 +7,7 @@ use super::{
     edge_id, encode_module, encode_proof_section, operation_id, place_id, structural_type_id,
     verify_module,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 pub(super) fn borrowed_boundary_module(access: StructuralAccess) -> TerminalModule {
     let mut module = byte_sequence_literal_module(Vec::new());
     module.structural_types[0].identity = "test::Resource".into();
@@ -124,12 +125,15 @@ fn assert_boundary_execution(module: &TerminalModule, identities: &[u64], expect
         .collect::<Vec<_>>();
     let mut reference = None;
     for incremental in [false, true] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &evidence,
             &AdmissionProfile::default(),
             &[],
-            &values,
+            TerminalStructuralInputs {
+                arguments: &values,
+                ..Default::default()
+            },
         )
         .unwrap();
         let mut handler = RecordingHandler::default();
@@ -140,10 +144,7 @@ fn assert_boundary_execution(module: &TerminalModule, identities: &[u64], expect
         };
         let mut complete = false;
         for _ in 0..32 {
-            match execution
-                .resume_with_effect_handler(&mut fuel, &mut handler)
-                .unwrap()
-            {
+            match execution.resume(&mut fuel, &mut handler).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(incremental);
                     assert_eq!(

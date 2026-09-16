@@ -5,6 +5,7 @@ use super::{
     TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue, checked_from_source,
     unit_plan,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn source(signature: &str, receiver: &str) -> String {
     format!(
         "data Record [copy] {{ value: u16; }}
@@ -50,22 +51,28 @@ fn indexed_ieee_write_only_receiver_retains_runtime_and_literal_stores() {
             } else {
                 semantic_vocabulary::IeeeFloatValue::Binary64(0x8000_0000_0000_0000)
             };
-            let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            let mut execution = TerminalExecution::start_artifact(
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &proof_admission::AdmissionProfile::default(),
                 &[TerminalScalarValue::IeeeFloat(value)],
-                &[TerminalStructuralValue {
-                    opaque_identity: 73,
-                    structural_type: caller.structural_parameters[0].structural_type,
-                    qualifications: Vec::new(),
-                    path: Vec::new(),
-                }],
+                TerminalStructuralInputs {
+                    arguments: &[TerminalStructuralValue {
+                        opaque_identity: 73,
+                        structural_type: caller.structural_parameters[0].structural_type,
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    }],
+                    ..Default::default()
+                },
             )
             .expect("IEEE field receiver execution starts");
             assert_eq!(
                 execution
-                    .resume(&mut terminal_fuel::TerminalFuelMeter::with_allowance(100))
+                    .resume(
+                        &mut terminal_fuel::TerminalFuelMeter::with_allowance(100),
+                        &mut AcceptTerminalEffects
+                    )
                     .unwrap(),
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
@@ -255,17 +262,20 @@ fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
         ]
     );
     for incremental in [false, true] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &profile,
             &[],
-            &[TerminalStructuralValue {
-                opaque_identity: 73,
-                structural_type: caller.structural_parameters[0].structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 73,
+                    structural_type: caller.structural_parameters[0].structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .unwrap();
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(if incremental {
@@ -275,7 +285,10 @@ fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
         });
         let mut complete = false;
         for _ in 0..=certificate.ceiling_units() {
-            match execution.resume(&mut fuel).unwrap() {
+            match execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(incremental);
                     fuel.replenish(1).unwrap();

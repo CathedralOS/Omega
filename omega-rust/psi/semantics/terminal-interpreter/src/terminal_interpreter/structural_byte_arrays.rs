@@ -1,8 +1,5 @@
 //! Explicit initialized fixed-array inputs and their fieldless original backing.
-use super::{
-    TerminalArtifactInterpretError, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
-    TerminalStructuralValue,
-};
+use super::{TerminalExecution, TerminalInterpretError};
 use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
 use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
 use crate::terminal_interpreter::custody::resolve_structural_arguments;
@@ -75,29 +72,6 @@ fn array_path_type(
 }
 
 impl TerminalExecution {
-    /// Verify an artifact and install explicitly initialized fixed-array contents.
-    /// This grants neither missing contents nor source-owned array construction.
-    pub fn start_artifact_with_structural_arguments_and_byte_arrays(
-        semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        byte_arrays: &[TerminalStructuralByteArrayValue],
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        let mut execution = Self::start_artifact_with_structural_arguments(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            scalar_arguments,
-            structural_arguments,
-        )?;
-        execution
-            .bind_byte_arrays(byte_arrays)
-            .map_err(TerminalArtifactInterpretError::Execution)?;
-        Ok(execution)
-    }
-
     pub(super) fn bind_byte_arrays(
         &mut self,
         arguments: &[TerminalStructuralByteArrayValue],

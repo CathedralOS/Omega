@@ -1,6 +1,7 @@
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralTypeId};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffectHandler, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
@@ -73,13 +74,16 @@ pub(super) fn execute(
     }
     let profile = AdmissionProfile::default();
     let start = |fields: &[TerminalStructuralScalarFieldValue]| {
-        TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(
+        TerminalExecution::start_artifact(
             semantics,
             proof,
             &profile,
             &[],
-            std::slice::from_ref(&argument),
-            fields,
+            TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&argument),
+                scalar_fields: fields,
+                ..Default::default()
+            },
         )
     };
     // Entry validation must also reject invalid contents in the unread spare.shadow.
@@ -114,7 +118,7 @@ pub(super) fn execute(
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut meter, handler)
+            .resume(&mut meter, handler)
             .expect("member arithmetic remains verified metadata at interpretation"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );

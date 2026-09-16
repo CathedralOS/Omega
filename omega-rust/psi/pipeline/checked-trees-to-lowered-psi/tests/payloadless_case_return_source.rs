@@ -1,5 +1,7 @@
 //! Fixtures shared by the payloadless case return source tests.
 
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 #[path = "payloadless_case_return_source/guarded_payloadless_calls.rs"]
 mod guarded_payloadless_calls;
 #[path = "payloadless_case_return_source/ordered_case_returns.rs"]
@@ -109,12 +111,16 @@ fn assert_guarded_case_results(
             artifact.proof_bytes(),
             &AdmissionProfile::default(),
             &arguments,
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut fuel = TerminalFuelMeter::with_allowance(0);
         let mut completed = false;
         for _ in 0..100 {
-            match execution.resume(&mut fuel).unwrap() {
+            match execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(result)) => {
                     assert_eq!(
                         result.value,

@@ -178,7 +178,10 @@ fn checked_crash_branches_execute_but_native_graph_crashes_remain_unsupported() 
         )
         .expect("two-leaf crash execution should start");
         let status = execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects,
+            )
             .expect("two-leaf crash execution should finish");
         match (status, expected_crash) {
             (TerminalExecutionStatus::Crashed(crash), Some(cause)) => {

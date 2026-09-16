@@ -7,6 +7,7 @@ use super::{
     TerminalModule, TerminalScalarValue, Terminator, block_id, contract_id, decode_module, edge_id,
     encode_module, encode_proof_section, machine_id, operation_id, place_id, value_id,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 
 pub(super) fn module(bytes: Vec<u8>, byte_index: u64, nested: bool) -> TerminalModule {
     let mut module = guarded_module(bytes, byte_index);
@@ -105,6 +106,7 @@ fn literal_backed_scalar_calls_return_exact_bytes_across_nested_calls_and_suspen
                     &proof,
                     &AdmissionProfile::default(),
                     &[],
+                    TerminalStructuralInputs::default(),
                 )
                 .unwrap();
                 let mut meter = if incremental {
@@ -114,10 +116,7 @@ fn literal_backed_scalar_calls_return_exact_bytes_across_nested_calls_and_suspen
                 };
                 let mut handler = RecordingHandler::default();
                 loop {
-                    match execution
-                        .resume_with_effect_handler(&mut meter, &mut handler)
-                        .unwrap()
-                    {
+                    match execution.resume(&mut meter, &mut handler).unwrap() {
                         TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
                         TerminalExecutionStatus::Complete(result) => {
                             assert_eq!(

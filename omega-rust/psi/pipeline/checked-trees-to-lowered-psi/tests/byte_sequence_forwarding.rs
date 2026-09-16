@@ -3,9 +3,10 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
-    interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact_measured,
 };
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, StructuralPathSegment};
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -67,12 +68,12 @@ fn execute(source: &str) -> Vec<Vec<Vec<u8>>> {
     assert_eq!(proof, lowered.proof_bundle);
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
     let mut effects = ByteEffects::default();
-    let execution = interpret_terminal_artifact_with_effect_handler_measured(
+    let execution = interpret_terminal_artifact_measured(
         &semantic,
         &evidence,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
         &mut effects,
     )
     .unwrap();

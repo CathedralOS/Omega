@@ -6,6 +6,7 @@ use crate::terminal_identities::{obligation_id, operation_id, value_id};
 use checked_trees::types::PrimitiveType;
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::IntegerValue;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 /// The literal and call are source-produced. The added Terminal read exercises
 /// proof closure, not source correspondence for literal indexing.
@@ -160,6 +161,8 @@ fn measured_literal_last_byte_proves_bounds_and_executes_without_guard() {
             &proof,
             &proof_admission::AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("independent reload, proof verification, and byte execution");
         assert_eq!(

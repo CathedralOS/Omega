@@ -11,9 +11,10 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
-    TerminalStructuralValue, interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     CrashPredicateTerm, CrashRouteGuard, OperationKind, StructuralFieldType, StructuralPathSegment,
@@ -87,14 +88,17 @@ fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretati
         path: Vec::new(),
     };
     assert_eq!(
-        interpret_terminal_artifact_with_effect_handler_measured(
+        interpret_terminal_artifact_measured(
             &bytes,
             &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
                 .expect("proof encode"),
             &AdmissionProfile::default(),
             &[],
-            &[packet],
-            &mut Accept,
+            TerminalStructuralInputs {
+                arguments: &[packet],
+                ..Default::default()
+            },
+            &mut Accept
         )
         .expect("member contracts do not reinterpret opaque aggregate runtime data")
         .into_value(),
@@ -267,12 +271,15 @@ fn nested_boolean_member_path_survives_source_call_codec_verification_interpreta
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("nested member contract remains verified metadata at interpretation");
@@ -388,12 +395,15 @@ fn projected_structural_argument_prefix_rebases_member_crash_routes_end_to_end()
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("projected member contract remains verified metadata at interpretation");
@@ -526,12 +536,15 @@ fn composed_boolean_member_predicate_rebases_every_path_end_to_end() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("composed member contract remains verified metadata at interpretation");
@@ -738,12 +751,15 @@ fn integer_member_comparisons_rebase_and_validate_exact_leaf_types_end_to_end() 
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("integer member contract remains verified metadata at interpretation");

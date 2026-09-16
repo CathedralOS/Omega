@@ -23,6 +23,8 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
     TerminalScalarValue, TerminalStructuralValue,
@@ -155,25 +157,32 @@ fn source_unit_retains_ordered_empty_affine_local_cleanup() {
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("Unit affine-local artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for expected_usage in 0..3 {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(meter.usage().total_units(), expected_usage);
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 3);
@@ -286,20 +295,29 @@ fn source_unit_construction_prefix_reaches_verified_interpreted_terminal_psi() {
 
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("construction proof encodes");
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("construction-prefix artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("construction-prefix artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for expected_usage in 0..3 {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(meter.usage().total_units(), expected_usage);
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 3);
@@ -618,13 +636,20 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
 
         let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("construction proof encodes");
-        let mut execution =
-            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-                .expect("wider construction-prefix artifact starts");
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .expect("wider construction-prefix artifact starts");
         let mut meter = TerminalFuelMeter::with_allowance(0);
         for expected_usage in 0..prefix_length + 1 {
             assert!(matches!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
             ));
             assert_eq!(
@@ -634,7 +659,9 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             meter.replenish(1).unwrap();
         }
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert_eq!(
@@ -685,17 +712,20 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
         }) if rejected == operation.id
     ));
     let parameter = &module.machines[0].structural_parameters[0];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 0x005e_771e,
-            structural_type: parameter.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 0x005e_771e,
+                structural_type: parameter.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("result boundary artifact starts");
     let initial_claims = execution.live_claim_frontier().collect::<Vec<_>>();
@@ -703,7 +733,7 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
     let mut meter = TerminalFuelMeter::unbounded();
     let mut rejecting = ResultBoundaryHandler { reject: true };
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut meter, &mut rejecting),
+        execution.resume(&mut meter, &mut rejecting),
         Err(TerminalInterpretError::EffectRejected { operation: rejected, .. })
             if rejected == operation.id
     ));
@@ -716,7 +746,7 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
     let mut accepting = ResultBoundaryHandler { reject: false };
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut meter, &mut accepting)
+            .resume(&mut meter, &mut accepting)
             .expect("accepted boundary result resumes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)

@@ -2,6 +2,7 @@
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -632,11 +633,14 @@ fn reference_release_processing_preserves_empty_helpers() {
         artifact.proof_bytes(),
         &Default::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("reload empty helper closure");
     let mut meter = TerminalFuelMeter::with_allowance(8);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
 }
@@ -871,31 +875,37 @@ fn execute(
         argument_index: 0,
         value: signed(29),
     };
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &profile,
-            &[],
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 91,
                 structural_type: parameter.structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-            &[initial],
-        )
-        .expect("install original initialized referent");
+            primitive_values: &[initial],
+            ..Default::default()
+        },
+    )
+    .expect("install original initialized referent");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).expect("initial suspension"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("initial suspension"),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.structural_primitive_values(), vec![initial]);
     let mut complete = false;
     for _ in 0..256 {
         meter.replenish(1).expect("one more execution unit");
-        let status = execution.resume(&mut meter).expect("resume reference call");
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("resume reference call");
         if meter
             .usage()
             .at(FuelChargeSite::Operation(*consumer_call))
@@ -944,7 +954,7 @@ fn execute(
                 let storage = execution.structural_primitive_values();
                 assert!(matches!(
                     execution
-                        .resume(&mut meter)
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
                         .expect("retry exhausted execution"),
                     TerminalExecutionStatus::SponsorExhausted(_)
                 ));
@@ -959,7 +969,7 @@ fn execute(
     let usage = meter.usage().clone();
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("completed execution is stable"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(signed(29)))
     );

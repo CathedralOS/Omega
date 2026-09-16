@@ -175,6 +175,8 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
         &canonical_proof_bytes,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("canonical artifact sections should execute with fuel");
     assert_eq!(measured.usage().schedule().marker(), 1);

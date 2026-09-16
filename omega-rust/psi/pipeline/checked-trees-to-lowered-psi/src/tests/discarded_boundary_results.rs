@@ -1,6 +1,7 @@
 //! Explicit result discard belongs to the boundary's immediate normal continuation.
 use super::{CheckedTrees, SymbolHandle, checked_source, lower_machine};
 use checked_trees::CheckedUnitEffectOperationPlan;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
@@ -338,6 +339,7 @@ fn discarded_boundary_result_preserves_effect_order_across_every_fuel_pause() {
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     struct Host {
@@ -394,16 +396,14 @@ fn discarded_boundary_result_preserves_effect_order_across_every_fuel_pause() {
     let mut completed = false;
     for _ in 0..256 {
         match execution
-            .resume_with_effect_handler(&mut fuel, &mut host)
+            .resume(&mut fuel, &mut host)
             .unwrap_or_else(|error| panic!("{error:?}, observed host events: {:?}", host.events))
         {
             TerminalExecutionStatus::SponsorExhausted(_) => {
                 let events = host.events.clone();
                 let effects = execution.effects().to_vec();
                 assert!(matches!(
-                    execution
-                        .resume_with_effect_handler(&mut fuel, &mut host)
-                        .unwrap(),
+                    execution.resume(&mut fuel, &mut host).unwrap(),
                     TerminalExecutionStatus::SponsorExhausted(_)
                 ));
                 assert_eq!(

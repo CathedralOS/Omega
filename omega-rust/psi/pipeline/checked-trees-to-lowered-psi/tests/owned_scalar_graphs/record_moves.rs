@@ -2,6 +2,8 @@
 
 use super::support;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
@@ -64,14 +66,24 @@ fn local_move_chains_preserve_nested_reads_and_dispose_only_final_owners() {
                 .collect::<Vec<_>>();
             for input in [0, 256, u128::from(u64::MAX)] {
                 for (take, expected) in [(true, input ^ 17), (false, 3)] {
-                    let mut execution = TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(
-                    &bytes, &proof, &proof_admission::AdmissionProfile::default(),
-                    &[TerminalScalarValue::Boolean(take), integer(input)], &roots, &[],
-                ).unwrap();
+                    let mut execution = TerminalExecution::start_artifact(
+                        &bytes,
+                        &proof,
+                        &proof_admission::AdmissionProfile::default(),
+                        &[TerminalScalarValue::Boolean(take), integer(input)],
+                        TerminalStructuralInputs {
+                            arguments: &roots,
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
                     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
                     let mut completed = false;
                     for _ in 0..256 {
-                        match execution.resume(&mut meter).unwrap() {
+                        match execution
+                            .resume(&mut meter, &mut AcceptTerminalEffects)
+                            .unwrap()
+                        {
                             TerminalExecutionStatus::Complete(result) => {
                                 assert_eq!(
                                     result,

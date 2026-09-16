@@ -5,10 +5,10 @@ use super::{
 use proof_admission::AdmissionProfile;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalInterpretError, TerminalStructuralValue,
-    interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalInterpretError, TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     BindingRelevance, ClaimTransfer, CompletionReceipt, EntryClaim, OperationKind,
@@ -60,12 +60,15 @@ fn unit_calls_transfer_and_settle_nested_record_field_claims() {
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = structural_value(47);
     let mut handler = RecordingHandler::default();
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("verified nested field custody should execute");
@@ -146,12 +149,15 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
     let argument = structural_value(46);
     let mut handler = RecordingHandler::default();
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("verified sibling field custody should execute");
@@ -173,21 +179,22 @@ fn unit_calls_transfer_and_settle_both_sibling_field_claims() {
 #[test]
 fn sponsor_exhaustion_does_not_replay_unit_calls_or_accepted_effects() {
     let (semantic, proof) = effect_artifact_sections();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[structural_value(42)],
+        TerminalStructuralInputs {
+            arguments: &[structural_value(42)],
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(3);
     let mut handler = RecordingHandler::default();
 
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut handler)
-            .unwrap(),
+        execution.resume(&mut meter, &mut handler).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Operation(operation_id(2)),
@@ -203,9 +210,7 @@ fn sponsor_exhaustion_does_not_replay_unit_calls_or_accepted_effects() {
 
     meter.replenish(2).unwrap();
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut handler)
-            .unwrap(),
+        execution.resume(&mut meter, &mut handler).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(handler.effects.len(), 2);
@@ -223,12 +228,15 @@ fn structural_runtime_mismatches_and_effect_rejection_fail_closed() {
         path: Vec::new(),
     };
     assert!(matches!(
-        TerminalExecution::start_artifact_with_structural_arguments(
+        TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &[missing_qualification],
+            TerminalStructuralInputs {
+                arguments: &[missing_qualification],
+                ..Default::default()
+            }
         ),
         Err(
             terminal_interpreter::TerminalArtifactInterpretError::Execution(
@@ -239,30 +247,26 @@ fn structural_runtime_mismatches_and_effect_rejection_fail_closed() {
 
     let mut rejecting = RejectingHandler;
     assert!(matches!(
-        interpret_terminal_artifact_with_effect_handler_measured(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-            &[],
-            &[structural_value(44)],
-            &mut rejecting,
-        ),
+        interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[], TerminalStructuralInputs { arguments: &[structural_value(44)], ..Default::default() }, &mut rejecting),
         Err(terminal_interpreter::TerminalArtifactInterpretError::Execution(
             TerminalInterpretError::EffectRejected { operation, .. }
         )) if operation == operation_id(3)
     ));
 
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[structural_value(44)],
+        TerminalStructuralInputs {
+            arguments: &[structural_value(44)],
+            ..Default::default()
+        },
     )
     .expect("verified effect artifact should start");
     let mut meter = TerminalFuelMeter::unbounded();
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut meter, &mut rejecting),
+        execution.resume(&mut meter, &mut rejecting),
         Err(TerminalInterpretError::EffectRejected { operation, .. })
             if operation == operation_id(3)
     ));

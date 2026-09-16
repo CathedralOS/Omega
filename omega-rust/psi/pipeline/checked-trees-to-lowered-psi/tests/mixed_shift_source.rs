@@ -5,9 +5,10 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
-    interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact_measured,
 };
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -113,12 +114,15 @@ fn exact_arithmetic_after_bitwise_computation_uses_one_verified_cleanup_join() {
             },
             TerminalScalarValue::Boolean(flag),
         ];
-        let execution = interpret_terminal_artifact_with_effect_handler_measured(
+        let execution = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
             &scalar,
-            &structural,
+            TerminalStructuralInputs {
+                arguments: &structural,
+                ..Default::default()
+            },
             &mut AcceptTerminalEffects,
         )
         .expect("execute decoded arithmetic and cleanup");
@@ -1979,14 +1983,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     }];
     for enabled in [false, true] {
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
-            &semantics,
-            &proof,
-            &AdmissionProfile::default(),
-            &scalar_arguments(enabled),
-            &structural_arguments,
-            &mut handler,
-        )
+        let measured = interpret_terminal_artifact_measured(&semantics, &proof, &AdmissionProfile::default(), &scalar_arguments(enabled), TerminalStructuralInputs { arguments: &structural_arguments, ..Default::default() }, &mut handler)
         .expect("mixed shifts interpret from canonical artifacts");
         assert_eq!(
             measured.value(),

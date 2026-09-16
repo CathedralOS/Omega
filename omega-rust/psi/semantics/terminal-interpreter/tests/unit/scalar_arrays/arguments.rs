@@ -9,6 +9,7 @@ use super::{
     expected, fixture, interpret_terminal_artifact_measured, machine_id, operation_id, place_id,
     structural_type_id, unit_module, value_id,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 #[path = "arguments/selection.rs"]
 mod selection;
 
@@ -247,6 +248,8 @@ fn array_arguments_preserve_order_duplicates_forwarding_and_caller_payload_at_ev
                     &proof,
                     &AdmissionProfile::default(),
                     &[],
+                    TerminalStructuralInputs::default(),
+                    &mut AcceptTerminalEffects,
                 )
                 .unwrap();
                 assert_eq!(measured.value(), expected);
@@ -255,18 +258,23 @@ fn array_arguments_preserve_order_duplicates_forwarding_and_caller_payload_at_ev
                     &proof,
                     &AdmissionProfile::default(),
                     &[],
+                    TerminalStructuralInputs::default(),
                 )
                 .unwrap();
                 let mut meter = TerminalFuelMeter::with_allowance(0);
                 for _ in 0..measured.usage().total_units() {
                     assert!(matches!(
-                        execution.resume(&mut meter).unwrap(),
+                        execution
+                            .resume(&mut meter, &mut AcceptTerminalEffects)
+                            .unwrap(),
                         TerminalExecutionStatus::SponsorExhausted(_)
                     ));
                     meter.replenish(1).unwrap();
                 }
                 assert_eq!(
-                    execution.resume(&mut meter).unwrap(),
+                    execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap(),
                     TerminalExecutionStatus::Complete(expected)
                 );
                 assert_eq!(meter.usage(), measured.usage());
@@ -293,6 +301,8 @@ fn array_arguments_preserve_boolean_and_ieee_bit_patterns() {
             &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         assert_eq!(result.value(), expected(leaves.into_iter().rev().collect()));
@@ -312,16 +322,22 @@ fn opaque_host_array_parameters_cannot_invent_returned_contents() {
             qualifications: vec![],
             path: vec![],
         });
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &encode_module(&module).unwrap(),
             &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
-            &arguments,
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
         )
         .expect("opaque entry arguments do not manufacture typed payloads");
         assert!(matches!(
-            execution.resume(&mut TerminalFuelMeter::unbounded()),
+            execution.resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            ),
             Err(TerminalInterpretError::VerifiedOperationMalformed)
         ));
     }

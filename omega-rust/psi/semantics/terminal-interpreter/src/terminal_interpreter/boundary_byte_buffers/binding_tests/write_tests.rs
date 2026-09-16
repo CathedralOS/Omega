@@ -1,4 +1,5 @@
 use super::super::super::TerminalScalarValue;
+use crate::AcceptTerminalEffects;
 
 use super::{
     BTreeMap, Block, BlockId, ByteSequenceBinding, ByteSequenceView, EdgeId, MachineId,
@@ -99,7 +100,10 @@ fn ordinary_unit_field_presentation_writes_original_backing_and_rejects_substitu
         .operations = vec![store];
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -195,7 +199,9 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
         );
     let mut meter = TerminalFuelMeter::with_allowance(3);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.current, writing_block);
@@ -206,7 +212,9 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
     );
     meter.replenish(4).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(
@@ -260,13 +268,17 @@ fn mutable_view_state_transfer_preserves_exact_binding_and_charges_before_commit
     let referent = execution.structural_values[&place(3)].clone();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert!(!execution.structural_values.contains_key(&place(4)));
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.structural_values[&place(4)], referent);
@@ -277,7 +289,9 @@ fn mutable_view_state_transfer_preserves_exact_binding_and_charges_before_commit
     );
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -286,7 +300,9 @@ fn mutable_view_state_transfer_preserves_exact_binding_and_charges_before_commit
     );
     meter.replenish(3).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(
@@ -448,7 +464,9 @@ fn fixed_view_write_survives_suspension_nested_return_and_preserves_immutable_ta
     ];
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -457,7 +475,9 @@ fn fixed_view_write_survives_suspension_nested_return_and_preserves_immutable_ta
     );
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.values[&scalar(3)], unsigned(64, 3));
@@ -467,7 +487,9 @@ fn fixed_view_write_survives_suspension_nested_return_and_preserves_immutable_ta
     );
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -488,7 +510,9 @@ fn fixed_view_write_survives_suspension_nested_return_and_preserves_immutable_ta
     );
     for _ in 0..2 {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(
@@ -498,7 +522,9 @@ fn fixed_view_write_survives_suspension_nested_return_and_preserves_immutable_ta
     }
     meter.replenish(3).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(

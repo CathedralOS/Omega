@@ -191,9 +191,15 @@ fn checked_source_exact_literal_narrowing_relands_before_psi() {
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("narrowing proof bytes");
     drop(lowered);
-    let measured =
-        interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("decoded narrowing artifact should interpret");
+    let measured = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .expect("decoded narrowing artifact should interpret");
     assert_eq!(
         measured.value(),
         TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {

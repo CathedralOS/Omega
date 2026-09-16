@@ -8,6 +8,8 @@ use proof_admission::{
 use semantic_vocabulary::{EvidenceIdentity, Proposition, ScalarTerm, ScalarType};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
@@ -53,23 +55,26 @@ fn scalar_return_materializes_result_then_runs_nominal_cleanup() {
     let semantic = encode_module(&module).expect("scalar nominal cleanup encodes");
     let proof =
         encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(true)],
-        &[TerminalStructuralValue {
-            opaque_identity: 71,
-            structural_type: structural_type_id(1),
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 71,
+                structural_type: structural_type_id(1),
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("verified scalar nominal cleanup starts");
     let mut meter = TerminalFuelMeter::with_allowance(1);
 
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             site: FuelChargeSite::Edge(edge),
             ..
@@ -78,7 +83,9 @@ fn scalar_return_materializes_result_then_runs_nominal_cleanup() {
     assert!(execution.live_affine_frontier().next().is_none());
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
         ))
@@ -232,12 +239,15 @@ fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups(
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(false)],
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
     )
     .expect("proof-carrying contextual scalar cleanup starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -248,14 +258,16 @@ fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups(
         FuelChargeSite::Edge(edge_id(2)),
     ] {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion { site, .. })
                 if site == expected_site
         ));
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(false)
         ))
@@ -321,12 +333,15 @@ fn mixed_scalar_return_cleanup_resumes_nominal_work_around_a_no_code_discard() {
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(true)],
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
     )
     .expect("verified mixed scalar cleanup starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -340,7 +355,7 @@ fn mixed_scalar_return_cleanup_resumes_nominal_work_around_a_no_code_discard() {
     .enumerate()
     {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion { site, .. })
                 if site == expected_site
         ));
@@ -349,7 +364,9 @@ fn mixed_scalar_return_cleanup_resumes_nominal_work_around_a_no_code_discard() {
     }
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
         ))

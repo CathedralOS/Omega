@@ -11,8 +11,7 @@ use terminal_fuel::TerminalFuelSchedule;
 use terminal_interpreter::{
     AcceptTerminalEffects, TerminalArtifactInterpretError, TerminalExecutionResult,
     TerminalInterpretError, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
-    TerminalStructuralValue, interpret_terminal_artifact_with_effect_handler_measured,
-    interpret_terminal_artifact_with_structural_boolean_fields_measured,
+    TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,

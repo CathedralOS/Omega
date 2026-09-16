@@ -8,6 +8,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
@@ -190,17 +191,17 @@ fn execute(
         .copied()
         .map(TerminalScalarValue::Boolean)
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
         &arguments,
-        &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveCalls::default();
     let status = execution
-        .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+        .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
         .unwrap();
     (status, observer.0)
 }

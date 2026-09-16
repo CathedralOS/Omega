@@ -9,6 +9,7 @@ use terminal_codec::{
 };
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
 };
@@ -384,18 +385,21 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &bytes,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("erased evidence lanes require no runtime arguments");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("execute forwarded lanes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -590,17 +594,22 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &bytes,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("producer evidence remains erased at runtime");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
-        execution.resume(&mut meter).expect("execute producer"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execute producer"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
 }
@@ -880,18 +889,18 @@ fn proof_output_is_canonical_verified_and_runtime_erased() {
     derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
         .expect("proof-only invocation adds no runtime fuel obligation");
 
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &bytes,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("proof-only proof output requires no runtime argument");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("execute erased proof output"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );

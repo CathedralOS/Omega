@@ -64,6 +64,8 @@ fn framed(equal: bool, padding: u32) -> (bool, StagedFunctionFragmentFrameApplic
         &proof,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     let expected = if equal { 37 } else { 41 };

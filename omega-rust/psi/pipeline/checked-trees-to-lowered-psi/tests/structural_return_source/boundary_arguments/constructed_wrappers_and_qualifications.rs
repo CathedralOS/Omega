@@ -185,7 +185,7 @@ fn unit_wrapper_forwards_shared_parameter_without_manufacturing_claims() {
     };
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -289,7 +289,7 @@ fn unit_wrapper_consumes_established_affine_result_without_duplicate_cleanup() {
     assert_eq!(execution.live_claim_frontier().count(), 0);
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -408,7 +408,7 @@ fn unit_wrapper_qualifications_and_range_proofs_survive_provider_rejection() {
         ..ObserveSettlement::default()
     };
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer),
+        execution.resume(&mut TerminalFuelMeter::unbounded(), &mut observer),
         Err(TerminalInterpretError::EffectRejected { .. })
     ));
     assert_eq!(execution.live_claim_frontier().count(), 1);
@@ -416,7 +416,7 @@ fn unit_wrapper_qualifications_and_range_proofs_survive_provider_rejection() {
     observer.reject = false;
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -533,7 +533,7 @@ fn unit_wrapper_operand_crash_retains_the_transferred_linear_claim() {
         terminal_psi::CrashCause::Abort,
     );
     let status = execution
-        .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+        .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
         .unwrap();
     assert_unsettled_helper_crash(
         &artifact,
@@ -562,7 +562,7 @@ fn returned_boundary_scalar_accepts_computed_argument_before_linear_settlement()
     assert_eq!(execution.live_claim_frontier().count(), 1);
     assert_eq!(
         execution
-            .resume_with_effect_handler(
+            .resume(
                 &mut TerminalFuelMeter::unbounded(),
                 &mut ResultBoundaryHandler { reject: false }
             )

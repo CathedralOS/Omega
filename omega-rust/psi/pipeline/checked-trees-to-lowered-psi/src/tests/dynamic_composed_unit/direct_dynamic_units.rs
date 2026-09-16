@@ -9,6 +9,7 @@ use super::{
 };
 use crate::terminal_identities::value_id;
 use crate::tests::{checked_source, lower_machine};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
 
 #[test]
@@ -166,21 +167,23 @@ fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
             qualifications: self_parameter.qualifications.clone(),
             path: Vec::new(),
         };
-        let mut execution =
-            terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[terminal_interpreter::TerminalScalarValue::Boolean(
-                    choose_first,
-                )],
-                &[structural],
-            )
-            .expect("result-less joined artifact should start");
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[terminal_interpreter::TerminalScalarValue::Boolean(
+                choose_first,
+            )],
+            TerminalStructuralInputs {
+                arguments: &[structural],
+                ..Default::default()
+            },
+        )
+        .expect("result-less joined artifact should start");
         let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
         assert_eq!(
             execution
-                .resume(&mut meter)
+                .resume(&mut meter, &mut AcceptTerminalEffects)
                 .expect("result-less joined artifact should execute"),
             terminal_interpreter::TerminalExecutionStatus::Complete(
                 terminal_interpreter::TerminalExecutionResult::Unit,

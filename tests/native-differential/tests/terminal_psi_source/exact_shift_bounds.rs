@@ -82,6 +82,8 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(0)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified guarded narrowing should interpret")
     };
@@ -401,6 +403,8 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(count)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified exact right shift should interpret")
     };
@@ -909,6 +913,8 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(count)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified exact left shift should interpret")
     };
@@ -1002,6 +1008,8 @@ fn checked_source_exact_left_shift_uses_known_count_bounds() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(value)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified known-count exact left shift should interpret")
     };
@@ -1069,6 +1077,8 @@ fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(count)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified bounded-count exact left shift should interpret")
     };
@@ -1127,6 +1137,8 @@ fn checked_source_exact_left_shift_uses_u64_bounded_count_maximum() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(count)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified u64 bounded-count exact left shift should interpret")
     };

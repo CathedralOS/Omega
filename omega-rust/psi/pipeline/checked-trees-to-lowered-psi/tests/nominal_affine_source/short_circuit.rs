@@ -3,9 +3,10 @@ use super::{
     TerminalAffineCleanupAction, TerminalExecutionResult, TerminalScalarValue,
     TerminalStructuralValue, Terminator, decode_module, decode_proof_bundle,
     derive_fixed_entry_fuel, encode_module, encode_proof_section,
-    interpret_terminal_artifact_with_effect_handler_measured, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve, validate_fixed_entry_fuel,
+    interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
+    parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 const MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -162,7 +163,7 @@ fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
     });
     for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
@@ -170,7 +171,10 @@ fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
                 TerminalScalarValue::Boolean(left),
                 TerminalScalarValue::Boolean(right),
             ],
-            &structural_arguments,
+            TerminalStructuralInputs {
+                arguments: &structural_arguments,
+                ..Default::default()
+            },
             &mut handler,
         )
         .expect("reused nominal short-circuit path interprets from canonical artifacts");
@@ -333,12 +337,15 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
         ),
     ] {
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
             &scalar_arguments,
-            &structural_arguments,
+            TerminalStructuralInputs {
+                arguments: &structural_arguments,
+                ..Default::default()
+            },
             &mut handler,
         )
         .expect("mixed contextual short-circuit path interprets from canonical artifacts");

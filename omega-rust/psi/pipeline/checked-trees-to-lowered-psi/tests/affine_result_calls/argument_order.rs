@@ -4,6 +4,8 @@ use super::{
     TerminalFuelMeter, TerminalScalarValue, TerminalStructuralValue, Terminator, checked,
     decode_module, decode_proof_bundle, encode_module, encode_proof_section, lower_machine,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 fn assert_order(source: &str, arguments: &[TerminalScalarValue], expected: &[(usize, usize)]) {
     let checked = checked(source);
     let lowered = lower_machine(&checked, "Main::caller").expect("mixed arguments lower");
@@ -33,12 +35,15 @@ fn assert_order(source: &str, arguments: &[TerminalScalarValue], expected: &[(us
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         arguments,
-        &inputs,
+        TerminalStructuralInputs {
+            arguments: &inputs,
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(0);
@@ -46,7 +51,9 @@ fn assert_order(source: &str, arguments: &[TerminalScalarValue], expected: &[(us
     let mut charged = Vec::new();
     let mut completed = false;
     for _ in 0..=certificate.ceiling_units() {
-        let status = execution.resume(&mut meter).unwrap();
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         for receipt in &lowered.source_call_occurrences {
             if meter
                 .usage()
@@ -65,7 +72,12 @@ fn assert_order(source: &str, arguments: &[TerminalScalarValue], expected: &[(us
                     .live_affine_frontier()
                     .cloned()
                     .collect::<Vec<_>>();
-                assert_eq!(execution.resume(&mut meter).unwrap(), status);
+                assert_eq!(
+                    execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap(),
+                    status
+                );
                 assert_eq!(meter.usage().total_units(), units);
                 assert_eq!(
                     execution
@@ -224,17 +236,20 @@ fn argument_failure_preserves_only_already_established_structural_storage() {
         };
         let semantic = encode_module(module).unwrap();
         let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(false)],
-            &[TerminalStructuralValue {
-                opaque_identity: 17,
-                structural_type: caller.structural_parameters[0].structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 17,
+                    structural_type: caller.structural_parameters[0].structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .unwrap();
         let failing_call = lowered
@@ -244,7 +259,9 @@ fn argument_failure_preserves_only_already_established_structural_storage() {
             .unwrap();
         let mut meter = TerminalFuelMeter::with_allowance(0);
         loop {
-            let status = execution.resume(&mut meter).unwrap();
+            let status = execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap();
             let TerminalExecutionStatus::SponsorExhausted(exhaustion) = status else {
                 panic!("must pause before entering the failing scalar call");
             };
@@ -264,7 +281,7 @@ fn argument_failure_preserves_only_already_established_structural_storage() {
         };
         assert_eq!(frontier[0].place, expected);
         meter.replenish(1000).unwrap();
-        let outcome = execution.resume(&mut meter);
+        let outcome = execution.resume(&mut meter, &mut AcceptTerminalEffects);
         assert!(
             matches!(&outcome,
             Ok(TerminalExecutionStatus::Crashed(crash))

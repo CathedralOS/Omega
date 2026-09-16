@@ -6,6 +6,7 @@ use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarCaseResult,
     TerminalScalarCaseValue,
@@ -239,12 +240,20 @@ fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
     );
     let bytes = encode_module(&omitted.semantic_module).unwrap();
     let proof = encode_proof_section(&omitted.semantic_module, &omitted.proof_bundle).unwrap();
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::with_allowance(4))
+            .resume(
+                &mut TerminalFuelMeter::with_allowance(4),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
             TerminalScalarCaseResult {
@@ -323,27 +332,32 @@ fn exact_payloadless_case_return_is_canonical_verified_and_executable() {
 
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("proof bundle encodes");
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("the payloadless case artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("the payloadless case artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("operation exhaustion is resumable"),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).expect("fund the case constructor");
     assert!(matches!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("return exhaustion is resumable"),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).expect("fund the return edge");
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("the case return completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
             TerminalScalarCaseResult {
@@ -478,12 +492,13 @@ fn guarded_payloadless_case_return_retains_active_evidence_and_vacuous_siblings(
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("the guarded payloadless artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(2);
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("guarded producer completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
             TerminalScalarCaseResult {

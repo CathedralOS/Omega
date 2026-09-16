@@ -3,6 +3,8 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralValue, admit_provider_installation_from_artifact,
@@ -141,13 +143,15 @@ fn execute_candidates(
             path: Vec::new(),
         };
         for incremental in [false, true] {
-            let mut execution = TerminalExecution::start_artifact_with_provider_installation(
+            let mut execution = TerminalExecution::start_installed_artifact(
                 &semantic,
                 &proof,
                 &profile,
                 &[],
-                std::slice::from_ref(&argument),
-                &[],
+                TerminalStructuralInputs {
+                    arguments: std::slice::from_ref(&argument),
+                    ..Default::default()
+                },
                 &installation,
             )
             .expect("start");
@@ -158,7 +162,10 @@ fn execute_candidates(
             };
             let mut completed = false;
             for _ in 0..32 {
-                match execution.resume(&mut fuel).unwrap() {
+                match execution
+                    .resume(&mut fuel, &mut AcceptTerminalEffects)
+                    .unwrap()
+                {
                     TerminalExecutionStatus::Complete(result) => {
                         assert_eq!(result, TerminalExecutionResult::Unit);
                         completed = true;

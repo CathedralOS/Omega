@@ -1,5 +1,6 @@
 use super::{OperationKind, TerminalExecutionResult, TerminalScalarValue, support, unsigned};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 
 #[test]
@@ -93,13 +94,14 @@ machine enter(enabled: bool, number: u64) -> u64 {
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(enabled), unsigned(7)],
+            TerminalStructuralInputs::default(),
         )
         .expect("reload conditional scalar-local artifact");
         let mut meter = TerminalFuelMeter::with_allowance(0);
         let mut complete = false;
         for _ in 0..128 {
             match execution
-                .resume(&mut meter)
+                .resume(&mut meter, &mut AcceptTerminalEffects)
                 .expect("resume conditional local mutation")
             {
                 TerminalExecutionStatus::Complete(result) => {

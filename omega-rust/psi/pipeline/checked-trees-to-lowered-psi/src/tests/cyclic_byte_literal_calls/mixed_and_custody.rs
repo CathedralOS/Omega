@@ -9,6 +9,7 @@ use checked_trees::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalScalarValue;
+use terminal_interpreter::TerminalStructuralInputs;
 
 #[test]
 fn composed_attached_literal_calls_preserve_positions_after_unused_self_erasure() {
@@ -175,7 +176,7 @@ fn mixed_literal_positions_keep_scalars_across_selective_operand_control() {
         value: IntegerValue::Unsigned(value),
     };
     for (selected, fail) in [(false, false), (false, true), (true, false), (true, true)] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
@@ -183,29 +184,28 @@ fn mixed_literal_positions_keep_scalars_across_selective_operand_control() {
                 TerminalScalarValue::Boolean(selected),
                 TerminalScalarValue::Boolean(fail),
             ],
-            &[TerminalStructuralValue {
-                opaque_identity: 1,
-                structural_type: receiver.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 1,
+                    structural_type: receiver.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .unwrap();
         let mut trace = MixedTrace::default();
         let mut meter = TerminalFuelMeter::with_allowance(0);
         let status = loop {
-            let status = execution
-                .resume_with_effect_handler(&mut meter, &mut trace)
-                .unwrap();
+            let status = execution.resume(&mut meter, &mut trace).unwrap();
             if !matches!(status, TerminalExecutionStatus::SponsorExhausted(_)) {
                 break status;
             }
             let prefix = trace.0.clone();
             let usage = meter.usage().clone();
             assert!(matches!(
-                execution
-                    .resume_with_effect_handler(&mut meter, &mut trace)
-                    .unwrap(),
+                execution.resume(&mut meter, &mut trace).unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
             ));
             assert_eq!(trace.0, prefix);

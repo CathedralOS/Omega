@@ -4,6 +4,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -110,31 +112,38 @@ fn execute(
         argument_index: 0,
         value: written,
     };
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &profile,
-            arguments,
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        arguments,
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 91,
                 structural_type: parameter.structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-            &[initial],
-        )
-        .unwrap();
+            primitive_values: &[initial],
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.structural_primitive_values(), vec![initial]);
     let mut completed = false;
     for _ in 0..16 {
         meter.replenish(1).unwrap();
-        match execution.resume(&mut meter).unwrap() {
+        match execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
             TerminalExecutionStatus::Complete(actual) => {
                 assert_eq!(actual, TerminalExecutionResult::Scalar(result));
                 completed = true;

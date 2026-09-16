@@ -11,6 +11,8 @@ use super::{
     place_id, structural_type_id, value_id, verify_module, write_only_primitive_call_module,
 };
 use semantic_vocabulary::StructuralPlaceKind;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_verifier::validate_module;
 
 #[path = "primitive_locals/ranking.rs"]
@@ -107,16 +109,24 @@ fn run(module: &TerminalModule, incremental: bool) -> (TerminalExecutionResult, 
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
     let proof = encode_proof_section(module, &ranking::proof(module)).unwrap();
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
     let mut meter = if incremental {
         TerminalFuelMeter::with_allowance(0)
     } else {
         TerminalFuelMeter::unbounded()
     };
     loop {
-        match execution.resume(&mut meter).unwrap() {
+        match execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
             TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
             TerminalExecutionStatus::Complete(result) => {
                 return (result, meter.usage().total_units());
@@ -186,16 +196,18 @@ fn observe_local_identities(module: &TerminalModule) -> Vec<u64> {
     }
     let semantic = encode_module(&module).unwrap();
     let proof = encode_proof_section(&module, &ranking::proof(&module)).unwrap();
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     let mut identities = Identities::default();
     loop {
-        match execution
-            .resume_with_effect_handler(&mut meter, &mut identities)
-            .unwrap()
-        {
+        match execution.resume(&mut meter, &mut identities).unwrap() {
             TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
             TerminalExecutionStatus::Complete(_) => return identities.0,
             other => panic!("unexpected primitive identity observation: {other:?}"),

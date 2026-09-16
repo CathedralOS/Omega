@@ -9,6 +9,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
@@ -334,23 +336,28 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
         // The interpreter accepts an opaque live structural argument for stores.
         // Completion and fuel establish execution, not public post-return field
         // observation or native pointer provisioning. No record constructor is used.
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &profile,
             &scalar_arguments,
-            &[TerminalStructuralValue {
-                opaque_identity: 71,
-                structural_type: caller_receiver.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 71,
+                    structural_type: caller_receiver.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .expect("canonical receiver call accepts its interpreter argument");
         let mut meter =
             terminal_fuel::TerminalFuelMeter::with_allowance(certificate.ceiling_units());
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert_eq!(meter.usage().total_units(), certificate.ceiling_units());

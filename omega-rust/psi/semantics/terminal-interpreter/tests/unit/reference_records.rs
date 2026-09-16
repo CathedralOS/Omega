@@ -12,6 +12,8 @@ use super::{
     reference_release_module, structural_field_id, structural_type_id, value_id,
     write_only_primitive_call_module,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::{RecordFieldInitializer, RecordFieldValue};
 
 fn record_reference_module() -> TerminalModule {
@@ -367,18 +369,20 @@ fn owned_reference_record_entry_rejects_forged_opaque_host_custody() {
     module.machines = vec![consume];
     let semantic = encode_module(&module).expect("internal owned ingress is a valid interface");
     let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
-    let outcome = TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+    let outcome = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 999,
-            structural_type: structural_type_id(95),
-            qualifications: vec![],
-            path: vec![],
-        }],
-        &[],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 999,
+                structural_type: structural_type_id(95),
+                qualifications: vec![],
+                path: vec![],
+            }],
+            ..Default::default()
+        },
     );
     assert!(matches!(
         outcome,
@@ -848,13 +852,13 @@ fn execute_record_reference_values(
         scalar_type: integer,
         value: IntegerValue::Unsigned(value),
     };
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-            &[],
-            &initial_and_final_values
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &initial_and_final_values
                 .iter()
                 .enumerate()
                 .map(|(argument_index, _)| TerminalStructuralValue {
@@ -864,7 +868,7 @@ fn execute_record_reference_values(
                     path: vec![],
                 })
                 .collect::<Vec<_>>(),
-            &initial_and_final_values
+            primitive_values: &initial_and_final_values
                 .iter()
                 .enumerate()
                 .map(
@@ -874,14 +878,23 @@ fn execute_record_reference_values(
                     },
                 )
                 .collect::<Vec<_>>(),
-        )
-        .expect("record-owned reference custody verifies from source-free bytes");
+            ..Default::default()
+        },
+    )
+    .expect("record-owned reference custody verifies from source-free bytes");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     loop {
-        let status = execution.resume(&mut meter).unwrap();
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         match status {
             TerminalExecutionStatus::SponsorExhausted(_) => {
-                assert_eq!(execution.resume(&mut meter).unwrap(), status);
+                assert_eq!(
+                    execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap(),
+                    status
+                );
                 meter.replenish(1).unwrap();
             }
             TerminalExecutionStatus::Complete(result) => {

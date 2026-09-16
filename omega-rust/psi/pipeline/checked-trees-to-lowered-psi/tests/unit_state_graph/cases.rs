@@ -7,6 +7,7 @@ use checked_trees::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalScalarValue;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 fn output(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, u128)> {
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
@@ -16,6 +17,8 @@ fn output(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, u128)> {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified graph executes");
     assert_eq!(execution.value(), TerminalExecutionResult::Unit);

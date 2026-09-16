@@ -3,7 +3,6 @@
 //! interpreter loop.
 
 use crate::TerminalEffectResult;
-use crate::TerminalStructuralByteArrayValue;
 use crate::TerminalStructuralScalarFieldValue;
 use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
 use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
@@ -28,12 +27,11 @@ use crate::terminal_interpreter::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
 };
 use crate::terminal_interpreter::{
-    AcceptTerminalEffects, AdmittedProviderInstallation, TerminalArtifactInterpretError,
-    TerminalCrash, TerminalCrashSite, TerminalEffect, TerminalEffectHandler,
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
-    TerminalScalarCaseResult, TerminalScalarCaseValue, TerminalScalarValue,
-    TerminalStructuralBooleanFieldValue, TerminalStructuralInputs,
-    TerminalStructuralPrimitiveValue, TerminalStructuralResult, TerminalStructuralValue,
+    AdmittedProviderInstallation, TerminalArtifactInterpretError, TerminalCrash, TerminalCrashSite,
+    TerminalEffect, TerminalEffectHandler, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalInterpretError, TerminalScalarCaseResult, TerminalScalarCaseValue, TerminalScalarValue,
+    TerminalStructuralInputs, TerminalStructuralPrimitiveValue, TerminalStructuralResult,
+    TerminalStructuralValue,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, OperationId,
@@ -176,167 +174,11 @@ pub(crate) enum SuspendedCallResult {
 }
 
 impl TerminalExecution {
-    /// Canonical-decode, verify, and begin one resumable artifact execution.
-    /// The resulting state owns the verified program's code, so no decoded
-    /// producer object or self-referential verifier borrow escapes this entry.
-    pub fn start_artifact(
-        semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
-        arguments: &[TerminalScalarValue],
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        Self::start_artifact_with_structural_arguments(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            arguments,
-            &[],
-        )
-    }
-
-    pub fn start_artifact_with_structural_arguments(
-        semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        Self::start_artifact_with_structural_arguments_and_boolean_fields(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            scalar_arguments,
-            structural_arguments,
-            &[],
-        )
-    }
-
-    pub fn start_artifact_with_structural_arguments_and_boolean_fields(
-        semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        Self::start_artifact_with_structural_runtime_values(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            scalar_arguments,
-            structural_arguments,
-            structural_boolean_fields,
-            &[],
-        )
-    }
-
-    pub fn start_artifact_with_structural_arguments_and_primitive_values(
-        semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        structural_primitive_values: &[TerminalStructuralPrimitiveValue],
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        Self::start_artifact_with_structural_runtime_values(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            scalar_arguments,
-            structural_arguments,
-            &[],
-            structural_primitive_values,
-        )
-    }
-
-    /// Decode and verify an artifact, then bind explicitly supplied scalar fields
-    /// by structural argument, typed path, and field identity. No native layout or
-    /// default field contents are inferred. Duplicate referents and mistyped values reject.
-    pub fn start_artifact_with_structural_arguments_and_scalar_fields(
-        semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        structural_scalar_fields: &[TerminalStructuralScalarFieldValue],
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        Self::start_artifact_with_scalar_runtime_values(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            scalar_arguments,
-            structural_arguments,
-            structural_scalar_fields,
-            &[],
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn start_artifact_with_structural_runtime_values(
-        semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
-        structural_primitive_values: &[TerminalStructuralPrimitiveValue],
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        let fields = structural_boolean_fields
-            .iter()
-            .map(TerminalStructuralScalarFieldValue::from)
-            .collect::<Vec<_>>();
-        Self::start_artifact_with_scalar_runtime_values(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            scalar_arguments,
-            structural_arguments,
-            &fields,
-            structural_primitive_values,
-        )
-        .map_err(|error| match error {
-            TerminalArtifactInterpretError::Execution(
-                TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
-                    argument_index,
-                    field,
-                },
-            ) => TerminalArtifactInterpretError::Execution(
-                TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
-                    argument_index,
-                    field,
-                },
-            ),
-            other => other,
-        })
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn start_artifact_with_scalar_runtime_values(
-        semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        structural_scalar_fields: &[TerminalStructuralScalarFieldValue],
-        structural_primitive_values: &[TerminalStructuralPrimitiveValue],
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        Self::start_artifact_with_structural_inputs(
-            semantic_bytes,
-            proof_bytes,
-            profile,
-            scalar_arguments,
-            TerminalStructuralInputs {
-                arguments: structural_arguments,
-                scalar_fields: structural_scalar_fields,
-                primitive_values: structural_primitive_values,
-                cases: &[],
-            },
-        )
-    }
-
+    /// Decode, verify and start one artifact with its scalar arguments and
+    /// every structural input in one record. This is the only start entry.
     /// Decode and independently verify an artifact, then bind its initialized
     /// entry contents before committing any operation or custody transfer.
-    pub fn start_artifact_with_structural_inputs(
+    pub fn start_artifact(
         semantic_bytes: &[u8],
         proof_bytes: &[u8],
         profile: &proof_admission::AdmissionProfile,
@@ -353,31 +195,62 @@ impl TerminalExecution {
         let _verified =
             terminal_verifier::verify_module_for_interpretation(&module, &proof, profile)
                 .map_err(TerminalArtifactInterpretError::Verification)?;
+        let converted_boolean_fields;
+        let scalar_fields = if structural_inputs.boolean_fields.is_empty() {
+            structural_inputs.scalar_fields
+        } else {
+            converted_boolean_fields = structural_inputs
+                .boolean_fields
+                .iter()
+                .map(TerminalStructuralScalarFieldValue::from)
+                .collect::<Vec<_>>();
+            &converted_boolean_fields
+        };
         let mut execution = Self::start_verified_module(
             module,
             scalar_arguments,
             structural_inputs.arguments,
-            structural_inputs.scalar_fields,
+            scalar_fields,
             structural_inputs.primitive_values,
             None,
         )
-        .map_err(TerminalArtifactInterpretError::Execution)?;
+        .map_err(TerminalArtifactInterpretError::Execution)
+        .map_err(|error| match error {
+            TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
+                    argument_index,
+                    field,
+                },
+            ) if !structural_inputs.boolean_fields.is_empty() => {
+                TerminalArtifactInterpretError::Execution(
+                    TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
+                        argument_index,
+                        field,
+                    },
+                )
+            }
+            other => other,
+        })?;
         execution
             .bind_structural_cases(structural_inputs.cases)
             .map_err(TerminalArtifactInterpretError::Execution)?;
+        if !structural_inputs.byte_arrays.is_empty() {
+            execution
+                .bind_byte_arrays(structural_inputs.byte_arrays)
+                .map_err(TerminalArtifactInterpretError::Execution)?;
+        }
         Ok(execution)
     }
 
     /// Begin execution with one explicit provider installation previously
     /// admitted against these exact semantic/proof sections. Fixed-array inputs
     /// supply exact initialized backing; an installed provider grants no storage.
-    pub fn start_artifact_with_provider_installation(
+    pub fn start_installed_artifact(
         semantic_bytes: &[u8],
         proof_bytes: &[u8],
         profile: &proof_admission::AdmissionProfile,
         scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        byte_arrays: &[TerminalStructuralByteArrayValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
         installation: &AdmittedProviderInstallation,
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
@@ -391,14 +264,19 @@ impl TerminalExecution {
         let mut execution = Self::start_verified_module(
             module,
             scalar_arguments,
-            structural_arguments,
-            &[],
-            &[],
+            structural_inputs.arguments,
+            structural_inputs.scalar_fields,
+            structural_inputs.primitive_values,
             Some(installation),
         )
         .map_err(TerminalArtifactInterpretError::Execution)?;
+        if !structural_inputs.cases.is_empty() {
+            execution
+                .bind_structural_cases(structural_inputs.cases)
+                .map_err(TerminalArtifactInterpretError::Execution)?;
+        }
         execution
-            .bind_byte_arrays(byte_arrays)
+            .bind_byte_arrays(structural_inputs.byte_arrays)
             .map_err(TerminalArtifactInterpretError::Execution)?;
         Ok(execution)
     }
@@ -662,14 +540,6 @@ impl TerminalExecution {
         })
     }
 
-    pub fn resume(
-        &mut self,
-        meter: &mut TerminalFuelMeter,
-    ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
-        let mut handler = AcceptTerminalEffects;
-        self.resume_with_effect_handler(meter, &mut handler)
-    }
-
     pub fn effects(&self) -> &[TerminalEffect] {
         &self.effects
     }
@@ -707,7 +577,7 @@ impl TerminalExecution {
         self.live_affine_frontier.iter()
     }
 
-    pub fn resume_with_effect_handler(
+    pub fn resume(
         &mut self,
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,

@@ -3,6 +3,7 @@
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
@@ -561,21 +562,23 @@ fn execute(lowered: &lowered_psi::LoweredPsi, scalars: [bool; 2], flags: [bool; 
             }
         })
         .collect::<Vec<_>>();
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
-            &semantic,
-            &evidence,
-            &proof_admission::AdmissionProfile::default(),
-            &scalars.map(TerminalScalarValue::Boolean),
-            &arguments,
-            &fields,
-        )
-        .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &evidence,
+        &proof_admission::AdmissionProfile::default(),
+        &scalars.map(TerminalScalarValue::Boolean),
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            boolean_fields: &fields,
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert_eq!(execution.live_affine_frontier().count(), 2);
     let mut observer = Observe::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(
+            .resume(
                 &mut terminal_fuel::TerminalFuelMeter::unbounded(),
                 &mut observer
             )

@@ -12,6 +12,7 @@ use super::{
     payloadless_case_module, place_id, structural_case_id, structural_field_id, structural_type_id,
     value_id,
 };
+use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::{TerminalStructuralCaseValue, TerminalStructuralInputs};
 
 fn projected_membership_module(
@@ -129,7 +130,7 @@ fn projected_execution(
 ) -> Result<TerminalExecution, terminal_interpreter::TerminalArtifactInterpretError> {
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
-    TerminalExecution::start_artifact_with_structural_inputs(
+    TerminalExecution::start_artifact(
         &semantic,
         &encode_proof_section(module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
@@ -172,7 +173,9 @@ fn projected_case_membership_preserves_distinct_array_elements_and_live_root() {
                     .expect("projected tag contents independently verify");
                 let mut meter = TerminalFuelMeter::with_allowance(1);
                 assert!(matches!(
-                    execution.resume(&mut meter).unwrap(),
+                    execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap(),
                     TerminalExecutionStatus::SponsorExhausted(_)
                 ));
                 assert_eq!(
@@ -181,7 +184,9 @@ fn projected_case_membership_preserves_distinct_array_elements_and_live_root() {
                 );
                 meter.replenish(2).unwrap();
                 assert_eq!(
-                    execution.resume(&mut meter).unwrap(),
+                    execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap(),
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
                         TerminalScalarValue::Boolean(selected_index == 0)
                     ))
@@ -368,7 +373,7 @@ fn projected_case_membership_checks_nominal_type_through_host_aliases() {
             path: Vec::new(),
             case: structural_case_id(if foreign_type { 3 } else { 1 }),
         };
-        let mut execution = TerminalExecution::start_artifact_with_structural_inputs(
+        let mut execution = TerminalExecution::start_artifact(
             &encode_module(&module).unwrap(),
             &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
@@ -393,7 +398,10 @@ fn projected_case_membership_checks_nominal_type_through_host_aliases() {
             },
         )
         .unwrap();
-        let outcome = execution.resume(&mut TerminalFuelMeter::with_allowance(3));
+        let outcome = execution.resume(
+            &mut TerminalFuelMeter::with_allowance(3),
+            &mut AcceptTerminalEffects,
+        );
         if foreign_type {
             assert_eq!(
                 outcome,
@@ -471,7 +479,10 @@ fn projected_case_membership_calls_keep_the_original_root_and_selected_index() {
         let mut execution = projected_execution(&module, &projected_cases(true)).unwrap();
         assert_eq!(
             execution
-                .resume(&mut TerminalFuelMeter::with_allowance(7))
+                .resume(
+                    &mut TerminalFuelMeter::with_allowance(7),
+                    &mut AcceptTerminalEffects
+                )
                 .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
                 TerminalScalarValue::Boolean(selected_index == 0)
@@ -628,6 +639,8 @@ fn case_membership_round_trips_both_tags_and_preserves_repeated_reads() {
                     &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
                     &AdmissionProfile::default(),
                     &[],
+                    TerminalStructuralInputs::default(),
+                    &mut AcceptTerminalEffects,
                 )
                 .expect("case observation leaves the owner available for another read and cleanup");
                 assert_eq!(
@@ -738,6 +751,8 @@ fn ordinary_case_calls_move_affine_and_preserve_copy_or_shared_payloads() {
                 &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
                 &AdmissionProfile::default(),
                 &[],
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .expect("case payload survives exact call transfer");
             assert_eq!(
@@ -791,6 +806,8 @@ fn case_membership_does_not_consume_the_returned_case_or_payload() {
         &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     let TerminalExecutionResult::ScalarCase(result) = result.value() else {
@@ -929,12 +946,14 @@ fn case_membership_suspension_charges_each_observation_once() {
         &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(2);
     for operation in [3, 4] {
-        let TerminalExecutionStatus::SponsorExhausted(exhaustion) =
-            execution.resume(&mut meter).unwrap()
+        let TerminalExecutionStatus::SponsorExhausted(exhaustion) = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap()
         else {
             panic!("observation must wait for fuel")
         };
@@ -946,12 +965,16 @@ fn case_membership_suspension_charges_each_observation_once() {
         meter.replenish(1).unwrap();
     }
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(false)
         )),

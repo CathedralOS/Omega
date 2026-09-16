@@ -6,6 +6,8 @@ use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus};
 use terminal_psi::{OperationKind, Terminator};
 
@@ -274,12 +276,19 @@ fn selected_witness_tail_use_is_canonical_and_runtime_free() {
             .ceiling_units(),
         4
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("selected-witness artifact starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("selected-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
-        execution.resume(&mut meter).expect("artifact completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("artifact completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 

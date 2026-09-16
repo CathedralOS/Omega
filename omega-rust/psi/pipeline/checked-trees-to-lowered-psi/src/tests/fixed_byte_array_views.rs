@@ -1,6 +1,8 @@
 //! Source-produced fixed-array loans retain initialized backing and exact extent.
 use super::{byte_sequence_write, checked_source, lower_machine};
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalStructuralByteArrayValue,
     TerminalStructuralValue,
@@ -63,21 +65,25 @@ fn fixed_byte_array_views_write_original_storage_across_calls_and_suspension() {
                     bytes: vec![0x42; initial.len()],
                 });
             }
-            let mut execution =
-                TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
-                    artifact.semantic_bytes(),
-                    artifact.proof_bytes(),
-                    &proof_admission::AdmissionProfile::default(),
-                    &[],
-                    &[entry_argument(&artifact)],
-                    &arrays,
-                )
-                .unwrap();
+            let mut execution = TerminalExecution::start_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &[entry_argument(&artifact)],
+                    byte_arrays: &arrays,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
             let mut saw_first_write = initial.is_empty();
             let mut completed = false;
             for _ in 0..100 {
-                let status = execution.resume(&mut fuel).unwrap();
+                let status = execution
+                    .resume(&mut fuel, &mut AcceptTerminalEffects)
+                    .unwrap();
                 let observed = execution.structural_byte_array(73, &path).unwrap().to_vec();
                 assert_eq!(observed.len(), initial.len(), "array extent cannot change");
                 if !initial.is_empty() {
@@ -93,7 +99,9 @@ fn fixed_byte_array_views_write_original_storage_across_calls_and_suspension() {
                 match status {
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         assert!(matches!(
-                            execution.resume(&mut fuel).unwrap(),
+                            execution
+                                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                                .unwrap(),
                             TerminalExecutionStatus::SponsorExhausted(_)
                         ));
                         assert_eq!(
@@ -155,29 +163,36 @@ fn fixed_byte_array_views_reject_mistyped_or_duplicate_initial_storage() {
         vec![bad_argument],
     ] {
         assert!(
-            TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
+            TerminalExecution::start_artifact(
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &proof_admission::AdmissionProfile::default(),
                 &[],
-                std::slice::from_ref(&argument),
-                &arrays,
+                TerminalStructuralInputs {
+                    arguments: std::slice::from_ref(&argument),
+                    byte_arrays: &arrays,
+                    ..Default::default()
+                }
             )
             .is_err()
         );
     }
-    let start = TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
+    let start = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
-        &[argument],
-        &[],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     );
     if let Ok(mut execution) = start {
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(100);
         assert!(
-            execution.resume(&mut fuel).is_err(),
+            execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .is_err(),
             "an opaque identity does not initialize its array"
         );
     }

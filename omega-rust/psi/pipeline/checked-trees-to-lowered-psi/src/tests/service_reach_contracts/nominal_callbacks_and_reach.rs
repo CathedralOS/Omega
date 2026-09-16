@@ -4,6 +4,7 @@ use crate::tests::{
     lower_typed_trees, parse_syntax_trees, resolve,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::OperationKind;
 
 #[test]
@@ -151,18 +152,23 @@ fn closed_nominal_callback_transfers_both_claims_to_its_selected_body() {
         )
         .collect::<Vec<_>>();
     drop(checked);
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            &arguments,
-        )
-        .expect("source-free closed selection starts");
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
+    )
+    .expect("source-free closed selection starts");
     assert_eq!(
         execution
-            .resume(&mut terminal_fuel::TerminalFuelMeter::default())
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::default(),
+                &mut AcceptTerminalEffects
+            )
             .expect("execute selected body"),
         terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Unit

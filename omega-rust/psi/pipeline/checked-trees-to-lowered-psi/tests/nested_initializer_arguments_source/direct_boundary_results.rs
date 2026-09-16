@@ -6,6 +6,7 @@ use super::{
     checked, decode_module, decode_proof_bundle, main_machine,
 };
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};
 
@@ -24,12 +25,13 @@ fn shared_result_borrows_preserve_custody_until_the_final_move() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveMoves::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer,)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -51,12 +53,13 @@ fn nested_boundary_producers_transfer_their_exact_temporary_result() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveMoves::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -78,12 +81,13 @@ fn direct_boundary_arguments_evaluate_nested_affine_producers() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveMoves::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -103,12 +107,13 @@ fn a_boundary_result_moves_directly_into_a_later_boundary_call() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveMoves::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -131,12 +136,13 @@ fn an_ordinary_result_moves_into_a_bodyless_boundary_with_its_identity_intact() 
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveMoves::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -197,16 +203,14 @@ fn consuming_boundaries_establish_replacements_only_after_successful_completion(
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut observer = ObserveMoves::default();
         let mut fuel = TerminalFuelMeter::with_allowance(0);
         let mut complete = false;
         for _ in 0..1024 {
-            match execution
-                .resume_with_effect_handler(&mut fuel, &mut observer)
-                .unwrap()
-            {
+            match execution.resume(&mut fuel, &mut observer).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     fuel.replenish(1).unwrap();
                 }
@@ -267,6 +271,7 @@ fn rejected_or_mistyped_replacements_retain_the_direct_input_for_exact_retry() {
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut observer = RejectReplacement {
@@ -275,9 +280,7 @@ fn rejected_or_mistyped_replacements_retain_the_direct_input_for_exact_retry() {
             ..Default::default()
         };
         let mut fuel = TerminalFuelMeter::unbounded();
-        let error = execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap_err();
+        let error = execution.resume(&mut fuel, &mut observer).unwrap_err();
         if wrong_result {
             assert!(matches!(
                 error,
@@ -295,9 +298,7 @@ fn rejected_or_mistyped_replacements_retain_the_direct_input_for_exact_retry() {
         observer.reject = false;
         observer.wrong_result = false;
         assert_eq!(
-            execution
-                .resume_with_effect_handler(&mut fuel, &mut observer)
-                .unwrap(),
+            execution.resume(&mut fuel, &mut observer).unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert_eq!(observer.observed.produced, [700, 701, 702]);

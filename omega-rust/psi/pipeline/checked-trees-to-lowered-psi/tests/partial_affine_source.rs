@@ -4,6 +4,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
 };
@@ -363,17 +364,22 @@ fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interprete
             qualifications: root.qualifications.clone(),
             path: Vec::new(),
         };
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &[argument_value],
+            TerminalStructuralInputs {
+                arguments: &[argument_value],
+                ..Default::default()
+            },
         )
         .expect("verified affine pair artifact starts");
         let mut meter = TerminalFuelMeter::with_allowance(2);
         assert_eq!(
-            execution.resume(&mut meter).expect("execution suspends"),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .expect("execution suspends"),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 schedule: TerminalFuelSchedule::CURRENT.identity(),
                 site: FuelChargeSite::Edge(*edge),
@@ -384,7 +390,9 @@ fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interprete
         assert_eq!(execution.live_affine_frontier().count(), 1);
         meter.replenish(1).expect("replenish cleanup edge");
         assert_eq!(
-            execution.resume(&mut meter).expect("execution completes"),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .expect("execution completes"),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert!(execution.live_affine_frontier().next().is_none());
@@ -515,17 +523,22 @@ fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
             qualifications: root.qualifications.clone(),
             path: Vec::new(),
         };
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &[argument_value],
+            TerminalStructuralInputs {
+                arguments: &[argument_value],
+                ..Default::default()
+            },
         )
         .expect("verified fully consumed affine pair starts");
         let mut meter = TerminalFuelMeter::with_allowance(4);
         assert_eq!(
-            execution.resume(&mut meter).expect("execution suspends"),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .expect("execution suspends"),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 schedule: TerminalFuelSchedule::CURRENT.identity(),
                 site: FuelChargeSite::Edge(*edge),
@@ -536,7 +549,9 @@ fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
         assert!(execution.live_affine_frontier().next().is_none());
         meter.replenish(1).expect("replenish caller return");
         assert_eq!(
-            execution.resume(&mut meter).expect("execution completes"),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .expect("execution completes"),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert_eq!(meter.usage().total_units(), 5);
@@ -711,17 +726,22 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
         qualifications: root.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument_value],
+        TerminalStructuralInputs {
+            arguments: &[argument_value],
+            ..Default::default()
+        },
     )
     .expect("verified one-move affine triple starts");
     let mut meter = TerminalFuelMeter::with_allowance(2);
     assert_eq!(
-        execution.resume(&mut meter).expect("execution suspends"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execution suspends"),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(*edge),
@@ -731,7 +751,9 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
     );
     meter.replenish(1).expect("replenish residual return edge");
     assert_eq!(
-        execution.resume(&mut meter).expect("execution completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execution completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 3);
@@ -810,17 +832,22 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
             qualifications: root.qualifications.clone(),
             path: Vec::new(),
         };
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &[argument_value],
+            TerminalStructuralInputs {
+                arguments: &[argument_value],
+                ..Default::default()
+            },
         )
         .expect("verified affine triple starts");
         let mut meter = TerminalFuelMeter::with_allowance(4);
         assert_eq!(
-            execution.resume(&mut meter).expect("execution suspends"),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .expect("execution suspends"),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
                 schedule: TerminalFuelSchedule::CURRENT.identity(),
                 site: FuelChargeSite::Edge(*edge),
@@ -831,7 +858,9 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
         assert_eq!(execution.live_affine_frontier().count(), 1);
         meter.replenish(1).expect("replenish residual return edge");
         assert_eq!(
-            execution.resume(&mut meter).expect("execution completes"),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .expect("execution completes"),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert!(execution.live_affine_frontier().next().is_none());
@@ -1116,17 +1145,22 @@ fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
         qualifications: root.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument_value],
+        TerminalStructuralInputs {
+            arguments: &[argument_value],
+            ..Default::default()
+        },
     )
     .expect("verified affine quartet starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert_eq!(
-        execution.resume(&mut meter).expect("execution suspends"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execution suspends"),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(*edge),
@@ -1136,7 +1170,9 @@ fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
     );
     meter.replenish(1).expect("replenish quartet return edge");
     assert_eq!(
-        execution.resume(&mut meter).expect("execution completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execution completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 5);
@@ -1308,17 +1344,22 @@ fn assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpre
         qualifications: root.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument_value],
+        TerminalStructuralInputs {
+            arguments: &[argument_value],
+            ..Default::default()
+        },
     )
     .expect("verified nested affine artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert_eq!(
-        execution.resume(&mut meter).expect("execution suspends"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execution suspends"),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(*edge),
@@ -1328,7 +1369,9 @@ fn assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpre
     );
     meter.replenish(1).expect("replenish nested return edge");
     assert_eq!(
-        execution.resume(&mut meter).expect("execution completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execution completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 5);
@@ -1943,12 +1986,15 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         qualifications: root.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("verified source artifact starts");
 
@@ -1958,7 +2004,7 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("execution suspends cleanly"),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
@@ -1980,7 +2026,9 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
 
     meter.replenish(1).expect("replenish return-edge fuel");
     assert_eq!(
-        execution.resume(&mut meter).expect("execution completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execution completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());
@@ -2095,17 +2143,22 @@ fn mixed_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpre
         qualifications: root.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("verified nested source artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(7);
     assert_eq!(
-        execution.resume(&mut meter).expect("execution completes"),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execution completes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());

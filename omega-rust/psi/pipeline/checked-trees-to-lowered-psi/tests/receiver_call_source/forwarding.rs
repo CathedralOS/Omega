@@ -7,6 +7,8 @@ use super::{
     TerminalExecutionStatus, TerminalMachineResult, TerminalStructuralValue, Terminator,
     checked_from_source, unit_plan,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 #[test]
 fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order() {
     let declarations = [
@@ -174,23 +176,28 @@ fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order(
 
         // Opaque structural arguments support store execution; completion does
         // not expose a public post-return field value or establish native execution.
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &profile,
             &[],
-            &[TerminalStructuralValue {
-                opaque_identity: 71,
-                structural_type: entry_receiver.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 71,
+                    structural_type: entry_receiver.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .expect("outer accepts its supplied interpreter receiver");
         let mut meter =
             terminal_fuel::TerminalFuelMeter::with_allowance(certificate.ceiling_units());
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert_eq!(meter.usage().total_units(), certificate.ceiling_units());

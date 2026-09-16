@@ -2,6 +2,8 @@ use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
 };
@@ -125,16 +127,21 @@ fn assert_source(
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[input],
+        TerminalStructuralInputs {
+            arguments: &[input],
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(fuel - 1);
-    let paused = execution.resume(&mut meter).unwrap();
+    let paused = execution
+        .resume(&mut meter, &mut AcceptTerminalEffects)
+        .unwrap();
     assert!(
         matches!(&paused, TerminalExecutionStatus::SponsorExhausted(exhaustion) if exhaustion.site == FuelChargeSite::Edge(block.terminator.edge()))
     );
@@ -149,11 +156,18 @@ fn assert_source(
         live, expected,
         "only maximal untransferred subtrees remain before cleanup"
     );
-    assert_eq!(execution.resume(&mut meter).unwrap(), paused);
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        paused
+    );
     assert_eq!(meter.usage().total_units(), fuel - 1);
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());

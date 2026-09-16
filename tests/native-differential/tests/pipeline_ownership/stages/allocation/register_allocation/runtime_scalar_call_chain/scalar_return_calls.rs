@@ -207,6 +207,8 @@ fn scalar_calls_with_rel8_use_common_fixed_frame_publication() {
         &proof,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     assert!(matches!(
@@ -347,6 +349,8 @@ fn publish_scalar_artifacts_with_arguments(
             &proof,
             &AdmissionProfile::default(),
             arguments,
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("ordinary scalar call semantics must independently verify and execute");
         assert!(matches!(

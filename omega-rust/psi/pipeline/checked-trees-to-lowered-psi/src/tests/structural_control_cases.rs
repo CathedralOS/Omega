@@ -15,6 +15,7 @@ use checked_trees::{
 };
 use language_semantics::Multiplicity;
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, SuccessorEdge, Terminator, ValueDeclaration};
 #[test]
 fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
@@ -1695,19 +1696,21 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     };
 
     for (remaining, expected_units) in [(0, 5), (1, 11), (3, 23)] {
-        let mut execution =
-            terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-                &semantic,
-                &proof,
-                &proof_admission::AdmissionProfile::default(),
-                &[rank_argument(remaining)],
-                std::slice::from_ref(&structural_argument),
-            )
-            .expect("ranked artifact starts");
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+            &[rank_argument(remaining)],
+            TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&structural_argument),
+                ..Default::default()
+            },
+        )
+        .expect("ranked artifact starts");
         let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
         assert_eq!(
             execution
-                .resume(&mut meter)
+                .resume(&mut meter, &mut AcceptTerminalEffects)
                 .expect("ranked execution resumes"),
             terminal_interpreter::TerminalExecutionStatus::Complete(
                 terminal_interpreter::TerminalExecutionResult::Unit
@@ -1717,19 +1720,21 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         assert_eq!(execution.live_affine_frontier().count(), 0);
     }
 
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            &semantic,
-            &proof,
-            &proof_admission::AdmissionProfile::default(),
-            &[rank_argument(3)],
-            std::slice::from_ref(&structural_argument),
-        )
-        .expect("ranked resumable artifact starts");
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+        &[rank_argument(3)],
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&structural_argument),
+            ..Default::default()
+        },
+    )
+    .expect("ranked resumable artifact starts");
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(8);
     assert!(matches!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("ranked execution exhausts cleanly"),
         terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
     ));
@@ -1738,7 +1743,7 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     meter.replenish(15).expect("remaining exact grant fits");
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("ranked execution completes after refill"),
         terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Unit

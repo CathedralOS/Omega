@@ -60,6 +60,8 @@ fn checked_source_exact_add_uses_known_addend_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(0)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified exact addition should interpret")
     };
@@ -166,6 +168,8 @@ fn checked_source_exact_add_uses_joint_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified joint-bound exact addition should interpret")
     };
@@ -232,6 +236,8 @@ fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified signed joint-bound exact addition should interpret")
     };
@@ -297,6 +303,8 @@ fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified signed lower joint-bound exact addition should interpret")
     };
@@ -396,6 +404,8 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(0)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified exact subtraction should interpret")
     };
@@ -474,6 +484,8 @@ fn checked_source_exact_subtract_uses_joint_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified joint-bound exact subtraction should interpret")
     };
@@ -535,6 +547,8 @@ fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified signed joint-bound exact subtraction should interpret")
     };
@@ -600,6 +614,8 @@ fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(left), argument(right)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("verified signed upper joint-bound exact subtraction should interpret")
     };
@@ -693,6 +709,8 @@ fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
                 &proof,
                 &AdmissionProfile::default(),
                 &[argument(left), argument(right)],
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .expect("verified signed i64 add/subtract should interpret");
             assert_eq!(
@@ -781,6 +799,8 @@ fn checked_source_exact_arithmetic_uses_unsigned_u64_runtime_bounds() {
                 &proof,
                 &AdmissionProfile::default(),
                 &arguments,
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .expect("verified unsigned u64 arithmetic should interpret");
             assert_eq!(

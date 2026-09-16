@@ -1,5 +1,6 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralFieldId};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
@@ -56,21 +57,23 @@ fn affine_limits_integer_fields_execute_directly_and_through_owned_forwarding() 
         let profile = proof_admission::AdmissionProfile::default();
         for (limit, divisor) in [(0, 3), (42, 4), (99, 5), (u128::from(u64::MAX), 3)] {
             let (root, fields) = inputs(&module, limit, divisor);
-            let mut execution =
-                TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(
-                    &semantic_bytes,
-                    &proof_bytes,
-                    &profile,
-                    &[unsigned(201)],
-                    &[root],
-                    &fields,
-                )
-                .expect("bind explicit integer Limits fields");
+            let mut execution = TerminalExecution::start_artifact(
+                &semantic_bytes,
+                &proof_bytes,
+                &profile,
+                &[unsigned(201)],
+                TerminalStructuralInputs {
+                    arguments: &[root],
+                    scalar_fields: &fields,
+                    ..Default::default()
+                },
+            )
+            .expect("bind explicit integer Limits fields");
             let mut meter = TerminalFuelMeter::with_allowance(0);
             let mut complete = false;
             for _ in 0..128 {
                 match execution
-                    .resume(&mut meter)
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
                     .expect("resume real owned scalar graph")
                 {
                     TerminalExecutionStatus::Complete(result) => {
@@ -153,13 +156,16 @@ fn canonical_limits_entry_rejects_invalid_integer_field_inputs() {
         }
         assert!(
             matches!(
-                TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(
+                TerminalExecution::start_artifact(
                     &semantic_bytes,
                     &proof_bytes,
                     &profile,
                     &[unsigned(201)],
-                    std::slice::from_ref(&root),
-                    &fields
+                    TerminalStructuralInputs {
+                        arguments: std::slice::from_ref(&root),
+                        scalar_fields: &fields,
+                        ..Default::default()
+                    }
                 ),
                 Err(TerminalArtifactInterpretError::Execution(
                     TerminalInterpretError::StructuralScalarFieldArgumentInvalid { .. }
@@ -176,13 +182,16 @@ fn canonical_limits_entry_rejects_invalid_integer_field_inputs() {
     };
     assert!(
         matches!(
-            TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
+            TerminalExecution::start_artifact(
                 &semantic_bytes,
                 &proof_bytes,
                 &profile,
                 &[unsigned(201)],
-                &[root],
-                &[boolean]
+                TerminalStructuralInputs {
+                    arguments: &[root],
+                    boolean_fields: &[boolean],
+                    ..Default::default()
+                }
             ),
             Err(TerminalArtifactInterpretError::Execution(
                 TerminalInterpretError::StructuralBooleanFieldArgumentInvalid { .. }
@@ -197,17 +206,20 @@ fn omitted_limit_never_acquires_default_contents_at_entry_or_after_forwarding() 
     for entry in ["inspect", "enter"] {
         let (_, module, semantic_bytes, proof_bytes) = support::publish(LIMITS, entry);
         let (root, fields) = inputs(&module, 42, 4);
-        let start = TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(
+        let start = TerminalExecution::start_artifact(
             &semantic_bytes,
             &proof_bytes,
             &proof_admission::AdmissionProfile::default(),
             &[unsigned(201)],
-            &[root],
-            &fields[1..],
+            TerminalStructuralInputs {
+                arguments: &[root],
+                scalar_fields: &fields[1..],
+                ..Default::default()
+            },
         );
         let mut execution = start.expect("integer fields need contents only when actually read");
         assert!(
-            matches!(execution.resume(&mut TerminalFuelMeter::unbounded()), Err(TerminalInterpretError::StructuralScalarFieldMissing { field, .. }) if field == fields[0].field),
+            matches!(execution.resume(&mut TerminalFuelMeter::unbounded(), &mut AcceptTerminalEffects), Err(TerminalInterpretError::StructuralScalarFieldMissing { field, .. }) if field == fields[0].field),
             "{entry} must reject absent contents at its executed read"
         );
     }

@@ -19,9 +19,10 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
-    TerminalStructuralValue, interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     CrashPredicateTerm, CrashRouteGuard, OperationKind, StructuralFieldType, StructuralPathSegment,
@@ -229,12 +230,15 @@ fn projected_argument_prefix_rebases_every_integer_member_path_end_to_end() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("projected integer contract remains verified metadata at interpretation");
@@ -968,12 +972,15 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("member division remains verified metadata at interpretation");
@@ -1257,12 +1264,15 @@ fn bitwise_member_terms_rebase_across_projected_calls_and_codecs() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("bitwise crash predicates remain verified metadata at interpretation");
@@ -1425,12 +1435,15 @@ fn total_policy_arithmetic_rebases_across_projected_calls_and_codecs() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("policy arithmetic predicates remain verified metadata at interpretation");
@@ -1583,12 +1596,15 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("wrapping shifts remain verified metadata at interpretation");
@@ -1772,12 +1788,15 @@ fn exact_shifts_rebase_complete_count_and_overflow_requirements() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("Exact shifts remain verified metadata at interpretation");
@@ -1906,12 +1925,15 @@ fn policy_division_rebases_nonzero_requirements_across_projected_calls() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("policy division predicates remain verified metadata at interpretation");
@@ -2083,12 +2105,15 @@ fn runtime_divisor_call_requirements_rebase_and_verify_exact_obligations() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("verified runtime-divisor call executes as erased proof metadata");
@@ -2353,12 +2378,15 @@ fn proposition_disjunction_rebases_and_verifies_each_member_path_end_to_end() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("disjunctive member contract remains verified metadata at interpretation");

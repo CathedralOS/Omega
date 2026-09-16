@@ -285,6 +285,8 @@ fn float_match_executes_selected_arms_through_verified_terminal() {
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &arguments,
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .expect("decoded and independently verified Match executes");
         assert_eq!(

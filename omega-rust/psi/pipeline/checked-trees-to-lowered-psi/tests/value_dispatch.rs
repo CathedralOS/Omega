@@ -3,6 +3,7 @@
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IeeeFloatValue, IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::FuelChargeSite;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalExecutionResult, TerminalScalarValue,
     interpret_terminal_artifact_measured,
@@ -370,9 +371,15 @@ fn execute(
         .expect("independent dispatch verification");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
-    let execution =
-        interpret_terminal_artifact_measured(&semantic_bytes, &proof_bytes, &profile, arguments)
-            .unwrap_or_else(|error| panic!("execution {source}: {error:#?}"));
+    let execution = interpret_terminal_artifact_measured(
+        &semantic_bytes,
+        &proof_bytes,
+        &profile,
+        arguments,
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .unwrap_or_else(|error| panic!("execution {source}: {error:#?}"));
     (module, execution)
 }
 

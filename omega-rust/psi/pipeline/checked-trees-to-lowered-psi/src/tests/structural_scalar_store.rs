@@ -4,6 +4,8 @@ use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
 use semantic_vocabulary::IntegerValue;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralPathSegment,
     StructuralTypeShape, Terminator,
@@ -348,18 +350,22 @@ fn source_indexed_shared_call_reaches_serialized_interpretation() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            &[argument],
-        )
-        .expect("source indexed shared call reconstructs for interpretation");
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
+    )
+    .expect("source indexed shared call reconstructs for interpretation");
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(3);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Unit
         )

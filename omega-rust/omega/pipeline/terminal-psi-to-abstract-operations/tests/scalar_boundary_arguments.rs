@@ -5,6 +5,7 @@ use semantic_vocabulary::{
     StructuralTypeId, ValueId,
 };
 use terminal_codec::{encode_module, encode_proof_section};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, MachineContract, Operation, OperationKind, OperationResult,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
@@ -190,6 +191,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
                 value: semantic_vocabulary::IntegerValue::Unsigned(0),
             },
         ],
+        TerminalStructuralInputs::default(),
     );
     assert!(execution.is_ok());
 

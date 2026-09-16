@@ -4,6 +4,7 @@ use super::{
     TerminalMachineResult, TerminalScalarValue, TerminalStructuralValue, Terminator,
     ValueDeclaration, ValueId, execution,
 };
+use crate::AcceptTerminalEffects;
 use crate::terminal_interpreter::values::StructuralRuntimePlace;
 use terminal_psi::{StructuralAffineDiscard, TerminalAffineCleanupAction};
 
@@ -92,15 +93,24 @@ fn edge_and_scalar_cleanup_release_reference_descriptor_after_fuel_commit() {
             });
         }
         let mut meter = TerminalFuelMeter::with_allowance(0);
-        let exhausted = execution.resume(&mut meter).unwrap();
+        let exhausted = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         assert!(matches!(
             exhausted,
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
-        assert_eq!(execution.resume(&mut meter).unwrap(), exhausted);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            exhausted
+        );
         assert!(execution.reference_referents.contains_key(&carrier));
         meter.replenish(1).unwrap();
-        let _ = execution.resume(&mut meter).unwrap();
+        let _ = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         assert!(execution.reference_referents.is_empty());
         assert!(!execution.structural_values.contains_key(&carrier_place));
         assert_eq!(
@@ -108,7 +118,9 @@ fn edge_and_scalar_cleanup_release_reference_descriptor_after_fuel_commit() {
             Some(&TerminalScalarValue::Boolean(true))
         );
         let usage = meter.usage().clone();
-        let _ = execution.resume(&mut meter).unwrap();
+        let _ = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         assert_eq!(meter.usage(), &usage);
         assert!(execution.reference_referents.is_empty());
     }

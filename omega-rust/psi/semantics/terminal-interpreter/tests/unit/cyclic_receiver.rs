@@ -8,6 +8,8 @@ use super::{
     machine_id, operation_id, place_id, structural_field_id, structural_scalar_field_call_module,
     structural_type_id, value_id,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 #[test]
 fn cyclic_mutating_callee_preserves_projected_receiver_and_every_fuel_pause() {
     check_cyclic_receiver(true);
@@ -23,17 +25,20 @@ fn check_cyclic_receiver(projected: bool) {
     let semantic = encode_module(&module).expect("cyclic receiver encodes");
     let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
     let execute = || {
-        TerminalExecution::start_artifact_with_structural_arguments(
+        TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &[TerminalStructuralValue {
-                opaque_identity: 95,
-                structural_type: structural_type_id(if projected { 95 } else { 96 }),
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 95,
+                    structural_type: structural_type_id(if projected { 95 } else { 96 }),
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .expect("unranked mutable receiver verifies without a termination claim")
     };
@@ -45,18 +50,30 @@ fn check_cyclic_receiver(projected: bool) {
             value: IntegerValue::Signed(123),
         },
     ));
-    assert_eq!(uninterrupted.resume(&mut meter).unwrap(), expected);
+    assert_eq!(
+        uninterrupted
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        expected
+    );
     let total = meter.usage().total_units();
     // This is an observed test budget, not a claimed static work certificate.
     for allowance in 0..total {
         let mut execution = execute();
         let mut meter = TerminalFuelMeter::with_allowance(allowance);
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         meter.replenish(total - allowance).unwrap();
-        assert_eq!(execution.resume(&mut meter).unwrap(), expected);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            expected
+        );
         assert_eq!(meter.usage().total_units(), total);
         for operation in [23, 27, 45] {
             assert_eq!(

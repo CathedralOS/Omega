@@ -12,6 +12,8 @@ use super::{
     StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
     checked_from_source,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 pub(super) fn projected_source(
     caller_borrow: &str,
     callee_borrow: &str,
@@ -358,23 +360,28 @@ pub(super) fn assert_projected_receiver(
 
             // Opaque backing establishes interpreter execution and fuel only;
             // it exposes no public post-return field observation or native entry.
-            let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            let mut execution = TerminalExecution::start_artifact(
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &profile,
                 &scalar_arguments,
-                &[TerminalStructuralValue {
-                    opaque_identity: 71,
-                    structural_type: caller_receiver.structural_type,
-                    qualifications: Vec::new(),
-                    path: Vec::new(),
-                }],
+                TerminalStructuralInputs {
+                    arguments: &[TerminalStructuralValue {
+                        opaque_identity: 71,
+                        structural_type: caller_receiver.structural_type,
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    }],
+                    ..Default::default()
+                },
             )
             .expect("interpreter accepts the exact container root");
             let mut meter =
                 terminal_fuel::TerminalFuelMeter::with_allowance(certificate.ceiling_units());
             assert_eq!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
             assert_eq!(meter.usage().total_units(), certificate.ceiling_units());
