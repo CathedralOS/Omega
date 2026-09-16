@@ -1,12 +1,15 @@
 use optimization_core::OptimizationWorkBudget;
 use optimization_unit::ValueDefinitionSite;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::{
+    RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnitId,
+};
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin, SelectedCasePayloadTransport,
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedOperand, SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator,
-    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockOrigin,
+    SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedOperand, SelectedStructuralTransport, SelectedSuccessorRole,
+    SelectedTerminator, SelectedValueTransport, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 
@@ -16,6 +19,10 @@ use crate::ValidatedSelectedAnalysis;
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
     pub use_blocks: Vec<usize>,
+    /// Per block: one reload register serves every flexible use when a view of
+    /// the victim's class survives everything the block touches. `false` keeps
+    /// each use on a private reload pair.
+    pub shared_reload: Vec<bool>,
     pub victim: &'source VirtualRegister,
     pub source_value: ValueId,
     pub address_scalar_type: ScalarType,
@@ -139,6 +146,11 @@ pub(super) fn admit<'source>(
     let mut defined = definition.is_none();
     let mut uses = 0usize;
     let mut use_blocks = Vec::new();
+    // Blocks where at least one admitted use can read a shared block-local
+    // reload: an unpinned instruction or terminator operand, or an
+    // edge-transport argument. ABI-pinned (fixed-view) uses keep a private
+    // reload pinned for their own point instead.
+    let mut flexible_uses = vec![false; function.blocks.len()];
     for (current_block_index, block) in function.blocks.iter().enumerate() {
         let previous_uses = uses;
         let (terminal, successors) = super::control(&block.terminator);
@@ -167,6 +179,9 @@ pub(super) fn admit<'source>(
                         .any(|other| other.tied_to == Some(operand.operand))
                     {
                         return Err(RuntimeSpillError::UnsupportedUse);
+                    }
+                    if operand.fixed_view.is_none() {
+                        flexible_uses[current_block_index] = true;
                     }
                     uses = uses
                         .checked_add(1)
@@ -205,6 +220,7 @@ pub(super) fn admit<'source>(
                 {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 }
+                flexible_uses[current_block_index] = true;
                 uses = uses
                     .checked_add(1)
                     .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -241,6 +257,7 @@ pub(super) fn admit<'source>(
                             if payload.semantic.parameter.scalar_type != victim.scalar_type {
                                 return Err(RuntimeSpillError::UnsupportedUse);
                             }
+                            flexible_uses[current_block_index] = true;
                             uses = uses
                                 .checked_add(1)
                                 .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -296,6 +313,9 @@ pub(super) fn admit<'source>(
                             .any(|other| other.tied_to == Some(operand.operand))
                         {
                             return Err(RuntimeSpillError::UnsupportedUse);
+                        }
+                        if operand.fixed_view.is_none() {
+                            flexible_uses[current_block_index] = true;
                         }
                         uses = uses
                             .checked_add(1)
@@ -396,9 +416,70 @@ pub(super) fn admit<'source>(
         .unwrap_or(0)
         .checked_add(1)
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
+    // A unit implicitly used anywhere in the function can be live through this
+    // block without appearing in the block's own effects: backward unit
+    // liveness keeps it resident at every interior point, so a view containing
+    // it cannot host an interval spanning the block. The frame rows the
+    // rewrite inserts contribute their own implicit reads at interior points
+    // inside a shared interval, so their units are excluded the same way. A
+    // fixed-view operand or entry-bound register anywhere in the function
+    // precolors an interval that may reach across this block, so every unit
+    // such a view occupies is excluded too.
+    let mut implicit_use_units = std::collections::BTreeSet::new();
+    let mut pinned_views = function
+        .virtual_registers
+        .iter()
+        .filter_map(|register| register.entry_fixed_view)
+        .collect::<Vec<_>>();
+    for instruction in function.blocks.iter().flat_map(|block| {
+        block
+            .instructions
+            .iter()
+            .chain(std::iter::once(super::control(&block.terminator).0))
+    }) {
+        implicit_use_units.extend(instruction.implicit_uses.iter().copied());
+        pinned_views.extend(
+            instruction
+                .operands
+                .iter()
+                .filter_map(|operand| operand.fixed_view),
+        );
+    }
+    implicit_use_units.extend(address.implicit_uses.iter().copied());
+    implicit_use_units.extend(load.implicit_uses.iter().copied());
+    implicit_use_units.extend(store.implicit_uses.iter().copied());
+    let pinned_units = pinned_views
+        .iter()
+        .flat_map(|view_id| {
+            environment
+                .physical()
+                .model()
+                .views
+                .get(usize::from(view_id.0))
+                .into_iter()
+                .flat_map(|view| view.units.iter().chain(&view.write_units))
+        })
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let shared_reload = function
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(block_index, block)| {
+            flexible_uses[block_index]
+                && surviving_home_exists(
+                    environment,
+                    block,
+                    victim.class,
+                    &implicit_use_units,
+                    &pinned_units,
+                )
+        })
+        .collect();
     Ok(Admission {
         function,
         use_blocks,
+        shared_reload,
         victim,
         source_value,
         address_scalar_type: ScalarType::Integer(unsigned),
@@ -615,4 +696,62 @@ pub(super) fn instruction(
 
 pub(super) fn frame(slot: LocalStorageSlotId) -> FrameStorageSlotId {
     FrameStorageSlotId::Local(slot)
+}
+
+/// Whether one reload register can keep a legal home across every flexible
+/// use in the block. The produced interval reaches from just before the first
+/// flexible instruction-operand use through the last such use, so any unit the
+/// block touches — clobber, implicit access — would conflict with it, as would
+/// any unit still live through the block from an implicit use elsewhere (the
+/// caller collects those into `implicit_use_units`) or precolored by a
+/// fixed-view operand or entry-bound register anywhere in the function
+/// (`pinned_units`). A view surviving all of that is exactly the callee-saved
+/// home a call-straddling reload needs: a `CallUnit` clobbers every
+/// caller-saved unit, so only callee-saved views qualify there.
+///
+/// Scanning the whole block is deliberately conservative: the plan carries no
+/// unit-level liveness, so the check covers the full span a shared reload
+/// could occupy rather than just the observed uses. Where no view survives,
+/// every use keeps a private reload pair — the shape the rewrite always
+/// produced — and no produced interval is forced across a call.
+fn surviving_home_exists(
+    environment: &ValidatedTargetRegisterEnvironment,
+    block: &SelectedBlock,
+    class: RegisterClassId,
+    implicit_use_units: &std::collections::BTreeSet<RegisterUnitId>,
+    pinned_units: &std::collections::BTreeSet<RegisterUnitId>,
+) -> bool {
+    let reserved = environment.reservations().reserved_units();
+    let mut touched = std::collections::BTreeSet::new();
+    for instruction in block
+        .instructions
+        .iter()
+        .chain(std::iter::once(super::control(&block.terminator).0))
+    {
+        touched.extend(instruction.clobbers.iter().copied());
+        touched.extend(instruction.implicit_uses.iter().copied());
+        touched.extend(instruction.implicit_defs.iter().copied());
+    }
+    let physical = environment.physical().model();
+    physical
+        .classes
+        .iter()
+        .find(|row| row.id == class)
+        .is_some_and(|row| {
+            row.views.iter().any(|view_id| {
+                physical
+                    .views
+                    .get(usize::from(view_id.0))
+                    .is_some_and(|view| {
+                        view.id == *view_id
+                            && view.allocatable
+                            && view.units.iter().chain(&view.write_units).all(|unit| {
+                                !touched.contains(unit)
+                                    && !implicit_use_units.contains(unit)
+                                    && !pinned_units.contains(unit)
+                                    && reserved.binary_search(unit).is_err()
+                            })
+                    })
+            })
+        })
 }

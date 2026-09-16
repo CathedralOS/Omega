@@ -78,13 +78,14 @@ fn loop_carried_parameters_store_on_every_back_edge_arrival() {
                 VirtualRegisterId(argument)
             );
         }
+        // The destination's two body uses share one block-local reload pair.
         let destination = &transformed.blocks[2];
         assert_eq!(
             destination.instructions.len(),
             source.transformed().functions[0].blocks[2]
                 .instructions
                 .len()
-                + 4
+                + 2
         );
         assert!(
             validate_runtime_spill(

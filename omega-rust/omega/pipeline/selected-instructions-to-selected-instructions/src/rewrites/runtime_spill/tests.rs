@@ -215,7 +215,7 @@ fn spill_history_shares_unchanged_functions_and_replays_by_content() {
 }
 
 #[test]
-fn every_future_use_gets_a_distinct_short_lived_reload() {
+fn every_future_flexible_use_names_the_block_shared_reload() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -229,7 +229,10 @@ fn every_future_use_gets_a_distinct_short_lived_reload() {
                 .unwrap();
         let function = &result.transformed().functions[0];
         assert_eq!(function.local_storage_slots.len(), 1);
-        assert_eq!(function.virtual_registers.len(), 11);
+        // One address/reload register pair serves all three flexible uses: the
+        // block has no clobbering instruction, so a surviving home always
+        // exists and the first use's pair stays open for the later two.
+        assert_eq!(function.virtual_registers.len(), 7);
         let instructions = &function.blocks[0].instructions;
         assert!(matches!(
             instructions[1].kind,
@@ -243,8 +246,22 @@ fn every_future_use_gets_a_distinct_short_lived_reload() {
                     SelectedInstructionKind::Load64 { .. }
                 ))
                 .count(),
-            3
+            1
         );
+        let reload = instructions[3].operands[1].virtual_register;
+        assert!(matches!(
+            instructions[3].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        // The three rewritten consumers are the surviving original body
+        // instructions, each naming the shared reload register.
+        for original_id in [2u32, 3, 4] {
+            let rewritten = instructions
+                .iter()
+                .find(|instruction| instruction.id == SelectedInstructionId(original_id))
+                .unwrap();
+            assert_eq!(rewritten.operands[0].virtual_register, reload);
+        }
         for inserted in instructions
             .iter()
             .filter(|instruction| instruction.id.0 > 5)
@@ -261,6 +278,28 @@ fn every_future_use_gets_a_distinct_short_lived_reload() {
                 result.transformed().clone()
             )
             .is_ok()
+        );
+        // A use rebound to a different register breaks the shared shape replay
+        // reconstructs.
+        let mut rebound = result.transformed().clone();
+        rebound.functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|instruction| instruction.id == SelectedInstructionId(4))
+            .unwrap()
+            .operands[0]
+            .virtual_register = VirtualRegisterId(1);
+        assert_eq!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                rebound
+            )
+            .unwrap_err(),
+            RuntimeSpillError::ReplayMismatch
         );
     }
 }
@@ -487,10 +526,12 @@ fn fixed_view_instruction_uses_pin_their_reload_at_the_call_operand() {
                 matches!(instruction.kind, SelectedInstructionKind::CallUnit { .. })
             })
             .unwrap();
-        // Three uses each gain a reload pair and the definition gains a store.
+        // The pinned call operand gains a private reload pair; both flexible
+        // uses share one pair opened after the call, and the definition gains
+        // a store.
         assert_eq!(
             block.instructions.len(),
-            original.blocks[0].instructions.len() + 7
+            original.blocks[0].instructions.len() + 5
         );
         assert!(matches!(
             block.instructions[position - 2].kind,
@@ -507,6 +548,26 @@ fn fixed_view_instruction_uses_pin_their_reload_at_the_call_operand() {
         assert_eq!(rewritten_operand.virtual_register, reload_register);
         assert_eq!(rewritten_operand.access, original_operand.access);
         assert_eq!(rewritten_operand.fixed_view, original_operand.fixed_view);
+        // The two flexible uses after the call name the same shared reload —
+        // a distinct register from the pinned pair's.
+        let shared = block.instructions[position + 2].operands[1].virtual_register;
+        assert!(matches!(
+            block.instructions[position + 1].kind,
+            SelectedInstructionKind::FrameAddress { .. }
+        ));
+        assert!(matches!(
+            block.instructions[position + 2].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        assert_ne!(shared, reload_register);
+        for original_id in [3u32, 4] {
+            let rewritten = block
+                .instructions
+                .iter()
+                .find(|instruction| instruction.id == SelectedInstructionId(original_id))
+                .unwrap();
+            assert_eq!(rewritten.operands[0].virtual_register, shared);
+        }
         assert!(
             validate_runtime_spill(
                 &source,

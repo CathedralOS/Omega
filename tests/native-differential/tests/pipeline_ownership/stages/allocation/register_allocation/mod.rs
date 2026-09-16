@@ -31,6 +31,7 @@ mod recursive_spill_insertion;
 mod register_homes;
 mod reload_value_homes;
 mod runtime_scalar_call_chain;
+mod runtime_spill_call_spanning;
 mod selected_input;
 mod spill_pseudo_instructions;
 mod spill_recovery_actions;

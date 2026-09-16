@@ -2,12 +2,42 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedInstructionId,
-    SelectedInstructionKind, SelectedLocalStorageSlot, SelectedValueTransport, VirtualRegisterId,
+    SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot,
+    SelectedValueTransport, VirtualRegisterId,
 };
 
 use super::{RuntimeSpillError, ValidatedRuntimeSpill, admission, validate_runtime_spill};
 use crate::ValidatedSelectedAnalysis;
+
+/// Emit one private address/load pair for a use, or — when `share` admits a
+/// block-local shared reload — reuse the pair still open from the block's
+/// first flexible use so its interval spans every later flexible use, calls
+/// included. Returns the register the rewritten use must name.
+fn reload_for_use(
+    admitted: &admission::Admission<'_>,
+    register: VirtualRegisterId,
+    share: bool,
+    open: &mut Option<VirtualRegisterId>,
+    function: &mut SelectedFunction,
+    instructions: &mut Vec<SelectedInstruction>,
+    next_instruction: &mut u32,
+    next_register: &mut u32,
+) -> Result<VirtualRegisterId, RuntimeSpillError> {
+    if share && let Some(existing) = *open {
+        return Ok(existing);
+    }
+    let reload = admission::reload(admitted, register, next_instruction, next_register)?;
+    let reloaded = reload.reload_register.id;
+    function.virtual_registers.push(reload.address_register);
+    function.virtual_registers.push(reload.reload_register);
+    instructions.push(reload.address);
+    instructions.push(reload.load);
+    if share {
+        *open = Some(reloaded);
+    }
+    Ok(reloaded)
+}
 
 /// Store one nonaddress runtime value after its definition and reload before each
 /// flexible use. The independently checked output is the only admitted result.
@@ -37,6 +67,8 @@ pub fn spill_selected_runtime_value(
         {
             continue;
         }
+        let shared = admitted.shared_reload[block_index];
+        let mut open_reload = None;
         let mut instructions = Vec::new();
         let mut boundaries = Vec::new();
         let mut instruction_positions = Vec::new();
@@ -52,18 +84,16 @@ pub fn spill_selected_runtime_value(
                 {
                     continue;
                 }
-                let reload = admission::reload(
+                operand.virtual_register = reload_for_use(
                     &admitted,
                     register,
+                    shared && operand.fixed_view.is_none(),
+                    &mut open_reload,
+                    function,
+                    &mut instructions,
                     &mut next_instruction,
                     &mut next_register,
                 )?;
-                let reloaded = reload.reload_register.id;
-                function.virtual_registers.push(reload.address_register);
-                function.virtual_registers.push(reload.reload_register);
-                instructions.push(reload.address);
-                instructions.push(reload.load);
-                operand.virtual_register = reloaded;
             }
             instruction_positions.push(
                 u32::try_from(instructions.len())
