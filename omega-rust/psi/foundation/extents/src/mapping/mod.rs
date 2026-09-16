@@ -1,11 +1,11 @@
-use crate::diagnostic::{ExtentDiagnostic, nonzero_identity};
 use crate::extent::Extent;
+use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
 use crate::identities::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
 };
 use crate::loans::{ExtentLoan, LoanPolarity};
-use crate::root_grants::ValidatedExtentGeometry;
-use crate::root_origins::ExtentRootOrigin;
+use crate::roots::root_grants::ValidatedExtentGeometry;
+use crate::roots::root_origins::ExtentRootOrigin;
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

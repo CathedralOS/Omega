@@ -10,25 +10,23 @@
 //! extents enter through admitted providers; ordinary operations may only
 //! split, attenuate, borrow, or rejoin authority already present.
 //!
-//! `extent.rs` is the root: the authority carrier and its conserved
-//! operations. `identities.rs` holds the normalized identities and rights,
-//! `root_origins.rs` and `root_grants.rs` the two ways a fresh root enters,
-//! `loans.rs` the borrow-carrying subranges, `external_loans.rs` lending to
-//! borrowers the checker cannot see, `mapping.rs` translation activation and
-//! release, and `diagnostic.rs` the shared failure type.
+//! Start at `extent.rs`: the authority carrier, its conserved operations and
+//! the diagnostic every operation reports. `identities` holds the normalized
+//! identities and rights, `roots` the two ways a fresh root enters,
+//! `loans` the borrow-carrying subranges, `external_loans` lending to
+//! borrowers the checker cannot see, `mapping` translation activation and
+//! release.
 
-mod diagnostic;
 mod extent;
 mod external_loans;
 mod identities;
 mod loans;
 mod mapping;
-mod root_grants;
-mod root_origins;
+mod roots;
 #[cfg(test)]
 mod tests;
 
-pub use diagnostic::ExtentDiagnostic;
+pub use extent::diagnostic::ExtentDiagnostic;
 pub use extent::{
     AttenuationError, Extent, MergeError, OwnedExtentPartition, OwnedPartitionError, SplitError,
 };
@@ -56,10 +54,10 @@ pub use mapping::{
     TranslationReleaseObligations, TranslationReleaseReceipt, UnmapCompletionError,
     UnmappedExtents, map_borrowed, map_owned,
 };
-pub use root_grants::{
+pub use roots::root_grants::{
     ExistingContentMintError, ExtentRootGrant, MintError, ProviderExistingContentGrant,
     ValidatedExtentGeometry,
 };
-pub use root_origins::{
+pub use roots::root_origins::{
     ExtentProgramLocalOrigin, ExtentProviderInvocation, ExtentProviderIssuance, ExtentRootOrigin,
 };

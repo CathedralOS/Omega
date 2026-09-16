@@ -1,7 +1,7 @@
 //! The two origins that may introduce a fresh authority account: an exact
 //! established program-local occurrence, or an admitted provider issuance.
 
-use crate::diagnostic::{ExtentDiagnostic, nonzero_identity};
+use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
 use crate::identities::{
     ExtentAliasClassId, ExtentBackingId, ExtentCapacityId, ExtentCustodyRootId,
     ExtentEstablishmentRouteId, ExtentIssuanceId, ExtentLiveIssuancePremiseId,

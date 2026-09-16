@@ -2,14 +2,16 @@
 //! precedes consumption and the existing-content evidence a provider root may
 //! carry.
 
-use crate::diagnostic::{ExtentDiagnostic, validate_range};
+use crate::extent::diagnostic::{ExtentDiagnostic, validate_range};
 use crate::extent::{Extent, Lineage};
 use crate::identities::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentInterpretation,
     ExtentContentValidityReceiptId, ExtentLineageId, ExtentProvenanceId, ExtentRights,
     MappingEraId, ResidentClaimId,
 };
-use crate::root_origins::{ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin};
+use crate::roots::root_origins::{
+    ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin,
+};
 
 /// One-shot authority to mint exactly one root extent.
 ///

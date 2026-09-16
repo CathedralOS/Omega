@@ -2,12 +2,16 @@
 //! partition, attenuation and merge operations, and the errors that hand the
 //! authority back on failure.
 
-use crate::diagnostic::ExtentDiagnostic;
+pub(crate) mod diagnostic;
+
+use crate::extent::diagnostic::ExtentDiagnostic;
 use crate::identities::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
 };
 use crate::loans::ExtentLoan;
-use crate::root_origins::{ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin};
+use crate::roots::root_origins::{
+    ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SplitBranch {
