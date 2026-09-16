@@ -1,7 +1,7 @@
 //! Checked scalar arguments and projected argument paths: field and index
 //! paths, projected call support, contract mentions and crash expressions.
 
-use crate::execution::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,

@@ -388,7 +388,7 @@ fn instantiate_call_contract_payload(
     ) {
         return;
     }
-    let Some(call_site) = crate::find_call_site(
+    let Some(call_site) = crate::semantic_calls::find_call_site(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,
@@ -413,7 +413,8 @@ fn instantiate_call_contract_payload(
         };
         program.state_signature_parameters(requirement)
     } else {
-        let Some(parameters) = crate::call_target_parameters(program, call.target_state_symbol)
+        let Some(parameters) =
+            crate::semantic_calls::call_target_parameters(program, call.target_state_symbol)
         else {
             return;
         };

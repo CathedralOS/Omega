@@ -7,7 +7,7 @@ use super::{
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode, TypedTrees,
     control,
 };
-use crate::execution::projected_argument_path;
+use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::cleanup::cleanup_evidence::{
     machine_has_content_evidence, service_reach_is_empty, service_reach_plan_is_empty,
 };
@@ -66,8 +66,14 @@ pub(in crate::execution::terminal_unit) fn binding_at(
     if producer.call_ordinal != 1 {
         return None;
     }
-    let source = crate::find_call_site(program, machine.symbol, state.symbol, statement_index, 0)?;
-    let arguments = crate::call_site_argument_expressions(program, &source);
+    let source = crate::semantic_calls::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        0,
+    )?;
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &source);
     let [argument] = arguments else {
         return None;
     };
@@ -144,9 +150,15 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     }
     let producer = calls.iter().find(|call| call.call_ordinal == 1)?;
     let consumer = calls.iter().find(|call| call.call_ordinal == 0)?;
-    let consumer_site =
-        crate::find_call_site(program, machine.symbol, state.symbol, statement_index, 0)?;
-    let [argument] = crate::call_site_argument_expressions(program, &consumer_site) else {
+    let consumer_site = crate::semantic_calls::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        0,
+    )?;
+    let [argument] = crate::semantic_calls::call_site_argument_expressions(program, &consumer_site)
+    else {
         return None;
     };
     let selected = crate::flow::canonical_place_from_expression_in_state(

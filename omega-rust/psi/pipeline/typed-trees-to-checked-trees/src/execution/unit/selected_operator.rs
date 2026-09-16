@@ -7,7 +7,7 @@ use super::{
     MachineSupplyMode, Multiplicity, StatementNode, SymbolHandle, TypedTrees,
     type_graph_requires_nominal_drop,
 };
-use crate::execution::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::cleanup::{
     machine_has_content_evidence, service_reach_is_empty,
 };

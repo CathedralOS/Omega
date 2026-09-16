@@ -1,6 +1,6 @@
 //! Building boundary machines and their static boundary requirements.
 
-use crate::execution::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,

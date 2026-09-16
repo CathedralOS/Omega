@@ -16,7 +16,7 @@ mod proofs;
 mod requirements;
 mod state_arguments;
 mod statements;
-mod types;
+pub(crate) mod types;
 
 use ::diagnostics::Diagnostic;
 use arrays::fixed_array_field_lengths;

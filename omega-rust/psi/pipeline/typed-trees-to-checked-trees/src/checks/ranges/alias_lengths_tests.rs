@@ -31,7 +31,7 @@ fn bounded_byte_state_alias_names_cannot_relabel_an_old_receiver_extent() {
         .expect("resolve alias extent fixture");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type alias extent fixture");
-        let borrows = crate::build_borrow_facts(&program);
+        let borrows = crate::borrow::build_borrow_facts(&program);
         let proof_plan = proof::obligations::build_proof_plan(&program);
         let values = crate::values::build_value_facts(&program, &proof_plan);
         let operators = crate::operators::build_operator_facts(&program, &values);

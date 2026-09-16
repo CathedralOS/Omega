@@ -321,7 +321,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
                 .iter()
                 .find(|candidate| candidate.symbol == *target_machine)
                 .is_some_and(|target| program.machine_contracts(target).is_empty())
-                || !crate::find_state(program, *target_state)
+                || !crate::semantic_calls::find_state(program, *target_state)
                     .is_some_and(|target| program.state_contracts(target).is_empty())
         }))
     {

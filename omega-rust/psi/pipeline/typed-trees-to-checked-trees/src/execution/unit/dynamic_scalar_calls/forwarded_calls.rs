@@ -56,7 +56,7 @@ pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
                 {
                     continue;
                 }
-                let Some(outer_site) = crate::find_call_site(
+                let Some(outer_site) = crate::semantic_calls::find_call_site(
                     program,
                     machine.symbol,
                     state.symbol,
@@ -65,7 +65,7 @@ pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
                 ) else {
                     continue;
                 };
-                let crate::CallSite::Expression { call, .. } = &outer_site else {
+                let crate::semantic_calls::CallSite::Expression { call, .. } = &outer_site else {
                     continue;
                 };
                 if program
@@ -133,7 +133,7 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
             return None;
         }
         visited.push((current.target_machine, current.target_state));
-        let target_state = crate::find_state(program, current.target_state)?;
+        let target_state = crate::semantic_calls::find_state(program, current.target_state)?;
         let target_machine = program.machines().iter().find(|candidate| {
             candidate.symbol == current.target_machine
                 && program
@@ -194,14 +194,14 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
         if inner_call.statement_index != 0 || inner_call.call_ordinal != 0 {
             return None;
         }
-        let inner_site = crate::find_call_site(
+        let inner_site = crate::semantic_calls::find_call_site(
             program,
             target_machine.symbol,
             target_state.symbol,
             inner_call.statement_index,
             inner_call.call_ordinal,
         )?;
-        let crate::CallSite::Expression {
+        let crate::semantic_calls::CallSite::Expression {
             expression,
             call: inner_expression_call,
         } = &inner_site
@@ -259,7 +259,7 @@ pub(crate) struct ForwardedDynamicCall<'program, 'facts> {
     pub(crate) machine: &'program typed_trees::machine::Machine,
     pub(crate) state: &'program typed_trees::state::State,
     pub(crate) flow_call: &'facts checked_trees::FlowCallFact,
-    pub(crate) call_site: crate::CallSite<'program>,
+    pub(crate) call_site: crate::semantic_calls::CallSite<'program>,
     pub(crate) transfer: checked_trees::CheckedDynamicDescriptorTransferPlan,
     pub(crate) prior_transfers: Vec<checked_trees::CheckedDynamicDescriptorTransferPlan>,
 }

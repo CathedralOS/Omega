@@ -2,7 +2,6 @@
 //! in scalar computations. Parameter projections reuse established storage;
 //! local construction remains independently restricted to supported whole values.
 use super::super::CheckedUnitStructuralFieldType;
-use crate::execution::projected_argument_path;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
@@ -18,6 +17,7 @@ use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::base_type_identity;
+use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
 use crate::execution::terminal_unit::parameter_qualifications;
 use crate::execution::terminal_unit::structural_access_for_type_reference;
@@ -63,7 +63,7 @@ pub(crate) fn structural_computation_argument(
     )?;
     crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
-    let target_state = crate::find_state(program, call.target_symbol)?;
+    let target_state = crate::semantic_calls::find_state(program, call.target_symbol)?;
     let target_position = program
         .state_parameters(target_state)
         .iter()
@@ -407,7 +407,7 @@ fn shared_nominal_argument(
         return None;
     }
     if target.is_self {
-        let site = crate::find_call_site(
+        let site = crate::semantic_calls::find_call_site(
             program,
             machine,
             state.symbol,

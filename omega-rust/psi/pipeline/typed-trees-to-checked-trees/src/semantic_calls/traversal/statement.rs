@@ -1,6 +1,6 @@
 use super::expression;
-use crate::CallSite;
 use crate::lookup::statement_call_can_dispatch_to_machine;
+use crate::semantic_calls::CallSite;
 use crate::semantic_calls::CallSiteTraversal;
 use checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use expression::find_call_site_in_expression;

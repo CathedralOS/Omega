@@ -214,7 +214,7 @@ pub(crate) fn refine_published_crash_routes(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     state_flow: &checked_trees::FlowStateFact,
     call_flow: &checked_trees::FlowCallFact,
-    call_site: &crate::CallSite<'_>,
+    call_site: &crate::semantic_calls::CallSite<'_>,
     target_state_symbol: SymbolHandle,
     target_parameters: &[typed_trees::signature::StateParameter],
     target_parameter_names: &[String],
@@ -229,7 +229,7 @@ pub(crate) fn refine_published_crash_routes(
         target_parameter_names,
         content_conservation,
     );
-    let arguments = crate::call_site_argument_expressions(program, call_site);
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, call_site);
     let substitution = call_argument_substitution(
         program,
         operators,

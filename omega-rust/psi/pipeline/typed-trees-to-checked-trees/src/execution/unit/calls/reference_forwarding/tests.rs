@@ -126,16 +126,27 @@ impl ForwardingFixture {
 #[test]
 fn a_bare_mutable_reference_preserves_its_exact_referent_access() {
     let fixture = ForwardingFixture::new("&mut", "&mut");
-    let state = crate::find_state_in_machine(&fixture.program, fixture.machine, fixture.state)
-        .expect("exact caller state");
-    let site = crate::find_call_site(&fixture.program, fixture.machine, fixture.state, 0, 0)
-        .expect("exact forwarding call occurrence");
+    let state = crate::semantic_calls::find_state_in_machine(
+        &fixture.program,
+        fixture.machine,
+        fixture.state,
+    )
+    .expect("exact caller state");
+    let site = crate::semantic_calls::find_call_site(
+        &fixture.program,
+        fixture.machine,
+        fixture.state,
+        0,
+        0,
+    )
+    .expect("exact forwarding call occurrence");
     assert!(
-        matches!(site, crate::CallSite::Statement(_)),
+        matches!(site, crate::semantic_calls::CallSite::Statement(_)),
         "statement call occurrence"
     );
-    let parameters = crate::call_target_parameters(&fixture.program, fixture.call.target_symbol)
-        .expect("exact target parameters");
+    let parameters =
+        crate::semantic_calls::call_target_parameters(&fixture.program, fixture.call.target_symbol)
+            .expect("exact target parameters");
     assert!(
         fixture.call.target_symbol.is_valid(),
         "valid authored target"

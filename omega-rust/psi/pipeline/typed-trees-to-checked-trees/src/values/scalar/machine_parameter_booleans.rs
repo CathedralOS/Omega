@@ -241,8 +241,12 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     });
                 }
                 Some(_) => return None,
-                None if crate::execution::byte_sequence_carrier(program, type_reference, &[])
-                    .is_some() =>
+                None if crate::execution::terminal_unit::types::byte_sequence_carrier(
+                    program,
+                    type_reference,
+                    &[],
+                )
+                .is_some() =>
                 {
                     let mut left = CheckedStructuralParameterField {
                         parameter_position: left_parameter,

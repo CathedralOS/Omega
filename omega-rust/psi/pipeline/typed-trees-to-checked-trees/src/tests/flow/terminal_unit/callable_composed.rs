@@ -195,10 +195,10 @@ fn without_interleaved_local_evidence(
         facts.values.scalar_expressions.expressions.len() + 1,
         before
     );
-    crate::execution::build_checked_unit_effect_plans(
+    crate::execution::terminal_unit::build_checked_unit_effect_plans(
         &checked.typed,
         &facts,
-        crate::execution::ScalarCalleePlans {
+        crate::execution::terminal_unit::ScalarCalleePlans {
             boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &facts.flow.terminal_structural_scalar_returns,
         },

@@ -27,7 +27,7 @@ pub(crate) fn build_checked_dynamic_scalar_call_transaction(
         for state in program.machine_states(machine) {
             let flow = state_flow(facts, machine.symbol, state.symbol)?;
             for flow_call in facts.flow.control.calls.span_or_empty(flow.calls) {
-                let call_site = crate::find_call_site(
+                let call_site = crate::semantic_calls::find_call_site(
                     program,
                     machine.symbol,
                     state.symbol,
@@ -56,7 +56,7 @@ pub(crate) fn build_checked_dynamic_scalar_call_transaction(
                 }
 
                 match &call_site {
-                    crate::CallSite::Statement(_) => {
+                    crate::semantic_calls::CallSite::Statement(_) => {
                         match unit::build_checked_dynamic_unit_call(
                             program,
                             facts,
@@ -140,7 +140,7 @@ fn build_checked_dynamic_descriptor_transfers(
                     continue;
                 };
                 for call in facts.flow.control.calls.span_or_empty(flow.calls) {
-                    let Some(call_site) = crate::find_call_site(
+                    let Some(call_site) = crate::semantic_calls::find_call_site(
                         program,
                         caller.symbol,
                         caller_state.symbol,
@@ -149,7 +149,9 @@ fn build_checked_dynamic_descriptor_transfers(
                     ) else {
                         continue;
                     };
-                    let Some(target_state) = crate::find_state(program, call.target_symbol) else {
+                    let Some(target_state) =
+                        crate::semantic_calls::find_state(program, call.target_symbol)
+                    else {
                         continue;
                     };
                     let Some(target_machine) = program.machines().iter().find(|machine| {
@@ -160,7 +162,8 @@ fn build_checked_dynamic_descriptor_transfers(
                     }) else {
                         continue;
                     };
-                    let arguments = crate::call_site_argument_expressions(program, &call_site);
+                    let arguments =
+                        crate::semantic_calls::call_site_argument_expressions(program, &call_site);
                     let parameters = program
                         .state_parameters(target_state)
                         .iter()

@@ -89,7 +89,7 @@ pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic>
     // nested expression calls, state transfers, and attached receivers.
     for (_, state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(state.calls) {
-            let Some(site) = crate::find_call_site(
+            let Some(site) = crate::semantic_calls::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
@@ -98,13 +98,15 @@ pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic>
             ) else {
                 continue;
             };
-            let Some(parameters) = crate::call_target_parameters(program, call.target_symbol)
+            let Some(parameters) =
+                crate::semantic_calls::call_target_parameters(program, call.target_symbol)
             else {
                 continue;
             };
-            for (argument, parameter) in crate::call_site_argument_expressions(program, &site)
-                .iter()
-                .zip(parameters.iter().filter(|parameter| !parameter.is_self))
+            for (argument, parameter) in
+                crate::semantic_calls::call_site_argument_expressions(program, &site)
+                    .iter()
+                    .zip(parameters.iter().filter(|parameter| !parameter.is_self))
             {
                 check_destination(
                     program,

@@ -271,7 +271,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
     let plan = build_checked_machine(
         program,
         facts,
-        crate::execution::ScalarCalleePlans {
+        crate::execution::terminal_unit::ScalarCalleePlans {
             boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &facts.flow.terminal_structural_scalar_returns,
         },

@@ -1,4 +1,4 @@
-use crate::build_borrow_facts;
+use crate::borrow::build_borrow_facts;
 use crate::tests::{
     Expression, HandleSpan, Identifier, Machine, NamePath, State, StateMutationSummaryCache,
     StateParameter, StatementNode, SymbolHandle, TableCall, call_mutated_places, mutable_borrow,

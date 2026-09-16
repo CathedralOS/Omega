@@ -64,7 +64,7 @@ impl RangeCheckFixture {
         .expect("resolve range cache fixture");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type range cache fixture");
-        let borrows = crate::build_borrow_facts(&program);
+        let borrows = crate::borrow::build_borrow_facts(&program);
         let proof_plan = proof::obligations::build_proof_plan(&program);
         let values = crate::values::build_value_facts(&program, &proof_plan);
         let operators = crate::operators::build_operator_facts(&program, &values);
@@ -104,11 +104,11 @@ pub(super) fn range_flow_fixture(
     borrows: &BorrowFacts,
 ) -> checked_trees::FlowFacts {
     let plan = proof::obligations::build_proof_plan(program);
-    let proof = crate::build_proof_facts(program, &plan, borrows);
-    let mut semantic = crate::build_semantic_facts(program, &proof);
-    let domains = crate::build_domain_facts(program, &semantic);
+    let proof = crate::proof::build_proof_facts(program, &plan, borrows);
+    let mut semantic = crate::semantic::build_semantic_facts(program, &proof);
+    let domains = crate::flow::build_domain_facts(program, &semantic);
     let operational = validation::infer_operational_may(program);
-    let mut flow = crate::build_flow_facts(
+    let mut flow = crate::flow::build_flow_facts(
         program,
         borrows,
         &proof,

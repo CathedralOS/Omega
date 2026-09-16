@@ -1,8 +1,3 @@
-use crate::CallSite;
-use crate::contract_target_from_state_symbol;
-use crate::find_call_site;
-use crate::find_state;
-use crate::find_state_in_machine;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_from_symbol;
@@ -10,6 +5,11 @@ use crate::flow::normalize_attached_place_root;
 use crate::flow::resolve_member_symbol_from_type_symbol;
 use crate::flow::symbol_type_symbol;
 use crate::lookup::statement_call_receiver_members;
+use crate::proof::contract_target_from_state_symbol;
+use crate::semantic_calls::CallSite;
+use crate::semantic_calls::find_call_site;
+use crate::semantic_calls::find_state;
+use crate::semantic_calls::find_state_in_machine;
 use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;
 

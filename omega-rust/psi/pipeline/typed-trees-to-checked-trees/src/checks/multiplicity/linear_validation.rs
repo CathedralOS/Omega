@@ -53,7 +53,8 @@ pub(crate) fn validate_linear_permission_events(
     selected_replay.flow.control = facts.flow.control.clone();
 
     for (_, state_flow) in facts.flow.control.states.iter() {
-        let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
+        let Some(state) = crate::semantic_calls::find_state(program, state_flow.state_symbol)
+        else {
             continue;
         };
         let Some(machine) = program
@@ -371,7 +372,8 @@ fn append_unresolved_state_result_mapping_diagnostics(
         else {
             continue;
         };
-        let Some(target_state) = crate::find_state(program, call.target_symbol) else {
+        let Some(target_state) = crate::semantic_calls::find_state(program, call.target_symbol)
+        else {
             continue;
         };
         if program

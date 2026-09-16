@@ -4,10 +4,10 @@ use super::super::{
     TableCall, TraitConformance, TraitDefinition,
 };
 
-use crate::build_borrow_facts;
-use crate::build_proof_facts;
-use crate::build_semantic_facts;
+use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
+use crate::proof::build_proof_facts;
+use crate::semantic::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
 
 #[test]

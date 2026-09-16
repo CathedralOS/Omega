@@ -4,7 +4,7 @@ use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, SymbolHandle, TypedTrees,
 };
-use crate::execution::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::scalar_targets;
 
 #[cfg(test)]

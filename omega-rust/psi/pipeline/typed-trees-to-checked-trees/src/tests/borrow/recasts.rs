@@ -1,5 +1,5 @@
 use super::checks::check_program;
-use crate::build_borrow_facts;
+use crate::borrow::build_borrow_facts;
 
 #[test]
 fn mutable_whole_place_recast_retains_source_loan() {

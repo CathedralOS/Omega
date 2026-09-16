@@ -154,7 +154,7 @@ fn direct_result_loan_facts_preserve_read_and_write_only_access() {
                 _ => None,
             })
             .expect("held");
-        let facts = crate::build_borrow_facts(&program);
+        let facts = crate::borrow::build_borrow_facts(&program);
         let loans = facts
             .loans
             .iter()

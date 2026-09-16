@@ -33,7 +33,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
         return None;
     }
     exact_call_occurrence(program, borrow, caller_state, statement_index, call)?;
-    let caller = crate::find_state(program, caller_state)?;
+    let caller = crate::semantic_calls::find_state(program, caller_state)?;
     let caller_statements = program.statement_table.statements(caller.statement_nodes);
     let caller_statement = caller_statements.get(statement_index)?;
     let local_ordinal = u32::try_from(caller_statements[..statement_index].iter().filter(|statement| {

@@ -1,10 +1,10 @@
 //! A bare reference parameter reads its carrier without weakening its referent.
-use crate::execution::byte_sequence_carrier;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::structural_access_for_type_reference;
+use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
 pub(super) fn preserves_mutable_referent(
     program: &TypedTrees,
@@ -36,7 +36,7 @@ fn exact_mutable_referent(
     source_symbol: SymbolHandle,
     returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> Option<()> {
-    let state = crate::find_state_in_machine(
+    let state = crate::semantic_calls::find_state_in_machine(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -60,7 +60,7 @@ fn exact_mutable_referent(
     // actual preceding writes instead; unknown or overlapping storage changes
     // stay outside this direct entry-parameter forwarding path.
     prefix_preserves_parameter(program, borrow, borrow_state, call, source_symbol)?;
-    let site = crate::find_call_site(
+    let site = crate::semantic_calls::find_call_site(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -68,8 +68,8 @@ fn exact_mutable_referent(
         call.call_ordinal,
     )?;
     let target_symbol = match &site {
-        crate::CallSite::Statement(authored) => authored.target_symbol,
-        crate::CallSite::Expression {
+        crate::semantic_calls::CallSite::Statement(authored) => authored.target_symbol,
+        crate::semantic_calls::CallSite::Expression {
             expression,
             call: authored,
         } if *expression == call.authored_expression => authored.target_symbol,
@@ -78,8 +78,8 @@ fn exact_mutable_referent(
     if !target_symbol.is_valid() || target_symbol != call.target_symbol {
         return None;
     }
-    let parameters = crate::call_target_parameters(program, target_symbol)?;
-    let arguments = crate::call_site_argument_expressions(program, &site);
+    let parameters = crate::semantic_calls::call_target_parameters(program, target_symbol)?;
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
     if parameters.len() != arguments.len()
         || parameters
             .iter()
@@ -157,7 +157,7 @@ fn prefix_preserves_parameter(
     call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
 ) -> Option<()> {
-    let state = crate::find_state_in_machine(
+    let state = crate::semantic_calls::find_state_in_machine(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -234,9 +234,11 @@ fn preceding_byte_loan_preserves_carrier(
     call: &checked_trees::BorrowCallFact,
     source_symbol: SymbolHandle,
 ) -> bool {
-    let Some(source_state) =
-        crate::find_state_in_machine(program, state.machine_symbol, state.state_symbol)
-    else {
+    let Some(source_state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        state.machine_symbol,
+        state.state_symbol,
+    ) else {
         return false;
     };
     let Some(source) = program
@@ -246,19 +248,23 @@ fn preceding_byte_loan_preserves_carrier(
     else {
         return false;
     };
-    let Some(crate::CallSite::Statement(authored)) = crate::find_call_site(
-        program,
-        state.machine_symbol,
-        state.state_symbol,
-        call.statement_index,
-        call.call_ordinal,
-    ) else {
+    let Some(crate::semantic_calls::CallSite::Statement(authored)) =
+        crate::semantic_calls::find_call_site(
+            program,
+            state.machine_symbol,
+            state.state_symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )
+    else {
         return false;
     };
     if authored.target_symbol != call.target_symbol {
         return false;
     }
-    let Some(parameters) = crate::call_target_parameters(program, call.target_symbol) else {
+    let Some(parameters) =
+        crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+    else {
         return false;
     };
     let arguments = program

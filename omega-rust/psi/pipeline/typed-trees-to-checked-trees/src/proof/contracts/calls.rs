@@ -29,7 +29,7 @@ pub(crate) fn build_contract_call_facts(
                 continue;
             };
 
-            let call_site = crate::find_call_site(
+            let call_site = crate::semantic_calls::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
@@ -38,16 +38,16 @@ pub(crate) fn build_contract_call_facts(
             );
             let contract_target = call_site
                 .as_ref()
-                .and_then(crate::CallSite::static_requirement_dispatch)
+                .and_then(crate::semantic_calls::CallSite::static_requirement_dispatch)
                 .map(|dispatch| (dispatch.declaring_trait, dispatch.requirement))
                 .unwrap_or((target_machine_symbol, target_state_symbol));
             append_contract_call(
                 contract_facts,
                 &mut fact_refs,
                 &mut calls,
-                call_site
-                    .as_ref()
-                    .is_some_and(|site| !crate::call_site_evidence_arguments(site).is_empty()),
+                call_site.as_ref().is_some_and(|site| {
+                    !crate::semantic_calls::call_site_evidence_arguments(site).is_empty()
+                }),
                 ContractCallSite {
                     caller_machine_symbol: state.machine_symbol,
                     caller_state_symbol: state.state_symbol,
@@ -68,7 +68,10 @@ pub(crate) fn build_contract_call_facts(
                     // machine contract package. A named tail call to another
                     // machine still owes that callee's entry requirements.
                     is_state_transfer: target_machine_symbol == state.machine_symbol
-                        && matches!(call_site, Some(crate::CallSite::TransitionNamed { .. })),
+                        && matches!(
+                            call_site,
+                            Some(crate::semantic_calls::CallSite::TransitionNamed { .. })
+                        ),
                 },
             );
         }

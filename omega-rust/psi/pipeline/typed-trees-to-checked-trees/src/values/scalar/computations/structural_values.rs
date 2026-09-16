@@ -433,7 +433,7 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let (projected, path) = crate::execution::projected_argument_path(
+        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
             self.state,
             self.statement_index,

@@ -68,7 +68,7 @@ pub(crate) fn lower_call_arguments(
     state: &typed_trees::state::State,
     statement_ordinal: u32,
     call_ordinal: usize,
-    call_site: &crate::CallSite<'_>,
+    call_site: &crate::semantic_calls::CallSite<'_>,
     parameters: &[StateParameter],
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
@@ -76,14 +76,15 @@ pub(crate) fn lower_call_arguments(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>> {
     let target_symbol = match call_site {
-        crate::CallSite::Statement(call) => call.target_symbol,
-        crate::CallSite::Expression { call, .. } => call.target_symbol,
-        crate::CallSite::TransitionNamed { .. } => return None,
+        crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
+        crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::semantic_calls::CallSite::TransitionNamed { .. } => return None,
     };
     let is_boundary = call_is_boundary(program, target_symbol);
 
-    let target_parameters = crate::call_target_parameters(program, target_symbol)?;
-    let explicit_arguments = crate::call_site_argument_expressions(program, call_site);
+    let target_parameters = crate::semantic_calls::call_target_parameters(program, target_symbol)?;
+    let explicit_arguments =
+        crate::semantic_calls::call_site_argument_expressions(program, call_site);
     let explicit_self = explicit_arguments.len()
         > target_parameters
             .iter()
@@ -238,7 +239,8 @@ pub(crate) fn lower_direct_call_binding_arguments(
             .first()
             .is_some_and(|entry| entry.symbol == call.target_symbol)
     })?;
-    let target_parameters = crate::call_target_parameters(program, call.target_symbol)?;
+    let target_parameters =
+        crate::semantic_calls::call_target_parameters(program, call.target_symbol)?;
     if target_parameters.iter().any(|parameter| {
         parameter.is_self
             || parameter.is_const
@@ -303,7 +305,7 @@ pub(crate) fn scalar_qualified_call_expression(
                 expression = cast.value;
             }
             ExpressionNode::Call(call) => {
-                let state = crate::find_state(program, call.target_symbol)?;
+                let state = crate::semantic_calls::find_state(program, call.target_symbol)?;
                 let primitive = program.primitive_type_reference(state.return_type)?;
                 return (is_integer(primitive)
                     && primitive != PrimitiveType::Addr

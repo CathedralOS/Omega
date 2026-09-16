@@ -1,5 +1,5 @@
 use super::checks::check_program;
-use crate::build_borrow_facts;
+use crate::borrow::build_borrow_facts;
 
 #[test]
 fn rejects_mutation_of_source_retained_by_aggregate_helper_call_leaf() {

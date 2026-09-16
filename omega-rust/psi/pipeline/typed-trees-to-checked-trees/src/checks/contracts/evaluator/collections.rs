@@ -55,8 +55,11 @@ impl ContractExpressionEvaluator<'_, '_> {
             return None;
         };
         if !matches!(transition.guard, TransitionGuardNode::Always)
-            || !matches!(self.call_site, crate::CallSite::TransitionNamed { .. })
-            || crate::call_site_argument_expressions(self.program, self.call_site)
+            || !matches!(
+                self.call_site,
+                crate::semantic_calls::CallSite::TransitionNamed { .. }
+            )
+            || crate::semantic_calls::call_site_argument_expressions(self.program, self.call_site)
                 .iter()
                 .any(|argument| {
                     !matches!(

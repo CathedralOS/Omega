@@ -84,8 +84,14 @@ fn events(
     ) {
         return None;
     }
-    let source = crate::find_call_site(program, machine.symbol, state.symbol, statement_index, 0)?;
-    let [argument] = crate::call_site_argument_expressions(program, &source) else {
+    let source = crate::semantic_calls::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        0,
+    )?;
+    let [argument] = crate::semantic_calls::call_site_argument_expressions(program, &source) else {
         return None;
     };
     let ExpressionNode::Borrow(borrow) = program.expression_table.expression(*argument) else {
@@ -102,7 +108,9 @@ fn events(
     if authored.target_symbol != producer.target_symbol {
         return None;
     }
-    let [parameter] = crate::call_target_parameters(program, consumer.target_symbol)? else {
+    let [parameter] =
+        crate::semantic_calls::call_target_parameters(program, consumer.target_symbol)?
+    else {
         return None;
     };
     let TypeReferenceNode::Reference {

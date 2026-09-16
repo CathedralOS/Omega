@@ -1,6 +1,5 @@
 //! Build dependent execution plans without publishing intermediate checked facts.
 
-use crate::execution;
 use crate::{SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication};
 use checked_trees::{
     CheckFacts, CheckedBoundaryScalarReturnPlans, CheckedStructuralScalarReturnPlans,
@@ -29,35 +28,45 @@ pub(crate) fn build_execution_plans(
     ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> ExecutionPlans {
-    let boundary_returns = execution::build_checked_boundary_scalar_return_plans(program, facts);
+    let boundary_returns =
+        crate::execution::terminal_unit::returns::build_checked_boundary_scalar_return_plans(
+            program, facts,
+        );
     let primitive_returns =
-        execution::build_checked_primitive_store_scalar_return_plans(program, facts);
+        crate::execution::terminal_unit::returns::build_checked_primitive_store_scalar_return_plans(
+            program, facts,
+        );
     let structural_callees = match previous_returns {
         Some(previous) => {
-            execution::reconcile_primitive_store_scalar_returns(previous, primitive_returns)
+            crate::execution::terminal_unit::returns::reconcile_primitive_store_scalar_returns(
+                previous,
+                primitive_returns,
+            )
         }
         None => primitive_returns,
     };
-    let scalar_callees = execution::ScalarCalleePlans {
+    let scalar_callees = crate::execution::terminal_unit::ScalarCalleePlans {
         boundary_returns: &boundary_returns,
         structural_returns: &structural_callees,
     };
-    let unit_effects = execution::build_checked_unit_effect_plans_with_call_frames(
-        program,
-        facts,
-        scalar_callees,
-        operator_applications,
-        ieee_float_fma_applications,
-        call_frames,
-    );
+    let unit_effects =
+        crate::execution::terminal_unit::build_checked_unit_effect_plans_with_call_frames(
+            program,
+            facts,
+            scalar_callees,
+            operator_applications,
+            ieee_float_fma_applications,
+            call_frames,
+        );
     let mut cleanup_diagnostics = Vec::new();
-    let structural_scalar_returns = execution::build_checked_structural_scalar_return_plans(
-        program,
-        facts,
-        &unit_effects,
-        operator_applications,
-        &mut cleanup_diagnostics,
-    );
+    let structural_scalar_returns =
+        crate::execution::terminal_unit::returns::build_checked_structural_scalar_return_plans(
+            program,
+            facts,
+            &unit_effects,
+            operator_applications,
+            &mut cleanup_diagnostics,
+        );
     ExecutionPlans {
         boundary_returns,
         unit_effects,

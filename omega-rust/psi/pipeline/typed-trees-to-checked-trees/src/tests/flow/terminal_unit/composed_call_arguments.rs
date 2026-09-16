@@ -254,10 +254,10 @@ fn composed_boundary_operands_reject_missing_duplicate_and_stale_custody() {
                     .authored_expression = arena::Handle::invalid();
             }
         }
-        let rebuilt = crate::execution::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::execution::ScalarCalleePlans {
+            crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
@@ -396,10 +396,10 @@ fn closed_sum_leaves_retain_computed_calls_before_reusing_the_payload() {
         .calls
         .get_mut(outer)
         .statement_index = 0;
-    let rebuilt = crate::execution::build_checked_unit_effect_plans(
+    let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
         &changed.typed,
         &changed.facts,
-        crate::execution::ScalarCalleePlans {
+        crate::execution::terminal_unit::ScalarCalleePlans {
             boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
         },

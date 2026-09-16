@@ -1,5 +1,5 @@
 use super::{checked_program_from_source, checked_values_for, operator_with_placeholder_operands};
-use crate::build_operator_facts;
+use crate::operators::build_operator_facts;
 use crate::tests::{HandleSpan, SignatureContract, SignatureContractKind, SymbolHandle};
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{ExpressionNode, TableIndexedExpression, TableRangeExpression};

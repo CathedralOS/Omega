@@ -288,7 +288,7 @@ fn stored_aggregate_call_storage_and_access_routes_are_distinct() {
         .find(|machine| machine.name.as_str() == "Main::run")
         .expect("caller");
     let state = &program.machine_states(machine)[0];
-    let borrow = crate::build_borrow_facts(&program);
+    let borrow = crate::borrow::build_borrow_facts(&program);
     let borrow_state = borrow
         .states
         .iter()
@@ -345,7 +345,7 @@ fn aggregate_literal_storage_origins_reach_direct_and_transitive_calls() {
             .find(|machine| machine.name.as_str() == "Main::run")
             .expect("caller");
         let state = &program.machine_states(machine)[0];
-        let borrow = crate::build_borrow_facts(&program);
+        let borrow = crate::borrow::build_borrow_facts(&program);
         let borrow_state = borrow
             .states
             .iter()

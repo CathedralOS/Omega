@@ -85,7 +85,8 @@ fn nested_owned_affine_operands_transfer_once_in_captured_call_order() {
                 }
             );
         }
-        let caller = crate::find_state(&checked, state.state_symbol).expect("caller state");
+        let caller =
+            crate::semantic_calls::find_state(&checked, state.state_symbol).expect("caller state");
         let value = checked
             .state_parameters(caller)
             .iter()

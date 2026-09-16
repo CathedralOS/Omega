@@ -1,7 +1,7 @@
 use checked_trees::CheckedEvidenceTerm;
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use symbols::SymbolHandle;
-mod calls;
+pub(crate) mod calls;
 mod inherited;
 mod operators;
 

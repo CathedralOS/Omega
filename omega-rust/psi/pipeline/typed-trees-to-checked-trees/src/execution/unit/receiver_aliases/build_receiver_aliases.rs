@@ -287,9 +287,14 @@ pub(super) fn prefix(
         ) {
             return None;
         }
-        let site =
-            crate::find_call_site(program, machine.symbol, state.symbol, statement_index, 0)?;
-        for argument in crate::call_site_argument_expressions(program, &site) {
+        let site = crate::semantic_calls::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            0,
+        )?;
+        for argument in crate::semantic_calls::call_site_argument_expressions(program, &site) {
             if !without_alias(program, *argument, &aliases) {
                 return None;
             }
@@ -311,11 +316,11 @@ pub(super) fn prefix(
                 return None;
             }
             let target = match &site {
-                crate::CallSite::Statement(call) => call.target_symbol,
-                crate::CallSite::Expression { call, .. } => call.target_symbol,
-                crate::CallSite::TransitionNamed { .. } => return None,
+                crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
+                crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
+                crate::semantic_calls::CallSite::TransitionNamed { .. } => return None,
             };
-            let mut receivers = crate::call_target_parameters(program, target)?
+            let mut receivers = crate::semantic_calls::call_target_parameters(program, target)?
                 .iter()
                 .filter(|parameter| parameter.is_self);
             let receiver_parameter = receivers.next()?;

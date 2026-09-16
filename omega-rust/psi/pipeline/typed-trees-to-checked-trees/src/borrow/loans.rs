@@ -19,7 +19,7 @@ use owner_paths::{
 mod aggregate;
 mod owner_paths;
 mod returned_carriers;
-mod types;
+pub(crate) mod types;
 
 use types::{is_reference_type, reference_borrow_access_kind};
 

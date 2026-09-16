@@ -46,7 +46,7 @@ fn checked_facts<'program>(
     checked_trees::FlowFacts,
     Option<validation::CallFrameResolver<'program>>,
 ) {
-    let borrows = crate::build_borrow_facts(program);
+    let borrows = crate::borrow::build_borrow_facts(program);
     let flow = crate::checks::ranges::cache_tests::range_flow_fixture(program, &borrows);
     let frames = validation::CallFrameResolver::new(program);
     (borrows, flow, frames)

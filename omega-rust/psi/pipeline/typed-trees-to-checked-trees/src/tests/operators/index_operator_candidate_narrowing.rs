@@ -1,5 +1,5 @@
 use super::{named_type, operator_with_spelling};
-use crate::build_operator_facts;
+use crate::operators::build_operator_facts;
 use crate::tests::{
     Expression, Identifier, Machine, NamePath, State, StateParameter, StatementNode, SymbolHandle,
     TypeReferenceNode,

@@ -15,7 +15,7 @@ pub(super) fn validate(
     consumer: &checked_trees::FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<()> {
-    let source_state = crate::find_state(program, state)?;
+    let source_state = crate::semantic_calls::find_state(program, state)?;
     let StatementNode::Call(_) = program
         .statement_table
         .statements(source_state.statement_nodes)
@@ -55,8 +55,14 @@ pub(super) fn validate(
     let producer = calls
         .iter()
         .find(|call| call.call_ordinal == 1 && call.authored_expression == expression)?;
-    let source = crate::find_call_site(program, machine, state, consumer.statement_index, 0)?;
-    let [argument] = crate::call_site_argument_expressions(program, &source) else {
+    let source = crate::semantic_calls::find_call_site(
+        program,
+        machine,
+        state,
+        consumer.statement_index,
+        0,
+    )?;
+    let [argument] = crate::semantic_calls::call_site_argument_expressions(program, &source) else {
         return None;
     };
     if !matches!(program.expression_table.expression(*argument),

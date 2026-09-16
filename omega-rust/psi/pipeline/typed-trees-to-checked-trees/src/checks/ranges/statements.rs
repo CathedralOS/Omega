@@ -126,7 +126,7 @@ pub(super) fn check_statement<'program>(
                 machine,
                 state,
                 paths.as_deref(),
-                Some(&crate::CallSite::Statement(call)),
+                Some(&crate::semantic_calls::CallSite::Statement(call)),
             );
             // R4 witness mint, checker tier: a BOUNDARY callee's `ensures
             // <param> <= K` bounds the `&mut` out-argument's place the

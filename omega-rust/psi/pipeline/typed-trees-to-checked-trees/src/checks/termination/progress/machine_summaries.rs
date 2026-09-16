@@ -5,7 +5,9 @@ use crate::checks::termination::progress::fact_subjects::{
     fact_domain, fact_subject, profile_label, subject_from_place,
 };
 use crate::checks::termination::progress::{lineage, origins};
-use crate::{call_site_argument_expressions, call_target_parameters, find_call_site};
+use crate::semantic_calls::call_site_argument_expressions;
+use crate::semantic_calls::call_target_parameters;
+use crate::semantic_calls::find_call_site;
 use checked_trees::{
     BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact, ProgressDemandCallSite,
 };
@@ -383,7 +385,10 @@ pub(crate) fn local_state_transition_target<'program>(
         call.statement_index,
         call.call_ordinal,
     )?;
-    if !matches!(call_site, crate::CallSite::TransitionNamed { .. }) {
+    if !matches!(
+        call_site,
+        crate::semantic_calls::CallSite::TransitionNamed { .. }
+    ) {
         return None;
     }
     let target_index = crate::checks::termination::graph::named_transition_target_state_index(

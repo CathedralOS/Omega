@@ -415,7 +415,7 @@ fn compose_parameter_argument_places(
     arguments: arena::HandleSpan<ExpressionHandle>,
     bindings: &[(SymbolHandle, Option<crate::flow::CanonicalPlace>)],
 ) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
-    let target_state = crate::find_state(program, target)?;
+    let target_state = crate::semantic_calls::find_state(program, target)?;
     let arguments = program.statement_table.expression_handles(arguments);
     let mut replacements = Vec::new();
     let mut argument_index = 0usize;
@@ -450,7 +450,7 @@ fn direct_edge_parameter_argument_places(
     program: &typed_trees::TypedTrees,
     edge: &Edge,
 ) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
-    let target_state = crate::find_state(program, edge.target)?;
+    let target_state = crate::semantic_calls::find_state(program, edge.target)?;
     let identity = program
         .state_parameters(target_state)
         .iter()
@@ -471,7 +471,7 @@ fn compose_carried_parameter_argument_places(
     fact: &IncomingGuard,
 ) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
     let direct = direct_edge_parameter_argument_places(program, edge)?;
-    let source_state = crate::find_state(program, edge.source)?;
+    let source_state = crate::semantic_calls::find_state(program, edge.source)?;
     let replacements = program
         .state_parameters(source_state)
         .iter()

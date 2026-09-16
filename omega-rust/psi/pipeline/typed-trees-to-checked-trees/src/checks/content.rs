@@ -82,7 +82,7 @@ pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: 
         else {
             continue;
         };
-        let Some(state) = crate::find_state(program, state_symbol) else {
+        let Some(state) = crate::semantic_calls::find_state(program, state_symbol) else {
             continue;
         };
         let Some((parameter_position, parameter)) = program

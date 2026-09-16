@@ -5,7 +5,7 @@ use checked_trees::BorrowFacts;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
-mod calls;
+pub(crate) mod calls;
 mod events;
 mod moves;
 mod place_types;

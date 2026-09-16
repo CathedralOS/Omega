@@ -144,7 +144,7 @@ fn shared_result_reads_keep_cleanup_until_an_owned_transfer() {
                 assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
                 assert!(argument.path.is_empty());
             }
-            let state = crate::find_state(&checked, plan.state).unwrap();
+            let state = crate::semantic_calls::find_state(&checked, plan.state).unwrap();
             let typed_trees::statement::StatementNode::LocalData(local) =
                 &checked.statement_table.statements(state.statement_nodes)[0]
             else {
@@ -254,10 +254,10 @@ fn shared_result_reads_require_exact_captured_borrow_access() {
             }
             _ => changed.borrow.calls.get_mut(call_handle).call_ordinal = 1,
         }
-        let rebuilt = crate::execution::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &original.typed,
             &changed,
-            crate::execution::ScalarCalleePlans {
+            crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },

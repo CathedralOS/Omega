@@ -1,6 +1,3 @@
-use crate::CallSite;
-use crate::call_site_argument_expressions;
-use crate::find_call_site;
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::canonical_place_from_expression_in_state;
@@ -9,6 +6,9 @@ use crate::flow::ownership::DirectMoveEventSink;
 use crate::flow::ownership::append_move_event_for_place;
 use crate::flow::ownership::moves;
 use crate::flow::ownership::type_requires_ownership;
+use crate::semantic_calls::CallSite;
+use crate::semantic_calls::call_site_argument_expressions;
+use crate::semantic_calls::find_call_site;
 use checked_trees::BorrowCallFact;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;

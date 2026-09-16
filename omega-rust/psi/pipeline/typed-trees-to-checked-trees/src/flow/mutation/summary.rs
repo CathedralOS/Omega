@@ -4,13 +4,13 @@
 //! complete-or-opaque call and cycle law. This module retains symbol-based
 //! field/range places for flow invalidation and propagates those places across
 //! the calls which the shared resolver admitted as complete.
-use crate::call_site_argument_expressions;
-use crate::find_call_site;
-use crate::find_state;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::mutation::WritePlaceNamespace;
+use crate::semantic_calls::call_site_argument_expressions;
+use crate::semantic_calls::find_call_site;
+use crate::semantic_calls::find_state;
 
 use super::local_origins::rebase_local_write_places;
 use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
@@ -571,7 +571,7 @@ mod cache_tests {
                 "data Vec {{ value: u64; }} machine Vec::{method}(&mut self) {{ self.value = 1; }}"
             ));
             program.machines_mut()[0].body_is_present = false;
-            let borrows = crate::build_borrow_facts(&program);
+            let borrows = crate::borrow::build_borrow_facts(&program);
             let state = &program.machine_states(&program.machines()[0])[0];
             assert!(
                 state_mutation_summary_places(
@@ -591,7 +591,7 @@ mod cache_tests {
     fn vec_named_concrete_method_retains_only_its_actual_write() {
         let program =
             typed("data Vec { value: u64; } machine Vec::push(&mut self) { self.value = 1; }");
-        let borrows = crate::build_borrow_facts(&program);
+        let borrows = crate::borrow::build_borrow_facts(&program);
         let state = &program.machine_states(&program.machines()[0])[0];
         let cache = StateMutationSummaryCache::default();
         let places =
@@ -635,7 +635,7 @@ mod cache_tests {
             let program =
                 symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                     .unwrap();
-            let borrow = crate::build_borrow_facts(&program);
+            let borrow = crate::borrow::build_borrow_facts(&program);
             let machine = program
                 .machines()
                 .iter()
@@ -788,7 +788,7 @@ mod cache_tests {
             machine unrelated(value: &mut u64) { value = 2; }
         "#,
         );
-        let borrows = crate::build_borrow_facts(&program);
+        let borrows = crate::borrow::build_borrow_facts(&program);
         let mut actual = direct_summaries(&program);
         let mut expected = actual.clone();
         full_sweep_reference(&program, &borrows, &mut expected);
@@ -821,7 +821,7 @@ mod cache_tests {
             machine leaf(value: &mut u64) { value = 1; }
         "#,
         );
-        let borrows = crate::build_borrow_facts(&program);
+        let borrows = crate::borrow::build_borrow_facts(&program);
         for opaque_leaf in [false, true] {
             let mut actual = direct_summaries(&program);
             actual[2].complete = !opaque_leaf;
@@ -854,7 +854,7 @@ mod cache_tests {
         .unwrap();
         let program =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let borrows = crate::build_borrow_facts(&program);
+        let borrows = crate::borrow::build_borrow_facts(&program);
         let state = &program.machine_states(&program.machines()[0])[0];
         let cache = StateMutationSummaryCache::default();
         let first = std::borrow::Cow::Borrowed(&cache);

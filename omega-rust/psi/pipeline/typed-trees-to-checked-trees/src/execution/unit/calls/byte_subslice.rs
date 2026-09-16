@@ -1,5 +1,4 @@
 //! Immutable byte ranges retain their source and evaluated endpoint expressions.
-use crate::execution::byte_sequence_carrier;
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
@@ -14,6 +13,7 @@ use crate::execution::terminal_unit::TypeReferenceNode;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::byte_sequence_type_identity;
 use crate::execution::terminal_unit::structural_access_for_type_reference;
+use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use typed_trees::expression::ExpressionHandle;
 
 pub(super) fn argument(

@@ -116,7 +116,7 @@ fn call_target_type_parameters_supply_carry_bounds() {
     assert_eq!(
         validation::effective_type_carry_policy(
             &typed,
-            crate::call_target_type_parameters(&typed, state.symbol),
+            crate::semantic_calls::call_target_type_parameters(&typed, state.symbol),
             value.type_reference,
         )
         .suspension,

@@ -10,7 +10,7 @@ use facts::FactPlan;
 use facts::ScalarValue;
 use symbols::SymbolHandle;
 
-mod calls;
+pub(crate) mod calls;
 mod captured;
 mod conversions;
 use calls::capture_call;
@@ -62,7 +62,8 @@ pub(super) fn capture_statement(
         expression,
         &mut crate::values::PlaceScalarValues {
             program,
-            parameters: program.state_parameters(crate::find_state(program, state)?),
+            parameters: program
+                .state_parameters(crate::semantic_calls::find_state(program, state)?),
             symbols,
             value_at_place: |place: &CanonicalPlace| {
                 crate::values::scalar_value_at_place(
@@ -129,7 +130,8 @@ pub(super) fn capture_bounds(
             program,
             semantic,
             contexts: &contexts,
-            parameters: program.state_parameters(crate::find_state(program, state)?),
+            parameters: program
+                .state_parameters(crate::semantic_calls::find_state(program, state)?),
             symbols,
             state,
         },

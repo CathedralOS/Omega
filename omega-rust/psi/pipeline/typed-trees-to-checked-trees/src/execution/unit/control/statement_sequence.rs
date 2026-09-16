@@ -15,7 +15,7 @@ use super::{
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, PermissionEventSource,
     StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
-use crate::execution::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::bind_scalar_call_result;
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;

@@ -1,6 +1,6 @@
 //! Building one checked machine from its typed states and statements.
 
-use crate::execution::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::{
     bind_scalar_call_result, bind_structural_call_result, checked_unit_scalar_result_local,

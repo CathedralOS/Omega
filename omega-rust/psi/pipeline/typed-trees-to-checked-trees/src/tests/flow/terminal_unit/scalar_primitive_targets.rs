@@ -107,10 +107,10 @@ fn unit_planning_uses_explicit_callees_without_publishing_them() {
     let structural_returns =
         std::mem::take(&mut checked.facts.flow.terminal_structural_scalar_returns);
     let before = checked.clone();
-    let rebuilt = crate::execution::build_checked_unit_effect_plans(
+    let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
         &checked.typed,
         &checked.facts,
-        crate::execution::ScalarCalleePlans {
+        crate::execution::terminal_unit::ScalarCalleePlans {
             boundary_returns: &boundary_returns,
             structural_returns: &structural_returns,
         },
@@ -269,10 +269,11 @@ fn primitive_discovery_keeps_nominal_return_cleanup_in_the_dependent_phase() {
         nominal.cleanup_actions.as_slice(),
         [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)]
     ));
-    let independent = crate::execution::build_checked_primitive_store_scalar_return_plans(
-        &checked.typed,
-        &checked.facts,
-    );
+    let independent =
+        crate::execution::terminal_unit::returns::build_checked_primitive_store_scalar_return_plans(
+            &checked.typed,
+            &checked.facts,
+        );
     assert!(independent.for_machine(primitive_machine).is_some());
     assert!(independent.for_machine(nominal_machine).is_none());
     crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
@@ -367,10 +368,10 @@ fn primitive_scalar_call_rejects_deleted_duplicate_or_drifted_body_registration(
             }
             _ => unreachable!(),
         }
-        let rebuilt = crate::execution::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::execution::ScalarCalleePlans {
+            crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
@@ -468,10 +469,10 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
             position: substituted_position,
             primitive_type: PrimitiveType::U64,
         };
-        let rebuilt = crate::execution::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::execution::ScalarCalleePlans {
+            crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },

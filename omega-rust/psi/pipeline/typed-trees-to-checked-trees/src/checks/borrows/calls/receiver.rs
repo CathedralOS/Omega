@@ -104,31 +104,33 @@ pub(super) fn check_receiver_conflicts(
         return;
     }
     let Some((receiver_access, receiver_name)) =
-        crate::call_target_parameters(program, call.target_symbol).and_then(|parameters| {
-            parameters
-                .iter()
-                .filter(|parameter| parameter.is_self)
-                .find_map(|parameter| {
-                    match program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                    {
-                        TypeReferenceNode::Reference {
-                            access: ReferenceAccess::Shared,
-                            ..
-                        } => Some((BorrowAccessKind::Read, "shared")),
-                        TypeReferenceNode::Reference {
-                            access: ReferenceAccess::Mutable,
-                            ..
-                        } => Some((BorrowAccessKind::Mutable, "mutable")),
-                        TypeReferenceNode::Reference {
-                            access: ReferenceAccess::WriteOnly,
-                            ..
-                        } => Some((BorrowAccessKind::WriteOnly, "write-only")),
-                        _ => None,
-                    }
-                })
-        })
+        crate::semantic_calls::call_target_parameters(program, call.target_symbol).and_then(
+            |parameters| {
+                parameters
+                    .iter()
+                    .filter(|parameter| parameter.is_self)
+                    .find_map(|parameter| {
+                        match program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference)
+                        {
+                            TypeReferenceNode::Reference {
+                                access: ReferenceAccess::Shared,
+                                ..
+                            } => Some((BorrowAccessKind::Read, "shared")),
+                            TypeReferenceNode::Reference {
+                                access: ReferenceAccess::Mutable,
+                                ..
+                            } => Some((BorrowAccessKind::Mutable, "mutable")),
+                            TypeReferenceNode::Reference {
+                                access: ReferenceAccess::WriteOnly,
+                                ..
+                            } => Some((BorrowAccessKind::WriteOnly, "write-only")),
+                            _ => None,
+                        }
+                    })
+            },
+        )
     else {
         return;
     };
@@ -139,7 +141,7 @@ pub(super) fn check_receiver_conflicts(
     else {
         return;
     };
-    let receiver = crate::find_call_site(
+    let receiver = crate::semantic_calls::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -277,7 +279,7 @@ fn receiver_is_writable(
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
     receiver: &CapturedPlace,
 ) -> bool {
-    let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
+    let Some(state) = crate::semantic_calls::find_state(program, state_flow.state_symbol) else {
         return false;
     };
     if receiver.root_symbol == state_flow.machine_symbol {

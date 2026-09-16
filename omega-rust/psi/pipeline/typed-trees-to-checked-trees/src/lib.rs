@@ -23,37 +23,6 @@ mod execution {
     pub(crate) mod terminal_scalar;
     #[path = "unit/plan_unit.rs"]
     pub(crate) mod terminal_unit;
-    pub(crate) use terminal_cleanup::build_checked_structural_control_cleanup_plans;
-    pub(crate) use terminal_debug::build_checked_terminal_debug_plans;
-    #[cfg(test)]
-    pub(crate) use terminal_scalar::{
-        build_checked_scalar_graph_plans, finalize_checked_scalar_graph_plans,
-    };
-    pub(crate) use terminal_scalar::{
-        build_checked_scalar_graph_plans_with_call_frames,
-        build_checked_terminal_machine_selections,
-        finalize_checked_scalar_graph_plans_with_call_frames, finalize_scalar_unit_operations,
-    };
-    pub(crate) use terminal_unit::ScalarCalleePlans;
-    #[cfg(test)]
-    pub(crate) use terminal_unit::build_checked_unit_effect_plans;
-    pub(crate) use terminal_unit::calls::projected_argument_path;
-    pub(crate) use terminal_unit::control::build_checked_structural_unit_control_plans;
-    pub(crate) use terminal_unit::returns::{
-        build_checked_boundary_scalar_return_plans,
-        build_checked_primitive_store_scalar_return_plans,
-        build_checked_structural_call_return_plans, build_checked_structural_return_plans,
-        build_checked_structural_scalar_return_plans, reconcile_primitive_store_scalar_returns,
-    };
-    #[cfg(test)]
-    pub(crate) use terminal_unit::shared_convergence::shared_integer_runtime_parameter_positions_for_test;
-    pub(crate) use terminal_unit::structural_computation_argument;
-    pub(crate) use terminal_unit::types::byte_sequence_carrier;
-    pub(crate) use terminal_unit::{
-        build_checked_nominal_affine_unit_cleanup_plans,
-        build_checked_partial_affine_unit_cleanup_plans,
-        build_checked_unit_effect_plans_with_call_frames,
-    };
     #[cfg(test)]
     pub(crate) fn exact_two_field_record_projection_for_test(
         program: &typed_trees::TypedTrees,
@@ -284,9 +253,6 @@ pub use product_pruning::{
     prune_checked_tree_product,
 };
 
-#[cfg(test)]
-pub(crate) use checking::lower_typed_trees_for_crash_fact_inspection;
-
 /// Derive the checked body-local termination summary for one typed machine.
 ///
 /// Constant and plan positions must run before checked lowering because their
@@ -322,13 +288,6 @@ mod semantic_calls;
 mod semantic_places;
 
 pub use checking::lower_typed_trees as lower_typed_program;
-#[cfg(test)]
-pub(crate) use semantic::build_semantic_facts;
-pub(crate) use semantic_calls::call_site_evidence_arguments;
-pub(crate) use semantic_calls::{
-    CallSite, call_site_argument_expressions, call_target_parameters, call_target_type_parameters,
-    find_call_site, find_state, find_state_in_machine,
-};
 
 mod proof;
 pub use proof::{
@@ -349,17 +308,6 @@ pub fn derive_checked_body_call_source_spans(
     facts::review_sources::derive_checked_body_call_source_spans(program, facts, machine_symbol)
 }
 
-#[cfg(test)]
-pub(crate) use borrow::build_borrow_facts;
-#[cfg(test)]
-pub(crate) use flow::{build_domain_facts, build_flow_facts};
-#[cfg(test)]
-pub(crate) use operators::build_operator_facts;
-#[cfg(test)]
-pub(crate) use proof::build_proof_facts;
-pub(crate) use proof::contract_target_from_state_symbol;
-#[cfg(test)]
-pub(crate) use values::build_value_facts;
 mod borrow;
 mod flow;
 

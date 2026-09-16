@@ -49,7 +49,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(call_site) = crate::find_call_site(
+    let Some(call_site) = crate::semantic_calls::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -58,7 +58,8 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     ) else {
         return false;
     };
-    let Some(target_parameters) = crate::call_target_parameters(program, call_flow.target_symbol)
+    let Some(target_parameters) =
+        crate::semantic_calls::call_target_parameters(program, call_flow.target_symbol)
     else {
         return false;
     };

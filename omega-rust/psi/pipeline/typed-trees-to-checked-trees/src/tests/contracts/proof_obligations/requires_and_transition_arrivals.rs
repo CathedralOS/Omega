@@ -1,8 +1,10 @@
+use crate::borrow::build_borrow_facts;
+use crate::flow::build_domain_facts;
+use crate::flow::build_flow_facts;
+use crate::lower_typed_trees;
+use crate::proof::build_proof_facts;
+use crate::semantic::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
-use crate::{
-    build_borrow_facts, build_domain_facts, build_flow_facts, build_proof_facts,
-    build_semantic_facts, lower_typed_trees,
-};
 use checked_trees::ContractProofFactKind;
 
 #[test]
@@ -909,7 +911,7 @@ fn accepts_requires_from_local_alias_transfer() {
         .iter()
         .find(|call| call.target_symbol.is_valid())
         .expect("inspect call");
-    let call_site = crate::find_call_site(
+    let call_site = crate::semantic_calls::find_call_site(
         &typed,
         caller_flow.machine_symbol,
         caller_flow.state_symbol,
@@ -917,7 +919,7 @@ fn accepts_requires_from_local_alias_transfer() {
         inspect_call.call_ordinal,
     )
     .expect("call site");
-    let arguments = crate::call_site_argument_expressions(&typed, &call_site);
+    let arguments = crate::semantic_calls::call_site_argument_expressions(&typed, &call_site);
     assert_eq!(arguments.len(), 1);
     let local_argument = arguments[0];
     assert_eq!(typed.expression_table.display_name(local_argument), "local");

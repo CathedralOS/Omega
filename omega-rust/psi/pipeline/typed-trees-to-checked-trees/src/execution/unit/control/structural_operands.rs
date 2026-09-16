@@ -8,8 +8,8 @@ use super::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
     MachineSupplyMode, Multiplicity, SymbolHandle, TypedTrees,
 };
-use crate::execution::ScalarCalleePlans;
 use crate::execution::terminal_unit::ExpectedCallValueResult;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::build_call_operation;
 use crate::execution::terminal_unit::control::boundary_machine::boundary_result_plan;
@@ -202,15 +202,15 @@ fn collect<'a>(
     active: &mut Vec<typed_trees::expression::ExpressionHandle>,
     output: &mut Vec<Operand<'a>>,
 ) -> Option<()> {
-    let site = crate::find_call_site(
+    let site = crate::semantic_calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let arguments = crate::call_site_argument_expressions(program, &site);
-    let parameters = crate::call_target_parameters(program, call.target_symbol)?;
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let parameters = crate::semantic_calls::call_target_parameters(program, call.target_symbol)?;
     let explicit_self = arguments.len()
         > parameters
             .iter()

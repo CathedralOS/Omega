@@ -57,7 +57,7 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                     super::super::super::state_graph::build(
                         program,
                         &checked.facts,
-                        crate::execution::ScalarCalleePlans {
+                        crate::execution::terminal_unit::ScalarCalleePlans {
                             boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
                             structural_returns: &checked
                                 .facts
@@ -77,7 +77,7 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                     build_checked_machine(
                         program,
                         &checked.facts,
-                        crate::execution::ScalarCalleePlans {
+                        crate::execution::terminal_unit::ScalarCalleePlans {
                             boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
                             structural_returns: &checked
                                 .facts
@@ -109,7 +109,7 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                     super::super::super::state_graph::build(
                         program,
                         &facts,
-                        crate::execution::ScalarCalleePlans {
+                        crate::execution::terminal_unit::ScalarCalleePlans {
                             boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                             structural_returns: &facts.flow.terminal_structural_scalar_returns
                         },
@@ -124,7 +124,7 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                     build_checked_machine(
                         program,
                         &facts,
-                        crate::execution::ScalarCalleePlans {
+                        crate::execution::terminal_unit::ScalarCalleePlans {
                             boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                             structural_returns: &facts.flow.terminal_structural_scalar_returns
                         },

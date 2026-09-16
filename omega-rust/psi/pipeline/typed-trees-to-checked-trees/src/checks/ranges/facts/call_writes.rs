@@ -1,8 +1,8 @@
 //! Reuse checked call occurrences and the existing structured mutation owner.
 
 use super::RangeFacts;
-use crate::CallSite;
 use crate::flow::CanonicalPlace;
+use crate::semantic_calls::CallSite;
 use typed_trees::{TypedTrees, machine::Machine, state::State};
 
 #[cfg(test)]

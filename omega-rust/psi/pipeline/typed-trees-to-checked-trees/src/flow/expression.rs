@@ -7,8 +7,6 @@
 //! have been scheduled. Otherwise flow retains calls that computation folding
 //! skips, breaking their exact occurrence correspondence. Runtime storage facts
 //! remain tied to the existing live contexts, never a second operand evaluation.
-use crate::CallSite;
-use crate::find_call_site;
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::build_call_flow_fact;
@@ -17,6 +15,8 @@ use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::common;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
+use crate::semantic_calls::CallSite;
+use crate::semantic_calls::find_call_site;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;

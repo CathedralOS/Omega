@@ -7,8 +7,8 @@ use super::{
     DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, SymbolHandle,
     TypeReferenceNode, TypedTrees,
 };
-use crate::execution::byte_sequence_carrier;
 use crate::execution::terminal_unit::terminal_field_identity;
+use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
 #[path = "frame.rs"]
 mod frame;

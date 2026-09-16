@@ -10,7 +10,7 @@ use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, Multiplicity,
     StatementNode, TransitionExit, TransitionTargetNode, TypeReferenceNode, TypedTrees, control,
 };
-use crate::execution::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::is_reference;
 use crate::execution::terminal_unit::is_unit;

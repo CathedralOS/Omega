@@ -15,7 +15,7 @@ use super::super::{
 use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from_symbol};
 
 mod boolean_results;
-mod calls;
+pub(crate) mod calls;
 mod static_calls;
 
 pub(super) fn proves<'program>(
@@ -114,7 +114,7 @@ impl ExitScalars<'_, '_> {
         {
             return false;
         }
-        let Some(state) = crate::find_state_in_machine(
+        let Some(state) = crate::semantic_calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -285,7 +285,7 @@ impl ExitScalars<'_, '_> {
         else {
             return false;
         };
-        let Some(state) = crate::find_state_in_machine(
+        let Some(state) = crate::semantic_calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -422,7 +422,7 @@ impl ExitScalars<'_, '_> {
     }
 
     fn return_expression_role(&self) -> Option<CheckedScalarExpressionRole> {
-        let state = crate::find_state_in_machine(
+        let state = crate::semantic_calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -479,7 +479,7 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-        let state = crate::find_state_in_machine(
+        let state = crate::semantic_calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
