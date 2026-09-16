@@ -44,7 +44,9 @@ use typed_trees::statement::{StatementNode, TableCall};
 /// Recover one deliberately structural value-call relation. The helper may be
 /// free or attached, but must be acyclic at the result surface, return a reference,
 /// and have one terminal result expression rooted in one reference
-/// parameter. A prefix may contain caller-isolated scratch locals and local
+/// parameter -- either a trailing expression or the lone ordinary `Always`
+/// value transition an authored single-arm return desugars to. A prefix may
+/// contain caller-isolated scratch locals and local
 /// reference bindings that forward direct places from that parameter, an
 /// earlier such local, or another structurally transparent helper. Value-shaped
 /// assignments with effect-free right-hand sides may write through those
@@ -214,8 +216,31 @@ pub(crate) fn transparent_callee_result_origin(
         let statements = program
             .statement_table
             .statements(callee_state.statement_nodes);
-        let (StatementNode::Expression(result), prefix) = statements.split_last()? else {
-            return None;
+        let (tail, prefix) = statements.split_last()?;
+        let result = match tail {
+            StatementNode::Expression(result) => *result,
+            // A lone ordinary value transition is the desugared authored
+            // return tail. A guarded arm chain keeps its earlier sibling
+            // transitions in the prefix, which the prefix walk still
+            // rejects, so admitting this tail cannot select one arm of a
+            // multi-result body.
+            StatementNode::Transition(transition)
+                if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                    && !transition.continuation.is_valid()
+                    && transition.target.is_valid()
+                    && matches!(
+                        transition.guard,
+                        typed_trees::statement::TransitionGuardNode::Always
+                    ) =>
+            {
+                let typed_trees::statement::TransitionTargetNode::Value(result) =
+                    program.statement_table.transition_target(transition.target)
+                else {
+                    return None;
+                };
+                *result
+            }
+            _ => return None,
         };
 
         let parameters = program.state_parameters(callee_state);
@@ -400,7 +425,7 @@ pub(crate) fn transparent_callee_result_origin(
         parameter_relative_place_origin(
             program,
             callee_machine,
-            *result,
+            result,
             parameters,
             &local_aliases,
             symbols,

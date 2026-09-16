@@ -17,7 +17,7 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 mod coordinates;
-use coordinates::origin_place;
+pub(crate) use coordinates::origin_place;
 
 /// Facts can be expressed through any live reference to the written storage.
 /// Transport the shared prefix origins into this representation; do not infer
