@@ -214,19 +214,45 @@ pub(super) fn admit<'source>(
                 SelectedStructuralTransport::Descriptor { argument, .. }
                     | SelectedStructuralTransport::WholeValue { argument, .. }
                     if argument == register)
-            }) || successor.structural_case.as_ref().is_some_and(|case| {
-                case.payloads.iter().any(|payload| match payload.transport {
-                    SelectedCasePayloadTransport::Registers {
-                        argument,
-                        parameter,
-                    } => argument == register || parameter == register,
-                    SelectedCasePayloadTransport::Unmaterialized { parameter } => {
-                        parameter == register
-                    }
-                    SelectedCasePayloadTransport::Unused => false,
-                })
             }) {
                 return Err(RuntimeSpillError::UnsupportedUse);
+            }
+            if let Some(case) = &successor.structural_case {
+                for payload in &case.payloads {
+                    match payload.transport {
+                        SelectedCasePayloadTransport::Registers {
+                            argument,
+                            parameter,
+                        } => {
+                            // The parameter side is the destination's payload
+                            // definition, never a use in this block — the same
+                            // rule the value bindings above keep.
+                            if parameter == register {
+                                return Err(RuntimeSpillError::UnsupportedUse);
+                            }
+                            if argument != register {
+                                continue;
+                            }
+                            // A case-payload register transport reads the
+                            // victim at this edge, like the value bindings.
+                            // Its declared payload type must equal the
+                            // victim's exact type; a mismatched plan is not a
+                            // use this rewrite can serve.
+                            if payload.semantic.parameter.scalar_type != victim.scalar_type {
+                                return Err(RuntimeSpillError::UnsupportedUse);
+                            }
+                            uses = uses
+                                .checked_add(1)
+                                .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                        }
+                        SelectedCasePayloadTransport::Unmaterialized { parameter }
+                            if parameter == register =>
+                        {
+                            return Err(RuntimeSpillError::UnsupportedUse);
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
         for instruction in &block.instructions {

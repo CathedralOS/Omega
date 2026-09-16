@@ -2,8 +2,8 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedInstructionKind,
-    SelectedLocalStorageSlot, SelectedValueTransport, VirtualRegisterId,
+    SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedInstructionId,
+    SelectedInstructionKind, SelectedLocalStorageSlot, SelectedValueTransport, VirtualRegisterId,
 };
 
 use super::{RuntimeSpillError, ValidatedRuntimeSpill, admission, validate_runtime_spill};
@@ -108,8 +108,9 @@ pub fn spill_selected_runtime_value(
         }
         // Edge-transport arguments read at the same end-of-block position,
         // after the terminator instruction executes. Their pairs follow any
-        // terminator-operand pairs in successor then binding order; only the
-        // argument register moves while the binding keeps its declaration.
+        // terminator-operand pairs in successor, then binding, then
+        // case-payload order; only the argument register moves while the
+        // binding or payload keeps its declaration.
         for successor in super::control_successors_mut(&mut terminator)
             .into_iter()
             .flatten()
@@ -137,6 +138,34 @@ pub fn spill_selected_runtime_value(
                     unreachable!()
                 };
                 *argument = reloaded;
+            }
+            if let Some(case) = &mut successor.structural_case {
+                for payload in &mut case.payloads {
+                    if !matches!(
+                        payload.transport,
+                        SelectedCasePayloadTransport::Registers { argument, .. }
+                            if argument == register)
+                    {
+                        continue;
+                    }
+                    let reload = admission::reload(
+                        &admitted,
+                        register,
+                        &mut next_instruction,
+                        &mut next_register,
+                    )?;
+                    let reloaded = reload.reload_register.id;
+                    function.virtual_registers.push(reload.address_register);
+                    function.virtual_registers.push(reload.reload_register);
+                    instructions.push(reload.address);
+                    instructions.push(reload.load);
+                    let SelectedCasePayloadTransport::Registers { argument, .. } =
+                        &mut payload.transport
+                    else {
+                        unreachable!()
+                    };
+                    *argument = reloaded;
+                }
             }
         }
         boundaries.push(

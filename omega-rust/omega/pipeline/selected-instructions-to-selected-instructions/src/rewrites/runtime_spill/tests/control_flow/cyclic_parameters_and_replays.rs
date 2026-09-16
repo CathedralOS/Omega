@@ -327,28 +327,36 @@ fn replay_rejects_changed_edges_untouched_blocks_and_foreign_settlements() {
 }
 
 #[test]
-fn case_payload_argument_and_parameter_references_remain_outside_spill_admission() {
+fn case_payload_parameter_and_unmaterialized_references_remain_outside_spill_admission() {
     use selected_instructions::{
         SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedStructuralCaseEdge,
     };
     use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
-    for transport in [
-        SelectedCasePayloadTransport::Registers {
-            argument: VirtualRegisterId(1),
-            parameter: VirtualRegisterId(4),
-        },
-        SelectedCasePayloadTransport::Registers {
-            argument: VirtualRegisterId(4),
-            parameter: VirtualRegisterId(1),
-        },
-        SelectedCasePayloadTransport::Unmaterialized {
-            parameter: VirtualRegisterId(1),
-        },
-    ] {
+    for mutation in 0..3 {
         let mut source = cfg_fixture(NativeTarget::linux_x64());
         let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
-        let scalar_type = function.virtual_registers[1].scalar_type;
+        let mut scalar_type = function.virtual_registers[1].scalar_type;
+        let transport = match mutation {
+            // The parameter side is the destination's payload definition,
+            // never a use the predecessor's slot can serve.
+            0 => SelectedCasePayloadTransport::Registers {
+                argument: VirtualRegisterId(4),
+                parameter: VirtualRegisterId(1),
+            },
+            1 => SelectedCasePayloadTransport::Unmaterialized {
+                parameter: VirtualRegisterId(1),
+            },
+            // A payload argument whose declared type differs from the
+            // victim's is an inconsistent plan, not an admitted use.
+            _ => {
+                scalar_type = semantic_vocabulary::ScalarType::Boolean;
+                SelectedCasePayloadTransport::Registers {
+                    argument: VirtualRegisterId(1),
+                    parameter: VirtualRegisterId(4),
+                }
+            }
+        };
         let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[1].terminator else {
             unreachable!()
         };
@@ -378,7 +386,8 @@ fn case_payload_argument_and_parameter_references_remain_outside_spill_admission
         assert_eq!(
             spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
                 .unwrap_err(),
-            RuntimeSpillError::UnsupportedUse
+            RuntimeSpillError::UnsupportedUse,
+            "mutation {mutation}"
         );
     }
 }

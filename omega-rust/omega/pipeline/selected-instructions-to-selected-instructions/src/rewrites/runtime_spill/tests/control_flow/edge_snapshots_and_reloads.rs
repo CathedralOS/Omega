@@ -657,6 +657,228 @@ fn branch_bindings_reload_per_edge_after_terminator_operands() {
 }
 
 #[test]
+fn case_payload_arguments_reload_after_binding_pairs_on_every_target() {
+    use selected_instructions::{
+        SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedStructuralCaseEdge,
+    };
+    use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut source = cfg_fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            let scalar_type = function.virtual_registers[1].scalar_type;
+            let class = function.virtual_registers[1].class;
+            // The destination's parameter registers receive the edge's value
+            // binding and both case payloads.
+            for (id, position) in [(5u32, 0u32), (6, 1), (7, 2)] {
+                function.virtual_registers.push(VirtualRegister {
+                    id: VirtualRegisterId(id),
+                    scalar_type,
+                    class,
+                    origin: VirtualRegisterOrigin::BlockParameter {
+                        source_value: ValueId::new(2).unwrap(),
+                        block: SelectedBlockId(2),
+                        parameter_index: position as usize,
+                    },
+                    definition_site: Some(ValueDefinitionSite::BlockParameter {
+                        block: BlockId::new(3).unwrap(),
+                        position,
+                    }),
+                    entry_fixed_view: None,
+                });
+            }
+            let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[1].terminator
+            else {
+                unreachable!()
+            };
+            successor.bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(2).unwrap(),
+                    argument: ValueId::new(1).unwrap(),
+                    scalar_type,
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: VirtualRegisterId(1),
+                    parameter: VirtualRegisterId(5),
+                },
+            });
+            successor.structural_case = Some(SelectedStructuralCaseEdge {
+                slot: LocalStorageSlotId::Boundary {
+                    operation: OperationId::new(1).unwrap(),
+                },
+                case: StructuralCaseId::new(1).unwrap(),
+                case_tag: 0,
+                trivial_affine_discards: Vec::new(),
+                payloads: [6u32, 7]
+                    .iter()
+                    .map(|id| SelectedCasePayloadBinding {
+                        semantic: legalized_operations::LegalizedStructuralCasePayload {
+                            field: StructuralFieldId::new(u64::from(*id)).unwrap(),
+                            field_byte_offset: 0,
+                            parameter: legalized_operations::LegalizedValueDefinition {
+                                value: ValueId::new(u64::from(*id)).unwrap(),
+                                scalar_type,
+                                definition_site: ValueDefinitionSite::BlockParameter {
+                                    block: BlockId::new(3).unwrap(),
+                                    position: id - 5,
+                                },
+                            },
+                        },
+                        transport: SelectedCasePayloadTransport::Registers {
+                            argument: VirtualRegisterId(1),
+                            parameter: VirtualRegisterId(*id),
+                        },
+                    })
+                    .collect(),
+            });
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let original = &source.transformed().functions[0];
+        let transformed = &result.transformed().functions[0];
+        let block = &transformed.blocks[1];
+        // Three body uses plus the definition store, then the binding pair and
+        // both payload pairs in declaration order at the end of the block.
+        assert_eq!(
+            block.instructions.len(),
+            original.blocks[1].instructions.len() + 1 + 6 + 6
+        );
+        let tail = block.instructions.len() - 6;
+        for offset in [0usize, 2, 4] {
+            assert!(matches!(
+                block.instructions[tail + offset].kind,
+                SelectedInstructionKind::FrameAddress { .. }
+            ));
+            assert!(matches!(
+                block.instructions[tail + offset + 1].kind,
+                SelectedInstructionKind::Load64 { .. }
+            ));
+        }
+        let SelectedTerminator::Jump { successor, .. } = &block.terminator else {
+            unreachable!()
+        };
+        let binding_register = block.instructions[tail + 1].operands[1].virtual_register;
+        assert_eq!(
+            successor.bindings[0].transport,
+            SelectedValueTransport::Registers {
+                argument: binding_register,
+                parameter: VirtualRegisterId(5),
+            }
+        );
+        let case = successor.structural_case.as_ref().unwrap();
+        for (payload_index, offset) in [(0usize, 2usize), (1, 4)] {
+            let reload_register =
+                block.instructions[tail + offset + 1].operands[1].virtual_register;
+            assert_eq!(
+                case.payloads[payload_index].transport,
+                SelectedCasePayloadTransport::Registers {
+                    argument: reload_register,
+                    parameter: VirtualRegisterId(6 + payload_index as u32),
+                }
+            );
+            // The payload keeps its exact declared parameter and field.
+            assert_eq!(
+                case.payloads[payload_index].semantic,
+                super::super::super::control(&original.blocks[1].terminator).1[0]
+                    .unwrap()
+                    .structural_case
+                    .as_ref()
+                    .unwrap()
+                    .payloads[payload_index]
+                    .semantic
+            );
+        }
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+        for mutation in 0..6 {
+            let mut proposed = result.transformed().clone();
+            let function = &mut proposed.functions[0];
+            match mutation {
+                0 => {
+                    function.blocks[1].instructions.remove(tail + 5);
+                }
+                1 => {
+                    function.blocks[1].instructions.swap(tail + 4, tail + 5);
+                }
+                2 => {
+                    let SelectedTerminator::Jump { successor, .. } =
+                        &mut function.blocks[1].terminator
+                    else {
+                        unreachable!()
+                    };
+                    let SelectedCasePayloadTransport::Registers { argument, .. } =
+                        &mut successor.structural_case.as_mut().unwrap().payloads[0].transport
+                    else {
+                        unreachable!()
+                    };
+                    *argument = VirtualRegisterId(1);
+                }
+                3 => {
+                    let SelectedTerminator::Jump { successor, .. } =
+                        &mut function.blocks[1].terminator
+                    else {
+                        unreachable!()
+                    };
+                    successor.structural_case.as_mut().unwrap().payloads[1]
+                        .semantic
+                        .parameter
+                        .value = ValueId::new(99).unwrap();
+                }
+                4 => {
+                    function.virtual_registers.pop();
+                }
+                5 => {
+                    let SelectedTerminator::Jump { successor, .. } =
+                        &mut function.blocks[1].terminator
+                    else {
+                        unreachable!()
+                    };
+                    successor
+                        .structural_case
+                        .as_mut()
+                        .unwrap()
+                        .payloads
+                        .remove(1);
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    proposed
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch,
+                "{target:?} mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn undominated_and_misdeclared_binding_arguments_do_not_gain_spill_authority() {
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
     for mutation in 0..3 {

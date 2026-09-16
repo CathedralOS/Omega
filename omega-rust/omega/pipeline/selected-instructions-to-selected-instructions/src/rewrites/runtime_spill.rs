@@ -22,8 +22,11 @@
 //! the terminator instruction executes: its reload pair follows any
 //! terminator-operand pairs in successor then binding order, and the binding
 //! keeps its semantic declaration while moving to the fresh reload register.
-//! Structural transports, case payloads, and the parameter side of every
-//! binding remain unsupported. Cyclic functions stay admitted: a back edge
+//! A `Registers` case-payload argument reads at that same position: its pairs
+//! follow the edge's binding pairs in payload order, and the payload's
+//! declared type must equal the victim's exact type. Structural transports
+//! and the parameter side of every binding or payload remain unsupported.
+//! Cyclic functions stay admitted: a back edge
 //! reaching the destination is just one more incoming edge, and it must run
 //! the same dedicated edge-copy definition whose store initializes the slot
 //! before the destination — and therefore every dominated use — executes.

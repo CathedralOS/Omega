@@ -4,8 +4,9 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedLocalStorageSlot, SelectedValueTransport, VirtualRegisterId,
+    SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionPlan, SelectedLocalStorageSlot,
+    SelectedValueTransport, VirtualRegisterId,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -140,8 +141,9 @@ pub fn validate_runtime_spill(
             operand.virtual_register = reload.reload_register.id;
         }
         // Binding-argument reloads follow the terminator-operand pairs in
-        // successor then binding order; the expected terminator carries the
-        // moved argument on each matching binding and nothing else.
+        // successor, then binding, then case-payload order; the expected
+        // terminator carries the moved argument on each matching transport
+        // and nothing else.
         for successor in super::control_successors_mut(&mut expected_terminator)
             .into_iter()
             .flatten()
@@ -174,6 +176,39 @@ pub fn validate_runtime_spill(
                     unreachable!()
                 };
                 *argument = reload.reload_register.id;
+            }
+            if let Some(case) = &mut successor.structural_case {
+                for payload in &mut case.payloads {
+                    if !matches!(
+                        payload.transport,
+                        SelectedCasePayloadTransport::Registers { argument, .. }
+                            if argument == register)
+                    {
+                        continue;
+                    }
+                    let reload = admission::reload(
+                        &admitted,
+                        register,
+                        &mut next_instruction,
+                        &mut next_register,
+                    )?;
+                    if values.next() != Some(&reload.address_register)
+                        || values.next() != Some(&reload.reload_register)
+                        || stream.next() != Some(&reload.address)
+                        || stream.next() != Some(&reload.load)
+                    {
+                        return Err(RuntimeSpillError::ReplayMismatch);
+                    }
+                    consumed = consumed
+                        .checked_add(2)
+                        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                    let SelectedCasePayloadTransport::Registers { argument, .. } =
+                        &mut payload.transport
+                    else {
+                        unreachable!()
+                    };
+                    *argument = reload.reload_register.id;
+                }
             }
         }
         if block.terminator != expected_terminator {
