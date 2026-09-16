@@ -328,7 +328,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   relocation, entry, and authority byte-field substitution — including
   remarking v2 bytes as v1 — rejects at canonical decoding, with
   semantic-value payload substitutions landing at the
-  content-fingerprint join.
+  content-fingerprint join. Landed: a genuinely emitted Windows x64
+  foreign call's installed foreign-call-stack row
+  (`installation_foreign_call_stack_row_rejects_every_one_field_substitution`)
+  — a normalized `kernel32.dll` PE import call under an admitted provider
+  execution with exact site bytes, evaluated call and boundary-entry
+  plans, MXCSR save/restore custody, outbound shadow-space evidence, and
+  an admitted same-stack contribution survives object construction, PE
+  image emission, and installation, so every retained field — owner,
+  text offset, caller-live bytes, provider-plan report identity,
+  contribution report identity, contribution commitment, contribution
+  bytes, and contribution alignment — is independently representable and
+  rejected by replay; a provider-plan identity outside the selected
+  closure is rejected at encoding as non-canonical, and a dropped row is
+  rejected by replay.
 
 ## Psi optimization and loops
 
