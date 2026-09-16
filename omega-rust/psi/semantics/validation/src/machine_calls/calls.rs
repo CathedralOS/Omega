@@ -1,3 +1,12 @@
+//! Statement-position machine calls: `validate_call_node` resolves what a
+//! call targets and validates its result use and arguments; the argument
+//! checks shared with value-position calls live below it. The rungs of the
+//! target ladder are `call_gates`, `receiverless_calls` and
+//! `receiver_calls`; the other children validate one concern each
+//! (argument bounds, expression-position scanning, generic bounds and
+//! requirements, inline assembly, recursion, result use, Unit returns and
+//! write frames).
+
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::proof_contracts::arithmetic_domains::ValueEnv;
 use crate::value_custody::expression_types::{
@@ -16,6 +25,7 @@ use typed_trees::statement::TableCall;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod argument_bounds;
+mod call_gates;
 mod expression_scanning;
 mod generic_bounds;
 mod generic_requirement;
@@ -24,6 +34,8 @@ pub use generic_requirement::{
     named_conformance_target_requirement,
 };
 mod inline_assembly;
+mod receiver_calls;
+mod receiverless_calls;
 mod recursion;
 mod result_use;
 mod unit_returns;
@@ -56,6 +68,26 @@ pub(crate) use write_frames::{
     boundary_trait_signature, free_machine_entry_state, statement_value_expression_roots,
 };
 
+/// What every statement-call check reads: the program, the call, the
+/// machine and state it sits in, the symbol tables, the writable roots and
+/// the flow-sensitive value environment.
+#[derive(Clone, Copy)]
+pub(super) struct CallScope<'a> {
+    pub(super) program: &'a TypedTrees,
+    pub(super) call: &'a TableCall,
+    pub(super) current_machine: &'a Machine,
+    pub(super) state_name: &'a str,
+    pub(super) current_state: Option<&'a State>,
+    pub(super) machine_symbols: &'a MachineSymbols<'a>,
+    pub(super) symbols: &'a TopLevelSymbols<'a>,
+    pub(super) writable_roots: &'a WritableRoots<'a, 'a>,
+    pub(super) value_env: &'a ValueEnv,
+}
+
+/// Validates one statement-position call by resolving what it targets, in
+/// order: a named conformance requirement, a wire schema call, a declared
+/// receiver, an `asm#` intrinsic, the banned self-entry call, then a
+/// receiverless target or a receiver's target.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_node(
     program: &TypedTrees,
@@ -69,6 +101,17 @@ pub(crate) fn validate_call_node(
     value_env: &ValueEnv,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let scope = CallScope {
+        program,
+        call,
+        current_machine,
+        state_name,
+        current_state,
+        machine_symbols,
+        symbols,
+        writable_roots,
+        value_env,
+    };
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
     crate::proof_contracts::contract_entailment::validate_const_range_call(
@@ -80,39 +123,9 @@ pub(crate) fn validate_call_node(
         arguments,
         diagnostics,
     );
-    match generic_requirement::named_conformance_requirement(
-        program,
-        current_machine,
-        call.receiver_symbol,
-        call.target_symbol,
-    ) {
-        Ok(Some(requirement)) => {
-            validate_result_use(
-                program,
-                call,
-                requirement.signature.name.as_str(),
-                requirement.signature.return_type,
-                diagnostics,
-            );
-            generic_requirement::validate_named_conformance_arguments(
-                program,
-                current_machine,
-                current_state,
-                value_env,
-                arguments,
-                &requirement,
-                writable_roots,
-                diagnostics,
-            );
-            return;
-        }
-        Err(error) => {
-            diagnostics.push(Diagnostic::error(error));
-            return;
-        }
-        Ok(None) => {}
+    if call_gates::validate_named_conformance_call(&scope, arguments, diagnostics) {
+        return;
     }
-
     // `Schema::encode(...)` / `Schema::decode(...)`: the wire module owns the
     // synthesized encoder/decoder calls' diagnostics (chapter 20, wire
     // stage 2). This runs before the state-receiver gate below: a schema
@@ -128,105 +141,18 @@ pub(crate) fn validate_call_node(
     ) {
         return;
     }
-
-    let namespace: Vec<_> = receiver_members
-        .iter()
-        .map(|member| member.as_str())
-        .collect();
-    if let Some(first) = receiver_members.first()
-        && !crate::value_custody::locals::is_named_operator_namespace(
-            program,
-            &[call.receiver_symbol],
-            &namespace,
-            call.target_symbol,
-            call.target.as_str(),
-            arguments.len(),
-        )
-    {
-        let root = call.receiver_root_symbol;
-        if !root.is_valid()
-            || !current_state.is_some_and(|state| {
-                crate::value_custody::locals::state_value_root_is_known(
-                    program,
-                    current_machine,
-                    state,
-                    writable_roots.statements,
-                    machine_symbols,
-                    symbols,
-                    root,
-                    first.as_str(),
-                )
-            })
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{state_name}` uses `{}`, which is not a declared receiver in this state",
-                current_machine.name.as_str(), first.as_str(),
-            )));
-            return;
-        }
+    if !call_gates::receiver_is_declared(&scope, receiver_members, arguments, diagnostics) {
+        return;
     }
-
     // Asm intrinsic statements (`asm { hlt }`, `asm { out port, value }`)
     // desugar to calls on unnameable `asm#...` targets -- known-contract
     // instructions with FIXED shapes, validated here instead of against a
     // state signature. (`asm { in dest, port }` is an assignment whose value
     // is the `asm#port_in` call; the value-call path owns it.)
     if receiver_members.is_empty() && call.target.as_str().starts_with("asm#") {
-        let control_write =
-            language_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
-                call.target.as_str(),
-            );
-        let (source_mnemonic, expected_arguments) = match control_write {
-            Some(register) => (
-                register
-                    .write_mnemonic()
-                    .expect("writable control-register intrinsic"),
-                1,
-            ),
-            None => match call.target.as_str() {
-                "asm#hlt" => ("hlt", 0),
-                "asm#port_out" => ("out", 2),
-                "asm#lfence" => ("lfence", 0),
-                "asm#sfence" => ("sfence", 0),
-                "asm#mfence" => ("mfence", 0),
-                "asm#cli" => ("cli", 0),
-                "asm#sti" => ("sti", 0),
-                "asm#popfq" => ("popfq", 1),
-                "asm#wrmsr" => ("wrmsr", 2),
-                other => {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "asm intrinsic `{other}` is not a statement form"
-                    )));
-                    return;
-                }
-            },
-        };
-        if arguments.len() != expected_arguments {
-            diagnostics.push(Diagnostic::error(format!(
-                "asm intrinsic `{}` takes {} operand(s), found {}",
-                call.target,
-                expected_arguments,
-                arguments.len()
-            )));
-            return;
-        }
-        if control_write.is_some() || matches!(source_mnemonic, "out" | "popfq" | "wrmsr") {
-            let contract = user_asm_contract(source_mnemonic);
-            for (operand, constraint) in arguments.iter().zip(contract.operands.iter()) {
-                validate_asm_operand_constraint(
-                    program,
-                    current_machine,
-                    current_state,
-                    source_mnemonic,
-                    *operand,
-                    *constraint,
-                    diagnostics,
-                );
-            }
-        }
+        call_gates::validate_asm_statement_call(&scope, arguments, diagnostics);
         return;
     }
-
     // `machine-self-call-cycle-ban` (settled 2026-07-13): a STATEMENT-position
     // call to the enclosing
     // machine's OWN ENTRY (`self.drip(n - 1);` as a trailing statement) is
@@ -234,365 +160,16 @@ pub(crate) fn validate_call_node(
     // loop and slipped the transition-arm fence. "Banned, if it reads as
     // recursion... go write this as states": repetition is a state
     // transition (`-> target(..)`), never a self-call statement.
-    if matches!(receiver_members, [receiver] if receiver.as_str() == "self") {
-        let machine_entry_name = current_machine
-            .name
-            .as_str()
-            .rsplit("::")
-            .next()
-            .unwrap_or(current_machine.name.as_str());
-        if call.target.as_str() == machine_entry_name {
-            diagnostics.push(Diagnostic::error(format!(
-                "`self.{}(..)` as a STATEMENT calls the enclosing machine's own entry -- tail recursion spelled as a call, which Omega does not support (machine call cycles are banned; stack size must be predictable). Write the repetition as states: transition to a sub-state or loop back with a bare `-> {}(..)` arm",
-                call.target.as_str(),
-                call.target.as_str(),
-            )));
-            return;
-        }
+    if call_gates::self_entry_call_is_banned(&scope, receiver_members, diagnostics) {
+        return;
     }
-
     if receiver_members.is_empty()
         || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
     {
-        if let Some(signature) =
-            program.machine_parameter_signature_in(current_machine, call.target_symbol)
-        {
-            validate_result_use(
-                program,
-                call,
-                signature.name.as_str(),
-                signature.return_type,
-                diagnostics,
-            );
-            validate_call_arguments_handles(
-                program,
-                current_machine,
-                current_state,
-                value_env,
-                arguments,
-                signature.name.as_str(),
-                program.state_signature_parameters(signature),
-                None,
-                writable_roots,
-                diagnostics,
-            );
-            return;
-        }
-
-        // MP4 specializes `F(args)` to the selected concrete ENTRY symbol.
-        // It remains receiverless because the whole callable parameter list
-        // (including any explicit data argument) is already present.
-        if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol)
-            && callee_machine.symbol != current_machine.symbol
-        {
-            validate_result_use(
-                program,
-                call,
-                state.name.as_str(),
-                state.return_type,
-                diagnostics,
-            );
-            validate_call_arguments_handles(
-                program,
-                current_machine,
-                current_state,
-                value_env,
-                arguments,
-                state.name.as_str(),
-                program.state_parameters(state),
-                Some(state),
-                writable_roots,
-                diagnostics,
-            );
-            validate_machine_call_type_parameter_bounds(
-                program,
-                symbols,
-                callee_machine,
-                state,
-                state.name.as_str(),
-                arguments,
-                current_machine,
-                current_state,
-                false,
-                diagnostics,
-            );
-            return;
-        }
-
-        if let Some(state) = machine_symbols.state(&call.target) {
-            validate_result_use(
-                program,
-                call,
-                state.name.as_str(),
-                state.return_type,
-                diagnostics,
-            );
-            validate_call_arguments_handles(
-                program,
-                current_machine,
-                current_state,
-                value_env,
-                arguments,
-                state.name.as_str(),
-                program.state_parameters(state),
-                Some(state),
-                writable_roots,
-                diagnostics,
-            );
-            validate_machine_call_type_parameter_bounds(
-                program,
-                symbols,
-                current_machine,
-                state,
-                state.name.as_str(),
-                arguments,
-                current_machine,
-                current_state,
-                false,
-                diagnostics,
-            );
-            return;
-        }
-
-        let attached_state = current_machine
-            .attached_data
-            .as_ref()
-            .and_then(|attached_data| {
-                symbols.attached_machine_state(
-                    program,
-                    attached_data.as_str(),
-                    call.target.as_str(),
-                )
-            });
-        // A receiverless call can also target a FREE top-level machine
-        // (`machine compute(item: &Item) -> i32`, called as `compute(item)`);
-        // its implicit entry state carries the parameters and return type.
-        let Some((callee_machine, state)) = attached_state
-            .or_else(|| free_machine_entry_state(program, symbols, call.target.as_str()))
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has no local state `{}`",
-                current_machine.name, call.target
-            )));
-            return;
-        };
-
-        // Diagnostics name the call as spelled (`compute`), not the free
-        // machine's generated entry-state name (`entry`).
-        validate_result_use(
-            program,
-            call,
-            call.target.as_str(),
-            state.return_type,
-            diagnostics,
-        );
-        validate_call_arguments_handles(
-            program,
-            current_machine,
-            current_state,
-            value_env,
-            arguments,
-            call.target.as_str(),
-            program.state_parameters(state),
-            Some(state),
-            writable_roots,
-            diagnostics,
-        );
-        validate_machine_call_type_parameter_bounds(
-            program,
-            symbols,
-            callee_machine,
-            state,
-            call.target.as_str(),
-            arguments,
-            current_machine,
-            current_state,
-            false,
-            diagnostics,
-        );
+        receiverless_calls::validate_receiverless_call(&scope, arguments, diagnostics);
         return;
     }
-
-    let receiver = receiver_members
-        .last()
-        .map(|member| member.as_str())
-        .unwrap_or_default();
-    let receiver_type = machine_symbols.callable_field_type(receiver);
-    let receiver_type_reference = current_state.and_then(|state| {
-        declared_receiver_type_reference(program, current_machine, state, receiver)
-    });
-
-    if let Some(error) = receiver_type_reference.and_then(|type_reference| {
-        crate::declarations::traits::dynamic_requirement_call_error(
-            program,
-            type_reference,
-            call.target.as_str(),
-            call.target_symbol,
-        )
-    }) {
-        diagnostics.push(Diagnostic::error(error));
-        return;
-    }
-
-    if let Some(type_reference) = receiver_type_reference {
-        match crate::declarations::traits::generic_bound_requirement_call(
-            program,
-            current_machine,
-            type_reference,
-            call.target.as_str(),
-        ) {
-            Ok(Some(requirement)) => {
-                let signature = requirement.signature;
-                validate_result_use(
-                    program,
-                    call,
-                    signature.name.as_str(),
-                    signature.return_type,
-                    diagnostics,
-                );
-                validate_generic_bound_argument_types(
-                    program,
-                    current_machine,
-                    current_state,
-                    type_reference,
-                    arguments,
-                    &requirement,
-                    diagnostics,
-                );
-                generic_requirement::validate_requirement_call_arguments(
-                    program,
-                    current_machine,
-                    current_state,
-                    value_env,
-                    arguments,
-                    program.state_signature_parameters(signature),
-                    Some(type_reference),
-                    &requirement,
-                    writable_roots,
-                    diagnostics,
-                );
-                return;
-            }
-            Ok(None) => {}
-            Err(error) => {
-                diagnostics.push(Diagnostic::error(error));
-                return;
-            }
-        }
-    }
-
-    if let Some(machine) = receiver_type
-        .and_then(|type_name| symbols.machine(type_name))
-        .or_else(|| symbols.machine(receiver))
-    {
-        if let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.name == call.target)
-        {
-            validate_result_use(program, call, &state.name, state.return_type, diagnostics);
-            validate_call_arguments_handles(
-                program,
-                current_machine,
-                current_state,
-                value_env,
-                arguments,
-                &state.name,
-                program.state_parameters(state),
-                Some(state),
-                writable_roots,
-                diagnostics,
-            );
-            validate_machine_call_type_parameter_bounds(
-                program,
-                symbols,
-                machine,
-                state,
-                state.name.as_str(),
-                arguments,
-                current_machine,
-                current_state,
-                false,
-                diagnostics,
-            );
-            return;
-        };
-
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` has no state `{}`",
-            machine.name, call.target
-        )));
-        return;
-    }
-
-    if let Some((callee_machine, state)) = receiver_type.and_then(|type_name| {
-        symbols.attached_machine_state(program, type_name, call.target.as_str())
-    }) {
-        validate_result_use(program, call, &state.name, state.return_type, diagnostics);
-        validate_call_arguments_handles(
-            program,
-            current_machine,
-            current_state,
-            value_env,
-            arguments,
-            &state.name,
-            program.state_parameters(state),
-            Some(state),
-            writable_roots,
-            diagnostics,
-        );
-        validate_machine_call_type_parameter_bounds(
-            program,
-            symbols,
-            callee_machine,
-            state,
-            state.name.as_str(),
-            arguments,
-            current_machine,
-            current_state,
-            false,
-            diagnostics,
-        );
-        return;
-    }
-
-    // Boundary/trait receivers (e.g. `self.console.exit_process(0)`) resolve to a
-    // trait machine signature. Strict result use plus argument validation apply
-    // here -- a boundary is still a typed call, and a cross-class argument
-    // (`exit_process(self.bool_field)`) would otherwise reach the host encoder as
-    // a raw byte and be read as garbage with no frontend error.
-    if let Some(signature) = receiver_type
-        .and_then(|type_name| symbols.trait_definition(type_name))
-        .and_then(|trait_definition| {
-            program
-                .trait_machine_signatures(trait_definition)
-                .iter()
-                .find(|signature| signature.name == call.target)
-        })
-    {
-        validate_result_use(
-            program,
-            call,
-            &signature.name,
-            signature.return_type,
-            diagnostics,
-        );
-        validate_call_arguments_handles(
-            program,
-            current_machine,
-            current_state,
-            value_env,
-            arguments,
-            &signature.name,
-            program.state_signature_parameters(signature),
-            None,
-            writable_roots,
-            diagnostics,
-        );
-        return;
-    }
-
-    let _ = diagnostics;
+    receiver_calls::validate_receiver_call(&scope, receiver_members, arguments, diagnostics);
 }
 
 /// Reports the "state `X` expects N argument(s), got M" error when `arguments`
