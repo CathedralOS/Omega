@@ -120,7 +120,7 @@ do
 done
 for needle in \
   "$BETA_ENCODING_MANIFEST_SHA256" "$BETA_ENCODING_PACKED_SHA256" \
-  "21,305"
+  "131,059"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/proofs/beta_encoding/README.md" ||
     fail "bootstrap/proofs/beta_encoding/README.md lacks bound record $needle"

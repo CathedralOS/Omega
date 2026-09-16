@@ -1,11 +1,11 @@
 # Beta encoding theory
 
-[theory/theory.gamma](theory/theory.gamma) emits the source-owned portion of
-the transparent Beta definitions: byte classification, nibble conversion,
-fixed-width words, their little-endian byte lists, checked counter increment,
-and unsigned comparison.
-It does not emit an assembler, complete encoding theory, owner-root
-reconstruction, or whole-source certificate.
+[theory/theory.gamma](theory/theory.gamma) emits the source-owned transparent
+Beta definitions: byte classification, nibble conversion, fixed-width words,
+their little-endian byte lists, checked counter increment, unsigned comparison,
+and the complete error-valued encoder over the raw source tree.
+It does not emit an assembler, owner-root reconstruction, or whole-source
+certificate.
 
 The [complete encoding contract](ACCEPTANCE.md)
 fixes the acceptance target: the entire selected Gamma evaluator's raw Beta
@@ -26,15 +26,18 @@ counter definitions, and their subordinate files own the individual equations.
 stages, and the public successor; `definitions/counters/` owns those pieces
 and their fixed template writers.
 `definitions/ordering.gamma` orders nibble, byte, and word comparisons;
-`definitions/ordering/` owns those equations. Shared administrative-field and
-template writers live in `encoding/`, not in either arithmetic component.
+`definitions/ordering/` owns those equations. `definitions/encoding.gamma`
+orders the fifty-one encoder definitions after function 57, and
+`definitions/encoding/` owns the individual equations. Shared
+administrative-field and template writers live in `encoding/`, not in either
+arithmetic component.
 The checker receives Gamma-emitted package bytes, not host-generated
 definitions. No new checker primitive is introduced.
 
-The packed member closure materializes 435 lines / 21,305 bytes, SHA-256
-`26dd7d6bd28f07222a34eec33067ee2a9efd77f0b3359e43b45816b3deb06d4d`.
-The manifest itself is 3,600 bytes, SHA-256
-`757cf25f1eed02d65437945ec7f9fd984810fad5041cd7fc39a742565cc23dcb`;
+The packed member closure materializes 3,427 lines / 131,059 bytes, SHA-256
+`5a5696ae678d81a6a94ccd184db8f22656bf76371916f18cef1d3bd584f13a6d`.
+The manifest itself is 5,536 bytes, SHA-256
+`6bbb22c38cf490f8d659968524be1584ed4c426ff3c4f5fd4a07bc1f871fef0d`;
 `tools/bootstrap/proofs/sources_env.sh` checks both identities against every
 materialization and `tests/bootstrap/proofs-identity.sh` covers the refusals.
 A digest is an identity check on the member bytes, not artifact authority for
@@ -60,6 +63,16 @@ bytes to these exact constructors independently of the certificate producer.
 | ByteList | 6 | Nil 278; Cons 279 takes one Byte and one ByteList. |
 | WordResult | 7 | Overflow 280; WordValue 281 takes one Word. |
 | Ordering | 8 | Less 282, Equal 283, Greater 284. |
+| Source | 9 | SEmpty 285; SLeaf 286 takes one Byte; SJoin 287 takes two Sources. |
+| Expect | 10 | Ready 288, R 289, X 290, RR 291, RX 292, RRX 293: the operand expectation. |
+| Status | 11 | Ok 294, Invalid 295, Exhausted 296: the sticky scan status. |
+| State | 12 | State 297 takes Bool comment, ByteList reversed pending, Expect, Word count, Status, Word output limit. |
+| Fragment | 13 | FEmpty 298; FChunk 299 takes one ByteList; FJoin 300 takes two Fragments. |
+| ScanResult | 14 | ScanResult 301 takes State and Fragment. |
+| Admission | 15 | Rejected 302; Exhausted 303; Admitted 304 takes one Word byte count. |
+| DState | 16 | Token automaton states 305..351; DZgo takes Word and Byte count, DReg2 two Nibbles, DRd1 one Nibble, DZdone one Word, DDone one TokenClass. |
+| TokenClass | 17 | TEmpty 352, TInvalid 353, TDw 354, TRegister 355 takes Byte, TWord 356 takes Word, TAssert 357 takes Word, TMnemonic 358 takes Byte opcode and Expect. |
+| EncodeResult | 18 | RInvalid 359; RExhausted 360; RSuccess 361 takes one ByteList. |
 
 Every constructor term is finite. Word has exactly the unsigned 64-bit value
 domain: eight independent Byte positions, with no shorter, wider, or sign-tagged
@@ -185,18 +198,42 @@ before emission and returns Gamma's marked application result to publish bytes
 without an extra scalar terminator. The exact closure and that entry are pinned
 by the [theory gate](../../../tests/gamma/beta-encoding-theory/README.md).
 
-The section has eight sorts, 284 constructors, and 57 functions. The vocabulary
-and outer fields occupy 3,472 bytes; lexical functions occupy 33,200; sixteen
-fixed-high helpers occupy 8,640; the public join occupies 800; the split functions
-occupy 16,440; and word serialization occupies 348. Counter byte helpers occupy
-16,440 bytes, result selection 92, carry stages 2,896, and the public successor
-188. Ordering adds 8,640 bytes of fixed-left nibble helpers, 800 for public
-nibble comparison, 124 for result selection, 224 for byte comparison, 628 for
-the right-word helper, and 208 for public word comparison. Thus the exact
-section is 93,140 bytes. All administrative fields fit u31;
+The section has eighteen sorts, 361 constructors, and 108 functions. The
+vocabulary and outer fields occupy 4,508 bytes; lexical functions occupy
+33,200; sixteen fixed-high helpers occupy 8,640; the public join occupies 800;
+the split functions occupy 16,440; and word serialization occupies 348. Counter
+byte helpers occupy 16,440 bytes, result selection 92, carry stages 2,896, and
+the public successor 188. Ordering adds 8,640 bytes of fixed-left nibble
+helpers, 800 for public nibble comparison, 124 for result selection, 224 for
+byte comparison, 628 for the right-word helper, and 208 for public word
+comparison. The error-valued encoder definitions 58..108 occupy 22,816 bytes,
+including the 47-state token automaton and the encode entrypoint. Thus the
+exact section is 116,992 bytes. All administrative fields fit u31;
 none supplies semantic integer constants or operations. [PROFILE.md](PROFILE.md)
 records the current source bounds and scoped measurements, separate from
 full-certificate acceptance.
+
+## Error-valued encoder definitions
+
+Functions 58..108 implement the complete encoder over the Source tree: list
+reversal and flattening, per-byte and whole-source admission, hexadecimal
+token shifting, the 47-state token automaton with end-of-token classification,
+comment and separator scanning, operand-expectation dispatch, counted output
+emission, and the `encode(Source, source_limit, output_limit)` entrypoint
+returning `RInvalid`, `RExhausted`, or `RSuccess` of the flattened tape bytes.
+Every clause is ordinary constructor case analysis over the vocabulary above;
+all function dependencies point backward, and no clause reads input. The
+`definitions/encoding/` files are generated by
+`tests/gamma/beta-encoding-theory/emit_gamma.py` from the independently
+restated declarations in `tests/gamma/beta-encoding-theory/encoding.py`; the
+generated text calls only the checked-in literal emitters, so the emitted
+bytes match the independent package exactly.
+
+A complete theory is not a complete certificate: the artifact owner must still
+fix the raw Beta source and persisted Alpha tape subjects, reconstruct the
+owner-fixed proposition, and produce an explicit proof within the selected
+resource profile. The measured feasibility blocker for the integrated route is
+recorded in [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md).
 
 Generic formation checks every declaration and every clause, including unused
 rows; explicit derivations check classifications, nibble operations and their
@@ -206,13 +243,21 @@ audit, but do not discharge the full Beta root.
 
 ## Remaining encoder dependency
 
-Extend the same artifact-specific ownership with the remaining checked
-arithmetic needed for hexadecimal parsing,
-token and operand state, the complete mnemonic table, address assertions,
-failure values, and exact source/output limits and exhaustion. Structural
-recursion must consume an unchanged immediate source tail, using earlier total
-helpers for state changes.
-Then independently reconstruct the complete owner root and produce its explicit
-certificate through the selected source-owned chain. Do not rename this partial
-portion into a complete encoder or let producer-supplied definitions choose the
+The definitions now cover the remaining checked arithmetic: hexadecimal
+parsing, token and operand state, the complete mnemonic table, address
+assertions, failure values, and exact source/output limits and exhaustion.
+Structural recursion consumes an unchanged immediate source tail, using
+earlier total helpers for state changes; the only mode-1 self-calls are the
+structural recursions in functions 70, 71, 72, 74, 82, and 104.
+
+Equation-level evidence now exists: the theory gate checks 200 encoder
+equations across all encoder functions 58..108, including tiny end-to-end
+encodes, through the ordinary checker. The generic stepper has also
+independently reconstructed the owner-fixed proposition over the complete
+selected subject and produced the full untrusted derivation — 3,182,484
+rows and 135,451,492 request bytes, 16.1 times the request provision — so
+the certificate is produced and measured but cannot be admitted under the
+selected resource profile. [PROFILE.md](PROFILE.md) records the complete
+measurements; the residual routes are the owner-level decisions named in the
+cost review. Do not let producer-supplied definitions choose the
 meaning of the artifact being accepted.

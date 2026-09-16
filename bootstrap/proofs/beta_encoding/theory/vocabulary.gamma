@@ -5,13 +5,14 @@
 ; WordResult=7 has Overflow=280 and WordValue=281 with one Word field.
 ; Ordering=8 has Less=282, Equal=283, Greater=284, all nullary.
 (def beta_encoding_vocabulary () Int
-  (let count Int (beta_theory_word 284)
+  (let count Int (beta_theory_word 361)
     (let lexical Int (beta_lexical_vocabulary)
       (let words Int (beta_word_vocabulary)
         (let overflow Int (beta_scalar_constructors 7 1)
           (let value Int (beta_theory_fields3 3 7 1)
             (let word_sort Int (beta_theory_word 5)
-              (beta_scalar_constructors 8 3))))))))
+              (let ordering Int (beta_scalar_constructors 8 3)
+                (beta_encoder_vocabulary)))))))))
 
 (def beta_lexical_vocabulary () Int
   (let bytes Int (beta_scalar_constructors 1 256)

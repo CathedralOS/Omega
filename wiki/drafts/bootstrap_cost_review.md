@@ -220,31 +220,51 @@ ceiling, ~1.6-3.1 times over request bytes, and ~7-32 times over the pair
 arena. The residual gap is structural (RAM-bound work, per-distinct-fact
 recipe costs), not a constants problem.
 
-**Missing quantities (unchanged by this ledger).** The actual equations —
-there is no scan/token/dispatch/emission/flatten theory, so formation size
-and per-step coefficients are extrapolations from the 24-byte literal and
-the Join/Ref algebra, not measurements. The integrated proof recipe at full
-subject. Join-key census for the full state tuple (leaf census measured;
-the ~43-48k Join range is a bound). Producer and checker time/depth at
-full size.
+**Missing quantities (now measured).** The complete package and an explicit
+full-subject producer now exist, replacing the extrapolations above. The
+emitted theory is 116,992 bytes (18 sorts, 361 constructors, 108 functions;
+encoder functions 58..108 occupy 22,816 bytes). A pure-Python stepper
+(`tests/gamma/beta-encoding-theory/stepper.py`) replays every ground
+application through its stated clause and emits the corresponding
+unfold/congruence/transitivity certificate rows. On the exact selected
+subject — the 47,748-byte evaluator source as a midpoint-split Source tree
+(22,339 interned owner terms) and the 8,575-byte tape — it independently
+reconstructed the owner proposition
+`encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` and produced the complete
+derivation in 24.1 seconds:
+
+- owner proposition 534,208 bytes over 22,339 terms;
+- certificate 134,800,268 bytes over 2,130,039 witness terms and
+  3,182,484 proof rows (1,018,573 unfold, 1,157,485 transitivity,
+  936,597 congruence, 69,829 reflexivity; maximum proof depth 204);
+- total request 135,451,492 bytes — 16.1 times the 8,388,608-byte
+  provision;
+- checker work not executed (the request cannot be admitted); at the
+  measured ~13.9-16.5 work/row across the checked encoder batches the
+  derivation projects ~45-52M work — ~70-80 times the 655,360 provision
+  and the ~675,017 physical pair ceiling.
+
+Producer peak RSS was ~2.8GB on macOS arm64. These are measured actuals for
+one straightforward producer shape, not a lower bound: the named levers
+(count-out-of-state, concat-collapse flatten, denser row sharing) could
+shrink it, but even a tenfold reduction leaves ~13.5MB request and ~5M
+work — still over both provisions and the physical pair ceiling.
 
 **Disposition.** Retire the repeated output-successor recipe and the
 history-bearing state design as baselines; the candidate supersedes both on
-its own terms. Keep the consolidated candidate as the proposed evaluation
-unit: its state architecture is the necessary shape, and its two open design
-choices now have measured leverage — adopt the permitted concat-collapse
-flatten (~10 times on that component) and price count-out-of-state before
-fixing the state record. No measured recipe family reaches acceptance under
-the selected provisions; if the complete equations confirm this ledger, the
-remaining routes are recipe restructuring toward ~675k work, checked
-closed-lemma composition across bounded requests (a checker addition needing
-owner escalation), or more native backing (an owner-level realization
-decision already named below). Splitting into multiple requests changes
-nothing without that composition rule: the checker validates premises only
-as earlier rows in one table. Do not select a larger profile from these
-still-partial costs, and do not build the definition package merely to
-confirm the numbers — the complete package plus integrated recipe remains
-the proposed unit for evaluating the route.
+its own terms. The complete equations now exist and the produced
+full-subject certificate confirms this ledger's direction: measured at
+16.1 times the request provision and ~70-80 times the work provision /
+physical pair ceiling, the single-request route does not reach acceptance
+under the selected provisions. The remaining routes are recipe
+restructuring toward ~675k work (the measured 3.18M-row / 2.13M-term
+certificate would need ~two orders of magnitude of further reduction —
+not a plausible constants gap), checked closed-lemma composition across
+bounded requests (a checker addition needing owner escalation), or more
+native backing (an owner-level realization decision already named below).
+Splitting into multiple requests changes nothing without that composition
+rule: the checker validates premises only as earlier rows in one table.
+Do not select a larger profile from these costs.
 
 ## Coherent provisions
 

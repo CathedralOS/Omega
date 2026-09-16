@@ -1,0 +1,87 @@
+; Sorts 9..18: encoder vocabulary appended after the 284 lexical records.
+; Source=9 holds the raw source tree (SEmpty, SLeaf Byte, SJoin);
+; Expect=10 the operand expectation; Status=11 the sticky scan status;
+; State=12 (Bool comment, ByteList reversed pending, Expect, Word count,
+; Status, Word output limit); Fragment=13 the ordered output tree;
+; ScanResult=14 (State, Fragment); Admission=15 the source-envelope result;
+; DState=16 the token automaton; TokenClass=17 the classified token;
+; EncodeResult=18 the error-valued encoder result.
+(def beta_encoder_vocabulary () Int
+  (let source_empty Int (beta_scalar_constructors 9 1)
+    (let source_leaf Int (beta_theory_fields3 3 9 1)
+      (let source_leaf_field Int (beta_theory_word 1)
+        (let source_join Int (beta_theory_fields3 4 9 2)
+          (let source_join_low Int (beta_theory_word 9)
+            (let source_join_high Int (beta_theory_word 9)
+              (beta_encoder_vocabulary_expects))))))))
+
+(def beta_encoder_vocabulary_expects () Int
+  (let expects Int (beta_scalar_constructors 10 6)
+    (let statuses Int (beta_scalar_constructors 11 3)
+      (let state Int (beta_theory_fields3 8 12 6)
+        (let state_low Int (beta_theory_fields3 2 6 10)
+          (let state_high Int (beta_theory_fields3 5 11 5)
+            (beta_encoder_vocabulary_fragments)))))))
+
+(def beta_encoder_vocabulary_fragments () Int
+  (let empty Int (beta_scalar_constructors 13 1)
+    (let chunk Int (beta_theory_fields3 3 13 1)
+      (let chunk_field Int (beta_theory_word 6)
+        (let join Int (beta_theory_fields3 4 13 2)
+          (let join_low Int (beta_theory_word 13)
+            (let join_high Int (beta_theory_word 13)
+              (let result Int (beta_theory_fields3 4 14 2)
+                (let result_state Int (beta_theory_word 12)
+                  (let result_fragment Int (beta_theory_word 13)
+                    (beta_encoder_vocabulary_admissions)))))))))))
+
+(def beta_encoder_vocabulary_admissions () Int
+  (let rejected Int (beta_scalar_constructors 15 2)
+    (let admitted Int (beta_theory_fields3 3 15 1)
+      (let admitted_field Int (beta_theory_word 5)
+        (beta_encoder_vocabulary_automaton)))))
+
+; DState=16: DBad, DDone TokenClass, DR1, DRe, DRea, DRd1 Nibble,
+; DReg2 Nibble Nibble, DZ1, DZx, DZgo Word Byte, DZdone Word, and the
+; thirty-six nullary keyword-prefix states DA1..DW4.
+(def beta_encoder_vocabulary_automaton () Int
+  (let bad Int (beta_scalar_constructors 16 1)
+    (let done Int (beta_theory_fields3 3 16 1)
+      (let done_field Int (beta_theory_word 17)
+        (let registers Int (beta_scalar_constructors 16 3)
+          (let register_digit Int (beta_theory_fields3 3 16 1)
+            (let register_digit_field Int (beta_theory_word 3)
+              (let register_pair Int (beta_theory_fields3 4 16 2)
+                (let register_pair_low Int (beta_theory_word 3)
+                  (let register_pair_high Int (beta_theory_word 3)
+                    (beta_encoder_vocabulary_hexadecimal)))))))))))
+
+(def beta_encoder_vocabulary_hexadecimal () Int
+  (let zero Int (beta_scalar_constructors 16 2)
+    (let going Int (beta_theory_fields3 4 16 2)
+      (let going_word Int (beta_theory_word 5)
+        (let going_count Int (beta_theory_word 1)
+          (let closed Int (beta_theory_fields3 3 16 1)
+            (let closed_word Int (beta_theory_word 5)
+              (let keywords Int (beta_scalar_constructors 16 36)
+                (beta_encoder_vocabulary_tokens)))))))))
+
+; TokenClass=17: TEmpty, TInvalid, TDw, TRegister Byte, TWord Word,
+; TAssert Word, TMnemonic Byte Expect. EncodeResult=18 closes the table.
+(def beta_encoder_vocabulary_tokens () Int
+  (let scalars Int (beta_scalar_constructors 17 3)
+    (let register Int (beta_theory_fields3 3 17 1)
+      (let register_byte Int (beta_theory_word 1)
+        (let word Int (beta_theory_fields3 3 17 1)
+          (let word_field Int (beta_theory_word 5)
+            (let assertion Int (beta_theory_fields3 3 17 1)
+              (let assertion_word Int (beta_theory_word 5)
+                (let mnemonic Int (beta_theory_fields3 4 17 2)
+                  (let mnemonic_op Int (beta_theory_word 1)
+                    (let mnemonic_expect Int (beta_theory_word 10)
+                      (beta_encoder_vocabulary_results))))))))))))
+
+(def beta_encoder_vocabulary_results () Int
+  (let failures Int (beta_scalar_constructors 18 2)
+    (let success Int (beta_theory_fields3 3 18 1)
+      (beta_theory_word 6))))
