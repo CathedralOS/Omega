@@ -32,7 +32,9 @@ impl SelectedInstructionProvenance {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        EdgeId, FuelSettlement, OperationId, PsiProvenance, SelectedInstructionProvenance,
+    };
 
     #[test]
     fn fuel_custody_binds_sites_uniqueness_and_units() {
