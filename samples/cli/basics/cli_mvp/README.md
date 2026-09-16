@@ -77,7 +77,14 @@ The outer CLI checks current package requirements against the project's accepted
 native production with ordinary `omega update` guidance and compiler-rendered
 findings. The [single package-acceptance rule](../../../../wiki/spec/packages/acceptance.md#authority-boundaries)
 means an unchanged accepted policy needs no second native approval file.
-The macOS release outer command reaches missing package acceptance. Remaining
+The macOS release outer command reaches missing package acceptance on a fresh
+checkout. With a completed local review (`omega update`, accept the three
+audit-recommended rows, `omega update --resume`), the same command passes
+acceptance and stops inside native production at `receiving terminal-authority
+permission policy has no exact row for Console::exit_process`: the CLI supplies
+the empty deny-by-absence receiving policy and consumer permission rows have no
+CLI input yet. That independently supplied receiving axis belongs to
+TWO-AXIS-TERMINAL-AUTHORITY-REVIEW. Remaining
 package latency, current measurements, and the next performance investigation
 belong to the owning task; Windows release timing has not been measured.
 
