@@ -356,16 +356,23 @@ fn build_structural_field_store_at(
     }
     let mut carrier_type = *referee;
     // A receiver's source referent is `Self`; its declaration identity comes
-    // from the machine attachment, not a global lookup of that spelling.
+    // from the machine attachment, not a global lookup of that spelling. A
+    // borrowed fixed-array root has no record owner of its own: its element
+    // record resolves through the first carrier `FixedIndex` hop below, so an
+    // unresolved root owner stays admissible only behind an index segment.
     let root_owner = if destination.is_self {
-        program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == machine.attached_data_symbol)?
+        Some(
+            program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == machine.attached_data_symbol)?,
+        )
     } else {
-        crate::facts::field_domain::data_definition_for_field_type(program, carrier_type)?
+        crate::facts::field_domain::data_definition_for_field_type(program, carrier_type)
     };
-    if !plain_record(root_owner, program) {
+    if let Some(owner) = root_owner
+        && !plain_record(owner, program)
+    {
         return None;
     }
     let (target, byte_index) = match program.expression_table.expression(assignment.target) {
@@ -402,7 +409,7 @@ fn build_structural_field_store_at(
         return None;
     };
     let mut carrier_path = Vec::with_capacity(carrier_segments.len());
-    let mut carrier_owner = Some(root_owner);
+    let mut carrier_owner = root_owner;
     let mut reached_array = false;
     for segment in carrier_segments {
         match segment {

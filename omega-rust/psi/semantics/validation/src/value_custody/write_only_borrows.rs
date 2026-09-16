@@ -349,9 +349,10 @@ fn write_only_record_field_assignment(
 }
 
 /// Admit one relevant primitive field beneath one literal fixed-array element
-/// reached through an otherwise ordinary common-field record path. The array
-/// element stays a closed unrestricted record, and the literal index fixes the
-/// complete write footprint without observing the referent.
+/// reached through an otherwise ordinary common-field record path or directly
+/// beneath a write-only array root. The array element stays a closed
+/// unrestricted record, and the literal index fixes the complete write
+/// footprint without observing the referent.
 fn write_only_literal_indexed_record_field_assignment(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -369,7 +370,11 @@ fn write_only_literal_indexed_record_field_assignment(
     else {
         return false;
     };
-    let Some(collection_type) = write_only_record_field_type(program, indexed.collection, roots)
+    // A bare `&write` array root is itself the indexed collection; a member
+    // path reaches the array through the shared non-observing record walk.
+    let Some(collection_type) = direct_write_only_root(program, indexed.collection, roots)
+        .map(|root| root.referee)
+        .or_else(|| write_only_record_field_type(program, indexed.collection, roots))
     else {
         return false;
     };

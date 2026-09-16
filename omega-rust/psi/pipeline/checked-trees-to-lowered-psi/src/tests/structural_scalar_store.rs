@@ -412,6 +412,83 @@ fn lowers_direct_and_nested_write_only_record_field_stores() {
 }
 
 #[test]
+fn lowers_borrowed_fixed_array_element_field_stores() {
+    // A bare borrowed fixed-array root begins its carrier path with the
+    // literal element index. The shared path resolver admits that hop against
+    // the declared array shape; the bounded store-path grammar then decides
+    // whether the finished module may carry it.
+    let checked = checked_source(&format!(
+        "{SOURCE}
+         machine store_mut(records: &mut [Cell; 3]) {{ records[1].value = 13; }}
+         machine store_write(records: &write [Cell; 3]) {{ records[1].value = 13; }}"
+    ));
+    let lowered = lower_machine(&checked, "Sink::indexed").unwrap();
+    let module = &lowered.semantic_module;
+    let array_type = module
+        .structural_types
+        .iter()
+        .find(|declaration| matches!(declaration.shape, StructuralTypeShape::FixedArray { .. }))
+        .unwrap()
+        .id;
+    for (machine_name, access) in [
+        ("store_mut", StructuralAccess::MutableBorrow),
+        ("store_write", StructuralAccess::WriteOnlyBorrow),
+    ] {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .unwrap();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .find(|plan| plan.machine == machine.symbol)
+            .expect("borrowed element store retains a Unit plan");
+        let store = plan
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => Some(store),
+                _ => None,
+            })
+            .expect("one element field store");
+        let mut parameter = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap()
+            .structural_parameters[0]
+            .clone();
+        parameter.structural_type = array_type;
+        parameter.access = access;
+        let lowered =
+            crate::emission::structural_scalar_store::lower_structural_scalar_store_destination(
+                store,
+                store.statement_index,
+                &parameter,
+                &module.structural_types,
+                &[],
+                &[],
+                crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+            )
+            .unwrap_or_else(|error| panic!("{machine_name} element store path lowers: {error:?}"));
+        assert_eq!(lowered.path, [StructuralPathSegment::FixedIndex(1)]);
+        // Module publication still requires the bounded scalar-store path
+        // grammar to admit a leading element index; until that representation
+        // rule relaxes, the finished module rejects this carrier shape.
+        assert!(matches!(
+            lower_machine(&checked, machine_name),
+            Err(LoweringError::InvalidTerminalModule(
+                terminal_verifier::ModuleError::InvalidStructuralScalarFieldStore { .. }
+            ))
+        ));
+    }
+}
+
+#[test]
 fn rejects_checked_record_field_store_path_corruption() {
     let mut checked = checked_source(SOURCE);
     let machine = checked
@@ -495,7 +572,9 @@ fn rejects_checked_indexed_store_without_its_record_owner() {
         panic!("indexed store plan")
     };
     let mut changed = store.clone();
-    changed.carrier_path.remove(0);
+    // A referent hop is not a structural field carrier; only authored `Field`
+    // and in-bounds `FixedIndex` segments may lead into the stored element.
+    changed.carrier_path = vec![CheckedUnitStructuralPathSegment::Referent];
     let lowered = lower_machine(&checked, "Sink::indexed").unwrap();
     let module = &lowered.semantic_module;
     let mut parameter = module
