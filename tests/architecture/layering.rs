@@ -1784,8 +1784,9 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
         omega_provider_carrier.exists(),
         "selected concrete provider plans must remain in the Omega provider subsystem"
     );
-    let omega_task_carrier =
-        root.join("omega-rust/omega/representations/task-plans/src/activation_plans/activation_plan_facts.rs");
+    let omega_task_carrier = root.join(
+        "omega-rust/omega/representations/task-plans/src/activation_plans/activation_plan_facts.rs",
+    );
     let task_source = std::fs::read_to_string(&omega_task_carrier)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_task_carrier.display()));
     assert!(
@@ -5252,8 +5253,9 @@ fn build_time_const_layout_fingerprints_are_report_only_beside_exact_replay() {
 #[test]
 fn build_evaluation_physical_package_source_uses_strong_commitment() {
     let root = workspace_root();
-    let plan_path = root
-        .join("omega-rust/omega/backend/plans/program-entry-plan/src/program_entry_physical/mod.rs");
+    let plan_path = root.join(
+        "omega-rust/omega/backend/plans/program-entry-plan/src/program_entry_physical/mod.rs",
+    );
     let plan = std::fs::read_to_string(&plan_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", plan_path.display()));
     let carrier = plan
