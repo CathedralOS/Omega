@@ -32,6 +32,16 @@
 //! the result register — zero is the bitwise-xor identity element, so `x ^ 0`
 //! is `x` — again dropping the flag clobber the subtract-shared constraint
 //! row carries on x86-64.
+//! `SelectedIncomingLiteralExtensionElimination` joins them below: the
+//! provider body's `let bounded: u64 [0..=100] = 7u64` materializes the
+//! literal into a scalar local, and `bounded as u8` on that declared range
+//! lowers to `IntegerExactCast`, whose selection is `ZeroExtendU8` consuming
+//! the local's register — `MaterializeI64` feeding `ZeroExtendU8`, the
+//! catalog's `ZERO_EXTEND_U8_LITERAL_FOLD` rule, which rewrites the
+//! extension to a `MaterializeI64` of the literal's low eight bits. A
+//! direct literal cast would instead retag the checked literal and never
+//! reach selection; the `let` keeps the operand a `Local` checked
+//! expression so the runtime extension survives to be folded.
 
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
@@ -841,6 +851,235 @@ machine Main::main(&mut self) {
     artifact
         .validate()
         .expect("bitwise-xor-zero native artifact should replay independently");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("the surviving boundary occurrence retains nonempty physical evidence");
+    let [occurrence] = physical.projection().operator_occurrences() else {
+        panic!("the checked boundary operator must survive as exactly one operator occurrence")
+    };
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    let [child] = physical.children() else {
+        panic!("the surviving occurrence must bind exactly one physical child")
+    };
+    assert_eq!(
+        child.occurrence(),
+        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+    );
+    assert_eq!(child.projection(), physical.projection().identity());
+    assert!(matches!(
+        child.parent(),
+        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+    ));
+    assert!(child.machine_span().byte_count() > 0);
+    assert!(child.object_span().byte_count() > 0);
+    assert_eq!(
+        child.relocation(),
+        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+    );
+
+    // Independent replay from the published parts alone: every mutation
+    // class must fail closed.
+    let parts = report
+        .into_retained_native_artifact()
+        .expect("owned native artifact")
+        .into_parts();
+
+    let mut missing = replay_native_artifact_parts(&parts);
+    let evidence = missing
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    missing.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: Vec::new(),
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        "a missing physical child must not replay"
+    );
+
+    let mut duplicate = replay_native_artifact_parts(&parts);
+    let evidence = duplicate
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    let [only_child] = evidence.children.as_slice() else {
+        panic!("one physical child before duplication")
+    };
+    duplicate.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: vec![only_child.clone(), only_child.clone()],
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        "a duplicate physical child must not replay"
+    );
+
+    let assert_mutated_child_rejected =
+        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+            let mut replay = replay_native_artifact_parts(&parts);
+            let evidence = replay
+                .physical_evidence
+                .take()
+                .expect("replay physical evidence")
+                .into_parts();
+            let [child] = evidence.children.as_slice() else {
+                panic!("one physical child before mutation")
+            };
+            let mut child = child.clone().into_parts();
+            mutate(&mut child);
+            replay.physical_evidence = Some(
+                native_realization::NativePhysicalEvidence::from_replayed_parts(
+                    native_realization::NativePhysicalEvidenceParts {
+                        projection: evidence.projection,
+                        children: vec![
+                            native_realization::NativePhysicalChild::from_replayed_parts(child),
+                        ],
+                        identity: evidence.identity,
+                    },
+                ),
+            );
+            assert!(
+                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                "a mutated physical child must not replay"
+            );
+        };
+    // Role-swapped: the operator occurrence cannot be re-presented as a
+    // boundary occurrence.
+    assert_mutated_child_rejected(&|child| {
+        assert!(matches!(
+            child.parent,
+            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        ));
+        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+            optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
+                child.occurrence.identity(),
+            ),
+        );
+    });
+    // Padded: the machine span must name exactly the emitted call interval.
+    assert_mutated_child_rejected(&|child| {
+        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+            child.machine_span.offset(),
+            child.machine_span.byte_count() + 1,
+        );
+    });
+    // Substituted: the child must bind the validated projection identity.
+    assert_mutated_child_rejected(&|child| {
+        child.projection =
+            optimization_core::NativeOptimizationProjectionIdentity::from_bytes([0x5A; 32]);
+    });
+    // Stale: an occurrence identity no surviving projection names cannot carry
+    // a child.
+    assert_mutated_child_rejected(&|child| {
+        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+            optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
+        );
+    });
+}
+
+#[test]
+fn selected_lowering_literal_extension_occurrence_replays_one_exact_physical_child() {
+    // A ninth selected-lowering family carries the physical-child contract:
+    // the package-bound boundary operator program compiles under
+    // `SelectedIncomingLiteralExtensionElimination`, and the provider body's
+    // `let bounded: u64 [0..=100] = 7u64` followed by `bounded as u8` gives
+    // the catalog's `ZERO_EXTEND_U8_LITERAL_FOLD` pair rule a real
+    // source-reachable candidate. The immutable `let` binds the literal to a
+    // scalar local, so `bounded` reads back as a `Local` checked expression
+    // rather than a literal the checker could retag; its materialization
+    // (`MaterializeI64` of 7) feeds the `ZeroExtendU8` consumer the exact
+    // cast selects, a `MaterializeI64` feeding `ZeroExtendU8` that the rule
+    // rewrites to a `MaterializeI64` of the literal's low eight bits. The
+    // surviving operator occurrence still binds exactly one
+    // OperatorApplicationCoverage child through allocation, layout, and
+    // native emission; independent replay rejects every mutation class —
+    // missing, duplicate, stale, substituted, padded, and role-swapped
+    // children.
+    let root = std::env::temp_dir().join(format!(
+        "omega-physical-child-literal-extension-{}-{}",
+        std::process::id(),
+        PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("create literal-extension physical-child project");
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data CheckedMath {}
+
+boundary operator CheckedMath::narrow(value: u64) -> u8;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::narrow_impl(value: u64) -> u8
+satisfies CheckedMath::narrow
+{
+    let bounded: u64 [0..=100] = 7u64;
+    transition { _ -> (bounded as u8) }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let picked: u8 = CheckedMath::narrow(7u64);
+}
+"#,
+    )
+    .expect("write literal-extension physical-child main");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-literal-extension-physical-child");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::SelectedIncomingLiteralExtensionElimination);
+}
+"#,
+    )
+    .expect("write literal-extension physical-child build");
+    let root_identity = package_identity(51);
+    let inputs = PackageCompilationInputs::new_package(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("literal-extension physical-child package graph should validate");
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(inputs),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the literal-extension selection must carry a boundary occurrence to native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("literal-extension compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("literal-extension native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
         native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
