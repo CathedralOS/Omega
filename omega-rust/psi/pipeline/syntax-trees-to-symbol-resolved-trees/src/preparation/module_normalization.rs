@@ -85,17 +85,13 @@ pub(crate) fn validate_with_const_resolution_mode(
     // families intern under their complete logical path and every application
     // selects its telescope through the same name law before any argument
     // folds, so open-template indices on module-owned carriers substitute
-    // only against their exact owner. Generic operators still fence: open
-    // carrier binders share the generic-template normalization queue, whose
-    // binder surfaces do not yet carry module ownership.
+    // only against their exact owner. Operators ride the same law: their
+    // generic binders close at call-time operand application rather than
+    // through the data-template normalization queue, so a module-owned
+    // generic operator selects by its qualified or imported spelling exactly
+    // like a non-generic sibling.
     for item in syntax.root_items() {
         let unsupported = match item {
-            Item::Operator(definition) => {
-                syntax.items.identifier_path_members(definition.name).first()
-                    .filter(|name| module_sources.contains(&name.source_span().source_id))
-                    .filter(|_| !definition.type_parameters.is_empty())
-                    .map(|name| (name, "module-owned generic operators require namespace-aware template normalization"))
-            }
             Item::Const(constant)
                 if module_sources.contains(&constant.name.source_span().source_id) =>
             {
@@ -107,23 +103,35 @@ pub(crate) fn validate_with_const_resolution_mode(
                     None
                 } else if module_literal_constant(syntax, constant) {
                     if matches!(
-                        syntax.type_references.type_reference(constant.type_reference),
+                        syntax
+                            .type_references
+                            .type_reference(constant.type_reference),
                         TypeReferenceNode::FixedArray { .. }
                     ) {
-                        crate::preparation::generic_data::canonicalize_declared_const_definition(syntax, constant)
-                            .map_err(|reason| {
-                                vec![Diagnostic::error(format!(
+                        crate::preparation::generic_data::canonicalize_declared_const_definition(
+                            syntax, constant,
+                        )
+                        .map_err(|reason| {
+                            vec![
+                                Diagnostic::error(format!(
                                     "module array constant `{}` is invalid: {reason}",
                                     constant.name.as_str()
-                                )).with_source_span(constant.name.source_span())]
-                            })?;
-                    } else {
-                        crate::constant::validate_scalar_initializer(syntax, constant).map_err(|reason| {
-                            vec![Diagnostic::error(format!(
-                                "module scalar constant `{}` is invalid: {reason}",
-                                constant.name.as_str()
-                            )).with_source_span(constant.name.source_span())]
+                                ))
+                                .with_source_span(constant.name.source_span()),
+                            ]
                         })?;
+                    } else {
+                        crate::constant::validate_scalar_initializer(syntax, constant).map_err(
+                            |reason| {
+                                vec![
+                                    Diagnostic::error(format!(
+                                        "module scalar constant `{}` is invalid: {reason}",
+                                        constant.name.as_str()
+                                    ))
+                                    .with_source_span(constant.name.source_span()),
+                                ]
+                            },
+                        )?;
                     }
                     None
                 } else if let Some(base_name) = generic_const_carrier_leaf(syntax, constant) {
@@ -135,15 +143,21 @@ pub(crate) fn validate_with_const_resolution_mode(
                     // checks the substituted initializer.
                     let selected = selection.data(syntax, base_name).and_then(|definition| {
                         if definition.type_parameters.is_empty() {
-                            Err(format!("`{base_name}` does not select a generic data template"))
+                            Err(format!(
+                                "`{base_name}` does not select a generic data template"
+                            ))
                         } else {
                             Ok(())
                         }
                     });
                     selected.map_err(|reason| {
-                        vec![Diagnostic::error(format!(
-                            "module-owned nominal constant `{}` is invalid: {reason}", constant.name
-                        )).with_source_span(constant.name.source_span())]
+                        vec![
+                            Diagnostic::error(format!(
+                                "module-owned nominal constant `{}` is invalid: {reason}",
+                                constant.name
+                            ))
+                            .with_source_span(constant.name.source_span()),
+                        ]
                     })?;
                     None
                 } else {
@@ -152,7 +166,6 @@ pub(crate) fn validate_with_const_resolution_mode(
                             "module-owned nominal constant `{}` is invalid: {reason}", constant.name
                         )).with_source_span(constant.name.source_span())])?;
                     None
-
                 }
             }
             Item::Data(data)
