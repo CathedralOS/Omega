@@ -319,10 +319,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   as the executed regression. The sample's next first failure (macOS ARM64):
   `macOS hosted receiver bridge lost exact contract, storage, or entry
   custody` from `image-emission/src/hosted_receiver.rs`, which is the
-  **ENTRY-CONTENT-ROOTS** receiver bridge, not arithmetic. Other saturating
-  widths (`i8`, `i16`, `i64`, `u8`, `u16`, `u32`; 168 corpus uses) are
-  additive beside these kinds and still raise
-  `UnsupportedScalarOperation`.
+  **ENTRY-CONTENT-ROOTS** receiver bridge, not arithmetic. Every fixed
+  width now legalizes: the saturating kinds carry a `SaturatingCarrier`
+  (i8..u64) instead of one name per width, narrow carriers clamp the exact
+  64-bit result, i64 add/subtract detect overflow from the left operand's
+  sign, and i64 divide never executes the trapping quotient; kernels for
+  each width execute on this host and replay on all four targets
+  (`scalar_case_results`). The `cli/basics` cohort's first failures (macOS
+  ARM64) are now the missing transitive `Main::main` plan
+  (**GENERAL-CYCLIC-EXECUTION**: `brightness_control`, `nested_diagnostics`,
+  `print_number`, `temperature_convert`, `text_greeting`, `unit_converter`),
+  the hosted receiver bridge (`number_guess`), `Utf8` field proofs
+  (`multiplication_table`), and `OperationProofUnavailable(ObligationId(25))`
+  (`print_squares`); none is a legalization error.
   `multiplication_table` still fails checked-stage `Utf8` field proofs and
   `print_squares` still stops at `OperationProofUnavailable(ObligationId(25))`.
 
