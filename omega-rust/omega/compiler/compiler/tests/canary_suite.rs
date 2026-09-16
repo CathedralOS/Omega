@@ -3182,6 +3182,9 @@ mod process_exit_acceptance;
 #[path = "support/macos_entry_acceptance.rs"]
 mod macos_entry_acceptance;
 
+#[path = "support/uefi_entry_acceptance.rs"]
+mod uefi_entry_acceptance;
+
 fn reviewed_repository_fixture_package_inputs(
     root_path: &Path,
     target_name: Option<&str>,
@@ -3195,6 +3198,14 @@ fn reviewed_repository_fixture_package_inputs(
             &repo_root().join("source/library/std"),
             fixture_package_identity(2),
         )?);
+    }
+    if target_name == Some("uefi_x86_64") {
+        bindings.push(uefi_entry_acceptance::candidate_uefi_entry_binding(
+            &repo_root().join("source/library/std"),
+            fixture_package_identity(2),
+        )?);
+    }
+    if !bindings.is_empty() {
         package_inputs = package_inputs
             .with_accepted_semantic_bindings(bindings.clone())
             .map_err(|errors| {
