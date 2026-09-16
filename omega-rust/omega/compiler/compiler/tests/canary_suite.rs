@@ -3345,6 +3345,40 @@ fn hosted_program_entry_owner(target: &str) -> &'static str {
     }
 }
 
+/// The cross-target application build written for a fixture copied into a
+/// scratch project: binds the compiled target's `ProgramEntry` to `Main::main`
+/// so native production passes exact entry admission, keeps the ordinary
+/// standard-library dependency by absolute repository path when the authored
+/// fixture declares it, and mirrors the authored freestanding EFI profile for
+/// `uefi_x86_64`.
+fn cross_target_program_entry_build(canary: &Path, target: &str) -> String {
+    let root_owner = match target {
+        "uefi_x86_64" => "uefi_x86_64",
+        _ => hosted_program_entry_owner(target),
+    };
+    let mut build =
+        "machine build(builder: &mut Build) {\n    builder.application(\"cross-target-canary\");\n"
+            .to_owned();
+    if fixture_declares_ordinary_std(canary) {
+        let standard_library = repo_root()
+            .join("source/library/std")
+            .to_string_lossy()
+            .replace('\\', "/");
+        build.push_str(&format!(
+            "    builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n"
+        ));
+    }
+    if target == "uefi_x86_64" {
+        build.push_str(
+            "    builder.subsystem = Subsystem::EfiApplication;\n    builder.freestanding = true;\n",
+        );
+    }
+    build.push_str(&format!(
+        "    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+    ));
+    build
+}
+
 fn compile_single_file_hosted_main(
     canary: &Path,
     scratch: &Path,
