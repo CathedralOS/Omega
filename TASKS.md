@@ -2505,18 +2505,20 @@ Owners include
   binder, a common concrete result, and dispatch around a region-sized operation;
   runtime arguments depend on RUNTIME-VALUE-GENERICS, not generic JIT execution.
 
-  Resume evidence (macw4-finite-dispatch-2, macOS x86-64, `omega --check
-  --target linux_x86_64` probes plus 65 selected-dispatch tests): the roster
-  slice landed at 61b0e258b0 — `signature_families.rs` extracts the explicit
-  `Binder == literal || ...` roster (order/duplicates normalize, correlated
-  `&&` alternatives keep authored groupings, partial tuples/opaque
-  predicates/ranges never enumerate), `adapter_rows.rs` publishes one
-  tuple-keyed row per declared tuple, statement and expression calls select
-  exactly one settled tuple, and the checked interpreter replays by canonical
-  tuple. The coverage slice on this branch: a roster tuple with no checked
-  provider specialization now leaves the whole requirement dynamically
-  ineligible instead of publishing a truncated table, so one selected
-  conformance covers every declared tuple or supplies no dynamic rows.
+  Resume evidence (macw4-finite-dispatch-3, macOS x86-64, 71
+  selected-dispatch tests): the roster slice landed at 61b0e258b0 —
+  `signature_families.rs` extracts the explicit `Binder == literal || ...`
+  roster (order/duplicates normalize, correlated `&&` alternatives keep
+  authored groupings, partial tuples/opaque predicates/ranges never
+  enumerate), `adapter_rows.rs` publishes one tuple-keyed row per declared
+  tuple, statement and expression calls select exactly one settled tuple,
+  and the checked interpreter replays by canonical tuple. The row-evidence
+  slice then required each roster tuple to be filled by exactly one bare
+  value-tuple specialization of the selected provider's own template:
+  missing coverage leaves the whole requirement dynamically ineligible,
+  and wrong-width, shape-substituted (type/machine/conformance argument
+  coordinates or closed conformance applications), duplicated, and
+  sibling-provider records all reject rather than lending rows.
   Remaining open slice: retain `family_tuple` rows through Terminal
   dynamic-call/descriptor (`terminal_module/boundary/dynamic_dispatch.rs` has
   no tuple coordinate) and Omega native table replay; runtime `Value`-binder
