@@ -515,6 +515,176 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
 }
 
 #[test]
+fn boundary_results_bound_to_locals_transport_their_proven_origin() {
+    let cases = [
+        // A static signature admits only the exclusive argument's storage, so
+        // the bound local keeps that single origin for the later call.
+        (
+            "static_argument",
+            "let r: &mut u64 = Device::reference(&mut self.value); self.device.output(r);",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        // A receiver-only result reaches the opaque receiver storage.
+        (
+            "receiver_only",
+            "let r: &mut u64 = self.device.make(); self.device.output(r);",
+            Some(vec!["self.device"]),
+        ),
+        // A second admitted route leaves the bound result without a proven
+        // single origin.
+        (
+            "receiver_and_argument",
+            "let r: &mut u64 = self.device.reference(&mut self.value); self.device.output(r);",
+            None,
+        ),
+        (
+            "two_arguments",
+            "let r: &mut u64 = Device::pick(&mut self.value, &mut self.other); self.device.output(r);",
+            None,
+        ),
+        // A result with no admitted caller route cannot prove a referent.
+        (
+            "no_route",
+            "let r: &mut u64 = Device::empty(); self.device.output(r);",
+            None,
+        ),
+        // An interior referent claims the coarse storage root rather than a
+        // fabricated member subpath.
+        (
+            "interior_referent",
+            "let r: &mut u64 = Device::project(&mut self.cell); self.device.output(r);",
+            Some(vec!["self.cell", "self.device"]),
+        ),
+        // A carrier whose stored exclusive reference could still reach the
+        // referent keeps the result opaque.
+        (
+            "carrier_route",
+            "let r: &mut u64 = self.device.carrier_reference(&mut self.carrier); self.device.output(r);",
+            None,
+        ),
+        // A write through the bound result lands on its proven referent.
+        (
+            "write_through",
+            "let r: &mut u64 = Device::reference(&mut self.value); r = 1; self.device.output(r);",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        // Rebinding the bound local redirects later writes to the new origin.
+        (
+            "rebound",
+            "let mut r: &mut u64 = Device::reference(&mut self.value); r = &mut self.other; self.device.output(r);",
+            Some(vec!["self.device", "self.other", "self.value"]),
+        ),
+        // A bound result still transports through a checked helper body.
+        (
+            "helper_argument",
+            "let r: &mut u64 = Device::reference(&mut self.value); self.device.output(identity(r));",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        // A bound-local argument canonicalizes through that local's origin:
+        // the new binding keeps the referent held at bind time even after
+        // the argument binding is rebound elsewhere.
+        (
+            "bound_from_rebound_local",
+            "let mut alias: &mut u64 = &mut self.value; let r: &mut u64 = Device::reference(alias); alias = &mut self.other; self.device.output(r);",
+            Some(vec!["self.device", "self.value"]),
+        ),
+    ];
+    let mut source = String::from(
+        r#"
+        data Cell { value: u64; }
+        data Carrier { value: &mut u64; }
+        boundary trait Device {
+            machine output(value: &mut u64);
+            machine reference(value: &mut u64) -> &mut u64;
+            machine pick(hit: &mut u64, other: &mut u64) -> &mut u64;
+            machine project(cell: &mut Cell) -> &mut u64;
+            machine make() -> &mut u64;
+            machine empty() -> &mut u64;
+            machine carrier_reference(carrier: &mut Carrier) -> &mut u64;
+        }
+        data Main {
+            device: Device; value: u64; other: u64; cell: Cell; carrier: Carrier;
+        }
+        machine identity(value: &mut u64) -> &mut u64 { value }
+    "#,
+    );
+    for (name, body, _) in &cases {
+        source.push_str(&format!(
+            "machine Main::case_{name}(&mut self) {{ {body} }}"
+        ));
+    }
+    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let resolver = validation::CallFrameResolver::new(&typed).expect("resolver");
+    let mut failures = Vec::new();
+    for (name, _, expected) in cases {
+        let qualified = format!("Main::case_{name}");
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == qualified)
+            .expect("caller");
+        let state = &typed.machine_states(machine)[0];
+        let statement = typed
+            .statement_table
+            .statements(state.statement_nodes)
+            .last()
+            .expect("boundary call statement");
+        let typed_trees::statement::StatementNode::Call(call) = statement else {
+            panic!("boundary call statement");
+        };
+        // The statement-call query excludes argument evaluation. The
+        // production statement consumer joins these two frames.
+        let direct = resolver
+            .may_write_paths(machine, call)
+            .zip(resolver.statement_value_may_write_paths(machine, statement))
+            .map(|(mut written, producers)| {
+                written.extend(producers);
+                written.sort();
+                written.dedup();
+                written
+            });
+        for (query, frame) in [
+            resolver
+                .inferred_state_write_frame(machine, state)
+                .into_complete_paths(),
+            direct,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let actual = frame.map(|mut paths| {
+                paths.sort();
+                paths
+            });
+            let expected = expected.as_ref().map(|paths| {
+                let mut paths: Vec<_> = paths.iter().map(|path| (*path).to_owned()).collect();
+                // The statement query keeps the local binding's spelling
+                // beside its expanded origin.
+                if query == 1 {
+                    paths.push("r".to_owned());
+                }
+                // The `reference` call's write belongs to the earlier
+                // statement, not the rebound call's own frame.
+                if name == "rebound" && query == 1 {
+                    paths.retain(|path| path != "self.value");
+                }
+                paths.sort();
+                paths
+            });
+            if actual != expected {
+                failures.push(format!(
+                    "{name} query {query}: expected {expected:?}, actual {actual:?}"
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+#[test]
 fn boundary_attached_result_requires_the_exact_caller_self_identity() {
     use typed_trees::expression::ExpressionNode;
     use typed_trees::statement::StatementNode;

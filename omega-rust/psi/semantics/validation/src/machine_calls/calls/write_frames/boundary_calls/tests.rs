@@ -113,6 +113,157 @@ fn static_boundary_wrong_zero_and_stale_targets_remain_opaque() {
 }
 
 #[test]
+fn static_boundary_result_bound_to_local_keeps_its_single_origin() {
+    let program = typed(
+        "data Main { value: u64; } boundary trait Sink { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self) { let r: &mut u64 = Sink::reference(&mut self.value); Sink::touch(r); }",
+    );
+    assert_eq!(
+        frame(&program).complete_paths(),
+        Some(["self.value".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn boundary_results_bound_to_locals_join_their_proven_single_origin() {
+    for (name, body, expected) in [
+        // A static signature admits only the exclusive argument's storage,
+        // so the bound local forwards that single origin.
+        (
+            "static_argument",
+            "let r: &mut u64 = Device::reference(&mut self.value); self.device.touch(r);",
+            Some(&["self.device", "self.value"][..]),
+        ),
+        // A receiver-only result must point into the opaque receiver storage.
+        (
+            "receiver_only",
+            "let r: &mut u64 = self.device.make(); self.device.touch(r);",
+            Some(&["self.device"][..]),
+        ),
+        // A second admitted route leaves the bound result without a single
+        // proven origin, so the whole frame stays opaque.
+        (
+            "receiver_and_argument",
+            "let r: &mut u64 = self.device.reference(&mut self.value); self.device.touch(r);",
+            None,
+        ),
+        (
+            "two_arguments",
+            "let r: &mut u64 = Device::pick(&mut self.value, &mut self.other); self.device.touch(r);",
+            None,
+        ),
+        // A result with no admitted caller route cannot prove a referent.
+        (
+            "no_route",
+            "let r: &mut u64 = Device::empty(); self.device.touch(r);",
+            None,
+        ),
+        // An interior referent claims the coarse storage root rather than a
+        // fabricated member subpath.
+        (
+            "interior_referent",
+            "let r: &mut u64 = Device::project(&mut self.cell); self.device.touch(r);",
+            Some(&["self.cell", "self.device"][..]),
+        ),
+        // A nested boundary result transports its own single origin.
+        (
+            "nested_result",
+            "let r: &mut u64 = Device::reference(Device::reference(&mut self.value)); self.device.touch(r);",
+            Some(&["self.device", "self.value"][..]),
+        ),
+        // A carrier whose stored exclusive reference could still reach the
+        // referent keeps the result opaque.
+        (
+            "carrier_route",
+            "let r: &mut u64 = self.device.carrier_reference(&mut self.carrier); self.device.touch(r);",
+            None,
+        ),
+        // Rebinding the bound local redirects later writes to the new origin.
+        (
+            "rebound",
+            "let mut r: &mut u64 = Device::reference(&mut self.value); r = &mut self.other; self.device.touch(r);",
+            Some(&["self.device", "self.other", "self.value"][..]),
+        ),
+        // A bound-local argument canonicalizes through that local's origin,
+        // so the new binding keeps the referent held at bind time even after
+        // the argument binding is rebound elsewhere.
+        (
+            "bound_from_local",
+            "let alias: &mut u64 = &mut self.value; let r: &mut u64 = Device::reference(alias); self.device.touch(r);",
+            Some(&["self.device", "self.value"][..]),
+        ),
+        (
+            "bound_from_rebound_local",
+            "let mut alias: &mut u64 = &mut self.value; let r: &mut u64 = Device::reference(alias); alias = &mut self.other; self.device.touch(r);",
+            Some(&["self.device", "self.value"][..]),
+        ),
+        // Writing through the bound result lands on its proven referent.
+        (
+            "write_through",
+            "let r: &mut u64 = Device::reference(&mut self.value); r = 1;",
+            Some(&["self.value"][..]),
+        ),
+        // An exact aggregate referent keeps member projections exact.
+        (
+            "aggregate_root",
+            "let r: &mut Cell = Device::cell_ref(&mut self.cell); r.value = 1;",
+            Some(&["self.cell", "self.cell.value"][..]),
+        ),
+    ] {
+        let program = typed(&format!(
+            "data Cell {{ value: u64; }} data Carrier {{ value: &mut u64; }} data Main {{ device: Device; value: u64; other: u64; cell: Cell; carrier: Carrier; }} boundary trait Device {{ machine reference(value: &mut u64) -> &mut u64; machine pick(hit: &mut u64, other: &mut u64) -> &mut u64; machine project(cell: &mut Cell) -> &mut u64; machine cell_ref(cell: &mut Cell) -> &mut Cell; machine make() -> &mut u64; machine empty() -> &mut u64; machine carrier_reference(carrier: &mut Carrier) -> &mut u64; machine touch(record: &mut u64); }} machine Main::inspect(&mut self) {{ {body} }}"
+        ));
+        let mut actual = frame(&program).complete_paths().map(|paths| paths.to_vec());
+        if let Some(paths) = &mut actual {
+            paths.sort();
+        }
+        let expected = expected.map(|paths| {
+            paths
+                .iter()
+                .map(|path| (*path).to_owned())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+#[test]
+fn boundary_result_bound_to_local_forwards_a_parameter_origin() {
+    let program = typed(
+        "data Main { device: Device; } boundary trait Device { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self, record: &mut u64) { let r: &mut u64 = Device::reference(record); self.device.touch(r); }",
+    );
+    assert_eq!(
+        frame(&program).complete_paths(),
+        Some(["$P0".to_owned(), "self.device".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn boundary_result_with_a_stale_return_type_cannot_bind_an_origin() {
+    let program = typed(
+        "data Main { device: Device; value: u64; } boundary trait Device { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self) { let r: &mut u64 = Device::reference(&mut self.value); self.device.touch(r); }",
+    );
+    let signature_span = program.traits()[0].machines;
+    let valid = program
+        .trait_machine_signatures
+        .span_or_empty(signature_span)[0]
+        .return_type;
+    for stale in [
+        TypeReferenceHandle::invalid(),
+        TypeReferenceHandle::from_parts(valid.arena_index(), valid.generation() + 1),
+    ] {
+        let mut invalid = program.clone();
+        invalid
+            .trait_machine_signatures
+            .span_mut_or_empty(signature_span)[0]
+            .return_type = stale;
+        assert!(
+            !frame(&invalid).is_complete(),
+            "stale result type {stale:?}"
+        );
+    }
+}
+
+#[test]
 fn static_boundary_stale_formal_types_cannot_erase_exclusive_argument_writes() {
     let program = typed(
         "data Flag { enabled: bool; } boundary trait Sink { machine touch(record: &mut Flag); } machine inspect(record: &mut Flag) { Sink::touch(record); }",

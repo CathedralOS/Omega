@@ -153,6 +153,24 @@ pub(crate) fn stable_alias_initializer_origin(
                     )
                 },
             )
+            // A boundary call has no checked body, but a single-candidate
+            // exclusive result still supplies its proven referent origin.
+            .or_else(|| {
+                super::boundary_calls::single_boundary_result_origin(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    call,
+                    expression,
+                    inference,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    allow_isolated_local,
+                    stored,
+                )
+            })
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index)
