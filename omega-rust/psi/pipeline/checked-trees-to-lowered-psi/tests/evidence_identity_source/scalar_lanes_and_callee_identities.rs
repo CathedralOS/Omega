@@ -17,7 +17,7 @@ use terminal_interpreter::{
 use terminal_psi::{EvidenceContractLaneKind, OperationKind};
 
 #[test]
-fn ordinary_attached_scalar_machine_remains_outside_the_scalar_entry_lane() {
+fn ordinary_attached_scalar_machine_lowers_through_the_unit_closure() {
     let checked = check(ORDINARY_ATTACHED_SCALAR_SOURCE);
     let selection = checked
         .facts
@@ -31,12 +31,24 @@ fn ordinary_attached_scalar_machine_remains_outside_the_scalar_entry_lane() {
         selection.signature,
         checked_trees::CheckedTerminalSignatureEligibility::Attached
     );
-    assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, &selection.name),
-        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, reason })
-            if machine == "Root::f"
-                && reason == "attached Unit closure is missing a checked transitive machine plan"
-    ));
+    // The checker plans the attached scalar body as a Unit effect closure,
+    // which is the lane that lowers it; no scalar entry lane is involved.
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(selection.machine)
+            .is_some()
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &selection.name)
+        .expect("attached scalar machine lowers through the Unit closure");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("attached scalar machine verifies");
 }
 
 #[test]

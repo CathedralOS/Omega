@@ -297,10 +297,10 @@ fn unsupported_authored_contracts_cannot_disappear_from_store_return_bodies() {
                 .is_empty(),
             "{contract}"
         );
-        assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "reset").is_err(),
-            "{contract}"
-        );
+        // The general Unit closure lowers the contracted body without a
+        // store-return plan; the forged plan below still cannot replace it.
+        checked_trees_to_lowered_psi::lower_machine(&checked, "reset")
+            .unwrap_or_else(|error| panic!("{contract}: {error:?}"));
         // Producer evidence may be incomplete or substituted. The consumer must
         // inspect the authored contract even after its proof rows disappear.
         let plain = self::checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");

@@ -162,7 +162,7 @@ fn array_fields_project_to_shared_slices_with_the_same_element_identity() {
             ("[u8; 4]", "&mut [u8]", false),
             ("[u8; 4]", "&write [u8]", false),
             ("&write [u8; 4]", "&[u8]", false),
-            ("&mut [u8; 4]", "&mut [u8]", false),
+            ("&mut [u8; 4]", "&mut [u8]", true),
             ("[u8; 4]", "&[u8; 3]", false),
             ("[u8; 4]", "&u8", false),
             ("u8", "&[u8]", false),

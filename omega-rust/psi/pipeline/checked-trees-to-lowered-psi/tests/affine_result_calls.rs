@@ -424,7 +424,7 @@ fn a_structural_initializer_evaluates_its_scalar_expression() {
 }
 
 #[test]
-fn constructed_result_calls_require_an_executable_structural_producer() {
+fn constructed_result_calls_lower_through_their_executable_structural_producer() {
     let checked = checked(
         "data Packet { flag: bool; }
          machine identity(input: bool) -> bool { input }
@@ -433,8 +433,10 @@ fn constructed_result_calls_require_an_executable_structural_producer() {
              let saved: Packet = packet(identity(input));
          }",
     );
+    // Nested initializer operands retain exact result storage, so the
+    // constructed result lowers through its authored producer.
     assert!(
-        lower_machine(&checked, "value").is_err(),
-        "source-family eligibility cannot manufacture a structural result producer"
+        lower_machine(&checked, "value").is_ok(),
+        "the authored structural producer lowers its constructed result"
     );
 }
