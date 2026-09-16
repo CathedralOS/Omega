@@ -34,14 +34,6 @@ The crate's `src/tests`, `src/flow`, `src/values`, `src/facts`, and
 termination/multiplicity check areas were under live work claims when this row
 was refreshed, so no attribution beyond the names is recorded here.
 
-## checked-trees-to-lowered-psi
-
-`cargo nextest run --workspace --lib --no-fail-fast` at 2c234a684c on
-2026-09-16 (macOS arm64): 1 failure,
-`tests::store_lowering::write_only_stores_and_subloans::finite_literal_index_suffix_crosses_source_codec_and_verification`
-("deep literal-index admission is exclusive to write-only access"). The
-crate's `src/tests` was under a live claim when recorded.
-
 ## compiler build-target activation
 
 `mbx nextest run -p compiler --test build_target_activation` — 49/51 pass; 2
