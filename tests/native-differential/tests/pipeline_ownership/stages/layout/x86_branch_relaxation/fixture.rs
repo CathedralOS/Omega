@@ -4,7 +4,7 @@ use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, NativeTarget, Optimization,
     OptimizationSelections, OptimizationWorkBudget, OptimizedTargetLoweringRequest,
     OptimizedX86BranchRelaxationError, StagedFixedFrameFunctionRelativeRealization,
-    StagedOptimizedRegisterHomes, StagedOptimizedX86BranchRelaxation,
+    StagedOptimizedRegisterHomes, StagedOptimizedX86BranchRelaxation, artifact,
     conditional_exact_binary_artifact, disconnected_conditional_artifact,
     lower_optimized_to_target_operations, optimize_artifact_sections, selected_lowering_budget,
     stage_optimized_allocation_legality, stage_optimized_instruction_selection,
@@ -51,6 +51,17 @@ pub(super) fn stage_with_budget(
 
 pub(super) fn physical_homes() -> StagedOptimizedRegisterHomes {
     let (semantic, proof) = disconnected_conditional_artifact();
+    homes_for(semantic, proof)
+}
+
+/// Straight-line program: no conditional branch survives lowering, so the rule
+/// publishes a change-free layout that remains a legal baseline second input.
+pub(super) fn straight_line_homes() -> StagedOptimizedRegisterHomes {
+    let (semantic, proof) = artifact();
+    homes_for(semantic, proof)
+}
+
+fn homes_for(semantic: Vec<u8>, proof: Vec<u8>) -> StagedOptimizedRegisterHomes {
     let selections =
         OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1]).unwrap();
     let optimized = optimize_artifact_sections(
