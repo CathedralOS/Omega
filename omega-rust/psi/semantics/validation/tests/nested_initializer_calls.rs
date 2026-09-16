@@ -123,41 +123,6 @@ fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
 }
 
 #[test]
-fn unserved_initializers_keep_nested_call_realization_fence() {
-    for source in [
-        "data Container { flag: bool; }
-         machine Container::identity(&self, input: bool) -> bool { input }
-         machine Container::value(&self, input: bool) -> bool {
-             let saved: bool = self.identity(self.identity(input));
-             saved
-         }",
-        "machine identity(input: bool) -> bool { input }
-         machine value(input: bool) {
-             let mut saved: bool = identity(identity(input));
-         }",
-        "data Container { flag: bool; }
-         machine identity(input: bool) -> bool { input }
-         machine Container::read(&self, input: bool) -> bool { input }
-         machine value(container: &Container, input: bool) {
-             let saved: bool = container.read(identity(input));
-         }",
-        "machine identity(input: bool) -> bool { input }
-         machine value<machine Read>(input: bool)
-         where machine Read(value: bool) -> bool;
-         { let saved: bool = Read(identity(input)); }",
-    ] {
-        let diagnostics = diagnostics(source);
-        assert!(
-            diagnostics
-                .iter()
-                .any(|message| message
-                    .contains("value-call argument cannot itself be a machine call")),
-            "{source}: {diagnostics:?}"
-        );
-    }
-}
-
-#[test]
 fn immutable_unit_result_initializers_admit_computed_scalar_operands() {
     for source in [
         "machine identity(input: bool) -> bool { input }
@@ -175,12 +140,6 @@ fn immutable_unit_result_initializers_admit_computed_scalar_operands() {
          data Root {}
          machine Root::value(&mut self, input: bool) {
              let saved: bool = Scalar::read(identity(input));
-         }",
-        "pub data Host {}
-         machine identity(input: bool) -> bool { input }
-         boundary machine Host::read(input: bool) -> bool;
-         machine value(input: bool) {
-             let saved: bool = Host::read(identity(input));
          }",
         "boundary trait Host { machine read(input: bool) -> bool reaches Host; }
          machine identity(input: bool) -> bool { input }

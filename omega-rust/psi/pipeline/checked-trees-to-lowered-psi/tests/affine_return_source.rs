@@ -440,7 +440,6 @@ fn unsupported_reference_cleanup_and_linear_identities_have_no_affine_plan() {
         "data Value { number: u64; } machine forward(value: &Value) -> &Value { value }",
         "data Value { number: u64; } machine forward(value: &mut Value) -> &mut Value { value }",
         "data Value { number: u64; } machine Value::drop(&mut self) {} machine forward(value: Value) -> Value { value }",
-        "data Value [linear] { number: u64; } machine forward(value: Value) -> Value { value }",
         "data Resource [linear] { number: u64; } data Value { resource: Resource; } machine forward(value: Value) -> Value { value }",
     ] {
         let checked = checked(source);
@@ -455,4 +454,18 @@ fn unsupported_reference_cleanup_and_linear_identities_have_no_affine_plan() {
         );
         assert!(lower_machine(&checked, "forward").is_err(), "{source}");
     }
+    // A linear identity return lowers through the Unit closure without a
+    // claim-free affine producer: the claim moves with the returned value.
+    let linear = checked(
+        "data Value [linear] { number: u64; } machine forward(value: Value) -> Value { value }",
+    );
+    assert!(
+        linear
+            .facts
+            .flow
+            .terminal_structural_returns
+            .claim_free_affine_machines
+            .is_empty()
+    );
+    lower_machine(&linear, "forward").expect("linear identity return lowers");
 }

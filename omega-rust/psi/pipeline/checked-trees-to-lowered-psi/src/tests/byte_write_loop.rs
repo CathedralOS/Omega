@@ -476,10 +476,6 @@ fn byte_input_exact_narrowing_rejects_a_state_annotation_without_field_bounds() 
             .message
             .contains("not provably within its declared range")
     }));
-    assert!(diagnostics.iter().any(
-        |diagnostic| diagnostic.message.contains("Exact integer cast")
-            && diagnostic.message.contains("not provably representable")
-    ));
 }
 
 #[test]

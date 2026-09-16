@@ -374,14 +374,28 @@ fn nested_field_qualifications_have_no_affine_plan() {
     // Vacuous domain declarations and qualifications are pinned by
     // domains/vacuous_domain_qualification; ranged fields by
     // wire/runtime_wire_decode_ranged_field_exit.
-    for field_type in ["i64 in Km", "i64 [0..=100]"] {
-        assert_no_affine_plan(&format!(
-            "domain i64::Km;
-             data Inner {{ number: {field_type}; }}
-             data Outer {{ inner: Inner; }}
-             machine forward(value: Outer) -> Outer {{ value }}"
-        ));
-    }
+    assert_no_affine_plan(
+        "domain i64::Km;
+         data Inner { number: i64 in Km; }
+         data Outer { inner: Inner; }
+         machine forward(value: Outer) -> Outer { value }",
+    );
+    // A bounded integer field keeps its range through the identity return,
+    // which the checker now plans without a claim-free affine producer.
+    let ranged = checked(
+        "data Inner { number: i64 [0..=100]; }
+         data Outer { inner: Inner; }
+         machine forward(value: Outer) -> Outer { value }",
+    );
+    assert!(
+        ranged
+            .facts
+            .flow
+            .terminal_structural_returns
+            .claim_free_affine_machines
+            .is_empty()
+    );
+    lower_machine(&ranged, "forward").expect("ranged field identity return lowers");
 }
 
 #[test]
