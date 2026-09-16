@@ -173,6 +173,7 @@ pub(super) fn check_selected_execution(
             native_target: selected_native_target,
             package_inputs,
             selected_build_machine: selected_build_machine_symbol,
+            freestanding: build_config.freestanding,
             boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
             opaque_representation_selections: &opaque_representation_selections,
             provider_plans: &provider_plans,
