@@ -157,7 +157,7 @@ impl ArtifactWriter {
             format_signed_bytes(total_net_live_bytes),
         ));
 
-        self.write_html_report("00_timings.html", "phase_timings", &output)
+        self.write_text("00_timings.txt", &output)
     }
 }
 

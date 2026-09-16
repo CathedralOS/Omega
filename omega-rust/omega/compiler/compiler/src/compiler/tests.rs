@@ -131,7 +131,14 @@ fn checked_admission_is_independent_of_observation_writing() {
         .write_observations(&output, ArtifactEmissionPolicy::Full)
         .expect("write already-admitted observations");
     assert!(output.join("trust_report.md").is_file());
-    assert!(output.join("00_timings.html").is_file());
+    assert!(output.join("00_timings.txt").is_file());
+    assert!(fs::read_dir(&output).unwrap().all(|entry| {
+        entry
+            .unwrap()
+            .path()
+            .extension()
+            .is_none_or(|extension| extension != "html")
+    }));
     assert_eq!(admission.into_settlement(), expected);
 }
 

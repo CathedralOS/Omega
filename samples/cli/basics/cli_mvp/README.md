@@ -194,7 +194,7 @@ writer remain separate dependencies.
 
 Capture the command's exit and diagnostic first. Package preparation/review can
 fail before checked phase reports are emitted. Once checked observation emission
-runs, inspect `00_timings.html`, `05_machine_contracts.json`,
+runs, inspect `00_timings.txt`, `05_machine_contracts.json`,
 `05_capability_manifest.json`, and `05_executable_tcb_manifest.json` in the chosen
 build directory. See [`checked_observations.rs`](../../../../omega-rust/omega/compiler/compiler/src/pipeline/reporting/checked_observations.rs)
 and [`artifacts.rs`](../../../../omega-rust/omega/compiler/compiler/src/pipeline/artifacts.rs)

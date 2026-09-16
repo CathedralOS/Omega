@@ -33,7 +33,7 @@ fn generated_package_reports_after_sponsored_staging_disposal() {
     let contracts = fs::read_to_string(project.0.join("observations/05_machine_contracts.json"))
         .expect("normal checked observations reach the requested build directory");
     assert!(contracts.contains("table_size"));
-    assert!(project.0.join("observations/00_timings.html").is_file());
+    assert!(project.0.join("observations/00_timings.txt").is_file());
     assert!(
         fs::read_dir(project.0.join("observations"))
             .unwrap()

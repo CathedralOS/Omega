@@ -9,10 +9,13 @@ The compiler decides which observations to request under its
 [product and observation contract](../../compiler/compiler/README.md#product-boundaries-and-observations).
 The report owners are:
 
-- [Timing](src/timing_report.rs): phase measurements, allocation deltas, and their presentation.
+- [Timing](src/reports/timing_report.rs): phase measurements and allocation deltas
+	written as plain text in `00_timings.txt`.
 - [Trust](src/trust_report.rs): retained evidence, target consistency checks, and presentation.
 - [Wire](src/wire_report.rs): schema/compatibility records assembled by the compiler.
-- [HTML](src/html_report.rs): page framing, navigation, and escaping.
+
+There is no HTML renderer or graph-viewer navigation. JSON manifests and text
+reports remain independent of any browser presentation.
 
 Suppression of output does not waive semantic or trust validation. These
 observations grant no admission or executable-publication authority. The
