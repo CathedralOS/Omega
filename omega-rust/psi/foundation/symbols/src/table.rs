@@ -1,3 +1,6 @@
+//! Start here. The symbol table: the hierarchy arena scoped lookup walks,
+//! its builder, appender and extension.
+
 use std::sync::Arc;
 
 use arena::{Arena, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles};

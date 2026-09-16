@@ -6,11 +6,11 @@
 //! are lookup and display metadata around it. `builtin` seeds the language's
 //! builtin types and functions, and `table` owns the hierarchy arena that scoped
 //! lookup walks. String names never stand in for identity after resolution.
+//!
+//! Start at `table.rs`; `symbol` holds the handle, name, path and kind types
+//! it stores, and `builtin` the seeded builtin symbols.
 
 mod builtin;
-mod kind;
-mod name;
-mod path;
 mod symbol;
 mod table;
 
@@ -18,9 +18,9 @@ pub use builtin::{
     BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, builtin_function_symbols,
     builtin_type_member_symbols, builtin_type_symbols,
 };
-pub use kind::SymbolKind;
-pub use name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
-pub use path::SymbolPath;
+pub use symbol::kind::SymbolKind;
+pub use symbol::name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
+pub use symbol::path::SymbolPath;
 pub use symbol::{Symbol, SymbolHandle, SymbolNameHandle, SymbolSpan};
 pub use table::{
     SourceScopedTopLevelBinding, SymbolLookup, SymbolNameStorageCounts, SymbolTable,

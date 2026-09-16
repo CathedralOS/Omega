@@ -1,4 +1,4 @@
-use super::{SymbolHandle, SymbolSpan};
+use crate::{SymbolHandle, SymbolSpan};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SymbolPath {
