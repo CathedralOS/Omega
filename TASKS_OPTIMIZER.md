@@ -1130,12 +1130,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   entry block, a block no edge reaches, legs whose writers store
   different registers, and deferred regions that never resolve,
   self-loops and writerless cycles included, still leave the pair
-  unproven (crate `nextest`: 493 pass).
+  unproven (crate `nextest`: 493 pass). Load-forwarding writers
+  also reach the forwarded place's own local storage — its
+  `StructuralParameter` or `StructuralBlockParameter` slot, which
+  is the place's storage under the same byte coordinates: a
+  `Store64` into that slot directly, or a place `Store` through
+  the slot's materialized address, each sourcing the forward when
+  its single `WriteLocal` row names the read's exact byte range;
+  the slot store is always eight bytes, so only `Load64` pairs
+  with it. A `WriteLocal` row now decides interference by range
+  intersection the way `WritePlace` does, so a disjoint local
+  write walks past whether its slot is the place's storage or
+  only stages bytes naming the place, while an operation-owned
+  `Structural` slot still interferes on intersection and never
+  sources, a row disagreeing with its instruction's slot or
+  encoded range rejects, and a `Store64` under a sub-word read
+  rejects (crate `nextest`: 535 pass).
   Remaining: operation-slot and dynamic-extent writes still cannot
-  cover — an operation-owned `Structural` slot records no
-  storage-versus-staging role and a dynamic extent proves no fixed
-  containment — and legs whose paths disagree or reach writerless
-  cycles stay unproven.
+  cover or source — an operation-owned `Structural` slot records
+  no storage-versus-staging role and a dynamic extent proves no
+  fixed containment — and legs whose paths disagree or reach
+  writerless cycles stay unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
