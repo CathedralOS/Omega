@@ -61,7 +61,7 @@ pub(super) fn check_statement<'program>(
                 ));
             }
             // RHS effects and values are evaluated before replacing the target.
-            let next_length = super::assignment_lengths::replacement_length(
+            let mut next_length = super::assignment_lengths::replacement_length(
                 program,
                 machine,
                 state,
@@ -69,6 +69,28 @@ pub(super) fn check_statement<'program>(
                 assignment.target,
                 assignment.value,
             );
+            // A rebound reference takes its NEW referent's extent the way the
+            // `let` binding does: `view = borrow_rows(other)` re-lends
+            // `other.rooms`, so the write-origins prefix proves the
+            // replacement slice's length evidence the same way.
+            let mut referent_floor = None;
+            if next_length.is_none()
+                && let Some((symbol, _)) = expression_name(program, assignment.target)
+                && let Some(declared) =
+                    assigned_local_declared_type(program, state, facts.statement_index, symbol)
+                && let Some(referent) = bound_reference_referent_extent(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    symbol,
+                    declared,
+                )
+            {
+                next_length = referent.exact;
+                referent_floor = referent.minimum;
+            }
             let next_integer = expression_integer_value(program, facts, assignment.value);
             let extent = super::assignment_lengths::assigned_extent(
                 program,
@@ -81,6 +103,14 @@ pub(super) fn check_statement<'program>(
             facts.invalidate_assignment_bounds(program, machine, state, statement);
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 facts.assign_local(symbol, name, next_length, next_integer);
+                // The referent's floor describes the NEW binding, so it seeds
+                // only after the rebound label sheds the old value's facts.
+                if let Some(floor) = referent_floor {
+                    facts.prove_minimum_length(
+                        program.expression_table.display_name(assignment.target),
+                        floor,
+                    );
+                }
                 seed_boolean_guard_local(
                     program,
                     machine,
@@ -162,9 +192,29 @@ pub(super) fn check_statement<'program>(
                 local.initial_value,
                 diagnostics,
             );
-            let length = fixed_array_type_length(program, local.type_reference).or_else(|| {
+            let mut length = fixed_array_type_length(program, local.type_reference).or_else(|| {
                 expression_indexable_length(program, machine, state, facts, local.initial_value)
             });
+            // A returned `&mut [T]` binding has no indexable initializer the
+            // expression lane can measure: the callee chose the referent. The
+            // write-origins prefix recovers that referent, whose declared
+            // extent (or recorded live length) is the slice's length.
+            if length.is_none()
+                && let Some(referent) = bound_reference_referent_extent(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    facts,
+                    local.symbol,
+                    local.type_reference,
+                )
+            {
+                length = referent.exact;
+                if let Some(minimum) = referent.minimum {
+                    facts.prove_minimum_length(local.name.to_string(), minimum);
+                }
+            }
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
             seed_boolean_guard_local(
@@ -296,6 +346,128 @@ fn seed_boolean_guard_local<'program>(
     }) {
         facts.define_boolean_guard_local(symbol, name.unwrap_or_default().to_owned(), expression);
     }
+}
+
+/// The extent evidence a freshly bound local REFERENCE inherits from its
+/// referent, resolved by `bound_reference_referent_extent`.
+pub(super) struct ReferentExtent {
+    /// The referent's pinned extent: its declared fixed-array length, or a
+    /// recorded exact live length on the referent's own label.
+    pub(super) exact: Option<usize>,
+    /// The referent's proven live-length floor, when one is recorded.
+    /// Variable-fill carriers (`[u8; N] in Domain`) hold their live length in
+    /// this lane — their capacity says nothing about the current extent.
+    pub(super) minimum: Option<i64>,
+}
+
+/// The extent a freshly bound local reference inherits from its single exact
+/// referent, or `None` when the binding has no uniquely resolved referent.
+///
+/// A returned `&mut [T]` owns no storage, and its slice type erases the
+/// receiver's extent: `let view = borrow_rows(level)` lends the element
+/// storage the callee selected (`level.rooms`), so `view` indexes against
+/// THAT extent. The write-origins prefix already proves the referent — the
+/// same recovery `flow::transfers`' `bound_reference_referent_place` performs
+/// to re-anchor element evidence onto the binding — and
+/// `canonical_place_type_reference` projects the referent's declared type for
+/// its fixed length. When the referent is a variable-fill carrier whose live
+/// length is not its type, the recorded `exact_length`/`minimum_length`
+/// facts keyed on the referent's own path supply the extent instead.
+///
+/// An ambiguous or inexact (runtime-index-truncated) origin stays `None`: a
+/// truncated place names a container OF the referent, whose extent is not the
+/// bound slice's length, and multiple referents cannot pin one extent.
+pub(super) fn bound_reference_referent_extent(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    facts: &RangeFacts<'_>,
+    local_symbol: symbols::SymbolHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<ReferentExtent> {
+    if !local_symbol.is_valid() {
+        return None;
+    }
+    // Only a reference binding HAS a referent. Peel declarative constraints
+    // the same way `bound_reference_referent_place` does; any other declared
+    // form means the local's extent must come from its own value evidence.
+    let mut reference = type_reference;
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return None;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            typed_trees::types::TypeReferenceNode::Reference { .. } => break,
+            _ => return None,
+        }
+    }
+    // The binding's own alias is recorded once the NEXT statement begins, so
+    // the prefix observed there is the one carrying the new referent.
+    let before = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(facts.statement_index + 1)?;
+    let mut referents = call_frames?
+        .local_write_origins_before_statement(machine, before)?
+        .into_iter()
+        .filter(|origin| {
+            origin.local_symbol == local_symbol
+                && origin.local_segments.is_empty()
+                && origin.source_root != local_symbol
+        });
+    let origin = referents.next()?;
+    if referents.next().is_some() {
+        return None;
+    }
+    let (place, exact) = crate::flow::origin_place(program, state, facts.statement_index, &origin)?;
+    if !exact {
+        return None;
+    }
+    let exact = crate::flow::canonical_place_type_reference(
+        program,
+        state.symbol,
+        facts.statement_index,
+        &place,
+    )
+    .and_then(|reference| fixed_array_type_length(program, reference))
+    .or_else(|| {
+        facts
+            .exact_length(&origin.source_path)
+            .and_then(|length| usize::try_from(length).ok())
+    });
+    let minimum = facts.minimum_length(&origin.source_path);
+    Some(ReferentExtent { exact, minimum })
+}
+
+/// The declared type of the local an assignment rebinds, from its unique
+/// earlier `let` in this state — the same declared-type recovery
+/// `bound_reference_referent_place` performs for `StatementNode::Assignment`.
+pub(super) fn assigned_local_declared_type(
+    program: &typed_trees::TypedTrees,
+    state: &State,
+    statement_index: usize,
+    local_symbol: symbols::SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let mut declarations = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .filter_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (local.symbol == local_symbol).then_some(local.type_reference)
+        });
+    let declared = declarations.next()?;
+    declarations.next().is_none().then_some(declared)
 }
 
 fn expression_member_name(

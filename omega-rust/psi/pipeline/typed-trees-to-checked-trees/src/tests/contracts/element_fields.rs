@@ -839,8 +839,9 @@ fn returned_element_into_local_carries_field_coverage() {
 }
 
 /// A `&mut [Row]` return carries its element evidence onto the view binding,
-/// but the returned slice type loses the receiver's literal length, so
-/// indexing it still hits the ranges gap this leg does not close.
+/// and the binding's write origin supplies the referent's extent: `view` is
+/// `level.rooms` lent element-for-element, so its slice length is 2 even
+/// though the returned `&mut [Row]` type erases it.
 #[test]
 fn returned_mutable_slice_still_needs_its_length() {
     let source = format!(
@@ -853,6 +854,94 @@ fn returned_mutable_slice_still_needs_its_length() {
         machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
         machine caller(level: &mut Level) {{
             let view: &mut [Row] = borrow_rows(level);
+            consume(&view[0]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// The referent's extent is the binding's ceiling too: a two-element referent
+/// does not lend an index it does not have.
+#[test]
+fn returned_mutable_slice_indexes_only_within_the_referents_extent() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine borrow_rows(level: &mut Level) -> &mut [Row] {{
+            let slots: &mut [Row] = level.rooms.as_mut_slice();
+            transition {{ _ -> slots }}
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            let view: &mut [Row] = borrow_rows(level);
+            consume(&view[2]);
+        }}
+    "#
+    );
+    check_rejection(&source, false, "cannot prove index `2` is within length 2");
+}
+
+/// Rebinding the returned slice re-derives the extent from the NEW referent:
+/// `view` naming a three-element array keeps the index a two-element one
+/// could not prove, while the stale first extent must not.
+#[test]
+fn reassigned_returned_slice_takes_the_new_referents_extent() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        data Wing {{ cells: [Row; 3]; }}
+        machine borrow_rows(level: &mut Level) -> &mut [Row] {{
+            let slots: &mut [Row] = level.rooms.as_mut_slice();
+            transition {{ _ -> slots }}
+        }}
+        machine borrow_cells(wing: &mut Wing) -> &mut [Row] {{
+            let slots: &mut [Row] = wing.cells.as_mut_slice();
+            transition {{ _ -> slots }}
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level, wing: &mut Wing) {{
+            let mut view: &mut [Row] = borrow_rows(level);
+            view = borrow_cells(wing);
+            consume(&view[2]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// The same referent recovery covers byte slices: a returned `&mut [u8]`
+/// bound to a plain `[u8; N]` field keeps the receiver's literal extent.
+#[test]
+fn returned_mutable_byte_slice_carries_the_referents_extent() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Buffer {{ data: [u8; 8]; }}
+        machine borrow_data(buffer: &mut Buffer) -> &mut [u8] {{
+            let bytes: &mut [u8] = buffer.data.as_mut_slice();
+            transition {{ _ -> bytes }}
+        }}
+        machine caller(buffer: &mut Buffer) {{
+            let view: &mut [u8] = borrow_data(buffer);
+            view[7] = 1;
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// A referent that is itself an unknown-length slice lends no extent: the
+/// lane transports the referent's length evidence, it does not invent one.
+#[test]
+fn returned_mutable_slice_without_a_resolved_extent_still_rejects() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine forward(rows: &mut [Row]) -> &mut [Row] {{
+            transition {{ _ -> rows }}
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(input: &mut [Row]) {{
+            let view: &mut [Row] = forward(input);
             consume(&view[0]);
         }}
     "#

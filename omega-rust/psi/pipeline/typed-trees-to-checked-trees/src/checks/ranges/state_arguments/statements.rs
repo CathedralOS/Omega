@@ -35,7 +35,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 collected,
             );
             // RHS effects and values are evaluated before replacing the target.
-            let next_length = crate::checks::ranges::assignment_lengths::replacement_length(
+            let mut next_length = crate::checks::ranges::assignment_lengths::replacement_length(
                 program,
                 machine,
                 context.state,
@@ -43,6 +43,33 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 assignment.target,
                 assignment.value,
             );
+            // Keep the checking pass's rebound-reference extent lane in this
+            // collection replay: `view = borrow_rows(other)` re-lends
+            // `other.rooms`, so the same referent supplies the slice's length.
+            let mut referent_floor = None;
+            if next_length.is_none()
+                && let Some((symbol, _)) = expression_name(program, assignment.target)
+                && let Some(declared) =
+                    crate::checks::ranges::statements::assigned_local_declared_type(
+                        program,
+                        context.state,
+                        facts.statement_index,
+                        symbol,
+                    )
+                && let Some(referent) =
+                    crate::checks::ranges::statements::bound_reference_referent_extent(
+                        program,
+                        machine,
+                        context.state,
+                        context.call_frames,
+                        facts,
+                        symbol,
+                        declared,
+                    )
+            {
+                next_length = referent.exact;
+                referent_floor = referent.minimum;
+            }
             let next_integer = expression_integer_value(program, facts, assignment.value);
             let extent = crate::checks::ranges::assignment_lengths::assigned_extent(
                 program,
@@ -55,6 +82,12 @@ pub(super) fn collect_state_argument_facts_from_statement(
             facts.invalidate_assignment_bounds(program, machine, context.state, statement);
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 facts.assign_local(symbol, name, next_length, next_integer);
+                if let Some(floor) = referent_floor {
+                    facts.prove_minimum_length(
+                        program.expression_table.display_name(assignment.target),
+                        floor,
+                    );
+                }
                 seed_boolean_guard_local(context, facts, symbol, name, assignment.value);
             }
             crate::checks::ranges::assignment_lengths::seed_assigned_extent(
@@ -106,7 +139,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 local.initial_value,
                 collected,
             );
-            let length = fixed_array_type_length(program, local.type_reference).or_else(|| {
+            let mut length = fixed_array_type_length(program, local.type_reference).or_else(|| {
                 expression_indexable_length(
                     program,
                     machine,
@@ -115,6 +148,25 @@ pub(super) fn collect_state_argument_facts_from_statement(
                     local.initial_value,
                 )
             });
+            // Mirror the checking pass's returned-reference extent lane so the
+            // argument facts a transition carries see the same slice lengths.
+            if length.is_none()
+                && let Some(referent) =
+                    crate::checks::ranges::statements::bound_reference_referent_extent(
+                        program,
+                        machine,
+                        context.state,
+                        context.call_frames,
+                        facts,
+                        local.symbol,
+                        local.type_reference,
+                    )
+            {
+                length = referent.exact;
+                if let Some(minimum) = referent.minimum {
+                    facts.prove_minimum_length(local.name.to_string(), minimum);
+                }
+            }
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
             seed_boolean_guard_local(
