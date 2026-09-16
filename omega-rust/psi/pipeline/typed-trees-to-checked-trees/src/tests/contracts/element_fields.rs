@@ -14,6 +14,14 @@ data Row { bytes: [u8; 4] in Utf8; tag: u64; }
 "#;
 
 fn check(source: &str, accepted: bool) {
+    check_rejection(
+        source,
+        accepted,
+        "cannot prove default-domain field requirement",
+    );
+}
+
+fn check_rejection(source: &str, accepted: bool, fragment: &str) {
     match lower_typed_trees(parse_typed_trees(source)) {
         Ok(_) => assert!(
             accepted,
@@ -22,12 +30,10 @@ fn check(source: &str, accepted: bool) {
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
             assert!(
-                diagnostics.iter().any(|diagnostic| {
-                    diagnostic
-                        .message
-                        .contains("cannot prove default-domain field requirement")
-                }),
-                "the element coverage obligation must reject, not a side channel: {diagnostics:#?}\n{source}"
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(fragment)),
+                "expected a diagnostic containing {fragment:?}: {diagnostics:#?}\n{source}"
             );
         }
     }
@@ -658,6 +664,283 @@ fn slice_view_runtime_index_still_needs_element_coverage() {
     "#
     );
     check(&source, false);
+}
+
+const COPY_ROW: &str = "data CopyRow [copy] { bytes: [u8; 4] in Utf8; tag: u64; }";
+
+/// A returned owned collection keeps the same call-expression result facts a
+/// direct result read already publishes: the declared element predicates of
+/// `pair[i]` survive onto the destination binding.
+#[test]
+fn returned_array_into_local_carries_element_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        {COPY_ROW}
+        machine both(rows: &[CopyRow; 2]) -> [CopyRow; 2] {{ [rows[0], rows[1]] }}
+        machine consume(row: &CopyRow) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &[CopyRow; 2]) {{
+            let pair: [CopyRow; 2] = both(rows);
+            consume(&pair[1]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn returned_array_through_assignment_carries_element_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        {COPY_ROW}
+        machine both(rows: &[CopyRow; 2]) -> [CopyRow; 2] {{ [rows[0], rows[1]] }}
+        machine consume(row: &CopyRow) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &[CopyRow; 2]) {{
+            let mut pair: [CopyRow; 2] = [CopyRow {{bytes: "okay", tag: 0}}, CopyRow {{bytes: "okay", tag: 1}}];
+            pair = both(rows);
+            consume(&pair[0]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn returned_element_into_local_carries_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        {COPY_ROW}
+        machine pick(rows: &[CopyRow; 2]) -> CopyRow {{ rows[0] }}
+        machine consume(row: &CopyRow) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &[CopyRow; 2]) {{
+            let chosen: CopyRow = pick(rows);
+            consume(&chosen);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// A `&mut [Row]` return carries its element evidence onto the view binding,
+/// but the returned slice type loses the receiver's literal length, so
+/// indexing it still hits the ranges gap this leg does not close.
+#[test]
+fn returned_mutable_slice_still_needs_its_length() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine borrow_rows(level: &mut Level) -> &mut [Row] {{
+            let slots: &mut [Row] = level.rooms.as_mut_slice();
+            transition {{ _ -> slots }}
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            let view: &mut [Row] = borrow_rows(level);
+            consume(&view[0]);
+        }}
+    "#
+    );
+    check_rejection(&source, false, "within unknown slice length");
+}
+
+#[test]
+fn directly_borrowed_element_into_local_carries_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            let room: &mut Row = &mut level.rooms[0];
+            consume(room);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// A reference result has no storage of its own: the binding's write origin
+/// recovers the referent `level.rooms[0]`, and live evidence below it
+/// re-anchors below `room` through the same transport a direct borrow uses.
+#[test]
+fn returned_element_reference_expression_tail_carries_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine room_mut(level: &mut Level) -> &mut Row {{
+            &mut level.rooms[0]
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            let room: &mut Row = room_mut(level);
+            consume(room);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// The authored return tail desugars to a lone ordinary value transition;
+/// the same referent recovery admits it only when no guarded sibling arm can
+/// offer a second result.
+#[test]
+fn returned_element_reference_into_local_carries_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine room_mut(level: &mut Level) -> &mut Row {{
+            let slots: &mut [Row] = level.rooms.as_mut_slice();
+            transition {{ _ -> &mut slots[0] }}
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            let room: &mut Row = room_mut(level);
+            consume(room);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn returned_array_reference_into_local_carries_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine borrow_rooms(level: &mut Level) -> &mut [Row; 2] {{
+            transition {{ _ -> &mut level.rooms }}
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            let view: &mut [Row; 2] = borrow_rooms(level);
+            consume(&view[0]);
+            consume(&view[1]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// The returned reference is a loan, not a snapshot: corrupting the selected
+/// element before the call leaves no live fact for the binding to inherit.
+#[test]
+fn returned_reference_to_a_corrupted_element_rejects() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine room_mut(level: &mut Level) -> &mut Row {{
+            &mut level.rooms[0]
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            corrupt(&mut level.rooms[0].bytes);
+            let room: &mut Row = room_mut(level);
+            consume(room);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+/// A write through the returned reference is a write to the referent: the
+/// alias-closing invalidation retires the source-named evidence too.
+#[test]
+fn write_through_returned_reference_retires_source_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine room_mut(level: &mut Level) -> &mut Row {{
+            &mut level.rooms[0]
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            let room: &mut Row = room_mut(level);
+            room.bytes[0] = 255;
+            consume(&level.rooms[0]);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+/// The same closure in reverse: a write to the referent retires the binding's
+/// transported evidence rather than leaving a stale `room.bytes` fact.
+#[test]
+fn write_to_source_retires_the_returned_references_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine room_mut(level: &mut Level) -> &mut Row {{
+            &mut level.rooms[0]
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level) {{
+            let room: &mut Row = room_mut(level);
+            level.rooms[0].bytes[0] = 255;
+            consume(room);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
+fn rebound_returned_reference_reanchors_to_the_new_source() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine room_mut(level: &mut Level) -> &mut Row {{
+            &mut level.rooms[0]
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level, other: &mut Level) {{
+            let mut room: &mut Row = room_mut(level);
+            room = room_mut(other);
+            consume(room);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// Rebinding retires the evidence `room` inherited from `level`: a corrupted
+/// element in the new referent supplies nothing, so the call must reject
+/// rather than keep the first loan's coverage.
+#[test]
+fn rebound_returned_reference_to_a_corrupted_source_rejects() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine room_mut(level: &mut Level) -> &mut Row {{
+            &mut level.rooms[0]
+        }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &mut Level, other: &mut Level) {{
+            corrupt(&mut other.rooms[0].bytes);
+            let mut room: &mut Row = room_mut(level);
+            room = room_mut(other);
+            consume(room);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
+fn returned_array_into_machine_field_carries_element_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        {COPY_ROW}
+        data Main {{ pair: [CopyRow; 2]; }}
+        machine both(rows: &[CopyRow; 2]) -> [CopyRow; 2] {{ [rows[0], rows[1]] }}
+        machine consume(row: &CopyRow) ensures row.bytes in Utf8 {{ }}
+        machine Main::run(&mut self, rows: &[CopyRow; 2]) {{
+            self.pair = both(rows);
+            consume(&self.pair[0]);
+        }}
+    "#
+    );
+    check(&source, true);
 }
 
 #[test]

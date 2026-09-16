@@ -280,20 +280,62 @@ pub(super) fn propagate_statement_transfers(
     // binding: `let view = rows.as_mut_slice()` makes `view[i]` the same
     // element as `rows[i]`, so live evidence below the receiver re-anchors
     // below the destination through the same stable-segment transport.
-    if let Some(viewed_place) = projected::collection_view_source_place(
+    let viewed_place = projected::collection_view_source_place(
         program,
         semantic,
         machine_symbol,
         state_symbol,
         statement_index,
         source_expression,
-    ) {
+    );
+    if let Some(viewed_place) = viewed_place {
         projected::append_copied_field_predicates(
             program,
             semantic,
             ctx,
             *active_contexts,
             viewed_place,
+            target_place,
+            ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            &mut refs,
+        );
+    }
+
+    // A reference result lends its proven referent to the binding the same
+    // way a view lends receiver storage: `let room = room_mut(level)` makes
+    // `room` the storage the callee selected, and the local write origins
+    // already track exactly which caller place that is. An expression-rooted
+    // source has no canonical storage of its own, so evidence below the
+    // referent re-anchors below the binding; a symbol-rooted source was
+    // already transported above.
+    if viewed_place.is_none()
+        && source_place.is_some_and(|place| {
+            matches!(
+                semantic.places.get(place).root,
+                facts::PlaceRoot::Expression(_)
+            )
+        })
+        && let Some(referent_place) = projected::bound_reference_referent_place(
+            program,
+            semantic,
+            ctx,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            statement,
+            target_place,
+        )
+    {
+        projected::append_copied_field_predicates(
+            program,
+            semantic,
+            ctx,
+            *active_contexts,
+            referent_place,
             target_place,
             ProgramPoint::Statement {
                 machine_symbol,

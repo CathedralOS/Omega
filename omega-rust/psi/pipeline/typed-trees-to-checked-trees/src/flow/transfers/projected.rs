@@ -19,9 +19,11 @@
 //! consultable.
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
+use crate::flow::origin_place;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 
@@ -243,4 +245,113 @@ pub(super) fn collection_view_source_place(
         }
     }
     None
+}
+
+/// The caller storage a freshly bound local REFERENCE refers to, or `None`
+/// when the statement does not bind a bare reference local or the caller
+/// prefix cannot prove one unique referent. A returned reference has no
+/// result storage of its own (flow/calls.rs), so its evidence stays below
+/// the referent place this recovers -- the same local write origin the
+/// mutation side already derives for `let room = room_mut(level)`, projected
+/// back into a canonical place. Only an exactly resolved origin (no runtime
+/// index truncation, no coarse-only path) may lend evidence to the binding.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn bound_reference_referent_place(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    contexts: &FlowBuildContext,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    destination: PlaceHandle,
+) -> Option<PlaceHandle> {
+    let destination = *semantic.places.get(destination);
+    if !destination.segments.is_empty() {
+        return None;
+    }
+    let facts::PlaceRoot::Symbol(local_symbol) = destination.root else {
+        return None;
+    };
+    if !local_symbol.is_valid() {
+        return None;
+    }
+    let type_reference = match statement {
+        StatementNode::LocalData(local) if local.symbol == local_symbol => local.type_reference,
+        StatementNode::Assignment(_) => {
+            declared_local_type_reference(program, state_symbol, statement_index, local_symbol)?
+        }
+        _ => return None,
+    };
+    let mut reference = type_reference;
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return None;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            typed_trees::types::TypeReferenceNode::Reference { .. } => break,
+            _ => return None,
+        }
+    }
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    // The binding's own alias is recorded once the next statement begins, so
+    // the prefix observed there is the one carrying the new referent.
+    let before = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index + 1)?;
+    let mut owned = None;
+    let resolver = crate::flow::shared_call_frames_or(contexts.call_frames, program, &mut owned)?;
+    // The walk records the referent beside the local's own storage entry;
+    // only an origin rooted in different storage can be the referent.
+    let mut referents = resolver
+        .local_write_origins_before_statement(machine, before)?
+        .into_iter()
+        .filter(|origin| {
+            origin.local_symbol == local_symbol
+                && origin.local_segments.is_empty()
+                && origin.source_root != local_symbol
+        });
+    let origin = referents.next()?;
+    if referents.next().is_some() {
+        return None;
+    }
+    let (place, exact) = origin_place(program, state, statement_index, &origin)?;
+    if !exact {
+        return None;
+    }
+    Some(crate::semantic_places::append_place_with_segments(
+        semantic,
+        place.root,
+        &place.segments,
+    ))
+}
+
+fn declared_local_type_reference(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    local_symbol: SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let mut declarations = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .filter_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (local.symbol == local_symbol).then_some(local.type_reference)
+        });
+    let declared_type = declarations.next()?;
+    declarations.next().is_none().then_some(declared_type)
 }
