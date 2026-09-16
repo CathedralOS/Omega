@@ -19,7 +19,19 @@ pub(super) fn append_copied_field_predicates(
 ) {
     let source_place = *semantic.places.get(source);
     let destination_place = *semantic.places.get(destination);
-    if !matches!(source_place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+    // The source is the value read at this statement: storage, or the exact
+    // call-expression occurrence whose checked ensures published result-field
+    // facts (flow/calls.rs). Other expression roots carry no such evidence, so
+    // a non-call expression source still stops here.
+    let valid_source_root = match source_place.root {
+        facts::PlaceRoot::Symbol(symbol) => symbol.is_valid(),
+        facts::PlaceRoot::Expression(expression) => matches!(
+            program.expression_table.expression(expression),
+            checked_trees::expression::ExpressionNode::Call(_)
+        ),
+        _ => false,
+    };
+    if !valid_source_root
         || !matches!(destination_place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
     {
         return;

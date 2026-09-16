@@ -239,6 +239,200 @@ fn data_field_type_by_name(
         })
 }
 
+/// The readable form of a declared type: peel `&`/`&mut` reference shells and
+/// domain `Constrained` wrappers. A write-only reference exposes no readable
+/// storage and returns `None`; fixed-array elements and nominal fields are
+/// resolved against the peeled reference. Callers that need the declared
+/// surface (`&[u8] in Utf8`) keep the original handle.
+pub(crate) fn readable_type_reference(
+    program: &typed_trees::TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    while reference.is_valid() {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if access.is_readable() => reference = *referee,
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => return Some(reference),
+        }
+    }
+    None
+}
+
+/// A readable fixed array's element type and literal length, peeling the
+/// `&`/`&mut`/mut-access and domain-constraint shells. Non-literal lengths are
+/// lowered before checking; anything unresolved fails closed (`None`).
+pub(crate) fn readable_fixed_array_elements(
+    program: &typed_trees::TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, usize)> {
+    let reference = readable_type_reference(program, reference)?;
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => Some((*element_type, *length)),
+        _ => None,
+    }
+}
+
+/// The non-generic data definition named by a readable type reference (`T`,
+/// `&T`, `&mut T`, `T in D`), or `None` when the reference does not name data
+/// storage. Generic substitutions need their own structural evidence rather
+/// than a nominal-name guess.
+pub(crate) fn readable_nominal_definition(
+    program: &typed_trees::TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    let reference = readable_type_reference(program, reference)?;
+    let symbol = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if arguments.is_empty() => *base_symbol,
+        _ => return None,
+    };
+    program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == symbol && data.type_parameters.is_empty())
+}
+
+/// The non-generic nominal data definition an OWNED value of `type_reference`
+/// instantiates. Unlike [`readable_nominal_definition`] this deliberately does
+/// NOT peel reference shells: `-> &mut Room` returns a borrow, not owned `Room`
+/// storage, so result-field obligations must not be synthesized for it.
+pub(crate) fn owned_nominal_data_definition(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    let symbol = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            return owned_nominal_data_definition(program, *base_type);
+        }
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if arguments.is_empty() => *base_symbol,
+        _ => return None,
+    };
+    program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == symbol && data.type_parameters.is_empty())
+}
+
+/// The declared field `(path, domain)` obligations an OWNED result of
+/// `type_reference` carries: nominal data fields directly, or each element of
+/// a fixed array of nominal data at its exact `FixedIndex` prefix. A
+/// `Constrained` return (`-> T in D`) still owns `T` storage; a reference
+/// return (`-> &T`, `-> &mut T`, `-> &[T]`) produces no owned result storage
+/// and returns no paths -- borrowed fields stay proven through their source
+/// places so a later source write still invalidates them.
+pub(crate) fn declared_result_field_domain_paths(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<(Vec<facts::PlaceSegment>, SymbolHandle)> {
+    let mut reference = type_reference;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    if let Some(data) = owned_nominal_data_definition(program, reference) {
+        return declared_field_domain_paths(program, data);
+    }
+    if let TypeReferenceNode::FixedArray {
+        element_type,
+        length: FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(reference)
+    {
+        let mut paths = Vec::new();
+        for index in 0..*length {
+            for (mut path, domain_symbol) in
+                declared_result_field_domain_paths(program, *element_type)
+            {
+                path.insert(0, facts::PlaceSegment::FixedIndex { index });
+                paths.push((path, domain_symbol));
+            }
+        }
+        return paths;
+    }
+    Vec::new()
+}
+
+/// Every `(place path, domain)` pair a nominal value of `data` promises by
+/// declaration: each readable field's predicate-domain constraints, nested
+/// nominal fields, and each element of a fixed-array nominal field at its
+/// exact `FixedIndex`. The paths mirror the state-parameter entry seeding in
+/// `semantic::field_domains` exactly, so the same canonical places discharge
+/// the result/returned-element obligations built from them.
+pub(crate) fn declared_field_domain_paths(
+    program: &typed_trees::TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+) -> Vec<(Vec<facts::PlaceSegment>, SymbolHandle)> {
+    let mut paths = Vec::new();
+    append_declared_field_domain_paths(program, data, &[], &[data.symbol], &mut paths);
+    paths
+}
+
+fn append_declared_field_domain_paths(
+    program: &typed_trees::TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+    prefix: &[facts::PlaceSegment],
+    visited: &[SymbolHandle],
+    paths: &mut Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>,
+) {
+    for member in program.data_members(data) {
+        let typed_trees::data::DataMember::Field(field) = member else {
+            continue;
+        };
+        if readable_type_reference(program, field.type_reference).is_none() {
+            continue;
+        }
+        let mut field_path = prefix.to_vec();
+        crate::flow::push_field_place_segments(program, &mut field_path, field.symbol);
+        for domain_symbol in predicate_domain_constraint_symbols(program, field.type_reference) {
+            paths.push((field_path.clone(), domain_symbol));
+        }
+        if let Some(nested) = readable_nominal_definition(program, field.type_reference)
+            && !visited.contains(&nested.symbol)
+        {
+            let mut next_visited = visited.to_vec();
+            next_visited.push(nested.symbol);
+            append_declared_field_domain_paths(program, nested, &field_path, &next_visited, paths);
+        }
+        // A fixed array field enumerates each nominal element's declared fields
+        // at `field[i]`; element coverage rides the same paths as one-level
+        // fields and is never encoded at an unresolved runtime index.
+        if let Some((element_type, length)) =
+            readable_fixed_array_elements(program, field.type_reference)
+            && let Some(nested) = readable_nominal_definition(program, element_type)
+            && !visited.contains(&nested.symbol)
+        {
+            let mut next_visited = visited.to_vec();
+            next_visited.push(nested.symbol);
+            for index in 0..length {
+                let mut element_path = field_path.clone();
+                element_path.push(facts::PlaceSegment::FixedIndex { index });
+                append_declared_field_domain_paths(
+                    program,
+                    nested,
+                    &element_path,
+                    &next_visited,
+                    paths,
+                );
+            }
+        }
+    }
+}
+
 /// The data-type name a field's type reference names (peeling `&`/`&mut` and a
 /// domain `Constrained` wrapper), for descending a nested field path into the
 /// next data definition.

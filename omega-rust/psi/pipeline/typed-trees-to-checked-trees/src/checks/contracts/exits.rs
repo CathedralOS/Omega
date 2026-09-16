@@ -5,7 +5,10 @@ use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::{machine_name, semantic_fact_requirement_label};
 
 mod cases;
+mod result_domains;
 mod scalars;
+
+pub(super) use result_domains::check_result_field_domains;
 
 fn direct_result_float_meaning_reflexivity_proves_exit(
     facts: &CheckFacts,
@@ -143,6 +146,13 @@ pub(super) fn check_exit_ensures(
                 || evidence_assignment
                 || (missing_origins.is_empty()
                     && (proved
+                        || result_domains::proves_result_domain(
+                            program,
+                            facts,
+                            exit_flow,
+                            &entry_contexts,
+                            fact,
+                        )
                         || scalars::proves(
                             program,
                             facts,
