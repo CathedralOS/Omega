@@ -1,8 +1,9 @@
-use register_model::RegisterOperandAccess;
+use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
-    MachineSemanticKind, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionProvenance,
-    SelectedOperand, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    MachineSemanticKind, SaturatingCarrier, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
@@ -13,9 +14,10 @@ use crate::{
 };
 
 use super::constraints::{
-    ValidationImmediateRows, effect_declaration, fault_discharged_fold_admission,
-    indexed_read_fold_admission, isolated_effect_alternative, isolated_effect_declaration,
-    isolated_rewritten_declaration, obligation_discharged_fold_admission,
+    ValidationImmediateRows, dead_unit_defs_fold_admission, effect_declaration,
+    fault_discharged_fold_admission, indexed_read_fold_admission, isolated_effect_alternative,
+    isolated_effect_declaration, isolated_rewritten_declaration,
+    obligation_discharged_fold_admission,
 };
 
 pub(super) fn reconstruct_literal_fold(
@@ -342,6 +344,28 @@ fn reconstruct_action(
             rows.wrapping_add_zero,
             MachineSemanticKind::CopyI64,
         ),
+        // The saturating-add identity fold: a literal of exactly zero at
+        // either `Use` folds the u64-carrier `SaturatingAdd` into a
+        // `CopyI64` of the other `Use` — `x +| 0` and `0 +| x` are both
+        // `x`, already inside the carrier's bounds — bound to the
+        // `CopyI64` row the saturating-add-zero policy's own gate
+        // selected. The consumer's implicit unit definitions retire with
+        // the folded form — the aarch64 row's `nzcv` write the isolated
+        // `CopyI64` does not carry — so the per-kind admission below
+        // re-derives the deadness gate. Other carriers' clamped rows
+        // carry a scratch `Def` no admitted grammar covers; they fall to
+        // the unadmitted-kind shape like any other consumer.
+        SelectedInstructionKind::SaturatingAdd {
+            carrier: SaturatingCarrier::U64,
+        } => (
+            if future_use.operand == 0 {
+                SourceShape::SaturatingAddZeroLeft
+            } else {
+                SourceShape::SaturatingAddZero
+            },
+            rows.saturating_add_zero,
+            MachineSemanticKind::CopyI64,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -499,6 +523,20 @@ fn reconstruct_action(
         // The recorded immediate is the folded literal itself, unused by
         // the `CopyI64` rebuild.
         SourceShape::WrappingAddZero | SourceShape::WrappingAddZeroLeft => {
+            if literal_u64 != 0 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
+        }
+        // The saturating-add fold is the identity only when the folded
+        // literal is exactly zero — zero is the additive identity under
+        // unsigned saturating addition at either `Use` position; any
+        // other literal is a different computation the replay must not
+        // admit. The recorded immediate is the folded literal itself,
+        // unused by the `CopyI64` rebuild.
+        SourceShape::SaturatingAddZero | SourceShape::SaturatingAddZeroLeft => {
             if literal_u64 != 0 {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
@@ -808,6 +846,47 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
+        // The saturating-add identity grammar: `[surviving, victim,
+        // result]` folds the operand-1 `Use`; the operand-0 `Use`
+        // survives and binds the `CopyI64` row's `Use` position. The
+        // u64-carrier consumer carries exactly three operands — an
+        // operand past the `Def` result has no droppable role under this
+        // grammar.
+        (SourceShape::SaturatingAddZero, [left, right, result]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The commuted saturating-add identity grammar: `[victim,
+        // surviving, result]` folds the operand-0 `Use`; the operand-1
+        // `Use` survives into the `CopyI64` row's `Use` position because
+        // unsigned saturating addition commutes — `0 +| x` is `x +| 0`
+        // is `x` inside the carrier's bounds.
+        (SourceShape::SaturatingAddZeroLeft, [victim, right, result]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || right.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // The and-ones identity grammar: `[surviving, victim, result]`
         // folds the operand-1 `Use`; the operand-0 `Use` survives and
         // binds the `CopyI64` row's `Use` position. The consumer carries
@@ -877,17 +956,25 @@ fn reconstruct_action(
     // rebuilt and still rejects under every grammar. Under the
     // constant-result grammar an `early_clobber` mark drops with its
     // operand for the same reason: the write-before-read hazard it names
-    // exists only inside the folded operand list.
+    // exists only inside the folded operand list. The saturating-add
+    // grammar drops both marks — the x86-64 u64 row declares its result
+    // `early_clobber` — because both constrain only the operand list the
+    // rebuild replaces.
     let drops_fixed_views = matches!(
         shape,
         SourceShape::DivideIdentity
             | SourceShape::DivideZeroDividend
             | SourceShape::RemainderIdentity
             | SourceShape::RemainderZeroDividend
+            | SourceShape::SaturatingAddZero
+            | SourceShape::SaturatingAddZeroLeft
     );
     let drops_early_clobbers = matches!(
         shape,
-        SourceShape::RemainderIdentity | SourceShape::RemainderZeroDividend
+        SourceShape::RemainderIdentity
+            | SourceShape::RemainderZeroDividend
+            | SourceShape::SaturatingAddZero
+            | SourceShape::SaturatingAddZeroLeft
     );
     if consumer.operands.iter().any(|operand| {
         (operand.fixed_view.is_some() && !drops_fixed_views)
@@ -971,6 +1058,18 @@ fn reconstruct_action(
             ),
             _ => fault_discharged_fold_admission(consumer_declaration, rewritten_declaration),
         },
+        // The u64 saturating add's implicit unit *definitions* retire with
+        // the folded form — the aarch64 row writes `nzcv`, which the
+        // isolated `CopyI64` does not carry — so the declaration-level
+        // relationship cannot alone admit the fold: the validator
+        // independently re-derives the record-level gate that every unit
+        // the consumer record defines is dead in the function — no
+        // instruction or terminator implicitly uses it — and that the
+        // record declares no implicit uses at all.
+        SelectedInstructionKind::SaturatingAdd { .. } => {
+            dead_unit_defs_fold_admission(consumer_declaration, rewritten_declaration)
+                && dropped_unit_defs_dead(function, consumer)
+        }
         _ => {
             isolated_effect_declaration(consumer_declaration)
                 && consumer_declaration.alternatives.iter().all(|alternative| {
@@ -1011,6 +1110,7 @@ fn reconstruct_action(
         | SourceShape::AndZeroLeft
         | SourceShape::XorZeroLeft
         | SourceShape::WrappingAddZeroLeft
+        | SourceShape::SaturatingAddZeroLeft
         | SourceShape::AndOnesLeft
         | SourceShape::RemainderZeroDividend
         | SourceShape::DivideZeroDividend => consumer.operands[1].virtual_register,
@@ -1022,6 +1122,7 @@ fn reconstruct_action(
         | SourceShape::AndZero
         | SourceShape::XorZero
         | SourceShape::WrappingAddZero
+        | SourceShape::SaturatingAddZero
         | SourceShape::AndOnes => consumer.operands[0].virtual_register,
     };
 
@@ -1068,7 +1169,11 @@ fn reconstruct_action(
 /// zero literal folds `WrappingAddI64` into a copy of the surviving
 /// `Use` under the same two-position grammar — or the bitwise-and
 /// identity forms whose all-ones literal folds `BitwiseAndI64` into a
-/// copy of the surviving `Use` under the same two-position grammar.
+/// copy of the surviving `Use` under the same two-position grammar — or
+/// the saturating-add identity forms whose zero literal folds the
+/// u64-carrier `SaturatingAdd` into a copy of the surviving `Use` under
+/// the same two-position grammar, retiring the consumer's implicit unit
+/// definitions under a whole-function deadness gate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
@@ -1087,6 +1192,8 @@ enum SourceShape {
     WrappingAddZeroLeft,
     AndOnes,
     AndOnesLeft,
+    SaturatingAddZero,
+    SaturatingAddZeroLeft,
 }
 
 impl SourceShape {
@@ -1098,7 +1205,8 @@ impl SourceShape {
             | Self::AndZero
             | Self::XorZero
             | Self::WrappingAddZero
-            | Self::AndOnes => 1,
+            | Self::AndOnes
+            | Self::SaturatingAddZero => 1,
             Self::BinaryLeftImmediate
             | Self::UnaryExtension
             | Self::UnaryCopy
@@ -1107,9 +1215,51 @@ impl SourceShape {
             | Self::AndZeroLeft
             | Self::XorZeroLeft
             | Self::WrappingAddZeroLeft
-            | Self::AndOnesLeft => 0,
+            | Self::AndOnesLeft
+            | Self::SaturatingAddZeroLeft => 0,
         }
     }
+}
+
+/// Whether the saturating-add consumer's implicit unit definitions are all
+/// dead in `function` — the validator's independent re-derivation of the
+/// deadness gate the dead-unit-defs fold requires. The consumer record must
+/// declare no implicit unit *uses* — one the rewritten form does not carry
+/// would be unit state the rewrite silently stops observing — and every unit
+/// it *defines* must be implicitly used by no instruction or terminator in
+/// the function: a reader of a retired definition would observe a stale
+/// unit once the defining instruction disappears. A use textually before
+/// the definition still counts — it reads the unit on a later loop
+/// iteration — so the whole-function scan is the only sound order.
+fn dropped_unit_defs_dead(function: &SelectedFunction, consumer: &SelectedInstruction) -> bool {
+    consumer.implicit_uses.is_empty()
+        && consumer
+            .implicit_defs
+            .iter()
+            .all(|unit| !implicit_unit_used(function, *unit))
+}
+
+/// Whether any instruction or terminator in `function` implicitly uses
+/// `unit` — the observation channel a removed definition would leave stale.
+/// A terminator's uses include the function's live-out unit state, so the
+/// scan walks terminator instruction records alongside the ordinary ones.
+fn implicit_unit_used(function: &SelectedFunction, unit: RegisterUnitId) -> bool {
+    function.blocks.iter().any(|block| {
+        block
+            .instructions
+            .iter()
+            .chain(match &block.terminator {
+                SelectedTerminator::ConditionalBranch { instruction, .. }
+                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+                | SelectedTerminator::Jump { instruction, .. }
+                | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::HostedExitProcess { instruction, .. } => {
+                    std::iter::once(instruction)
+                }
+            })
+            .any(|instruction| instruction.implicit_uses.contains(&unit))
+    })
 }
 
 /// Whether `register` is defined in `function` only by `MaterializeI64`
@@ -1554,6 +1704,17 @@ fn rebuild_function(
         SelectedInstructionKind::WrappingAddI64 => {
             (rows.wrapping_add_zero, SelectedInstructionKind::CopyI64)
         }
+        // A u64 saturating add with a zero literal is the surviving
+        // operand: the validator rebuilds the consumer as a `CopyI64`
+        // bound to the `CopyI64` row the saturating-add-zero policy gate
+        // selected. The rebuild replaces the operand list and the unit
+        // surface wholesale from the bound row, so the retired implicit
+        // definitions — the aarch64 `nzcv` write — and the retired
+        // clobbers — the x86-64 `rflags` write — leave with the folded
+        // form.
+        SelectedInstructionKind::SaturatingAdd { .. } => {
+            (rows.saturating_add_zero, SelectedInstructionKind::CopyI64)
+        }
         _ => (None, consumer.kind),
     };
     let row = row
@@ -1582,17 +1743,21 @@ fn rebuild_function(
         })?);
     }
     // The divide-identity grammar deliberately drops `fixed_view` pins with
-    // the pinned operand form, and the remainder-identity grammar drops the
-    // pins and `early_clobber` marks a pinned-scratch realization carries;
-    // every other grammar still requires undecorated operands.
+    // the pinned operand form, the remainder-identity grammar drops the
+    // pins and `early_clobber` marks a pinned-scratch realization carries,
+    // and the saturating-add grammar drops both marks — the x86-64 u64 row
+    // declares its result `early_clobber`; every other grammar still
+    // requires undecorated operands.
     let drops_fixed_views = matches!(
         consumer.kind,
         SelectedInstructionKind::ExactDivideU64 { .. }
             | SelectedInstructionKind::WrappingRemainderI64 { .. }
+            | SelectedInstructionKind::SaturatingAdd { .. }
     );
     let drops_early_clobbers = matches!(
         consumer.kind,
         SelectedInstructionKind::WrappingRemainderI64 { .. }
+            | SelectedInstructionKind::SaturatingAdd { .. }
     );
     if consumer.operands.iter().any(|operand| {
         (operand.fixed_view.is_some() && !drops_fixed_views)

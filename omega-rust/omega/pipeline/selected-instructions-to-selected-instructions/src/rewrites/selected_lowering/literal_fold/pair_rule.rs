@@ -36,7 +36,14 @@
 //! [`PairMachineEffects::FaultDischargedByObligation`] declares the same
 //! may-fault consumer surface where the fault is already unreachable under
 //! the obligation the consumer kind carries — the literal fixes the result,
-//! not the divisor's definedness. The immediate bound carries whether
+//! not the divisor's definedness.
+//! [`PairMachineEffects::DeadConsumerUnitDefs`] declares the dead-unit-def
+//! relationship: a consumer whose implicit unit *definitions* the rewrite
+//! retires because the rewritten form does not define them — the saturating
+//! add's condition-state definition an isolated copy does not carry — where
+//! retiring them is admitted only while no instruction or terminator in the
+//! function implicitly uses a unit the consumer record defines. The
+//! immediate bound carries whether
 //! any literal up to an encoding limit is admitted or the fold's
 //! correctness requires one exact literal value — and, for families that
 //! share one consumer kind and operand position, keeps the grammars
@@ -50,13 +57,14 @@
 
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandConstraint,
-    TargetRegisterEnvironmentConstraintKeys,
+    RegisterUnitId, TargetRegisterEnvironmentConstraintKeys,
 };
 use selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionKind,
+    MachineSemanticKind, MachineTrapBehavior, SaturatingCarrier, SelectedFunction,
+    SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
@@ -304,6 +312,34 @@ pub enum PairMachineEffects {
     /// unrestricted since dropping them only narrows what may be
     /// destroyed. The rewritten form is fully effect-isolated.
     FaultDischargedByObligation,
+    /// The consumer implicitly *defines* physical units the rewritten form
+    /// does not define — the target condition state an aarch64
+    /// flag-setting saturating add writes into `nzcv`, which the isolated
+    /// `CopyI64` rewrite does not carry — and removing the consumer retires
+    /// those definitions. Declaring this surface attests that the rewrite
+    /// narrows the defined-unit surface deliberately: the fold is admitted
+    /// only while every unit the consumer record defines is dead in the
+    /// function — no instruction or terminator implicitly uses it — so no
+    /// reader observes a stale unit once the defining instruction
+    /// disappears. Unlike [`Isolated`](Self::Isolated), coverage of the
+    /// consumer's implicit definitions by the rewritten form is not
+    /// required; it is exactly what the relationship retires.
+    ///
+    /// The eliminated producer stays effect-isolated including every
+    /// implicit unit it could have written, as under
+    /// [`Isolated`](Self::Isolated). The consumer declaration must be
+    /// non-unit isolated — no memory, hosted trap, barrier, call, or
+    /// cleanup surface — with alternatives that touch no memory, leave the
+    /// stack unchanged, fall through, and carry no implicit uses: a use
+    /// the rewritten form does not carry would be unit state the rewrite
+    /// silently stops observing. Implicit unit *definitions* are
+    /// unrestricted at the declaration level — the record-level deadness
+    /// gate decides whether retiring them is observable — and clobbers are
+    /// unrestricted since dropping them only narrows what may be
+    /// destroyed: the x86-64 saturating add's `rflags` clobber retires
+    /// under this surface even while a flag-reading branch keeps `rflags`
+    /// live. The rewritten form is fully effect-isolated.
+    DeadConsumerUnitDefs,
 }
 
 impl PairMachineEffects {
@@ -316,7 +352,8 @@ impl PairMachineEffects {
             Self::Isolated
             | Self::IndexedPointerReadFold { .. }
             | Self::FaultDischargedByLiteral
-            | Self::FaultDischargedByObligation => {
+            | Self::FaultDischargedByObligation
+            | Self::DeadConsumerUnitDefs => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
                         isolated_alternative(alternative)
@@ -347,7 +384,12 @@ impl PairMachineEffects {
     /// the same may-fault surface is admitted because the consumer's own
     /// carried obligation — the nonzero divisor a remainder or an exact
     /// divide requires — already makes the fault unreachable; the literal
-    /// fixes the folded value, not the divisor's definedness.
+    /// fixes the folded value, not the divisor's definedness. For
+    /// [`DeadConsumerUnitDefs`](Self::DeadConsumerUnitDefs) the consumer
+    /// keeps the isolated non-unit surface with no implicit uses, while
+    /// its implicit definitions need no rewritten coverage — retiring them
+    /// is the point of the relationship, gated separately on the record's
+    /// defined units being dead in the function.
     pub fn admits_consumer(
         self,
         declaration: &MachineEffectDeclaration,
@@ -401,6 +443,21 @@ impl PairMachineEffects {
                             && implicit_defs_covered(alternative, rewritten)
                     })
             }
+            // The consumer keeps the isolated non-unit declaration surface
+            // and may define implicit units the rewritten form does not
+            // carry — retiring them is the relationship's own point, so no
+            // coverage requirement applies at the declaration level. The
+            // deadness of each defined unit is the record-level gate
+            // `admits_dead_consumer_defs` enforces. Implicit uses stay
+            // forbidden: one the rewritten form does not carry would be
+            // unit state the rewrite silently stops observing.
+            Self::DeadConsumerUnitDefs => {
+                isolated_declaration(declaration)
+                    && declaration.alternatives.iter().all(|alternative| {
+                        isolated_alternative(alternative)
+                            && alternative.encoded.implicit_unit_uses.is_empty()
+                    })
+            }
         }
     }
 
@@ -426,7 +483,40 @@ impl PairMachineEffects {
             }
             Self::Isolated
             | Self::IndexedPointerReadFold { .. }
-            | Self::FaultDischargedByLiteral => true,
+            | Self::FaultDischargedByLiteral
+            | Self::DeadConsumerUnitDefs => true,
+        }
+    }
+
+    /// Whether the admitted consumer's instruction record retires only
+    /// unobserved unit state. Under
+    /// [`DeadConsumerUnitDefs`](Self::DeadConsumerUnitDefs) the record must
+    /// declare no implicit unit *uses* — one the rewritten form does not
+    /// carry would silently stop being observed — and every unit it
+    /// *defines* must be dead in `function`: no instruction or terminator
+    /// may implicitly use it, or its readers would observe a stale unit
+    /// once the defining instruction disappears. A use textually before
+    /// the definition still counts — it reads the unit on a later loop
+    /// iteration — so the whole-function scan is the only sound order.
+    /// Every other relationship keeps its definitions by coverage and
+    /// needs no record-level deadness gate.
+    pub fn admits_dead_consumer_defs(
+        self,
+        consumer: &SelectedInstruction,
+        function: &SelectedFunction,
+    ) -> bool {
+        match self {
+            Self::DeadConsumerUnitDefs => {
+                consumer.implicit_uses.is_empty()
+                    && consumer
+                        .implicit_defs
+                        .iter()
+                        .all(|unit| !implicit_unit_used(function, *unit))
+            }
+            Self::Isolated
+            | Self::IndexedPointerReadFold { .. }
+            | Self::FaultDischargedByLiteral
+            | Self::FaultDischargedByObligation => true,
         }
     }
 
@@ -441,10 +531,12 @@ impl PairMachineEffects {
     /// [`FaultDischargedByObligation`](Self::FaultDischargedByObligation)
     /// require the same fully isolated surface as
     /// [`Isolated`](Self::Isolated) because the consumer's fault does not
-    /// survive the fold.
+    /// survive the fold; [`DeadConsumerUnitDefs`](Self::DeadConsumerUnitDefs)
+    /// requires it because the consumer's dead definitions and clobbers
+    /// must not reappear on the rewritten form.
     pub fn admits_rewritten(self, declaration: &MachineEffectDeclaration) -> bool {
         match self {
-            Self::Isolated => {
+            Self::Isolated | Self::DeadConsumerUnitDefs => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
                         isolated_alternative(alternative)
@@ -573,6 +665,30 @@ fn fault_discharged_alternative(alternative: &MachineAlternative) -> bool {
                 | MachineEncodedTrapBehavior::MayArchitecturalFaultV1
         )
         && encoded.control == MachineEncodedControlEffect::FallThroughV1
+}
+
+/// Whether any instruction or terminator in `function` implicitly uses
+/// `unit` — the observation channel a removed definition would leave stale.
+/// A use anywhere in the function can observe the unit: a use textually
+/// before the definition still reads it on a later loop iteration, and a
+/// terminator's uses include the function's live-out unit state.
+fn implicit_unit_used(function: &SelectedFunction, unit: RegisterUnitId) -> bool {
+    function.blocks.iter().any(|block| {
+        block
+            .instructions
+            .iter()
+            .chain(match &block.terminator {
+                SelectedTerminator::ConditionalBranch { instruction, .. }
+                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+                | SelectedTerminator::Jump { instruction, .. }
+                | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::HostedExitProcess { instruction, .. } => {
+                    std::iter::once(instruction)
+                }
+            })
+            .any(|instruction| instruction.implicit_uses.contains(&unit))
+    })
 }
 
 /// Where the folded literal sits in the consumer's operand list, and therefore
@@ -1273,6 +1389,68 @@ impl SelectedInstructionPairRule {
         Self::BITWISE_AND_ONES_LEFT_COPY,
     ];
 
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
+    /// `SaturatingAdd` on the u64 carrier when the literal is exactly
+    /// zero: zero is the additive identity under unsigned saturating
+    /// addition — `x +| 0` is `x` for every `x`, already inside the
+    /// carrier's bounds — so the rewrite is a `CopyI64` of the surviving
+    /// operand-0 register at the consumer's result register. This is the
+    /// first family whose consumer carries an implicit unit *definition*
+    /// the rewrite retires: the three-operand u64 saturating-add row
+    /// defines `nzcv` on aarch64 — its flag-setting `adds` realization —
+    /// while the isolated `CopyI64` defines nothing. Under
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// that definition may retire only while it is dead in the function —
+    /// a conditional branch reading `nzcv` would go stale — and the
+    /// consumer's clobbers retire wholesale, as the x86-64 row's `rflags`
+    /// clobber does. The consumer's operands may carry the `early_clobber`
+    /// mark the x86-64 saturating realization declares on its result —
+    /// the hazard it names exists only inside the dropped operand list —
+    /// under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// The operand-0 `Use` survives under the ordinary
+    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// grammar: the rewritten row binds it as its `Use` operand.
+    pub const SATURATING_ADD_ZERO_COPY: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::SaturatingAdd(SaturatingCarrier::U64),
+            rewritten: MachineSemanticKind::CopyI64,
+            operand_shape: PairOperandShape::BinaryRightLiteral,
+            immediate_bound: PairImmediateBound::Exactly(0),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+        };
+        assert!(
+            matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
+            "the identity fold holds only for the literal zero"
+        );
+        rule
+    };
+
+    /// The left-operand identity fold: `MaterializeI64` feeding the
+    /// operand-0 `Use` of the u64 saturating add when the literal is
+    /// exactly zero — `0 +| x` is `x` for every `x`. Unsigned saturating
+    /// addition commutes, so the `CopyI64` of the surviving operand-1
+    /// register computes the same value `x +| 0` does; the
+    /// [`BinaryLeftLiteral`](PairOperandShape::BinaryLeftLiteral) grammar
+    /// attests that commutation and binds operand 1 into the rewritten
+    /// row's `Use` position. The same catalog selection admits both
+    /// operand positions; the pair disambiguates by which `Use` position
+    /// the folded literal occupies.
+    pub const SATURATING_ADD_ZERO_LEFT_COPY: Self = Self {
+        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        ..Self::SATURATING_ADD_ZERO_COPY
+    };
+
+    /// The two saturating-add identity rules, one per literal `Use`
+    /// position.
+    pub const SATURATING_ADD_ZERO_COPIES: [Self; 2] = [
+        Self::SATURATING_ADD_ZERO_COPY,
+        Self::SATURATING_ADD_ZERO_LEFT_COPY,
+    ];
+
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
@@ -1467,20 +1645,24 @@ impl SelectedInstructionPairRule {
             (MachineSemanticKind::CopyI64, SelectedInstructionKind::ExactDivideU64 { .. }) => {
                 Some(SelectedInstructionKind::CopyI64)
             }
-            // An exclusive-or or a wrapping add with a zero literal, or a
-            // bitwise-and with an all-ones literal, is the other operand —
-            // `x ^ 0` and `0 ^ x` are both `x`, `x + 0` and `0 + x` are
-            // both `x` modulo 2^64, and `x & MAX` and `MAX & x` are both
-            // `x`: the `CopyI64` rewrite binds the surviving register the
-            // recorded action names. The consumer guard keeps each rule
-            // bound to its own consumer kind — the xor rule never rewrites
-            // an add, the add rule never rewrites an and, and the and-ones
-            // rule never rewrites either.
+            // An exclusive-or or a wrapping add with a zero literal, a
+            // bitwise-and with an all-ones literal, or a u64 saturating
+            // add with a zero literal is the other operand — `x ^ 0` and
+            // `0 ^ x` are both `x`, `x + 0` and `0 + x` are both `x`
+            // modulo 2^64, `x & MAX` and `MAX & x` are both `x`, and
+            // `x +| 0` and `0 +| x` are both `x` inside the carrier's
+            // bounds: the `CopyI64` rewrite binds the surviving register
+            // the recorded action names. The consumer guard keeps each
+            // rule bound to its own consumer kind — the xor rule never
+            // rewrites an add, the add rule never rewrites an and, the
+            // and-ones rule never rewrites either, and the saturating-add
+            // rule rewrites only the u64-carrier kind its pair admits.
             (
                 MachineSemanticKind::CopyI64,
                 kind @ (SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::WrappingAddI64
-                | SelectedInstructionKind::BitwiseAndI64),
+                | SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::SaturatingAdd { .. }),
             ) if machine_semantic_kind(kind) == self.consumer => {
                 Some(SelectedInstructionKind::CopyI64)
             }

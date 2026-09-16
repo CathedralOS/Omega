@@ -78,6 +78,11 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// family; the folded literal's operand position names which family an
     /// `ExactDivideU64` fold belongs to.
     pub(super) divide_zero: Option<&'a RegisterInstructionConstraint>,
+    /// The `CopyI64` row the saturating-add identity fold rewrites into —
+    /// the same constraint row the divide, xor, wrapping-add, and and-ones
+    /// folds bind, gated separately so a fold the selection did not enable
+    /// cannot replay under another family's policy.
+    pub(super) saturating_add_zero: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -157,6 +162,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_exact_divide_zero()
         .then(|| find(keys.materialize_i64))
         .transpose()?;
+    let saturating_add_zero = policy
+        .enables_saturating_add_zero()
+        .then(|| find(keys.copy_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -173,6 +182,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         and_ones,
         remainder_zero,
         divide_zero,
+        saturating_add_zero,
     ]
     .into_iter()
     .flatten()
@@ -262,6 +272,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::MaterializeI64,
             isolated_rewritten_declaration,
         ),
+        (
+            saturating_add_zero,
+            MachineSemanticKind::CopyI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -286,6 +301,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         and_ones,
         remainder_zero,
         divide_zero,
+        saturating_add_zero,
         catalog,
     })
 }
@@ -544,4 +560,28 @@ pub(super) fn obligation_discharged_fold_admission(
     obligation_carried: bool,
 ) -> bool {
     obligation_carried && fault_discharged_fold_admission(consumer, rewritten)
+}
+
+/// The relationship the validator re-derives between a consumer whose
+/// implicit unit *definitions* the rewrite retires — the u64 saturating
+/// add whose aarch64 realization writes `nzcv` and whose x86-64 row
+/// clobbers `rflags` — and the fully isolated copy form a zero literal
+/// rewrites into. The consumer declaration must be isolated outside its
+/// unit surface with no implicit uses: a use the rewritten form does not
+/// carry would be unit state the rewrite silently stops observing. Unlike
+/// the isolated folds, no implicit definition needs rewritten coverage —
+/// retiring those definitions is the relationship's own point, gated on
+/// the record-level deadness the caller re-derives from the concrete
+/// instruction and function. Clobbers retire wholesale: dropping one only
+/// narrows what may be destroyed.
+pub(super) fn dead_unit_defs_fold_admission(
+    consumer: &MachineEffectDeclaration,
+    rewritten: &MachineEffectDeclaration,
+) -> bool {
+    isolated_effect_declaration(consumer)
+        && consumer.alternatives.iter().all(|alternative| {
+            isolated_effect_alternative(alternative)
+                && alternative.encoded.implicit_unit_uses.is_empty()
+        })
+        && isolated_rewritten_declaration(rewritten)
 }

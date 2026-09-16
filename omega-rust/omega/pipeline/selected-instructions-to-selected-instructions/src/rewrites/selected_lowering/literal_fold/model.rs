@@ -51,6 +51,7 @@ impl LiteralFoldPolicy {
     const BITWISE_AND_ONES_BIT: u16 = 1 << 12;
     const WRAPPING_REMAINDER_ZERO_BIT: u16 = 1 << 13;
     const EXACT_DIVIDE_ZERO_BIT: u16 = 1 << 14;
+    const SATURATING_ADD_ZERO_BIT: u16 = 1 << 15;
     const KNOWN_BITS: u16 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -65,7 +66,8 @@ impl LiteralFoldPolicy {
         | Self::WRAPPING_ADD_ZERO_BIT
         | Self::BITWISE_AND_ONES_BIT
         | Self::WRAPPING_REMAINDER_ZERO_BIT
-        | Self::EXACT_DIVIDE_ZERO_BIT;
+        | Self::EXACT_DIVIDE_ZERO_BIT
+        | Self::SATURATING_ADD_ZERO_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -188,6 +190,21 @@ impl LiteralFoldPolicy {
     pub const EXACT_DIVIDE_ZERO_V1: Self = Self {
         enabled_rules: Self::EXACT_DIVIDE_ZERO_BIT,
     };
+    /// Saturating-add identity fold: fold a materialized literal `0`
+    /// feeding its sole `SaturatingAdd` u64-carrier consumer at either
+    /// `Use` operand into a `CopyI64` of the other `Use` — zero is the
+    /// additive identity under unsigned saturating addition, so `x +| 0`
+    /// and `0 +| x` are both `x` and the surviving operand's register
+    /// moves to the result unchanged. The u64 saturating-add consumer
+    /// implicitly defines the target condition state on aarch64 — its
+    /// `adds` realization writes `nzcv` — and clobbers `rflags` on
+    /// x86-64; the fold retires both with the folded form, admitting the
+    /// consumer only while every unit its record defines is dead in the
+    /// function: a reader of a retired definition would observe a stale
+    /// unit.
+    pub const SATURATING_ADD_ZERO_V1: Self = Self {
+        enabled_rules: Self::SATURATING_ADD_ZERO_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -261,6 +278,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_exact_divide_zero(self) -> bool {
         self.enabled_rules & Self::EXACT_DIVIDE_ZERO_BIT != 0
+    }
+
+    pub const fn enables_saturating_add_zero(self) -> bool {
+        self.enabled_rules & Self::SATURATING_ADD_ZERO_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u16 {

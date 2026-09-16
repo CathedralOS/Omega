@@ -371,6 +371,22 @@ pub(super) fn derive_action(
             function: function_index,
         });
     }
+    // The dead-unit-defs surface also needs its record-level half: under
+    // `DeadConsumerUnitDefs` the rewrite retires every implicit unit the
+    // consumer defines, admitted only while no instruction or terminator
+    // in the function implicitly uses such a unit — a reader would
+    // observe a stale unit once the defining instruction disappears. The
+    // whole-function scan is a fact no catalog declaration can attest, so
+    // it runs here on the concrete consumer record.
+    if !pair
+        .rule
+        .machine_effects()
+        .admits_dead_consumer_defs(consumer, function)
+    {
+        return Err(LiteralFoldError::EffectSurfaceMismatch {
+            function: function_index,
+        });
+    }
     // The pair's declared machine-effect surface must hold in the bound
     // catalog for both instructions the rewrite touches: the eliminated
     // literal must be fully effect-isolated so its removal drops nothing
