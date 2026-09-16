@@ -20,13 +20,18 @@ pub(super) fn diagnostic_path_source_span(
 
 /// Whether an authored domain reference may select `domain` from
 /// `reference` under module name law. A fully qualified spelling always
-/// selects its exact declaration. A relative spelling — the domain's
-/// declared carrier-qualified name or its leaf — reaches a module-owned
-/// domain only inside its own module or through a narrow import of the exact
-/// declaration, which exposes the leaf spelling just like ordinary name
-/// resolution. Unmoduled domains keep root scope; generated references
-/// carry no lexical module and select only qualified or unmoduled domains.
-/// Resolution-stratum and package visibility stay with the caller.
+/// selects its exact declaration. A relative spelling reaches a module-owned
+/// domain inside its own module or through an exposing import: a narrow
+/// import of the exact declaration exposes its leaf and its declared
+/// carrier-qualified spelling, while importing the declaring module exposes
+/// its directly declared domains to the carrier-qualified spelling. The
+/// carrier-qualified form additionally requires the authored carrier to
+/// resolve to the exact carrier the declaring context attached the domain
+/// to — importing the carrier type, an ordinary sibling declaration, or
+/// merely loading another source exposes nothing. Unmoduled domains keep
+/// root scope; generated references carry no lexical module and select only
+/// qualified or unmoduled domains. Resolution-stratum and package visibility
+/// stay with the caller.
 pub(crate) fn domain_name_reaches(
     symbols: &SymbolTable,
     domain_symbol: SymbolHandle,
@@ -38,12 +43,12 @@ pub(crate) fn domain_name_reaches(
     if qualified == authored {
         return true;
     }
-    if !crate::selection::signature_free_requirements::same_semantic_name(domain_name, authored) {
-        return false;
-    }
     let domain_module = symbols.symbol_module(domain_symbol);
     if !domain_module.is_valid() {
-        return true;
+        return crate::selection::signature_free_requirements::same_semantic_name(
+            domain_name,
+            authored,
+        );
     }
     // A generated or source-free reference carries no lexical module; it can
     // only select the domain through its complete qualified path above.
@@ -51,12 +56,95 @@ pub(crate) fn domain_name_reaches(
         return false;
     }
     if symbols.source_module(reference.source_id) == domain_module {
-        return true;
+        return crate::selection::signature_free_requirements::same_semantic_name(
+            domain_name,
+            authored,
+        );
     }
-    !authored.contains("::")
-        && symbols
+    if !authored.contains("::") {
+        // A narrow import of the exact declaration exposes its leaf spelling,
+        // just like ordinary name resolution. A module import does not turn
+        // the leaf into a bare local name.
+        return crate::selection::signature_free_requirements::same_semantic_name(
+            domain_name,
+            authored,
+        ) && symbols
             .source_module_import_paths(reference.source_id)
-            .any(|path| path == qualified)
+            .any(|path| {
+                symbols.source_module_import_target(reference.source_id, path)
+                    == Some(domain_symbol)
+            });
+    }
+    carrier_qualified_domain_reaches(
+        symbols,
+        domain_symbol,
+        domain_module,
+        domain_name,
+        authored,
+        reference,
+    )
+}
+
+/// Whether a carrier-qualified spelling (`Carrier::Leaf`) selects an exposed
+/// module-owned domain. The authored carrier must resolve to the same exact
+/// carrier the declaring source attached the domain to — a caller's
+/// same-spelled type cannot redirect the attachment — and an import must
+/// expose the domain: either a narrow import of the exact declaration or a
+/// broad import of its declaring module, which exposes only the domains that
+/// module directly declares.
+fn carrier_qualified_domain_reaches(
+    symbols: &SymbolTable,
+    domain_symbol: SymbolHandle,
+    domain_module: SymbolHandle,
+    domain_name: &str,
+    authored: &str,
+    reference: source::SourceSpan,
+) -> bool {
+    let Some((declared_carrier, declared_leaf)) = domain_name.rsplit_once("::") else {
+        // A leaf-named declaration (a generic domain family) has no
+        // carrier-qualified spelling.
+        return false;
+    };
+    let Some((authored_carrier, authored_leaf)) = authored.rsplit_once("::") else {
+        return false;
+    };
+    if authored_leaf != declared_leaf {
+        return false;
+    }
+    const CARRIER_KINDS: [SymbolKind; 4] = [
+        SymbolKind::BuiltinType,
+        SymbolKind::Data,
+        SymbolKind::Machine,
+        SymbolKind::Trait,
+    ];
+    let authored_carrier_symbol = symbols.find_top_level_by_name_and_kinds_from_source(
+        authored_carrier,
+        &CARRIER_KINDS,
+        reference,
+    );
+    if authored_carrier_symbol.is_none() {
+        return false;
+    }
+    let declared_carrier_symbol = symbols
+        .symbol_provenance_source_span(domain_symbol)
+        .and_then(|span| {
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                declared_carrier,
+                &CARRIER_KINDS,
+                span,
+            )
+        });
+    if authored_carrier_symbol != declared_carrier_symbol {
+        return false;
+    }
+    symbols
+        .source_module_import_paths(reference.source_id)
+        .any(|path| {
+            matches!(
+                symbols.source_module_import_target(reference.source_id, path),
+                Some(target) if target == domain_symbol || target == domain_module
+            )
+        })
 }
 
 /// A domain declared in the reference's own module outranks same-spelled
@@ -373,17 +461,83 @@ pub(crate) enum MembershipSelection {
     },
 }
 
+/// The domain side of a membership selection.
+enum DomainMembership {
+    NotFound,
+    Unique(SymbolHandle),
+    /// The ordinary path law found competing exact selections — an authored
+    /// ambiguity that rejects immediately.
+    Ambiguous {
+        first: SymbolHandle,
+        second: SymbolHandle,
+    },
+    /// The attached-domain exposure pool claims the spelling under more than
+    /// one distinct owner. Like the proof-fact resolver's pooled decline,
+    /// this retains the membership as a checked obligation rather than
+    /// reporting ambiguity here: downstream validation owns the diagnostic,
+    /// and no other meaning may claim the contested spelling.
+    Contested,
+}
+
+/// Pool every domain candidate an authored membership name can select: the
+/// ordinary qualified/import path lookup unioned with the attached-domain
+/// exposure law (`domain_name_reaches`), which admits a carrier-qualified or
+/// leaf spelling through a declaring-module or exact-domain import.
+/// Module-local owners outrank every other tier, and declarations sharing one
+/// complete logical path are one semantic candidate.
+fn membership_domain_lookup(
+    symbols: &SymbolTable,
+    name: &str,
+    reference: source::SourceSpan,
+) -> DomainMembership {
+    let mut candidates = match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        name,
+        &[SymbolKind::Domain],
+        reference,
+        |_| true,
+    ) {
+        SymbolLookup::Unique(symbol) => vec![symbol],
+        SymbolLookup::Ambiguous { first, second } => {
+            return DomainMembership::Ambiguous { first, second };
+        }
+        SymbolLookup::NotFound => Vec::new(),
+    };
+    if let Some(children) = symbols.child_handles(symbols.root()) {
+        for symbol in children {
+            if symbols.get(symbol).kind != SymbolKind::Domain
+                || candidates.contains(&symbol)
+                || !symbols.source_reference_can_see_symbol(reference, symbol)
+                || !domain_name_reaches(symbols, symbol, symbols.name(symbol), name, reference)
+            {
+                continue;
+            }
+            candidates.push(symbol);
+        }
+    }
+    let candidates = prefer_module_local_domain(symbols, candidates, reference);
+    let mut unique: Vec<(String, SymbolHandle)> = Vec::new();
+    'next: for candidate in candidates {
+        let path = symbols.display_path(candidate, "::");
+        for (existing, _) in &unique {
+            if *existing == path {
+                continue 'next;
+            }
+        }
+        unique.push((path, candidate));
+    }
+    match unique.as_slice() {
+        [] => DomainMembership::NotFound,
+        [(_, symbol)] => DomainMembership::Unique(*symbol),
+        _ => DomainMembership::Contested,
+    }
+}
+
 pub(crate) fn membership_selection(
     symbols: &SymbolTable,
     name: &str,
     reference: source::SourceSpan,
 ) -> Result<Option<MembershipSelection>, String> {
-    let domain = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
-        name,
-        &[SymbolKind::Domain],
-        reference,
-        |_| true,
-    );
+    let domain = membership_domain_lookup(symbols, name, reference);
     let (case_owner, case_name) =
         name.rsplit_once("::")
             .map_or((SymbolLookup::NotFound, ""), |(owner, case)| {
@@ -404,21 +558,25 @@ pub(crate) fn membership_selection(
     let ambiguous =
         |first, second| selection_ambiguity(symbols, name, reference, first, second, "membership");
     match (domain, case_owner) {
-        (SymbolLookup::Ambiguous { first, second }, _) => Err(ambiguous(first, second)),
+        (DomainMembership::Ambiguous { first, second }, _) => Err(ambiguous(first, second)),
         (_, SymbolLookup::Ambiguous { first, second }) => Err(ambiguous(case(first), case(second))),
-        (SymbolLookup::Unique(domain), SymbolLookup::Unique(owner)) => {
+        // A contested domain claim is not absence: the case side must not win
+        // a spelling the exposure pool cannot settle, and the membership keeps
+        // its checked obligation instead of reporting the contest here.
+        (DomainMembership::Contested, _) => Ok(None),
+        (DomainMembership::Unique(domain), SymbolLookup::Unique(owner)) => {
             Err(ambiguous(domain, case(owner)))
         }
-        (SymbolLookup::Unique(domain), SymbolLookup::NotFound) => {
+        (DomainMembership::Unique(domain), SymbolLookup::NotFound) => {
             Ok(Some(MembershipSelection::Domain(domain)))
         }
-        (SymbolLookup::NotFound, SymbolLookup::Unique(owner)) => {
+        (DomainMembership::NotFound, SymbolLookup::Unique(owner)) => {
             Ok(Some(MembershipSelection::Case {
                 owner,
                 case: case(owner),
             }))
         }
-        (SymbolLookup::NotFound, SymbolLookup::NotFound) => Ok(None),
+        (DomainMembership::NotFound, SymbolLookup::NotFound) => Ok(None),
     }
 }
 
