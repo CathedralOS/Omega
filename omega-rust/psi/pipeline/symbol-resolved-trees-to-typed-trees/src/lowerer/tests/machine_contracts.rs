@@ -374,6 +374,104 @@ fn retains_installation_bound_reach_through_typed_snapshot() {
 }
 
 #[test]
+fn authored_premise_replays_a_generic_application_leaf() {
+    // `b.item` selects Box's own member; its declared `T` resumes at the
+    // `Context` argument the application bound, so `scheduler` names the
+    // substituted declaration's field rather than stopping at an opaque leaf.
+    let source = r#"
+        data Main {}
+        machine Main::run(&mut self) {}
+        pub data SchedulerHandle [copy] {}
+        pub data Context { scheduler: SchedulerHandle; }
+        pub data Box<T> { item: T; }
+        pub domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        pub boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+        }
+        pub machine wait_boxed(b: &Box<Context>)
+        requires b.item.scheduler in WeakFair
+        terminates;
+        -> u64 { 0 }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "wait_boxed")
+        .expect("wait_boxed machine");
+    let language_semantics::TerminationInterface::Published(
+        language_semantics::TerminationGuarantee::Terminates { premises },
+    ) = &machine.termination_plan.interface
+    else {
+        panic!("wait_boxed should publish authored premises")
+    };
+    let [premise] = premises.as_slice() else {
+        panic!("wait_boxed should publish exactly one premise")
+    };
+    let b = typed
+        .state_parameters(&typed.machine_states(machine)[0])
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "b")
+        .expect("parameter b");
+    assert_eq!(premise.subject.root, b.symbol);
+    let projections = premise
+        .subject
+        .projections
+        .iter()
+        .map(|symbol| typed.symbols.display_path(*symbol, "::"))
+        .collect::<Vec<_>>();
+    assert_eq!(projections, ["Box::item", "Context::scheduler"]);
+}
+
+#[test]
+fn authored_premise_through_a_generic_leaf_still_names_a_declared_member() {
+    // The application replays its own declaration only: `scheduler` is a
+    // `Context` member, not a `Box` member, so this premise still has no
+    // exact field path and must not mint one.
+    for requirement in [
+        "requires b.scheduler in WeakFair",
+        "requires b.item.missing in WeakFair",
+    ] {
+        let source = format!(
+            r#"
+            data Main {{}}
+            machine Main::run(&mut self) {{}}
+            pub data SchedulerHandle [copy] {{}}
+            pub data Context {{ scheduler: SchedulerHandle; }}
+            pub data Box<T> {{ item: T; }}
+            pub domain SchedulerHandle::WeakFair
+            satisfies ProgressProfile
+            established by SchedulerAdmission::grant;
+            pub boundary trait SchedulerAdmission {{
+                machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+            }}
+            pub machine wait_boxed(b: &Box<Context>)
+            {requirement}
+            terminates;
+            -> u64 {{ 0 }}
+        "#
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
+        let diagnostic = lower_symbol_resolved_trees(&resolved)
+            .expect_err("a non-member premise must still fail normalization");
+        assert!(
+            diagnostic
+                .message
+                .contains("must name one identity-preserving parameter or field path"),
+            "{requirement}: {}",
+            diagnostic.message
+        );
+    }
+}
+
+#[test]
 fn typed_snapshot_publishes_normalized_termination_witness() {
     let source = r#"
         machine countdown(remaining: u64)
