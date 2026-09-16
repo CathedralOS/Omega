@@ -41,7 +41,6 @@ pub(crate) fn encode(
 }
 
 #[cfg(test)]
-#[path = "scalar_qualification_wire_tests.rs"]
 mod tests;
 
 pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatalog, CodecError> {

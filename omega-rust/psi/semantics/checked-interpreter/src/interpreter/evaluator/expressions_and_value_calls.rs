@@ -4,11 +4,9 @@ use super::{
     Frame, Halt, HashSet, Machine, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, State,
     SymbolHandle, Value, trap, unsupported,
 };
-#[path = "expressions_and_value_calls/match_dispatch.rs"]
 mod match_dispatch;
 
 #[cfg(test)]
-#[path = "expressions_and_value_calls/case_membership_tests.rs"]
 mod case_membership_tests;
 
 impl<'program> Evaluator<'program> {

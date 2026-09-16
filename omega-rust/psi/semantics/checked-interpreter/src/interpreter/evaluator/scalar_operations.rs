@@ -5,7 +5,6 @@ use super::{
     primitive_is_unsigned64, project_landed_float, trap, unsupported, wrap_to_width,
 };
 #[cfg(test)]
-#[path = "scalar_operations/sequence_equality_tests.rs"]
 mod sequence_equality_tests;
 
 fn byte_sequence_element(element: &Cell) -> EvalResult<u8> {

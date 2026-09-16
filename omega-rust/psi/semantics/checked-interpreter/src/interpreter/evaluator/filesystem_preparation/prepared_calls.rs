@@ -23,7 +23,7 @@ use crate::interpreter::evaluator::filesystem_preparation::{
 };
 use crate::interpreter::evaluator::{
     EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, FilesystemLogicalHandleKind,
-    Frame, Halt, Value, real_fs, rooted_build_path_parts, trap, unsupported,
+    Frame, Halt, Value, real_filesystem, rooted_build_path_parts, trap, unsupported,
     validate_build_relative_path,
 };
 use crate::{
@@ -894,7 +894,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                     .evaluator
                     .real_fs
                     .as_ref()
-                    .is_some_and(real_fs::RealFs::is_scoped)
+                    .is_some_and(real_filesystem::RealFs::is_scoped)
             {
                 return Err(Halt::Trap(
                     "package build filesystem paths must come from BuildSource::resolve or BuildOutput::resolve"
