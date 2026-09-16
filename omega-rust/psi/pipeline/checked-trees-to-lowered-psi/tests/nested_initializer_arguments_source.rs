@@ -63,6 +63,38 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
         .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
 }
 
+/// Declare that `Main::main` explicitly invokes `boundary`, right before its body opens.
+///
+/// Nominal unit callbacks require closed execution selections, so fixtures that once bound an
+/// open `machine` parameter to a boundary requirement call the boundary directly and publish
+/// that invocation on the entry signature.
+pub(crate) fn invoking(source: &str, boundary: &str) -> String {
+    let start = source
+        .find("machine Main::main(")
+        .expect("Main::main signature");
+    let body = start + source[start..].find('{').expect("Main::main body");
+    let head = source[..body].trim_end();
+    // A published invocation ceiling must list every boundary the body may
+    // invoke, so every declared reach joins the requested boundary.
+    let reach = head
+        .rsplit_once("reaches ")
+        .map(|(_, reach)| reach)
+        .unwrap_or("");
+    let mut bindings = vec![boundary];
+    bindings.extend(
+        reach
+            .split('+')
+            .map(str::trim)
+            .filter(|binding| !binding.is_empty() && *binding != boundary),
+    );
+    let invocations = bindings
+        .iter()
+        .map(|binding| format!("invokes {binding};"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("{head} {invocations} {}", &source[body..])
+}
+
 fn main_machine(checked: &checked_trees::CheckedTrees) -> &typed_trees::machine::Machine {
     checked
         .typed
@@ -381,21 +413,21 @@ fn nominal_boundary_requirements_execute_computed_result_initializers() {
     for structural in [false, true] {
         for caller_self in [false, true] {
             let source = if structural {
-                structural_source().replace("Producer::create(", "Create(")
+                structural_source()
             } else {
-                scalar_source(true).replace("Producer::choose(", "Create(")
+                scalar_source(true)
             };
-            let requirement = if structural { "create" } else { "choose" };
             let parameters = if caller_self {
                 "&mut self, left: u8, right: u8"
             } else {
                 "left: u8, right: u8"
             };
-            let source = source.replace(
-                "machine Main::main(left: u8, right: u8)",
-                &format!(
-                    "machine Main::main<machine Create>({parameters})\nwhere machine Create satisfies Producer::{requirement};"
+            let source = invoking(
+                &source.replace(
+                    "machine Main::main(left: u8, right: u8)",
+                    &format!("machine Main::main({parameters})"),
                 ),
+                "Producer",
             );
             let checked = checked(&source);
             let artifact = encoded(&checked);
@@ -414,52 +446,26 @@ fn nominal_boundary_requirements_execute_computed_result_initializers() {
                 expected.push(vec![unsigned(16, 3)]);
             }
             assert_eq!(observer.calls, expected);
-            let machine = main_machine(&checked);
-            let (state_handle, state) = checked
-                .facts
-                .flow
-                .control
-                .states
-                .iter()
-                .find(|(_, state)| state.machine_symbol == machine.symbol)
-                .unwrap();
-            let (outer_handle, outer) = checked
-                .facts
-                .flow
-                .control
-                .calls
-                .iter()
-                .find(|(_, call)| {
-                    call.statement_index == 0
-                        && call.call_ordinal == 0
-                        && checked
-                            .typed
-                            .machine_parameter_signature(call.target_symbol)
-                            .is_some_and(|(owner, _)| owner.symbol == machine.symbol)
-                })
-                .unwrap();
-            let (_, signature) = checked
-                .typed
-                .machine_parameter_signature(outer.target_symbol)
-                .unwrap();
-            assert_ne!(outer.target_symbol, signature.symbol);
-            for duplicate in [false, true] {
-                let mut changed = checked.clone();
-                let control = &mut changed.facts.flow.control;
-                if duplicate {
-                    let mut copied = outer.clone();
-                    copied.target_symbol = signature.symbol;
-                    let mut calls = state.calls;
-                    control.calls.append_to_span(&mut calls, copied);
-                    control.states.get_mut(state_handle).calls = calls;
-                } else {
-                    control.calls.get_mut(outer_handle).target_symbol = signature.symbol;
-                }
-                assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
-                    "normalized requirement cannot replace or duplicate the authored callable: duplicate={duplicate}"
-                );
-            }
+            // The open nominal form of the same entry does not publish: nominal
+            // unit callbacks require closed execution selections.
+            let open = if structural {
+                structural_source().replace("Producer::create(", "Create(")
+            } else {
+                scalar_source(true).replace("Producer::choose(", "Create(")
+            };
+            let requirement = if structural { "create" } else { "choose" };
+            let open = open.replace(
+                "machine Main::main(left: u8, right: u8)",
+                &format!(
+                    "machine Main::main<machine Create>({parameters})
+where machine Create satisfies Producer::{requirement};"
+                ),
+            );
+            assert!(matches!(
+                checked_trees_to_lowered_psi::lower_machine(&self::checked(&open), "Main::main"),
+                Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
+                    if machine == "Main::main"
+            ));
         }
     }
 }

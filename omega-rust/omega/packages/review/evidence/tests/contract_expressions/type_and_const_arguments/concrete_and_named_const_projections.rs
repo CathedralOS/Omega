@@ -423,7 +423,7 @@ fn review_projects_named_structured_consts_with_exact_carrier_replay() {
         package.write(
             "main.omg",
             &format!(
-r#"pub data Point {{ x: u8; y: u8; }}
+r#"pub data Point [copy] {{ x: u8; y: u8; }}
 pub data Pair [copy] {{ left: Point; right: Point; flags: [bool; 2]; }}
 pub data Mode [copy] {{ case Idle; case Count(value: u8); }}
 pub data Alternate [copy] {{ value: u64; }}

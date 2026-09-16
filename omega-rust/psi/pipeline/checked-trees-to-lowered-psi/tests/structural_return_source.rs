@@ -198,10 +198,11 @@ const RESULT_BOUNDARY_BOUNDED_REACH_SOURCE: &str = r#"
     }
 
     data Root {}
-    machine Root::enter<machine Completion>() -> bool
-    where machine Completion satisfies InterruptCompletion::complete;
+    machine Root::enter() -> bool
+    reaches InterruptCompletion + MachineControl + PortIo
+    invokes InterruptCompletion;
     {
-        let accepted: bool = Completion();
+        let accepted: bool = InterruptCompletion::complete();
         accepted
     }
 "#;

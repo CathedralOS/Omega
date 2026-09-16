@@ -1498,6 +1498,7 @@ name = "package-evidence"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "build-declarations",
  "build-evaluation",
  "calling-conventions",
  "checked-trees",

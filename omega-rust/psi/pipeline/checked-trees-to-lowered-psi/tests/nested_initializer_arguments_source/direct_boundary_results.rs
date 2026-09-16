@@ -3,7 +3,7 @@ use super::later_results::encoded_locals;
 use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalEffect, TerminalEffectHandler,
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
-    checked, decode_module, decode_proof_bundle, main_machine,
+    checked, decode_module, decode_proof_bundle, invoking, main_machine,
 };
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -160,9 +160,7 @@ fn replacement_source() -> String {
 fn consuming_boundaries_establish_replacements_only_after_successful_completion() {
     for nominal in [false, true] {
         let source = if nominal {
-            replacement_source()
-                .replace("machine Main::main()", "machine Main::main<machine Replace>() where machine Replace satisfies Sink::replace;")
-                .replace("Sink::replace(first", "Replace(first")
+            invoking(&replacement_source(), "Sink")
         } else {
             replacement_source()
         };

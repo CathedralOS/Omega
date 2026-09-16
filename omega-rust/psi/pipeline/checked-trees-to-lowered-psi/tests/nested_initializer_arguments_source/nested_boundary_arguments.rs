@@ -1,4 +1,5 @@
 use super::boundary_result_moves::{ObserveMoves, source};
+use super::invoking;
 use super::later_results::encoded_locals;
 use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalExecutionResult, checked,
@@ -144,9 +145,7 @@ fn nested_boundary_arguments_preserve_effect_order_result_slots_and_cleanup() {
                     &format!("boundary trait Sink {{ machine take(first: u16, token: Token, last: u16) {result} reaches Sink;"),
                 );
                 if declaration == "nominal" {
-                    source = source
-                        .replace("machine Main::main()", "machine Main::main<machine Take>() where machine Take satisfies Sink::take;")
-                        .replace("Sink::take(", "Take(");
+                    source = invoking(&source, "Sink");
                 }
             }
             let checked = checked(&source);

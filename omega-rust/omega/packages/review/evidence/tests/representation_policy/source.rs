@@ -1,4 +1,5 @@
 use crate::support::*;
+use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 
 const TYPES: &str = r#"use omega::language::core::representation;
@@ -100,6 +101,15 @@ impl Fixture {
                 "producer",
                 foreign_identity(),
             ));
+            if foreign {
+                // The build entry imports the producer too; build imports select build edges.
+                dependencies.push(PackageDependencyBinding::for_purpose(
+                    package_identity(),
+                    "producer",
+                    foreign_identity(),
+                    DependencyPurpose::Build,
+                ));
+            }
             "use producer::types;\n"
         } else {
             &types
