@@ -1,3 +1,10 @@
+//! One symbol: the durable handle and span, with the name, path and kind
+//! metadata that lookup and display carry around it.
+
+pub(crate) mod kind;
+pub(crate) mod name;
+pub(crate) mod path;
+
 use arena::{Handle, HandleSpan, HierarchyNode};
 
 use super::{SymbolKind, SymbolName};
