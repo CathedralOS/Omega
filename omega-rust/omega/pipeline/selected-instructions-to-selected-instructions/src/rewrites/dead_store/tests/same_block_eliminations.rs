@@ -1,6 +1,6 @@
 use super::{
-    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, eliminate, fixture,
-    instruction, mutated, place, settlement,
+    BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
+    eliminate, fixture, instruction, make_packed_dead, mutated, packed_dead, place, settlement,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::dead_store::{
@@ -774,9 +774,9 @@ fn non_covering_or_mismatched_killers_reject() {
         eliminate(&wrong_constraint, &environment).unwrap_err(),
         DeadStoreEliminationError::ConstraintMismatch
     );
-    // A dead store of a packed width is not the plain two-use place store:
-    // packed fragment stores select `StorePacked`, whose scratch operand
-    // would leave its defining register orphaned by removal.
+    // A `Store` encoding a packed width is not the selected form at all:
+    // packed fragment widths select `StorePacked`, so the plain store kind
+    // only admits the exact byte sizes.
     let odd_dead = mutated(target, |function, environment| {
         let store = environment
             .constraint(environment.selected_keys().store.unwrap())
@@ -829,6 +829,222 @@ fn validation_budget_covers_the_walk() {
             )
             .unwrap_err(),
             DeadStoreEliminationError::WorkBudgetExceeded
+        );
+    }
+}
+
+/// A packed `StorePacked` can itself be the dead store: its five bytes at
+/// offset 0 sit inside the covering `Store`'s eight, and its early-clobber
+/// scratch `Def` occurs nowhere else in the function, so the removal drops
+/// the instruction and its write row without orphaning a register. The
+/// measured window is unchanged — the same block scan, interval, and roster
+/// rows as the plain store — so the same exact budget admits it.
+#[test]
+fn packed_dead_store_eliminates_under_dead_scratch_custody() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = packed_dead(target);
+        let result = eliminate(&source, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN, KILLER]
+        );
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![(KILLER, SelectedMemoryAccessRole::WritePlace)]
+        );
+        validate_dead_store_elimination(
+            &source,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // The published plan is a legal second input: the packed store is
+        // already gone, and the covering store has no later covering write.
+        assert_eq!(
+            eliminate_selected_dead_store(&result, 0, STORE, &environment, budget()).unwrap_err(),
+            DeadStoreEliminationError::SourceMismatch
+        );
+        assert_eq!(
+            eliminate_selected_dead_store(&result, 0, KILLER, &environment, budget()).unwrap_err(),
+            DeadStoreEliminationError::UnsupportedPair
+        );
+        let exact = OptimizationWorkBudget::new(1, 1, 9, 1, 1).unwrap();
+        eliminate_selected_dead_store(&source, 0, STORE, &environment, exact).unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, 8, 1, 1).unwrap();
+        assert_eq!(
+            eliminate_selected_dead_store(&source, 0, STORE, &environment, starved).unwrap_err(),
+            DeadStoreEliminationError::WorkBudgetExceeded
+        );
+    }
+}
+
+/// The packed removal still carries the whole contract: the constraint must
+/// be the target's packed row, the roster row must name the encoded range,
+/// and the scratch `Def` must be function-dead — a mention by a later
+/// operand, a second definition, or a terminator operand would lose its
+/// definition to the removal.
+#[test]
+fn packed_dead_store_custody_and_surface_reject() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A later use still reads the scratch register.
+    let read = mutated(target, |function, environment| {
+        make_packed_dead(function, environment);
+        function.blocks[0].instructions[2].operands[0].virtual_register = PACKED_SCRATCH;
+    });
+    assert_eq!(
+        eliminate(&read, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // A second definition of the scratch register still observes it.
+    let redefined = mutated(target, |function, environment| {
+        make_packed_dead(function, environment);
+        function.blocks[0].instructions[2].operands[1].virtual_register = PACKED_SCRATCH;
+    });
+    assert_eq!(
+        eliminate(&redefined, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // A terminator operand naming the scratch register is an occurrence too.
+    let terminal = mutated(target, |function, environment| {
+        make_packed_dead(function, environment);
+        let mut mention = function.blocks[0].instructions[0].operands[0];
+        mention.virtual_register = PACKED_SCRATCH;
+        let selected_instructions::SelectedTerminator::Return { instruction, .. } =
+            &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        instruction.operands.push(mention);
+    });
+    assert_eq!(
+        eliminate(&terminal, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // The packed store on the plain store constraint is not the target's
+    // packed-store row.
+    let wrong_constraint = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::StorePacked {
+                byte_offset: 0,
+                width: PackedByteWidth::Five,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0].byte_count = 5;
+    });
+    assert_eq!(
+        eliminate(&wrong_constraint, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // An operand list missing the scratch entry is not the declared surface.
+    let dropped_operand = mutated(target, |function, environment| {
+        make_packed_dead(function, environment);
+        function.blocks[0].instructions[1].operands.remove(2);
+    });
+    assert_eq!(
+        eliminate(&dropped_operand, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // A roster row that does not name the packed store's encoded range is
+    // not the write's semantic identity.
+    let mismatched_row = mutated(target, |function, environment| {
+        make_packed_dead(function, environment);
+        function.memory_accesses[0].byte_count = 8;
+    });
+    assert_eq!(
+        eliminate(&mismatched_row, &environment).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+    // A packed store with no roster row has nothing to prove.
+    let rowless = mutated(target, |function, environment| {
+        make_packed_dead(function, environment);
+        function.memory_accesses.remove(0);
+    });
+    assert_eq!(
+        eliminate(&rowless, &environment).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedInstruction
+    );
+    // A packed dead range wider than the covering store leaves bytes
+    // observable past the killer's end.
+    let uncovered = mutated(target, |function, environment| {
+        make_packed_dead(function, environment);
+        function.blocks[0].instructions[1].kind = SelectedInstructionKind::StorePacked {
+            byte_offset: 4,
+            width: PackedByteWidth::Five,
+        };
+        function.memory_accesses[0].byte_offset = 4;
+    });
+    assert_eq!(
+        eliminate(&uncovered, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+}
+
+/// Replay of the packed elimination rejects any drift beyond the exact
+/// removal: the dead store retained, a different instruction removed, the
+/// dead write row kept, or the covering store's row dropped.
+#[test]
+fn packed_dead_store_replay_rejects_mutated_proposals() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = packed_dead(target);
+    let result = eliminate(&source, &environment).unwrap();
+    for mutation in 0..4 {
+        let mut proposed = result.transformed().clone();
+        let function = &mut proposed.functions[0];
+        match mutation {
+            // The dead packed store must be gone, not retained.
+            0 => {
+                function.blocks[0].instructions.insert(
+                    1,
+                    source.transformed().functions[0].blocks[0].instructions[1].clone(),
+                );
+            }
+            // A different instruction must not disappear instead.
+            1 => {
+                function.blocks[0].instructions.remove(1);
+            }
+            // Kept the dead write row instead of dropping it.
+            2 => {
+                function.memory_accesses.push(SelectedMemoryAccess {
+                    byte_count: 5,
+                    ..access(STORE, 1, place(), 0, SelectedMemoryAccessRole::WritePlace)
+                });
+            }
+            // Dropped the covering store's row as well.
+            3 => {
+                function.memory_accesses.clear();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), proposed)
+                .is_err(),
+            "mutation {mutation}"
         );
     }
 }
