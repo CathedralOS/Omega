@@ -23,6 +23,7 @@ mod write_frame_case_results;
 mod write_frame_computed_indexes;
 mod write_frame_computed_reborrows;
 mod write_frame_computed_receivers;
+mod write_frame_conditional_results;
 mod write_frame_contextual_cases;
 mod write_frame_cycles;
 mod write_frame_indexed_calls;

@@ -143,6 +143,28 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
         if !reference.is_valid() {
             return None;
         }
+        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+            // Conditional result arms route through the same declared
+            // boundary type: each arm resolves its own leaves, converging
+            // arms dedup to one origin downstream, and divergent arms keep
+            // the exact finite union. An arm that cannot resolve keeps the
+            // whole route opaque.
+            let arms = program.expression_table.match_arms(dispatch.arms);
+            if arms.is_empty() {
+                return None;
+            }
+            for arm in arms.iter().rev() {
+                pending.push((
+                    arm.value,
+                    reference,
+                    suffix,
+                    local_suffix.clone(),
+                    local_segments.clone(),
+                    local_coarse,
+                ));
+            }
+            continue;
+        }
         if !matches!(
             program.expression_table.expression(expression),
             ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)

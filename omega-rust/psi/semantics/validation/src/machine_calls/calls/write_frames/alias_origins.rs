@@ -8,7 +8,7 @@ use crate::machine_calls::calls::write_frames::local_aliases::{
     rebase_local_alias_path, stable_alias_place_origin,
 };
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, coarse_place_path, frame_place_path,
+    FramePathPrecision, FramePlaceOrigin, coarse_place_path, frame_place_path, same_place_origin,
 };
 use crate::machine_calls::calls::write_frames::reference_subjects;
 use crate::machine_calls::calls::write_frames::stored_origins::StoredLocalOrigins;
@@ -233,6 +233,33 @@ pub(crate) fn stable_alias_initializer_origin(
                 },
                 FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..receiver },
             })
+        }
+        ExpressionNode::Match(dispatch) => {
+            // A conditional binding keeps a single origin only when every
+            // producing arm resolves to the same place; divergent routes
+            // stay opaque rather than selecting one arm.
+            let mut selected = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let origin = stable_alias_initializer_origin(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    inference,
+                    arm.value,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    symbols,
+                    allow_isolated_local,
+                    stored,
+                )?;
+                match &selected {
+                    None => selected = Some(origin),
+                    Some(existing) if same_place_origin(existing, &origin) => {}
+                    Some(_) => return None,
+                }
+            }
+            selected
         }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()

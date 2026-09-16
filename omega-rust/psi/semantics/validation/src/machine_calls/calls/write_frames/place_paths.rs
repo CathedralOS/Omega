@@ -26,6 +26,15 @@ pub(super) struct FramePlaceOrigin {
     pub(super) source: FrameSourcePlace,
 }
 
+/// Two conditional arms keep a single origin only when they agree on path,
+/// precision, and structural source; a divergent arm must fail closed rather
+/// than select one side of the case analysis.
+pub(super) fn same_place_origin(first: &FramePlaceOrigin, second: &FramePlaceOrigin) -> bool {
+    first.path == second.path
+        && first.precision == second.precision
+        && first.source == second.source
+}
+
 pub(super) fn split_place_root(path: &str) -> (&str, &str) {
     let boundary = path.find(['.', '[']).unwrap_or(path.len());
     path.split_at(boundary)
