@@ -1,1 +1,1 @@
-is not a scoped integer const
+evaluated constant reference has no exact declaration selection

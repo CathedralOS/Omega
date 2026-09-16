@@ -20,7 +20,7 @@ data Main {
     holder: Holder;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.holder = Holder { label: "hello" }; // 5 bytes into [u8; 4] -- must be rejected
     self.console.exit_process(70);
 }

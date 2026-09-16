@@ -335,11 +335,14 @@ fn validate(
                 // A SPECIALIZED generic keeps its declaration symbol while
                 // MP4 substitution consumes its type parameters in place --
                 // it inherits the generic exemption (the core container
-                // surface is type-check-only; value calls stay fenced).
-                && !program
-                    .machine_specializations
-                    .iter()
-                    .any(|specialization| specialization.template == machine.symbol)
+                // surface is type-check-only; value calls stay fenced). The
+                // exemption follows the specialization either way: the first
+                // instance may reuse the template symbol, later instances are
+                // fresh clones.
+                && !program.machine_specializations.iter().any(|specialization| {
+                    specialization.template == machine.symbol
+                        || specialization.instance == machine.symbol
+                })
                 // Bodyless boundary declarations have no Omega body by
                 // design. ACCEPTED declarations mean their ensures through
                 // the trust carrier; claim-free BOUNDARY declarations merely

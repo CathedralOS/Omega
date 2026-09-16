@@ -10,7 +10,7 @@ data Main {
     k: i32 in Trapping;
     acc: i32 in Trapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr = [1, 20, 30, 40, 50];
     self.k = self.arr[0];
     self.acc = self.acc + self.arr[self.k + 1];

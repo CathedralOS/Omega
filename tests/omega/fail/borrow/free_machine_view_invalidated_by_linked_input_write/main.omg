@@ -27,7 +27,7 @@ machine pick(bag: &mut Bag) -> &mut Cell {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let cell: &mut Cell = pick(&mut self.bag);
     // `cell` aliases `self.bag.cells[2]`; this write may invalidate it.
     self.bag.cells[0] = Cell { value: 1 };

@@ -12,7 +12,7 @@ terminates by n;
     state step(&mut self, n: u64 [1..=100], acc: u64 [0..=4950]) -> u64 { self.sum(n, acc) }
     state leaf(&mut self, total: u64) -> u64 { total }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let s: u64 = self.sum(4, 0);
     transition s == 10 {
         true -> yes()

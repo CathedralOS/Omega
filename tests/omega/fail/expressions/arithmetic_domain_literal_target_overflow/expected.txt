@@ -1,1 +1,1 @@
-may overflow `u8`
+anonymous integer value `300` does not fit destination `u8`

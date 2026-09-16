@@ -1,0 +1,13 @@
+// COMPILE CANARY (promoted from fail/ when the build-time-evaluation arc
+// landed -- see pass/modules/computed_constant_initializers): const
+// initializers admit computed arithmetic expressions, not just literals.
+use omega::language::std::console;
+
+data Limits { ceiling: i32; }
+
+const Limits::CEILING: i32 = 60 + 10;
+
+data Main { console: Console; }
+machine Main::main(&mut self) reaches Console {
+    self.console.exit_process(0);
+}

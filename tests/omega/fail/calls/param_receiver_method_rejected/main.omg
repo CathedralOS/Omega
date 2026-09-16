@@ -6,6 +6,10 @@
 // The fix is the field-receiver idiom (filesystem/field_receiver_method_exit)
 // or inlining the method's expression. Deep fix = thread receiver storage
 // through dispatch (same session as contained same-type aliasing).
+// The modern boundary is earlier: Unit planning omits the param-receiver
+// callee's plan, the caller and the selected entry lose theirs, and the
+// closure check rejects with `missing a checked transitive machine plan`
+// before dispatch lowering runs.
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
 
@@ -20,7 +24,7 @@ data Main {
     res: MetadataResult;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.fd = self.raw.create("omega_param_recv.txt", 438);
     self.rc = self.raw.close(self.fd);
     self.res = self.fs.metadata_path("omega_param_recv.txt");

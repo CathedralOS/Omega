@@ -1,12 +1,13 @@
 // FAIL canary: a `dyn Trait` FIELD assigned a runtime-selected concrete impl and
-// dispatched at ONE call site is NOT YET SUPPORTED, and must be a CLEAN ERROR
-// (never a silent wrong-impl dispatch). Multi-impl dyn works by call-site
+// dispatched at ONE call site is NOT YET SUPPORTED, and must never regress into
+// a silent wrong-impl dispatch. Multi-impl dyn works by call-site
 // monomorphization by receiver TYPE (two call sites, each concrete -- see the
 // pass canary runtime_dyn_two_impl_dispatch_exit); a single call site over a
 // runtime-varying field would need a runtime descriptor tag, which is
-// unimplemented. This pins that the shape is REJECTED at compile time so it can
-// never regress into a silent miscompile. (Sound pattern today: guard on the
-// selector and call a concrete receiver per arm, i.e. two call sites.)
+// unimplemented. The checked-stage fence that rejected it was retired upstream;
+// the native route still refuses the shape at the transitive Unit-plan
+// admission wall. (Sound pattern today: guard on the selector and call a
+// concrete receiver per arm, i.e. two call sites.)
 use omega::language::std::console;
 trait Shape {
     machine code(&mut self) -> i32;
@@ -33,7 +34,7 @@ data Main {
     pick: i32;
     result: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.pick = 1;
     transition self.pick == 0 {
         true -> set_circle()

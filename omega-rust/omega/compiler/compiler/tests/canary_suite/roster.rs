@@ -82,6 +82,7 @@ fn pass_roster() -> Vec<&'static str> {
         conformance_policy_source::PASS_CANARIES,
         inline_asm::PASS_CANARIES,
         entry_and_abi::PASS_CANARIES,
+        entry_and_abi::BUILD_EVALUATED_ROOT_BINDINGS,
         recursion_slices_and_conversions::PASS_CANARIES,
         task_runtime::PASS_CANARIES,
         relational_invariants::PASS_CANARIES,

@@ -1,1 +1,1 @@
-type parameter `T [copy]` of machine `pick` was instantiated with `Heavy`, which does not satisfy `[copy]`
+generic machine `Main::pick` has a concrete specialization tuple that does not satisfy its authored type bounds

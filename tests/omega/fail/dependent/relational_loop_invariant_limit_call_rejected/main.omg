@@ -11,7 +11,7 @@ requires
 
 data Main {
     items: [u8; 8] in Utf8;
-    i: u64;
+    i: u64 in Wrapping;
     limit: u64;
     value: u8;
 }

@@ -10,7 +10,7 @@ terminates by n in 0..=100;
         false -> 0
     }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let value: u64 = self.countdown(3);
     self.console.exit_process(70);
 }

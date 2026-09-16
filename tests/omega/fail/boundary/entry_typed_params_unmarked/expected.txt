@@ -1,1 +1,1 @@
-selected test entry `Main::main` resolves to 0 checked machines
+`ProgramEntry` exposes no arrival parameters, but `Main::run` declares

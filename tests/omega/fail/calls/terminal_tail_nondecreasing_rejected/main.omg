@@ -11,7 +11,7 @@ terminates by n;
     transition n == 0 { true -> 7 }
     self.countdown(n)
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let s: u64 = self.countdown(4);
     transition s == 7 {
         true -> yes()

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    builder.application("asm-machine-control-transitive-service-required");
-    builder.freestanding = true;
-}

@@ -28,7 +28,7 @@ machine pick_either(a: &mut Bag, b: &mut Bag) -> &mut Cell {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let cell: &mut Cell = pick_either(&mut self.first, &mut self.second);
     cell.value = 7;
     self.console.exit_process(70);

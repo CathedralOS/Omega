@@ -1,6 +1,6 @@
-// FAIL: Main::run is an ordinary machine. Runtime entry selection is owned by
-// an exact target ProgramEntry binding; the temporary corpus fallback recognizes
-// only Main::main while that migration finishes.
+// FAIL: `Main::run` is bound as the target ProgramEntry while declaring typed
+// arrival parameters. A hosted program entry exposes no arrival parameters, so
+// the binding is rejected rather than silently forwarding `handle`/`table`.
 data Main { }
 machine Main::run(&self, handle: addr, table: addr) -> i32 {
     transition { _ -> (0) }

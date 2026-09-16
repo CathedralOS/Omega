@@ -9,7 +9,7 @@ data Main {
     i: u64 [0..=5];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition { _ -> read() }
     state read(&mut self) {
         let v: i32 = self.arr[self.i];
