@@ -9,11 +9,11 @@ use super::{LocalScheduleError, LocalScheduleReceipt, ValidatedLocalSchedule, ad
 use crate::ValidatedSelectedAnalysis;
 
 /// Independently consume the proposed program: admission re-derives the
-/// admitted pair from the source, the touched block must place exactly the
-/// later instruction at the earlier index and vice versa, and swapping the
-/// pair back must restore the complete source by content — every other
-/// instruction, register, roster row, call, settlement, and function
-/// included.
+/// admitted window from the source, the touched block must place exactly the
+/// later instruction at the earlier index and the earlier instruction at the
+/// later index, and swapping the pair back must restore the complete source
+/// by content — every instruction between them, every other instruction,
+/// register, roster row, call, settlement, and function included.
 pub fn validate_local_schedule(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
@@ -31,8 +31,8 @@ pub fn validate_local_schedule(
         .and_then(|function| function.blocks.get(admitted.block_index))
         .ok_or(LocalScheduleError::ReplayMismatch)?;
     if proposed_block.instructions.get(admitted.earlier_index)
-        != source_block.instructions.get(admitted.earlier_index + 1)
-        || proposed_block.instructions.get(admitted.earlier_index + 1)
+        != source_block.instructions.get(admitted.later_index)
+        || proposed_block.instructions.get(admitted.later_index)
             != source_block.instructions.get(admitted.earlier_index)
     {
         return Err(LocalScheduleError::ReplayMismatch);
@@ -40,7 +40,7 @@ pub fn validate_local_schedule(
     let mut restored = proposed.clone();
     restored.functions[function_index].blocks[admitted.block_index]
         .instructions
-        .swap(admitted.earlier_index, admitted.earlier_index + 1);
+        .swap(admitted.earlier_index, admitted.later_index);
     if restored != *source.selected_plan() {
         return Err(LocalScheduleError::ReplayMismatch);
     }
