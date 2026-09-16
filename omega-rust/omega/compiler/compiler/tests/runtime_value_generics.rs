@@ -7,7 +7,6 @@
 //! obligations, and generic-to-generic forwarding are witnessed on the
 //! published representation rather than only at check time.
 
-use terminal_interpreter::{TerminalStructuralInputs};
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use semantic_vocabulary::{MachineId, ValueId};
 use std::{
@@ -16,6 +15,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
