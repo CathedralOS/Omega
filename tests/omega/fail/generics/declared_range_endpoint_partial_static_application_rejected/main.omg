@@ -1,0 +1,11 @@
+// A static application in a named range endpoint must supply every binder.
+// `two<1>()` leaves `B` open, so the prepared program cannot derive a
+// complete specialization tuple and the endpoint rejects instead of folding.
+machine two<const A: u64, const B: u64>() -> u64 { A + B }
+
+machine rejected(value: u64[0..=two<1>()]) -> u64 { value }
+
+data Main {}
+
+machine Main::main(&mut self) {
+}

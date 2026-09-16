@@ -169,7 +169,7 @@ fn normalized_arguments_check_the_original_nested_occurrence_requester() {
         &original,
         &admission,
         outer.expression,
-        outer.machine,
+        super::EndpointCallee::plain(outer.machine),
         Some(&authority),
     )
     .expect_err("an allowed outer call cannot authorize the original nested occurrence");
@@ -185,7 +185,7 @@ fn normalized_arguments_check_the_original_nested_occurrence_requester() {
         &original,
         &admission,
         outer.expression,
-        outer.machine,
+        super::EndpointCallee::plain(outer.machine),
         Some(&authority),
     )
     .expect("the original call still resolves when its retained requester is authorized");

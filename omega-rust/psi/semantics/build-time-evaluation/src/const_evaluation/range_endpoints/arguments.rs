@@ -13,7 +13,6 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
-use symbols::SymbolHandle;
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
@@ -26,23 +25,41 @@ pub(super) fn evaluate(
     original: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     expression: ExpressionHandle,
-    machine: SymbolHandle,
+    callee: super::EndpointCallee,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Result<(Vec<BuildTimeValue>, Vec<Diagnostic>), String> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return Err("range endpoint lost its authored call".to_owned());
     };
+    // Argument expressions and their evaluation context live in the working
+    // tree, where the template (or the plain callee) exists. Parameter types
+    // come from the executable callee: a specialized instance's substituted
+    // signature exists only in the prepared tree.
     let machine = program
         .machines()
         .iter()
-        .find(|candidate| candidate.symbol == machine)
+        .find(|candidate| candidate.symbol == callee.template)
         .ok_or("range endpoint lost its selected machine")?;
     let entry = program
         .machine_states(machine)
         .first()
         .ok_or("range endpoint machine has no entry state")?;
+    let types = if callee.static_application {
+        original
+    } else {
+        program
+    };
+    let instance = types
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == callee.instance)
+        .ok_or("range endpoint lost its executable instance")?;
+    let instance_entry = types
+        .machine_states(instance)
+        .first()
+        .ok_or("range endpoint instance has no entry state")?;
     let arguments = program.expression_table.expression_handles(call.arguments);
-    let parameters = program.state_parameters(entry);
+    let parameters = types.state_parameters(instance_entry);
     if arguments.len() != parameters.len() {
         return Err(
             "range endpoint call argument count does not match its selected entry".to_owned(),
@@ -52,7 +69,7 @@ pub(super) fn evaluate(
     let mut warnings = Vec::new();
     for (argument, parameter) in arguments.iter().zip(parameters) {
         let position = super::integer_type::ScalarPosition::prepare(
-            program,
+            types,
             original,
             parameter.type_reference,
             authority,

@@ -26,6 +26,15 @@
 //! entry and receiver classification, then evaluate that exact machine symbol;
 //! rebuilding a name could select an unrelated same-spelled machine. Calls with
 //! runtime receivers or unresolved arguments remain outside this closed route.
+//! An explicit static application `identity<256>()` is admitted only when
+//! every binder is supplied by a closed const spelling: the prepared program's
+//! ordinary static specialization (its all-expression scan covers calls in
+//! type positions) rewrites the call to a concrete instance, and the endpoint
+//! then resolves that instance from the prepared tree. Its signature types
+//! live in the prepared tree, so positions read there while argument values
+//! keep the working tree and the template's context. An application that
+//! still needs inference is not pending here; a partially supplied one is
+//! pending so it can report the missing argument.
 //! Closed integer arguments share the type system's exact numeric evaluation,
 //! with argument carrier and declaration-selection checks before interpreter
 //! snapshots erase their authored types. No runtime flow bound supplies a value.
@@ -70,8 +79,13 @@ mod integer_type;
 struct PendingEndpoint {
     constrained_type: TypeReferenceHandle,
     expression: ExpressionHandle,
+    /// The resolved callee in the working tree: a plain machine, or the
+    /// generic template of an explicit static application.
     machine: symbols::SymbolHandle,
     source_span: source::SourceSpan,
+    /// The authored call carries explicit static machine arguments; the
+    /// executable callee is the prepared tree's specialized instance.
+    static_application: bool,
     /// Whether this call is the authored range bound itself, whose result
     /// must land as an integer, or an argument of an enclosing call, whose
     /// declared result may be Boolean.
@@ -112,8 +126,86 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
     Ok(pending.iter().any(|endpoint| {
-        admission.closure_needs_operator_selection(execution, endpoint.machine, &facts)
+        // An unresolvable application reports at evaluation, not here.
+        resolve_endpoint_callee(execution, endpoint).is_ok_and(|callee| {
+            admission.closure_needs_operator_selection(execution, callee.instance, &facts)
+        })
     }))
+}
+
+/// The machine the endpoint actually invokes, plus the template whose entry
+/// supplies value-evaluation context in the working tree.
+#[derive(Clone, Copy)]
+pub(super) struct EndpointCallee {
+    pub(super) instance: symbols::SymbolHandle,
+    pub(super) template: symbols::SymbolHandle,
+    pub(super) static_application: bool,
+}
+
+impl EndpointCallee {
+    #[cfg(test)]
+    pub(super) fn plain(machine: symbols::SymbolHandle) -> Self {
+        Self {
+            instance: machine,
+            template: machine,
+            static_application: false,
+        }
+    }
+}
+
+/// Resolve the executable callee in the prepared tree. A static application
+/// must have been rewritten there to its concrete instance; a call that still
+/// carries static arguments was not specialized, which after `prepare` means
+/// a binder is missing or open, so ask for the explicit argument.
+fn resolve_endpoint_callee(
+    execution: &TypedTrees,
+    endpoint: &PendingEndpoint,
+) -> Result<EndpointCallee, String> {
+    if !endpoint.static_application {
+        return Ok(EndpointCallee {
+            instance: endpoint.machine,
+            template: endpoint.machine,
+            static_application: false,
+        });
+    }
+    let ExpressionNode::Call(call) = execution.expression_table.expression(endpoint.expression)
+    else {
+        return Err("range endpoint lost its authored static application".to_owned());
+    };
+    let template = execution
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == endpoint.machine)
+        .ok_or("range endpoint lost its generic template")?;
+    if !call.machine_arguments.is_empty() {
+        return Err(format!(
+            "static application of `{}` supplies {} of {} static arguments; supply every static argument explicitly",
+            template.name,
+            call.machine_arguments.len(),
+            template.type_parameters.len(),
+        ));
+    }
+    let instance = execution
+        .machines()
+        .iter()
+        .find(|machine| {
+            execution
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == call.target_symbol)
+        })
+        .filter(|machine| machine.type_parameters.is_empty())
+        .ok_or_else(|| {
+            format!(
+                "static application of `{}` was not specialized to a concrete instance",
+                template.name
+            )
+        })?;
+    Ok(EndpointCallee {
+        instance: instance.symbol,
+        template: endpoint.machine,
+        static_application: true,
+    })
 }
 
 /// Record every still-authored endpoint call as deferred to selected
@@ -182,36 +274,46 @@ pub(crate) fn evaluate_selected_range_endpoints(
             endpoint.expression,
             selection_authority.as_deref(),
         )
-        .and_then(|()| {
+        .and_then(|()| resolve_endpoint_callee(execution, endpoint))
+        .and_then(|callee| {
             arguments::evaluate(
                 typed,
                 execution,
                 &admission,
                 endpoint.expression,
-                endpoint.machine,
+                callee,
                 selection_authority.as_deref(),
             )
+            .map(|(arguments, argument_warnings)| (callee, arguments, argument_warnings))
         })
-        .and_then(|(arguments, argument_warnings)| {
+        .and_then(|(callee, arguments, argument_warnings)| {
             let machine = execution
                 .machines()
                 .iter()
-                .find(|machine| machine.symbol == endpoint.machine)
+                .find(|machine| machine.symbol == callee.instance)
                 .ok_or_else(|| "range endpoint lost its selected machine".to_owned())?;
             let entry = execution
                 .machine_states(machine)
                 .first()
                 .ok_or("range endpoint machine has no entry state")?;
+            // A specialized instance's signature exists only in the prepared
+            // tree; a plain callee's positions read the working tree so
+            // already folded inner calls are visible.
+            let types: &TypedTrees = if callee.static_application {
+                execution
+            } else {
+                &*typed
+            };
             let position = if endpoint.range_bound {
                 integer_type::ScalarPosition::Integer(integer_type::IntegerPosition::prepare(
-                    typed,
+                    types,
                     execution,
                     entry.return_type,
                     selection_authority.as_deref(),
                 )?)
             } else {
                 integer_type::ScalarPosition::prepare(
-                    typed,
+                    types,
                     execution,
                     entry.return_type,
                     selection_authority.as_deref(),
@@ -230,14 +332,14 @@ pub(crate) fn evaluate_selected_range_endpoints(
             {
                 admission.evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
                     execution,
-                    endpoint.machine,
+                    callee.instance,
                     arguments,
                     custody,
                 )?
             } else {
                 admission.evaluate_const_evaluable_machine_symbol_for_invocation(
                     execution,
-                    endpoint.machine,
+                    callee.instance,
                     arguments,
                     custody,
                 )?
@@ -375,7 +477,8 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
                                 typed.expression_table.expression_handles(call.arguments);
                             argument_positions.extend(arguments.iter().copied());
                             work.extend(arguments.iter().rev().map(|argument| (*argument, false)));
-                            if let Some(machine) = selected_endpoint_machine(typed, expression) {
+                            if let Some((machine, _)) = selected_endpoint_machine(typed, expression)
+                            {
                                 append_signature_bounds(typed, machine, &mut work)?;
                             }
                         }
@@ -385,7 +488,9 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
                 }
                 active.pop();
                 visited.push(expression);
-                let Some(machine) = selected_endpoint_machine(typed, expression) else {
+                let Some((machine, static_application)) =
+                    selected_endpoint_machine(typed, expression)
+                else {
                     continue;
                 };
                 pending.push(PendingEndpoint {
@@ -393,6 +498,7 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
                     expression,
                     machine: machine.symbol,
                     source_span: typed.expression_table.source_span(expression),
+                    static_application,
                     range_bound: !argument_positions.contains(&expression),
                 });
             }
@@ -401,15 +507,18 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
     Ok(pending)
 }
 
+/// The endpoint's callee in the working tree and whether the call is an
+/// explicit static application. Returns `None` for calls this route never
+/// folds: runtime receivers, evidence/dispatch forms, and generic callees
+/// whose binders would need inference from ordinary arguments.
 fn selected_endpoint_machine(
     typed: &TypedTrees,
     expression: ExpressionHandle,
-) -> Option<&typed_trees::machine::Machine> {
+) -> Option<(&typed_trees::machine::Machine, bool)> {
     let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
         return None;
     };
-    if !call.machine_arguments.is_empty()
-        || !call.evidence_arguments.is_empty()
+    if !call.evidence_arguments.is_empty()
         || call.static_machine_parameter.is_valid()
         || call.static_requirement_dispatch.is_some()
         || call.quotient_operation.is_some()
@@ -417,15 +526,38 @@ fn selected_endpoint_machine(
     {
         return None;
     }
-    // Ordinary arguments do not close generic binders. Preserve unresolved
-    // applications and runtime receivers for ordinary call validation.
-    typed.machines().iter().find(|machine| {
-        machine.type_parameters.is_empty()
-            && typed
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| typed.call_has_no_runtime_receiver(call, machine, entry))
-    })
+    // Only closed const spellings are static arguments here: a literal or a
+    // const declaration. Type, machine, evidence and nested applications keep
+    // ordinary call validation.
+    if !call.machine_arguments.iter().all(|argument| {
+        argument.application.is_none()
+            && argument.evidence_projection.is_none()
+            && (argument.const_literal.is_some()
+                || typed
+                    .const_declarations()
+                    .iter()
+                    .any(|declaration| declaration.symbol == argument.symbol))
+    }) {
+        return None;
+    }
+    let machine = typed.machines().iter().find(|machine| {
+        typed
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| typed.call_has_no_runtime_receiver(call, machine, entry))
+    })?;
+    if machine.type_parameters.is_empty() {
+        return call
+            .machine_arguments
+            .is_empty()
+            .then_some((machine, false));
+    }
+    // Ordinary arguments do not close generic binders: an application with
+    // no static arguments needs inference and stays with ordinary call
+    // validation. A partially supplied one is pending so evaluation can name
+    // the missing argument.
+    (!call.machine_arguments.is_empty() && machine.conformance_bounds.is_empty())
+        .then_some((machine, true))
 }
 
 fn append_signature_bounds(

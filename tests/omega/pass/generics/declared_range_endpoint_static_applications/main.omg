@@ -1,0 +1,40 @@
+// A named range endpoint may call a generic machine whose static arguments
+// are all supplied explicitly. The prepared program's ordinary static
+// specialization already covers calls in type positions, so the endpoint
+// route resolves the concrete instance and folds it like any closed call;
+// an application that still needs inference stays rejected.
+use omega_language_std::console;
+use omega::language::core::service;
+
+machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+machine identity<const N: u64>() -> u64 { N }
+machine choose<const N: u64>(flag: bool) -> u64 {
+    transition flag {
+        true -> N
+        false -> 0
+    }
+}
+machine flag() -> bool { true }
+machine bounded<const N: u64>(value: u64[0..=N]) -> u64 { N }
+const RANGE: u64 = 256;
+
+machine explicit_application(value: u64[0..=identity<256>()]) -> u64 { upper_bound(value) }
+machine application_argument(value: u64[0..choose<256>(true) + 1]) -> u64 { upper_bound(value) }
+machine helper_argument(value: u64[0..=choose<256>(flag())]) -> u64 { upper_bound(value) }
+machine declared_argument(value: u64[0..=identity<RANGE>()]) -> u64 { upper_bound(value) }
+machine bounded_application(value: u64[0..=bounded<256>(0)]) -> u64 { upper_bound(value) }
+
+data Main { console: Service<Console> in Bound; }
+machine Main::main(&mut self) reaches Console {
+    let explicit: u64 = explicit_application(0);
+    let argument: u64 = application_argument(0);
+    let helper: u64 = helper_argument(0);
+    let declared: u64 = declared_argument(0);
+    let bounded_value: u64 = bounded_application(0);
+    transition explicit == 256 && argument == 256 && helper == 256 && declared == 256 && bounded_value == 256 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}
