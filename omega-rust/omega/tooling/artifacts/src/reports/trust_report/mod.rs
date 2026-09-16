@@ -522,16 +522,11 @@ pub enum TrustProgressPremiseSubject {
 /// inferring mechanism from the provider name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrustProviderRealization {
+    /// One evaluated, target-normalized foreign locator with its evaluation
+    /// receipt. The report renders its raw byte coordinates; no string-backed
+    /// import realization exists any more.
     Import {
         evaluated: effects::provider_plan::EvaluatedForeignImport,
-    },
-    /// Retired source `via Binding::DllImport("library", "symbol")`
-    /// realization, retained only for decoded artifacts. This remains
-    /// visibly distinct from an evaluated, target-normalized foreign
-    /// locator.
-    StringBackedImportBootstrap {
-        library: String,
-        symbol: String,
     },
     Syscall {
         number: i64,
@@ -625,9 +620,6 @@ impl TrustProviderRealization {
                         hex_bytes(symbol),
                     ),
                 }
-            }
-            Self::StringBackedImportBootstrap { library, symbol } => {
-                format!("string-backed import bootstrap `{library}` symbol `{symbol}`")
             }
             Self::Syscall { number } => format!("syscall {number}"),
             Self::CompilerIntrinsic { machine } => {
