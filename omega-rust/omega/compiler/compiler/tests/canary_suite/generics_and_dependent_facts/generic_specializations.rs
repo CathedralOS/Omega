@@ -4,6 +4,7 @@ use crate::{
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
     fail_canary, fs, interpret, pass_canary, repo_root,
 };
+use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
 #[test]
