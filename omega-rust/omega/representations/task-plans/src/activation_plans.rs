@@ -3,6 +3,9 @@
 //! validators that seal a candidate from a local stack plan or a WCSU
 //! projection.
 
+pub(crate) mod activation_plan_facts;
+pub(crate) mod diagnostic;
+
 use crate::report_fingerprints::activation_plan_report_fingerprint;
 use crate::stack_composition::WcsuStackPlanProjection;
 use crate::{

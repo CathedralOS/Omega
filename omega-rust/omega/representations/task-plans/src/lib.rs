@@ -6,18 +6,16 @@
 //! admitted evidence; this crate deliberately does not publish a generalized
 //! runtime behavior record.
 //!
-//! `activation_plans.rs` is the root: the plan and its validators.
-//! `activation_plan_facts.rs` carries what a provider publishes about a plan,
-//! `executor_selection.rs` binds an executor to a plan's preservation axes,
-//! `runtime_invocation.rs` receipts one activation, `lifecycle_ledger.rs`
-//! accounts for claims until settlement, `stack_composition.rs` projects
-//! WCSU stack plans, `identities.rs` holds every coordinate,
-//! `report_fingerprints.rs` the compact report values and `diagnostic.rs`
+//! Start at `activation_plans.rs`: the plan, its validators, its diagnostic
+//! and the facts a provider publishes about a plan.
+//! `executor_selection` binds an executor to a plan's preservation axes,
+//! `runtime_invocation` receipts one activation, `lifecycle_ledger`
+//! accounts for claims until settlement, `stack_composition` projects
+//! WCSU stack plans, `identities` holds every coordinate,
+//! `report_fingerprints` the compact report values and `diagnostic`
 //! the failure type.
 
-mod activation_plan_facts;
 mod activation_plans;
-mod diagnostic;
 mod executor_selection;
 mod identities;
 mod lifecycle_ledger;
@@ -27,15 +25,15 @@ mod stack_composition;
 #[cfg(test)]
 mod tests;
 
-pub use activation_plan_facts::{
+pub use activation_plans::activation_plan_facts::{
     SelectedTaskRuntimeProviderFact, TaskActivationPlanFact, TaskActivationPlanSet,
     TaskSpecializationCommitment, TaskStartOperation,
 };
+pub use activation_plans::diagnostic::TaskPlanDiagnostic;
 pub use activation_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing, StackPlan,
     ValidatedActivationPlan, validate_activation_plan, validate_wcsu_activation_plan,
 };
-pub use diagnostic::TaskPlanDiagnostic;
 pub use executor_selection::{
     ExecutorPreservationAxis, ExecutorPreservationEvidence, ExecutorSelectionCandidate,
     ValidatedExecutorSelection, validate_executor_selection,

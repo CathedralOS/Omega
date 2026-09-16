@@ -1785,7 +1785,7 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
         "selected concrete provider plans must remain in the Omega provider subsystem"
     );
     let omega_task_carrier =
-        root.join("omega-rust/omega/representations/task-plans/src/activation_plan_facts.rs");
+        root.join("omega-rust/omega/representations/task-plans/src/activation_plans/activation_plan_facts.rs");
     let task_source = std::fs::read_to_string(&omega_task_carrier)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_task_carrier.display()));
     assert!(
