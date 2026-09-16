@@ -4,6 +4,7 @@ use crate::flow::CanonicalPlace;
 use typed_trees::statement::StatementNode;
 
 mod atomics;
+mod borrows;
 pub(crate) mod calls;
 mod indexes;
 

@@ -302,6 +302,47 @@ fn guarded_true_and_false_routes_preserve_only_unwritten_computed_bounds() {
     }
 }
 
+/// An explicit `&`/`&mut` inside a premise's place chain addresses exactly its
+/// target's storage: `(&pair).a` reads `pair.a`, so the premise survives
+/// writes the projected place cannot observe and is retired by a write the
+/// place can — while a known-value write answers the bound from the fresh
+/// fact it installs instead of the retired premise.
+#[test]
+fn borrowed_member_premise_reads_exactly_the_projected_place() {
+    fn source(mutation: &str, boundary: &str) -> String {
+        format!(
+            "data Pair {{ a: i64; b: i64; }}
+             machine window(items: &[i32; 4], mut pair: Pair, mut unrelated: i64,
+                 replacement: i64 [0..=5]) -> u64
+             requires 0 <= (&pair).a && (&pair).a <= 4; {{
+                 {mutation}
+                 let view: &[i32] = items[0..{boundary}];
+                 view.len
+             }}"
+        )
+    }
+    for (mutation, boundary, accepted) in [
+        ("", "(&pair).a", true),
+        ("unrelated = 1;", "(&pair).a", true),
+        ("pair.b = 2;", "(&pair).a", true),
+        // The write retires the premise but installs `pair.a == 2`, which
+        // proves the same bound — evidence may discharge the range, never
+        // carry a stale premise past an overlapping write.
+        ("pair.a = 2;", "(&pair).a", true),
+        ("pair.a = replacement;", "(&pair).a", false),
+        ("pair = Pair { a: replacement, b: 2 };", "(&pair).a", false),
+        // A copy taken before the write names the frozen value, not `pair.a`'s
+        // current storage, so it keeps its bounds across the mutation.
+        (
+            "let cut: i64 = (&pair).a; pair.a = replacement;",
+            "cut",
+            true,
+        ),
+    ] {
+        check_range(&source(mutation, boundary), accepted);
+    }
+}
+
 #[test]
 fn an_opaque_call_frame_retires_computed_bounds() {
     let source = "data Borrowed { value: &mut i64 [0..=5]; }
