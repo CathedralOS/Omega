@@ -1,5 +1,6 @@
 //! Tests for filesystem call evaluation.
 
+use super::super::directory_entries::dirent_record_extent;
 use super::super::filesystem_preparation::{
     FilesystemLogicalHandleResultSuccess, FilesystemLogicalHandleRetirementSuccess,
     FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
@@ -7,9 +8,7 @@ use super::super::filesystem_preparation::{
     PreparedFilesystemLogicalHandleRetirement, PreparedI64Output, PreparedTransferCount,
     checked_filesystem_transfer_count,
 };
-use super::super::{
-    MAX_DIRECTORY_ENTRY_NAME_BYTES, MAX_DIRECTORY_SNAPSHOT_BYTES, TypedTrees, dirent_record_extent,
-};
+use super::super::{MAX_DIRECTORY_ENTRY_NAME_BYTES, MAX_DIRECTORY_SNAPSHOT_BYTES, TypedTrees};
 use crate::FilesystemObservedByteRegion;
 use crate::FilesystemObservedByteRegionKind;
 use crate::FilesystemReturnedPathCompleteness;

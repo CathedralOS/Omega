@@ -1,4 +1,28 @@
+//! The checked interpreter's evaluator.
+//!
+//! `Evaluator` (this file) owns one run: the program, its frames (`Frame` is
+//! one lexical scope), the step and depth budgets, and the virtual
+//! filesystem state. `Halt` is the non-local control-flow signal every
+//! method returns through. The evaluator's behaviour lives in its child
+//! modules, grouped by concern:
+//!
+//! - program and values: `program_lookup`, `record_views`, `type_metadata`,
+//!   `names_recasts_and_places`, `value_projections`, `array_windows`;
+//! - execution: `execution` (states and transitions),
+//!   `statements_and_calls`, `expressions_and_value_calls`,
+//!   `scalar_operations`, `casts_and_recasts`, `numeric_landing`,
+//!   `host_dispatch`, `boundary_adapter_dispatch`, `boundary_console`,
+//!   `wire_codec`;
+//! - build-machine facets: `build_log`, `build_paths`, `root_bindings`,
+//!   `output_obligations`, `product_entries`, `product_providers`,
+//!   `product_schemas`;
+//! - the filesystem: `filesystem` (the virtual provider),
+//!   `filesystem_host_operation`, `filesystem_logical_handles`,
+//!   `filesystem_preparation`, `real_filesystem` and `host_open_flags`;
+//! - shared helpers: `halts`, `directory_entries` and `scalar_numerics`.
+
 use crate::build_evaluation_sponsor::BuildEvaluationLiveFilesystemHandleLease;
+use crate::value::{Cell, CellMeter, TextByteMeter, Value};
 use crate::{
     BuildEvaluationSponsor, EvaluationUsage, FilesystemEvaluationHaltKind, FilesystemGrantAccess,
     FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemGrantRootIdentity,
@@ -8,85 +32,12 @@ use crate::{
     FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
     FilesystemOperationResult, PrivateLayoutPlacementReceipt,
 };
-
-mod filesystem_host_operation;
-use filesystem_host_operation::{FilesystemHostOperation, FilesystemHostResultKind};
-
-mod filesystem_logical_handles;
-use filesystem_logical_handles::FilesystemLogicalHandles;
-
-mod filesystem_preparation;
-use filesystem_preparation::{
-    FIND_DATA_OUTPUT_BYTES, PreparedByteOutput, PreparedFilesystemCall,
-    PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
-    PreparedFilesystemMutableObservationPlan, PreparedFilesystemPreparation, STAT_OUTPUT_BYTES,
-    synthetic_handle_fd,
-};
-
-mod build_log;
-
-mod root_bindings;
-
-/// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
-/// build.omg rung). A CHILD module so it can serve ops against the private
-/// `Evaluator` internals (the fs argument/buffer helpers) without widening
-/// their visibility outside the interpreter owner.
-pub(super) mod real_filesystem;
-
-/// Per-target open-flag BIT POSITIONS, mirroring the checked target encoders in
-/// `std/targets/<target>/filesystem_impl.omg`. The differential oracle compiles
-/// for `host()` and runs ON the host, so selecting by `cfg!(target_os)` needs no
-/// target threading. The create/open differential canaries guard this mirror.
-/// Access mode (O_WRONLY 1 / O_RDWR 2, mask 0x3) is universal.
-mod host_open_flags {
-    #[cfg(target_os = "windows")]
-    pub const O_CREAT_BIT: i32 = 8;
-    #[cfg(target_os = "windows")]
-    pub const O_EXCL_BIT: i32 = 10;
-    #[cfg(target_os = "windows")]
-    pub const O_TRUNC_BIT: i32 = 9;
-    #[cfg(target_os = "windows")]
-    pub const O_APPEND_BIT: i32 = 3;
-
-    #[cfg(target_os = "macos")]
-    pub const O_CREAT_BIT: i32 = 9;
-    #[cfg(target_os = "macos")]
-    pub const O_EXCL_BIT: i32 = 11;
-    #[cfg(target_os = "macos")]
-    pub const O_TRUNC_BIT: i32 = 10;
-    #[cfg(target_os = "macos")]
-    pub const O_APPEND_BIT: i32 = 3;
-
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-    pub const O_CREAT_BIT: i32 = 6;
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-    pub const O_EXCL_BIT: i32 = 7;
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-    pub const O_TRUNC_BIT: i32 = 9;
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-    pub const O_APPEND_BIT: i32 = 10;
-
-    pub const fn o_creat(flags: i32) -> bool {
-        (flags >> O_CREAT_BIT) & 1 != 0
-    }
-    pub const fn o_excl(flags: i32) -> bool {
-        (flags >> O_EXCL_BIT) & 1 != 0
-    }
-    pub const fn o_trunc(flags: i32) -> bool {
-        (flags >> O_TRUNC_BIT) & 1 != 0
-    }
-    pub const fn o_append(flags: i32) -> bool {
-        (flags >> O_APPEND_BIT) & 1 != 0
-    }
-}
-use crate::value::{Cell, CellMeter, TextByteMeter, Value};
 use checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
-use numerics::float_projection::FloatProjectionOperation;
 use numerics::float_semantics::{
     FloatClass as SemanticFloatClass, FloatFormat as SemanticFloatFormat, FloatMeaning,
-    FloatPolicyTrap, FloatSemantics, FloatToIntegerError, IntegerFormat as SemanticIntegerFormat,
+    FloatPolicyTrap, FloatSemantics,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
@@ -103,6 +54,74 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+// Program and values.
+mod array_windows;
+mod names_recasts_and_places;
+mod program_lookup;
+mod record_views;
+mod type_metadata;
+mod value_projections;
+
+// Execution.
+mod boundary_adapter_dispatch;
+mod boundary_console;
+mod casts_and_recasts;
+mod execution;
+mod expressions_and_value_calls;
+mod host_dispatch;
+mod numeric_landing;
+mod scalar_operations;
+mod statements_and_calls;
+mod wire_codec;
+
+// Build-machine facets.
+mod build_log;
+mod build_paths;
+mod output_obligations;
+mod product_entries;
+mod product_providers;
+mod product_schemas;
+mod root_bindings;
+
+// The filesystem.
+mod filesystem;
+mod filesystem_host_operation;
+mod filesystem_logical_handles;
+mod filesystem_preparation;
+mod host_open_flags;
+/// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
+/// build.omg rung). A CHILD module so it can serve ops against the private
+/// `Evaluator` internals (the fs argument/buffer helpers) without widening
+/// their visibility outside the interpreter owner.
+pub(super) mod real_filesystem;
+
+// Shared helpers.
+mod directory_entries;
+mod halts;
+mod scalar_numerics;
+
+use build_paths::{rooted_build_path_parts, validate_build_relative_path};
+use directory_entries::{
+    checked_directory_name_snapshot_total, checked_directory_record_snapshot_total,
+    dirent_record_chunk, pack_dirent_records, portable_directory_entry_name,
+};
+use filesystem_host_operation::{FilesystemHostOperation, FilesystemHostResultKind};
+use filesystem_logical_handles::FilesystemLogicalHandles;
+use filesystem_preparation::{
+    FIND_DATA_OUTPUT_BYTES, PreparedByteOutput, PreparedFilesystemCall,
+    PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
+    PreparedFilesystemMutableObservationPlan, PreparedFilesystemPreparation, STAT_OUTPUT_BYTES,
+    synthetic_handle_fd,
+};
+pub(crate) use halts::Halt;
+use halts::{EvalResult, filesystem_sponsor_halt, trap, unsupported};
+use scalar_numerics::{
+    apply_arithmetic_domain, big_integer_runtime_value, float_to_integer_trap_message,
+    integer_bounds, integer_primitive_byte_width, interpreter_f32_from_bits,
+    interpreter_f32_to_bits, is_unsigned_integer_primitive, primitive_bit_width,
+    primitive_is_unsigned64, project_landed_float, semantic_integer_format, wrap_to_width,
+};
+
 pub(super) const STEP_BUDGET: u64 = 10_000_000;
 
 pub(super) fn ambient_step_budget() -> u64 {
@@ -110,18 +129,6 @@ pub(super) fn ambient_step_budget() -> u64 {
         .ok()
         .and_then(|raw| raw.parse().ok())
         .unwrap_or(STEP_BUDGET)
-}
-
-fn project_landed_float(format: SemanticFloatFormat, value: f64) -> FloatMeaning {
-    if format == SemanticFloatFormat::BINARY32 {
-        FloatProjectionOperation::Meaning32
-            .project_f32(value as f32)
-            .expect("binary32 projection row accepts f32")
-    } else {
-        FloatProjectionOperation::Meaning64
-            .project_f64(value)
-            .expect("binary64 projection row accepts f64")
-    }
 }
 
 /// Fuel cap for CONST EVALUATION (comptime stage 1). The language's
@@ -158,136 +165,6 @@ const VIRTUAL_MTIME_SECS: i64 = 1_000_000_000;
 /// canonical metadata observation.
 const VIRTUAL_UID: u32 = 501;
 const VIRTUAL_GID: u32 = 20;
-
-/// A non-local control-flow signal. `Exit` halts cleanly with a code; the others abort
-/// the run and surface as `InterpretOutcome.error` (so a harness skips rather than
-/// reports a false mismatch).
-pub(super) enum Halt {
-    Exit(i32),
-    Unsupported(String),
-    Trap(String),
-    Resource(String),
-}
-
-type EvalResult<T> = Result<T, Halt>;
-
-/// Pack `(name, d_type)` entries as darwin `dirent` records, the layout native
-/// `___getdirentries64` returns (reclen u16 @16, namlen u16 @18, d_type u8
-/// @20, name @21, records 8-byte aligned) -- so a parser is identical on both
-/// engines. Shared by the virtual fs (`build_dirent_records`) and the real-fs
-/// provider (`try_real_filesystem_call`'s `read_dir`), which differ only in
-/// where the names come from.
-fn portable_directory_entry_name(name: &[u8]) -> &[u8] {
-    &name[..name.len().min(MAX_DIRECTORY_ENTRY_NAME_BYTES)]
-}
-
-fn dirent_record_extent(name_len: usize) -> EvalResult<usize> {
-    if name_len > MAX_DIRECTORY_ENTRY_NAME_BYTES {
-        return Err(Halt::Trap(format!(
-            "untruncated directory entry name reached the dirent packer ({name_len} > {MAX_DIRECTORY_ENTRY_NAME_BYTES})"
-        )));
-    }
-    let unaligned = 25usize.checked_add(name_len).ok_or_else(|| {
-        Halt::Resource("directory entry record extent overflowed usize".to_owned())
-    })?;
-    let reclen = unaligned
-        .checked_add(7)
-        .map(|extent| extent / 8 * 8)
-        .ok_or_else(|| {
-            Halt::Resource("directory entry record alignment overflowed usize".to_owned())
-        })?;
-    debug_assert!(reclen <= u16::MAX as usize);
-    Ok(reclen)
-}
-
-fn checked_directory_name_snapshot_total(current: usize, name_len: usize) -> EvalResult<usize> {
-    if name_len > MAX_DIRECTORY_ENTRY_NAME_BYTES {
-        return Err(Halt::Trap(format!(
-            "untruncated directory entry name reached snapshot accounting ({name_len} > {MAX_DIRECTORY_ENTRY_NAME_BYTES})"
-        )));
-    }
-    let total = current.checked_add(name_len).ok_or_else(|| {
-        Halt::Resource("directory enumeration retained-name extent overflowed usize".to_owned())
-    })?;
-    if total > MAX_DIRECTORY_SNAPSHOT_BYTES {
-        return Err(Halt::Resource(format!(
-            "directory enumeration retained names exceeded their {MAX_DIRECTORY_SNAPSHOT_BYTES}-byte logical payload ceiling"
-        )));
-    }
-    Ok(total)
-}
-
-fn checked_directory_record_snapshot_total(current: usize, name_len: usize) -> EvalResult<usize> {
-    let reclen = dirent_record_extent(name_len)?;
-    let total = current.checked_add(reclen).ok_or_else(|| {
-        Halt::Resource("directory enumeration packed-record extent overflowed usize".to_owned())
-    })?;
-    if total > MAX_DIRECTORY_SNAPSHOT_BYTES {
-        return Err(Halt::Resource(format!(
-            "directory enumeration packed records exceeded their {MAX_DIRECTORY_SNAPSHOT_BYTES}-byte logical payload ceiling"
-        )));
-    }
-    Ok(total)
-}
-
-fn pack_dirent_records(entries: &[(Vec<u8>, u8)]) -> EvalResult<Vec<u8>> {
-    let total = entries.iter().try_fold(0usize, |total, (name, _)| {
-        checked_directory_record_snapshot_total(total, portable_directory_entry_name(name).len())
-    })?;
-    let mut buffer = Vec::with_capacity(total);
-    for (name, d_type) in entries {
-        let name = portable_directory_entry_name(name);
-        let namlen = name.len();
-        let reclen = dirent_record_extent(namlen)?;
-        let start = buffer.len();
-        buffer.resize(start + reclen, 0);
-        buffer[start + 16..start + 18].copy_from_slice(&(reclen as u16).to_le_bytes());
-        buffer[start + 18..start + 20].copy_from_slice(&(namlen as u16).to_le_bytes());
-        buffer[start + 20] = *d_type;
-        buffer[start + 21..start + 21 + namlen].copy_from_slice(name);
-    }
-    debug_assert_eq!(buffer.len(), total);
-    Ok(buffer)
-}
-
-/// Select the next complete-record window from a packed Darwin dirent stream.
-/// `getdirentries64` never splits a record across caller buffers, so the
-/// interpreter advances its synthetic byte cursor only through the last record
-/// that fits in `count` bytes. The std wrapper uses a 512-byte buffer, larger
-/// than the maximum packed record produced above.
-fn dirent_record_chunk(records: &[u8], start: usize, count: usize) -> (&[u8], usize) {
-    if start >= records.len() || count == 0 {
-        return (&records[0..0], start);
-    }
-
-    let limit = start.saturating_add(count).min(records.len());
-    let mut end = start;
-    while end + 18 <= records.len() {
-        let reclen = u16::from_le_bytes([records[end + 16], records[end + 17]]) as usize;
-        if reclen == 0 || end + reclen > records.len() || end + reclen > limit {
-            break;
-        }
-        end += reclen;
-    }
-    (&records[start..end], end)
-}
-
-fn unsupported<T>(message: impl Into<String>) -> EvalResult<T> {
-    Err(Halt::Unsupported(message.into()))
-}
-
-fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
-    Err(Halt::Trap(message.into()))
-}
-
-fn filesystem_sponsor_halt<T>(error: crate::FilesystemSponsorError) -> EvalResult<T> {
-    let message = format!("filesystem staging sponsor rejected operation: {error}");
-    if error.is_limit_exceeded() {
-        Err(Halt::Resource(message))
-    } else {
-        Err(Halt::Trap(message))
-    }
-}
 
 #[derive(Clone)]
 enum MutableScalarRecast {
@@ -589,433 +466,6 @@ pub(crate) struct Evaluator<'program> {
     guard_depth: u32,
 }
 
-mod array_windows;
-mod boundary_console;
-mod build_paths;
-use build_paths::{rooted_build_path_parts, validate_build_relative_path};
-mod boundary_adapter_dispatch;
-mod casts_and_recasts;
-mod execution;
-mod expressions_and_value_calls;
-mod filesystem;
-mod host_dispatch;
-mod names_recasts_and_places;
-mod numeric_landing;
-mod output_obligations;
-mod product_entries;
-mod product_providers;
-mod product_schemas;
-mod program_lookup;
-mod record_views;
-mod scalar_operations;
-mod statements_and_calls;
-mod type_metadata;
-mod value_projections;
-mod wire_codec;
-
-/// The canonical Console host-boundary method names the interpreter drives directly.
-fn is_canonical_host_method(name: &str) -> bool {
-    matches!(
-        name,
-        "write"
-            | "write_line"
-            | "write_error"
-            | "write_error_line"
-            | "read_line"
-            | "read_byte"
-            | "write_byte"
-            | "exit_process"
-            | "sleep"
-            | "tick_count"
-            | "key_state"
-            | "dc_create"
-            | "get_dc"
-            | "window_create"
-            | "blit"
-            | "msg_peek"
-            | "msg_translate"
-            | "msg_dispatch"
-            | "is_window"
-            | "window_destroy"
-            | "foreground_window"
-    )
-}
-
-/// Reinterpret an i64 at an integer primitive's width, sign- or zero-extending back to i64
-/// so the value carries the same numeric meaning the target type would observe. `u8` 250
-/// stays 250; `i8` 250 wraps to -6; `u32` of a negative becomes its 32-bit unsigned value.
-/// zigzag(n) = (n << 1) ^ (n >> 63): the signed-scalar pre-step of the
-/// compact_binary v0 varint, identical to the native encoders' shift/xor.
-/// One CURRENT-era field of a wire schema, as the interpreter's encoder sees
-/// it: a directly encodable scalar/String, or a nested message's scalar-only
-/// field list (chapter 20).
-enum WireInterpField {
-    Direct(typed_trees::wire::WireFieldEncoding),
-    Nested(Vec<(String, u64, typed_trees::wire::WireScalarEncoding)>),
-    Repeated(typed_trees::wire::WireRepeatedEncoding),
-    ScalarSlice(typed_trees::wire::WireBorrowedScalarSliceEncoding),
-    /// A borrowed byte slice `&[u8]`: encodes as RAW bytes (length varint then
-    /// the bytes), reading the field's element array.
-    ByteSlice,
-}
-
-/// One CURRENT-era field of a wire schema, as the interpreter's decoder sees
-/// it. An owned `String` is encode-only, but a borrowed `&[u8]` byte slice
-/// decodes ZERO-COPY as a length-prefixed view of the buffer (`ByteSlice`).
-enum WireInterpScalarField {
-    Scalar {
-        encoding: typed_trees::wire::WireScalarEncoding,
-        range: Option<language_semantics::wire::WireScalarRange>,
-    },
-    Nested(
-        Vec<(
-            String,
-            u64,
-            typed_trees::wire::WireScalarEncoding,
-            Option<language_semantics::wire::WireScalarRange>,
-        )>,
-    ),
-    Repeated {
-        encoding: typed_trees::wire::WireRepeatedEncoding,
-        range: Option<language_semantics::wire::WireScalarRange>,
-    },
-    /// A borrowed `&[u8]` field: read a byte-length varint then that many bytes
-    /// from the buffer. Stored as an owned `Array` of byte values --
-    /// observationally identical to a zero-copy view for any read. The
-    /// `predicates` are the slice's declared byte-domain obligations,
-    /// evaluated over the UNTRUSTED wire bytes at the decode boundary.
-    ByteSlice {
-        predicates: Vec<typed_trees::byte_predicates::ByteSequencePredicate>,
-    },
-}
-
-/// The CURRENT-era (name, number, scalar encoding) list of a nested wire
-/// schema, sorted by field number -- validation has already guaranteed the
-/// scalar-only child body.
-fn wire_nested_scalar_fields(
-    program: &TypedTrees,
-    child: &typed_trees::wire::WireSchema,
-) -> Result<Vec<(String, u64, typed_trees::wire::WireScalarEncoding)>, Halt> {
-    use typed_trees::wire::{WireMember, WireScalarEncoding};
-
-    let mut children = Vec::new();
-    for member in program.wire_members(child.members) {
-        let WireMember::Field(field) = member else {
-            continue;
-        };
-        if field.relevance.is_erased() {
-            continue;
-        }
-        let scalar = program
-            .primitive_type_reference(field.type_reference)
-            .and_then(WireScalarEncoding::for_primitive)
-            .ok_or_else(|| {
-                Halt::Unsupported(format!(
-                    "data `{}` nested field `{}` is not a stage 2 scalar",
-                    child.name, field.name
-                ))
-            })?;
-        children.push((field.name.as_str().to_owned(), field.number, scalar));
-    }
-    children.sort_by_key(|(_, number, _)| *number);
-    Ok(children)
-}
-
-/// Decode-side nested fields additionally carry the destination declaration's
-/// range, because the schema primitive alone does not contain that fact.
-fn wire_nested_decode_scalar_fields(
-    program: &TypedTrees,
-    child: &typed_trees::wire::WireSchema,
-    value_type: TypeReferenceHandle,
-) -> Result<
-    Vec<(
-        String,
-        u64,
-        typed_trees::wire::WireScalarEncoding,
-        Option<language_semantics::wire::WireScalarRange>,
-    )>,
-    Halt,
-> {
-    use typed_trees::wire::{WireMember, WireScalarEncoding};
-
-    let mut children = Vec::new();
-    for member in program.wire_members(child.members) {
-        let WireMember::Field(field) = member else {
-            continue;
-        };
-        if field.relevance.is_erased() {
-            continue;
-        }
-        let target_type =
-            typed_trees::wire::data_field_type(program, value_type, field.name.as_str())
-                .ok_or_else(|| {
-                    Halt::Unsupported(format!(
-                        "data `{}` nested destination has no field `{}`",
-                        child.name, field.name
-                    ))
-                })?;
-        let scalar = program
-            .primitive_type_reference(field.type_reference)
-            .and_then(WireScalarEncoding::for_primitive)
-            .ok_or_else(|| {
-                Halt::Unsupported(format!(
-                    "data `{}` nested field `{}` is not a stage 2 scalar",
-                    child.name, field.name
-                ))
-            })?;
-        children.push((
-            field.name.as_str().to_owned(),
-            field.number,
-            scalar,
-            validation::scalar_representation_range(program, target_type),
-        ));
-    }
-    children.sort_by_key(|(_, number, _, _)| *number);
-    Ok(children)
-}
-
-fn wire_argument_declared_type(
-    program: &TypedTrees,
-    frame: &Frame,
-    expression: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => wire_argument_declared_type(program, frame, inner.target),
-        ExpressionNode::Member(member) => {
-            let receiver = wire_argument_declared_type(program, frame, member.receiver)?;
-            typed_trees::wire::data_field_type(program, receiver, member.member.as_str())
-        }
-        ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
-            let mut current = *frame.type_locals.borrow().get(members.first()?.as_str())?;
-            for member in members.iter().skip(1) {
-                current = typed_trees::wire::data_field_type(program, current, member.as_str())?;
-            }
-            Some(current)
-        }
-        _ => None,
-    }
-}
-
-fn wire_scalar_in_range(
-    raw: u64,
-    encoding: typed_trees::wire::WireScalarEncoding,
-    value: &Value,
-    range: language_semantics::wire::WireScalarRange,
-) -> bool {
-    if range.signed {
-        let value = if encoding.zigzag {
-            unzigzag64(raw)
-        } else {
-            let Some(value) = value.as_int() else {
-                return false;
-            };
-            value
-        };
-        value >= range.minimum && value <= range.maximum
-    } else {
-        raw >= range.minimum as u64 && raw <= range.maximum as u64
-    }
-}
-
-/// The unsigned LEB128 payload a scalar value encodes as -- the same
-/// widths/signedness the native encoders apply: load at the source width
-/// (zero- or sign-extending), zigzag signed sources at 64 bits.
-fn wire_scalar_varint_value(
-    raw: i64,
-    scalar: typed_trees::wire::WireScalarEncoding,
-) -> Result<u64, Halt> {
-    match (scalar.byte_size, scalar.zigzag) {
-        (1, _) => Ok(u64::from(raw != 0)),
-        (4, false) => Ok(u64::from(raw as u32)),
-        (8, false) => Ok(raw as u64),
-        (4, true) => Ok(zigzag64(i64::from(raw as i32))),
-        (8, true) => Ok(zigzag64(raw)),
-        _ => Err(Halt::Unsupported(format!(
-            "wire scalar of {} bytes",
-            scalar.byte_size
-        ))),
-    }
-}
-
-/// The decoded value a raw LEB128 payload produces -- the same
-/// widths/signedness the native decoders apply: truncate to the field width,
-/// un-zigzag signed targets at 64 bits first.
-fn wire_decoded_scalar_value(
-    raw: u64,
-    encoding: typed_trees::wire::WireScalarEncoding,
-) -> Result<Value, Halt> {
-    match (encoding.byte_size, encoding.zigzag) {
-        (1, _) => Ok(Value::Bool((raw & 0xff) != 0)),
-        (4, false) => Ok(Value::Int(i64::from(raw as u32))),
-        (8, false) => Ok(Value::Int(raw as i64)),
-        (4, true) => Ok(Value::Int(i64::from(unzigzag64(raw) as i32))),
-        (8, true) => Ok(Value::Int(unzigzag64(raw))),
-        _ => Err(Halt::Unsupported(format!(
-            "wire scalar of {} bytes",
-            encoding.byte_size
-        ))),
-    }
-}
-
-fn zigzag64(value: i64) -> u64 {
-    ((value << 1) ^ (value >> 63)) as u64
-}
-
-/// unzigzag(n) = (n >> 1) ^ -(n & 1): the signed-scalar post-step of the
-/// compact_binary v0 varint decode, identical to the native decoders'
-/// shift/mask/xor.
-fn unzigzag64(value: u64) -> i64 {
-    ((value >> 1) ^ (value & 1).wrapping_neg()) as i64
-}
-
-/// Inclusive [min, max] of an integer primitive as i64. `None` for widths whose
-/// range cannot be represented in i64 (u64/usize) -- their saturating/trapping
-/// behaviour is not modelled by the interpreter yet (they fall back to wrap).
-fn integer_bounds(ty: PrimitiveType) -> Option<(i64, i64)> {
-    match ty {
-        PrimitiveType::I8 => Some((i8::MIN as i64, i8::MAX as i64)),
-        PrimitiveType::U8 => Some((0, u8::MAX as i64)),
-        PrimitiveType::I16 => Some((i16::MIN as i64, i16::MAX as i64)),
-        PrimitiveType::U16 => Some((0, u16::MAX as i64)),
-        PrimitiveType::I32 => Some((i32::MIN as i64, i32::MAX as i64)),
-        PrimitiveType::U32 => Some((0, u32::MAX as i64)),
-        PrimitiveType::I64 => Some((i64::MIN, i64::MAX)),
-        _ => None,
-    }
-}
-
-fn semantic_integer_format(ty: PrimitiveType) -> Option<SemanticIntegerFormat> {
-    match ty {
-        PrimitiveType::I8 => Some(SemanticIntegerFormat::I8),
-        PrimitiveType::I16 => Some(SemanticIntegerFormat::I16),
-        PrimitiveType::I32 => Some(SemanticIntegerFormat::I32),
-        PrimitiveType::I64 => Some(SemanticIntegerFormat::I64),
-        PrimitiveType::U8 => Some(SemanticIntegerFormat::U8),
-        PrimitiveType::U16 => Some(SemanticIntegerFormat::U16),
-        PrimitiveType::U32 => Some(SemanticIntegerFormat::U32),
-        PrimitiveType::U64 | PrimitiveType::Addr => Some(SemanticIntegerFormat::U64),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => None,
-    }
-}
-
-fn is_unsigned_integer_primitive(ty: PrimitiveType) -> bool {
-    matches!(
-        ty,
-        PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-            | PrimitiveType::Addr
-    )
-}
-
-fn big_integer_runtime_value(value: &BigInt, ty: PrimitiveType) -> i64 {
-    if is_unsigned_integer_primitive(ty) {
-        value
-            .to_u64()
-            .expect("checked unsigned conversion fits its target") as i64
-    } else {
-        value
-            .to_i64()
-            .expect("checked signed conversion fits its target")
-    }
-}
-
-fn float_to_integer_trap_message(
-    target: PrimitiveType,
-    reason: FloatToIntegerError,
-    trapping: bool,
-) -> String {
-    let operation = if trapping { "Trapping" } else { "Exact" };
-    let reason = match reason {
-        FloatToIntegerError::NonFinite => "the value is not finite",
-        FloatToIntegerError::OutOfRange => "the truncated value is out of range",
-    };
-    format!("float-to-int conversion failed in {operation} domain: {reason} for {target:?}")
-}
-
-/// Preserve an f32 NaN's sign and payload while carrying interpreter floats in
-/// the existing f64-backed `Value::Float`. Finite values and infinities remain
-/// ordinary numeric f64 values; only NaNs use this reversible payload embedding.
-fn interpreter_f32_from_bits(bits: u32) -> f64 {
-    let value = f32::from_bits(bits);
-    if !value.is_nan() {
-        return value as f64;
-    }
-
-    let sign = ((bits as u64) >> 31) << 63;
-    let payload = (u64::from(bits) & 0x007f_ffff) << 29;
-    f64::from_bits(sign | 0x7ff0_0000_0000_0000 | payload)
-}
-
-fn interpreter_f32_to_bits(value: f64) -> u32 {
-    if !value.is_nan() {
-        return (value as f32).to_bits();
-    }
-
-    let bits = value.to_bits();
-    let sign = ((bits >> 63) as u32) << 31;
-    let mut payload = ((bits & 0x000f_ffff_ffff_ffff) >> 29) as u32;
-    payload &= 0x007f_ffff;
-    if payload == 0 {
-        payload = 0x0040_0000;
-    }
-    sign | 0x7f80_0000 | payload
-}
-
-/// Apply a write target's arithmetic domain (decision 17) to a raw i64 result,
-/// mirroring the native backend so the differential oracle agrees:
-/// Exact/Wrapping truncate to width; Saturating clamps to [min, max]; Trapping
-/// halts (overflow trap) when the value is out of range.
-fn apply_arithmetic_domain(
-    raw: i64,
-    ty: PrimitiveType,
-    domain: ArithmeticDomain,
-) -> EvalResult<i64> {
-    match domain {
-        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => Ok(wrap_to_width(raw, ty)),
-        ArithmeticDomain::Saturating => match integer_bounds(ty) {
-            Some((min, max)) => Ok(raw.clamp(min, max)),
-            None => Ok(wrap_to_width(raw, ty)),
-        },
-        ArithmeticDomain::Trapping => match integer_bounds(ty) {
-            Some((min, max)) if raw < min || raw > max => trap(format!(
-                "arithmetic overflow in Trapping domain: {raw} is out of range for {ty:?}"
-            )),
-            _ => Ok(wrap_to_width(raw, ty)),
-        },
-    }
-}
-
-/// The bit width a WRAPPING shift wraps at (the modular-arithmetic modulus
-/// exponent). Pointer-width types are 64-bit in both engines.
-fn primitive_bit_width(ty: PrimitiveType) -> u64 {
-    match ty {
-        PrimitiveType::I8 | PrimitiveType::U8 => 8,
-        PrimitiveType::I16 | PrimitiveType::U16 => 16,
-        PrimitiveType::I32 | PrimitiveType::U32 => 32,
-        _ => 64,
-    }
-}
-
-fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
-    match ty {
-        PrimitiveType::I8 => raw as i8 as i64,
-        PrimitiveType::U8 => raw as u8 as i64,
-        PrimitiveType::I16 => raw as i16 as i64,
-        PrimitiveType::U16 => raw as u16 as i64,
-        PrimitiveType::I32 => raw as i32 as i64,
-        PrimitiveType::U32 => raw as u32 as i64,
-        // 64-bit and pointer-width types keep the full value (unsigned reinterpretation of a
-        // u64 is still represented by the same bit pattern in i64).
-        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => raw,
-        // Non-integer primitives do not reach this path.
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => raw,
-    }
-}
-
-/// What a satisfied transition decided to do next.
 #[derive(Clone)]
 struct EvaluatedArgument {
     cell: Cell,
@@ -1045,22 +495,6 @@ enum TransitionDecision<'program> {
 
 // `Frame::locals` needs interior mutability so `let` bindings can be added while the
 // frame is shared by `&`. Wrap the map in a RefCell.
-/// Byte width of an integer primitive -- the PROMOTION rank a mixed-width
-/// binary node computes in. `None` for non-integer primitives.
-fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
-    match ty {
-        PrimitiveType::I8 | PrimitiveType::U8 => Some(1),
-        PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
-        PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
-        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => Some(8),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => None,
-    }
-}
-
-fn primitive_is_unsigned64(primitive: Option<PrimitiveType>) -> bool {
-    matches!(primitive, Some(PrimitiveType::U64 | PrimitiveType::Addr))
-}
-
 impl Frame {
     fn get(&self, name: &str) -> Option<Cell> {
         self.locals_ref().borrow().get(name).cloned()

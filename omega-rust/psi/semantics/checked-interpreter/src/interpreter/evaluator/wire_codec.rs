@@ -1,8 +1,6 @@
 use super::{
-    Cell, EvalResult, Evaluator, Frame, Halt, SymbolHandle, TableCall, Value, WireInterpField,
-    WireInterpScalarField, wire_argument_declared_type, wire_decoded_scalar_value,
-    wire_nested_decode_scalar_fields, wire_nested_scalar_fields, wire_scalar_in_range,
-    wire_scalar_varint_value,
+    Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, SymbolHandle,
+    TableCall, TypeReferenceHandle, TypedTrees, Value,
 };
 impl<'program> Evaluator<'program> {
     /// `Schema::encode(&value, &mut out, &mut written)` -- the
@@ -815,4 +813,224 @@ impl<'program> Evaluator<'program> {
 
         Ok(Some(Value::Unit))
     }
+}
+
+enum WireInterpField {
+    Direct(typed_trees::wire::WireFieldEncoding),
+    Nested(Vec<(String, u64, typed_trees::wire::WireScalarEncoding)>),
+    Repeated(typed_trees::wire::WireRepeatedEncoding),
+    ScalarSlice(typed_trees::wire::WireBorrowedScalarSliceEncoding),
+    /// A borrowed byte slice `&[u8]`: encodes as RAW bytes (length varint then
+    /// the bytes), reading the field's element array.
+    ByteSlice,
+}
+
+/// One CURRENT-era field of a wire schema, as the interpreter's decoder sees
+/// it. An owned `String` is encode-only, but a borrowed `&[u8]` byte slice
+/// decodes ZERO-COPY as a length-prefixed view of the buffer (`ByteSlice`).
+enum WireInterpScalarField {
+    Scalar {
+        encoding: typed_trees::wire::WireScalarEncoding,
+        range: Option<language_semantics::wire::WireScalarRange>,
+    },
+    Nested(
+        Vec<(
+            String,
+            u64,
+            typed_trees::wire::WireScalarEncoding,
+            Option<language_semantics::wire::WireScalarRange>,
+        )>,
+    ),
+    Repeated {
+        encoding: typed_trees::wire::WireRepeatedEncoding,
+        range: Option<language_semantics::wire::WireScalarRange>,
+    },
+    /// A borrowed `&[u8]` field: read a byte-length varint then that many bytes
+    /// from the buffer. Stored as an owned `Array` of byte values --
+    /// observationally identical to a zero-copy view for any read. The
+    /// `predicates` are the slice's declared byte-domain obligations,
+    /// evaluated over the UNTRUSTED wire bytes at the decode boundary.
+    ByteSlice {
+        predicates: Vec<typed_trees::byte_predicates::ByteSequencePredicate>,
+    },
+}
+
+/// The CURRENT-era (name, number, scalar encoding) list of a nested wire
+/// schema, sorted by field number -- validation has already guaranteed the
+/// scalar-only child body.
+fn wire_nested_scalar_fields(
+    program: &TypedTrees,
+    child: &typed_trees::wire::WireSchema,
+) -> Result<Vec<(String, u64, typed_trees::wire::WireScalarEncoding)>, Halt> {
+    use typed_trees::wire::{WireMember, WireScalarEncoding};
+
+    let mut children = Vec::new();
+    for member in program.wire_members(child.members) {
+        let WireMember::Field(field) = member else {
+            continue;
+        };
+        if field.relevance.is_erased() {
+            continue;
+        }
+        let scalar = program
+            .primitive_type_reference(field.type_reference)
+            .and_then(WireScalarEncoding::for_primitive)
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "data `{}` nested field `{}` is not a stage 2 scalar",
+                    child.name, field.name
+                ))
+            })?;
+        children.push((field.name.as_str().to_owned(), field.number, scalar));
+    }
+    children.sort_by_key(|(_, number, _)| *number);
+    Ok(children)
+}
+
+/// Decode-side nested fields additionally carry the destination declaration's
+/// range, because the schema primitive alone does not contain that fact.
+fn wire_nested_decode_scalar_fields(
+    program: &TypedTrees,
+    child: &typed_trees::wire::WireSchema,
+    value_type: TypeReferenceHandle,
+) -> Result<
+    Vec<(
+        String,
+        u64,
+        typed_trees::wire::WireScalarEncoding,
+        Option<language_semantics::wire::WireScalarRange>,
+    )>,
+    Halt,
+> {
+    use typed_trees::wire::{WireMember, WireScalarEncoding};
+
+    let mut children = Vec::new();
+    for member in program.wire_members(child.members) {
+        let WireMember::Field(field) = member else {
+            continue;
+        };
+        if field.relevance.is_erased() {
+            continue;
+        }
+        let target_type =
+            typed_trees::wire::data_field_type(program, value_type, field.name.as_str())
+                .ok_or_else(|| {
+                    Halt::Unsupported(format!(
+                        "data `{}` nested destination has no field `{}`",
+                        child.name, field.name
+                    ))
+                })?;
+        let scalar = program
+            .primitive_type_reference(field.type_reference)
+            .and_then(WireScalarEncoding::for_primitive)
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "data `{}` nested field `{}` is not a stage 2 scalar",
+                    child.name, field.name
+                ))
+            })?;
+        children.push((
+            field.name.as_str().to_owned(),
+            field.number,
+            scalar,
+            validation::scalar_representation_range(program, target_type),
+        ));
+    }
+    children.sort_by_key(|(_, number, _, _)| *number);
+    Ok(children)
+}
+
+fn wire_argument_declared_type(
+    program: &TypedTrees,
+    frame: &Frame,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => wire_argument_declared_type(program, frame, inner.target),
+        ExpressionNode::Member(member) => {
+            let receiver = wire_argument_declared_type(program, frame, member.receiver)?;
+            typed_trees::wire::data_field_type(program, receiver, member.member.as_str())
+        }
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            let mut current = *frame.type_locals.borrow().get(members.first()?.as_str())?;
+            for member in members.iter().skip(1) {
+                current = typed_trees::wire::data_field_type(program, current, member.as_str())?;
+            }
+            Some(current)
+        }
+        _ => None,
+    }
+}
+
+fn wire_scalar_in_range(
+    raw: u64,
+    encoding: typed_trees::wire::WireScalarEncoding,
+    value: &Value,
+    range: language_semantics::wire::WireScalarRange,
+) -> bool {
+    if range.signed {
+        let value = if encoding.zigzag {
+            unzigzag64(raw)
+        } else {
+            let Some(value) = value.as_int() else {
+                return false;
+            };
+            value
+        };
+        value >= range.minimum && value <= range.maximum
+    } else {
+        raw >= range.minimum as u64 && raw <= range.maximum as u64
+    }
+}
+
+/// The unsigned LEB128 payload a scalar value encodes as -- the same
+/// widths/signedness the native encoders apply: load at the source width
+/// (zero- or sign-extending), zigzag signed sources at 64 bits.
+fn wire_scalar_varint_value(
+    raw: i64,
+    scalar: typed_trees::wire::WireScalarEncoding,
+) -> Result<u64, Halt> {
+    match (scalar.byte_size, scalar.zigzag) {
+        (1, _) => Ok(u64::from(raw != 0)),
+        (4, false) => Ok(u64::from(raw as u32)),
+        (8, false) => Ok(raw as u64),
+        (4, true) => Ok(zigzag64(i64::from(raw as i32))),
+        (8, true) => Ok(zigzag64(raw)),
+        _ => Err(Halt::Unsupported(format!(
+            "wire scalar of {} bytes",
+            scalar.byte_size
+        ))),
+    }
+}
+
+/// The decoded value a raw LEB128 payload produces -- the same
+/// widths/signedness the native decoders apply: truncate to the field width,
+/// un-zigzag signed targets at 64 bits first.
+fn wire_decoded_scalar_value(
+    raw: u64,
+    encoding: typed_trees::wire::WireScalarEncoding,
+) -> Result<Value, Halt> {
+    match (encoding.byte_size, encoding.zigzag) {
+        (1, _) => Ok(Value::Bool((raw & 0xff) != 0)),
+        (4, false) => Ok(Value::Int(i64::from(raw as u32))),
+        (8, false) => Ok(Value::Int(raw as i64)),
+        (4, true) => Ok(Value::Int(i64::from(unzigzag64(raw) as i32))),
+        (8, true) => Ok(Value::Int(unzigzag64(raw))),
+        _ => Err(Halt::Unsupported(format!(
+            "wire scalar of {} bytes",
+            encoding.byte_size
+        ))),
+    }
+}
+
+fn zigzag64(value: i64) -> u64 {
+    ((value << 1) ^ (value >> 63)) as u64
+}
+
+/// unzigzag(n) = (n >> 1) ^ -(n & 1): the signed-scalar post-step of the
+/// compact_binary v0 varint decode, identical to the native decoders'
+/// shift/mask/xor.
+fn unzigzag64(value: u64) -> i64 {
+    ((value >> 1) ^ (value & 1).wrapping_neg()) as i64
 }
