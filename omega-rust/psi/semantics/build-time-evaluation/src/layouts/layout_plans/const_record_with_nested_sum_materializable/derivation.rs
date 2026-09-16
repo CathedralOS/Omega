@@ -7,10 +7,12 @@ use super::{
     DerivedNestedRecordSumsMaterialization, DerivedRecursiveNestedSumsMaterialization,
     EncodedOuterField, MaterializationDiagnostic, NestedPathsView, SumReachability, TypedTrees,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
+    ValidatedConstRecordSumFieldMaterialization,
     ValidatedConstRecursiveNestedSumOccurrenceMaterialization, encode_typed_owned_value,
     exact_named_data, exact_struct_fields, field_occurrence_matches,
     materialize_aggregate_layout_into, normalized_schema_report_fingerprint, record_sum_profile,
     recursive, reflected_field_layout, reject_sum_array_type, unique_data_by_name,
+    validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums, validate_outer_layout,
     validate_outer_record_owner, validate_value, value_kind,
 };
@@ -59,6 +61,13 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
                 .to_owned(),
         )
     })?;
+    let mut direct_sums = Vec::new();
+    direct_sums.try_reserve_exact(members.len()).map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable plural recursive direct-sum set exceeds compiler resources"
+                .to_owned(),
+        )
+    })?;
     for member in members {
         let DataMember::Field(field) = member else {
             unreachable!("outer record shape was validated above")
@@ -82,11 +91,11 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
             continue;
         };
         match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
+            // A direct sum field coexists with the level's deeper record
+            // paths: it takes the same per-field custody the leaf level
+            // retains through `child_sum_layouts`.
             DataShapeKind::Enum => {
-                return Err(MaterializationDiagnostic(format!(
-                    "ConstMaterializable plural recursive path does not admit direct outer sum field `{}`",
-                    field.name
-                )));
+                direct_sums.push((field, named));
             }
             DataShapeKind::Mixed => {
                 return Err(MaterializationDiagnostic(format!(
@@ -113,7 +122,51 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
             candidates.len()
         )));
     }
-    let mut total_leaf_occurrences = 0usize;
+    if path_layout.child_sum_layouts.len() != direct_sums.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable plural recursive report contains {} direct-sum row(s), expected the complete authored-order set of {}",
+            path_layout.child_sum_layouts.len(),
+            direct_sums.len()
+        )));
+    }
+    let mut nested_sums = Vec::new();
+    nested_sums
+        .try_reserve_exact(direct_sums.len())
+        .map_err(|_| {
+            MaterializationDiagnostic(
+            "ConstMaterializable plural recursive direct-sum custody exceeds compiler resources"
+                .to_owned(),
+        )
+        })?;
+    for ((field, sum_data), row) in direct_sums.iter().zip(&path_layout.child_sum_layouts) {
+        if !field_occurrence_matches(
+            &row.field,
+            row.member_identity,
+            field.name.as_str(),
+            field.identity,
+        ) {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable plural recursive direct-sum row for `{}` is missing, duplicated, or out of authored field order",
+                field.name
+            )));
+        }
+        let sum_value = supplied
+            .get(field.name.as_str())
+            .expect("complete outer value checked above");
+        let nested_sum = validate_const_materializable_conventional_sum(
+            typed,
+            sum_data.name.as_str(),
+            &row.layout,
+            sum_value,
+            byte_order,
+        )?;
+        nested_sums.push(ValidatedConstRecordSumFieldMaterialization {
+            field: field.name.to_string(),
+            field_identity: field.identity,
+            nested_sum,
+        });
+    }
+    let mut total_leaf_occurrences = path_layout.child_sum_layouts.len();
     for path in &path_layout.paths {
         total_leaf_occurrences = total_leaf_occurrences
             .checked_add(path.inner.leaf_occurrence_count().ok_or_else(|| {
@@ -244,6 +297,24 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
             });
             continue;
         }
+        if let Some(nested_row) = nested_sums.iter().find(|row| {
+            field_occurrence_matches(
+                &row.field,
+                row.field_identity,
+                field.name.as_str(),
+                field.identity,
+            )
+        }) {
+            encoded_fields.push(EncodedOuterField {
+                name: field.name.to_string(),
+                identity: field.identity,
+                size: nested_row.nested_sum.layout().size,
+                align: nested_row.nested_sum.layout().align,
+                repeated: None,
+                bytes: nested_row.nested_sum.bytes().to_vec(),
+            });
+            continue;
+        }
         validate_value(
             typed,
             field.type_reference,
@@ -353,6 +424,7 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
     Ok(DerivedRecursiveNestedSumsMaterialization {
         schema_report_fingerprint,
         occurrences,
+        nested_sums,
         bytes,
     })
 }

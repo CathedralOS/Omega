@@ -1,5 +1,7 @@
 //! Value-sensitive materialization of record fields containing records with
-//! direct conventional pure-sum fields.
+//! direct conventional pure-sum fields. A recursive record level may also
+//! hold its own direct sum fields beside its deeper record paths; both
+//! child kinds retain independent custody under the same bounded traversal.
 
 use layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder,
@@ -18,15 +20,19 @@ use super::const_materializable::{
     value_kind,
 };
 use super::const_record_with_sum_materializable::{
-    EncodedOuterField, exact_named_data, field_occurrence_matches, validate_outer_layout,
-    validate_outer_record_owner,
+    EncodedOuterField, exact_named_data, field_occurrence_matches, nested_sum_fields_match,
+    validate_outer_layout, validate_outer_record_owner,
+    validate_supplied_nested_rows_against_retained,
 };
 use super::{
     BuildTimeValue, encode_typed_owned_value, exact_struct_fields,
     normalized_schema_report_fingerprint, reflected_field_layout,
+    validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums,
 };
-use crate::layouts::layout_plans::ValidatedConstRecordWithSumMaterialization;
+use crate::layouts::layout_plans::{
+    ValidatedConstRecordSumFieldMaterialization, ValidatedConstRecordWithSumMaterialization,
+};
 
 mod derivation;
 mod recursive;
@@ -70,6 +76,7 @@ impl ValidatedConstRecursiveNestedSumOccurrenceMaterialization {
 struct DerivedRecursiveNestedSumsMaterialization {
     schema_report_fingerprint: u64,
     occurrences: Vec<ValidatedConstRecursiveNestedSumOccurrenceMaterialization>,
+    nested_sums: Vec<ValidatedConstRecordSumFieldMaterialization>,
     bytes: Vec<u8>,
 }
 
@@ -84,6 +91,7 @@ pub struct ValidatedConstRecursiveNestedSumsMaterialization {
     path_layout: ConventionalRecordSumPathsLayoutReport,
     non_authoritative_outer_layout_report_fingerprint: u64,
     occurrences: Vec<ValidatedConstRecursiveNestedSumOccurrenceMaterialization>,
+    nested_sums: Vec<ValidatedConstRecordSumFieldMaterialization>,
     byte_order: ByteOrder,
     bytes: Vec<u8>,
     non_authoritative_materialization_report_fingerprint: u64,
@@ -104,6 +112,12 @@ impl ValidatedConstRecursiveNestedSumsMaterialization {
 
     pub fn occurrences(&self) -> &[ValidatedConstRecursiveNestedSumOccurrenceMaterialization] {
         &self.occurrences
+    }
+
+    /// Direct conventional sum custody coexisting at this record level,
+    /// in authored field order.
+    pub fn nested_sums(&self) -> &[ValidatedConstRecordSumFieldMaterialization] {
+        &self.nested_sums
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -138,6 +152,7 @@ fn validate_recursive_nested_sums_with_reachability(
         outer_fingerprint,
         path_layout,
         &derived.occurrences,
+        &derived.nested_sums,
         byte_order,
         value,
         &derived.bytes,
@@ -149,6 +164,7 @@ fn validate_recursive_nested_sums_with_reachability(
         path_layout: path_layout.clone(),
         non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
         occurrences: derived.occurrences,
+        nested_sums: derived.nested_sums,
         byte_order,
         bytes: derived.bytes,
         non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
@@ -236,6 +252,18 @@ fn replay_recursive_nested_sums_with_reachability(
             ));
         }
     }
+    validate_supplied_nested_rows_against_retained(
+        typed,
+        &path_layout.child_sum_layouts,
+        &retained.nested_sums,
+        byte_order,
+    )?;
+    if !nested_sum_fields_match(&replayed.nested_sums, &retained.nested_sums) {
+        return Err(MaterializationDiagnostic(
+            "ConstMaterializable plural recursive direct-sum custody drifted after exact replay"
+                .to_owned(),
+        ));
+    }
     if replayed.schema_report_fingerprint != retained.non_authoritative_schema_report_fingerprint
         || replayed.bytes != retained.bytes
     {
@@ -249,6 +277,7 @@ fn replay_recursive_nested_sums_with_reachability(
         outer_fingerprint,
         path_layout,
         &replayed.occurrences,
+        &replayed.nested_sums,
         byte_order,
         value,
         &replayed.bytes,

@@ -498,6 +498,14 @@ fn project_record_sum_branches(
         .map_err(|_| {
             Diagnostic::error(format!("{owner} path report exceeds compiler resources"))
         })?;
+    let mut child_sum_layouts = Vec::new();
+    child_sum_layouts
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| {
+            Diagnostic::error(format!(
+                "{owner} direct-sum report set exceeds compiler resources"
+            ))
+        })?;
     let mut total_leaf_paths = 0usize;
     for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
         if declared.symbol != laid.symbol || declared.name != laid.name {
@@ -534,65 +542,134 @@ fn project_record_sum_branches(
                     declared.name
                 ))
             })?;
-            if DataDefinition::shape_kind_from_members(program.data_members(named))
-                != DataShapeKind::Record
-            {
-                return Err(Diagnostic::error(format!(
-                    "plural recursive sum outer field `{}` does not name the required inner record",
-                    declared.name
-                )));
+            match DataDefinition::shape_kind_from_members(program.data_members(named)) {
+                // The record level's own direct sum field coexists with its
+                // deeper record paths: the row retains the same complete
+                // conventional-sum overlay the leaf-level projection emits.
+                DataShapeKind::Enum => {
+                    let TypeLayoutDescriptor::Named {
+                        symbol: laid_symbol,
+                        name: laid_name,
+                    } = &laid.type_descriptor
+                    else {
+                        return Err(Diagnostic::error(format!(
+                            "target runtime layout field `{}` is not the exact declared nested sum",
+                            declared.name
+                        )));
+                    };
+                    if laid.type_symbol != named.symbol
+                        || *laid_symbol != named.symbol
+                        || laid_name.as_str() != named.name.as_str()
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "target runtime layout field `{}` substitutes its nested sum type",
+                            declared.name
+                        )));
+                    }
+                    let child_layout = project_conventional_sum_materialization_layout(
+                        program,
+                        plan,
+                        named.symbol,
+                    )?;
+                    if laid.layout.size as u64 != child_layout.size
+                        || laid.layout.alignment as u64 != child_layout.align
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "target runtime layout field `{}` does not retain the exact conventional sum extent/alignment",
+                            declared.name
+                        )));
+                    }
+                    child_sum_layouts.push(ConventionalSumFieldLayoutReport {
+                        field: declared.name.to_string(),
+                        member_identity: declared.identity,
+                        layout: child_layout,
+                    });
+                    total_leaf_paths = total_leaf_paths.checked_add(1).ok_or_else(|| {
+                        Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+                    })?;
+                    if total_leaf_paths > SumReachability::MAX_EDGES {
+                        return Err(Diagnostic::error(
+                            "plural recursive paths exceed bounded total leaf occurrences"
+                                .to_owned(),
+                        ));
+                    }
+                }
+                DataShapeKind::Record => {
+                    let inner = project_recursive_paths(
+                        program,
+                        plan,
+                        named.symbol,
+                        reachability,
+                        depth + 1,
+                    )?;
+                    let TypeLayoutDescriptor::Named {
+                        symbol: laid_symbol,
+                        name: laid_name,
+                    } = &laid.type_descriptor
+                    else {
+                        return Err(Diagnostic::error(format!(
+                            "target runtime layout field `{}` is not the exact declared inner record",
+                            declared.name
+                        )));
+                    };
+                    if laid.type_symbol != named.symbol
+                        || *laid_symbol != named.symbol
+                        || laid_name.as_str() != named.name.as_str()
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "target runtime layout field `{}` substitutes its inner record type",
+                            declared.name
+                        )));
+                    }
+                    if usize_to_u64(laid.layout.size, "recursive inner-record extent")?
+                        != inner
+                            .outer_layout()
+                            .size
+                            .expect("recursive inner projection has fixed extent")
+                        || usize_to_u64(laid.layout.alignment, "recursive inner-record alignment")?
+                            != inner.outer_layout().align
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "target runtime layout field `{}` does not retain the exact inner-record extent/alignment from child",
+                            declared.name
+                        )));
+                    }
+                    total_leaf_paths = total_leaf_paths
+                        .checked_add(inner.leaf_occurrence_count().ok_or_else(|| {
+                            Diagnostic::error(
+                                "plural recursive leaf-path count overflows".to_owned(),
+                            )
+                        })?)
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "plural recursive leaf-path count overflows".to_owned(),
+                            )
+                        })?;
+                    if total_leaf_paths > SumReachability::MAX_EDGES {
+                        return Err(Diagnostic::error(
+                            "plural recursive paths exceed bounded total leaf occurrences"
+                                .to_owned(),
+                        ));
+                    }
+                    paths.push(layout_plans::ConventionalRecordSumOccurrenceLayoutReport {
+                        outer_field: declared.name.to_string(),
+                        outer_member_identity: declared.identity,
+                        inner,
+                    });
+                }
+                DataShapeKind::Mixed => {
+                    return Err(Diagnostic::error(format!(
+                        "plural recursive sum outer field `{}` uses a mixed common-field/case shape",
+                        declared.name
+                    )));
+                }
+                DataShapeKind::Empty => {
+                    return Err(Diagnostic::error(format!(
+                        "plural recursive sum outer field `{}` does not name the required inner record",
+                        declared.name
+                    )));
+                }
             }
-            let inner =
-                project_recursive_paths(program, plan, named.symbol, reachability, depth + 1)?;
-            let TypeLayoutDescriptor::Named {
-                symbol: laid_symbol,
-                name: laid_name,
-            } = &laid.type_descriptor
-            else {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` is not the exact declared inner record",
-                    declared.name
-                )));
-            };
-            if laid.type_symbol != named.symbol
-                || *laid_symbol != named.symbol
-                || laid_name.as_str() != named.name.as_str()
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` substitutes its inner record type",
-                    declared.name
-                )));
-            }
-            if usize_to_u64(laid.layout.size, "recursive inner-record extent")?
-                != inner
-                    .outer_layout()
-                    .size
-                    .expect("recursive inner projection has fixed extent")
-                || usize_to_u64(laid.layout.alignment, "recursive inner-record alignment")?
-                    != inner.outer_layout().align
-            {
-                return Err(Diagnostic::error(format!(
-                    "target runtime layout field `{}` does not retain the exact inner-record extent/alignment from child",
-                    declared.name
-                )));
-            }
-            total_leaf_paths = total_leaf_paths
-                .checked_add(inner.leaf_occurrence_count().ok_or_else(|| {
-                    Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
-                })?)
-                .ok_or_else(|| {
-                    Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
-                })?;
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
-                ));
-            }
-            paths.push(layout_plans::ConventionalRecordSumOccurrenceLayoutReport {
-                outer_field: declared.name.to_string(),
-                outer_member_identity: declared.identity,
-                inner,
-            });
         }
 
         let offset = usize_to_u64(laid.offset, "plural recursive outer field offset")?;
@@ -626,6 +703,7 @@ fn project_record_sum_branches(
             )?,
         },
         paths,
+        child_sum_layouts,
     })
 }
 
