@@ -48,7 +48,7 @@ const SOURCE: &str = r#"
     boundary trait Sink { machine record(flag: bool); }
     data Helper {}
     machine Helper::consume(flag: bool, metrics: Metrics)
-    requires flag
+    reaches Sink requires flag
     { Sink::record(flag); }
     data Main {}
     machine Main::main(metrics: Metrics, flag: bool)
@@ -281,7 +281,7 @@ fn nested_disjunction_requirements_preserve_reordered_actuals() {
         boundary trait Sink { machine record(flag: bool); }
         data Helper {}
         machine Helper::consume(right: bool, metrics: Metrics, left: bool, gate: bool)
-        requires gate && (left || right)
+        reaches Sink requires gate && (left || right)
         { Sink::record(gate); }
         data Main {}
         machine Main::main(left: bool, metrics: Metrics, right: bool, gate: bool)

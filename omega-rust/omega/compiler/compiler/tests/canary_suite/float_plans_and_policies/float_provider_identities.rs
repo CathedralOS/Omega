@@ -1,3 +1,5 @@
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
+use checked_interpreter::{InterpretOptions};
 use super::fixture_roster;
 use super::{
     optional_intrinsic_diagnostic_label, retained_float_differential_result_identity,

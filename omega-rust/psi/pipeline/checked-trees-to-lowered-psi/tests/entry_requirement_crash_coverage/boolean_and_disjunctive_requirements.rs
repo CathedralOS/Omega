@@ -13,7 +13,7 @@ fn compound_boolean_equality_entry_requirement_covers_unconditional_unit_call() 
         crashes Trap
         { crash Trap; }
         machine forward(a: bool, b: bool, c: bool, d: bool)
-        requires (a && b) == (c || d)
+        reaches Sink requires (a && b) == (c || d)
         crashes Trap (a && b) == (c || d)
         { Sink::record(trigger()); }
         machine Main::value()
@@ -33,7 +33,7 @@ fn atomic_boolean_entry_requirement_covers_unconditional_unit_call() {
         crashes Trap
         { crash Trap; }
         machine forward(a: bool)
-        requires a
+        reaches Sink requires a
         crashes Trap a
         { Sink::record(trigger()); }
         machine Main::value()

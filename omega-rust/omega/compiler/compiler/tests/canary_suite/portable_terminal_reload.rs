@@ -1,3 +1,4 @@
+use terminal_interpreter::{TerminalStructuralInputs};
 use super::{
     ArtifactEmissionPolicy, Command, CompileRequest, CompilerOptions, Path, PathBuf,
     RequestedCompileProduct, fs, pass_canary,

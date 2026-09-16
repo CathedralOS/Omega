@@ -15,7 +15,7 @@ fn shared_record_entry_requirement_covers_unconditional_scalar_call() {
         crashes Trap
         { crash Trap; }
         machine Helper::forward(record: &Flag)
-        requires record.enabled
+        reaches Sink requires record.enabled
         crashes Trap record.enabled
         { Sink::record(trigger()); }
         machine Main::value(record: &Flag)
@@ -37,7 +37,7 @@ fn shared_self_entry_requirement_covers_unconditional_scalar_call() {
         crashes Trap
         { crash Trap; }
         machine Helper::forward(&self)
-        requires self.enabled
+        reaches Sink requires self.enabled
         crashes Trap self.enabled
         { Sink::record(trigger()); }
         machine Main::value(record: &Helper)
@@ -56,7 +56,7 @@ fn explicit_field_identities_preserve_structural_entry_hypotheses() {
              data Helper {{}}\ndata Main {{}}\n\
              boundary trait Sink {{ machine record(value: bool); }}\n\
              machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
-             machine Helper::forward(record: &Flag)\nrequires record.enabled\ncrashes Trap record.enabled\n\
+             machine Helper::forward(record: &Flag) reaches Sink\nrequires record.enabled\ncrashes Trap record.enabled\n\
              {{ Sink::record(trigger()); }}\n\
              machine Main::value(record: &Flag)\nrequires record.enabled\ncrashes Trap record.enabled\n\
              {{ Helper::forward(record); }}",
@@ -77,7 +77,7 @@ fn declared_structural_entry_requirement_survives_a_body_field_write() {
         crashes Trap
         { crash Trap; }
         machine Helper::forward(record: &mut Flag)
-        requires record.enabled
+        reaches Sink requires record.enabled
         crashes Trap record.enabled
         { record.enabled = false; Sink::record(trigger()); }
         machine Main::value(record: &mut Flag)
@@ -100,7 +100,7 @@ fn structural_requires_cannot_recover_corrupted_field_identity_from_spelling() {
         crashes Trap
         { crash Trap; }
         machine Helper::forward(record: &Flag)
-        requires record.enabled
+        reaches Sink requires record.enabled
         crashes Trap record.enabled
         { Sink::record(trigger()); }
         machine Main::value(record: &Flag)
@@ -218,7 +218,7 @@ fn structural_entry_formulas_preserve_owned_shared_and_mutable_borrow_snapshots(
                  boundary trait Sink {{ machine record(value: bool); }}\n\
                  machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
                  machine Helper::forward(record: {ownership}{record_type})\n\
-                 requires {predicate}\ncrashes Trap {predicate}\n{{ Sink::record(trigger()); }}\n\
+                 reaches Sink requires {predicate}\ncrashes Trap {predicate}\n{{ Sink::record(trigger()); }}\n\
                  machine Main::value(record: {ownership}{record_type})\n\
                  requires {predicate}\ncrashes Trap {predicate}\n{{ Helper::forward(record); }}",
             );
@@ -235,7 +235,7 @@ fn structural_entry_requirement_does_not_authorize_a_different_field_or_root() {
              boundary trait Sink {{ machine record(value: bool); }}\n\
              machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
              machine Helper::forward(record: &Flag, other: &Flag)\n\
-             requires record.enabled\ncrashes Trap {route}\n{{ Sink::record(trigger()); }}\n\
+             reaches Sink requires record.enabled\ncrashes Trap {route}\n{{ Sink::record(trigger()); }}\n\
              machine Main::value(record: &Flag, other: &Flag)\n\
              requires record.enabled\ncrashes Trap\n{{ Helper::forward(record, other); }}",
         );
@@ -264,7 +264,7 @@ fn attached_boolean_entry_requirement_covers_unconditional_scalar_call() {
         crashes Trap
         { crash Trap; }
         machine Helper::forward(flag: bool)
-        requires flag
+        reaches Sink requires flag
         crashes Trap flag
         { Sink::record(trigger()); }
         machine Main::value()
@@ -288,7 +288,7 @@ fn attached_boolean_entry_formulas_keep_original_scalar_parameters() {
             "data Main {{}}\ndata Helper {{}}\n\
              boundary trait Sink {{ machine record(value: bool); }}\n\
              machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
-             machine Helper::forward(left: bool, right: bool)\nrequires {predicate}\ncrashes Trap {predicate}\n\
+             machine Helper::forward(left: bool, right: bool) reaches Sink\nrequires {predicate}\ncrashes Trap {predicate}\n\
              {{ Sink::record(trigger()); }}\n\
              machine Main::value()\ncrashes Trap\n{{ Helper::forward({arguments}); }}",
         );
@@ -306,7 +306,7 @@ fn attached_entry_requirements_cannot_substitute_another_boolean_formal() {
             "data Main {{}}\ndata Helper {{}}\n\
              boundary trait Sink {{ machine record(value: bool); }}\n\
              machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
-             machine Helper::forward(left: bool, right: bool)\nrequires {requirement}\ncrashes Trap {route}\n\
+             machine Helper::forward(left: bool, right: bool) reaches Sink\nrequires {requirement}\ncrashes Trap {route}\n\
              {{ Sink::record(trigger()); }}\n\
              machine Main::value()\ncrashes Trap\n{{ Helper::forward({arguments}); }}",
         );
@@ -335,7 +335,7 @@ fn mixed_attached_entry_requirement_uses_the_original_nonfirst_boolean() {
         crashes Trap
         { crash Trap; }
         machine Helper::forward(left: bool, record: Box, right: bool)
-        requires right
+        reaches Sink requires right
         crashes Trap right
         { Sink::record(trigger()); }
         machine Main::value(record: Box)

@@ -62,7 +62,7 @@ fn type_qualified_const_calls_execute_the_selected_instance() {
 
 #[test]
 fn structured_const_instances_execute_distinct_integer_and_boolean_fields() {
-    assert_seven("data Config { count: u8; enabled: bool; }
+    assert_seven("data Config [copy] { count: u8; enabled: bool; }
         const Values::FIRST: Config = Config { count: 2, enabled: true };
         const Values::SECOND: Config = Config { enabled: false, count: 3 };
         data Witness<const N: Config> { case Only; }
@@ -83,8 +83,8 @@ fn structured_const_instances_execute_distinct_integer_and_boolean_fields() {
 
 #[test]
 fn explicit_const_arguments_execute_scalars_arrays_records_and_cases() {
-    assert_seven("data Config { count: u8; enabled: bool; }
-        data Choice { case First(value: u8); case Second(value: u8); }
+    assert_seven("data Config [copy] { count: u8; enabled: bool; }
+        data Choice [copy] { case First(value: u8); case Second(value: u8); }
         const Values::NEGATIVE: i32 = -2;
         const Values::CONFIG: Config = Config { enabled: true, count: 3 };
         const Values::ARRAY: [u8; 2] = [2, 3];

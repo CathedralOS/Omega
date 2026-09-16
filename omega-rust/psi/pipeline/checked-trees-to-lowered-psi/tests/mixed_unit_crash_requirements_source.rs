@@ -19,7 +19,7 @@ const SOURCE: &str = r#"
     boundary trait Sink { machine record(divisor: u64, limit: u64); }
     data Helper {}
     machine Helper::consume(divisor: u64, metrics: Metrics, limit: u64)
-    requires 1u64 <= divisor
+    reaches Sink requires 1u64 <= divisor
     crashes Abort metrics.current / divisor <= limit
     { Sink::record(divisor, limit); }
     data Main {}
@@ -253,7 +253,7 @@ fn reflexive_call_requirement_cannot_prove_unbounded_argument_addition_safe() {
             boundary trait Sink {{ machine record(value: {primitive}); }}
             data Helper {{}}
             machine Helper::consume(value: {primitive}, metrics: Metrics)
-            requires value == value
+            reaches Sink requires value == value
             {{ Sink::record(value); }}
             data Main {{}}
             machine Main::main(metrics: Metrics, input: {primitive})
@@ -612,7 +612,7 @@ fn structural_divisor_keeps_whole_root_requirements_and_rejects_partial_cleanup(
         data Helper {}
         boundary trait Sink { machine record(numerator: u64, limit: u64); }
         machine Helper::consume(numerator: u64, metrics: Metrics, limit: u64)
-        requires 1u64 <= metrics.divisor
+        reaches Sink requires 1u64 <= metrics.divisor
         crashes Abort numerator / metrics.divisor <= limit
         { Sink::record(numerator, limit); }
         data Main {}
@@ -739,7 +739,7 @@ const SHIFT_SOURCE: &str = r#"
     data Helper {}
     boundary trait Sink { machine record(count: i16); }
     machine Helper::consume(count: i16, bits: Bits, limit: u8)
-    requires 0i16 <= count, count < 8i16, bits.value <= 1u8
+    reaches Sink requires 0i16 <= count, count < 8i16, bits.value <= 1u8
     crashes Abort bits.value << count == limit
     { Sink::record(count); }
     data Main {}

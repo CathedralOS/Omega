@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use crate::compile_rooted_canary_for_target;
 use super::assert_float_trapping_policy_canary_aborts;
 use super::fixture_roster;
 use crate::{

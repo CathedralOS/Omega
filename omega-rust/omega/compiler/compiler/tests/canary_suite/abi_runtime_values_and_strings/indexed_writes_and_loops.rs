@@ -1,8 +1,10 @@
 use super::application_build;
 use super::fixture_roster;
+#[cfg(not(windows))]
+use crate::copy_dir_recursive;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, Stdio, compile,
-    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, copy_dir_recursive,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
     executable_name, fs, interpret, pass_canary, repo_root, run_bounded_canary_jobs,
     sample_project,
 };

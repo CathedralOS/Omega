@@ -1,3 +1,7 @@
+#[cfg(windows)]
+use std::io::Write as _;
+#[cfg(windows)]
+use std::process::Stdio;
 use super::{
     CanaryCompileProduct, CanaryCompileSpec, Command, Path, compile,
     compile_canary_without_output_for_target,

@@ -399,8 +399,8 @@ fn review_projects_named_canonical_const_values_in_closed_contract_conformances(
         format!(
             r#"pub trait Ranked {{}}
 pub data Card {{}}
-pub data Marker {{ value: u8; }}
-pub data Alternate {{ value: u64; }}
+pub data Marker [copy] {{ value: u8; }}
+pub data Alternate [copy] {{ value: u64; }}
 pub const RANK: u64 = {rank};
 pub const MARKER: Marker = Marker {{ value: {marker} }};
 pub const OTHER: Alternate = Alternate {{ value: 0 }};

@@ -22,11 +22,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 const SOURCE: &str = r#"
     machine identity(value: u16) -> u16 { value }
     boundary trait Sink { machine record(value: u16); }
-    machine consume(value: u16) crashes Abort value == 0u16 {
+    machine consume(value: u16) reaches Sink crashes Abort value == 0u16 {
         Sink::record(value);
     }
     data Main {}
-    machine Main::main(selected: bool) crashes Abort {
+    machine Main::main(selected: bool) reaches Sink crashes Abort {
         transition selected { true -> yes() _ -> no() }
         state yes() { consume(identity(0u16)); }
         state no() { consume(identity(7u16)); }
@@ -108,7 +108,7 @@ fn runtime_source(equal: bool, transitive: bool, qualified: bool, left: u16, rig
             machine before(left: u16, right: u16);
             machine after(value: bool);
         }}
-        machine consume(left: u16, right: u16) crashes Abort {predicate} {{
+        machine consume(left: u16, right: u16) reaches Sink crashes Abort {predicate} {{
             Sink::before(left, right);
             Sink::after(maybe_crash(left, right));
         }}
@@ -116,7 +116,7 @@ fn runtime_source(equal: bool, transitive: bool, qualified: bool, left: u16, rig
             consume(right, left);
         }}
         data Main {{}}
-        machine Main::main(selected: bool) crashes Abort {{
+        machine Main::main(selected: bool) reaches Sink crashes Abort {{
             transition selected {{ true -> yes() _ -> no() }}
             state yes() {{ {selected}(identity(identity({left}u16)), identity({right}u16)); }}
             state no() {{ {selected}(identity({right}u16), identity(identity({left}u16))); }}
@@ -268,7 +268,7 @@ fn empty_attachment_receiver_keeps_both_boolean_crash_parameters_distinct() {
             boundary trait Sink {{ machine record(first: bool, second: bool); }}
             data Main {{}}
             machine Main::main(&self, first: bool, second: bool)
-            crashes Abort {name}
+            reaches Sink crashes Abort {name}
             {{ Sink::record(first, second); }}
         "#
         );
@@ -314,11 +314,11 @@ fn repeated_unit_arguments_collapse_equivalent_crash_connective_leaves() {
             r#"
             boundary trait Sink {{ machine record(left: u16, right: u16); }}
             machine consume(left: u16, right: u16)
-            crashes Abort left == 0u16 {connective} right == 0u16
+            reaches Sink crashes Abort left == 0u16 {connective} right == 0u16
             {{ Sink::record(left, right); }}
             data Main {{}}
             machine Main::main(value: u16)
-            crashes Abort value == 0u16 {connective} value == 0u16
+            reaches Sink crashes Abort value == 0u16 {connective} value == 0u16
             {{ consume(value, value); }}
             "#
         );

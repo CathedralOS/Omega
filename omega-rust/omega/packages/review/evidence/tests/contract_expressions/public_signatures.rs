@@ -187,7 +187,7 @@ fn public_signatures_encode_structured_const_values_without_transport_or_display
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"pub data UnitIndex { scale: u64; exponent: i32; }
+        r#"pub data UnitIndex [copy] { scale: u64; exponent: i32; }
 data UnitIndices {}
 const UnitIndices::Meters: UnitIndex = UnitIndex { scale: 1, exponent: 0 };
 

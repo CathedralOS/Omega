@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use crate::compile_rooted_canary_for_target;
 use super::{
     AcceptedSemanticBindingRole, CanaryCompileProduct, CanaryCompileSpec, Command,
     FilesystemServiceBinding, InterpretOptions, Path, Stdio, compile,

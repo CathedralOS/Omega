@@ -235,14 +235,14 @@ fn ordinary_source_spelling(qualified: bool, prefix: bool, trailing: bool) -> (S
         {HELPERS}
         boundary trait Sink {{ machine finish(first: u16, second: u16); }}
         data Relay {{}}
-        machine {owner}forward(first: u16, second: u16) {{
+        machine {owner}forward(first: u16, second: u16) reaches Sink {{
             Sink::finish(identity16(first), identity16(second));
         }}
-        machine {owner}relay(first: u16, second: u16) {{
+        machine {owner}relay(first: u16, second: u16) reaches Sink {{
             Sink::finish(first, second);
             {owner}forward(identity16(second), identity16(first));
         }}
-        machine {owner}other(first: u16, second: u16) {{ Sink::finish(second, first); }}
+        machine {owner}other(first: u16, second: u16) reaches Sink {{ Sink::finish(second, first); }}
         data Main {{}}
         machine Main::main({parameters}) {{
             {control}
@@ -321,7 +321,7 @@ fn internal_unit_body_establishes_affine_locals_and_discards_them_in_reverse_ord
         data Empty {{}}
         boundary trait Sink {{ machine finish(first: u16, second: u16); }}
         data Relay {{}}
-        machine Relay::cleanup(first: u16, second: u16) {{
+        machine Relay::cleanup(first: u16, second: u16) reaches Sink {{
             let one: Empty = Empty {{}};
             let two: Empty = Empty {{}};
             Sink::finish(first, second);
@@ -402,7 +402,7 @@ fn selected_unit_call_arguments_short_circuit_before_entering_the_observable_cal
             machine trap() -> bool crashes Trap {{ crash Trap; }}
             boundary trait Sink {{ machine finish(first: bool, second: bool); }}
             data Relay {{}}
-            machine Relay::consume(first: bool, second: bool) {{ Sink::finish(first, second); }}
+            machine Relay::consume(first: bool, second: bool) reaches Sink {{ Sink::finish(first, second); }}
             data Main {{}}
             machine Main::main(selected: bool) crashes Abort crashes Trap {{
                 transition selected {{ true -> yes() _ -> no() }}

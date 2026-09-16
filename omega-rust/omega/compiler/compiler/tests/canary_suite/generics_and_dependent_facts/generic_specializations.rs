@@ -1,3 +1,4 @@
+use checked_interpreter::{InterpretOptions};
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_canary_without_output,
