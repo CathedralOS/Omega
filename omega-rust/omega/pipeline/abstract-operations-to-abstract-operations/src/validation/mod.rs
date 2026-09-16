@@ -165,26 +165,77 @@ pub(crate) fn admissible_invariant_byte_read(
     .then_some((*source, *index, *length))
 }
 
-/// The storage root an admitted place observation or byte read names —
-/// whichever observation gate the node's operation shape admits through.
-/// `same_relocated_node` needs the expected root to replay the member
-/// parameter's rebind without trusting the transformed unit's spelling.
+/// A `ByteSequenceSubslice` is the structural-producing member of the byte
+/// observation family: still a verifier-approved read of an established
+/// storage root's extent, but it additionally evaluates two scalar endpoints,
+/// pairs them with the `length` a `ByteSequenceLength` on the same source
+/// defined, and establishes a fresh view root under its bounds obligation.
+/// The node must keep its own operation identity as the first provenance row,
+/// define no scalar value — its result is the structural view the operation
+/// spells — use exactly its `start`, `end`, and `length` operands in operand
+/// order, and carry no successors or ownership events. A result carrying
+/// qualifications or claims keeps evidence rows this boundary does not yet
+/// re-express, so only an unqualified view relocates. Root invariance and
+/// preheader visibility are decided by the shared [`invariant_observation_root`]
+/// resolution, operand invariance by [`invariant_subslice_admission`]'s
+/// substitution half.
+pub(crate) fn admissible_invariant_subslice(
+    node: &OptimizationNode,
+) -> Option<(PlaceId, ValueId, ValueId, ValueId)> {
+    let O::ByteSequenceSubslice {
+        psi_operation,
+        result,
+        source,
+        start,
+        end,
+        length,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.is_empty()
+        && node.uses.len() == 3
+        && node.uses[0].value == *start
+        && node.uses[1].value == *end
+        && node.uses[2].value == *length
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty())
+    .then_some((*source, *start, *end, *length))
+}
+
+/// The storage root an admitted place observation, byte read, or subslice
+/// names — whichever observation gate the node's operation shape admits
+/// through. `same_relocated_node` needs the expected root to replay the
+/// member parameter's rebind without trusting the transformed unit's
+/// spelling.
 pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<PlaceId> {
     admissible_invariant_place_read(node)
         .or_else(|| admissible_invariant_byte_read(node).map(|(source, _, _)| source))
+        .or_else(|| admissible_invariant_subslice(node).map(|(source, _, _, _)| source))
 }
 
 /// Whether `component`'s member blocks perform no place mutation or custody
-/// movement at all: no store, view or record establishment, atomic event, or
+/// movement at all: no store, record establishment, atomic event, or
 /// ownership event inside a member, no call that could reach a caller place
 /// through a mutating structural argument or a transferred claim, and no
-/// affine discard on any component-adjacent edge. When this holds, every
-/// member place observation is loop-invariant — no traversal can change what
-/// it observes — so an admitted read relocates without a per-root write
-/// analysis. That whole-component bound is deliberately conservative: the
-/// first non-scalar slice refuses every place read in a component containing
-/// any place-writing node rather than resolving member structural parameters
-/// to decide which roots a store could reach.
+/// affine discard on any component-adjacent edge. A `ByteSequenceSubslice` is
+/// the one establishment this bound tolerates: it reads its source root's
+/// extent without mutating the root and its result is a fresh view root —
+/// [`invariant_member_place_parameters`] already refuses member-produced
+/// roots as representatives, so the fresh view can never anchor a rebind and
+/// no member observation of an existing root changes across traversals. When
+/// this holds, every member place observation is loop-invariant — no
+/// traversal can change what it observes — so an admitted read relocates
+/// without a per-root write analysis. That whole-component bound is
+/// deliberately conservative: the first non-scalar slice refuses every place
+/// read in a component containing any place-writing node rather than
+/// resolving member structural parameters to decide which roots a store
+/// could reach.
 pub(crate) fn component_preserves_place_observations(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -223,14 +274,17 @@ pub(crate) fn component_preserves_place_observations(
 
 /// The operation whitelist [`component_preserves_place_observations`] applies
 /// to every member node. Pure scalar work and scalar constants name no place;
-/// read-only place observations cannot change what they observe; control
+/// read-only place observations cannot change what they observe; a byte
+/// subslice reads its source root's extent and establishes only a fresh view
+/// root — no existing place mutates, and a fresh member-produced root can
+/// never anchor another parameter's invariant representative; control
 /// nodes carry their custody on their successor edges, which the edge scan
 /// checks; a port write touches a service port rather than a place; a plain
 /// scalar `Call` has no place or claim surface at all; and a unit or scalar
 /// call that moves no claims and passes only shared-borrow structural
 /// arguments cannot mutate any place it could observe. Every other variant —
-/// stores, establishments, dynamic-dispatch and structural calls, boundary
-/// calls, atomic events, descriptor stores — fails closed.
+/// stores, record and local establishments, dynamic-dispatch and structural
+/// calls, boundary calls, atomic events, descriptor stores — fails closed.
 fn node_preserves_place_observations(operation: &O) -> bool {
     match operation {
         O::IntegerConstant { .. }
@@ -271,6 +325,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::BooleanStructuralField { .. }
@@ -460,33 +515,85 @@ pub(crate) fn invariant_byte_read_admission(
     let root = invariant_observation_root(function, component, source)?;
     let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
     let rebound_length = substitution.get(&length).copied().unwrap_or(length);
+    byte_length_operand_measures_root(function, component, root, rebound_length)
+        .then_some((root, substitution))
+}
+
+/// The complete `ByteSequenceSubslice` admission shared by the proposal and
+/// the relocation freeze replay: `node` must carry the source-owned subslice
+/// shape ([`admissible_invariant_subslice`]), its storage root must resolve
+/// to a preheader-visible root through the shared observation-root admission
+/// ([`invariant_observation_root`]), and each scalar operand — `start`,
+/// `end`, and `length` — must satisfy the same use-site invariance rule an
+/// admitted scalar computation obeys: defined outside the component, an
+/// invariant member parameter rebound to its agreed representative, or the
+/// preserved result of a node earlier in the same relocation run.
+///
+/// The `length` operand carries the same producer coupling a byte read obeys:
+/// byte-view validation requires it to be defined by a `ByteSequenceLength`
+/// measuring the very root the subslice observes, so the moved operation
+/// still validates against its bounds obligation. The structural result —
+/// the fresh view place with its type, multiplicity, and qualifications —
+/// and the bounds obligation are not substitutable positions: the relocation
+/// preserves them byte-exact rather than re-spelling them.
+///
+/// Returns the root the relocated subslice rebinds to plus the operand
+/// substitution its member-parameter uses need.
+pub(crate) fn invariant_subslice_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+) -> Option<(PlaceId, BTreeMap<ValueId, ValueId>)> {
+    let (source, _, _, length) = admissible_invariant_subslice(node)?;
+    let root = invariant_observation_root(function, component, source)?;
+    let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
+    let rebound_length = substitution.get(&length).copied().unwrap_or(length);
+    byte_length_operand_measures_root(function, component, root, rebound_length)
+        .then_some((root, substitution))
+}
+
+/// Whether `rebound_length` — the substituted `length` operand an admitted
+/// byte read or subslice relocates with — is defined by a `ByteSequenceLength`
+/// measuring `root`, the rebound storage root the operation observes. A
+/// member-internal producer qualifies only when its own observation root
+/// resolves to that same root — the operand substitution keeps it bound only
+/// when it relocates in the same run; a producer outside the component must
+/// already measure the root directly.
+fn byte_length_operand_measures_root(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    root: PlaceId,
+    rebound_length: ValueId,
+) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    let producer_matches = match value_definition_sites(function).get(&rebound_length) {
-        Some(ValueDefinitionSite::Node { block, node }) => {
-            let producing = function
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == *block)
-                .and_then(|block| {
-                    usize::try_from(*node)
-                        .ok()
-                        .and_then(|node| block.nodes.get(node))
-                })?;
-            match &producing.operation {
-                O::ByteSequenceLength {
-                    source: measured, ..
-                } if members.contains(block) => {
-                    invariant_observation_root(function, component, *measured) == Some(root)
-                }
-                O::ByteSequenceLength {
-                    source: measured, ..
-                } => *measured == root,
-                _ => false,
-            }
-        }
-        _ => false,
+    let sites = value_definition_sites(function);
+    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&rebound_length) else {
+        return false;
     };
-    producer_matches.then_some((root, substitution))
+    let Some(producing) = function
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == *block)
+        .and_then(|block| {
+            usize::try_from(*node)
+                .ok()
+                .and_then(|node| block.nodes.get(node))
+        })
+    else {
+        return false;
+    };
+    match &producing.operation {
+        O::ByteSequenceLength {
+            source: measured, ..
+        } if members.contains(block) => {
+            invariant_observation_root(function, component, *measured) == Some(root)
+        }
+        O::ByteSequenceLength {
+            source: measured, ..
+        } => *measured == root,
+        _ => false,
+    }
 }
 
 /// Structural parameters of `component`'s member blocks whose root is
@@ -1003,6 +1110,16 @@ pub(crate) fn substitute_invariant_scalar_operands(
             substitute(index, substitution);
             substitute(length, substitution);
         }
+        // A relocated subslice rebinds `start`, `end`, and `length` the same
+        // way; its `source` root moves through `substitute_invariant_place_root`
+        // while its structural result place and obligation stay byte-exact.
+        O::ByteSequenceSubslice {
+            start, end, length, ..
+        } => {
+            substitute(start, substitution);
+            substitute(end, substitution);
+            substitute(length, substitution);
+        }
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,
@@ -1017,13 +1134,13 @@ pub(crate) fn substitute_invariant_scalar_operands(
     }
 }
 
-/// Rewrite the observed storage root of an admitted place observation or byte
-/// read from an invariant member parameter to its agreed representative. Only
-/// the variants [`admissible_invariant_place_read`] and
-/// [`admissible_invariant_byte_read`] admit carry a `source` root position;
-/// the rewrite fires only when the operation's current root is `parameter`,
-/// so a drifted plan cannot rebind a different place. Returns whether the
-/// root was rebound.
+/// Rewrite the observed storage root of an admitted place observation, byte
+/// read, or subslice from an invariant member parameter to its agreed
+/// representative. Only the variants [`admissible_invariant_place_read`],
+/// [`admissible_invariant_byte_read`], and [`admissible_invariant_subslice`]
+/// admit carry a `source` root position; the rewrite fires only when the
+/// operation's current root is `parameter`, so a drifted plan cannot rebind a
+/// different place. Returns whether the root was rebound.
 pub(crate) fn substitute_invariant_place_root(
     operation: &mut O,
     parameter: PlaceId,
@@ -1033,6 +1150,7 @@ pub(crate) fn substitute_invariant_place_root(
         O::PrimitiveScalarRead { source, .. }
         | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceRead { source, .. }
+        | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::BooleanStructuralField { source, .. }

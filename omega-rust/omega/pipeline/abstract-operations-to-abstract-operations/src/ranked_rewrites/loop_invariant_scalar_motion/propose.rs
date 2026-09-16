@@ -1,10 +1,12 @@
 //! Optimizer module role: proposal leaf. Component-custody-derived exact relocation candidates.
 
 use super::{
-    LoopInvariantScalarMotionCandidate, LoopInvariantScalarMotionError, LoopInvariantScalarNode,
-    LoopInvariantScalarRelocation, NodeLocation, OperationId, PsiProvenance, ValueDefinitionSite,
-    ValueId, VerifiedPsiOptimizationSession, apply, candidate_identity,
+    LoopInvariantNodeResult, LoopInvariantScalarMotionCandidate, LoopInvariantScalarMotionError,
+    LoopInvariantScalarNode, LoopInvariantScalarRelocation, NodeLocation, OperationId,
+    PsiProvenance, ValueDefinitionSite, ValueId, VerifiedPsiOptimizationSession, apply,
+    candidate_identity,
 };
+use abstract_operations::AbstractOperation;
 pub(super) fn all(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,
@@ -71,7 +73,10 @@ fn component_candidate(
 /// admissible scalar node still inside a member block — a scalar-constant
 /// leaf, an invariant place observation (byte-exact, or with its storage root
 /// rebound to the representative its member structural parameter resolves
-/// to), an invariant scalar computation, or
+/// to), a byte read or subslice (root rebound, scalar operands substituted,
+/// `length` still coupled to a `ByteSequenceLength` on the rebound root, and
+/// for a subslice the structural result preserved inside the moved
+/// operation), an invariant scalar computation, or
 /// a computation whose
 /// member-internal operands are all defined by nodes earlier in the same run —
 /// plus the number of countdown-certificate constants already occupying the
@@ -248,6 +253,34 @@ pub(super) fn component_plan(
                     }
                     root_rewrite = (root != source).then_some((source, root));
                     substitution.into_iter().collect()
+                } else if let Some((source, _, _, _)) =
+                    crate::validation::admissible_invariant_subslice(node)
+                {
+                    // A subslice keeps the byte family's whole evidence
+                    // surface: the non-speculative gate, the observation-root
+                    // resolution, the `start`/`end`/`length` substitution, and
+                    // the `length` coupling to a `ByteSequenceLength` on the
+                    // rebound root. Its structural result is not a definable
+                    // operand — the moved operation preserves the fresh view
+                    // place and the bounds obligation byte-exact.
+                    if !(guaranteed_entry && guaranteed.contains(member)) {
+                        continue;
+                    }
+                    let Some((root, substitution)) =
+                        crate::validation::invariant_subslice_admission(
+                            function,
+                            component,
+                            node,
+                            &relocating,
+                        )
+                    else {
+                        continue;
+                    };
+                    if !representable(&substitution) {
+                        continue;
+                    }
+                    root_rewrite = (root != source).then_some((source, root));
+                    substitution.into_iter().collect()
                 } else {
                     if !(guaranteed_entry && guaranteed.contains(member)) {
                         continue;
@@ -267,15 +300,32 @@ pub(super) fn component_plan(
                     }
                     substitution.into_iter().collect()
                 };
-                let [definition] = node.definitions.as_slice() else {
-                    return Err(LoopInvariantScalarMotionError::CandidateMismatch);
+                let result = match node.definitions.as_slice() {
+                    [definition] => {
+                        relocating.insert(definition.value);
+                        LoopInvariantNodeResult::Scalar {
+                            value: definition.value,
+                            scalar_type: definition.scalar_type,
+                        }
+                    }
+                    [] => match &node.operation {
+                        // Only a shape-gated subslice reaches relocation
+                        // without a scalar definition — any other zero- or
+                        // multi-definition node cannot pass an admission gate,
+                        // so reaching one here means the plan drifted.
+                        AbstractOperation::ByteSequenceSubslice { result, .. }
+                            if crate::validation::admissible_invariant_subslice(node).is_some() =>
+                        {
+                            LoopInvariantNodeResult::Structural(result.clone())
+                        }
+                        _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
+                    },
+                    _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                 };
                 admitted.insert(psi_operation);
-                relocating.insert(definition.value);
                 nodes.push(LoopInvariantScalarNode {
                     psi_operation,
-                    result: definition.value,
-                    scalar_type: definition.scalar_type,
+                    result,
                     location: NodeLocation {
                         machine,
                         block: *member,

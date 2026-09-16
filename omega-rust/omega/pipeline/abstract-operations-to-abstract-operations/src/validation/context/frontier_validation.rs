@@ -313,14 +313,18 @@ fn validate_surviving_byte_operations(
 /// Whether `actual` is `expected` modulo the substitutions an admitted
 /// relocation may perform: an observation root rebound to its member
 /// structural parameter's invariant representative, and — for
-/// `ByteSequenceRead` alone — `index`/`length` operands re-spelled as the
-/// representatives their invariant member scalar parameters resolve to. Only
-/// the three byte-observation kinds admitted for root rebinds tolerate the
+/// `ByteSequenceRead` and `ByteSequenceSubslice` — scalar operands
+/// re-spelled as the representatives their invariant member scalar
+/// parameters resolve to. Only
+/// the four byte-observation kinds admitted for root rebinds tolerate the
 /// place substitution — `ByteSequenceLength`'s whole root,
 /// `StructuralByteSequenceFieldLength`'s root with its projection path and
-/// field still byte-exact, and `ByteSequenceRead`'s root with its obligation
-/// still byte-exact — and only when the expected root resolves to the actual
-/// one. Every other kind, place, scalar, and payload stays byte-exact.
+/// field still byte-exact, `ByteSequenceRead`'s root with its obligation
+/// still byte-exact, and `ByteSequenceSubslice`'s root with its endpoints
+/// and obligation — and only when the expected root resolves to the actual
+/// one. A subslice's structural result is compared outside this matcher, so
+/// the fresh view place stays byte-exact. Every other kind, place, scalar,
+/// and payload stays byte-exact.
 fn byte_operation_kind_matches(
     expected: &terminal_psi::OperationKind,
     actual: &terminal_psi::OperationKind,
@@ -376,6 +380,28 @@ fn byte_operation_kind_matches(
             expected_obligation == actual_obligation
                 && root_matches(*expected_source, *actual_source)
                 && operand_matches(*expected_index, *actual_index)
+                && operand_matches(*expected_length, *actual_length)
+        }
+        (
+            terminal_psi::OperationKind::ByteSequenceSubslice {
+                source: expected_source,
+                start: expected_start,
+                end: expected_end,
+                length: expected_length,
+                obligation: expected_obligation,
+            },
+            terminal_psi::OperationKind::ByteSequenceSubslice {
+                source: actual_source,
+                start: actual_start,
+                end: actual_end,
+                length: actual_length,
+                obligation: actual_obligation,
+            },
+        ) => {
+            expected_obligation == actual_obligation
+                && root_matches(*expected_source, *actual_source)
+                && operand_matches(*expected_start, *actual_start)
+                && operand_matches(*expected_end, *actual_end)
                 && operand_matches(*expected_length, *actual_length)
         }
         _ => false,
