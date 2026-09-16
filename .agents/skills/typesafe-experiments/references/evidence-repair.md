@@ -86,3 +86,17 @@ not established. See [the result ledger](experiment-record.md) for subsequent
 controls. Local replay entrypoint: `build/experiments/citation-cascade/repair.py`;
 its ignored dependencies are experiments, not an installed production service.
 Reuse them when available rather than creating another orchestration framework.
+
+## Direct selection instead of a generator
+
+For a caller that already has a claim and needs one supporting source, trial a
+Choice over retrieved paragraph IDs plus `none`. Code copies the selected paragraph
+and provenance; it does not ask a second model to rewrite the claim. Unlike ranking
+alone, the question must distinguish full support from similar words, contradiction
+and extra unsupported conditions. Preserve no-match as a gap, not failure proof.
+
+The direct-evidence controlled probe matched SWE-2 Max on eight authored cases and
+was 22.8x faster in measured selection stages. Lexical completed the four positive
+cases but could not supply the required no-support judgments; always abstain
+completed none. See the ledger for cold-start, sample and timing limits. This earns
+fresh operational validation, not automatic approval or a general reliability claim.
