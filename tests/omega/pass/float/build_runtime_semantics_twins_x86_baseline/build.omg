@@ -1,5 +1,6 @@
 
 machine build(builder: &mut Build) {
     builder.application("x86-baseline-float-semantic-edge-twin");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

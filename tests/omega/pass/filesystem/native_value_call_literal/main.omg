@@ -36,7 +36,7 @@ machine Main::main(&mut self) reaches FilesystemHost {
     state fail(&mut self) { self.n = self.fs.write(1, "FAIL: value-call literal forwarding\n"); }
 }
 
-machine Main::putv(&mut self, fd: i32, bytes: &[u8]) -> i64 {
+machine Main::putv(&mut self, fd: i32, bytes: &[u8]) -> i64 reaches FilesystemHost {
     self.n = self.fs.write(fd, bytes);
     transition self.n >= 0 { true -> done() _ -> done() }
     state done(&mut self) -> i64 { self.n }

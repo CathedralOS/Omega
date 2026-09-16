@@ -4,7 +4,7 @@
 // baseline semantic machine at build time that Main executes at runtime.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 machine baseline_classifies_subnormal32(value: f32) -> bool {
     let class: FloatClass = F32::classify(value);

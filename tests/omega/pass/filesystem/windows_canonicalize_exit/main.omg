@@ -29,7 +29,7 @@ data FailedOpen {
     result: UnitResult;
 }
 
-machine FailedOpen::main(&mut self) -> i32 {
+machine FailedOpen::main(&mut self) -> i32 reaches FilesystemHost {
     let outcome: UnitResult = self.filesystem.canonicalize("omega_wcanon_missing.txt", &mut self.buffer);
     transition outcome {
         UnitResult::Error { kind } -> failed(kind)
@@ -49,7 +49,7 @@ data Main {
     canon: [u8; 1024];
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.unit_result = self.fs.write_all("omega_wcanon_probe.txt", "canon");
     transition self.unit_result { UnitResult::Ok -> resolve() _ -> bad(71) }
     state resolve(&mut self) {

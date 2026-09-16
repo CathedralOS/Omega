@@ -37,7 +37,7 @@ machine Main::main(&mut self) reaches FilesystemHost {
     state fail(&mut self) { self.n = self.fs.write(1, "FAIL: let-chain value-call\n"); }
 }
 
-machine Main::helper(&mut self, bytes: &[u8]) -> i64 {
+machine Main::helper(&mut self, bytes: &[u8]) -> i64 reaches FilesystemHost {
     let fd: i32 = self.fs.create("/tmp/omega_vclc.txt", self.cmode);
     let w: i64 = self.fs.write(fd, bytes);
     let rc: i32 = self.fs.close(fd);
