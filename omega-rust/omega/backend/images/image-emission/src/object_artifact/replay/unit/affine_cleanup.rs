@@ -4,14 +4,17 @@
 //! retained places, structural paths, provenance, code attribution, and cleanup targets.
 //! It does not choose cleanup actions, infer layouts, or emit instructions.
 
+mod cleanup_roots;
+mod discard_actions;
+mod nominal_actions;
+
 use machine_code::{
-    BoundaryResultRecord, BoundarySettlementRecord, InternalUnitCallRecord, MachineCodeFunction,
-    SemanticCodeAttribution, SemanticCodeSite, UnitAffineCleanupRecord, UnitParameterHomeRecord,
+    BoundarySettlementRecord, InternalUnitCallRecord, MachineCodeFunction, SemanticCodeAttribution,
+    SemanticCodeSite, UnitAffineCleanupRecord, UnitParameterHomeRecord,
 };
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
-use target_operations::{CallSiteOwner, TerminalPsiProvenance};
+use target_operations::TerminalPsiProvenance;
 
-use super::super::structural::partial_cleanup_partition::exact_partial_cleanup_partition;
 use crate::ObjectError;
 
 pub(crate) fn exact_construction_prefix(cleanup: &UnitAffineCleanupRecord) -> bool {
@@ -91,6 +94,30 @@ pub(crate) fn exact_construction_prefix(cleanup: &UnitAffineCleanupRecord) -> bo
             })
 }
 
+/// Everything the affine cleanup check reads: the function's provenance
+/// and attribution, its parameter homes, calls and settlements, the
+/// attachments and functions nominal cleanups may invoke, the cleanup
+/// record itself, and what the function's continuations already settled.
+#[derive(Clone, Copy)]
+struct CleanupInputs<'a> {
+    provenance: &'a TerminalPsiProvenance,
+    attribution: &'a [SemanticCodeAttribution],
+    parameter_homes: &'a [UnitParameterHomeRecord],
+    internal_unit_calls: &'a [InternalUnitCallRecord],
+    boundary_settlements: &'a [BoundarySettlementRecord],
+    attachments: &'a std::collections::BTreeMap<MachineId, Option<StructuralTypeId>>,
+    functions: &'a std::collections::BTreeMap<MachineId, &'a MachineCodeFunction>,
+    cleanup: &'a UnitAffineCleanupRecord,
+    allow_mixed_nominal_roots: bool,
+    fully_consumed_affine_parameter: bool,
+    partially_consumed_affine_parameter: bool,
+    continuation_discards: &'a [PlaceId],
+}
+
+/// Validates one Unit function's affine cleanup: its construction prefix
+/// and span, the roots it must discard, the shape of its actions (whole
+/// root discards, residual discards of one parameter, or nominal cleanups),
+/// its locals, and the attribution of its edge.
 pub(crate) fn validate_unit_affine_cleanup(
     machine: MachineId,
     provenance: &TerminalPsiProvenance,
@@ -107,6 +134,20 @@ pub(crate) fn validate_unit_affine_cleanup(
     partially_consumed_affine_parameter: bool,
     continuation_discards: &[PlaceId],
 ) -> Result<(), ObjectError> {
+    let inputs = CleanupInputs {
+        provenance,
+        attribution,
+        parameter_homes,
+        internal_unit_calls,
+        boundary_settlements,
+        attachments,
+        functions,
+        cleanup,
+        allow_mixed_nominal_roots,
+        fully_consumed_affine_parameter,
+        partially_consumed_affine_parameter,
+        continuation_discards,
+    };
     let invalid = || ObjectError::InvalidUnitAffineCleanupEvidence(machine);
     if !exact_construction_prefix(cleanup) {
         return Err(invalid());
@@ -115,144 +156,7 @@ pub(crate) fn validate_unit_affine_cleanup(
         .code_offset
         .checked_add(cleanup.byte_count)
         .ok_or_else(invalid)?;
-    let local_places = cleanup
-        .locals
-        .iter()
-        .map(|(_, place, _)| place.id)
-        .collect::<Vec<_>>();
-    let transferred_roots = internal_unit_calls
-        .iter()
-        .flat_map(|call| &call.arguments)
-        .filter(|argument| argument.path.is_empty())
-        .map(|argument| argument.place)
-        .collect::<std::collections::BTreeSet<_>>();
-    let inspected_roots =
-        crate::object_artifact::replay::boundary::runtime_scalar_custody::inspected_hosted_read_byte_roots(boundary_settlements);
-    let expected_local_prefix = local_places
-        .iter()
-        .rev()
-        .filter(|place| !transferred_roots.contains(place))
-        .copied()
-        .collect::<Vec<_>>();
-    let expected_parameter_suffix = parameter_homes
-        .iter()
-        .rev()
-        .filter(|home| {
-            home.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && home.access == terminal_psi::StructuralAccess::Owned
-                && !transferred_roots.contains(&home.place)
-                && !fully_consumed_affine_parameter
-                && !continuation_discards.contains(&home.place)
-        })
-        .map(|home| home.place)
-        .collect::<Vec<_>>();
-    let mut structural_results = internal_unit_calls
-        .iter()
-        .filter_map(|call| match call.structural_result.as_ref() {
-            Some(result)
-                if result.operation_result.multiplicity
-                    == terminal_psi::StructuralMultiplicity::Affine
-                    && result.operation_result.claims.is_empty()
-                    && result.returned_claim_transfers.is_empty()
-                    && result.returned_claims.is_empty() =>
-            {
-                Some((call.operation_ordinal, result.operation_result.place))
-            }
-            _ => None,
-        })
-        .chain(boundary_settlements.iter().filter_map(|settlement| {
-            let BoundaryResultRecord::Structural(result) = &settlement.native_result else {
-                return None;
-            };
-            (result.result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && result.result.claims.is_empty())
-            .then_some((settlement.operation_ordinal, result.result.place))
-        }))
-        .collect::<Vec<_>>();
-    structural_results.sort_by_key(|(operation_ordinal, _)| std::cmp::Reverse(*operation_ordinal));
-    let structural_result_prefix = structural_results
-        .into_iter()
-        .map(|(_, place)| place)
-        .filter(|place| !inspected_roots.contains(place))
-        .filter(|place| !continuation_discards.contains(place))
-        .collect::<Vec<_>>();
-    let local_operations = cleanup
-        .locals
-        .iter()
-        .map(|(operation, _, _)| *operation)
-        .collect::<std::collections::BTreeSet<_>>();
-    let expected_root_actions = structural_result_prefix
-        .iter()
-        .copied()
-        .chain(expected_local_prefix.iter().copied())
-        .chain(expected_parameter_suffix.iter().copied())
-        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-        .collect::<Vec<_>>();
-    let expected_local_actions = structural_result_prefix
-        .iter()
-        .copied()
-        .chain(expected_local_prefix.iter().copied())
-        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-        .collect::<Vec<_>>();
-    let exact_nominal_target = |nominal: &terminal_psi::NominalAffineCleanup| {
-        if nominal.cleanup_receiver.is_some() || !nominal.requirement_obligations.is_empty() {
-            return (None, false);
-        }
-        let cleanup_function = functions.get(&nominal.cleanup_machine).copied();
-        let cleanup_body_is_exact = cleanup_function.is_some_and(|function| {
-            let calls = &function.internal_unit_calls;
-            let call_owners = calls
-                .iter()
-                .map(|call| call.owner)
-                .collect::<std::collections::BTreeSet<_>>();
-            let call_targets = calls
-                .iter()
-                .map(|call| call.target)
-                .collect::<std::collections::BTreeSet<_>>();
-            function.attachment == Some(nominal.structural_type)
-                && function.unit_stack.is_some()
-                && function.scalar_stack.is_none()
-                && function.unit_parameters.is_empty()
-                && function.unit_parameter_homes.is_empty()
-                && function
-                    .unit_affine_cleanup
-                    .as_ref()
-                    .is_some_and(|return_cleanup| {
-                        return_cleanup.locals.is_empty() && return_cleanup.actions.is_empty()
-                    })
-                && call_owners.len() == calls.len()
-                && call_targets.len() == calls.len()
-                && calls.iter().enumerate().all(|(ordinal, call)| {
-                    matches!(call.owner, CallSiteOwner::Operation(operation)
-                        if function.provenance.operations.get(ordinal) == Some(&operation))
-                        && call.operation_ordinal == ordinal
-                        && call.result.is_none()
-                        && call.arguments.is_empty()
-                        && call.claim_transfers.is_empty()
-                        && functions.get(&call.target).is_some_and(|helper| {
-                            helper.attachment.is_some()
-                                && helper.unit_stack.is_some()
-                                && helper.scalar_stack.is_none()
-                                && helper.unit_parameters.is_empty()
-                                && helper.unit_parameter_homes.is_empty()
-                                && helper.internal_unit_calls.is_empty()
-                                && helper.unit_affine_cleanup.as_ref().is_some_and(
-                                    |return_cleanup| {
-                                        return_cleanup.locals.is_empty()
-                                            && return_cleanup.actions.is_empty()
-                                    },
-                                )
-                        })
-                })
-                && calls.windows(2).all(|pair| {
-                    pair[0]
-                        .code_offset
-                        .checked_add(pair[0].byte_count)
-                        .is_some_and(|end| end <= pair[1].code_offset)
-                })
-        });
-        (cleanup_function, cleanup_body_is_exact)
-    };
+    let roots = cleanup_roots::cleanup_roots(&inputs);
     let projected_result = crate::object_artifact::replay::structural::affine_projected_calls::exact_projected_affine_result(
         parameter_homes,
         internal_unit_calls,
@@ -260,227 +164,45 @@ pub(crate) fn validate_unit_affine_cleanup(
     );
     let action_shape_invalid = if projected_result.is_some() {
         false
-    } else if cleanup.actions == expected_root_actions {
-        cleanup
-            .actions
-            .iter()
-            .filter_map(|action| match action {
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
-                _ => None,
-            })
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != cleanup.actions.len()
+    } else if cleanup.actions == roots.expected_root_actions {
+        discard_actions::root_discards_are_duplicated(cleanup)
     } else if matches!(
-        cleanup.actions.get(expected_local_actions.len()),
+        cleanup.actions.get(roots.expected_local_actions.len()),
         Some(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
             _
         ))
     ) {
-        let residual_actions = &cleanup.actions[expected_local_actions.len()..];
-        let residuals = residual_actions
-            .iter()
-            .filter_map(|action| match action {
-                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(residual) => {
-                    Some(residual)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let residual_root = residuals.first().map(|residual| residual.place);
-        let parameter_type = residual_root.and_then(|place| {
-            parameter_homes
-                .iter()
-                .find(|parameter| parameter.place == place)
-                .map(|parameter| parameter.structural_type)
-        });
-        let moved = internal_unit_calls
-            .iter()
-            .flat_map(|call| &call.arguments)
-            .filter(|argument| {
-                Some(argument.place) == residual_root
-                    && Some(argument.root_structural_type) == parameter_type
-            })
-            .map(|argument| (argument.path.as_slice(), argument.structural_type))
-            .collect::<Vec<_>>();
-        cleanup.actions[..expected_local_actions.len()] != expected_local_actions
-            || residuals.len() != residual_actions.len()
-            || residuals.is_empty()
-            || residual_root.is_none_or(|root| expected_parameter_suffix.as_slice() != [root])
-            || parameter_type.is_none()
-            || (moved.iter().any(|(path, _)| {
-                path.iter().any(|segment| {
-                    matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
-                })
-            }) && !partially_consumed_affine_parameter)
-            || residuals.iter().any(|residual| {
-                Some(residual.place) != residual_root
-                    || residual.path.is_empty()
-                    || !is_partial_cleanup_path(&residual.path)
-                    || parameter_type == Some(residual.structural_type)
-            })
-            || residuals.iter().enumerate().any(|(index, residual)| {
-                residuals[..index].iter().any(|earlier| {
-                    residual.path.starts_with(&earlier.path)
-                        || earlier.path.starts_with(&residual.path)
-                })
-            })
-            || moved.is_empty()
-            || moved.iter().any(|(path, _)| {
-                path.is_empty()
-                    || !is_partial_cleanup_path(path)
-                    || residuals.iter().any(|residual| {
-                        path.starts_with(&residual.path) || residual.path.starts_with(path)
-                    })
-            })
-            || moved.iter().enumerate().any(|(index, (path, _))| {
-                moved[..index]
-                    .iter()
-                    .any(|(earlier, _)| path.starts_with(earlier) || earlier.starts_with(path))
-            })
-            || parameter_type.is_none_or(|root_type| {
-                !exact_partial_cleanup_partition(
-                    &cleanup.structural_types,
-                    root_type,
-                    &moved,
-                    &residuals,
-                )
-            })
+        discard_actions::residual_discards_are_malformed(&inputs, &roots)
     } else {
-        let nominal = cleanup
-            .actions
-            .iter()
-            .enumerate()
-            .filter_map(|(ordinal, action)| match action {
-                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    Some((ordinal, cleanup))
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        if nominal.is_empty()
-            || (!allow_mixed_nominal_roots && nominal.len() != cleanup.actions.len())
-            || !cleanup.locals.is_empty()
-            || parameter_homes.len() != cleanup.actions.len()
-            || parameter_homes
-                .iter()
-                .rev()
-                .zip(&cleanup.actions)
-                .any(|(home, action)| match action {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
-                        *place != home.place
-                            || home.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-                            || home.access != terminal_psi::StructuralAccess::Owned
-                    }
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal) => {
-                        home.place != nominal.place
-                            || home.structural_type != nominal.structural_type
-                            || home.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-                            || home.access != terminal_psi::StructuralAccess::Owned
-                            || !bounded_nominal_receiver_shape(home.shape)
-                            || (home.shape.byte_size == 0 && !home.source.locations.is_empty())
-                            || (home.shape.byte_size != 0 && home.source.locations.is_empty())
-                            || attachments.get(&nominal.cleanup_machine)
-                                != Some(&Some(nominal.structural_type))
-                    }
-                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => true,
-                })
-        {
-            true
-        } else {
-            let targets = nominal
-                .iter()
-                .map(|(_, nominal)| exact_nominal_target(nominal))
-                .collect::<Vec<_>>();
-            let executable_ordinals = targets
-                .iter()
-                .zip(&nominal)
-                .filter_map(|((function, _), (action_ordinal, _))| {
-                    function
-                        .is_some_and(|function| !function.internal_unit_calls.is_empty())
-                        .then_some(*action_ordinal)
-                })
-                .collect::<Vec<_>>();
-            let cleanup_calls = internal_unit_calls
-                .iter()
-                .filter(|call| {
-                    matches!(
-                        call.owner,
-                        CallSiteOwner::CleanupAction { edge, .. }
-                            if edge == cleanup.psi_edge
-                    )
-                })
-                .collect::<Vec<_>>();
-            let ordered_executable_spans = executable_ordinals
-                .iter()
-                .map(|ordinal| {
-                    let action_ordinal = u32::try_from(*ordinal).ok()?;
-                    let nominal =
-                        cleanup
-                            .actions
-                            .get(*ordinal)
-                            .and_then(|action| match action {
-                                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
-                                    nominal,
-                                ) => Some(nominal),
-                                _ => None,
-                            })?;
-                    let call = cleanup_calls.iter().find(|call| {
-                        call.owner
-                            == CallSiteOwner::CleanupAction {
-                                edge: cleanup.psi_edge,
-                                action_ordinal,
-                            }
-                            && call.target == nominal.cleanup_machine
-                    })?;
-                    Some((
-                        call.code_offset,
-                        call.code_offset.checked_add(call.byte_count)?,
-                    ))
-                })
-                .collect::<Option<Vec<_>>>();
-            targets.iter().any(|(_, body_exact)| !body_exact)
-                || cleanup_calls.len() != executable_ordinals.len()
-                || ordered_executable_spans.is_none_or(|spans| {
-                    spans
-                        .windows(2)
-                        .any(|pair| pair[0].0 >= pair[1].0 || pair[0].1 > pair[1].0)
-                })
-                || executable_ordinals.iter().any(|ordinal| {
-                    let Ok(action_ordinal) = u32::try_from(*ordinal) else {
-                        return true;
-                    };
-                    let Some(terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal)) =
-                        cleanup.actions.get(*ordinal)
-                    else {
-                        return true;
-                    };
-                    cleanup_calls
-                        .iter()
-                        .filter(|call| {
-                            call.owner
-                                == CallSiteOwner::CleanupAction {
-                                    edge: cleanup.psi_edge,
-                                    action_ordinal,
-                                }
-                                && call.target == nominal.cleanup_machine
-                                && call.arguments.is_empty()
-                                && call.claim_transfers.is_empty()
-                                && call.code_offset >= cleanup.code_offset
-                                && call
-                                    .code_offset
-                                    .checked_add(call.byte_count)
-                                    .is_some_and(|call_end| call_end <= end)
-                        })
-                        .count()
-                        != 1
-                })
-        }
+        nominal_actions::nominal_cleanups_are_malformed(&inputs, end)
     };
     if cleanup.byte_count == 0
         || end != bytes.len()
         || !provenance.edges.contains(&cleanup.psi_edge)
-        || local_operations.len() != cleanup.locals.len()
+        || locals_are_malformed(&inputs, &roots.local_operations)
+        || action_shape_invalid
+        || edge_attribution_is_not_unique(attribution, cleanup)
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+/// Whether the cleanup's locals are malformed: each must be established by
+/// a distinct provenance operation attributed to zero bytes, occupy a
+/// trivial affine local place of its ordinal and type, and have an empty
+/// record type.
+fn locals_are_malformed(
+    inputs: &CleanupInputs<'_>,
+    local_operations: &std::collections::BTreeSet<semantic_vocabulary::OperationId>,
+) -> bool {
+    let CleanupInputs {
+        provenance,
+        attribution,
+        cleanup,
+        ..
+    } = *inputs;
+    local_operations.len() != cleanup.locals.len()
         || cleanup.locals.iter().enumerate().any(
             |(ordinal, (operation, place, structural_type))| {
                 !provenance.operations.contains(operation)
@@ -508,20 +230,22 @@ pub(crate) fn validate_unit_affine_cleanup(
                         != 1
             },
         )
-        || action_shape_invalid
-        || attribution
-            .iter()
-            .filter(|attribution| {
-                attribution.site == SemanticCodeSite::Edge(cleanup.psi_edge)
-                    && attribution.code_offset == cleanup.code_offset
-                    && attribution.byte_count == cleanup.byte_count
-            })
-            .count()
-            != 1
-    {
-        return Err(invalid());
-    }
-    Ok(())
+}
+
+/// Whether the cleanup's edge is not attributed exactly once to its bytes.
+fn edge_attribution_is_not_unique(
+    attribution: &[SemanticCodeAttribution],
+    cleanup: &UnitAffineCleanupRecord,
+) -> bool {
+    attribution
+        .iter()
+        .filter(|attribution| {
+            attribution.site == SemanticCodeSite::Edge(cleanup.psi_edge)
+                && attribution.code_offset == cleanup.code_offset
+                && attribution.byte_count == cleanup.byte_count
+        })
+        .count()
+        != 1
 }
 
 fn is_partial_cleanup_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
