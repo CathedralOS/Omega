@@ -5,7 +5,7 @@
 use omega_language_std::console;
 data Box { v: i32 [0..=100]; }
 data Main { console: Console; }
-machine Main::copy_box(&mut self, src: Box) {
+machine Main::copy_box(&mut self, src: Box) reaches Console {
     let copy: Box = Box { v: src.v };
     self.console.exit_process(copy.v);
 }

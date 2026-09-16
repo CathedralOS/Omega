@@ -53,7 +53,7 @@ data Main {
     line: [u8; 32] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let rooms: &mut [Room] = self.level.rooms.as_mut_slice();
     rooms[0].cell = CellId::C0;
     rooms[0].depth = 9;

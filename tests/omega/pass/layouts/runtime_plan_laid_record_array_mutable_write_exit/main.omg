@@ -42,7 +42,7 @@ data Main {
     bytes: [u8; 32];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let view: &mut RecordArrayView = &mut self.bytes[0] as &mut RecordArrayView;
     view.value.pairs[0].low = 0x0201;
     view.value.pairs[0].high = 0x06050403;

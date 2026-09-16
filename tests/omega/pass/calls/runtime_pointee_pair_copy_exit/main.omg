@@ -15,7 +15,7 @@ data Main {
     target: Big;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.source.value = 42;
     self.target.value = 7;
     self.hold(&mut self.target, &mut self.source);

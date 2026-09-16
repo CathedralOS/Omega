@@ -36,7 +36,7 @@ data Main {
     r24: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.wall = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
     self.dist = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
                  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,

@@ -21,7 +21,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let cmd: Command = Command::First { text: "ok" };
     transition cmd {
         Command::First { text } -> consume(text)

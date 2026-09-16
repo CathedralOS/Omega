@@ -15,7 +15,7 @@ data Main {
     y: i32 [0..=9];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.p = 8;
     self.dir = 1;
     transition self.dir >= 0 && self.dir <= 1 {

@@ -24,7 +24,7 @@ machine Main::main(&mut self) {
     self.name = "omega";
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     self.stored = Msg::Pong { y: 5, z: self.name == "omega" };
     transition self.stored {
         Msg::Pong { y, z } -> chk(y, z)

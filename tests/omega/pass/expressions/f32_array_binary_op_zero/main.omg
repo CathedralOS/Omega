@@ -19,7 +19,7 @@ data Main {
     vals: [f32; 2];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.vals[0] = 3.0;
     self.vals[1] = 4.0;
 

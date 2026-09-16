@@ -24,7 +24,7 @@ data Main {
     shifted_right: SignedValue<-2 >> 1>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let value: i8 in Wrapping = self.signed.value();
     self.console.exit_process((value as i32) + 77);
 }

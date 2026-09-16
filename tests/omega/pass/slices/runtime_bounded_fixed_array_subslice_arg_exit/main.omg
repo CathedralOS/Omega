@@ -15,7 +15,7 @@ machine Main::main(&mut self) {
     transition { _ -> self.view(1, 4) }
 }
 
-machine Main::view(&mut self, lo: u64, hi: u64) {
+machine Main::view(&mut self, lo: u64, hi: u64) reaches Console {
     transition lo <= hi && hi <= self.arr.len {
         true -> self.consume(self.arr[lo..hi])
         false -> bad()
@@ -23,7 +23,7 @@ machine Main::view(&mut self, lo: u64, hi: u64) {
     state bad(&mut self) { self.console.exit_process(8); }
 }
 
-machine Main::consume(&mut self, sub: &[i32]) {
+machine Main::consume(&mut self, sub: &[i32]) reaches Console {
     let n: u64 = sub.len;
     transition n == 3 {
         true -> matched()

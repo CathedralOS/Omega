@@ -22,7 +22,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
     // Saturating BINARY terminal: acc(127 saturated) + 50 must stay 127.
     state leaf(&mut self, acc: i8 in Saturating) -> i8 { acc + 50 }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // 3 iterations: 0+50=50, +50=100, +50=127(sat). Terminal: 127+50 = 127(sat).
     let n: i8 = self.count(3, 0, 0);
     transition n == 127 { true -> good() _ -> bad() }

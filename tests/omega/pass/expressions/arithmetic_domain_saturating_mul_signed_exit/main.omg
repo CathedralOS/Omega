@@ -11,7 +11,7 @@ data Main {
     neg: i8 in Saturating;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 50;
     self.b = 50;
     self.neg = 0 - 50;

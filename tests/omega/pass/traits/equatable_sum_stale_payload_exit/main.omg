@@ -20,7 +20,7 @@ machine Main::main(&mut self) {
     self.b = Msg::Ping { x: 1 };
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     transition self.a == self.b {
         true -> good()
         _ -> wrong_stale()

@@ -52,7 +52,7 @@ data Main {
     source: i64 [-128..=127];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.source = -7;
     self.packed.value = self.source;
     transition self.packed.value == -7 {

@@ -24,7 +24,7 @@ data Main {
     large: FixedBuffer<4>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.small.set_first(30);
     self.large.set_first(40);
     let small_witness: [u8; 2] = [0, 0];

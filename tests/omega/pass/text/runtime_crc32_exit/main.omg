@@ -19,7 +19,7 @@ data Main {
     sh: u32 in Wrapping;        // crc >> 1
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.data = [97, 98, 99];
     self.crc = 4294967295; // 0xFFFFFFFF
     self.i = 0;

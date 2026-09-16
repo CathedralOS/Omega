@@ -15,7 +15,7 @@ machine Counter::increment(&mut self) {
     state done(&mut self) { }
 }
 data Main { console: Console; a: Counter; b: Counter; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a.increment();
     self.b.increment();
     transition self.b.value == 1 { true -> good() _ -> bad(71) }

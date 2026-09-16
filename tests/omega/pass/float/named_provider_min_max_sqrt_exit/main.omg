@@ -19,7 +19,7 @@ data Main {
     sqrt64: f64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let one32: f32 = 1.0f32;
     let nan32: f32 = 0.0f32 / 0.0f32;
     let negative_zero32: f32 = 0.0f32 / (0.0f32 - 1.0f32);

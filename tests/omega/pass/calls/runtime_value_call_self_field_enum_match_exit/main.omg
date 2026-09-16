@@ -30,7 +30,7 @@ machine Main::sides(&self) -> i32 in Trapping {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.s = Shape::Triangle;
     let triangle: i32 in Trapping = self.sides();
     self.s = Shape::Square;

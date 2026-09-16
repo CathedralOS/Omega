@@ -19,7 +19,7 @@ data Main {
     v: u64 in Saturating;
     chk: i64 in Wrapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // i64 positive overflow: MAX + 1 -> MAX.
     self.a = 9223372036854775807;
     self.b = self.a + 1;

@@ -6,7 +6,7 @@ use omega_language_std::console;
 
 data Main { console: Console; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let halfway: f64 = 1.000000059604644775390625;
     let above_halfway: f64 = 1.0000000596046449;
     let down: f32 = F32::from_f64(halfway);

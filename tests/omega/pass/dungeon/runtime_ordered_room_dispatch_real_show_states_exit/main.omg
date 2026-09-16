@@ -11,7 +11,7 @@ data GameView {}
 machine GameView::render_title(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("###########################");
     console.write_line("#     Dungeon Crawler     #");
     console.write_line("###########################");
@@ -21,14 +21,14 @@ machine GameView::render_title(
 machine GameView::render_prompt(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write("> ");
 }
 
 machine GameView::render_commands(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("[Commands] look | help | inv | char | use | fight | exit");
 }
 
@@ -86,7 +86,7 @@ data Main {
     treasure_taken: bool;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.output = "";
     self.current_room_index = 0;
     self.fountain_used = false;

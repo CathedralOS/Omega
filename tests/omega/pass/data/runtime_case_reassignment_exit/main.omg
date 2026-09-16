@@ -18,7 +18,7 @@ data Main {
     mode: Mode;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.mode = Mode::Walk { pace: 9 };
     self.mode = Mode::Run { speed: 70 };
 

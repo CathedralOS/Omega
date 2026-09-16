@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 // (NaN) -> 0 (73); -3.7 -> -3 (74).
 use omega_language_std::console;
 data Main { console: Console; f: f64; z: f64; r: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.f = 100000000000000000000.0;
     self.r = (self.f as i32 in Saturating) as i32;
     transition self.r == 2147483647 { true -> neg() _ -> bad(71) }

@@ -12,7 +12,7 @@
 use omega_language_std::console;
 data Main { console: Console; idx: u64; }
 machine Main::double(&mut self, v: i32 [0..=100]) -> i32 { v + v }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.idx = 1;
     transition self.idx < 3 { true -> read_elem(self.idx) _ -> bad() }
     state read_elem(&mut self, i: u64 [0..=2]) {

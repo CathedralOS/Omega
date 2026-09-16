@@ -17,7 +17,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let qualified: i32 in Saturating = convert(0);
     let qualified_pair: [i32 in Saturating; 1] = [convert(0)];
     let ordinary: i32 = convert(0);

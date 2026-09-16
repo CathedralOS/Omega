@@ -9,7 +9,7 @@
 // fail/calls/plain_let_reassign_rejected).
 use omega_language_std::console;
 data Main { console: Console; out: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let mut x: u32 = 1;
     x = 2;
     self.out = x as i32;

@@ -19,7 +19,7 @@ machine Main::main(&mut self) {
     self.nested.second.b = 9;
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     transition true { true -> take(self.nested) }
     state take(&mut self, o: Outer) {
         transition o.first.a == 5 && o.second.b == 9 && o.first.b == 0 && o.second.a == 0 {

@@ -18,7 +18,7 @@ machine Main::main(&mut self) {
     self.index = 2;
     transition { _ -> self.copy_elem(3, 1) }
 }
-machine Main::copy_elem(&mut self, k: u64 [0..=3], j: u64 [0..=3]) {
+machine Main::copy_elem(&mut self, k: u64 [0..=3], j: u64 [0..=3]) reaches Console {
     let local: [Triple; 4] = [
         Triple { first: 1, second: 2, third: 3 },
         Triple { first: 10, second: 20, third: 30 },

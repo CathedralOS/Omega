@@ -30,7 +30,7 @@ data Main {
     close_rc: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("rdnthdir");
     self.open_result = self.fs.create("rdnthdir/aaa");
     transition self.open_result { OpenResult::Ok { file } -> m1(file) _ -> bad(71) }

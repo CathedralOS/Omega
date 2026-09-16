@@ -22,7 +22,7 @@ data Main {
     quotient64: f64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.left32 = 6.0;
     self.right32 = 2.0;
     self.sum32 = self.left32 + self.right32;

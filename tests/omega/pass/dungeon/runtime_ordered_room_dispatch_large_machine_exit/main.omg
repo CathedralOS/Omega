@@ -11,14 +11,14 @@ data GameView {}
 machine GameView::render_title(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("Dungeon Crawler");
 }
 
 machine GameView::render_prompt(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write("> ");
 }
 
@@ -26,7 +26,7 @@ machine GameView::render_line(
     &mut self,
     line: &[u8],
     console: &mut Console
-) {
+) reaches Console {
     console.write_line(line);
 }
 
@@ -85,7 +85,7 @@ data Main {
     treasure_taken: bool;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.output = "";
     self.input_count = 0;
     self.current_room_index = 2;

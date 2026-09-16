@@ -17,7 +17,7 @@ machine Main::pick(&self) -> &[u8] in Utf8 {
     transition { _ -> "Gate" }
 }
 
-machine Main::run(&self) {
+machine Main::run(&self) reaches Console {
     transition self.pick() == "Gate" {
         true -> good()
         _ -> bad()

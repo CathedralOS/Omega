@@ -29,7 +29,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let seed: i32 in Wrapping = 34;
     let lit: Pair = make(seed);
     let bumped: i32 in Wrapping = bump(30);

@@ -6,7 +6,7 @@
 use omega_language_std::console;
 data Main { console: Console; }
 machine Main::classify(&self, x: i32) -> i32 { min(x, 3) }
-machine Main::run(&mut self, x: i32) {
+machine Main::run(&mut self, x: i32) reaches Console {
     let s: i32 = self.classify(x) + 67;
     self.console.exit_process(s);
 }

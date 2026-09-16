@@ -8,7 +8,7 @@ data StatValue { mode: u16; }
 data StatView { tag: u32; value: StatValue; }
 data Main { console: Console; bytes: [u8; 8]; mode: u32; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.bytes[4] = 255;
     self.bytes[5] = 1;
     let stat: &StatView = &self.bytes[0] as &StatView;

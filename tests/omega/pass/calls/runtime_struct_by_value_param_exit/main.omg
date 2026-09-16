@@ -37,7 +37,7 @@ machine Main::decode(&self, k: Coeffs) -> i32 {
     transition { _ -> (s2 as i32) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let kk: Coeffs = Coeffs { a: 1, b: 2, c: 3 };
     let r: i32 in Wrapping = self.decode(kk);
     transition r == 123 { true -> good() _ -> wrong(r) }

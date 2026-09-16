@@ -16,7 +16,7 @@ machine Main::main(&mut self) {
     self.k = 2;
     transition { _ -> self.report(self.cells[self.k].v) }
 }
-machine Main::report(&mut self, v: i32) {
+machine Main::report(&mut self, v: i32) reaches Console {
     transition v == 9 {
         true -> yes()
         false -> no()

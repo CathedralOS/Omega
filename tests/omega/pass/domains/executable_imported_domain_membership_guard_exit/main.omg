@@ -19,7 +19,7 @@ data Main {
     fallen: Player;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.alive.health = 10;
     self.fallen.health = 0;
 

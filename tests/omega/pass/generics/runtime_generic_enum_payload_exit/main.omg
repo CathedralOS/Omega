@@ -7,7 +7,7 @@ use omega_language_std::console;
 data Evidence { case Only; }
 data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
 data Main { console: Console; m: Maybe<i32 in Wrapping>; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.m = Maybe::Some { value: 70 };
     transition self.m {
         Maybe::Some { value, proof as _ } -> take(value)

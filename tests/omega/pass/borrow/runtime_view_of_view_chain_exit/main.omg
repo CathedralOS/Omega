@@ -35,7 +35,7 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let cell: &mut Cell = pick(&mut self.bag);
     let leaf: &mut i32 = narrow(cell);
     leaf = 7;

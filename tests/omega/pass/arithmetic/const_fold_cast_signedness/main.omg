@@ -20,7 +20,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 = 300;
     let x: u8 = narrow_i32_to_u8_wrapping(a); // 44
 

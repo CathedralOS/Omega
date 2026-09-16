@@ -9,7 +9,7 @@
 // failed to pair (vacuous guard), would exit 71. Native must match the interp.
 use omega_language_std::console;
 data Main { console: Console; a: i32; b: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 8;
     self.b = 7;
     transition min(self.a, self.b) == 7 {

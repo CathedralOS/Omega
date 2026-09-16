@@ -10,7 +10,7 @@ data Level { rooms: [Room; 4]; room_count: u64; }
 data Builder { }
 data Main { console: Console; builder: Builder; level: Level; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.builder.build(&mut self.level);
     transition self.level.rooms[2].tag == 103 {
         true -> good()

@@ -10,7 +10,7 @@ data Main {
     b: u8 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 10;
     self.b = 10;
     let c: u8 in Trapping = self.a * self.b;   // 100 fits u8, no trap

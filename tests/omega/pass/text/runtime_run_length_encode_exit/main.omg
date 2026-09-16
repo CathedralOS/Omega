@@ -29,7 +29,7 @@ data Main {
     mode: i32 in Wrapping; // 0 = mid-stream boundary, 1 = final run
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.input = "aaabbbbcc";
     self.out = "                ";
     self.prev = self.input[0];

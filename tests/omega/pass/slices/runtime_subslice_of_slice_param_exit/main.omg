@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, sub: &[Entry]) {
+machine Main::check(&mut self, sub: &[Entry]) reaches Console {
     // The guard proves `1 <= sub.len`, so `sub[1..]` is in bounds.
     transition sub.len > 2 {
         true -> self.verify(sub[1..])
@@ -34,7 +34,7 @@ machine Main::check(&mut self, sub: &[Entry]) {
     }
 }
 
-machine Main::verify(&mut self, sub: &[Entry]) {
+machine Main::verify(&mut self, sub: &[Entry]) reaches Console {
     transition sub.len == 3 {
         true -> good()
         false -> wrong()

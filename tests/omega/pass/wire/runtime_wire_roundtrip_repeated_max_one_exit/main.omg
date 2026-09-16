@@ -39,7 +39,7 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let msg: PingValue = PingValue {
         code: [9],
         flag: true

@@ -23,7 +23,7 @@ machine Main::stats(&self, a: i32 in Wrapping, b: i32 in Wrapping) -> Stats {
     transition { _ -> Stats { sum: s, diff: d } }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let r: Stats = self.stats(7, 3);
     transition r.sum == 10 && r.diff == 4 { true -> good() _ -> wrong() }
 

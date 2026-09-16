@@ -15,7 +15,7 @@ data Main {
     found: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr = [3, 7, 12, 18, 5];
     self.target = 12;
     self.i = 0;

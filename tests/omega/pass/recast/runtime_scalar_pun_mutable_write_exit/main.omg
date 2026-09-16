@@ -12,7 +12,7 @@ data Main {
     value: f32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.value = 0.0f32;
     let view: &mut u32 = &mut self.value as &mut u32;
     view = 1065353216;

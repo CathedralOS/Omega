@@ -30,7 +30,7 @@ data Main {
     tag: i32 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.grid[0] = Cell::Empty;
     self.grid[1] = Cell::Wall;
     self.grid[2] = Cell::Goal;

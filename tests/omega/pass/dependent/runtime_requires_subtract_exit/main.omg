@@ -12,7 +12,7 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main { console: Console; a: u32; b: u32; out: i32; }
-machine Main::main(&mut self) requires self.a <= self.b {
+machine Main::main(&mut self) requires self.a <= self.b reaches Console {
     let diff: u32 = self.b - self.a;
     self.out = narrow_u32_to_i32_trapping(diff);
     self.console.exit_process(self.out);

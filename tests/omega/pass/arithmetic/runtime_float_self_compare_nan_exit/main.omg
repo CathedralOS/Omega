@@ -11,7 +11,7 @@ data Main {
     console: Console;
     f: f64;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.f = 0.0f64 / 0.0;
     transition self.f != self.f {
         true -> check_eq()

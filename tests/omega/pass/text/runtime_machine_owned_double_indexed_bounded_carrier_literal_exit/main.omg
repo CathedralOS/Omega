@@ -17,7 +17,7 @@ data Main {
     inner: u64 [0..=1];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.outer = 1;
     self.inner = 1;
     self.rooms[self.outer][self.inner].label = "Ga";

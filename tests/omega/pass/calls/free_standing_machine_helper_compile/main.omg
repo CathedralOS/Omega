@@ -8,7 +8,7 @@ machine add_i32(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 {
     left + right
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let result: i32 = add_i32(3, 4);
     self.console.exit_process(result);
 }

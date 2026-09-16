@@ -13,7 +13,7 @@ data Main {
     r: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 0;
     self.a = self.a - 17; // -17 as a runtime value
     self.b = 5;

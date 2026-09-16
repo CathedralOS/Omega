@@ -19,7 +19,7 @@ data Main {
     text: [u8; 8] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.text = "abc";
 
     // TRUE arm: len == 3 holds.

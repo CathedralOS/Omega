@@ -20,7 +20,7 @@ data Main {
     r16: i16 in Saturating;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // i8 add overflow: 120 + 20 = 140 -> clamp to 127.
     self.a8 = 120;
     self.b8 = 20;

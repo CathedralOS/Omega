@@ -31,7 +31,7 @@ data Main {
     wall_result: SystemTimeResult;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.ia = Instant { seconds: 5, subsecond_nanoseconds: 800000000 };
     self.d = Duration { seconds: 2, subsecond_nanoseconds: 300000000 };
     self.instant_result = self.ia.checked_add(self.d);

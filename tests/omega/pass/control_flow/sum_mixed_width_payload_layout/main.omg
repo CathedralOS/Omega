@@ -21,7 +21,7 @@ machine Main::main(&mut self) {
     self.check(Rec::B { a: 1000, b: 2000, c: 9000000000 });
 }
 
-machine Main::check(&mut self, r: Rec) {
+machine Main::check(&mut self, r: Rec) reaches Console {
     transition r {
         Rec::B { a, b, c } -> vb(a, b, c)
         _ -> bad()

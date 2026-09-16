@@ -22,7 +22,7 @@ data Main {
     player: Player;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.player.health = 3;
 
     let ok: bool = self.player in Player::Alive & Player::Critical;

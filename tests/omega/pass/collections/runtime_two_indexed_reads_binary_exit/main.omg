@@ -14,7 +14,7 @@ data Main {
     s: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.nums = [30, 99, 40];
     self.i = 0;
     self.j = 2;

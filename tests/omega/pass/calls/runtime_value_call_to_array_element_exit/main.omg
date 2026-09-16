@@ -20,7 +20,7 @@ machine Main::triple(&self, x: i32 in Wrapping) -> i32 {
     transition { _ -> (r as i32) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr[2] = self.triple(14); // -> 42 at index 2; the other slots stay 0
     transition self.arr[2] == 42
             && self.arr[0] == 0

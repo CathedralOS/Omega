@@ -15,13 +15,13 @@ use omega_language_std::console;
 
 data Wrapper { host: TimeHost; }
 
-machine Wrapper::first_read(&mut self) -> u64 {
+machine Wrapper::first_read(&mut self) -> u64 reaches TimeHost {
     let freq: u64 = self.host.monotonic_ticks_per_second();
     let shifted: u64 = freq + 1;
     shifted
 }
 
-machine Wrapper::second_read(&mut self) -> u64 {
+machine Wrapper::second_read(&mut self) -> u64 reaches TimeHost {
     let freq: u64 = self.host.monotonic_ticks_per_second();
     let shifted: u64 = freq + 2;
     shifted
@@ -34,7 +34,7 @@ data Main {
     b: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = self.wrapper.first_read();
     self.b = self.wrapper.second_read();
     transition self.a > 1 {

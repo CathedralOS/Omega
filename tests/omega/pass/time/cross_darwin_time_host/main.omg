@@ -21,7 +21,7 @@ data Main {
     wall_offset: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + TimeHost {
     self.first_ticks = self.host.monotonic_ticks();
     self.host.sleep(30);
     self.second_ticks = self.host.monotonic_ticks();

@@ -10,7 +10,7 @@ data Main {
     rooms: [Room; 4];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.rooms[0].id = 10; self.rooms[0].tag = 100;
     self.rooms[1].id = 11; self.rooms[1].tag = 111;
     self.rooms[2].id = 12; self.rooms[2].tag = 122;

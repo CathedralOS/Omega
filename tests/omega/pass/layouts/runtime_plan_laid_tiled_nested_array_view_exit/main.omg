@@ -43,7 +43,7 @@ data Main {
     observed: u16;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let view: &mut TiledNestedArrayView =
         &mut self.bytes[0] as &mut TiledNestedArrayView;
     self.row = 0;

@@ -16,7 +16,7 @@ data Main {
     r: u32 in Wrapping;
     c: u32 in Wrapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.grid = [Cell::Empty, Cell::Wall, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Goal];
     self.r = 1;
     self.c = 2;

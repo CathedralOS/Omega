@@ -27,7 +27,7 @@ data Main {
     a: Cell<i32>;
     b: Cell<bool>;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a.set(41);
     self.a.set(42);
     self.b.set(true);

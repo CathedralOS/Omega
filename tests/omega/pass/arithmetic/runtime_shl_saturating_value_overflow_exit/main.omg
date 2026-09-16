@@ -11,7 +11,7 @@
 // exits: 71 = wrapped to 2147483648 (plain-shl truncation); 72 = neither.
 use omega_language_std::console;
 data Main { console: Console; a: u32 in Saturating; c: u32 in Saturating; r: u32 in Saturating; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 3;
     self.c = 31;
     self.r = self.a << self.c;

@@ -6,7 +6,7 @@ data Main {
     zero: f32 in Trapping;
     result: f32 in Trapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.zero = 0.0;
     self.result = self.zero / self.zero;
     self.console.exit_process(70);

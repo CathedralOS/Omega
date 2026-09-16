@@ -18,7 +18,7 @@ machine Main::weigh<T [copy]>(&self, value: &T) -> i32 {
     70
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let result: i32 in Wrapping = self.weigh(&self.light);
     self.console.exit_process(result as i32);
 }

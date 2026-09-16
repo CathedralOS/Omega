@@ -21,7 +21,7 @@ data Main {
     bits: i32;
     wide: u32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // 0x40490FDB = the f32 bit pattern of pi.
     self.bits = 1078530011;
     let v: &f32 = &self.bits as &f32;

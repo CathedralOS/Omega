@@ -34,7 +34,7 @@ data Main {
     right: Pair;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.left.a = 1;
     self.left.b = 2;
     self.right.a = 1;

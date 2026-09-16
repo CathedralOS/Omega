@@ -26,7 +26,7 @@ machine Main::write_slot(&mut self, target: &mut Holder) {
     let c: u64 in Wrapping = (70 as u64 in Wrapping);
     target.slot = a << c; // 1 << (70 & 63) = 64
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: u64 in Wrapping = (1 as u64 in Wrapping);
     let c: u64 in Wrapping = (70 as u64 in Wrapping);
     self.arr[1] = a << c;

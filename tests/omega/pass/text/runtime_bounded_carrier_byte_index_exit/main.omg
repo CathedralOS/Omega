@@ -17,7 +17,7 @@ data Main {
     message: [u8; 8] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.message = "ALERT";
     transition self.message[0] == 65 && self.message[2] == 69 {
         true -> ok()

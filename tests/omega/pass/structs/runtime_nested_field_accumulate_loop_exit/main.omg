@@ -7,7 +7,7 @@ use omega_language_std::console;
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Body { pos: Vec2; vel: Vec2; }
 data Main { console: Console; body: Body; i: i32 in Wrapping; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.body.pos.x = 0;
     self.body.pos.y = 0;
     self.body.vel.x = 7;

@@ -17,7 +17,7 @@ data Main {
     seed: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let r: i32 = self.seed % 100;   // [-99, 99]  (modulo narrowing)
     let d: i32 = r / 2;             // [-99, 99]  (division keeps it bounded)
     let s: i32 = d + 70;            // [-29, 169] in i32 -> EXACT only because bounded

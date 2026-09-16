@@ -13,7 +13,7 @@ data Main {
     c: u16 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 40000;
     self.b = 30000;
     self.c = self.a + self.b;

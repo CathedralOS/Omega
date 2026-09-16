@@ -29,7 +29,7 @@ data Main {
     roller: Roller;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let random: RandomState;
     random.seed = 1;
     random.calls = 0;

@@ -23,12 +23,12 @@ data Main {
     rc: i32;
 }
 
-machine Main::doit(&mut self, path: &[u8] in Path) -> i32 {
+machine Main::doit(&mut self, path: &[u8] in Path) -> i32 reaches FilesystemHost {
     let fd: i32 = self.raw.open(path, 0);
     transition true { _ -> fd }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     _ = self.doit("omega_absent_discard_probe.txt");
     transition true { true -> check_errno() _ -> bad(72) }
 

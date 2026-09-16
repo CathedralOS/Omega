@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
     self.other = "delta";
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     self.okf = self.name != "wrong";
     transition self.okf {
         true -> leg2()

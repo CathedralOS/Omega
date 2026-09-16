@@ -15,7 +15,7 @@ data Main {
     v: u8 in Saturating;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: u8 in Saturating = 100;
     let b: u8 in Saturating = 100;
     self.v = a * b;   // 100*100 = 10000, clamps to u8 max 255 (not wrapped 16)

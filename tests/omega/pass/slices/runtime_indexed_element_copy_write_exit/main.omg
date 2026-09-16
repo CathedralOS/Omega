@@ -26,7 +26,7 @@ data Main {
     got_w: u32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition { _ -> put(9, 4, 1) }
 
     state put(&mut self, d: u32, w: u32, index: u64) {

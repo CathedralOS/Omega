@@ -16,7 +16,7 @@ data Main {
     console: Console;
 }
 
-machine Main::run(&mut self, s: Shape) {
+machine Main::run(&mut self, s: Shape) reaches Console {
     transition s {
         Shape::Circle { r } -> emit(r * 7)
         Shape::Rect { w, h } -> emit(w * h + 58)

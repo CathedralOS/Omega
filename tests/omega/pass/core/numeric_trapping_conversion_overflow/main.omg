@@ -7,7 +7,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let converted: u8 = narrow_u16_to_u8_trapping(300);
     self.console.exit_process(7);
 }

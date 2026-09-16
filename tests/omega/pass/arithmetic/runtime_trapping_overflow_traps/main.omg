@@ -9,7 +9,7 @@
 // proof obligation); the partiality is the declared behavior.
 use omega_language_std::console;
 data Main { console: Console; x: i32 in Trapping; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.x = 2147483647;
     self.x = self.x + 1;
     self.console.exit_process(70);

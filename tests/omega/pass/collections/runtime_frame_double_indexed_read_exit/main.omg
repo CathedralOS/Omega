@@ -27,7 +27,7 @@ data Main { console: Console; got: i32; index: u64 [0..=1]; }
 machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i32 {
     transition { _ -> (m[i][j]) }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.index = 0;
     transition { _ -> let_face(1, 2, 0, 1, 70) }
     state let_face(

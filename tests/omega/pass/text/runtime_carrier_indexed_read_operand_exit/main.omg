@@ -20,7 +20,7 @@ data Main {
     sum: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.text = "ABCD";
     self.i = 0;
     self.sum = 0;

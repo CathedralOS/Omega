@@ -31,7 +31,7 @@ data Main {
     ch: u8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     self.out = "????";
     self.b0 = 77; // 'M'

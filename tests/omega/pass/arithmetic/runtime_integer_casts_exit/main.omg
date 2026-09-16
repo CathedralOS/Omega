@@ -13,7 +13,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a8: i8 = -5;
     let aw: i32 in Trapping = a8 as i32;
     let b8: u8 = 200;

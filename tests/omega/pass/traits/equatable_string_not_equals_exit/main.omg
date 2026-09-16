@@ -30,7 +30,7 @@ data Main {
     right: Tag;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.left = Tag { name: "gold", id: 5 };
     self.right = Tag { name: "iron", id: 5 };
 

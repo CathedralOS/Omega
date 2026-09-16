@@ -16,7 +16,7 @@ data Main {
     facing: Direction;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.facing = Direction::South;
 
     transition self.facing {

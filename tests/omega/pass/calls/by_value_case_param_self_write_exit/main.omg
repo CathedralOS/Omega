@@ -25,7 +25,7 @@ data Main {
     register: Register;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.apply(Event::Insert { cents: 50 });
     transition self.register.balance == 50 {
         true -> report(70)

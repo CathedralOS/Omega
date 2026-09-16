@@ -17,7 +17,7 @@ data Main {
 machine Main::grab(&self, b: Inner) -> i32 {
     transition { _ -> (b.value) }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.bx.inner.pad = 99;
     self.bx.inner.value = 42;
     let got: i32 = self.grab(self.bx.inner);

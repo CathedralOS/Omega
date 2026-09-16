@@ -75,7 +75,7 @@ machine Main::result_code(&mut self) -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let result: i32 = self.result_code();
     self.console.exit_process(result);
 }

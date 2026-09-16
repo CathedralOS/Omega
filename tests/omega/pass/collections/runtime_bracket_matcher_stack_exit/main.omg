@@ -21,7 +21,7 @@ data Main {
     popped: i32 in Wrapping;
     chk: i32 in Wrapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.input[0] = 1;
     self.input[1] = 2;
     self.input[2] = 0 - 1;

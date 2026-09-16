@@ -41,7 +41,7 @@ data Main {
     verdict_hostile: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let overflow_payload: [u8; 6] = [0, 0, 3, 2, 2, 2];
     let hostile_payload: [u8; 6] = [0, 0, 32, 2, 2, 2];
 

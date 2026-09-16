@@ -28,7 +28,7 @@ data Main {
     read: u64;
     verdict: WireVerdict;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let p: Point;
     p.x = 3;
     p.y = 4;

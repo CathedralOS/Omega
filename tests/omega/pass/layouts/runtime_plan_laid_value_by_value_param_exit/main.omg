@@ -103,7 +103,7 @@ data Main {
     gdt: Spread16<Gdtish>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.gdt.limit_low = 7;
     self.gdt.base_low = 20;
     self.gdt.flags = 3;

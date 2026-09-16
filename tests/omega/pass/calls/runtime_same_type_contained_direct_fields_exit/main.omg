@@ -21,7 +21,7 @@ data Main {
     a: Counter;
     b: Counter;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a.value = 3;
     self.b.value = 1;
     self.a.value = self.a.value + 10;

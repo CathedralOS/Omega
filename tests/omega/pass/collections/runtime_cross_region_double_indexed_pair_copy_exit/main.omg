@@ -12,7 +12,7 @@ machine Main::main(&mut self) {
     self.index = 1;
     transition { _ -> self.copy(0) }
 }
-machine Main::copy(&mut self, j: u64 [0..=1]) {
+machine Main::copy(&mut self, j: u64 [0..=1]) reaches Console {
     let local: [[Triple; 2]; 2] = [
         [
             Triple { first: 1, second: 2, third: 3 },

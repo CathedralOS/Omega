@@ -11,7 +11,7 @@ machine dbl(x: i32 [0..=1000]) -> i32 {
 machine pick(x: i32 [0..=1000]) -> i32 {
     transition x > 50 { true -> (dbl(x)) _ -> (x) }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let hot: i32 = pick(60);
     let cold: i32 = pick(10);
     transition hot == 120 {

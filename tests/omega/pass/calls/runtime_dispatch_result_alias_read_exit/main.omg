@@ -17,7 +17,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
     }
     state leaf(&mut self, acc: &mut i32) -> i32 { acc }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 = 63;
     let n: i32 = self.peek(&mut a, 2, 0);
     transition n == 63 { true -> good() _ -> bad() }

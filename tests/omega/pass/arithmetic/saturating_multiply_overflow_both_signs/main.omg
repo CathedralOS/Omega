@@ -12,7 +12,7 @@ data Main {
     b: i32 in Saturating;
     c: i32 in Saturating;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 100000;
     self.b = 100000;
     self.c = 0 - 100000;

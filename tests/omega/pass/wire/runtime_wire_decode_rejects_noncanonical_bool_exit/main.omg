@@ -27,7 +27,7 @@ data Main {
     good_verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // era 0, tag 0, invalid bool 2, tag 1, packed length 2, then true and
     // invalid bool 2.
     let bad_payload: [u8; 7] = [0, 0, 2, 1, 2, 1, 2];

@@ -30,7 +30,7 @@ data Main {
     reinterp16: i16 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.u16val = 511;
     self.i16val = 0 - 100;
     self.i32val = 70000;

@@ -11,7 +11,7 @@ data Main {
     mask: u64 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.mask = 18446744073709551615;
     self.mask = self.mask + 1;
     transition self.mask == 0 { true -> good() false -> bad() }

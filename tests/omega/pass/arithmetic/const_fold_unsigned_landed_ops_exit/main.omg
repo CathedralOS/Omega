@@ -18,7 +18,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: u32 in Wrapping = 0;
     let b: u32 in Wrapping = a - 2;                        // 4294967294
     let z: u32 in Wrapping = (b >> 1) + (b / 3) + (b % 3); // 2147483647 + 1431655764 + 2

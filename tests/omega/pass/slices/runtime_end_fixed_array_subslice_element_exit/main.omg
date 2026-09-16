@@ -10,7 +10,7 @@ data Main {
     hi: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr[0] = 10;
     self.arr[1] = 20;
     self.arr[2] = 30;
@@ -25,7 +25,7 @@ machine Main::main(&mut self) {
     state bad(&mut self) { self.console.exit_process(8); }
 }
 
-machine Main::pick(&mut self, sub: &[i32]) {
+machine Main::pick(&mut self, sub: &[i32]) reaches Console {
     transition 0 < sub.len {
         true -> self.got(sub[0])
         false -> bad2()
@@ -33,7 +33,7 @@ machine Main::pick(&mut self, sub: &[i32]) {
     state bad2(&mut self) { self.console.exit_process(7); }
 }
 
-machine Main::got(&mut self, v: i32) {
+machine Main::got(&mut self, v: i32) reaches Console {
     transition v == 20 {
         true -> matched()
         false -> unmatched()

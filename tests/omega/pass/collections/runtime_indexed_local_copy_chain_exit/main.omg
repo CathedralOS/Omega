@@ -12,7 +12,7 @@ data Main {
     arr: [i32; 4];
     i: i32 [0..=3];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr[0] = 3;
     self.arr[1] = 8;
     self.arr[2] = 1;

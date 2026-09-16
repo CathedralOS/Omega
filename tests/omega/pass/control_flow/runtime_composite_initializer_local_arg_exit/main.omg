@@ -18,7 +18,7 @@ data Main {
     v: i32 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let x: i32 in Trapping = 5;
     let s: i32 in Trapping = x + 100;
 

@@ -27,7 +27,7 @@ machine Main::main(&mut self) {
     self.name = "omega";
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     let m: Msg = self.mk();
     transition m {
         Msg::Pong { y, z } -> chk(y, z)

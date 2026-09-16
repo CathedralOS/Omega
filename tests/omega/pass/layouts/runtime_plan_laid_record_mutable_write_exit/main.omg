@@ -41,7 +41,7 @@ data Main {
     bytes: [u8; 32];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let view: &mut ForeignView = &mut self.bytes[0] as &mut ForeignView;
     view.value.low = 0x0201;
     view.value.high = 0x0807060504030201;

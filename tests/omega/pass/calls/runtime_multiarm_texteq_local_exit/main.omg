@@ -43,7 +43,7 @@ machine Main::main(&mut self) {
     self.s.alt = "other";
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     let hit: bool = self.s.check(0);
     let miss: bool = self.s.check(1);
     transition hit {

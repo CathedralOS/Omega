@@ -7,13 +7,13 @@ data Main {
     line: [u8; 64];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.echo_line();
     self.echo_line();
     self.console.exit_process(0);
 }
 
-machine Main::echo_line(&mut self) {
+machine Main::echo_line(&mut self) reaches Console {
     let observed: LineReadResult = self.console.read_line(&mut self.line);
     transition observed {
         LineReadResult::LineComplete { count } -> bounded_input(count, true)
@@ -61,7 +61,7 @@ machine Main::echo_line(&mut self) {
 }
 
 // The bound is checked on the exact view before forming its output prefix.
-machine write_prefix(console: &mut Console, bytes: &[u8], count: u64) {
+machine write_prefix(console: &mut Console, bytes: &[u8], count: u64) reaches Console {
     transition count <= bytes.len {
         true -> output(console, bytes[0..count])
         false -> invalid(console)

@@ -26,7 +26,7 @@ data Main {
     finite_verdict64: bool;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let zero32: f32 = 0.0f32;
     let nan32: f32 = zero32 / zero32;
     let infinity32: f32 = 1.0f32 / zero32;

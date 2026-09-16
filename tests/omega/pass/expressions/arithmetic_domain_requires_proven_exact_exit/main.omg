@@ -21,7 +21,7 @@ requires
     transition { _ -> (doubled) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let result: i32 = self.compute(35);   // 35 in [0,100]; 35 + 35 = 70
     transition result == 70 {
         true -> good()

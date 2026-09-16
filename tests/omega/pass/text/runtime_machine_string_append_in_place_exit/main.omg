@@ -14,7 +14,7 @@ data Main {
     line: [u8; 16] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.line = "prefix ";
     self.line = self.line + "omega";
     self.console.write_line(self.line);

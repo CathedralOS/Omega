@@ -26,7 +26,7 @@ data Main {
     good_verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // era 0, tag 0, packed byte length 2, then zigzag(5)=10 and
     // zigzag(-1)=1. The first element is outside [-2..=2].
     let bad_payload: [u8; 5] = [0, 0, 2, 10, 1];

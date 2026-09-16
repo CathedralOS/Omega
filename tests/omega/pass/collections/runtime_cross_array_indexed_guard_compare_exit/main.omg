@@ -14,7 +14,7 @@ data Main {
     i: i32 [0..=3];
     j: i32 [0..=3];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a[0] = 10;
     self.a[1] = 20;
     self.a[2] = 30;

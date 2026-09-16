@@ -9,7 +9,7 @@
 use omega_language_std::console;
 data Box<T> { value: T; }
 data Main { console: Console; r: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let bi: Box<i32> = Box { value: 30 };
     let bb: Box<bool> = Box { value: true };
     self.r = bi.value;

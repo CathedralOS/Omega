@@ -9,7 +9,7 @@ data Main {
     selector: Selector;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.selector.pick(1);
 
     transition self.selector.result == 20 {

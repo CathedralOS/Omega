@@ -55,7 +55,7 @@ data Main {
     observed: u16;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let view: &mut TiledRecordNestedArrayView =
         &mut self.bytes[0] as &mut TiledRecordNestedArrayView;
     self.outer = 0;

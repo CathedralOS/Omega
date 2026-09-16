@@ -35,7 +35,7 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.source[0] = 72;
     self.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: self.source[0..2] };

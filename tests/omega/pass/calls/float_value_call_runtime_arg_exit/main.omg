@@ -22,7 +22,7 @@ machine is_zeroish(x: f64) -> bool {
     state no() -> bool { false }
 }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition { _ -> check(1.0, 0.0) }
     state check(&mut self, a: f64, b: f64) {
         let inf: f64 = a / b;

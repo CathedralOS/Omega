@@ -27,7 +27,7 @@ machine Calc::double_val(&mut self, n: i32 in Wrapping) -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.base = 10;
     let r: i32 in Wrapping = self.base + self.calc.double_val(6) * 3;  // 10 + 12 * 3 = 46
     transition r == 46 {

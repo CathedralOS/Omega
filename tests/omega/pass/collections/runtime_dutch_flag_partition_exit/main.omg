@@ -33,7 +33,7 @@ data Main {
     bp: u64 [0..=2];  // b - 1 lands bounded from the b > 0 guard (bubble's jp idiom)
     t: Color;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.items[0] = Color::White;
     self.items[1] = Color::Blue;
     self.items[2] = Color::Red;

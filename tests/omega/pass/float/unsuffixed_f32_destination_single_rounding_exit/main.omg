@@ -26,7 +26,7 @@ data Main {
     s: Sample;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: f32 = 8388609.499999999999999;
     transition a == 8388609.0 { true -> field_face() _ -> bad(78) }
 

@@ -30,7 +30,7 @@ data Main {
     dst: Point;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.o = Outer { mid: Mid { inner: Inner { v: 7 } } };
 
     transition self.o.mid.inner.v == 7 { true -> check_write() _ -> bad() }

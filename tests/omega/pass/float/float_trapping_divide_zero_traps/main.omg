@@ -7,7 +7,7 @@ data Main {
     zero: f32 in Trapping;
     result: f32 in Trapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.one = 1.0;
     self.zero = 0.0;
     self.result = self.one / self.zero;

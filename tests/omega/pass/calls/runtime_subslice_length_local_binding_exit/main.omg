@@ -13,7 +13,7 @@ data Main {
     arr: [i32; 5];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let sub: &[i32] = self.arr[1..4];
     let n: u64 = sub.len;
     transition n == 3 {

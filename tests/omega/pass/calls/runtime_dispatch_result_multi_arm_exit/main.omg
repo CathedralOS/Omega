@@ -20,7 +20,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
     state big(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
     state small(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { 0 - acc }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // 4 iterations x 2 = 8 > 5 -> big -> 8; 2 iterations x 2 = 4 -> small -> -4.
     self.high = self.classify(4, 0, 0);
     self.low = self.classify(2, 0, 0);

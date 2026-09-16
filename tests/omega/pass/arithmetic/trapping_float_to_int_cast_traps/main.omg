@@ -11,9 +11,9 @@ use omega::language::core::float_operations;
 // exits: 71 = in-range Trapping cast wrong; 7 = SAILED PAST the trap (the
 // failure the suite asserts against). x86 performs the same value guard
 // before cvttsd2si can produce its ambiguous integer-indefinite result.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; f: f64; r: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.f = 7.9;
     self.r = (self.f as i32 in Trapping) as i32;
     transition self.r == 7 { true -> oor() _ -> bad() }

@@ -11,7 +11,7 @@
 // masked.
 use omega_language_std::console;
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: u8 in Wrapping = (3 as u8 in Wrapping);
     let c: u8 in Wrapping = (13 as u8 in Wrapping);
     let r: u8 in Wrapping = a << c;

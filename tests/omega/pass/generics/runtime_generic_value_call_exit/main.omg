@@ -8,7 +8,7 @@
 use omega_language_std::console;
 data Main { console: Console; }
 machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let v: i32 in Wrapping = self.id(70);
     self.console.exit_process(v as i32);
 }

@@ -28,7 +28,7 @@ data Main {
     count: u32 [0..=11];
     j: u32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.count = 8;
     self.items[6] = 7;
     self.j = 6;

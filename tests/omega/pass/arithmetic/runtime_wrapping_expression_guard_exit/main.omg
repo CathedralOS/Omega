@@ -15,7 +15,7 @@ data Main {
     ai: i8 in Wrapping;
     bi: i8 in Wrapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.au = 200;
     self.bu = 100;
     transition (self.au + self.bu == 44) { true -> sub_wrap() _ -> bad() }

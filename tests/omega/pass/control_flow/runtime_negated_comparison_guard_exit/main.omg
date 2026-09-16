@@ -5,7 +5,7 @@ data Main {
     roll: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.roll = 3;
 
     transition ((self.roll >= 5) == false) {

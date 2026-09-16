@@ -39,7 +39,7 @@ data Main {
     level: Level;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.level.room_count = 9;
     self.store.build(&mut self.level);
     transition self.level.room_count == 2 {

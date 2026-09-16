@@ -21,7 +21,7 @@ machine pick(x: i32) -> i32 {
     state hi() -> i32 { 100 }
     state lo() -> i32 { 200 }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.d = 1;
     self.vec = self.delta(self.d);
     transition self.vec.x == 3 { true -> chk_y() _ -> bad(71) }

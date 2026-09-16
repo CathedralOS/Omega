@@ -4,7 +4,7 @@
 // prover keeps `x + y` (worst case [0, 115]) EXACT with no overflow domain.
 use omega_language_std::console;
 data Main { console: Console; x: i32 [0..16]; y: i32 [0..=100]; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.x = 5;
     self.y = 60;
     let z: i32 = self.x + self.y;

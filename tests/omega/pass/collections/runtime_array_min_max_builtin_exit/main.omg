@@ -13,7 +13,7 @@ data Main {
     mn: i32 in Wrapping;
     mx: i32 in Wrapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr[0] = 30; self.arr[1] = 50; self.arr[2] = 70; self.arr[3] = 20; self.arr[4] = 60; self.arr[5] = 10;
     self.mn = 999;
     self.mx = 0;

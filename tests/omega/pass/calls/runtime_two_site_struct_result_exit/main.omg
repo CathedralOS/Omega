@@ -18,7 +18,7 @@ data Main {
     second: Pair;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.first = self.wrapper.make_pair();
     self.second = self.wrapper.make_pair();
     transition self.first.a > 0 {

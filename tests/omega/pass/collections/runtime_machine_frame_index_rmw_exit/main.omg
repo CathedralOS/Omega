@@ -13,7 +13,7 @@ machine Main::main(&mut self) {
     self.arr[2] = 4;
     transition { _ -> self.bump(2) }
 }
-machine Main::bump(&mut self, k: u64 [0..=3]) {
+machine Main::bump(&mut self, k: u64 [0..=3]) reaches Console {
     transition self.arr[k] < 10 {
         true -> go(k)
         false -> full()

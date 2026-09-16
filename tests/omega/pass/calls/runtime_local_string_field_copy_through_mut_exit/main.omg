@@ -24,7 +24,7 @@ data Main {
     line: [u8; 32] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.set_from_local_field(&mut self.line);
     self.console.write_line(self.line);
 

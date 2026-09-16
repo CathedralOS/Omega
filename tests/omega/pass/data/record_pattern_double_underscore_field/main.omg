@@ -7,7 +7,7 @@ data Pair {
     right: i32;
 }
 data Main { console: Console; pair: Pair; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.pair = Pair { left__value: 70, right: 1 };
     let { left__value, right as _ } = self.pair;
     let code: i32 = left__value + 0;

@@ -20,7 +20,7 @@ data Main {
     r: f32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 10.0;
     self.b = 4.0;
 

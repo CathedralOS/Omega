@@ -27,7 +27,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, sub: &[Entry]) {
+machine Main::check(&mut self, sub: &[Entry]) reaches Console {
     transition self.k < sub.len {
         true -> self.verify(sub[0..self.k])
         false -> bad()
@@ -37,7 +37,7 @@ machine Main::check(&mut self, sub: &[Entry]) {
     }
 }
 
-machine Main::verify(&mut self, prefix: &[Entry]) {
+machine Main::verify(&mut self, prefix: &[Entry]) reaches Console {
     transition prefix.len == 3 {
         true -> good()
         false -> wrong()

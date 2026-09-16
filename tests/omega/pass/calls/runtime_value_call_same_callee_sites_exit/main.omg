@@ -22,7 +22,7 @@ machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     transition r >= 0 { _ -> done(r) }
     state done(&self, v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.f = self.dbl(5);
     self.g = self.dbl(6);
     transition self.f == 10 { true -> chk_g() _ -> bad(71) }

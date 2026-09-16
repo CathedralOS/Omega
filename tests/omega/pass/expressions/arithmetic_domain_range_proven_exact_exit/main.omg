@@ -17,7 +17,7 @@ data Main {
     y: i32 [0..=100];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.x = 40;
     self.y = 30;
     let z: i32 = self.x + self.y;   // proven in [0, 200] -> exact, no overflow

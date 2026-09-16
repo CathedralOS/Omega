@@ -19,7 +19,7 @@ data Main {
     elapsed: Duration;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.start_keep = self.time.now();
     self.d = Duration { seconds: 0, subsecond_nanoseconds: 30000000 };
     self.slept = self.time.sleep_for(self.d);

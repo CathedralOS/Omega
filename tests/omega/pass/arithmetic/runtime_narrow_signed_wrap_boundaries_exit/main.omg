@@ -14,7 +14,7 @@ data Main {
     a16l: i16 in Wrapping; // i16 low boundary
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a8h = 127;        self.a8h = self.a8h + 1;   // 127 + 1  wraps to -128
     self.a8l = 0 - 128;    self.a8l = self.a8l - 1;   // -128 - 1 wraps to 127
     self.a16h = 32767;     self.a16h = self.a16h + 1; // 32767 + 1   wraps to -32768

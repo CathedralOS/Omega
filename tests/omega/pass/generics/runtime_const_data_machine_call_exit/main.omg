@@ -17,7 +17,7 @@ data Main {
     buffer: FixedBuffer<table_size() * 2 - 4>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.buffer.items[3] = 70;
     self.console.exit_process(self.buffer.items[3]);
 }

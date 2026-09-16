@@ -55,7 +55,7 @@ data Main {
     bytes: [u8; 1];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.source = -9;
     self.packed.value = self.source;
     transition self.flow_source >= -128 && self.flow_source <= 127 {

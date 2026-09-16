@@ -18,7 +18,7 @@ data Main {
     total: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition { _ -> put_const(Exit { destination: 9, weight: 4 }) }
 
     // Leg 1: CONSTANT fields (the integer fast path).

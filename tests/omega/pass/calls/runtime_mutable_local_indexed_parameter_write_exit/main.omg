@@ -13,7 +13,7 @@ machine Main::touch_tag(&mut self, item: &mut Item) {
     item.tag = 0;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let items: [Item; 2] = [Item { value: 1, tag: 1 }, Item { value: 2, tag: 2 }];
     let index: u64 = 0;
     self.touch_tag(&mut items[index]);

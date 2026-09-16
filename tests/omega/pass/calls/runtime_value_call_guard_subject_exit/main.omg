@@ -12,7 +12,7 @@ machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 2;
     transition { _ -> r }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition self.dbl(5) == 11 { true -> bad(71) _ -> chk_true() }
     state chk_true(&mut self) {
         transition self.dbl(5) == 10 { true -> chk_ne() _ -> bad(72) }

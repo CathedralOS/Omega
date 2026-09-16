@@ -28,7 +28,7 @@ machine Main::minus_five(&self, z: i32 in Wrapping) -> i32 {
     transition { _ -> (r as i32) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 in Wrapping = self.add_ten(5);     // 15
     let b: i32 in Wrapping = self.double(a);      // 30
     let c: i32 in Wrapping = self.minus_five(b);  // 25

@@ -21,7 +21,7 @@ data Main {
     mask: u64 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
     self.b = Duration { seconds: 3, subsecond_nanoseconds: 500000000 };
     self.sum_result = self.a.checked_add(self.b);

@@ -44,7 +44,7 @@ machine Main::count(&mut self, path: &[u8]) -> i32 {
     }
     state zero(&mut self) -> i32 { 0 }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.n = 0;
     let c: i32 = self.count("a/b/c");
     transition c == 2 { true -> good() _ -> bad(71) }

@@ -14,7 +14,7 @@ data Main {
     shifted: u32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 3000000000;
     self.b = 2;
     self.quotient = self.a / self.b; // 1500000000

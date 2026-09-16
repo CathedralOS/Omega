@@ -12,7 +12,7 @@
 // always lowered (probed); this pins the runtime-RHS shape.
 use omega_language_std::console;
 data Main { console: Console; cells: [u8; 12]; rows: u32 [0..=2]; cols: u32 [0..=3]; j: u32; k: u32; out: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.rows = 2;
     self.cols = 3;
     self.j = 2;

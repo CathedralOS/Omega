@@ -25,7 +25,7 @@ data Main {
     differ_room: Room;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.match_room.label = "expected";
     // Same length as the literal, differing only in the final byte, so the
     // inequality must come from the byte loop rather than the length check.
@@ -64,7 +64,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::verify(&mut self, room: &mut Room) {
+machine Main::verify(&mut self, room: &mut Room) reaches Console {
     transition room.label == "expected" {
         true -> pass()
         false -> fail()

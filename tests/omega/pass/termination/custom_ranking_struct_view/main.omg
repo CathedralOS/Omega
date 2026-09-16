@@ -18,7 +18,7 @@ measure Card::PowerOrder(card: Card) -> u64 { card.power }
 
 data Main { console: Console; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let value: u64 = self.weaken(Card { power: 3 });
     transition value == 0 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }

@@ -20,7 +20,7 @@ data Main {
     f: &[u8] in NonEmpty;
 }
 
-machine Main::check(&self, text: &[u8] in NonEmpty) {
+machine Main::check(&self, text: &[u8] in NonEmpty) reaches Console {
     transition text == "x" {
         true -> good()
         _ -> bad()

@@ -12,7 +12,7 @@ data Main {
     trapped: f64 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.quiet = 1.0f64 / 0.0;
     self.trapped = self.quiet;
     self.trapped = self.trapped + 1.0;

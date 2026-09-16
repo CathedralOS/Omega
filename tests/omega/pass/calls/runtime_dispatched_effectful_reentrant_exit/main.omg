@@ -22,7 +22,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
     }
     state done_leaf(&mut self) -> i32 in Wrapping { self.hits }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // i = 4: entries at j = 0,1,2,3,4 -> hits == 5; result returns hits (5).
     self.total = self.count(4, 0);
     transition self.total == 5 { true -> ck_hits() _ -> bad(71) }

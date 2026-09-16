@@ -26,7 +26,7 @@ data Main {
     event: RoomEvent;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // Construct with a named common field next to the payload field.
     self.event = RoomEvent::Treasure { consumed: true, gold: 50 };
     transition self.event.consumed {
