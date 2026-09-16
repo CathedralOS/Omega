@@ -64,7 +64,7 @@ fn preceding_empty_mutable_ancestor_method_rejects_requires() {
     for access in ["", "mut "] {
         reject_exposed_input(
             access,
-            "carrier.touch();",
+            "_ = carrier.touch();",
             "0",
             "machine Carrier::touch(&mut self) -> u64 { 0 }",
         );
@@ -85,7 +85,7 @@ fn earlier_operand_empty_mutable_ancestor_method_rejects_requires() {
 
 #[test]
 fn a_disjoint_referent_method_preserves_the_input_subject() {
-    assert_disjoint_referent_method("carrier.context.increment_counter();", "0");
+    assert_disjoint_referent_method("_ = carrier.context.increment_counter();", "0");
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn referent_method_source(preceding: &str, operand: &str, mutation: &str) -> Str
 #[test]
 fn a_referent_scheduler_write_retires_the_input_qualification() {
     for (preceding, operand) in [
-        ("carrier.context.increment_counter();", "0"),
+        ("_ = carrier.context.increment_counter();", "0"),
         ("", "carrier.context.increment_counter()"),
     ] {
         let source =
@@ -143,7 +143,7 @@ fn a_referent_scheduler_write_retires_the_input_qualification() {
 #[test]
 fn a_referent_method_does_not_replace_a_saved_reference_binding() {
     for (preceding, operand) in [
-        ("carrier.context.increment_counter();", "0"),
+        ("_ = carrier.context.increment_counter();", "0"),
         ("", "carrier.context.increment_counter()"),
     ] {
         let source = fixture_source(
@@ -210,7 +210,7 @@ fn later_exposure_does_not_change_an_earlier_input_origin_query() {
 
     for exposure in [
         "_ = inspect_context(&mut carrier.context);",
-        "carrier.touch();",
+        "_ = carrier.touch();",
     ] {
         let program = typed_source(&fixture_source(
             "",

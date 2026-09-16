@@ -81,7 +81,7 @@ fn explicit_mutable_exposure_of_an_incoming_readonly_slot_retires_result_identit
 
 #[test]
 fn an_incoming_mutable_ancestor_receiver_retires_shared_result_identity() {
-    assert_incoming_carrier_has_no_subject("input.touch();");
+    assert_incoming_carrier_has_no_subject("_ = input.touch();");
 }
 
 #[test]

@@ -52,7 +52,9 @@ pub(crate) use expression_scanning::{
 pub use expression_scanning::{
     result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
 };
-use generic_bounds::validate_machine_call_type_parameter_bounds;
+use generic_bounds::{
+    validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,
+};
 pub(crate) use inline_assembly::validate_asm_value_destination;
 use inline_assembly::{user_asm_contract, validate_asm_operand_constraint};
 pub(crate) use recursion::{
@@ -173,20 +175,25 @@ pub(crate) fn validate_call_node(
 }
 
 /// Reports the "state `X` expects N argument(s), got M" error when `arguments`
-/// does not match the callee's callable (non-`self`) parameter count, returning
-/// `true` on a mismatch so callers skip the per-argument checks (which zip the
-/// two and would misalign). SINGLE SOURCE OF TRUTH for call arity across the
-/// statement-position (`validate_call_arguments_handles`) and value-position
+/// does not match the callee's callable parameter count, returning `true` on a
+/// mismatch so callers skip the per-argument checks (which zip the two and
+/// would misalign). `self_is_argument` selects the arity contract: a runtime
+/// receiver binds `self` through the receiver place (the callee's `self`
+/// parameter is not an authored argument), while a static carrier call spells
+/// the declaration and its first argument IS the `self` operand. SINGLE SOURCE
+/// OF TRUTH for call arity across the statement-position
+/// (`validate_call_arguments_handles`) and value-position
 /// (`validate_value_call_argument_classes`) paths.
 pub(crate) fn report_argument_count_mismatch(
     target_name: &str,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
+    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     let callable_parameter_count = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| self_is_argument || !parameter.is_self)
         .count();
 
     report_callable_argument_count_mismatch(
@@ -384,6 +391,44 @@ pub(crate) fn validate_call_arguments_handles(
     );
 }
 
+/// The same argument validation as `validate_call_arguments_handles`, but the
+/// callee's `self` parameter is bound by an explicit argument instead of the
+/// receiver place: a static carrier call (`Receipt::ack(value)`,
+/// `Domain::content(&v)`) spells the declaration, so the first argument IS the
+/// `self` operand. Mirrors the lowering's `explicit_self` arity rule and the
+/// value-position path's `self_is_argument` threading.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_call_arguments_handles_with_self_argument(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    value_env: &ValueEnv,
+    arguments: &[ExpressionHandle],
+    target_name: &str,
+    parameters: &[StateParameter],
+    callee_state: Option<&State>,
+    writable_roots: &WritableRoots<'_, '_>,
+    self_is_argument: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_call_arguments_with_type_correspondence(
+        program,
+        current_machine,
+        current_state,
+        value_env,
+        arguments,
+        target_name,
+        parameters,
+        callee_state,
+        writable_roots,
+        false,
+        &[],
+        self_is_argument,
+        |argument, required| argument_matches_type_reference_handle(program, argument, required),
+        diagnostics,
+    );
+}
+
 fn validate_generic_bound_argument_types(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -455,6 +500,7 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
         writable_roots,
         retain_arithmetic_policy,
         argument_environments,
+        false,
         |argument, required| argument_matches_type_reference_handle(program, argument, required),
         diagnostics,
     );
@@ -475,10 +521,17 @@ fn validate_call_arguments_with_type_correspondence(
     writable_roots: &WritableRoots<'_, '_>,
     retain_arithmetic_policy: bool,
     argument_environments: &[ValueEnv],
+    self_is_argument: bool,
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
+    if report_argument_count_mismatch(
+        target_name,
+        parameters,
+        arguments,
+        self_is_argument,
+        diagnostics,
+    ) {
         return;
     }
 
@@ -503,7 +556,11 @@ fn validate_call_arguments_with_type_correspondence(
 
     for (argument_index, (argument, parameter)) in arguments
         .iter()
-        .zip(parameters.iter().filter(|parameter| !parameter.is_self))
+        .zip(
+            parameters
+                .iter()
+                .filter(|parameter| self_is_argument || !parameter.is_self),
+        )
         .enumerate()
     {
         let value_env = argument_environments
@@ -525,15 +582,19 @@ fn validate_call_arguments_with_type_correspondence(
         let expected_access = declared_reference_access(program, parameter.type_reference);
         let supplied_access = supplied_reference_access(program, *argument);
 
-        if report_write_only_argument_access(
-            program,
-            *argument,
-            parameter,
-            expected_access,
-            supplied_access,
-            target_name,
-            diagnostics,
-        ) {
+        // The `self` receiver operand is not an authored borrow argument; the
+        // write-only attenuation rule applies to the explicit parameters only.
+        if !parameter.is_self
+            && report_write_only_argument_access(
+                program,
+                *argument,
+                parameter,
+                expected_access,
+                supplied_access,
+                target_name,
+                diagnostics,
+            )
+        {
             continue;
         }
 

@@ -22,7 +22,7 @@ const CALL_FORMS: [CallForm; 2] = [CallForm::Statement, CallForm::ValueOperand];
 
 fn typed_fixture(form: CallForm) -> TypedTrees {
     let body = match form {
-        CallForm::Statement => "carrier.context.increment_counter(); 0",
+        CallForm::Statement => "_ = carrier.context.increment_counter(); 0",
         CallForm::ValueOperand => {
             "let observed: u64 = carrier.context.increment_counter(); observed"
         }
@@ -230,7 +230,7 @@ fn nested_statement_receiver_paths_retain_every_semantic_field() {
          data Carrier { inner: Inner; }
          machine Context::increment_counter(&mut self) -> u64 { self.counter = 1; 0 }
          machine inspect(mut carrier: Carrier) -> u64 {
-             carrier.inner.context.increment_counter(); 0
+             _ = carrier.inner.context.increment_counter(); 0
          }",
     );
     crate::lookup::resolve_projected_receiver_calls(&mut program)
