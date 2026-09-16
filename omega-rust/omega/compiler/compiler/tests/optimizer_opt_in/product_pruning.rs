@@ -435,13 +435,15 @@ fn checked_tree_product_pruning_retains_the_selected_product_root() {
     ))
     .expect("the selected checked-tree product compiles");
 
+    // The exact bundled Linux entry contract retains its evaluated Extent
+    // predicate machine alongside the authored root.
     let machine_names = checked
         .typed
         .machines()
         .iter()
         .map(|machine| machine.name.as_str())
         .collect::<Vec<_>>();
-    assert_eq!(machine_names, ["Main::main"]);
+    assert_eq!(machine_names, ["Main::main", "no_wrap"]);
 
     let entry = checked
         .selected_program_entry()
@@ -452,7 +454,18 @@ fn checked_tree_product_pruning_retains_the_selected_product_root() {
         .checked_tree_product_selection()
         .expect("checked-tree product pruning retains its selection evidence");
     assert_eq!(selection.roots().machines(), &[entry]);
-    assert_eq!(selection.retained_machines(), &[entry]);
+    let contract_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "no_wrap")
+        .expect("the exact Linux entry contract retains its Extent predicate")
+        .symbol;
+    assert_eq!(
+        selection.retained_machines(),
+        &[entry, contract_machine],
+        "entry selection retains the contract machine; pruning retains the root"
+    );
     let pruned_names = selection
         .pruned_machines()
         .iter()

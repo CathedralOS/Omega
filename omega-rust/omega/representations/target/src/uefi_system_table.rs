@@ -456,6 +456,7 @@ fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
             .map_or(0, |package| match package {
                 ProgramEntryPhysicalContractPackage::UefiX64 => 1,
                 ProgramEntryPhysicalContractPackage::MacosArm64 => 2,
+                ProgramEntryPhysicalContractPackage::LinuxX86_64 => 3,
             }),
     );
     hash_optional_str(hash, entry_slot.boundary_schema);
@@ -465,6 +466,7 @@ fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
             .map_or(0, |calling| match calling {
                 ProgramEntryCallingConvention::MicrosoftX64 => 1,
                 ProgramEntryCallingConvention::Aapcs64 => 2,
+                ProgramEntryCallingConvention::SystemVAMD64 => 3,
             }),
     );
     hash.byte(
@@ -473,6 +475,7 @@ fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
             .map_or(0, |calling| match calling {
                 ProgramEntryCallingConvention::MicrosoftX64 => 1,
                 ProgramEntryCallingConvention::Aapcs64 => 2,
+                ProgramEntryCallingConvention::SystemVAMD64 => 3,
             }),
     );
     hash.byte(match entry_slot.visible_parameters {

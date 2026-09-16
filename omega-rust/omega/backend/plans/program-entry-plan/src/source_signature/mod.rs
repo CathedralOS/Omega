@@ -581,6 +581,7 @@ fn push_optional_calling_convention(
         None => 0,
         Some(target::ProgramEntryCallingConvention::MicrosoftX64) => 1,
         Some(target::ProgramEntryCallingConvention::Aapcs64) => 2,
+        Some(target::ProgramEntryCallingConvention::SystemVAMD64) => 3,
     });
 }
 

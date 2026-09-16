@@ -2,7 +2,7 @@ use super::{
     PROJECT_SEQUENCE, compile_check, compile_native_and_publish, native_evidence_standard_library,
     package_identity, project, replay_native_artifact_parts,
 };
-use crate::console_acceptance;
+use crate::{console_acceptance, linux_entry_acceptance};
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, OptimizationRollback,
     RequestedCompileProduct, compile_to_checked,
@@ -89,6 +89,12 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
         )],
     )
     .expect("selected-lowering package inputs should validate");
+    let entry_binding =
+        linux_entry_acceptance::candidate_linux_x86_64_entry_binding(&standard_library, standard)
+            .expect("the fixture explicitly accepts the checked Linux entry schema");
+    let inputs = inputs
+        .with_accepted_semantic_bindings(vec![entry_binding.clone()])
+        .expect("entry acceptance binds to the std package");
     let preliminary = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(inputs.clone()),
         ..CheckedCompileRequest::new(&root.join("main.omg"), Some("linux_x86_64"))
@@ -98,8 +104,8 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
         console_acceptance::candidate_console_exit_binding(&preliminary, standard, false, false)
             .expect("hosted console exit acceptance should derive from the checked program");
     let inputs = inputs
-        .with_accepted_semantic_bindings(vec![console_binding])
-        .expect("console exit acceptance binds to the std package");
+        .with_accepted_semantic_bindings(vec![entry_binding, console_binding])
+        .expect("entry and console exit acceptance bind to the std package");
     let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
         inputs
             .accepted_semantic_bindings()

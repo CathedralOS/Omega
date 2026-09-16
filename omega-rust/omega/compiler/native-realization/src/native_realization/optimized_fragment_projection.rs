@@ -59,7 +59,7 @@ pub(super) fn emit_optimized_fragments(
                     error,
                 )
             })?;
-        image_emission::bind_macos_hosted_receiver(
+        image_emission::bind_hosted_receiver(
             &mut object,
             entry.source(),
             contract,

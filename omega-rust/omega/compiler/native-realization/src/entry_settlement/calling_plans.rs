@@ -49,6 +49,9 @@ pub(crate) fn validate_paired_calling_plans(
         target::ProgramEntryCallingConvention::Aapcs64 => {
             calling_conventions::CallingPolicy::Aapcs64
         }
+        target::ProgramEntryCallingConvention::SystemVAMD64 => {
+            calling_conventions::CallingPolicy::SystemVAMD64
+        }
     };
     if semantic_plan.plan().call.policy != expected_policy(expected_semantic)
         || physical_plan.plan().call.policy != expected_policy(expected_physical)

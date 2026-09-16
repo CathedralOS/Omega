@@ -81,6 +81,8 @@ use std::process::{Command, Stdio};
 
 #[path = "support/console_acceptance.rs"]
 mod console_acceptance;
+#[path = "support/linux_entry_acceptance.rs"]
+mod linux_entry_acceptance;
 #[path = "support/macos_entry_acceptance.rs"]
 mod macos_entry_acceptance;
 #[path = "samples_compile/native_acceptance.rs"]
@@ -150,7 +152,7 @@ fn compile_sample_to_checked(
         return compile_to_checked(CheckedCompileRequest::new(root_path, target_name));
     }
     compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(sample_package_inputs(root_path)),
+        package_inputs: Some(sample_native_package_inputs(root_path, target_name)?),
         ..CheckedCompileRequest::new(root_path, target_name)
     })
 }
@@ -158,9 +160,26 @@ fn compile_sample_to_checked(
 fn compile_check(
     options: CompileOptions,
 ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
-    let package_inputs = sample_package_inputs(&options.root_path);
-    compiler::compile(compiler::CompileRequest::new(options).with_package_inputs(package_inputs))
-        .and_then(compiler::CompileOutcomes::into_single_report)
+    let package_inputs =
+        sample_native_package_inputs(&options.root_path, options.target_name.as_deref())?;
+    let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+        package_inputs
+            .accepted_semantic_bindings()
+            .flat_map(|binding| binding.terminal_authority_permissions())
+            .cloned()
+            .collect(),
+    )
+    .map_err(|error| {
+        vec![diagnostics::Diagnostic::error(format!(
+            "cannot construct sample fixture terminal-authority policy: {error:?}"
+        ))]
+    })?;
+    compiler::compile(
+        compiler::CompileRequest::new(options)
+            .with_package_inputs(package_inputs)
+            .with_terminal_authority_permission_policy(permission_policy),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
 }
 
 fn compile_native_and_publish(
@@ -206,11 +225,21 @@ fn sample_native_package_inputs(
     // decisions. Accept the checked dependency entry before selecting the
     // application, then retain it when adding the exact Console plan below.
     let mut bindings = Vec::new();
-    if target_name.unwrap_or(host_target_name()) == "macos_arm64" {
-        bindings.push(macos_entry_acceptance::candidate_macos_entry_binding(
+    let entry_binding = match target_name.unwrap_or(host_target_name()) {
+        "macos_arm64" => Some(macos_entry_acceptance::candidate_macos_entry_binding(
             &repo_root().join("source/library/std"),
             standard_library,
-        )?);
+        )?),
+        "linux_x86_64" => Some(
+            linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
+                &repo_root().join("source/library/std"),
+                standard_library,
+            )?,
+        ),
+        _ => None,
+    };
+    if let Some(entry_binding) = entry_binding {
+        bindings.push(entry_binding);
         package_inputs = package_inputs
             .with_accepted_semantic_bindings(bindings.clone())
             .map_err(|errors| {

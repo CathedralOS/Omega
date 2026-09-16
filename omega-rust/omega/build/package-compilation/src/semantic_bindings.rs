@@ -29,6 +29,12 @@ pub enum AcceptedSemanticBindingRole {
     /// target-fixed; this binding chooses the ordinary package nominal that
     /// realizes that schema without granting toolchain provenance.
     MacosArm64ProgramEntry,
+    /// Exact package-owned Linux x86-64 application schema selected by the
+    /// target's physical-entry consumer. The kernel process-arrival ABI
+    /// remains target-fixed; this binding chooses the ordinary package
+    /// nominal that realizes that schema without granting toolchain
+    /// provenance.
+    LinuxX86_64ProgramEntry,
 }
 
 /// Consumer-policy acceptance of one exact package-owned semantic surface.
@@ -91,6 +97,7 @@ impl AcceptedSemanticBinding {
             AcceptedSemanticBindingRole::FilesystemHostService
                 | AcceptedSemanticBindingRole::UefiX64ProgramEntry
                 | AcceptedSemanticBindingRole::MacosArm64ProgramEntry
+                | AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
         ) {
             return Err("accepted semantic role requires a selected provider plan");
         }
@@ -190,6 +197,7 @@ pub fn accepted_service_schema_digest(
         role,
         AcceptedSemanticBindingRole::UefiX64ProgramEntry
             | AcceptedSemanticBindingRole::MacosArm64ProgramEntry
+            | AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
     ) {
         return schema.identity_digest();
     }

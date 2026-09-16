@@ -9,6 +9,8 @@ mod console_acceptance;
 mod fixtures;
 #[path = "build_target_activation/foreign_helper_product_queries.rs"]
 mod foreign_helper_product_queries;
+#[path = "support/linux_entry_acceptance.rs"]
+mod linux_entry_acceptance;
 #[path = "build_target_activation/x86_feature_admission.rs"]
 mod x86_feature_admission;
 

@@ -2,12 +2,49 @@ use super::{
     TempProject, application_build, diagnostic_text, exact_target_build, package_identity,
     package_inputs_with_standard_library, pass_canary_main,
 };
-use crate::{console_acceptance, fixtures};
+use crate::{console_acceptance, fixtures, linux_entry_acceptance};
 use compiler::{
     ArtifactEmissionPolicy, CheckedCompileRequest, CompileOptions, CompileRequest,
     RequestedCompileProduct, RetainedNativeRealizationRequest, compile, compile_to_checked,
     realize_retained_native_artifact,
 };
+
+/// Package inputs for a std-linked fixture that selects the Linux x86-64
+/// program entry. A package-sourced `targets/linux_x86_64/entry.omg` cannot
+/// take the bundled-source path, so the checked schema needs the same
+/// explicit accepted binding the macOS entry requires.
+fn package_inputs_with_linux_entry(
+    main: &std::path::Path,
+    canonical_name: &str,
+) -> package_compilation::PackageCompilationInputs {
+    let entry_binding = linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(4)
+            .expect("repository root")
+            .join("source/library/std"),
+        package_identity(2),
+    )
+    .expect("the fixture explicitly accepts the checked Linux entry schema");
+    package_inputs_with_standard_library(main, canonical_name)
+        .with_accepted_semantic_bindings(vec![entry_binding])
+        .expect("Linux entry acceptance binds to the std package")
+}
+
+/// Select the package inputs for one target leg: Linux x86-64 entries carry
+/// the accepted contract binding, every other target keeps the plain
+/// std-linked inputs.
+fn package_inputs_for_target(
+    main: &std::path::Path,
+    canonical_name: &str,
+    target: &str,
+) -> package_compilation::PackageCompilationInputs {
+    if target == "linux_x86_64" {
+        package_inputs_with_linux_entry(main, canonical_name)
+    } else {
+        package_inputs_with_standard_library(main, canonical_name)
+    }
+}
 
 #[test]
 fn root_build_aliases_cannot_mutate_target_or_replace_the_activation() {
@@ -92,9 +129,10 @@ fn exact_x86_fma_demand_fails_closed_without_feature_admission() {
     let main = pass_canary_main(fixtures::NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
     for target in ["linux_x86_64", "windows_x86_64"] {
         let diagnostics = compile_to_checked(CheckedCompileRequest {
-            package_inputs: Some(package_inputs_with_standard_library(
+            package_inputs: Some(package_inputs_for_target(
                 &main,
                 "named-provider-fused-multiply-add-exit",
+                target,
             )),
             ..CheckedCompileRequest::new(&main, Some(target))
         })
@@ -131,9 +169,10 @@ fn admitted_x86_fma_demand_retains_exact_plan_associations() {
     ] {
         let main = pass_canary_main(fixtures::X86_FMA_PLAN_ASSOCIATION);
         let checked = compile_to_checked(CheckedCompileRequest {
-            package_inputs: Some(package_inputs_with_standard_library(
+            package_inputs: Some(package_inputs_for_target(
                 &main,
                 "x86-fma-plan-association",
+                target,
             )),
             ..CheckedCompileRequest::new(&main, Some(target))
         })
@@ -249,6 +288,18 @@ machine Main::emit(&mut self) reaches Console {
         ),
     );
     let package_inputs = package_inputs_with_standard_library(&project.main(), "target-activation");
+    let entry_binding = linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(4)
+            .expect("repository root")
+            .join("source/library/std"),
+        package_identity(2),
+    )
+    .expect("the fixture explicitly accepts the checked Linux entry schema");
+    let package_inputs = package_inputs
+        .with_accepted_semantic_bindings(vec![entry_binding.clone()])
+        .unwrap();
     let preliminary = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs.clone()),
         ..CheckedCompileRequest::new(&project.main(), Some("linux_x86_64"))
@@ -262,7 +313,7 @@ machine Main::emit(&mut self) reaches Console {
     )
     .expect("the fixture explicitly accepts Console output and exit");
     let package_inputs = package_inputs
-        .with_accepted_semantic_bindings(vec![console_binding])
+        .with_accepted_semantic_bindings(vec![entry_binding, console_binding])
         .unwrap();
     let report = compile(
         CompileRequest::new(CompileOptions {

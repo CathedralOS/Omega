@@ -8,6 +8,8 @@ mod efi_entry_abi;
 pub(super) mod fixture_roster;
 #[path = "entry_and_abi/hosted_receiver.rs"]
 mod hosted_receiver;
+#[path = "entry_and_abi/hosted_receiver_linux.rs"]
+mod hosted_receiver_linux;
 #[path = "entry_and_abi/pass_canary_coverage.rs"]
 mod pass_canary_coverage;
 #[path = "entry_and_abi/program_entries_and_image_validation.rs"]

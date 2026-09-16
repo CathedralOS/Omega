@@ -141,7 +141,18 @@ fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
         let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
             .expect("canonical receiver pointer ABI");
         let placement = &plan.parameters[0];
-        assert!(receiver_pointer_matches(shape, placement));
+        assert!(receiver_pointer_matches(
+            shape,
+            placement,
+            MachineRegister::Aarch64X(0)
+        ));
+        // A Linux/System V placement register must never satisfy the Darwin
+        // bridge's x0 custody, and vice versa.
+        assert!(!receiver_pointer_matches(
+            shape,
+            placement,
+            MachineRegister::X86Rdi
+        ));
         let indirect = |pointer, copy_stack_byte_offset, byte_size, alignment| ValuePlacement {
             shape,
             locations: vec![ValueLocation::Indirect {
@@ -193,16 +204,110 @@ fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
             },
         ] {
             assert!(
-                !receiver_pointer_matches(shape, &corrupted),
+                !receiver_pointer_matches(shape, &corrupted, MachineRegister::Aarch64X(0)),
                 "corrupted receiver: {corrupted:?}"
             );
         }
         let changed_shape = ValueShape::borrowed_reference(shape.byte_size + 1, shape.alignment);
-        assert!(!receiver_pointer_matches(changed_shape, placement));
+        assert!(!receiver_pointer_matches(
+            changed_shape,
+            placement,
+            MachineRegister::Aarch64X(0)
+        ));
         assert!(!receiver_pointer_matches(
             ValueShape::integer(shape.byte_size, shape.alignment),
-            placement
+            placement,
+            MachineRegister::Aarch64X(0)
         ));
+    }
+}
+
+#[test]
+fn linux_receiver_accepts_only_canonical_borrowed_pointer_placement() {
+    use calling_conventions::{
+        CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,
+        ValuePlacement, ValueShape, evaluate_call_plan,
+    };
+    for shape in [
+        ValueShape::borrowed_reference(0, 1),
+        ValueShape::borrowed_reference(4, 4),
+        ValueShape::borrowed_reference(32, 16),
+    ] {
+        let signature = CallSignature {
+            parameters: vec![shape],
+            result: None,
+        };
+        let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
+            .expect("canonical System V receiver pointer ABI");
+        let placement = &plan.parameters[0];
+        // System V passes the first integer argument in rdi through an
+        // indirect location retaining the referent geometry.
+        assert!(receiver_pointer_matches(
+            shape,
+            placement,
+            MachineRegister::X86Rdi
+        ));
+        assert!(!receiver_pointer_matches(
+            shape,
+            placement,
+            MachineRegister::Aarch64X(0)
+        ));
+        let indirect = |pointer, copy_stack_byte_offset, byte_size, alignment| ValuePlacement {
+            shape,
+            locations: vec![ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                alignment,
+            }],
+        };
+        let pointer = IndirectPointerLocation::Register(MachineRegister::X86Rdi);
+        for corrupted in [
+            // A substituted register is a receiver substitution, not an alias.
+            indirect(
+                IndirectPointerLocation::Register(MachineRegister::X86Rsi),
+                None,
+                shape.byte_size,
+                shape.alignment,
+            ),
+            indirect(
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset: 0,
+                    alignment: 8,
+                },
+                None,
+                shape.byte_size,
+                shape.alignment,
+            ),
+            indirect(pointer, Some(0), shape.byte_size, shape.alignment),
+            indirect(pointer, None, shape.byte_size + 1, shape.alignment),
+            indirect(pointer, None, shape.byte_size, shape.alignment * 2),
+            ValuePlacement {
+                shape,
+                locations: Vec::new(),
+            },
+            ValuePlacement {
+                shape,
+                locations: vec![placement.locations[0]; 2],
+            },
+            ValuePlacement {
+                shape,
+                locations: vec![ValueLocation::Register {
+                    register: MachineRegister::X86Rdi,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                }],
+            },
+            ValuePlacement {
+                shape: ValueShape::integer(shape.byte_size, shape.alignment),
+                locations: placement.locations.clone(),
+            },
+        ] {
+            assert!(
+                !receiver_pointer_matches(shape, &corrupted, MachineRegister::X86Rdi),
+                "corrupted receiver: {corrupted:?}"
+            );
+        }
     }
 }
 
@@ -240,18 +345,84 @@ fn hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements(
         program_entry_plan::MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
         "accepted-package::MacosPhysicalEntry::enter",
     ] {
-        assert!(physical_contract_matches(&physical_contract(
-            requirement,
-            source
-        )));
+        assert!(physical_contract_matches(
+            &physical_contract(requirement, source),
+            target::NativeTarget::macos_arm64()
+        ));
     }
     let changed_source =
         program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
             target::ProgramEntryPhysicalContractPackage::MacosArm64,
             b"different target implementation",
         );
-    assert!(!physical_contract_matches(&physical_contract(
-        "accepted-package::MacosPhysicalEntry::enter",
-        changed_source
-    )));
+    assert!(!physical_contract_matches(
+        &physical_contract(
+            "accepted-package::MacosPhysicalEntry::enter",
+            changed_source
+        ),
+        target::NativeTarget::macos_arm64()
+    ));
+}
+
+fn linux_physical_contract(
+    requirement: &str,
+    source: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
+) -> ProgramEntryPhysicalContractPlan {
+    let plan = program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan();
+    ProgramEntryPhysicalContractPlan::new(
+        target::TargetProfile::LinuxX64.program_entry_slot(),
+        requirement.into(),
+        target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
+        source,
+        0,
+        [program_entry_plan::LINUX_X86_64_ADDRESS_TYPE_IDENTITY]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+        program_entry_plan::LINUX_X86_64_I32_TYPE_IDENTITY.into(),
+        plan.contract_report_fingerprint(),
+        plan.plan().clone(),
+    )
+    .expect("well-shaped Linux physical plan")
+}
+
+#[test]
+fn linux_hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements() {
+    let source = program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest();
+    for requirement in [
+        program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+        "accepted-package::LinuxPhysicalEntry::enter",
+    ] {
+        assert!(physical_contract_matches(
+            &linux_physical_contract(requirement, source),
+            target::NativeTarget::linux_x64()
+        ));
+        // The exact Linux contract must not satisfy a different bridge target.
+        assert!(!physical_contract_matches(
+            &linux_physical_contract(requirement, source),
+            target::NativeTarget::macos_arm64()
+        ));
+    }
+    let changed_source =
+        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+            target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
+            b"different target implementation",
+        );
+    assert!(!physical_contract_matches(
+        &linux_physical_contract(
+            "accepted-package::LinuxPhysicalEntry::enter",
+            changed_source
+        ),
+        target::NativeTarget::linux_x64()
+    ));
+    // A Darwin contract presented on the Linux target is a contract
+    // substitution, not an alias.
+    let darwin = physical_contract(
+        program_entry_plan::MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
+        program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest(),
+    );
+    assert!(!physical_contract_matches(
+        &darwin,
+        target::NativeTarget::linux_x64()
+    ));
 }

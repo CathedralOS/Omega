@@ -333,13 +333,23 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
     ] {
         let (produced, signature) = entry_fixture(RECEIVER_STORE, target_profile);
         let (artifact, receipt, scope, _, _) = produced.into_parts();
-        crate::validate_native_program_entry_settlement(
+        let settlement = crate::validate_native_program_entry_settlement(
             &artifact,
             &receipt,
             NativeProgramEntrySettlement::new(&signature, None, &[]),
             target_profile.native_target(),
-        )
-        .expect(
+        );
+        if target_profile == target::TargetProfile::LinuxX64 {
+            // The Linux x86-64 slot declares its two-surface contract, so a
+            // declaration-only settlement without the selected paired calling
+            // plans fails closed before receiver provisioning is examined.
+            assert!(matches!(
+                settlement,
+                Err(crate::NativeProgramEntrySettlementError::CallingPlanPairingDrift)
+            ));
+            continue;
+        }
+        settlement.expect(
             "source-entry declaration settlement remains valid without executable provisioning",
         );
         let prepared = crate::prepare_native_realization_input(&artifact, &profile, &optimizations)

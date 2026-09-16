@@ -129,6 +129,7 @@ pub enum ProgramEntryReceiverProvisioning {
 pub enum ProgramEntryCallingConvention {
     MicrosoftX64,
     Aapcs64,
+    SystemVAMD64,
 }
 
 /// Closed identity of a toolchain-owned physical-entry contract package.
@@ -137,6 +138,7 @@ pub enum ProgramEntryCallingConvention {
 pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
     MacosArm64,
+    LinuxX86_64,
 }
 
 impl ProgramEntryPhysicalContractPackage {
@@ -144,6 +146,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "omega::language::std::targets::uefi_x86_64::entry",
             Self::MacosArm64 => "omega::language::std::targets::macos_arm64::entry",
+            Self::LinuxX86_64 => "omega::language::std::targets::linux_x86_64::entry",
         }
     }
 
@@ -151,6 +154,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "targets/uefi_x86_64/entry.omg",
             Self::MacosArm64 => "targets/macos_arm64/entry.omg",
+            Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
         }
     }
 
@@ -160,6 +164,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "UEFI",
             Self::MacosArm64 => "macOS ARM64",
+            Self::LinuxX86_64 => "Linux x86-64",
         }
     }
 }
@@ -414,6 +419,23 @@ impl TargetProfile {
                 Some(ProgramEntryPhysicalContractPackage::MacosArm64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
+            ),
+            // The Linux x86-64 hosted bridge retains the same two authored
+            // surfaces: `LinuxPhysicalEntry::enter` is the kernel process
+            // arrival (initial stack image in rsp, exit_group status in edi)
+            // and `ProgramStorageEntry::enter` is the semantic continuation it
+            // adapter-maps into. The source-visible application stays
+            // `HostedApplication` with no authored storage parameters; the two
+            // internal roots are provisioned by the bridge, never hosted
+            // arguments.
+            Self::LinuxX64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("LinuxX86_64Application"),
+                Some("LinuxPhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::LinuxX86_64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
             ),
             _ => (
                 ProgramEntrySchema::HostedApplication,

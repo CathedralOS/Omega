@@ -1,4 +1,5 @@
 use super::assert_forwarded_dynamic_result_canary;
+use super::assert_native_exit_code;
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_reviewed_repository_fixture,

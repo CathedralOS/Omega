@@ -3,3 +3,4 @@
 // implementations live beneath `std/targets/linux_x86_64/`). Target filtering
 // keeps non-selected implementations inert.
 use targets::linux_x86_64::filesystem_impl;
+use targets::linux_x86_64::entry;

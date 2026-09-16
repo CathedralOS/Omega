@@ -7,8 +7,10 @@
 use calling_conventions::BoundaryEntryPlan;
 use sha2::{Digest, Sha256};
 
+mod exact_linux_x86_64;
 mod exact_macos;
 mod exact_uefi;
+pub use exact_linux_x86_64::*;
 pub use exact_macos::*;
 pub use exact_uefi::*;
 
@@ -127,6 +129,13 @@ impl ProgramEntryPhysicalContractPlan {
                 target::TargetProfile::MacosArm64,
                 Some(target::ProgramEntryCallingConvention::Aapcs64),
             ) => (calling_conventions::CallingPolicy::Aapcs64, 4, None),
+            // The Linux kernel enters through the initial process-stack image
+            // in rsp and receives completion through exit_group; the authored
+            // contract publishes no numeric stack guarantee.
+            (
+                target::TargetProfile::LinuxX64,
+                Some(target::ProgramEntryCallingConvention::SystemVAMD64),
+            ) => (calling_conventions::CallingPolicy::SystemVAMD64, 1, None),
             _ => {
                 return Err(
                     "physical entry contract requires a target declaration with an authored physical calling convention"
