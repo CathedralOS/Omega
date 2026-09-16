@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 #[cfg(test)]
 use executable_installation::{Artifact, ContainerLimits, encode_executable_container};
 
-use crate::html_report;
+use crate::reports::html_report;
 
 pub struct ArtifactWriter {
     root: PathBuf,
