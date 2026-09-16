@@ -144,3 +144,5 @@ pub(super) const PROJECTED_PRIMITIVE_SCALAR_READ: u8 = 73;
 pub(super) const PROJECTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 74;
 /// `OperationKind::StructuralScalarFieldStore` (with range obligation).
 pub(super) const RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE: u8 = 75;
+/// `OperationKind::WriteOnlyIndexedPrimitiveStore`.
+pub(super) const WRITE_ONLY_INDEXED_PRIMITIVE_STORE: u8 = 76;

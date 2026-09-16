@@ -70,6 +70,7 @@ pub(super) fn register_scalar_result_operation(
         }
         OperationKind::CallUnit { .. }
         | OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }
         | OperationKind::StructuralScalarFieldStore { .. }

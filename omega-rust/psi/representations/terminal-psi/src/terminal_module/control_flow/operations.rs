@@ -189,6 +189,20 @@ pub enum OperationKind {
         path: Vec<CanonicalStructuralPathSegment>,
         value: ValueId,
     },
+    /// Replace one primitive element of a declared fixed array through a
+    /// runtime index without observing old contents. `path` resolves from the
+    /// destination root to the fixed array itself; `index` is the exact `u64`
+    /// runtime selector and `obligation` certifies `index < declared extent`.
+    /// The same exclusive write authority and custody rules as
+    /// `WriteOnlyPrimitiveStore` apply; the dynamic index is a runtime operand,
+    /// not a path segment, so a stored field or a second index cannot follow it.
+    WriteOnlyIndexedPrimitiveStore {
+        destination: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        index: ValueId,
+        value: ValueId,
+        obligation: ObligationId,
+    },
     /// Replace a bounded byte field's live prefix and live length from an
     /// immutable view. The exact source's length observation must satisfy
     /// length <= the independently resolved destination field capacity.
@@ -636,6 +650,10 @@ impl OperationKind {
                 *index = map(*index);
                 *value = map(*value);
                 *length = map(*length);
+            }
+            Self::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
+                *index = map(*index);
+                *value = map(*value);
             }
             Self::ByteSequenceRead { index, length, .. } => {
                 *index = map(*index);

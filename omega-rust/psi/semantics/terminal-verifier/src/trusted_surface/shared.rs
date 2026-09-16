@@ -237,6 +237,14 @@ rows! {
         &["fact:structural-effect-observation", "scope:field-value-snapshots"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
     );
+    INV_INDEXED_PRIMITIVE_STORE => (
+        "invalidation:write-only-indexed-primitive-store",
+        WriteInvalidation,
+        "a WriteOnlyIndexedPrimitiveStore to a destination place",
+        "every proposition still observing the destination root after exact scalar capture is removed from the axiom set; the runtime index cannot name the written leaf",
+        &["fact:structural-effect-observation", "scope:field-value-snapshots"],
+        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
+    );
     INV_FIELD_STORE => (
         "invalidation:structural-field-store",
         WriteInvalidation,

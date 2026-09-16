@@ -248,7 +248,9 @@ pub(super) fn lower(
             dynamic_dispatch,
             closed_conformance_applications,
         ),
-        OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
+        OperationKind::PortWrite { .. }
+        | OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::WriteOnlyIndexedPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)
         }
         OperationKind::StructuralScalarFieldStore { .. }

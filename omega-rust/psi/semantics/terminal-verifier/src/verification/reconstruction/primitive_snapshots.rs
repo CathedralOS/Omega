@@ -220,6 +220,7 @@ impl<'a> PrimitiveSnapshots<'a> {
             return Ok(match row.schema().action() {
                 StructuralEffectAction::EstablishPrimitiveLocal
                 | StructuralEffectAction::StorePrimitive
+                | StructuralEffectAction::StoreIndexedPrimitive
                 | StructuralEffectAction::StoreScalarField
                 | StructuralEffectAction::StoreByteSequenceField
                 | StructuralEffectAction::StoreByteSequenceFieldByte

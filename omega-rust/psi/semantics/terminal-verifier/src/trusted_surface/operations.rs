@@ -211,6 +211,26 @@ static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
         TS_PRIMITIVE_PLACE,
     ],
 );
+static OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
+    "operation:write-only-indexed-primitive-store",
+    "a writable live root, canonical path resolving to a declared fixed array of primitive scalars, a dominating u64 index and exactly typed scalar value, and an index-within-extent obligation",
+    "the store observation; the index-within-declared-extent obligation is reconstructed and every proposition observing the destination root is invalidated",
+    &[
+        "fact:structural-effect-observation",
+        "invalidation:write-only-primitive-store",
+        "owner:operation",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_LIB,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_PRIMITIVE_STORAGE,
+        TS_PRIMITIVE_PLACE,
+    ],
+);
 static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-scalar-field-store",
     "a validated scalar field store with a range obligation exactly when its destination declaration is a bounded integer",
@@ -855,6 +875,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_PRIMITIVE_SCALAR_READ,
     OP_STRUCTURAL_CASE_MEMBERSHIP,
     OP_WRITE_ONLY_PRIMITIVE_STORE,
+    OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE,
     OP_STRUCTURAL_SCALAR_FIELD_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH,
@@ -928,6 +949,9 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::PrimitiveScalarRead => &OP_PRIMITIVE_SCALAR_READ,
         OperationSemanticTag::StructuralCaseMembership => &OP_STRUCTURAL_CASE_MEMBERSHIP,
         OperationSemanticTag::WriteOnlyPrimitiveStore => &OP_WRITE_ONLY_PRIMITIVE_STORE,
+        OperationSemanticTag::WriteOnlyIndexedPrimitiveStore => {
+            &OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE
+        }
         OperationSemanticTag::StructuralScalarFieldStore => &OP_STRUCTURAL_SCALAR_FIELD_STORE,
         OperationSemanticTag::StructuralByteSequenceFieldStore => {
             &OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE

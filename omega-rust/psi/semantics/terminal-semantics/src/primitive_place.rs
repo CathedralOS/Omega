@@ -51,6 +51,66 @@ pub fn primitive_place_type<'a>(
     }
 }
 
+/// Resolve `path` from `root` to a fixed array whose element declaration is a
+/// primitive scalar, returning that scalar type and the declared extent. The
+/// path tip is the array itself: the runtime element index is an operation
+/// operand, not a path segment, so it never appears here.
+pub fn fixed_array_place_shape<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    mut root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<(ScalarType, u64)> {
+    for segment in path {
+        let mut matching = declarations
+            .clone()
+            .filter(|declaration| declaration.id == root);
+        let declaration = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        root = match (segment, &declaration.shape) {
+            (
+                CanonicalStructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields },
+            ) => {
+                let mut matching = fields.iter().filter(|field| field.id == *identity);
+                let field = matching.next()?;
+                if matching.next().is_some() || field.relevance.is_erased() {
+                    return None;
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return None;
+                };
+                child
+            }
+            (
+                CanonicalStructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            _ => return None,
+        };
+    }
+    let mut matching = declarations
+        .clone()
+        .filter(|declaration| declaration.id == root);
+    let declaration = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+        return None;
+    };
+    let mut matching = declarations.filter(|declaration| declaration.id == element);
+    let element_declaration = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    match element_declaration.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => Some((scalar, length)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

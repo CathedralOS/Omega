@@ -1,6 +1,6 @@
 use semantic_vocabulary::{
-    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, ServiceId, ValueId,
+    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, ScalarType, ServiceId, ValueId,
 };
 use terminal_fuel::{
     FuelChargeSite, FuelExhaustion, FuelMeterError, FuelScheduleIdentity, TerminalFuelMeter,
@@ -84,6 +84,13 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
             destination: place_id(1),
             path: Vec::new(),
             value: value_id(1),
+        },
+        OperationKind::WriteOnlyIndexedPrimitiveStore {
+            destination: place_id(1),
+            path: Vec::new(),
+            index: value_id(2),
+            value: value_id(1),
+            obligation: ObligationId::new(1).unwrap(),
         },
         OperationKind::CallUnit {
             arguments: Vec::new(),

@@ -16,7 +16,8 @@ pub(super) fn validate_uses(
 ) -> Result<(), ModuleError> {
     let direct = match operation.kind {
         OperationKind::PrimitiveScalarRead { source, .. } => Some(source),
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => Some(destination),
+        OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => Some(destination),
         _ => None,
     };
     if let Some(place) = direct

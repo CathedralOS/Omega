@@ -266,6 +266,9 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::EstablishPrimitiveLocal { value }
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => values.push(*value),
+        O::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
+            values.extend([*index, *value]);
+        }
         O::BoundaryCall { arguments, .. } => values.extend(arguments),
         O::Call {
             arguments,

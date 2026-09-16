@@ -85,6 +85,14 @@ pub(super) fn lower(
                 value: AbstractResult { value, scalar_type },
             }
         }
+        // Verified runtime-indexed stores remain fenced here rather than
+        // silently dropped: the abstract operation inventory has no carrier
+        // for a runtime index and its reconstructed bounds obligation yet.
+        OperationKind::WriteOnlyIndexedPrimitiveStore { .. } => {
+            return Err(LoweringError::UnsupportedIndexedPrimitiveStore(
+                operation.id,
+            ));
+        }
         _ => unreachable!("effect router is exhaustive"),
     })
 }

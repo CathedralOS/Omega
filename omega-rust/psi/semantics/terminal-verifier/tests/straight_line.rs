@@ -19,6 +19,8 @@ mod contract_fields;
 mod false_edge_custody;
 #[path = "straight_line/guards_and_partitions.rs"]
 mod guards_and_partitions;
+#[path = "straight_line/indexed_primitive_store.rs"]
+mod indexed_primitive_store;
 #[path = "straight_line/integer_axioms_and_carriers.rs"]
 mod integer_axioms_and_carriers;
 #[path = "straight_line/literal_byte_extent.rs"]
