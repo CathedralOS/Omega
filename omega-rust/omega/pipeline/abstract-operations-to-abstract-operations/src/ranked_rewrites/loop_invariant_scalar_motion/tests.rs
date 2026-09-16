@@ -3347,6 +3347,132 @@ fn carried_obligated_computation_is_rejected_by_the_freeze_fence() {
     ));
 }
 
+#[test]
+fn bypassed_member_computation_moved_by_hand_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(BYPASSED_MEMBER_SOURCE, "bypassed member loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (member_block, addition, member_parameter) = member_addition(function, component);
+    let member = member_block.id;
+    let operation = match addition.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+    assert!(
+        !crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        "the bypassed member block is outside the non-speculative gate"
+    );
+    // Rebind the operand to the invariant representative exactly as the
+    // proposal would spell it, so the seed-derived substitution replays
+    // cleanly and only the non-speculative custody can reject the move.
+    let anchor =
+        crate::validation::invariant_member_parameters(function, component)[&member_parameter];
+    let (input, mut unit) = session.into_parts();
+    let mut moved = take_operation(&mut unit, operation);
+    if let AbstractOperation::WrappingIntegerAdd { left, right, .. } = &mut moved.operation {
+        *left = anchor;
+        *right = anchor;
+    }
+    for value_use in &mut moved.uses {
+        value_use.value = anchor;
+    }
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn conditional_entry_computation_moved_by_hand_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        CONDITIONAL_ENTRY_SOURCE,
+        "conditional entry loop",
+        "Root::enter",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one self-loop component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (member_block, addition, member_parameter) = member_addition(function, component);
+    let member = member_block.id;
+    let operation = match addition.provenance.first() {
+        Some(PsiProvenance::Operation(operation)) => *operation,
+        _ => panic!("computation carries its operation identity"),
+    };
+    assert!(
+        crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        "the member qualifies; only the conditional entry can reject the move"
+    );
+    // Rebind the operand to the invariant representative exactly as the
+    // proposal would spell it, so the seed-derived substitution replays
+    // cleanly and only the non-speculative custody can reject the move.
+    let anchor =
+        crate::validation::invariant_member_parameters(function, component)[&member_parameter];
+    let (input, mut unit) = session.into_parts();
+    let mut moved = take_operation(&mut unit, operation);
+    if let AbstractOperation::WrappingIntegerAdd { left, right, .. } = &mut moved.operation {
+        *left = anchor;
+        *right = anchor;
+    }
+    for value_use in &mut moved.uses {
+        value_use.value = anchor;
+    }
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
 fn lowered_session(source: &str, label: &str) -> VerifiedPsiOptimizationSession {
     lowered_session_entry(source, label, "Root::scan")
 }
