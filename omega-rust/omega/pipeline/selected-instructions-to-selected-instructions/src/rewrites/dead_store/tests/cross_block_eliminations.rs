@@ -770,3 +770,29 @@ fn cross_block_covering_killers_beyond_the_exact_pair_eliminate() {
         DeadStoreEliminationError::InterveningAccess
     );
 }
+
+/// Two runs over the identical chained source produce the identical
+/// validated result, and the published cross-block plan is a legal second
+/// input: the removed store no longer exists and the covering store's block
+/// ends in a return, so no later write can cover it.
+#[test]
+fn cross_block_elimination_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = eliminate(&chained(target), &environment).unwrap();
+    let second = eliminate(&chained(target), &environment).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal: the eliminated store is already gone,
+    assert_eq!(
+        eliminate_selected_dead_store(&first, 0, STORE, &environment, budget()).unwrap_err(),
+        DeadStoreEliminationError::SourceMismatch
+    );
+    // and the covering store's own bytes are never rewritten again — the
+    // successor block's terminator has no edge a later write could cross.
+    assert_eq!(
+        eliminate_selected_dead_store(&first, 0, KILLER, &environment, budget()).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+}

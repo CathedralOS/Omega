@@ -1,5 +1,5 @@
 use super::{
-    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, fixture, instruction,
+    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, fixture, instruction,
     landed_ids, mutated, place, settlement, sink,
 };
 use crate::ValidatedSelectedAnalysis;
@@ -556,4 +556,66 @@ fn admission_boundaries_and_budget_hold() {
         sink_selected_store_mutation(&source, 0, STORE, &environment, tiny).unwrap_err(),
         StoreMutationMotionError::WorkBudgetExceeded
     );
+}
+
+/// Two runs over the identical source produce the identical validated result,
+/// and the published plan is a legal second input: the sealed transformed
+/// program already sits at the rule's fixed point, so the moved store's next
+/// provable position is its own index and the covering store's is too.
+#[test]
+fn motion_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = sink(&fixture(target), &environment).unwrap();
+    let second = sink(&fixture(target), &environment).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal: the position after the moved store is the covering
+    // store itself, so the walk lands back on the store's own index.
+    assert_eq!(
+        sink_selected_store_mutation(&first, 0, STORE, &environment, budget()).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // The covering store's next provable position is its own index as well:
+    // a terminator without successors leaves no later position.
+    assert_eq!(
+        sink_selected_store_mutation(&first, 0, KILLER, &environment, budget()).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+}
+
+/// The measured work is the block scan, the walked interval, and the roster
+/// rows: five block slots, two interval steps through the covering store,
+/// and two roster rows measure nine steps for the same-block window; the
+/// crossed-edge window scans six slots, measures the crossed tail, the
+/// crossed edge, and the covering block — four interval steps — plus the
+/// same two rows, twelve steps. Each exact boundary admits the motion and
+/// replays it; one step below rejects the proposal and rejects even the
+/// exact correct result under a starved replay budget.
+#[test]
+fn validation_budget_covers_the_walk() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for (source, exact_steps) in [(fixture(target), 9u64), (chained(target), 12u64)] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result = sink_selected_store_mutation(&source, 0, STORE, &environment, exact).unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            sink_selected_store_mutation(&source, 0, STORE, &environment, starved).unwrap_err(),
+            StoreMutationMotionError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_store_mutation_motion(
+                &source,
+                0,
+                STORE,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            StoreMutationMotionError::WorkBudgetExceeded
+        );
+    }
 }

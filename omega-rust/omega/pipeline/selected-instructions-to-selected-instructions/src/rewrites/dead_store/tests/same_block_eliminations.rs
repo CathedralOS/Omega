@@ -1,5 +1,5 @@
 use super::{
-    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, eliminate, fixture,
+    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, eliminate, fixture,
     instruction, mutated, place, settlement,
 };
 use crate::ValidatedSelectedAnalysis;
@@ -796,4 +796,39 @@ fn non_covering_or_mismatched_killers_reject() {
         eliminate(&odd_dead, &environment).unwrap_err(),
         DeadStoreEliminationError::UnsupportedInstruction
     );
+}
+
+/// The measured work is the block scan, the walked interval, and the roster
+/// rows: five block slots, two interval steps through the covering store,
+/// and two roster rows measure nine steps for the same-block window; the
+/// crossed-edge window scans six slots, measures the crossed tail, the
+/// crossed edge, and the covering block — three interval steps — plus the
+/// same two rows, eleven steps. Each exact boundary admits the elimination
+/// and replays it; one step below rejects the proposal and rejects even the
+/// exact correct result under a starved replay budget.
+#[test]
+fn validation_budget_covers_the_walk() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for (source, exact_steps) in [(fixture(target), 9u64), (chained(target), 11u64)] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result = eliminate_selected_dead_store(&source, 0, STORE, &environment, exact).unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            eliminate_selected_dead_store(&source, 0, STORE, &environment, starved).unwrap_err(),
+            DeadStoreEliminationError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_dead_store_elimination(
+                &source,
+                0,
+                STORE,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            DeadStoreEliminationError::WorkBudgetExceeded
+        );
+    }
 }

@@ -523,3 +523,94 @@ fn cross_block_settlements_shift_over_the_inserted_ordinal() {
         vec![(SelectedBlockId(0), 3)]
     );
 }
+
+/// Two runs over the identical chained source produce the identical
+/// validated result, and the published cross-block plan is a legal second
+/// input: the moved store already sits at the successor's head immediately
+/// before the covering store, so its next provable position is its own
+/// index, and the covering store's terminator has no successor to sink
+/// toward.
+#[test]
+fn cross_block_motion_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = sink(&chained(target), &environment).unwrap();
+    let second = sink(&chained(target), &environment).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal.
+    assert_eq!(
+        sink_selected_store_mutation(&first, 0, STORE, &environment, budget()).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    assert_eq!(
+        sink_selected_store_mutation(&first, 0, KILLER, &environment, budget()).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+}
+
+/// A proposed cross-block result must reproduce the exact motion: drift in
+/// the crossed block, in the landing block's order, in the retained roster,
+/// or in the shifted settlements mismatches, and moving the store back must
+/// restore the complete source by content.
+#[test]
+fn cross_block_replay_rejects_mutated_proposals() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = chained(target);
+    let result = sink(&source, &environment).unwrap();
+    for mutation in 0..6 {
+        let mut proposed = result.transformed().clone();
+        match mutation {
+            // Drift in the crossed block the motion left behind mismatches.
+            0 => {
+                proposed.functions[0].blocks[0].instructions.pop();
+            }
+            // The store must land at the successor's head, not after the
+            // covering store.
+            1 => {
+                proposed.functions[0].blocks[1].instructions.swap(0, 1);
+            }
+            // The covering store must still be there.
+            2 => {
+                proposed.functions[0].blocks[1].instructions.pop();
+            }
+            // The roster is retained unchanged; a dropped row mismatches.
+            3 => {
+                proposed.functions[0].memory_accesses.pop();
+            }
+            // A phantom settlement cannot appear in the proposal.
+            4 => {
+                proposed.functions[0]
+                    .boundary_settlements
+                    .push(settlement(0));
+            }
+            // A phantom block cannot appear in the proposal.
+            _ => {
+                let jump = environment
+                    .constraint(environment.selected_keys().jump)
+                    .unwrap();
+                proposed.functions[0].blocks.push(SelectedBlock {
+                    id: SelectedBlockId(2),
+                    origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+                    instructions: Vec::new(),
+                    terminator: SelectedTerminator::Jump {
+                        instruction: instruction(
+                            SelectedInstructionId(7),
+                            SelectedInstructionKind::Jump,
+                            jump,
+                            &[],
+                        ),
+                        successor: successor(1),
+                    },
+                });
+            }
+        }
+        assert_eq!(
+            validate_store_mutation_motion(&source, 0, STORE, &environment, budget(), proposed,)
+                .unwrap_err(),
+            StoreMutationMotionError::ReplayMismatch
+        );
+    }
+}

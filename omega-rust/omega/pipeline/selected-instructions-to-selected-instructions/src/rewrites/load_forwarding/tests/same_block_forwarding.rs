@@ -1,6 +1,6 @@
 use super::{
-    BETWEEN, LOAD, OUTPUT, POINTER, SCRATCH, STORE, VALUE, access, budget, fixture, forward,
-    instruction, mutated, narrowed, place,
+    BETWEEN, LOAD, OUTPUT, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, fixture,
+    forward, instruction, mutated, narrowed, place,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::{
@@ -596,4 +596,39 @@ fn admission_boundaries_and_budget_hold() {
         forward_selected_stored_load(&source, 0, LOAD, &environment, tiny).unwrap_err(),
         StoredLoadForwardingError::WorkBudgetExceeded
     );
+}
+
+/// The measured work is the block scan, the walked interval plus crossed
+/// edges, and the roster rows: five block slots, one interval step back to
+/// the store, and two roster rows measure eight steps for the same-block
+/// window; the crossed-edge window scans six slots, measures the successor's
+/// head, the store's tail, and the crossed edge — two interval steps — plus
+/// the same two rows, ten steps. Each exact boundary admits the forwarding
+/// and replays it; one step below rejects the proposal and rejects even the
+/// exact correct result under a starved replay budget.
+#[test]
+fn validation_budget_covers_the_walk() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for (source, exact_steps) in [(fixture(target), 8u64), (chained(target), 10u64)] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result = forward_selected_stored_load(&source, 0, LOAD, &environment, exact).unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            forward_selected_stored_load(&source, 0, LOAD, &environment, starved).unwrap_err(),
+            StoredLoadForwardingError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_stored_load_forwarding(
+                &source,
+                0,
+                LOAD,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            StoredLoadForwardingError::WorkBudgetExceeded
+        );
+    }
 }

@@ -1,6 +1,6 @@
 use super::{
-    BETWEEN, LOAD, OUTPUT, POINTER, SCRATCH, VALUE, access, budget, chained, crossed_edge, fixture,
-    forward, instruction, mutated_chained, place, successor,
+    BETWEEN, LOAD, OUTPUT, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, crossed_edge,
+    fixture, forward, instruction, mutated_chained, place, successor,
 };
 use crate::{
     StoredLoadForwardingError, forward_selected_stored_load, validate_stored_load_forwarding,
@@ -561,6 +561,31 @@ fn forwarding_is_deterministic_and_terminal() {
     // place load.
     assert_eq!(
         forward_selected_stored_load(&first, 0, LOAD, &environment, budget()).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedInstruction
+    );
+}
+
+/// Two runs over the identical chained source produce the identical
+/// validated result, and the published cross-block plan is a legal second
+/// input: the load's slot in the successor block already holds the emitted
+/// copy, so a second forwarding at that site finds no load shape to admit,
+/// and the surviving store is not a load either.
+#[test]
+fn cross_block_forwarding_is_deterministic_and_terminal() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let first = forward(&chained(target), &environment).unwrap();
+    let second = forward(&chained(target), &environment).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. Re-running on
+    // it is terminal.
+    assert_eq!(
+        forward_selected_stored_load(&first, 0, LOAD, &environment, budget()).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedInstruction
+    );
+    assert_eq!(
+        forward_selected_stored_load(&first, 0, STORE, &environment, budget()).unwrap_err(),
         StoredLoadForwardingError::UnsupportedInstruction
     );
 }
