@@ -127,6 +127,13 @@ fn normalize_constraint_span(
             })
             .cloned()
             .collect::<Vec<_>>();
+        // A carrier-compatible pool can still collide across scopes: a
+        // package-private declaration and a public dependency may carry the
+        // same `Carrier::Leaf` name. The occurrence's own module outranks
+        // same-spelled root or foreign declarations, then its own package
+        // outranks foreign packages; a foreign-only pool stays contested and
+        // is rejected by declaration validation rather than guessed here.
+        let matches = prefer_local_domain(source, matches, reference);
         let [domain] = matches.as_slice() else {
             // Zero matches is either a compiler-known pseudo-domain or an
             // unknown spelling diagnosed later. Multiple matches are
@@ -271,6 +278,49 @@ fn normalize_constraint_span(
         }
     }
     Ok(())
+}
+
+/// Carrier-compatible candidates can still collide across lexical scopes:
+/// two packages may declare the same `Carrier::Leaf` (a package-private
+/// declaration beside a public dependency's, or two imported libraries).
+/// Mirroring local-binding precedence, the occurrence's own module outranks
+/// same-spelled root or foreign declarations, then its own package outranks
+/// foreign packages. A pool whose members are all foreign stays contested —
+/// the caller leaves it for normalized-domain validation rather than
+/// silently selecting a declaration the occurrence never owned.
+fn prefer_local_domain(
+    source: &SymbolResolvedTrees,
+    candidates: Vec<typed_trees::domain::DomainDefinition>,
+    reference: Option<source::SourceSpan>,
+) -> Vec<typed_trees::domain::DomainDefinition> {
+    if candidates.len() <= 1 {
+        return candidates;
+    }
+    let Some(reference) = reference else {
+        return candidates;
+    };
+    let reference_module = source.symbols.source_module(reference.source_id);
+    if reference_module.is_valid() {
+        let local = candidates
+            .iter()
+            .filter(|domain| source.symbols.symbol_module(domain.symbol) == reference_module)
+            .cloned()
+            .collect::<Vec<_>>();
+        if !local.is_empty() {
+            return local;
+        }
+    }
+    let local = candidates
+        .iter()
+        .filter(|domain| {
+            source
+                .symbols
+                .symbol_provenance_source_span(domain.symbol)
+                .is_some_and(|span| source.symbols.same_source_package(reference, span))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if local.is_empty() { candidates } else { local }
 }
 
 /// A relative spelling (declared name or leaf) reaches a module-owned domain

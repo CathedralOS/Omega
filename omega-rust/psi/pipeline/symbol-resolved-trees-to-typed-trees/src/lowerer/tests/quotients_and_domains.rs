@@ -1207,3 +1207,135 @@ fn preserves_domain_operator_declarations() {
     );
     assert_eq!(typed_trees.proof_facts(domain).len(), 1);
 }
+
+/// Lower two separately-packaged sources through one resolution and return
+/// the resolved and typed programs with each file's source id.
+fn lower_packaged_sources(
+    sources: &[(&str, &str)],
+) -> (
+    symbol_resolved_trees::SymbolResolvedTrees,
+    typed_trees::TypedTrees,
+) {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+
+    let mut map = source::SourceMap::default();
+    let mut forests = Vec::new();
+    for &(package_root, text) in sources {
+        let source_id = map
+            .add_with_metadata(
+                PathBuf::from(format!("{package_root}/main.omg")),
+                text.to_owned(),
+                PathBuf::from(package_root),
+                None,
+                source::SourceOrigin::User,
+            )
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize source");
+        forests.push(parse_syntax_trees_with_id(source_id, &tokens).expect("parse source"));
+    }
+    let mut syntax = forests.remove(0);
+    for forest in &forests {
+        syntax.extend_from(forest);
+    }
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(map)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve packaged sources");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type packaged sources");
+    (resolved, typed)
+}
+
+fn utf8_constraint_on_line(
+    typed: &typed_trees::TypedTrees,
+) -> typed_trees::types::DomainConstraint {
+    let line = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Line")
+        .expect("Line data");
+    let [typed_trees::data::DataMember::Field(field)] = typed.data_members(line) else {
+        panic!("Line carries one field")
+    };
+    let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        panic!("constrained field")
+    };
+    let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
+        typed.type_reference_table.constraints(*constraints)
+    else {
+        panic!("one domain constraint")
+    };
+    domain.clone()
+}
+
+#[test]
+fn same_package_domain_wins_over_foreign_same_carrier_leaf() {
+    // A package-private `domain [u8; 256]::Utf8` must satisfy `in Utf8` on a
+    // `[u8; 256]` field even when a foreign public declaration carries the
+    // identical carrier and leaf: the occurrence's own package owns the
+    // contested pool. This is the dungeon/std `Utf8` collision.
+    let (resolved, typed) = lower_packaged_sources(&[
+        ("dependency", "pub domain [u8; 256]::Utf8;"),
+        (
+            "package",
+            "domain [u8; 256]::Utf8; data Line { value: [u8; 256] in Utf8; }",
+        ),
+    ]);
+    // Capacity-specialized declarations normalize their carrier to the
+    // family's const binder, so both sources declare `[u8; N]::Utf8`; the
+    // package's copy is identified by provenance, not spelling.
+    let package_domain = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| {
+            domain.name.as_str() == "[u8; N]::Utf8"
+                && resolved
+                    .symbols
+                    .symbol_provenance_source_span(domain.symbol)
+                    .is_some_and(|span| {
+                        resolved.symbols.source_file(span).is_some_and(|file| {
+                            file.package_root == std::path::Path::new("package")
+                        })
+                    })
+        })
+        .expect("the package's own domain");
+
+    let constraint = utf8_constraint_on_line(&typed);
+    assert_eq!(
+        constraint.symbol, package_domain.symbol,
+        "the same-package declaration must satisfy the constraint"
+    );
+    assert!(
+        constraint.authored_selection.is_none(),
+        "a normalized constraint releases its authored-selection custody"
+    );
+}
+
+#[test]
+fn foreign_only_same_carrier_domains_stay_contested() {
+    // With no local declaration, two foreign `pub` domains sharing carrier
+    // and leaf must not be silently selected: the constraint keeps its
+    // authored custody and no symbol so normalized-domain validation can
+    // reject it honestly.
+    let (_resolved, typed) = lower_packaged_sources(&[
+        ("dependency-a", "pub domain [u8; 256]::Utf8;"),
+        ("dependency-b", "pub domain [u8; 256]::Utf8;"),
+        ("package", "data Line { value: [u8; 256] in Utf8; }"),
+    ]);
+
+    let constraint = utf8_constraint_on_line(&typed);
+    assert!(
+        !constraint.symbol.is_valid(),
+        "two foreign declarations must not guess an identity"
+    );
+    assert!(
+        constraint.authored_selection.is_some(),
+        "a contested constraint retains its authored selection for diagnosis"
+    );
+}
