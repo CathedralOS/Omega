@@ -47,14 +47,39 @@ pub(crate) fn check_flow_call_borrows(
             continue;
         };
 
+        // Ordering premises are established by this state's own signature
+        // scope: machine `requires` at the entry state plus the state's
+        // `requires`. Premise subjects are immutable bound values, so the set
+        // is stable for every judgment inside the state -- loan formations,
+        // mutations, call accesses, and receivers alike.
+        let stated_premises = crate::semantic_calls::find_state_in_machine(
+            program,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
+        )
+        .and_then(|state| {
+            crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
+                .map(|machine| (machine, state))
+        })
+        .map(|(machine, state)| overlap::stated_ordering_premises(program, facts, machine, state))
+        .unwrap_or_default();
+
         for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
-            check_call_borrows(program, facts, state_flow, borrow_call, &mut diagnostics);
+            check_call_borrows(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                &stated_premises,
+                &mut diagnostics,
+            );
         }
 
         check_statement_borrows(
             program,
             facts,
             state_flow,
+            &stated_premises,
             &mut diagnostics,
             &mut compatibility_certificates,
             &retained_compatibility_certificates,

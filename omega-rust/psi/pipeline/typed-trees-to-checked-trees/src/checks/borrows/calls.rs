@@ -11,12 +11,14 @@ pub(super) use receiver::check_exclusive_place_use;
 
 use self::conflicts::check_call_access_conflicts;
 use self::writability::check_mutable_argument_writability;
+use super::overlap::StatedOrderingPremise;
 
 pub(super) fn check_call_borrows(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,
+    stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let target_name = call_target_label(program, borrow_call.target_symbol);
@@ -28,6 +30,7 @@ pub(super) fn check_call_borrows(
         borrow_call,
         entry_constraints,
         &target_name,
+        stated_premises,
         diagnostics,
     );
     receiver::check_receiver_conflicts(
@@ -37,6 +40,7 @@ pub(super) fn check_call_borrows(
         borrow_call,
         entry_constraints,
         &target_name,
+        stated_premises,
         diagnostics,
     );
 

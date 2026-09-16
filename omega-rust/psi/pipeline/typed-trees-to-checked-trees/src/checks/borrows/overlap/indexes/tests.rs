@@ -210,6 +210,7 @@ fn symbolic_exclusive_adjacency_requires_the_exact_resolved_boundary() {
         &checked_trees::BorrowAccessKind::Mutable,
         &right_place,
         &checked_trees::BorrowAccessKind::Mutable,
+        &[],
     );
     assert!(compatibility.disjoint);
     assert!(compatibility.non_interfering);
@@ -233,6 +234,7 @@ fn symbolic_exclusive_adjacency_requires_the_exact_resolved_boundary() {
         &checked_trees::BorrowAccessKind::Mutable,
         &changed_place,
         &checked_trees::BorrowAccessKind::Mutable,
+        &[],
     );
     assert!(!changed.disjoint);
     assert!(!changed.non_interfering);

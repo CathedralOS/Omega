@@ -74,13 +74,12 @@ pub(super) struct SelectorSnapshotEvaluation<'a> {
     /// Capture sessions never set it.
     drift: Option<CompatibilityReplayDrift>,
     /// Values already produced inside this session, keyed by exact selector
-    /// position. Only range-bound positions are reused: every evaluation at a
-    /// `RangeStart`/`RangeExclusiveEnd` coordinate normalizes the same
-    /// segment's range expression, so one recorded row is the canonical
-    /// evidence for both the overlap and containment judgments. `Index`
-    /// positions have several honest producers (constant folding versus
-    /// normalized symbolic bounds) whose values may legitimately differ, so
-    /// they always record or consume their own row.
+    /// position. Every selector position has exactly one producer -- the
+    /// extent evaluator normalizes the same segment's expression at a
+    /// `RangeStart`/`RangeExclusiveEnd`/`Index` coordinate -- so a repeated
+    /// consult reuses the recorded row as the canonical evidence for both
+    /// the overlap and containment judgments instead of recording a
+    /// duplicate.
     recorded: Vec<(
         SelectorLocation,
         BorrowCompatibilitySelectorPosition,
@@ -205,13 +204,12 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
         position: BorrowCompatibilitySelectorPosition,
         current: impl FnOnce() -> Option<NormalizedBound>,
     ) -> Option<NormalizedBound> {
-        if !matches!(position, BorrowCompatibilitySelectorPosition::Index)
-            && let Some((_, _, value)) =
-                self.recorded
-                    .iter()
-                    .find(|(recorded, recorded_position, _)| {
-                        *recorded == location && *recorded_position == position
-                    })
+        if let Some((_, _, value)) =
+            self.recorded
+                .iter()
+                .find(|(recorded, recorded_position, _)| {
+                    *recorded == location && *recorded_position == position
+                })
         {
             return *value;
         }
@@ -298,6 +296,15 @@ pub(super) fn index_expressions_may_overlap(
     )
 }
 
+/// Whether two `Index` segment expressions may select the same element.
+///
+/// Both expressions are evaluated to their normalized extent inside the
+/// selector session -- a point bound or a half-open window -- and compared by
+/// the shared bound-ordering layer, so symbolic points order against window
+/// bounds the same way window bounds order against each other. Unknown bounds
+/// stay conservatively overlapping; only a provable ordering proves
+/// disjointness, and a stated premise is consulted only when the structural
+/// order cannot.
 pub(super) fn index_expressions_may_overlap_with_selectors(
     program: &typed_trees::TypedTrees,
     left: ExpressionHandle,
@@ -309,79 +316,43 @@ pub(super) fn index_expressions_may_overlap_with_selectors(
     if left == right {
         return true;
     }
+    let left_extent =
+        index_expression_extent_with_selectors(program, left, left_location, selectors);
+    let right_extent =
+        index_expression_extent_with_selectors(program, right, right_location, selectors);
+    index_extents_may_overlap(left_extent, right_extent, selectors)
+}
 
-    match (
-        program.expression_table.expression(left),
-        program.expression_table.expression(right),
-    ) {
-        (ExpressionNode::Integer(left_value), ExpressionNode::Integer(right_value)) => {
-            // Compare by VALUE through the i64 window; an oversize literal
-            // conservatively MAY overlap (never claim disjointness on a
-            // spelling difference -- 5 vs 0x5 must still alias).
-            match (
-                selectors.bound(
-                    left_location,
-                    BorrowCompatibilitySelectorPosition::Index,
-                    || left_value.value_i64().map(NormalizedBound::Integer),
-                ),
-                selectors.bound(
-                    right_location,
-                    BorrowCompatibilitySelectorPosition::Index,
-                    || right_value.value_i64().map(NormalizedBound::Integer),
-                ),
-            ) {
-                (
-                    Some(NormalizedBound::Integer(left_value)),
-                    Some(NormalizedBound::Integer(right_value)),
-                ) => left_value == right_value,
-                _ => true,
-            }
+/// Whether two evaluated `Index` extents may select the same element. Two
+/// points are disjoint only when a provable strict order separates them; a
+/// point and a window are disjoint only when the point provably sits outside
+/// or the window is provably empty; two windows are disjoint when one ends at
+/// or before the other starts. Every unproven ordering stays overlapping.
+pub(super) fn index_extents_may_overlap(
+    left: EvaluatedIndexExtent,
+    right: EvaluatedIndexExtent,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
+    match (left, right) {
+        (EvaluatedIndexExtent::Point(Some(left)), EvaluatedIndexExtent::Point(Some(right))) => {
+            !bound_is_strictly_before(left, right, selectors)
+                && !bound_is_strictly_before(right, left, selectors)
         }
-        (ExpressionNode::Range(left_range), ExpressionNode::Integer(right_value)) => {
-            match selectors.bound(
-                right_location,
-                BorrowCompatibilitySelectorPosition::Index,
-                || right_value.value_i64().map(NormalizedBound::Integer),
-            ) {
-                Some(NormalizedBound::Integer(right_value)) => range_may_contain_integer(
-                    program,
-                    left_range,
-                    left_location,
-                    right_value,
-                    selectors,
-                ),
-                None => true,
-                Some(NormalizedBound::Symbol { .. }) => true,
-            }
+        (EvaluatedIndexExtent::Point(_), EvaluatedIndexExtent::Point(_)) => true,
+        (EvaluatedIndexExtent::Window { start, end }, EvaluatedIndexExtent::Point(point))
+        | (EvaluatedIndexExtent::Point(point), EvaluatedIndexExtent::Window { start, end }) => {
+            index_window_may_contain_point(start, end, point, selectors)
         }
-        (ExpressionNode::Integer(left_value), ExpressionNode::Range(right_range)) => {
-            match selectors.bound(
-                left_location,
-                BorrowCompatibilitySelectorPosition::Index,
-                || left_value.value_i64().map(NormalizedBound::Integer),
-            ) {
-                Some(NormalizedBound::Integer(left_value)) => range_may_contain_integer(
-                    program,
-                    right_range,
-                    right_location,
-                    left_value,
-                    selectors,
-                ),
-                None => true,
-                Some(NormalizedBound::Symbol { .. }) => true,
-            }
-        }
-        (ExpressionNode::Range(left_range), ExpressionNode::Range(right_range)) => {
-            ranges_may_overlap(
-                program,
-                left_range,
-                left_location,
-                right_range,
-                right_location,
-                selectors,
-            )
-        }
-        _ => true,
+        (
+            EvaluatedIndexExtent::Window {
+                start: left_start,
+                end: left_end,
+            },
+            EvaluatedIndexExtent::Window {
+                start: right_start,
+                end: right_end,
+            },
+        ) => index_windows_may_overlap(left_start, left_end, right_start, right_end, selectors),
     }
 }
 
@@ -392,107 +363,72 @@ pub(super) fn index_expression_may_contain_fixed(
     index: usize,
 ) -> bool {
     let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
-    index_expression_may_contain_fixed_with_selectors(
+    let extent = index_expression_extent_with_selectors(
         program,
         expression,
         SelectorLocation {
             side: BorrowCompatibilityPlaceSide::Forming,
             segment_index: 0,
         },
-        index,
         &mut selectors,
-    )
+    );
+    index_extents_may_overlap(extent, fixed_index_extent(index), &mut selectors)
 }
 
-pub(super) fn index_expression_may_contain_fixed_with_selectors(
-    program: &typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-    location: SelectorLocation,
-    index: usize,
+/// The point extent of a fixed literal index segment. An index above the i64
+/// window stays unknown rather than borrowing a different bound's identity.
+pub(super) fn fixed_index_extent(index: usize) -> EvaluatedIndexExtent {
+    EvaluatedIndexExtent::Point(i64::try_from(index).ok().map(NormalizedBound::Integer))
+}
+
+/// The half-open window extent of a fixed literal range segment.
+pub(super) fn fixed_range_extent(start: usize, end: usize) -> EvaluatedIndexExtent {
+    EvaluatedIndexExtent::Window {
+        start: i64::try_from(start).ok().map(NormalizedBound::Integer),
+        end: i64::try_from(end).ok().map(NormalizedBound::Integer),
+    }
+}
+
+/// `[start, end)` may contain `point` unless the point provably precedes the
+/// window start, sits at or beyond the window end, or the window is provably
+/// empty. An unknown point or an unordered bound pair stays contained --
+/// disjointness needs positive evidence.
+fn index_window_may_contain_point(
+    start: Option<NormalizedBound>,
+    end: Option<NormalizedBound>,
+    point: Option<NormalizedBound>,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    let Ok(index) = i64::try_from(index) else {
+    if index_window_provably_empty(start, end, selectors) {
+        return false;
+    }
+    let Some(point) = point else {
         return true;
     };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => selectors
-            .bound(location, BorrowCompatibilitySelectorPosition::Index, || {
-                value.value_i64().map(NormalizedBound::Integer)
-            })
-            .is_none_or(|value| matches!(value, NormalizedBound::Integer(value) if value == index)),
-        ExpressionNode::Range(range) => {
-            range_may_contain_integer(program, range, location, index, selectors)
-        }
-        _ => true,
-    }
-}
-
-pub(super) fn index_expression_may_overlap_fixed_range_with_selectors(
-    program: &typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-    location: SelectorLocation,
-    start: usize,
-    end: usize,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
-) -> bool {
-    selectors
-        .bound(location, BorrowCompatibilitySelectorPosition::Index, || {
-            program
-                .expression_table
-                .constant_integer_value(expression)
-                .map(NormalizedBound::Integer)
-        })
-        .and_then(|value| match value {
-            NormalizedBound::Integer(value) => usize::try_from(value).ok(),
-            NormalizedBound::Symbol { .. } => None,
-        })
-        .is_none_or(|index| start < end && start <= index && index < end)
-}
-
-fn range_may_contain_integer(
-    program: &typed_trees::TypedTrees,
-    range: &TableRangeExpression,
-    location: SelectorLocation,
-    value: i64,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
-) -> bool {
-    let (start, end) = range_integer_bounds(program, range, location, selectors);
-    // An empty half-open window `[a, a)` contains nothing, so it is disjoint
-    // from every index even when the index itself is unknown.
-    if range_is_provably_empty(start, end, selectors) {
+    if start.is_some_and(|start| bound_is_strictly_before(point, start, selectors)) {
         return false;
     }
-    if start.is_some_and(|start| matches!(start, NormalizedBound::Integer(start) if value < start))
-    {
-        return false;
-    }
-    if end.is_some_and(|end| matches!(end, NormalizedBound::Integer(end) if value >= end)) {
+    if end.is_some_and(|end| bound_is_at_or_before(end, point, selectors)) {
         return false;
     }
     true
 }
 
-fn ranges_may_overlap(
-    program: &typed_trees::TypedTrees,
-    left: &TableRangeExpression,
-    left_location: SelectorLocation,
-    right: &TableRangeExpression,
-    right_location: SelectorLocation,
+/// Two half-open windows `[ls, le)` and `[rs, re)` may overlap unless one is
+/// provably empty or one provably ends at or before the other starts.
+fn index_windows_may_overlap(
+    left_start: Option<NormalizedBound>,
+    left_end: Option<NormalizedBound>,
+    right_start: Option<NormalizedBound>,
+    right_end: Option<NormalizedBound>,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    let (left_start, left_end) = range_integer_bounds(program, left, left_location, selectors);
-    let (right_start, right_end) = range_integer_bounds(program, right, right_location, selectors);
-
-    // Either window being provably empty makes the pair disjoint regardless of
-    // the other window's bounds.
-    if range_is_provably_empty(left_start, left_end, selectors)
-        || range_is_provably_empty(right_start, right_end, selectors)
+    if index_window_provably_empty(left_start, left_end, selectors)
+        || index_window_provably_empty(right_start, right_end, selectors)
     {
         return false;
     }
 
-    // Two half-open windows `[ls, le)` and `[rs, re)` are disjoint when one ends
-    // at or before the other starts.
     if let (Some(left_end), Some(right_start)) = (left_end, right_start)
         && bound_is_at_or_before(left_end, right_start, selectors)
     {
@@ -510,7 +446,7 @@ fn ranges_may_overlap(
 /// overlaps nothing. Shared-symbol offsets order as mathematical integers;
 /// distinct runtime symbols remain unordered unless a stated premise orders
 /// them.
-fn range_is_provably_empty(
+fn index_window_provably_empty(
     start: Option<NormalizedBound>,
     end: Option<NormalizedBound>,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
@@ -648,7 +584,16 @@ pub(super) fn index_expression_extent_with_selectors(
         _ => EvaluatedIndexExtent::Point(selectors.bound(
             location,
             BorrowCompatibilitySelectorPosition::Index,
-            || normalized_bound(program, expression),
+            // A pure constant subtree folds to its exact integer before the
+            // immutable-bound vocabulary gets a chance -- `1 + 2` denotes the
+            // point 3 even though it normalizes to no symbol identity.
+            || {
+                program
+                    .expression_table
+                    .constant_integer_value(expression)
+                    .map(NormalizedBound::Integer)
+                    .or_else(|| normalized_bound(program, expression))
+            },
         )),
     }
 }
@@ -657,9 +602,9 @@ pub(super) fn index_expression_extent_with_selectors(
 ///
 /// All overlap reasoning here is in terms of half-open windows `[start, end)`.
 /// An inclusive range `a..=b` covers index `b`, so its exclusive end is `b + 1`.
-/// Normalizing here keeps `range_may_contain_integer`/`ranges_may_overlap` sound:
-/// without it, `view[0..=3]` would be read as `[0, 3)` and a borrow of element 3
-/// (or window `3..5`) would be mis-classified as disjoint.
+/// Normalizing here keeps the window overlap and point-containment checks
+/// sound: without it, `view[0..=3]` would be read as `[0, 3)` and a borrow of
+/// element 3 (or window `3..5`) would be mis-classified as disjoint.
 ///
 /// A `b + 1` that overflows `i64` (the `..=i64::MAX` edge), including a
 /// symbolic offset, cannot be represented as an exclusive bound, so the end is

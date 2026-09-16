@@ -5,7 +5,7 @@ use crate::labels::{borrow_access_label, symbol_name};
 
 use super::super::details::active_loan_detail;
 use super::super::overlap::{
-    borrow_access_compatibility, borrow_access_loan_compatibility,
+    StatedOrderingPremise, borrow_access_compatibility, borrow_access_loan_compatibility,
     canonical_place_loan_compatibility,
 };
 
@@ -16,6 +16,7 @@ pub(super) fn check_call_access_conflicts(
     borrow_call: &BorrowCallFact,
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
     target_name: &str,
+    stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let accesses: Vec<_> = facts
@@ -38,8 +39,14 @@ pub(super) fn check_call_access_conflicts(
         borrow_call,
     ) {
         for (loan_handle, loan) in &active_loans {
-            if canonical_place_loan_compatibility(program, &transferred, loan, &facts.borrow)
-                .non_interfering
+            if canonical_place_loan_compatibility(
+                program,
+                &transferred,
+                loan,
+                &facts.borrow,
+                stated_premises,
+            )
+            .non_interfering
             {
                 continue;
             }
@@ -57,7 +64,9 @@ pub(super) fn check_call_access_conflicts(
 
     for (index, access) in accesses.iter().enumerate() {
         for other_access in accesses.iter().skip(index + 1) {
-            if borrow_access_compatibility(program, facts, access, other_access).non_interfering {
+            if borrow_access_compatibility(program, facts, access, other_access, stated_premises)
+                .non_interfering
+            {
                 continue;
             }
 
@@ -101,7 +110,9 @@ pub(super) fn check_call_access_conflicts(
         }
 
         for (loan_handle, loan) in &active_loans {
-            if borrow_access_loan_compatibility(program, facts, access, loan).non_interfering {
+            if borrow_access_loan_compatibility(program, facts, access, loan, stated_premises)
+                .non_interfering
+            {
                 continue;
             }
             let detail =

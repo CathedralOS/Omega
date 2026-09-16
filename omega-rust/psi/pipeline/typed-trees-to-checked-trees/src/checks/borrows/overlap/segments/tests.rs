@@ -2,10 +2,13 @@
 
 use super::{BorrowCompatibilityPlaceSide, CapturedPlaceContainment};
 use crate::checks::borrows::overlap::CompatibilityReplayDrift;
+use crate::checks::borrows::overlap::indexes::NormalizedBound;
 use crate::checks::borrows::overlap::place_segments_compatibility_from_snapshot;
 use crate::checks::borrows::overlap::place_segments_compatibility_with_snapshot;
+use crate::checks::borrows::overlap::premises::ordering_premise;
 use crate::checks::borrows::overlap::segments::place_segments_containment;
 use crate::checks::borrows::overlap::segments::place_segments_may_overlap;
+use checked_trees::BorrowCompatibilityPremiseRelation;
 use checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
@@ -429,5 +432,232 @@ fn containment_bounds_survive_the_selector_snapshot_round_trip() {
     assert_eq!(
         place_segments_compatibility_from_snapshot(&program, &left, &right, &reordered, &[], &[],),
         Err(CompatibilityReplayDrift::SelectorSnapshot)
+    );
+}
+
+/// Immutable locals whose initializers are computed keep their own symbol as
+/// their normalized bound identity, so a stated premise can order them.
+fn install_symbolic_bounds(
+    program: &mut typed_trees::TypedTrees,
+    names: impl IntoIterator<Item = (symbols::SymbolHandle, &'static str)>,
+) {
+    let one = integer_expression(program, 1);
+    let computed = program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: one,
+            operator: BinaryOperator::Add,
+            right: one,
+        }));
+    install_locals(
+        program,
+        names
+            .into_iter()
+            .map(|(symbol, name)| (symbol, name, computed, false)),
+    );
+}
+
+fn symbolic_bound(symbol: symbols::SymbolHandle) -> NormalizedBound {
+    NormalizedBound::Symbol { symbol, offset: 0 }
+}
+
+#[test]
+fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
+    let mut program = typed_trees::TypedTrees::default();
+    install_symbolic_bounds(&mut program, [(symbol(10), "i"), (symbol(11), "cut")]);
+    let i = named_bound(&mut program, "i", symbol(10));
+    let cut = named_bound(&mut program, "cut", symbol(11));
+    let four = integer_expression(&mut program, 4);
+    let window = range_bounds(&mut program, cut, four);
+    let index = |expression| facts::PlaceSegment::Index { expression };
+    let left = [index(i)];
+    let right = [index(window)];
+
+    // Without the stated relation the symbolic point stays conservatively
+    // inside the window.
+    let (unpremised_overlap, _, unpremised_closure) =
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[]);
+    assert!(unpremised_overlap);
+    assert!(unpremised_closure.premises.is_empty());
+
+    let premise = ordering_premise(
+        symbolic_bound(symbol(10)),
+        BorrowCompatibilityPremiseRelation::StrictlyBefore,
+        symbolic_bound(symbol(11)),
+    );
+    let (may_overlap, containment, closure) =
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    assert!(
+        !may_overlap,
+        "`i < cut` proves the point sits below `[cut, 4)`"
+    );
+    assert_eq!(containment, CapturedPlaceContainment::None);
+    assert_eq!(
+        closure.premises,
+        vec![premise.token()],
+        "the disjoint verdict records exactly the `i < cut` token it consumed"
+    );
+
+    assert_eq!(
+        place_segments_compatibility_from_snapshot(
+            &program,
+            &left,
+            &right,
+            &closure.snapshot,
+            &[premise],
+            &closure.premises,
+        ),
+        Ok((false, CapturedPlaceContainment::None))
+    );
+
+    // A replay scope that no longer states the relation cannot reproduce the
+    // recorded consult, and a tampered token cannot stand in for it: the
+    // consult fails, the recorded token stays unconsumed, and the premise
+    // ledger is the first ledger that fails to close.
+    assert_eq!(
+        place_segments_compatibility_from_snapshot(
+            &program,
+            &left,
+            &right,
+            &closure.snapshot,
+            &[],
+            &closure.premises,
+        ),
+        Err(CompatibilityReplayDrift::Premise)
+    );
+    let mut tampered = closure.premises.clone();
+    tampered[0].relation = BorrowCompatibilityPremiseRelation::Equal;
+    assert_eq!(
+        place_segments_compatibility_from_snapshot(
+            &program,
+            &left,
+            &right,
+            &closure.snapshot,
+            &[premise],
+            &tampered,
+        ),
+        Err(CompatibilityReplayDrift::Premise)
+    );
+}
+
+#[test]
+fn stated_premise_disjoins_two_symbolic_points() {
+    let mut program = typed_trees::TypedTrees::default();
+    install_symbolic_bounds(&mut program, [(symbol(10), "i"), (symbol(12), "j")]);
+    let i = named_bound(&mut program, "i", symbol(10));
+    let j = named_bound(&mut program, "j", symbol(12));
+    let index = |expression| facts::PlaceSegment::Index { expression };
+    let left = [index(i)];
+    let right = [index(j)];
+
+    let (unpremised_overlap, _, _) =
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[]);
+    assert!(
+        unpremised_overlap,
+        "unordered symbols remain conservatively overlapping"
+    );
+
+    let premise = ordering_premise(
+        symbolic_bound(symbol(10)),
+        BorrowCompatibilityPremiseRelation::StrictlyBefore,
+        symbolic_bound(symbol(12)),
+    );
+    let (may_overlap, containment, closure) =
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    assert!(!may_overlap);
+    assert_eq!(containment, CapturedPlaceContainment::None);
+    assert_eq!(closure.premises, vec![premise.token()]);
+    assert_eq!(
+        place_segments_compatibility_from_snapshot(
+            &program,
+            &left,
+            &right,
+            &closure.snapshot,
+            &[premise],
+            &closure.premises,
+        ),
+        Ok((false, CapturedPlaceContainment::None))
+    );
+}
+
+#[test]
+fn stated_premise_disjoins_a_fixed_index_before_a_symbolic_window() {
+    let mut program = typed_trees::TypedTrees::default();
+    install_symbolic_bounds(&mut program, [(symbol(11), "cut")]);
+    let cut = named_bound(&mut program, "cut", symbol(11));
+    let four = integer_expression(&mut program, 4);
+    let window = range_bounds(&mut program, cut, four);
+    let index = |expression| facts::PlaceSegment::Index { expression };
+    let left = [facts::PlaceSegment::FixedIndex { index: 0 }];
+    let right = [index(window)];
+
+    let (unpremised_overlap, _, _) =
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[]);
+    assert!(unpremised_overlap);
+
+    let premise = ordering_premise(
+        NormalizedBound::Integer(0),
+        BorrowCompatibilityPremiseRelation::StrictlyBefore,
+        symbolic_bound(symbol(11)),
+    );
+    let (may_overlap, containment, closure) =
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    assert!(
+        !may_overlap,
+        "`0 < cut` proves element 0 precedes `[cut, 4)`"
+    );
+    assert_eq!(containment, CapturedPlaceContainment::None);
+    assert_eq!(closure.premises, vec![premise.token()]);
+}
+
+#[test]
+fn stated_equality_premise_proves_two_points_the_same_extent() {
+    let mut program = typed_trees::TypedTrees::default();
+    install_symbolic_bounds(&mut program, [(symbol(10), "i"), (symbol(12), "j")]);
+    let i = named_bound(&mut program, "i", symbol(10));
+    let j = named_bound(&mut program, "j", symbol(12));
+    let index = |expression| facts::PlaceSegment::Index { expression };
+    let left = [index(i)];
+    let right = [index(j)];
+
+    // `i == j` cannot separate the points, so they still overlap; the same
+    // premise proves the extents identical rather than disjoint.
+    let premise = ordering_premise(
+        symbolic_bound(symbol(10)),
+        BorrowCompatibilityPremiseRelation::Equal,
+        symbolic_bound(symbol(12)),
+    );
+    let (may_overlap, containment, closure) =
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    assert!(may_overlap);
+    assert_eq!(containment, CapturedPlaceContainment::Same);
+    assert_eq!(closure.premises, vec![premise.token()]);
+}
+
+#[test]
+fn a_stated_ordering_premise_cannot_move_a_point_inside_the_window() {
+    let mut program = typed_trees::TypedTrees::default();
+    install_symbolic_bounds(&mut program, [(symbol(10), "i"), (symbol(11), "cut")]);
+    let i = named_bound(&mut program, "i", symbol(10));
+    let zero = integer_expression(&mut program, 0);
+    let cut = named_bound(&mut program, "cut", symbol(11));
+    let window = range_bounds(&mut program, zero, cut);
+    let index = |expression| facts::PlaceSegment::Index { expression };
+    let left = [index(i)];
+    let right = [index(window)];
+
+    // `i < cut` places `i` INSIDE `[0, cut)`: the premise is evidence of
+    // containment, never of disjointness it does not imply.
+    let premise = ordering_premise(
+        symbolic_bound(symbol(10)),
+        BorrowCompatibilityPremiseRelation::StrictlyBefore,
+        symbolic_bound(symbol(11)),
+    );
+    let (may_overlap, _, closure) =
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[premise]);
+    assert!(may_overlap);
+    assert!(
+        closure.premises.is_empty(),
+        "no consulted ordering proved disjointness, so no token is recorded"
     );
 }

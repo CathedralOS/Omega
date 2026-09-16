@@ -10,9 +10,9 @@ use crate::semantic_calls::find_state_in_machine;
 
 use super::details::{active_loan_detail, canonical_place_label};
 use super::overlap::{
-    CompatibilityReplayDrift, borrow_loan_compatibility_from_selector_snapshot,
+    CompatibilityReplayDrift, StatedOrderingPremise,
+    borrow_loan_compatibility_from_selector_snapshot,
     borrow_loan_compatibility_with_selector_snapshot, canonical_place_loan_compatibility,
-    stated_ordering_premises,
 };
 
 /// The replay evidence a retained certificate no longer reproduces.
@@ -31,6 +31,7 @@ pub(super) fn check_statement_borrows(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
+    stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     compatibility_certificates: &mut Vec<CheckedBorrowCompatibilityCertificate>,
     retained_compatibility_certificates: &[CheckedBorrowCompatibilityCertificate],
@@ -42,9 +43,9 @@ pub(super) fn check_statement_borrows(
     else {
         return;
     };
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    if crate::lookup::machine_by_symbol(program, state_flow.machine_symbol).is_none() {
         return;
-    };
+    }
     let Some(borrow_state) = facts.borrow.states.iter().find_map(|(_, state)| {
         (state.machine_symbol == state_flow.machine_symbol
             && state.state_symbol == state_flow.state_symbol)
@@ -52,12 +53,6 @@ pub(super) fn check_statement_borrows(
     }) else {
         return;
     };
-    // Ordering premises are established by this state's own signature scope:
-    // machine `requires` at the entry state plus the state's `requires`.
-    // Premise subjects are immutable bound values, so the set is stable for
-    // every loan formation inside the state.
-    let stated_premises = stated_ordering_premises(program, facts, machine, state);
-
     for statement in facts
         .flow
         .control
@@ -79,6 +74,7 @@ pub(super) fn check_statement_borrows(
                 state_flow,
                 statement,
                 binding.receiver,
+                stated_premises,
                 diagnostics,
             );
         }
@@ -130,7 +126,7 @@ pub(super) fn check_statement_borrows(
                             active_loan,
                             active_access,
                             &retained.selector_snapshot,
-                            &stated_premises,
+                            stated_premises,
                             &retained.premises,
                         ) {
                             Ok(compatibility) => compatibility,
@@ -151,7 +147,7 @@ pub(super) fn check_statement_borrows(
                             facts,
                             loan,
                             active_loan,
-                            &stated_premises,
+                            stated_premises,
                         );
                         (
                             evidence.compatibility,
@@ -229,8 +225,14 @@ pub(super) fn check_statement_borrows(
             .borrow_loan_constraints(statement.entry_constraints)
         {
             let loan = facts.borrow.loans.get(loan_handle);
-            if canonical_place_loan_compatibility(program, &mutated_place, loan, &facts.borrow)
-                .non_interfering
+            if canonical_place_loan_compatibility(
+                program,
+                &mutated_place,
+                loan,
+                &facts.borrow,
+                stated_premises,
+            )
+            .non_interfering
             {
                 continue;
             }
@@ -250,6 +252,7 @@ pub(super) fn check_statement_borrows(
         facts,
         state_flow,
         borrow_state,
+        stated_premises,
         diagnostics,
         state_mutation_summaries,
     );
@@ -279,6 +282,7 @@ fn check_call_mutation_borrows(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
+    stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     summary_cache: &StateMutationSummaryCache,
 ) {
@@ -322,8 +326,14 @@ fn check_call_mutation_borrows(
                 continue;
             }
             for mutated_place in &mutated_places {
-                if canonical_place_loan_compatibility(program, mutated_place, loan, &facts.borrow)
-                    .non_interfering
+                if canonical_place_loan_compatibility(
+                    program,
+                    mutated_place,
+                    loan,
+                    &facts.borrow,
+                    stated_premises,
+                )
+                .non_interfering
                 {
                     continue;
                 }

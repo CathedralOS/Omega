@@ -26,6 +26,7 @@ pub(super) fn captured_place_compatibility(
     left_access: &checked_trees::BorrowAccessKind,
     right: &checked_trees::CapturedPlace,
     right_access: &checked_trees::BorrowAccessKind,
+    premises: &[StatedOrderingPremise],
 ) -> checked_trees::CapturedPlaceCompatibility {
     captured_place_compatibility_with_selector_snapshot(
         program,
@@ -33,7 +34,7 @@ pub(super) fn captured_place_compatibility(
         left_access,
         right,
         right_access,
-        &[],
+        premises,
     )
     .compatibility
 }
@@ -143,6 +144,7 @@ pub(super) fn canonical_place_loan_compatibility(
     place: &crate::flow::CanonicalPlace,
     loan: &checked_trees::BorrowLoanFact,
     borrow: &checked_trees::BorrowFacts,
+    premises: &[StatedOrderingPremise],
 ) -> checked_trees::CapturedPlaceCompatibility {
     let right = captured_loan_place(borrow, loan);
     let left = match place.root {
@@ -198,6 +200,7 @@ pub(super) fn canonical_place_loan_compatibility(
         &checked_trees::BorrowAccessKind::Mutable,
         &right,
         &loan.kind,
+        premises,
     )
 }
 
@@ -330,6 +333,7 @@ pub(super) fn borrow_access_compatibility(
     facts: &checked_trees::CheckFacts,
     left: &checked_trees::BorrowArgumentAccessFact,
     right: &checked_trees::BorrowArgumentAccessFact,
+    premises: &[StatedOrderingPremise],
 ) -> checked_trees::CapturedPlaceCompatibility {
     captured_place_compatibility(
         program,
@@ -337,6 +341,7 @@ pub(super) fn borrow_access_compatibility(
         &left.kind,
         &captured_access_place(&facts.borrow, right),
         &right.kind,
+        premises,
     )
 }
 
@@ -345,6 +350,7 @@ pub(super) fn borrow_access_loan_compatibility(
     facts: &checked_trees::CheckFacts,
     access: &checked_trees::BorrowArgumentAccessFact,
     loan: &checked_trees::BorrowLoanFact,
+    premises: &[StatedOrderingPremise],
 ) -> checked_trees::CapturedPlaceCompatibility {
     captured_place_compatibility(
         program,
@@ -352,6 +358,7 @@ pub(super) fn borrow_access_loan_compatibility(
         &access.kind,
         &captured_loan_place(&facts.borrow, loan),
         &loan.kind,
+        premises,
     )
 }
 
@@ -433,6 +440,7 @@ mod tests {
             &BorrowAccessKind::Mutable,
             &right,
             &BorrowAccessKind::Mutable,
+            &[],
         );
         assert!(siblings.disjoint);
         assert!(siblings.non_interfering);
@@ -446,6 +454,7 @@ mod tests {
             &BorrowAccessKind::Mutable,
             &left,
             &BorrowAccessKind::Read,
+            &[],
         );
         assert!(!contained.disjoint);
         assert!(!contained.non_interfering);
@@ -460,6 +469,7 @@ mod tests {
             &BorrowAccessKind::Read,
             &whole,
             &BorrowAccessKind::Mutable,
+            &[],
         );
         assert_eq!(
             reversed.containment,
@@ -480,6 +490,7 @@ mod tests {
             &BorrowAccessKind::Read,
             &place,
             &BorrowAccessKind::Read,
+            &[],
         );
 
         assert!(!compatibility.disjoint);
@@ -492,6 +503,7 @@ mod tests {
             &BorrowAccessKind::Read,
             &place,
             &BorrowAccessKind::WriteOnly,
+            &[],
         );
         assert!(!conflicting.non_interfering);
     }
@@ -512,6 +524,7 @@ mod tests {
             &BorrowAccessKind::Mutable,
             &indexed,
             &BorrowAccessKind::Mutable,
+            &[],
         );
         assert!(!indexed_compatibility.disjoint);
         assert_eq!(
@@ -527,6 +540,7 @@ mod tests {
             &BorrowAccessKind::Mutable,
             &indexed,
             &BorrowAccessKind::Mutable,
+            &[],
         );
         assert!(!invalid_compatibility.disjoint);
         assert_eq!(
