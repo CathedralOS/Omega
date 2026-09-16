@@ -1,9 +1,9 @@
 //! Byte-level write primitives: scalar fragments, stored-integer fit
 //! validation, container reads and writes, and bit masks.
 
-use crate::field_values::ScalarFieldValue;
 use crate::layout_reports::{IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport};
 use crate::materialization::MaterializationDiagnostic;
+use crate::materialization::field_values::ScalarFieldValue;
 use crate::placement::{ByteOrder, MaterializationWrite, StoredIntegerFit};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2,25 +2,25 @@
 //! report, symbolic field values, and resolved relocation targets, including
 //! bounded traversal of interior layouts along symbolic paths.
 
-use crate::field_values::ScalarFieldValue;
 use crate::layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalSumLayoutReport, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport,
 };
-use crate::materialization::{MaterializationDiagnostic, SymbolicMaterializationPlan};
-use crate::materialization_field_identities::{
+use crate::materialization::field_identities::{
     MaterializationFieldKey, materialization_field_key, stable_identity_suffix,
     symbolic_index_display, symbolic_path_display, symbolic_path_hops,
     validate_conventional_sum_materialization_identities,
     validate_materialization_field_identities,
 };
+use crate::materialization::field_values::ScalarFieldValue;
+use crate::materialization::stored_integer_writes::{
+    apply_fragment, scalar_fragment, validate_fragment, validate_stored_integer_value,
+    validate_write, validate_write_source_value,
+};
+use crate::materialization::{MaterializationDiagnostic, SymbolicMaterializationPlan};
 use crate::placement::{
     ByteOrder, ConsumptionInstant, MaterializationAction, MaterializationContext,
     MaterializationWrite, StoredIntegerFit,
-};
-use crate::stored_integer_writes::{
-    apply_fragment, scalar_fragment, validate_fragment, validate_stored_integer_value,
-    validate_write, validate_write_source_value,
 };
 use crate::symbolic_values::{
     RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInteriorLayout, SymbolicFieldValue,

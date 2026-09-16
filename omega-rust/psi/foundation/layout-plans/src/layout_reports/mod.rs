@@ -4,7 +4,7 @@
 //! conventional sum layouts. Fingerprints and replay matching compare two
 //! reports by canonical member identity, not by declaration order.
 
-use crate::materialization_field_identities::validate_materialization_field_identities;
+use crate::materialization::field_identities::validate_materialization_field_identities;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IntegerInterpretation {

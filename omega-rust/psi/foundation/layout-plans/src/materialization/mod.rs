@@ -2,24 +2,28 @@
 //! layout materialization into bytes, scalar layout decoding, and the
 //! crate's diagnostic type.
 
-use crate::field_values::{
-    AggregateFieldSchema, AggregateFieldShape, AggregateFieldValue, ScalarFieldSchema,
-    ScalarFieldValue,
-};
+pub(crate) mod field_identities;
+pub(crate) mod field_values;
+pub(crate) mod stored_integer_writes;
+
 use crate::layout_reports::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
-use crate::materialization_field_identities::{
+use crate::materialization::field_identities::{
     MaterializationFieldKey, materialization_field_key, stable_identity_suffix,
     validate_materialization_field_identities,
+};
+use crate::materialization::field_values::{
+    AggregateFieldSchema, AggregateFieldShape, AggregateFieldValue, ScalarFieldSchema,
+    ScalarFieldValue,
+};
+use crate::materialization::stored_integer_writes::{
+    apply_write, low_mask, read_container, scalar_fragment, validate_fragment, validate_write,
+    validate_write_source_value,
 };
 use crate::placement::{ByteOrder, MaterializationAction, PlacementConstraints};
 use crate::post_handoff_writer::{
     PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
-};
-use crate::stored_integer_writes::{
-    apply_write, low_mask, read_container, scalar_fragment, validate_fragment, validate_write,
-    validate_write_source_value,
 };
 use crate::symbolic_materialization::apply_scalar_entry;
 
