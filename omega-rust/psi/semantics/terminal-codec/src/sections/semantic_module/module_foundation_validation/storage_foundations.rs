@@ -483,6 +483,117 @@ pub(super) fn validate_write_only_primitive_store(
     Ok(())
 }
 
+/// The runtime index is always a projection of the destination root, so this
+/// mirrors the projected branch of `validate_write_only_primitive_store`:
+/// whole-root replacement through `EstablishPrimitiveLocal` can never name an
+/// array. The verifier independently reconstructs custody, dominance, and the
+/// `index < declared extent` obligation; this pass checks wire-level shape.
+pub(super) fn validate_write_only_indexed_primitive_store(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::WriteOnlyIndexedPrimitiveStore {
+        destination,
+        path,
+        index,
+        value,
+        ..
+    } = &operation.kind
+    else {
+        unreachable!("dispatched validate_write_only_indexed_primitive_store")
+    };
+    if operation.result != OperationResult::Unit {
+        return malformed("write-only indexed primitive store declares a non-Unit result");
+    }
+    let destination_type = if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == *destination)
+    {
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == *destination)
+            || machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == *destination)
+        {
+            return malformed("indexed primitive store has invalid destination custody");
+        }
+        parameter.structural_type
+    } else {
+        let Some(result) = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|producer| producer.result.structural())
+            .find(|result| {
+                result.place == *destination
+                    && result.claims.is_empty()
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
+            })
+        else {
+            return malformed("indexed primitive store has no writable root");
+        };
+        result.structural_type
+    };
+    let Some((element_type, _)) = terminal_semantics::fixed_array_place_shape(
+        module.structural_types.iter(),
+        destination_type,
+        path,
+    ) else {
+        return malformed("indexed primitive store requires a fixed-array destination path");
+    };
+    let declared_scalar = |value| {
+        machine
+            .parameters
+            .iter()
+            .chain(machine.result.scalar_ref())
+            .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+            .chain(machine.blocks.iter().flat_map(|block| {
+                block
+                    .operations
+                    .iter()
+                    .filter_map(|candidate| candidate.result.scalar_ref())
+            }))
+            .find(|declaration| declaration.id == value)
+            .map(|declaration| declaration.scalar_type)
+    };
+    let expected_index = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
+    );
+    if declared_scalar(*index) != Some(expected_index) {
+        return malformed("indexed primitive store requires an unsigned 64-bit index");
+    }
+    if declared_scalar(*value) != Some(element_type) {
+        return malformed("indexed primitive store value type does not match the element");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_scalar_field_store(
     module: &TerminalModule,
     machine: &TerminalMachine,

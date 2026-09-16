@@ -494,6 +494,39 @@ impl TerminalExecution {
         Ok(())
     }
 
+    /// The runtime index is a `u64` operand, not a path segment: once its
+    /// exact value is resolved the store proceeds through the same verified
+    /// access walk as a literal-indexed store, which re-checks the element
+    /// against the declared extent segment by segment.
+    pub(super) fn execute_indexed_primitive_store(
+        &mut self,
+        operation: &Operation,
+        destination: PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        index: ValueId,
+        value: ValueId,
+    ) -> Result<(), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let TerminalScalarValue::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(raw),
+        } = self
+            .values
+            .get(&index)
+            .copied()
+            .ok_or(TerminalInterpretError::VerifiedValueMissing(index))?
+        else {
+            return Err(invalid());
+        };
+        if scalar_type != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())? {
+            return Err(invalid());
+        }
+        let index = u64::try_from(raw).map_err(|_| invalid())?;
+        let mut projected = path.to_vec();
+        projected.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index));
+        self.execute_primitive_store(operation, destination, value, &projected)
+    }
+
     pub(super) fn primitive_local_count(&self) -> usize {
         self.machines
             .get(&self.current_machine)

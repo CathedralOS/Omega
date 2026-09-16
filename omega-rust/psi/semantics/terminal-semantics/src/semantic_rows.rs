@@ -167,6 +167,7 @@ operation_semantic_rows! {
     PrimitiveScalarRead => ("schema:operation:primitive-scalar-read", LeafDenotation, None),
     StructuralCaseMembership => ("schema:operation:structural-case-membership", LeafDenotation, None),
     WriteOnlyPrimitiveStore => ("schema:operation:write-only-primitive-store", LeafDenotation, None),
+    WriteOnlyIndexedPrimitiveStore => ("schema:operation:write-only-indexed-primitive-store", LeafDenotation, None),
     StructuralScalarFieldStore => ("schema:operation:structural-scalar-field-store", LeafDenotation, None),
     StructuralByteSequenceFieldStore => ("schema:operation:structural-byte-sequence-field-store", LeafDenotation, None),
     StructuralByteSequenceFieldLength => ("schema:operation:structural-byte-sequence-field-length", LeafDenotation, None),

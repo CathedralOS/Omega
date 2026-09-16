@@ -687,6 +687,22 @@ impl TerminalExecution {
                         self.execute_primitive_store(operation, destination, value, path)?;
                         OperationFlow::Advance
                     }
+                    OperationKind::WriteOnlyIndexedPrimitiveStore {
+                        destination,
+                        ref path,
+                        index,
+                        value,
+                        ..
+                    } => {
+                        self.execute_indexed_primitive_store(
+                            operation,
+                            destination,
+                            path,
+                            index,
+                            value,
+                        )?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::StructuralScalarFieldStore { .. } => {
                         self.execute_structural_scalar_field_store(operation)?
                     }

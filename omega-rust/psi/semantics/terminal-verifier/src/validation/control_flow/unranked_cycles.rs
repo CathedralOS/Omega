@@ -142,6 +142,21 @@ fn cycle_operation_eligible(
                 && primitive_storage::store_type(module, machine, operation.id, *destination, path)
                     .is_ok()
         }
+        OperationKind::WriteOnlyIndexedPrimitiveStore {
+            destination, path, ..
+        } => {
+            operation.result == OperationResult::Unit
+                && (primitive_storage::local_result(machine, *destination).is_some()
+                    || !path.is_empty())
+                && primitive_storage::indexed_store_shape(
+                    module,
+                    machine,
+                    operation.id,
+                    *destination,
+                    path,
+                )
+                .is_ok()
+        }
         // Requirement obligations and crash continuations carry no custody:
         // ordinary call validation still checks their arity, substitution and
         // caller coverage symbolically, and obligation reconstruction cuts

@@ -605,6 +605,15 @@ pub enum ModuleError {
         expected: ScalarType,
         actual: ScalarType,
     },
+    WriteOnlyIndexedPrimitiveStoreDestinationMismatch {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    WriteOnlyIndexedPrimitiveStoreIndexTypeMismatch {
+        operation: OperationId,
+        index: ValueId,
+        actual: ScalarType,
+    },
     InvalidStructuralScalarFieldStore {
         operation: OperationId,
         destination: PlaceId,

@@ -162,13 +162,12 @@ pub(super) fn read_type(
     scalar_type(module, structural_type).ok_or_else(invalid)
 }
 
-fn projected_type(
+fn writable_signature<'a>(
     module: &TerminalModule,
-    machine: &TerminalMachine,
+    machine: &'a TerminalMachine,
     place: PlaceId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     writing: bool,
-) -> Option<ScalarType> {
+) -> Option<super::structural_result_contracts::StructuralResultSignature<'a>> {
     let signature = super::structural_result_contracts::source_signature(machine, place)?;
     if !matches!(
         signature.multiplicity,
@@ -231,11 +230,44 @@ fn projected_type(
             return None;
         }
     }
+    Some(signature)
+}
+
+fn projected_type(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    writing: bool,
+) -> Option<ScalarType> {
+    let signature = writable_signature(module, machine, place, writing)?;
     terminal_semantics::primitive_place_type(
         module.structural_types.iter(),
         signature.structural_type,
         path,
     )
+}
+
+/// Resolve a runtime-indexed store destination to the array's declared
+/// element scalar type and extent. `path` reaches the fixed array itself;
+/// `index` is a runtime operand certified `index < extent`, so it never
+/// appears as a path segment here.
+pub(crate) fn indexed_store_shape(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: OperationId,
+    place: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+) -> Result<(ScalarType, u64), ModuleError> {
+    let signature = writable_signature(module, machine, place, true).ok_or(
+        ModuleError::WriteOnlyIndexedPrimitiveStoreDestinationMismatch { operation, place },
+    )?;
+    terminal_semantics::fixed_array_place_shape(
+        module.structural_types.iter(),
+        signature.structural_type,
+        path,
+    )
+    .ok_or(ModuleError::WriteOnlyIndexedPrimitiveStoreDestinationMismatch { operation, place })
 }
 
 pub(super) fn validate_uses(
@@ -255,7 +287,8 @@ pub(super) fn validate_uses(
     };
     match &operation.kind {
         OperationKind::PrimitiveScalarRead { source, .. } => require_available(*source)?,
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
+        OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => {
             require_available(*destination)?
         }
         OperationKind::CallUnit {

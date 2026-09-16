@@ -38,6 +38,8 @@ mod cyclic_receiver;
 mod effect_modules;
 #[path = "unit/ieee_float_comparisons.rs"]
 mod ieee_float_comparisons;
+#[path = "unit/indexed_primitive_stores.rs"]
+mod indexed_primitive_stores;
 #[path = "unit/indexed_structural_store.rs"]
 mod indexed_structural_store;
 #[path = "unit/nominal_affine_modules.rs"]

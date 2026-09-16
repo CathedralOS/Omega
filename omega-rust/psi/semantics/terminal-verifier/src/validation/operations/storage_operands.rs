@@ -208,6 +208,55 @@ pub(super) fn validate_write_only_primitive_store(
     Ok(())
 }
 
+pub(super) fn validate_write_only_indexed_primitive_store(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let OperationKind::WriteOnlyIndexedPrimitiveStore {
+        destination,
+        ref path,
+        index,
+        value,
+        ..
+    } = operation.kind
+    else {
+        unreachable!("dispatched validate_write_only_indexed_primitive_store")
+    };
+    require_defined(index, value_types, defined)?;
+    require_defined(value, value_types, defined)?;
+    let expected_index =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    let actual_index = value_types[&index];
+    if actual_index != expected_index {
+        return Err(
+            ModuleError::WriteOnlyIndexedPrimitiveStoreIndexTypeMismatch {
+                operation: operation.id,
+                index,
+                actual: actual_index,
+            },
+        );
+    }
+    let (expected, _) = super::super::primitive_storage::indexed_store_shape(
+        module,
+        machine,
+        operation.id,
+        destination,
+        path,
+    )?;
+    let actual = value_types[&value];
+    if actual != expected {
+        return Err(ModuleError::WriteOnlyPrimitiveStoreValueTypeMismatch {
+            operation: operation.id,
+            expected,
+            actual,
+        });
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_scalar_field_store(
     module: &TerminalModule,
     machine: &TerminalMachine,

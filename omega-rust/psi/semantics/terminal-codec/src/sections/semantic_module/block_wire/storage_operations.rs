@@ -270,6 +270,41 @@ pub(super) fn decode_write_only_primitive_store(
     })
 }
 
+pub(super) fn encode_write_only_indexed_primitive_store(
+    writer: &mut Writer,
+    destination: PlaceId,
+    path: Vec<CanonicalStructuralPathSegment>,
+    index: ValueId,
+    value: ValueId,
+    obligation: ObligationId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::WRITE_ONLY_INDEXED_PRIMITIVE_STORE);
+    super::super::structural_field_wire::encode_canonical_structural_field(
+        writer,
+        destination,
+        &path,
+        "indexed primitive destination path",
+    )?;
+    writer.id(index);
+    writer.id(value);
+    writer.id(obligation);
+    Ok(())
+}
+
+pub(super) fn decode_write_only_indexed_primitive_store(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    let (destination, path) =
+        super::super::structural_field_wire::decode_canonical_structural_field(reader)?;
+    Ok(OperationKind::WriteOnlyIndexedPrimitiveStore {
+        destination,
+        path,
+        index: reader.id("ValueId")?,
+        value: reader.id("ValueId")?,
+        obligation: reader.id("ObligationId")?,
+    })
+}
+
 pub(super) fn encode_structural_byte_sequence_field_store(
     writer: &mut Writer,
     destination: PlaceId,

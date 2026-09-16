@@ -970,6 +970,7 @@ pub(super) fn apply_operation(
             check_root_access(machine, live, *source)?
         }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | OperationKind::StructuralScalarFieldStore { destination, .. } => {
             check_root_access(machine, live, *destination)?
         }

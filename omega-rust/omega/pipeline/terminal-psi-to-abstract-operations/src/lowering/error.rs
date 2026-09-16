@@ -44,6 +44,10 @@ pub enum LoweringError {
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// whole-root write-only parameter and its preceding scalar definition.
     InvalidWriteOnlyPrimitiveStore(semantic_vocabulary::OperationId),
+    /// Terminal preserves verified runtime-indexed write-only stores, but
+    /// Omega has no abstract storage operation carrying a runtime index and
+    /// its bounds obligation yet.
+    UnsupportedIndexedPrimitiveStore(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// parameter root, structural path and field, or typed scalar value.
     InvalidStructuralScalarFieldStore(semantic_vocabulary::OperationId),

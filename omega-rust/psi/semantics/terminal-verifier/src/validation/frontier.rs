@@ -398,6 +398,9 @@ fn validate_owned_reads(
             ref path,
             ..
         } if !path.is_empty() => Some(destination),
+        // The runtime index is itself a projection: the root is used even when
+        // the static path to the array is empty.
+        OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => Some(destination),
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => Some(source),
         OperationKind::StructuralScalarFieldStore { destination, .. } => Some(destination),
