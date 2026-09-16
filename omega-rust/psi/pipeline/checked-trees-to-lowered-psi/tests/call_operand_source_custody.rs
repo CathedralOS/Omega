@@ -70,11 +70,10 @@ const CALLABLE_BOUNDARY_SOURCE: &str = r#"
         machine finish(first: i32, second: i32) reaches Host;
     }
     data Main {}
-    machine Main::main<machine Finish>(left: i32, right: i32)
-    where machine Finish satisfies Host::finish;
-    reaches Host
+    machine Main::main(left: i32, right: i32)
+    reaches Host invokes Host;
     {
-        Finish(left, right);
+        Host::finish(left, right);
     }
 "#;
 

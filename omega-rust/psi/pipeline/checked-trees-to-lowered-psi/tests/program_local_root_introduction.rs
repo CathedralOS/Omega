@@ -33,10 +33,10 @@ const SOURCE: &str = r#"
     }
 
     data Root {}
-    machine Root::run<machine Enter>(region: Region in Owned)
-    where machine Enter satisfies RegionEntry::enter;
+    machine Root::run(region: Region in Owned)
+    reaches RegionEntry invokes RegionEntry;
     {
-        Enter(region);
+        RegionEntry::enter(region);
     }
 "#;
 
@@ -61,10 +61,10 @@ const INDEXED_SOURCE: &str = r#"
     }
 
     data Root {}
-    machine Root::run<machine Enter>(region: Region in Owned<4>)
-    where machine Enter satisfies RegionEntry::enter;
+    machine Root::run(region: Region in Owned<4>)
+    reaches RegionEntry invokes RegionEntry;
     {
-        Enter(region);
+        RegionEntry::enter(region);
     }
 "#;
 
