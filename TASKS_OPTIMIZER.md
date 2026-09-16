@@ -665,7 +665,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   including firing on both Linux targets, scratch-custody,
   decision-field substitution, and wrong-policy negatives; the replay
   re-derives the divisor literal, result register, dropped-`Def` custody,
-  and rebuilt materialization row independently). Remaining: further
+  and rebuilt materialization row independently).
+  `PairOperandShape::BinaryLeftLiteralConstantResult` declares the
+  left-operand constant-result grammar — the operand-0 literal alone
+  fixes the result, so unlike `BinaryLeftLiteral` no commutation is
+  attested — and `BITWISE_AND_ZERO_FOLDS` declares one pair per `Use`
+  position, folding `MaterializeI64(0)` feeding `BitwiseAndI64` at either
+  operand into a `MaterializeI64` of zero at the result register under
+  `LiteralFoldPolicy::BITWISE_AND_ZERO_V1`, with `x & 0` and `0 & x` both
+  annihilating to zero and the dropped non-victim `Use` plus every dead
+  scratch `Def` falling under the same occurrence-free custody (364
+  crate lib tests pass, including firing on both Linux targets at either
+  operand position, exact-zero versus nonzero literals, forbidden
+  operand bindings, scratch-custody, decision-field substitution, and
+  wrong-policy negatives; the replay restates both grammars through its
+  own `AndZero`/`AndZeroLeft` source shapes and never consults the pair
+  descriptor). Remaining: further
   unit roles and the other non-isolated relationships — trap-, stack-,
   and control-flow-carrying forms still have no descriptor variant.
 
