@@ -55,6 +55,26 @@ Use end-to-end improvements to justify integration. A promising retrieval score
 earns a worker trial, not an automatic approval gate. No observed speedup authorizes
 publication, automatic retry cancellation, or suppressing required checks.
 
+## Claim-first citation experiments
+
+For the retained citation-warning trial, have the answer producer emit claims
+with their own exact citations in its normal generation call. Those claims ARE
+the answer; do not append a separate unverified prose summary. Preserve subjects,
+conditions and negation, and review query completeness separately: missing facts
+cannot be detected by checking only the facts that were emitted.
+
+Use [claim_checks.py](scripts/claim_checks.py) for the offline boundary. Its
+`claim_cases(answers, tasks)` returns semantic cases and local warnings for
+missing/nonliteral citations or abstentions; pass the cases through the existing
+TypeSafe runner and unchanged support question. `unsupported_claims` validates
+verdict coverage and retains every unsupported claim. Keep BOTH local and semantic
+warnings; never average a defect away or treat no warnings as proof. Run the file
+with Python 3 for its offline checks. It requires no SDK or credential.
+
+Claim granularity is instructed, not guaranteed by the JSON shape. Keep this a
+nonblocking experiment, not a publication gate. For an A/B, isolate competing
+states: putting an explicit decomposition beside a whole answer may cue its judge.
+
 ## Keep knowledge portable
 
 Maintain this project skill only in `.agents/skills/`. Put dated measurements in

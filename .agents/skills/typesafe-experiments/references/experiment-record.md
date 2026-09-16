@@ -346,9 +346,46 @@ single failure and relabel it generalization.
 
 The 30 exposed retrieval queries are development data; lexical context extraction
 is a strong baseline and further reranking trials need demonstrated headroom.
-The next uncertainty is whether independent per-assertion checks recover the
-fresh whole-answer miss without excessive segmentation cost or false warnings.
-Inspect flagged AND unflagged outputs, retain owner/scope evidence, and measure
-whether a warning leads to a useful correction. No automatic blocks or verifier retries. Calibrate a new
+After the claim-first repair below, the next uncertainty is incremental correction
+yield on fresh naturally defective claim lists versus ordinary review using the
+same evidence. Inspect flagged AND unflagged outputs and retain owner/scope evidence.
+No automatic blocks or verifier retries. Calibrate a new
 threshold only as a development hypothesis with fresh evaluation; do not promote
 the favorable repeat or a post-hoc cutoff as established correctness.
+
+## Claim-first repair retained for experiments
+
+`build/experiments/citation-atomic/` preserves the protocol, isolation amendment,
+requests, answers, pre-verifier review and report. Seven manually decomposed
+development claims retained the original citations. Both shared-state and isolated
+atomic checks flagged the missing overlap support at P(unsupported)=1.0, accepting
+the six supported controls. The shared whole-answer judge also flagged it, so an
+isolation control was added before continuing interpretation. The isolated whole
+answer likewise flagged it at .63 unsupported; the earlier .90-supported verdict
+is variable. This does NOT establish atomic checking's general superiority.
+
+The actual producer fix avoids a separate decomposition call: its ordinary answer
+generation emits claim/citation lists, with no additional unchecked prose. One
+fresh SWE-2 Max session (68.901s) repaired the old answer and answered three fresh
+queries. All six repair claims and nine fresh claims were source-reviewed before
+Jev, all supported and complete. The overlap claim now cites the explicit informed
+exception passage. All quotes matched; zero tools, no local warnings, all 15
+semantic checks accepted (.365s, 4,928 input / 498 output tokens).
+
+The shared diagnostic, isolated whole, and isolated atomic calls took .309/.281/.269s
+with input tokens 3,958/790/3,432 and output 241/31/213. Total four API batches:
+1.224s, 13,108 input / 983 output. Atomic checking costs more tokens; no measured
+speed/cost win. Manual development decomposition cost was not timed; no automatic
+decomposition is part of the retained producer workflow. Generation overhead has
+no matched baseline. No ordinary-review comparator, so the useful correction is
+not evidence of advantage over another reviewer. Fresh cases contain no defects.
+
+Retained portable `scripts/claim_checks.py` is used by the producer experiment.
+It validates answer IDs, forbids separate unchecked prose, produces one semantic
+case per cited claim, retains local warnings for absent/nonliteral evidence and
+abstention, rejects missing/unknown verdicts, and preserves every unsupported
+claim instead of averaging. Offline self-check covers those boundaries. Python
+compilation, live payload checks, skill validation and diff checks passed on
+Windows; macOS runtime not exercised. Some emitted claims remain compound:
+semantic atomicity and query completeness still require review. Warning-only,
+not a certificate or publication gate. Raw sessions and credentials stay ignored.
