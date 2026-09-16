@@ -1,4 +1,5 @@
 use crate::cli::arguments::SourceArguments;
+use package_source::PrimaryGitChoices;
 
 pub(crate) fn run(arguments: SourceArguments) {
     let adapter = match package_manager::operations::SourceAdapter::parse(&arguments.source_kind) {
@@ -8,13 +9,15 @@ pub(crate) fn run(arguments: SourceArguments) {
             std::process::exit(2);
         }
     };
-    let storage = match package_source::SourceResolverStorage::for_current_user() {
-        Ok(storage) => storage,
-        Err(error) => {
-            eprintln!("cannot open private source resolver storage: {error}");
-            std::process::exit(1);
-        }
-    };
+    let storage =
+        match package_source::SourceResolverStorage::for_current_user(PrimaryGitChoices::default())
+        {
+            Ok(storage) => storage,
+            Err(error) => {
+                eprintln!("cannot open private source resolver storage: {error}");
+                std::process::exit(1);
+            }
+        };
     match package_manager::operations::inspect_package_source_locator(
         adapter,
         arguments.locator,

@@ -15,6 +15,7 @@ use package_manager::review::{
     ReviewOnlyCapabilityConflictLimits, compile_resolved_package_candidate_for_production,
     compile_resolved_package_reviews,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -45,9 +46,10 @@ fn resolve_workspace_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+        .map_err(|error| {
+            ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
+        })?;
     resolve_workspace_package_closure_with_storage(
         workspace_root_source,
         root_member_path,

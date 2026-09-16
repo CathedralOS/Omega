@@ -61,10 +61,10 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
         git(&repository, &["config", "user.name", "Omega Tests"]);
         git(&repository, &["add", "."]);
         git(&repository, &["commit", "--quiet", "-m", "accepted source"]);
-        let acquisition = GitSourceRequest::for_local_test_repository_with_lineage(
+        let acquisition = GitSourceRequest::for_local_test_repository(
             &repository,
             None,
-            "https://github.com/CathedralOS/locked-source-fixture.git",
+            Some("https://github.com/CathedralOS/locked-source-fixture.git"),
         )
         .unwrap();
         let selected_request = GitPackageSourceRequest::new(

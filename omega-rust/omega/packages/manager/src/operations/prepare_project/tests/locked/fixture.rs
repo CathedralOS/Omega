@@ -10,6 +10,7 @@ use super::{
 };
 use crate::resolution::graph::resolve_external_local_project_closure_with_storage;
 use crate::review::SemanticBindingReview;
+use package_source::PrimaryGitChoices;
 
 pub(super) struct Project(pub(super) PathBuf);
 
@@ -38,7 +39,8 @@ impl Project {
     }
 
     pub(super) fn storage(&self) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.0.join("cache")).unwrap()
+        SourceResolverStorage::for_hardened_base(self.0.join("cache"), PrimaryGitChoices::default())
+            .unwrap()
     }
 
     pub(super) fn resolve(&self, root: &Path) -> ResolvedPackageSourceClosure {

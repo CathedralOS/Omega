@@ -21,6 +21,7 @@ use package_manager::operations::{
     publish_reviewed_package_change, stage_build_dependency_edit,
 };
 use package_manager::resolution::graph::resolve_staged_external_local_project_closure_with_storage;
+use package_source::PrimaryGitChoices;
 use package_source::SourceRelativePath;
 use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
 use std::time::SystemTime;
@@ -676,7 +677,11 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
     source(&tree, PURE, "");
     let root = tree.path("sources/root");
     let after_build = fs::read_to_string(root.join("build.omg")).unwrap();
-    let storage = SourceResolverStorage::for_hardened_base(tree.path("recovered-cache")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        tree.path("recovered-cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let closure =
         package_manager::resolution::graph::resolve_external_local_project_closure_with_storage(
             &root,

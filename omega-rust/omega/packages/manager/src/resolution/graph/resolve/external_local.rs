@@ -14,6 +14,7 @@ use crate::declarations::PackageKey;
 use crate::resolution::source::{
     PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
 };
+use package_source::PrimaryGitChoices;
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{ExternalSourceContext, SourceLineage};
 use package_source::{LocalSourceLimits, SourceResolverStorage};
@@ -36,9 +37,10 @@ pub(crate) fn resolve_external_local_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
-        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+        .map_err(|error| {
+            ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+        })?;
     resolve_external_local_package_closure_with_storage(
         live_root,
         source_context,

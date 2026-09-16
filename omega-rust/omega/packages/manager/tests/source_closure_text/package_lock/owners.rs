@@ -12,6 +12,7 @@ use super::{
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
 use package_manager::review::SemanticBindingReview;
+use package_source::PrimaryGitChoices;
 
 fn resolve_chain(tree: &TempTree) -> ResolvedPackageSourceClosure {
     let sources = tree.path("sources");
@@ -36,7 +37,9 @@ fn resolve_chain(tree: &TempTree) -> ResolvedPackageSourceClosure {
         write_member(&member, "package", directory, dependencies);
         fs::write(member.join("main.omg"), source).unwrap();
     }
-    let storage = SourceResolverStorage::for_hardened_base(tree.path("cache")).unwrap();
+    let storage =
+        SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
+            .unwrap();
     resolve_external_local_project_closure_with_storage(
         sources.join("root"),
         ExternalSourceContext::derive(b"policy-owner-membership-chain"),

@@ -1,5 +1,6 @@
 use package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
 use package_manager::review::SemanticBindingReview;
+use package_source::PrimaryGitChoices;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -90,11 +91,11 @@ impl Fixture {
             PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
         };
         let root = self.path("root");
-        let storage =
-            package_source::SourceResolverStorage::for_current_user_excluding_primary_git_roots(
-                std::slice::from_ref(&root),
-            )
-            .unwrap();
+        let storage = package_source::SourceResolverStorage::for_current_user(PrimaryGitChoices {
+            excluded_controlled_roots: std::slice::from_ref(&root),
+            ..PrimaryGitChoices::default()
+        })
+        .unwrap();
         let closure = resolve_external_local_project_closure_with_storage(
             &root,
             package_source::ExternalSourceContext::derive(b"omega-local-project-v1"),

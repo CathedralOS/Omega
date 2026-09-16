@@ -186,12 +186,12 @@ fn local_cache_lock_wait_has_a_fail_closed_deadline() {
     let root = temp_root("local-lock-budget");
     std::fs::create_dir_all(&root).expect("create lock budget root");
     let lock_path = root.join("entry.lock");
-    let held = CacheEntryLock::acquire_local_with_timeout(&lock_path, Duration::from_secs(1))
+    let held = CacheEntryLock::acquire_local(&lock_path, Duration::from_secs(1))
         .expect("hold local cache lock");
     let timeout = Duration::from_millis(30);
     let started = Instant::now();
 
-    let result = CacheEntryLock::acquire_local_with_timeout(&lock_path, timeout);
+    let result = CacheEntryLock::acquire_local(&lock_path, timeout);
 
     assert!(matches!(
         result,
@@ -214,11 +214,11 @@ fn local_cache_lock_acquires_after_the_competing_handle_releases() {
     let root = temp_root("local-lock-release");
     std::fs::create_dir_all(&root).expect("create lock release root");
     let lock_path = root.join("entry.lock");
-    let held = CacheEntryLock::acquire_local_with_timeout(&lock_path, Duration::from_secs(1))
+    let held = CacheEntryLock::acquire_local(&lock_path, Duration::from_secs(1))
         .expect("hold local cache lock");
     drop(held);
 
-    CacheEntryLock::acquire_local_with_timeout(&lock_path, Duration::from_secs(1))
+    CacheEntryLock::acquire_local(&lock_path, Duration::from_secs(1))
         .expect("released local cache lock must become available");
 
     let _ = std::fs::remove_dir_all(root);
@@ -241,7 +241,7 @@ fn git_cache_lock_wait_obeys_the_whole_resolution_budget() {
         .expect("capture time-bounded Git");
 
     assert!(matches!(
-        CacheEntryLock::acquire_with_budget(&lock_path, &executor),
+        CacheEntryLock::acquire_within(&lock_path, &executor),
         Err(SourceResolveError::GitResolutionTimedOut { .. })
     ));
 

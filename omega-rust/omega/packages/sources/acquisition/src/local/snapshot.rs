@@ -22,6 +22,7 @@ use crate::custody::tree::verify_local_cache_custody;
 use crate::custody::tree::verify_local_cache_root_custody;
 use crate::error::local_snapshot_invalid;
 use crate::identity::digest::{format_sha256, hash_bytes};
+use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
 use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LocalSourceLimits};
 use crate::snapshot::metadata::verify_local_snapshot;
 use crate::storage::RetainedStorageLane;
@@ -51,7 +52,7 @@ pub(crate) fn publish_local_snapshot(
     );
     let publication = snapshots.join(format!("source-{custody_identity}"));
     let lock_path = snapshots.join(format!("source-{custody_identity}.lock"));
-    let entry_lock = CacheEntryLock::acquire_local(&lock_path)?;
+    let entry_lock = CacheEntryLock::acquire_local(&lock_path, LOCAL_SNAPSHOT_LOCK_TIMEOUT)?;
 
     let normalized = if publication.exists() {
         let normalized = verify_local_snapshot(&publication, &identity, limits)?;
@@ -156,6 +157,7 @@ fn publish_local_snapshot_in_retained_collection(
             snapshots.path(),
             snapshots.directory(),
             OsStr::new(&lock_name),
+            LOCAL_SNAPSHOT_LOCK_TIMEOUT,
         )?;
 
         let publication_exists = match snapshots.directory().symlink_metadata(&publication_name) {

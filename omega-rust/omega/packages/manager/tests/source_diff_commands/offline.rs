@@ -33,7 +33,11 @@ fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparis
             // Warm only the candidate in fresh storage. A shallow fetch of HEAD
             // cannot supply the old accepted tree to source-diff recovery.
             std::fs::rename(fixture.path("cache"), fixture.path("previous-cache")).unwrap();
-            let storage = SourceResolverStorage::for_hardened_base(fixture.path("cache")).unwrap();
+            let storage = SourceResolverStorage::for_hardened_base(
+                fixture.path("cache"),
+                PrimaryGitChoices::default(),
+            )
+            .unwrap();
             let request = GitSourceRequest::new(REPOSITORY, None).unwrap();
             let calls = fixture.transport_calls();
             drop(

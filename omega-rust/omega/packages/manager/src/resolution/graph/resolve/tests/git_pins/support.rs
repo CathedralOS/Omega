@@ -5,6 +5,7 @@ use super::{
     ResolvedGitSource, ResolvedPackageSource, SourceCacheLane, SourceResolverStorage, run_test_git,
     temp_root, write_application, write_package,
 };
+use package_source::PrimaryGitChoices;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
@@ -85,7 +86,11 @@ impl Fixture {
     }
 
     pub(super) fn storage(&self, label: &str) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.root.join(label)).unwrap()
+        SourceResolverStorage::for_hardened_base(
+            self.root.join(label),
+            PrimaryGitChoices::default(),
+        )
+        .unwrap()
     }
 
     pub(super) fn request(&self) -> GitPackageSourceRequest {
@@ -107,10 +112,10 @@ impl Fixture {
         selection: PackageSelection,
     ) -> GitPackageSourceRequest {
         GitPackageSourceRequest::new(
-            GitSourceRequest::for_local_test_repository_with_lineage(
+            GitSourceRequest::for_local_test_repository(
                 &self.repository,
                 Some(revision.to_owned()),
-                locator,
+                Some(locator),
             )
             .unwrap(),
             selection,

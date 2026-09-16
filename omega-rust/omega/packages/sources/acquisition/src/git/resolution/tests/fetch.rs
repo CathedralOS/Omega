@@ -109,6 +109,7 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
         request.requested_revision(),
         execution_transport,
         limits,
+        None,
     )
     .expect("create quarantined Git cache entry");
     let error = resolve_verified_git_cache_entry(

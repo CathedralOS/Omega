@@ -1,7 +1,8 @@
 use super::{
-    LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits, Path, SourceContentDigest,
-    recover_cached_local_source_in_lane, recover_with_entry_limit,
+    LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits, Path, SourceContentDigest, recover_bounded,
+    recover_cached_local_source_in_lane,
 };
+use crate::PrimaryGitChoices;
 use crate::SourceResolverStorage;
 use crate::local::operations::resolve_local_source_snapshot_with_storage;
 use crate::snapshot::permissions::make_tree_owner_writable;
@@ -26,7 +27,8 @@ impl Fixture {
     }
 
     fn storage(&self) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.0.join("cache")).unwrap()
+        SourceResolverStorage::for_hardened_base(self.0.join("cache"), PrimaryGitChoices::default())
+            .unwrap()
     }
 
     fn capture(&self, storage: &SourceResolverStorage) -> crate::ResolvedLocalSnapshot {
@@ -170,7 +172,7 @@ fn source_and_lookup_limits_are_enforced_independently() {
     let old = fixture.capture(&storage);
     let expected = SourceContentDigest::derive(old.normalized().content_identity.as_bytes());
     assert!(
-        recover_with_entry_limit(
+        recover_bounded(
             old.canonical_live_root(),
             &expected,
             storage.external_local_sources(),

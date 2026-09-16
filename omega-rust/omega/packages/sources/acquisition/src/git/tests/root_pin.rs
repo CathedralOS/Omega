@@ -5,6 +5,7 @@ use super::{
     make_tree_owner_writable, resolve_git_source_from_pin_in_lane, run_test_git,
     run_test_git_with_input, temp_root, test_system_git_executor,
 };
+use crate::PrimaryGitChoices;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 
 struct Fixture {
@@ -24,9 +25,14 @@ impl Fixture {
             .execution_backend
             .executable()
             .to_path_buf();
-        let storage =
-            SourceResolverStorage::for_hardened_base_with_primary_git(&storage_base, primary_git)
-                .expect("retain fixture storage");
+        let storage = SourceResolverStorage::for_hardened_base(
+            &storage_base,
+            PrimaryGitChoices {
+                explicit_git: Some(primary_git.as_ref()),
+                ..PrimaryGitChoices::default()
+            },
+        )
+        .expect("retain fixture storage");
         Self {
             repository,
             storage_base,

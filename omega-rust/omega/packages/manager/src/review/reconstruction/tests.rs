@@ -8,6 +8,7 @@ use crate::review::{
     SemanticBindingReview, compile_resolved_package_reviews,
 };
 use package_evidence::ledger::encode_ordinary_package_obligation_ledger;
+use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -130,7 +131,11 @@ fn shared_product_graph_and_single_emission_preserve_reference_bytes_and_limits(
     );
     fixture.package("shared", "");
     fixture.package("tool", "");
-    let storage = SourceResolverStorage::for_hardened_base(fixture.0.join("cache")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        fixture.0.join("cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let closure = resolve_external_local_package_closure_with_storage(
         fixture.0.join("root"),
         ExternalSourceContext::derive(b"reconstruction-emission"),

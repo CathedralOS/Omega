@@ -7,6 +7,7 @@ use crate::resolution::source::{
     resolve_selected_git_package_source_from_pin_in_lanes,
     resolve_selected_git_project_source_from_pin_in_lanes,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{
     GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolveError,
     SourceResolverStorage,
@@ -52,10 +53,10 @@ impl Fixture {
 
     fn request(&self, revision: &str) -> GitPackageSourceRequest {
         GitPackageSourceRequest::root(
-            GitSourceRequest::for_local_test_repository_with_lineage(
+            GitSourceRequest::for_local_test_repository(
                 &self.repository,
                 Some(revision.to_owned()),
-                "https://github.com/CathedralOS/pinned-root-fixture.git",
+                Some("https://github.com/CathedralOS/pinned-root-fixture.git"),
             )
             .unwrap(),
         )
@@ -96,7 +97,11 @@ fn root_selection_pin_retains_original_commit_and_declaration_after_branch_moves
         ("application", BuildDeclarationKind::Application),
     ] {
         let fixture = Fixture::new(role);
-        let storage = SourceResolverStorage::for_hardened_base(fixture.root.join("cache")).unwrap();
+        let storage = SourceResolverStorage::for_hardened_base(
+            fixture.root.join("cache"),
+            PrimaryGitChoices::default(),
+        )
+        .unwrap();
         let request = fixture.request("main");
         let application = role == "application";
         let original = resolve(&request, None, &storage, application).unwrap();
@@ -139,7 +144,11 @@ fn root_selection_pin_retains_original_commit_and_declaration_after_branch_moves
 #[test]
 fn root_selection_rejects_wrong_request_pin_and_reuses_matching_pin_offline() {
     let fixture = Fixture::new("package");
-    let storage = SourceResolverStorage::for_hardened_base(fixture.root.join("cache")).unwrap();
+    let storage = SourceResolverStorage::for_hardened_base(
+        fixture.root.join("cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     let request = fixture.request("main");
     let original = resolve(&request, None, &storage, false).unwrap();
     let pin = original.source().acquisition_pin();
@@ -157,7 +166,11 @@ fn root_selection_rejects_wrong_request_pin_and_reuses_matching_pin_offline() {
     let retained = resolve(&request, Some(&pin), &storage, false).unwrap();
     assert_eq!(retained.key(), original.key());
     assert_eq!(retained.resolution(), original.resolution());
-    let empty = SourceResolverStorage::for_hardened_base(fixture.root.join("empty-cache")).unwrap();
+    let empty = SourceResolverStorage::for_hardened_base(
+        fixture.root.join("empty-cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
     assert!(
         matches!(resolve(&request, Some(&pin), &empty, false), Err(ResolvePackageSourceError::Source(SourceResolveError::GitCacheInvalid { message, .. })) if message == "pinned Git acquisition cache entry is absent")
     );

@@ -84,7 +84,8 @@ impl Fixture {
     }
 
     pub(super) fn storage(&self, name: &str) -> SourceResolverStorage {
-        SourceResolverStorage::for_hardened_base(self.path(name)).unwrap()
+        SourceResolverStorage::for_hardened_base(self.path(name), PrimaryGitChoices::default())
+            .unwrap()
     }
 
     pub(super) fn repository(&self) {

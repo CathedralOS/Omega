@@ -9,6 +9,7 @@ use super::{
     SourceLineage, SourceRelativePath, SourceResolverStorage, SystemTime, UNIX_EPOCH,
     resolve_workspace_package_closure_with_storage,
 };
+use package_source::PrimaryGitChoices;
 pub(super) const REVIEWABLE_PACKAGES: &[&str] = &[
     "arithmetic-kernels",
     "generated-table",
@@ -49,9 +50,10 @@ pub(super) fn resolve_workspace_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
+        .map_err(|error| {
+            ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
+        })?;
     resolve_workspace_package_closure_with_storage(
         workspace_root_source,
         root_member_path,

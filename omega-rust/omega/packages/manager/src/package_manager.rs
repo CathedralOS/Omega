@@ -28,6 +28,7 @@ pub use model::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
     PackageCommandOutcome, PackageCommandStatus,
 };
+use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use proposal::PendingPackageChange;
@@ -53,11 +54,11 @@ pub fn execute_package_command(
     let storage = match storage {
         Some(storage) => storage,
         None => {
-            ordinary_storage =
-                SourceResolverStorage::for_current_user_excluding_primary_git_roots(&[transaction
-                    .project_root()
-                    .to_path_buf()])
-                .map_err(failure)?;
+            ordinary_storage = SourceResolverStorage::for_current_user(PrimaryGitChoices {
+                excluded_controlled_roots: &[transaction.project_root().to_path_buf()],
+                ..PrimaryGitChoices::default()
+            })
+            .map_err(failure)?;
             &ordinary_storage
         }
     };

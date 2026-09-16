@@ -1,5 +1,6 @@
 //! Shared fixture construction for owner-local package-source tests.
 
+use crate::PrimaryGitChoices;
 use crate::error::SourceResolveError;
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::repository::VerifiedGitRepository;
@@ -90,8 +91,13 @@ pub(crate) fn resolve_git_source(
         .execution_backend
         .executable()
         .to_path_buf();
-    let storage =
-        SourceResolverStorage::for_hardened_base_with_primary_git(hardened_base, primary_git)?;
+    let storage = SourceResolverStorage::for_hardened_base(
+        hardened_base,
+        PrimaryGitChoices {
+            explicit_git: Some(primary_git.as_ref()),
+            ..PrimaryGitChoices::default()
+        },
+    )?;
     resolve_git_source_with_storage(request, &storage, limits)
 }
 
@@ -100,7 +106,8 @@ pub(crate) fn resolve_local_source_snapshot(
     hardened_base: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
-    let storage = SourceResolverStorage::for_hardened_base(hardened_base)?;
+    let storage =
+        SourceResolverStorage::for_hardened_base(hardened_base, PrimaryGitChoices::default())?;
     resolve_local_source_snapshot_with_storage(root, &storage, limits)
 }
 
@@ -136,7 +143,7 @@ pub(crate) fn change_macos_acl(path: &Path, arguments: &[&str]) {
 }
 
 pub(crate) fn local_git_request(repository: &Path, revision: &str) -> GitSourceRequest {
-    GitSourceRequest::for_local_test_repository(repository, Some(revision.to_owned()))
+    GitSourceRequest::for_local_test_repository(repository, Some(revision.to_owned()), None)
         .expect("local Git fixture request")
 }
 pub(crate) fn run_test_git<I, S>(directory: &Path, args: I)

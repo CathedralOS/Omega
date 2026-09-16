@@ -121,7 +121,7 @@ fn local_snapshot_cache_rejects_group_or_other_writable_custody() {
     let cache = temp_root("local-custody-cache");
     std::fs::create_dir_all(&source).expect("create source");
     std::fs::write(source.join("main.omg"), b"machine main() { }").expect("write source");
-    let storage = SourceResolverStorage::for_hardened_base(&cache)
+    let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained local snapshot storage");
     resolve_local_source_snapshot_with_storage(&source, &storage, LocalSourceLimits::default())
         .expect("prime local snapshot cache");

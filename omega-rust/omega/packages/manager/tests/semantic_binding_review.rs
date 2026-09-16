@@ -32,6 +32,7 @@ use package_manager::review::{
     compare_review_only_initial_capabilities, compile_resolved_package_candidate_for_production,
     compile_resolved_package_reviews,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceResolverStorage,
 };
@@ -256,8 +257,11 @@ invokes console;
 "#,
     );
 
-    let storage = SourceResolverStorage::for_hardened_base(temporary.0.join("resolved"))
-        .expect("create semantic-binding resolver storage");
+    let storage = SourceResolverStorage::for_hardened_base(
+        temporary.0.join("resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create semantic-binding resolver storage");
     let closure = resolve_external_local_project_closure_with_storage(
         &application,
         ExternalSourceContext::derive(b"consumer-scoped-console-binding"),
@@ -511,9 +515,11 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         fs::read_to_string(application.join("main.omg")).expect("read application source");
     source_only_main.push_str("\n// source-only change preserves supplied permissions\n");
     write_file(application.join("main.omg"), &source_only_main);
-    let source_only_storage =
-        SourceResolverStorage::for_hardened_base(temporary.0.join("source-only-resolved"))
-            .expect("source-only resolver storage");
+    let source_only_storage = SourceResolverStorage::for_hardened_base(
+        temporary.0.join("source-only-resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("source-only resolver storage");
     let source_only_closure = resolve_external_local_project_closure_with_storage(
         &application,
         ExternalSourceContext::derive(b"consumer-scoped-console-binding"),
@@ -884,9 +890,11 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             .contains("differ from the independently accepted package policy")
     }));
 
-    let windows_storage =
-        SourceResolverStorage::for_hardened_base(temporary.0.join("windows-resolved"))
-            .expect("create Windows semantic-binding resolver storage");
+    let windows_storage = SourceResolverStorage::for_hardened_base(
+        temporary.0.join("windows-resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create Windows semantic-binding resolver storage");
     let windows_closure = resolve_external_local_project_closure_with_storage(
         &application,
         ExternalSourceContext::derive(b"target-independent-console-binding"),

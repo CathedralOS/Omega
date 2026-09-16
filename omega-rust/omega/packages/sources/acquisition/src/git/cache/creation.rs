@@ -32,38 +32,9 @@ use super::identity::git_cache_metadata;
 use super::repository::VerifiedGitRepository;
 use crate::error::cache_invalid;
 
-pub(crate) fn create_git_cache_entry(
-    executor: &GitExecutor,
-    cache_dir: &Path,
-    cache_directory: &CapabilityDirectory,
-    entry_root: &Path,
-    entry_name: &OsStr,
-    cache_identity: &str,
-    locator_identity: &str,
-    fetch_locator: &str,
-    requested_rev: &str,
-    execution_transport: GitExecutionTransport,
-    limits: LocalSourceLimits,
-) -> Result<(), SourceResolveError> {
-    create_git_cache_entry_with_format(
-        executor,
-        cache_dir,
-        cache_directory,
-        entry_root,
-        entry_name,
-        cache_identity,
-        locator_identity,
-        fetch_locator,
-        requested_rev,
-        execution_transport,
-        limits,
-        None,
-    )
-}
-
 /// A recorded full object ID supplies the repository format without remote
 /// selector discovery. `None` preserves the ordinary acquisition path.
-pub(crate) fn create_git_cache_entry_with_format(
+pub(crate) fn create_git_cache_entry(
     executor: &GitExecutor,
     cache_dir: &Path,
     cache_directory: &CapabilityDirectory,

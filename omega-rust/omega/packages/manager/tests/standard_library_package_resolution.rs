@@ -11,6 +11,7 @@ use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
     ConsumerScopedSemanticBindingReviewInput, compile_resolved_package_reviews,
 };
+use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use source::SourceOrigin;
 use std::collections::{BTreeMap, BTreeSet};
@@ -124,8 +125,11 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
     let live_standard_library = repository_standard_library();
     write_consumer(&live_root, Some(&live_standard_library));
 
-    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("resolved"))
-        .expect("create resolver storage");
+    let storage = SourceResolverStorage::for_hardened_base(
+        tree.0.join("resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create resolver storage");
     let closure = resolve_external_local_package_closure_with_storage(
         &live_root,
         ExternalSourceContext::derive(b"ordinary-standard-library-canary"),
@@ -212,8 +216,11 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
 fn real_standard_library_has_a_complete_ordinary_review_entry() {
     let tree = TempTree::new();
     let standard_library = repository_standard_library();
-    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("review-resolved"))
-        .expect("create standard-library review storage");
+    let storage = SourceResolverStorage::for_hardened_base(
+        tree.0.join("review-resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create standard-library review storage");
     let closure = resolve_external_local_package_closure_with_storage(
         &standard_library,
         ExternalSourceContext::derive(b"ordinary-standard-library-review-entry"),
@@ -269,8 +276,11 @@ fn real_filesystem_host_schema_accepts_settled_portable_facet_rows() {
     let standard_library = repository_standard_library();
     write_filesystem_consumer(&consumer, &standard_library);
 
-    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("filesystem-resolved"))
-        .expect("create filesystem consumer resolver storage");
+    let storage = SourceResolverStorage::for_hardened_base(
+        tree.0.join("filesystem-resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create filesystem consumer resolver storage");
     let closure = resolve_external_local_package_closure_with_storage(
         &consumer,
         ExternalSourceContext::derive(b"real-filesystem-facet-policy"),
@@ -563,8 +573,11 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
     let live_root = tree.package("missing-edge-consumer");
     write_consumer(&live_root, None);
 
-    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("missing-edge"))
-        .expect("create resolver storage");
+    let storage = SourceResolverStorage::for_hardened_base(
+        tree.0.join("missing-edge"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create resolver storage");
     let closure = resolve_external_local_package_closure_with_storage(
         &live_root,
         ExternalSourceContext::derive(b"missing-standard-library-edge-canary"),

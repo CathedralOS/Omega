@@ -11,6 +11,7 @@ use super::{
     CANONICAL_DIRECTORY_MODE, GIT_CACHE_METADATA, git_snapshot_metadata, make_snapshot_read_only,
     raw_os_bytes, resolve_materialized_source,
 };
+use crate::PrimaryGitChoices;
 fn authenticated_single_file_member_tree(repository: &Path) -> (String, Vec<GitTreeEntry>) {
     let bytes = b"machine Main::main() {}\n".to_vec();
     let blob = run_test_git_with_input(repository, ["rev-parse", "HEAD:main.omg"], b"");
@@ -43,7 +44,8 @@ fn authenticated_member_snapshot_publishes_directly_in_workspace_member_lane() {
     let storage_base = temp_root("git-member-snapshot-storage");
     std::fs::create_dir_all(&storage_base).expect("create retained storage base");
     let storage =
-        SourceResolverStorage::for_hardened_base(&storage_base).expect("retain resolver storage");
+        SourceResolverStorage::for_hardened_base(&storage_base, PrimaryGitChoices::default())
+            .expect("retain resolver storage");
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
 
@@ -114,7 +116,8 @@ fn authenticated_member_snapshot_reuse_rejects_tampered_publication() {
     let storage_base = temp_root("git-member-snapshot-reuse-storage");
     std::fs::create_dir_all(&storage_base).expect("create retained storage base");
     let storage =
-        SourceResolverStorage::for_hardened_base(&storage_base).expect("retain resolver storage");
+        SourceResolverStorage::for_hardened_base(&storage_base, PrimaryGitChoices::default())
+            .expect("retain resolver storage");
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
 
@@ -172,7 +175,8 @@ fn authenticated_member_snapshot_rejects_replaced_workspace_member_lane() {
     let storage_base = temp_root("git-member-snapshot-custody-storage");
     std::fs::create_dir_all(&storage_base).expect("create retained storage base");
     let storage =
-        SourceResolverStorage::for_hardened_base(&storage_base).expect("retain resolver storage");
+        SourceResolverStorage::for_hardened_base(&storage_base, PrimaryGitChoices::default())
+            .expect("retain resolver storage");
     let lane_path = storage.workspace_members().path().to_path_buf();
     let retained_path = lane_path.with_extension("retained");
     std::fs::rename(&lane_path, &retained_path).expect("move retained lane");
