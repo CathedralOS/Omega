@@ -1,3 +1,8 @@
+// The disabled-policy axis is not applicable to this rule: the fold is not
+// an `Optimization` selection-vocabulary member — admission is an explicit
+// per-instruction validated call, matching the memory-rewrite families. The
+// legal-second-input fixed-point leg lives in
+// `fold_is_deterministic_and_terminal`.
 use crate::AddressFoldError;
 use crate::AddressFoldReceipt;
 use crate::ValidatedAddressFold;
@@ -11,7 +16,8 @@ use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedSuccessor, SelectedTerminator, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
@@ -1019,6 +1025,98 @@ fn validation_budget_covers_the_scans() {
     );
 }
 
+/// The measured validation-step boundary: admission charges one step per
+/// block plus one per instruction across the plan and two scans of the
+/// consumer's block — seven steps for the two-instruction fixture — so the
+/// exact count admits the fold on both the proposal and the independent
+/// replay path while one step below rejects both.
+#[test]
+fn measured_validation_step_boundary_admits_and_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = load_fixture(
+        target,
+        8,
+        SelectedInstructionKind::Load64 { byte_offset: 0 },
+        keys(&environment).load64.unwrap(),
+        16,
+    );
+    // (1 block) + (2 instructions) + (2 scans of 2) = 7 measured steps.
+    let exact = OptimizationWorkBudget::new(1, 1, 7, 1, 1).unwrap();
+    let result = fold_selected_address(&source, 0, CONSUMER, &environment, exact).unwrap();
+    validate_address_fold(
+        &source,
+        0,
+        CONSUMER,
+        &environment,
+        exact,
+        result.transformed().clone(),
+    )
+    .unwrap();
+    let starved = OptimizationWorkBudget::new(1, 1, 6, 1, 1).unwrap();
+    assert_eq!(
+        fold_selected_address(&source, 0, CONSUMER, &environment, starved).unwrap_err(),
+        AddressFoldError::WorkBudgetExceeded
+    );
+    assert_eq!(
+        validate_address_fold(
+            &source,
+            0,
+            CONSUMER,
+            &environment,
+            starved,
+            result.transformed().clone(),
+        )
+        .unwrap_err(),
+        AddressFoldError::WorkBudgetExceeded
+    );
+    // A three-instruction block scans longer: (1 block) + (3 instructions)
+    // + (2 scans of 3) = 10 measured steps.
+    let wider = mutated(target, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        function.virtual_registers.push(register(
+            SPARE,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            function.virtual_registers[0].class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(7),
+                source_value: ValueId::new(5).unwrap(),
+            },
+        ));
+        function.blocks[0].instructions.insert(
+            2,
+            instruction(
+                SelectedInstructionId(7),
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[POINTER, SPARE],
+            ),
+        );
+    });
+    let exact = OptimizationWorkBudget::new(1, 1, 10, 1, 1).unwrap();
+    let result = fold_selected_address(&wider, 0, CONSUMER, &environment, exact).unwrap();
+    let starved = OptimizationWorkBudget::new(1, 1, 9, 1, 1).unwrap();
+    assert_eq!(
+        fold_selected_address(&wider, 0, CONSUMER, &environment, starved).unwrap_err(),
+        AddressFoldError::WorkBudgetExceeded
+    );
+    assert_eq!(
+        validate_address_fold(
+            &wider,
+            0,
+            CONSUMER,
+            &environment,
+            starved,
+            result.transformed().clone(),
+        )
+        .unwrap_err(),
+        AddressFoldError::WorkBudgetExceeded
+    );
+}
+
 /// Other readers of the pointer register do not block the fold; the
 /// `AddressOffset` producer is retained for them.
 #[test]
@@ -1245,6 +1343,114 @@ fn fold_is_deterministic_and_terminal() {
     assert_eq!(
         fold_selected_address(&first, 0, CONSUMER, &environment, budget()).unwrap_err(),
         AddressFoldError::UnsupportedProducer
+    );
+    // The retained producer is equally terminal: its own base operand has
+    // no earlier in-block `AddressOffset` definition to fold through.
+    assert_eq!(
+        fold_selected_address(&first, 0, ADDRESS, &environment, budget()).unwrap_err(),
+        AddressFoldError::UnsupportedProducer
+    );
+}
+
+/// Replay corruption in a block the fold never touched still rejects: the
+/// restore-by-content check compares the complete plan, not just the block
+/// carrying the folded pair.
+#[test]
+fn replay_rejects_drift_outside_the_rewritten_block() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Stretch the fixture across one edge: the entry block folds and jumps
+    // to a second block that returns.
+    let source = mutated(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap()
+            .clone();
+        let tail = std::mem::replace(
+            &mut function.blocks[0].terminator,
+            SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::Jump,
+                    &jump,
+                    &[],
+                ),
+                successor: SelectedSuccessor {
+                    role: selected_instructions::SelectedSuccessorRole::Semantic,
+                    structural_case: None,
+                    structural_bindings: Vec::new(),
+                    psi_edge: EdgeId::new(2).unwrap(),
+                    block: SelectedBlockId(1),
+                    source_target: BlockId::new(2).unwrap(),
+                    bindings: Vec::new(),
+                    fuel: Vec::new(),
+                },
+            },
+        );
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: Vec::new(),
+            terminator: tail,
+        });
+    });
+    let result = fold(&source, &environment).unwrap();
+    assert_eq!(result.transformed().functions[0].blocks.len(), 2);
+    // An extra instruction in the untouched landing block rejects.
+    let mut proposed = result.transformed().clone();
+    let copy = environment
+        .constraint(keys(&environment).copy_i64)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks[1]
+        .instructions
+        .push(instruction(
+            SelectedInstructionId(7),
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[ROOT, VALUE],
+        ));
+    assert_eq!(
+        validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed).unwrap_err(),
+        AddressFoldError::ReplayMismatch
+    );
+    // Drift in the untouched block's terminator rejects.
+    let mut proposed = result.transformed().clone();
+    let SelectedTerminator::Return {
+        instruction: return_instruction,
+        ..
+    } = &mut proposed.functions[0].blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    return_instruction.id = SelectedInstructionId(9);
+    assert_eq!(
+        validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed).unwrap_err(),
+        AddressFoldError::ReplayMismatch
+    );
+    // A phantom trailing block rejects.
+    let mut proposed = result.transformed().clone();
+    let return_row = environment
+        .constraint(keys(&environment).return_unit)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks.push(SelectedBlock {
+        id: SelectedBlockId(2),
+        origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::Return {
+            instruction: instruction(
+                SelectedInstructionId(8),
+                SelectedInstructionKind::ReturnUnit,
+                &return_row,
+                &[],
+            ),
+            psi_return_edge: EdgeId::new(3).unwrap(),
+        },
+    });
+    assert_eq!(
+        validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed).unwrap_err(),
+        AddressFoldError::ReplayMismatch
     );
 }
 
