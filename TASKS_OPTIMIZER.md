@@ -305,6 +305,30 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   unavailable markers, unknown architecture and object-format tags, zero
   fuel-schedule, machine, and symbol identities, and trailing or
   truncated envelopes are rejected at canonical decoding.
+  Landed: executable-installation decoded containers and canonical wire
+  containers
+  (`executable-installation/src/executable_installation/container/tests.rs`,
+  `executable_container_rejects_every_one_field_substitution`, and
+  `container_bytes/tests.rs`,
+  `executable_container_wire_rejects_every_one_field_substitution`) —
+  the claimed artifact identity, architecture, code bytes and extent,
+  contracts, declared footprint, placement plan, phase, alignment,
+  permitted range, machine regime, and installation scope, the entry set
+  and each entry's identity and code offset, the relocation set and each
+  relocation's kind, destination, target, and addend, entry and
+  relocation rosters, and the strong authority commitments are
+  independently representable under an honestly recomputed compatibility
+  fingerprint and are rejected by independent replay; the exact proof
+  payload stays outside the content identity yet is replay-bound
+  evidence; envelope-only axes (declared length beyond the joined
+  sections, section roster order, payload coordinates) canonicalize to
+  the identical artifact; report-coordinate, directory-identity, roster,
+  marker, and count substitutions that cannot keep the canonical joins
+  reject at validation, while every raw header, directory, placement,
+  relocation, entry, and authority byte-field substitution — including
+  remarking v2 bytes as v1 — rejects at canonical decoding, with
+  semantic-value payload substitutions landing at the
+  content-fingerprint join.
 
 ## Psi optimization and loops
 
