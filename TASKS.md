@@ -2485,8 +2485,24 @@ Owners include
   integer arithmetic retain exact result carriers and original call selections;
   failed evaluation restores temporary substitutions. Input/result range checks
   use exact concrete values; computed signature bounds are invocation dependencies.
-  Noninteger arguments/results, nominal/policy qualifications, generic calls,
-  owner-sensitive operations and open symbolic endpoints remain. Record and case-payload endpoint calls resolve in
+  Named endpoint calls also admit declared argument-free integer domains on
+  parameters and results by proving the concrete value through the shared
+  domain-fact evaluator (`range_endpoints/integer_type.rs`,
+  `const_domain_facts/membership.rs`; canaries
+  `generics/declared_range_endpoint_domain_qualified_calls` and
+  `fail/generics/declared_range_endpoint_domain_argument_rejected`, not yet
+  in the harness roster); authored `requires` clauses and nested-callee
+  premises keep the closure fence. Typed operators in endpoint arguments
+  and narrow carriers already fold. Noninteger (Boolean) arguments/results,
+  nominal/policy qualifications, generic calls (which need type-position
+  static demand in monomorphization and reverse a pinned rejection),
+  trait-operator owners and open symbolic endpoints remain. Omitted data
+  binders (`data TinyBytes<u64[0..=256]>` still reports "expected 2
+  arguments but got 1") need generic-data instance synthesis in
+  `syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/` to
+  match each `where Binder == <structural type>` equation against the
+  supplied argument's retained `IntegerRangeNormalization` before the
+  existing slug/identity path. Record and case-payload endpoint calls resolve in
   their declaration scope before folding; local bounded record construction and
   field reads retain range obligations through canonical Terminal execution.
   Generic-data range arguments retain structured interval observations from
