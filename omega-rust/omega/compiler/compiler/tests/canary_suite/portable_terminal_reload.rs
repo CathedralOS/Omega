@@ -3,7 +3,6 @@ use super::{
     RequestedCompileProduct, fs, pass_canary,
 };
 use terminal_interpreter::TerminalStructuralInputs;
-use terminal_interpreter::TerminalStructuralInputs;
 #[path = "../fixture_rosters/portable_terminal_reload.rs"]
 pub(super) mod fixture_roster;
 

@@ -5,7 +5,6 @@ use crate::{
     fail_canary, fs, interpret, pass_canary, repo_root,
 };
 use checked_interpreter::InterpretOptions;
-use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
 #[test]
