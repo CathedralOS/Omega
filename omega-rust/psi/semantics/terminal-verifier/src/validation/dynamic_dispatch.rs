@@ -1,3 +1,6 @@
+//! Dynamic dispatch: descriptor parameters and arguments, conformance
+//! selections, and every direct, indirect, stored and parameter dispatch.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{MachineId, OperationId};

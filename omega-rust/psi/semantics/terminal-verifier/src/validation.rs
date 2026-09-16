@@ -1,3 +1,30 @@
+//! Structural validation of one terminal module.
+//!
+//! `validate_module` (and its interpretation and optimization variants) runs
+//! `validate_module_with_policy`, whose body is the pass order: the
+//! proposition vocabulary and structural foundation, closed conformance and
+//! reach applications, float-meaning projections, quotient correspondences,
+//! content projections and boundary content guarantees, the machine and
+//! contract id registry, proof recursive components, placed-view inputs,
+//! reborrow handoffs and restored call uses, dynamic dispatches, evidence
+//! contract lanes, every machine (`machine::validate_machine`, which walks
+//! its blocks, operations and terminators), scalar qualifications and block
+//! invariants, suspension call plans, the call graph, the entry machine,
+//! root service reach and crash-site guard truth.
+//!
+//! The child modules are one pass or one shared query each. The module-wide
+//! passes above are `foundation`, `evidence`, `conformance_applications`,
+//! `reach_applications`, `float_meaning`, `quotient_correspondence`,
+//! `content`, `proof_recursion`, `dynamic_dispatch`, `scalar_qualifications`,
+//! `scalar_block_invariants`, `suspension_call_plan`, `call_graph` and
+//! `root_service_reach`. `machine::validate_machine` runs the per-machine
+//! passes: `control_flow` (which checks `block_views` and `operations`),
+//! `contracts`, `crash`, `frontier`, `references` and the per-operation-kind
+//! validators (`byte_sequence_*`, `structural_*`, `scalar_*`, `record`,
+//! `primitive_storage`); `affine_cleanup` and `partial_affine` serve cleanup
+//! custody and `structural_operations` the structural, boundary and effect
+//! operations. `error` is the single `ModuleError` vocabulary.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use crash::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};

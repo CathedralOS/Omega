@@ -1,3 +1,6 @@
+//! Root service reach: the concrete services and installation reach
+//! dependencies the module's root declares match its machines exactly.
+
 use super::{BTreeMap, BTreeSet, ModuleError, OperationKind, TerminalModule};
 /// Reconstruct the selected entry's exact executable service closure.
 ///

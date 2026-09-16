@@ -1,3 +1,6 @@
+//! Closed conformance applications: telescopes, subjects, realization
+//! callables and rows bound to the machines that realize them.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};

@@ -1,3 +1,7 @@
+//! The structural foundation: every declaration, signature, service ceiling
+//! and structural path resolves against the module's types before any
+//! machine is validated.
+
 use super::structural_qualification_rosters::validate_projected_qualification_roster;
 use super::{
     BTreeMap, BTreeSet, BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineId,

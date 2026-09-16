@@ -1,3 +1,6 @@
+//! Structural ownership frontiers: the live claims, owned places and
+//! partial custody verified at every block boundary of every machine.
+
 use super::affine_cleanup::{
     bounded_nominal_cleanup_receiver_shape, valid_nominal_cleanup_requirements,
 };

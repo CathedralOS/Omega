@@ -1,3 +1,6 @@
+//! The single error vocabulary of validation: `ModuleError`, the contract
+//! clause kinds it names and the suspension call plan errors it wraps.
+
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentProjectionIdentity,
     ContentStructuralPlace, ContractId, EdgeId, EvidenceTermId, MachineId, ObligationId,

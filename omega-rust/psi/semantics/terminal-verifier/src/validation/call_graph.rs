@@ -1,3 +1,7 @@
+//! The module's call graph over static, dynamic-realization and
+//! boundary-candidate callees must be acyclic: a recursive call slice is
+//! rejected.
+
 use super::{BTreeMap, BTreeSet, ModuleError, OperationKind, TerminalModule};
 pub(super) fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleError> {
     let calls = module

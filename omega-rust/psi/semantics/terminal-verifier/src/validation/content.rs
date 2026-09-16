@@ -1,3 +1,6 @@
+//! Content projections: boundary content guarantees, content entry
+//! claims, identity reshuffles and partition compositions.
+
 use super::{
     BTreeMap, BTreeSet, BoundaryContentGuarantee, BoundaryMachineDeclaration, ClaimId,
     ContentAlgebra, ContentConservation, ContentPartitionComposition, ContentProjectionIdentity,
