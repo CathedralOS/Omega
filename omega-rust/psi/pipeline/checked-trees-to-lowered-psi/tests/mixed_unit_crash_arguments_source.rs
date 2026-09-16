@@ -25,7 +25,7 @@ const SOURCE: &str = r#"
     boundary trait Sink { machine record(before: bool, after: bool); }
     data Helper {}
     machine Helper::consume(before: bool, flag: Flag, after: bool)
-    crashes Abort flag.enabled && after
+    reaches Sink crashes Abort flag.enabled && after
     { Sink::record(before, after); }
     data Main {}
     machine Main::main(before: bool, flag: Flag, after: bool)
@@ -195,7 +195,7 @@ fn reordered_source(layout: usize, reverse: bool, free: bool) -> String {
         data Flag {{ enabled: bool; }}
         data Helper {{}}
         boundary trait Sink {{ machine record(first: bool, second: bool); }}
-        machine {callee}({signature})
+        machine {callee}({signature}) reaches Sink
         crashes Abort left.enabled && second && (right.enabled == first)
         {{ Sink::record(first, second); }}
         data Main {{}}
@@ -421,7 +421,7 @@ fn mixed_integer_comparisons_rebase_fields_and_reversed_scalar_parameters() {
             data Meter {{ value: u16; }}
             data Helper {{}}
             boundary trait Sink {{ machine record(first: u16, last: u16); }}
-            machine {target}(first: u16, meter: Meter, last: u16)
+            machine {target}(first: u16, meter: Meter, last: u16) reaches Sink
             crashes Abort meter.value == last && first < last
             {{ Sink::record(first, last); }}
             data Main {{}}

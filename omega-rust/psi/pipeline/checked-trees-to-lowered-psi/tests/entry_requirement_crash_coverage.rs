@@ -218,7 +218,7 @@ fn integer_field_entry_source(
          boundary trait Sink {{ machine record(value: bool); }}\n\
          machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
          machine Helper::forward(record: {parameter_type})\n\
-         requires {requirement}\ncrashes Trap {route}\n\
+         reaches Sink requires {requirement}\ncrashes Trap {route}\n\
          {{ {body_prefix} Sink::record(trigger()); }}\n\
          machine Main::value(record: {parameter_type})\n\
          requires {requirement}\ncrashes Trap {route}\n\

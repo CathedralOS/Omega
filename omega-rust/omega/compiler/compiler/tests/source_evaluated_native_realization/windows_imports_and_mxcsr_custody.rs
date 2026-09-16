@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use std::fs;
 use super::{
     Fixture, admit_import, admit_imports, terminal_authority_permission_policy,
     terminal_authority_policy,

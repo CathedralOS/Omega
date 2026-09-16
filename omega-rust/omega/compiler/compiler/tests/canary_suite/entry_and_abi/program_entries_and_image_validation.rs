@@ -1,3 +1,4 @@
+use checked_interpreter::{InterpretOptions};
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, compile_reviewed_repository_fixture,

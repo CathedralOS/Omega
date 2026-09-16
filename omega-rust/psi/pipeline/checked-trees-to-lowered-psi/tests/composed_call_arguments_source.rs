@@ -211,7 +211,7 @@ fn arithmetic_source_spelling(topology: usize, trailing: bool) -> (String, usize
         {HELPERS}
         boundary trait Sink {{ machine finish(first: u16, second: u16, marker: u16); }}
         data Main {{}}
-        machine Main::main({parameters}) {{
+        machine Main::main({parameters}) reaches Sink {{
             {entry}
             state yes() {{
                 Sink::finish((Scalar::identity(identity(255u8)) as u16) + 1u16,
@@ -276,7 +276,7 @@ fn unselected_leaves_and_short_circuit_operands_do_not_crash() {
         boundary trait Sink {{ machine finish(first: bool, second: bool); }}
         data Main {{}}
         machine Main::main(selected: bool)
-        crashes Abort crashes Trap {{
+        reaches Sink crashes Abort crashes Trap {{
             transition selected {{ true -> yes() _ -> no() }}
             state yes() {{
                 Sink::finish({first} && abort(), {second} || trap()){terminator}
@@ -338,7 +338,7 @@ fn first_leaf_argument_crash_precedes_later_call_even_under_exact_casts() {
             machine second() -> u8 crashes {second} {{ crash {second}; }}
             boundary trait Sink {{ machine finish(first: u16, second: u16); }}
             data Main {{}}
-            machine Main::main(selected: bool) crashes Abort crashes Trap {{
+            machine Main::main(selected: bool) reaches Sink crashes Abort crashes Trap {{
                 transition selected {{ true -> yes() _ -> no() }}
                 state yes() {{ Sink::finish(first() as u16, second() as u16){terminator} }}
                 state no() {{ Sink::finish(second() as u16, first() as u16){terminator} }}

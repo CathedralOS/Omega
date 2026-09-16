@@ -187,7 +187,7 @@ fn integer_field_entry_requirement_covers_unconditional_scalar_call() {
         crashes Trap
         { crash Trap; }
         machine Helper::forward(record: &Record)
-        requires record.count > 0
+        reaches Sink requires record.count > 0
         crashes Trap record.count > 0
         { Sink::record(trigger()); }
         machine Main::value(record: &Record)
@@ -277,7 +277,7 @@ fn integer_self_field_entry_requirement_covers_an_unconditional_call() {
          boundary trait Sink { machine record(value: bool); }\n\
          machine trigger() -> bool\ncrashes Trap\n{ crash Trap; }\n\
          machine Helper::forward(&self)\nrequires self.count > 0\n\
-         crashes Trap self.count > 0\n{ Sink::record(trigger()); }\n\
+         reaches Sink crashes Trap self.count > 0\n{ Sink::record(trigger()); }\n\
          machine Main::value(record: &Helper)\nrequires record.count > 0\n\
          crashes Trap record.count > 0\n{ record.forward(); }",
     );
@@ -326,7 +326,7 @@ fn integer_field_entry_comparisons_preserve_mixed_formal_positions() {
              boundary trait Sink {{ machine record(value: bool); }}\n\
              machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
              machine Helper::forward({parameters})\nrequires record.count > limit\n\
-             crashes Trap record.count > limit\n{{ Sink::record(trigger()); }}\n\
+             reaches Sink crashes Trap record.count > limit\n{{ Sink::record(trigger()); }}\n\
              machine Main::value({parameters})\nrequires record.count > limit\n\
              crashes Trap record.count > limit\n{{ Helper::forward({arguments}); }}"
         );

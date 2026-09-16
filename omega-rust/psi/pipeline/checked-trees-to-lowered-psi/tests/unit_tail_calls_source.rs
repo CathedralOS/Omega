@@ -100,10 +100,9 @@ fn trailing_boundary_unit_call_executes_computed_operand_without_semicolon() {
     let checked = checked(
         r#"
         machine identity(value: bool) -> bool { value }
-        pub data Sink {}
-        boundary machine Sink::record(value: bool);
+        boundary trait Sink { machine record(value: bool) reaches Sink; }
         data Root {}
-        machine Root::enter() { Sink::record(identity(true)) }
+        machine Root::enter() reaches Sink { Sink::record(identity(true)) }
     "#,
     );
     let artifact = artifact(&checked, false, &[]);
@@ -164,7 +163,7 @@ fn pair_source(
     } else {
         format!(
             r#"
-        machine {target}(first: bool, second: bool) {callee_unit} {{
+        machine {target}(first: bool, second: bool) {callee_unit} reaches Sink {{
             Sink::record(first, second);
             Sink::record(second, first);
         }}
@@ -179,13 +178,12 @@ fn pair_source(
     format!(
         r#"
         {IDENTITY}
-        pub data Sink {{}}
-        boundary machine Sink::record(first: bool, second: bool) {callee_unit};
+        boundary trait Sink {{ machine record(first: bool, second: bool) {callee_unit} reaches Sink; }}
         data Relay {{}}
         data Empty {{}}
         {body}
         data Root {{}}
-        machine Root::enter() {caller_unit} {{
+        machine Root::enter() {caller_unit} reaches Sink {{
             {prefix}
             {target}(identity(false), identity(identity(true))){punctuation}
         }}
@@ -245,11 +243,10 @@ fn trailing_self_unit_call_uses_existing_receiver_custody() {
         let source = format!(
             r#"
             {IDENTITY}
-            pub data Sink {{}}
-            boundary machine Sink::record(value: bool);
+            boundary trait Sink {{ machine record(value: bool) reaches Sink; }}
             data Root {{}}
-            machine Root::record(&mut self, value: bool) {{ Sink::record(value); }}
-            machine Root::enter(&mut self) {{ self.record(identity(true)){punctuation} }}
+            machine Root::record(&mut self, value: bool) reaches Sink {{ Sink::record(value); }}
+            machine Root::enter(&mut self) reaches Sink {{ self.record(identity(true)){punctuation} }}
         "#
         );
         let checked = checked(&source);
@@ -344,12 +341,11 @@ fn trailing_unit_call_short_circuit_and_first_crash_do_not_enter_the_outer_calle
                     {IDENTITY}
                     machine abort() -> bool crashes Abort {{ crash Abort; }}
                     machine trap() -> bool crashes Trap {{ crash Trap; }}
-                    pub data Sink {{}}
-                    boundary machine Sink::record(first: bool, second: bool);
+                    boundary trait Sink {{ machine record(first: bool, second: bool) reaches Sink; }}
                     data Relay {{}}
-                    machine Relay::record(first: bool, second: bool) {{ Sink::record(first, second); }}
+                    machine Relay::record(first: bool, second: bool) reaches Sink {{ Sink::record(first, second); }}
                     data Root {{}}
-                    machine Root::enter() crashes Abort crashes Trap {{
+                    machine Root::enter() reaches Sink crashes Abort crashes Trap {{
                         Sink::record(true, false);
                         {target}({arguments}){punctuation}
                     }}
@@ -584,11 +580,9 @@ fn unit_tail_exemption_does_not_admit_unit_calls_in_scalar_value_positions() {
     ] {
         let source = format!(
             r#"
-            pub data Sink {{}}
-            boundary machine Sink::unit();
-            boundary machine Sink::record(value: bool);
+            boundary trait Sink {{ machine unit() reaches Sink; machine record(value: bool) reaches Sink; }}
             data Root {{}}
-            machine Root::enter() {{ {body} }}
+            machine Root::enter() reaches Sink {{ {body} }}
         "#
         );
         let tokens = Lexer::new(&source).tokenize().unwrap();
@@ -628,10 +622,9 @@ fn integer_unit_tail_preserves_nested_exact_casts_and_arithmetic_obligations() {
     let checked = checked(
         r#"
         machine identity(value: u8) -> u8 { value }
-        pub data Sink {}
-        boundary machine Sink::record(first: u16, second: u16);
+        boundary trait Sink { machine record(first: u16, second: u16) reaches Sink; }
         data Root {}
-        machine Root::enter() {
+        machine Root::enter() reaches Sink {
             Sink::record((identity(identity(250u8)) as u16) + 1u16,
                          identity(19u8) as u16)
         }
@@ -673,7 +666,7 @@ fn multistate_pure_and_zero_operand_tails_retain_exact_source_occurrences() {
             r#"
             boundary trait Sink {{ machine record({signature}); }}
             data Root {{}}
-            machine Root::enter(selected: bool) {{
+            machine Root::enter(selected: bool) reaches Sink {{
                 transition selected {{ true -> yes() _ -> no() }}
                 state yes() {{ Sink::record({yes_argument}) }}
                 state no() {{ Sink::record({no_argument}) }}

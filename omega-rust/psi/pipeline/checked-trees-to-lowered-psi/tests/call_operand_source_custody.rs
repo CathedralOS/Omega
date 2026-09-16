@@ -859,7 +859,7 @@ fn composed_unit_boundary_leaves_verify_and_reject_changed_operand_custody() {
     let source = r#"
         boundary trait Host { machine exit(first: i32, second: i32); }
         data Main {}
-        machine Main::main(first: bool, second: bool) {
+        machine Main::main(first: bool, second: bool) reaches Host {
             transition first { true -> dispatch(second) _ -> outer_no() }
             state dispatch(second: bool) {
                 transition second { true -> inner_yes() _ -> inner_no() }

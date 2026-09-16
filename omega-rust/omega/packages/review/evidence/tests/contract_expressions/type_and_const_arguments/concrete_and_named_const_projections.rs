@@ -424,9 +424,9 @@ fn review_projects_named_structured_consts_with_exact_carrier_replay() {
             "main.omg",
             &format!(
 r#"pub data Point {{ x: u8; y: u8; }}
-pub data Pair {{ left: Point; right: Point; flags: [bool; 2]; }}
-pub data Mode {{ case Idle; case Count(value: u8); }}
-pub data Alternate {{ value: u64; }}
+pub data Pair [copy] {{ left: Point; right: Point; flags: [bool; 2]; }}
+pub data Mode [copy] {{ case Idle; case Count(value: u8); }}
+pub data Alternate [copy] {{ value: u64; }}
 pub const SELECTED: Pair = Pair {{ left: Point {{ x: {left_x}, y: 2 }}, right: Point {{ x: 3, y: 4 }}, flags: [true, false] }};
 pub const ACTIVE: Mode = Mode::Count {{ value: 5 }};
 pub const OTHER: Alternate = Alternate {{ value: 0 }};
