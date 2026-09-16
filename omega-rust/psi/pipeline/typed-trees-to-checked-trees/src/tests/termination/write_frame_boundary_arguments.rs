@@ -342,6 +342,26 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
         (
             "boundary_reference",
             "self.device.output(self.device.reference(&mut self.value));",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        (
+            "boundary_nested",
+            "self.device.output(self.device.reference(self.device.reference(&mut self.value)));",
+            Some(vec!["self.device", "self.value"]),
+        ),
+        (
+            "boundary_receiver_only",
+            "self.device.output(self.device.make());",
+            Some(vec!["self.device"]),
+        ),
+        (
+            "boundary_mixed",
+            "self.device.output(self.device.mixed(&mut self.value, &mut self.count));",
+            Some(vec!["self.count", "self.device", "self.value"]),
+        ),
+        (
+            "boundary_carrier",
+            "self.device.output(self.device.carrier_reference(&mut self.carrier));",
             None,
         ),
     ];
@@ -355,9 +375,12 @@ fn boundary_reference_results_transport_proven_origins_and_producer_writes() {
             machine output_value(value: &mut u64) -> u64;
             machine output_carrier(value: &mut Carrier);
             machine reference(value: &mut u64) -> &mut u64;
+            machine carrier_reference(value: &mut Carrier) -> &mut u64;
+            machine make() -> &mut u64;
+            machine mixed(hit: &mut u64, miss: &mut u32) -> &mut u64;
         }
         data Main {
-            device: Device; value: u64; audit: u64;
+            device: Device; value: u64; audit: u64; count: u32;
             cell: Cell; cells: [u64; 2]; carrier: Carrier;
             cell_array: [Cell; 2]; holder: ReferenceHolder;
         }

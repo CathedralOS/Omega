@@ -5,13 +5,17 @@
 //! frame, failing closed when a mutable argument has no supported storage origin.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
-use super::isolation::type_is_caller_isolated_local;
+use super::isolation::{aggregate_storage_types_match, type_is_caller_isolated_local};
+use super::place_paths::{FramePathPrecision, FramePlaceOrigin, FrameSourcePlace};
+use super::receiver_member_chain;
 use super::reference_origins::{exclusive_reference_origin, referent_has_only_owned_storage};
+use super::type_capabilities::type_may_carry_write;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
+use typed_trees::data::DataMember;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::statement::TableCall;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -242,8 +246,10 @@ pub(super) fn selected_boundary_signature(program: &TypedTrees, target: SymbolHa
 /// mutate its receiver and every supplied
 /// exclusive argument; it cannot manufacture reach to unrelated caller
 /// fields. A direct exclusive borrow or a verified caller reference binding
-/// supplies that argument's path. Checked helpers can transport that origin
-/// through their proven result relation. Untracked reference reach stays opaque.
+/// supplies that argument's path. Checked helpers transport that origin
+/// through their proven result relation, and a nested boundary call's
+/// exclusive result transports the caller routes its selected signature
+/// admits. Untracked reference reach stays opaque.
 pub(super) fn known_boundary_call_written_paths_for_parts(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -302,15 +308,261 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         if !referent_has_only_owned_storage(program, *referee) {
             return None;
         }
-        let path =
-            exclusive_reference_origin(program, current_machine, *argument, symbols, inference)?
-                .path;
-        if !written.contains(&path) {
-            written.push(path);
+        for origin in boundary_argument_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            *argument,
+            inference,
+        )? {
+            if !written.contains(&origin.path) {
+                written.push(origin.path);
+            }
         }
     }
 
     Some(written)
+}
+
+/// The caller storage an exclusive argument may actually reach. A nested
+/// boundary call transports the candidate origins its selected signature
+/// admits for the result; every other supported expression contributes its
+/// single proven origin. The nested call's own receiver/argument footprint
+/// is counted separately by the enclosing expression/statement walk; only
+/// its exclusive result's may-alias routes join this argument's origins.
+fn boundary_argument_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    argument: ExpressionHandle,
+    inference: &mut FrameInference,
+) -> Option<Vec<FramePlaceOrigin>> {
+    if let ExpressionNode::Call(call) = program.expression_table.expression(argument)
+        && selected_boundary_signature(program, call.target_symbol)
+    {
+        return boundary_result_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            call,
+            argument,
+            inference,
+        );
+    }
+    exclusive_reference_origin(program, current_machine, argument, symbols, inference)
+        .map(|origin| vec![origin])
+}
+
+/// The candidate caller-storage origins a boundary call's exclusive result
+/// may alias. There is no inspectable body: a `&mut`/`&write` result can
+/// reach the runtime receiver's opaque storage or the storage behind an
+/// exclusive argument whose own storage may hold the referent. Shared
+/// references cannot lend exclusive reach. A by-value or exclusive carrier
+/// whose stored exclusive references could still reach the referent — and
+/// therefore route the result into untracked storage — keeps the whole
+/// result opaque, as does a result with no admitted caller route at all.
+fn boundary_result_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    call: &TableCallExpression,
+    expression: ExpressionHandle,
+    inference: &mut FrameInference,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let receiver = receiver_member_chain(program, call.receiver).unwrap_or_default();
+    let (signature, has_runtime_receiver) = boundary_trait_signature_and_receiver(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        &receiver,
+        call.target.as_str(),
+        CallerWriteSite::Expression(expression),
+    )?;
+    let result_type = live_unconstrained_type(program, signature.return_type)?;
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program.type_reference_table.type_reference(result_type)
+    else {
+        return None;
+    };
+    if !access.is_exclusive() {
+        return None;
+    }
+    let referent = live_unconstrained_type(program, *referee)?;
+
+    let mut origins = Vec::new();
+    if has_runtime_receiver {
+        // The implementor's storage is opaque to the caller: an exclusive
+        // result may point anywhere inside it, and the receiver place covers
+        // every such subpath.
+        origins.push(FramePlaceOrigin {
+            path: receiver.join("."),
+            precision: FramePathPrecision::Exact,
+            source: FrameSourcePlace::from_expression(program, call.receiver),
+        });
+    }
+    let parameters = program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    for (parameter, actual) in parameters.into_iter().zip(arguments) {
+        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program.type_reference_table.type_reference(parameter_type)
+        else {
+            // A by-value carrier can still store exclusive references whose
+            // referents this frame cannot name; its route stays opaque.
+            if type_may_carry_write(program, parameter_type) {
+                return None;
+            }
+            continue;
+        };
+        if !access.is_exclusive() {
+            continue;
+        }
+        match owned_storage_may_hold(program, *referee, referent) {
+            Some(true) => {
+                for origin in boundary_argument_origins(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    *actual,
+                    inference,
+                )? {
+                    push_unique_origin(&mut origins, origin);
+                }
+            }
+            Some(false) => {}
+            None => return None,
+        }
+    }
+    (!origins.is_empty()).then_some(origins)
+}
+
+fn push_unique_origin(origins: &mut Vec<FramePlaceOrigin>, origin: FramePlaceOrigin) {
+    if !origins.iter().any(|existing| {
+        existing.path == origin.path
+            && existing.precision == origin.precision
+            && existing.source == origin.source
+    }) {
+        origins.push(origin);
+    }
+}
+
+/// May `container`'s own storage hold a `referent`-typed value? The walk
+/// follows declared fields and elements only, never a reference's own
+/// storage: `Some(true)` finds the referent, `Some(false)` rules it out, and
+/// `None` means a stored exclusive reference or an unfinished proof could
+/// still reach one, so the callee may route the result into storage this
+/// frame cannot name.
+fn owned_storage_may_hold(
+    program: &TypedTrees,
+    container: TypeReferenceHandle,
+    referent: TypeReferenceHandle,
+) -> Option<bool> {
+    owned_storage_may_hold_inner(program, container, referent, &mut Vec::new())
+}
+
+fn owned_storage_may_hold_inner(
+    program: &TypedTrees,
+    container: TypeReferenceHandle,
+    referent: TypeReferenceHandle,
+    visiting: &mut Vec<SymbolHandle>,
+) -> Option<bool> {
+    let container = live_unconstrained_type(program, container)?;
+    if aggregate_storage_types_match(program, container, referent) {
+        return Some(true);
+    }
+    if program.primitive_type_reference(container).is_some() {
+        return Some(false);
+    }
+    match program.type_reference_table.type_reference(container) {
+        TypeReferenceNode::Reference {
+            access, referee, ..
+        } => {
+            // The slot stores the reference, not the referent value. Shared
+            // references cannot lend exclusive reach; an exclusive one may
+            // still route the result into its own untracked storage.
+            if access.is_exclusive()
+                && owned_storage_may_hold_inner(program, *referee, referent, visiting)
+                    != Some(false)
+            {
+                return None;
+            }
+            Some(false)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            owned_storage_may_hold_inner(program, *element_type, referent, visiting)
+        }
+        TypeReferenceNode::Named { symbol, .. }
+        | TypeReferenceNode::Generic {
+            base_symbol: symbol,
+            ..
+        } => {
+            let mut definitions = program
+                .data_definitions()
+                .iter()
+                .filter(|definition| definition.symbol == *symbol);
+            let Some(definition) = definitions.next() else {
+                // An uninspected nominal — built-in, dynamic, or a type
+                // parameter — could hold the referent.
+                return Some(true);
+            };
+            if definitions.next().is_some() {
+                return Some(true);
+            }
+            if visiting.contains(&definition.symbol) {
+                // A recursive shape cannot finish the proof; a stored
+                // exclusive link in the cycle may still reach the referent.
+                return None;
+            }
+            visiting.push(definition.symbol);
+            let mut found = false;
+            for member in program.data_members(definition) {
+                let field_types: Vec<TypeReferenceHandle> = match member {
+                    DataMember::Field(field) => vec![field.type_reference],
+                    DataMember::Variant(variant) => program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .map(|field| field.type_reference)
+                        .collect(),
+                };
+                for field_type in field_types {
+                    match owned_storage_may_hold_inner(program, field_type, referent, visiting) {
+                        Some(true) => found = true,
+                        Some(false) => {}
+                        None => {
+                            visiting.pop();
+                            return None;
+                        }
+                    }
+                }
+            }
+            visiting.pop();
+            Some(found)
+        }
+        // Provider-opaque storage may hold the referent.
+        TypeReferenceNode::DynamicTrait { .. } => Some(true),
+        TypeReferenceNode::Unit => Some(false),
+        // A proof-static type-level expression is uninspectable storage
+        // here; keep the result opaque rather than ruling the route out.
+        TypeReferenceNode::ConstExpression(_) => None,
+        // `live_unconstrained_type` above already erased every constraint.
+        TypeReferenceNode::Constrained { .. } => None,
+    }
 }
 
 /// A stale nonzero handle resolves to dummy Unit, not an effect-free formal.
