@@ -313,13 +313,42 @@ The later clear recorded cases are positives only, so there is no independent re
 negative holdout. No worker was interrupted, answer automatically changed, or
 publication authorized. This is a candidate cheap warning layer, not a certificate.
 
+## Fresh citation shadow probe
+
+`build/experiments/citation-shadow/` preserves the protocol, runner, pinned inputs,
+public answers, pre-Jev semantic review, response and report. Four new free-text
+questions used complete claims/landing documents at
+`e9b5a67dac9d1777565957c7d3a294c88dd5be4d`, one fresh SWE-2 Max session and the
+unchanged support prompt. No injected errors or deliberately truncated sources.
+
+All four answers were substantively correct against full sources and all quotes
+matched. Before seeing Jev, coordinator review found one citation-completeness
+defect: the authority answer added an `--allow-overlap` assertion without quoting
+the passage that establishes it. The source contains it, but its five citations
+do not. Jev accepted all four (P(supported) .98/.95/.96/.90): 0/1 defects flagged,
+0/3 false warnings, no correction triggered. Frozen correction gate failed; no
+repair workers were run. Worker 42.931s, API .309s, 2,211 input / 122 output tokens;
+preparation/manual review excluded. This establishes neither savings nor a
+reliable detection rate. One session, four related questions, unblinded labels.
+
+An initial extraction assertion caught Windows default-decoding mojibake, not a
+worker error. Explicit UTF-8 decoding fixed the reader; retained export, no worker
+retry. All checks then passed. This matters for future quote-presence checks.
+Live citation-cookbook access again failed; cached primary documentation was used.
+
+Decision: whole-answer support can miss an unsupported additional assertion even
+when most of the answer is strongly supported. Keep warnings nonblocking. Test
+per-assertion judgments next on development data, counting segmentation cost,
+then use fresh evaluation before claiming a benefit. Do not tune a cutoff on this
+single failure and relabel it generalization.
+
 ## Next tuning step
 
 The 30 exposed retrieval queries are development data; lexical context extraction
 is a strong baseline and further reranking trials need demonstrated headroom.
-The more promising next experiment is a nonblocking citation-support warning on
-fresh source-backed answers. Freeze the current prompt; inspect flagged AND
-unflagged outputs, retain owner/scope evidence, and measure whether a warning leads
-to a useful correction. No automatic blocks or verifier retries. Calibrate a new
+The next uncertainty is whether independent per-assertion checks recover the
+fresh whole-answer miss without excessive segmentation cost or false warnings.
+Inspect flagged AND unflagged outputs, retain owner/scope evidence, and measure
+whether a warning leads to a useful correction. No automatic blocks or verifier retries. Calibrate a new
 threshold only as a development hypothesis with fresh evaluation; do not promote
 the favorable repeat or a post-hoc cutoff as established correctness.
