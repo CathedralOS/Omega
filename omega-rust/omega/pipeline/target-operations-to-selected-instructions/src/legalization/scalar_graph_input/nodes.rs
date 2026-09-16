@@ -13,9 +13,30 @@ use crate::legalization::scalar_graph_input::u64_type;
 use crate::legalization::scalar_graph_input::value_type;
 use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
+/// Why a node has no legal instruction row. Only the first kind is a custody
+/// defect; the second is a limit of this stage that the diagnostic must name.
+pub(in crate::legalization) enum NodeRejection {
+    /// A listed family whose own payload violates the representation: an
+    /// out-of-range literal, a byte read that does not produce u8, a length
+    /// that is not u64.
+    Malformed,
+    /// A well-formed operation with no legalized kind at its scalar type, or
+    /// with a payload (crash continuations, claim transfers) this stage does
+    /// not realize.
+    UnsupportedFamily,
+}
+
 pub(in crate::legalization) fn instruction(
     node: &OptimizationNode,
 ) -> Option<(OperationId, Option<ValueId>)> {
+    admit(node).ok()
+}
+
+/// Admit one node to the ordinary scalar graph, distinguishing a malformed
+/// node from an operation family this stage cannot yet legalize.
+pub(in crate::legalization) fn admit(
+    node: &OptimizationNode,
+) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishScalarArray { psi_operation, .. }
@@ -31,7 +52,7 @@ pub(in crate::legalization) fn instruction(
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
-        Some((*psi_operation, None))
+        Ok((*psi_operation, None))
     } else if let AbstractOperation::BoundaryCall {
         psi_operation,
         result,
@@ -40,18 +61,18 @@ pub(in crate::legalization) fn instruction(
     {
         // Exact native boundary realization is checked by the source reader;
         // operand origin and result kind do not change operation identity.
-        Some((*psi_operation, result.scalar().map(|result| result.value)))
+        Ok((*psi_operation, result.scalar().map(|result| result.value)))
     } else {
         scalar_instruction(node).map(|(operation, result)| (operation, Some(result)))
     }
 }
-fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)> {
+fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId), NodeRejection> {
     match &node.operation {
         AbstractOperation::IeeeFloatCompare {
             psi_operation,
             result,
             ..
-        } => Some((*psi_operation, *result)),
+        } => Ok((*psi_operation, *result)),
         AbstractOperation::PrimitiveScalarRead {
             psi_operation,
             result,
@@ -66,12 +87,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             psi_operation,
             result,
             ..
-        } => Some((*psi_operation, result.value)),
+        } => Ok((*psi_operation, result.value)),
         AbstractOperation::IeeeFloatConstant {
             psi_operation,
             result,
             ..
-        } => Some((*psi_operation, *result)),
+        } => Ok((*psi_operation, *result)),
         AbstractOperation::BooleanConstant {
             psi_operation,
             result,
@@ -81,7 +102,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             psi_operation,
             result,
             ..
-        } => Some((*psi_operation, *result)),
+        } => Ok((*psi_operation, *result)),
         AbstractOperation::CallStructuralScalar {
             psi_operation,
             result,
@@ -94,14 +115,14 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
         {
-            Some((*psi_operation, result.value))
+            Ok((*psi_operation, result.value))
         }
         AbstractOperation::ByteSequenceRead {
             psi_operation,
             result,
             ..
         } if result.scalar_type == ScalarType::Integer(u8_type()) => {
-            Some((*psi_operation, result.value))
+            Ok((*psi_operation, result.value))
         }
         AbstractOperation::ByteSequenceLength {
             psi_operation,
@@ -113,14 +134,14 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             result,
             ..
         } if result.scalar_type == ScalarType::Integer(u64_type()) => {
-            Some((*psi_operation, result.value))
+            Ok((*psi_operation, result.value))
         }
         AbstractOperation::IntegerConstant {
             psi_operation,
             result,
             scalar_type,
             value,
-        } if valid_literal(*scalar_type, *value) => Some((*psi_operation, *result)),
+        } if valid_literal(*scalar_type, *value) => Ok((*psi_operation, *result)),
         AbstractOperation::Call {
             psi_operation,
             result,
@@ -128,7 +149,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             crash_continuations,
             ..
         } if scalar_shape(*scalar_type).is_some() && crash_continuations.is_empty() => {
-            Some((*psi_operation, *result))
+            Ok((*psi_operation, *result))
         }
         AbstractOperation::IntegerBitwiseAnd {
             psi_operation,
@@ -142,7 +163,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             scalar_type,
             ..
         } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
-            Some((*psi_operation, *result))
+            Ok((*psi_operation, *result))
         }
         AbstractOperation::WrappingIntegerAdd {
             psi_operation,
@@ -150,32 +171,32 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             scalar_type,
             ..
         } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
-            Some((*psi_operation, *result))
+            Ok((*psi_operation, *result))
         }
         AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             result,
             scalar_type,
             ..
-        } if supports_signed_wrapping_remainder(*scalar_type) => Some((*psi_operation, *result)),
+        } if supports_signed_wrapping_remainder(*scalar_type) => Ok((*psi_operation, *result)),
         AbstractOperation::SaturatingIntegerAdd {
             psi_operation,
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type() => Some((*psi_operation, *result)),
+        } if *scalar_type == u64_type() => Ok((*psi_operation, *result)),
         AbstractOperation::SaturatingIntegerSubtract {
             psi_operation,
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type() => Some((*psi_operation, *result)),
+        } if *scalar_type == u64_type() => Ok((*psi_operation, *result)),
         AbstractOperation::ExactIntegerDivide {
             psi_operation,
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type() => Some((*psi_operation, *result)),
+        } if *scalar_type == u64_type() => Ok((*psi_operation, *result)),
         AbstractOperation::ExactIntegerAdd {
             psi_operation,
             result,
@@ -193,7 +214,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             // representability proof makes the result canonical without the
             // truncation needed by wrapping arithmetic. Signedness is not an
             // admission fence, and this does not widen exact division.
-            Some((*psi_operation, *result))
+            Ok((*psi_operation, *result))
         }
         AbstractOperation::IntegerEqual {
             psi_operation,
@@ -209,7 +230,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             psi_operation,
             result,
             ..
-        } => Some((*psi_operation, *result)),
+        } => Ok((*psi_operation, *result)),
         AbstractOperation::BooleanEqual {
             psi_operation,
             result,
@@ -224,13 +245,22 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             psi_operation,
             result,
             ..
-        } => Some((*psi_operation, *result)),
+        } => Ok((*psi_operation, *result)),
         AbstractOperation::IntegerExactCast {
             psi_operation,
             result,
             ..
-        } => Some((*psi_operation, *result)),
-        _ => None,
+        } => Ok((*psi_operation, *result)),
+        // A guard above failed for a listed family: an invalid literal or a
+        // byte read/length whose result type the representation fixes is a
+        // malformed plan, not a missing lowering.
+        AbstractOperation::IntegerConstant { .. }
+        | AbstractOperation::ByteSequenceRead { .. }
+        | AbstractOperation::ByteSequenceLength { .. }
+        | AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
+            Err(NodeRejection::Malformed)
+        }
+        _ => Err(NodeRejection::UnsupportedFamily),
     }
 }
 fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -> bool {
@@ -274,7 +304,13 @@ pub(super) fn validate(
         }
     }
     for (position, node) in body.iter().enumerate() {
-        let (operation, result) = instruction(node).ok_or(invalid.clone())?;
+        let (operation, result) = admit(node).map_err(|rejection| match rejection {
+            NodeRejection::Malformed => invalid.clone(),
+            NodeRejection::UnsupportedFamily => LegalizationError::UnsupportedScalarOperation {
+                machine: optimized.machine,
+                operation: node.operation.clone(),
+            },
+        })?;
         if !node.successors.is_empty()
             || node.provenance != [PsiProvenance::Operation(operation)]
             || node.fuel.is_empty()
