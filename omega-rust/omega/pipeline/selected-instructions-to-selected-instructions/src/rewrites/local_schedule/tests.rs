@@ -982,3 +982,256 @@ fn target_mismatch_rejects() {
         LocalScheduleError::SourceMismatch
     );
 }
+
+/// The measured validation-step boundary: admission charges one step per
+/// block plus one per instruction across the plan, then one per operand,
+/// implicit use, implicit definition, and clobber row on each member, then
+/// the admitted function's memory, call, and settlement roster lengths — so
+/// the exact count admits the interchange on both the proposal and the
+/// independent replay path while one step below rejects both, at three
+/// fixture sizes that each grow a different term of the charge.
+#[test]
+fn measured_validation_step_boundary_admits_and_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The pair moves to a second block behind a one-instruction entry: the
+    // plan scan grows by the entry block's body instruction and terminator.
+    let later_block = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let jump_row = environment.constraint(keys.jump).unwrap().clone();
+        let return_row = environment.constraint(keys.return_unit).unwrap().clone();
+        let materialize = environment
+            .constraint(keys.materialize_i64)
+            .unwrap()
+            .clone();
+        let moved = std::mem::take(&mut function.blocks[0].instructions);
+        function.blocks[0].instructions = vec![instruction(
+            SelectedInstructionId(20),
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(11),
+            },
+            &materialize,
+            &[OUTCOME],
+        )];
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(21),
+                SelectedInstructionKind::Jump,
+                &jump_row,
+                &[],
+            ),
+            successor: successor(SelectedBlockId(1), BlockId::new(2).unwrap(), 2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: moved,
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(22),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    // The earlier member becomes a roster-carrying load: its second operand
+    // joins the member-surface term and the memory-access row joins the
+    // roster term.
+    let roster_actor = mutated(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[0] = instruction(
+            MAT_A,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            &load,
+            &[POINTER, FIRST],
+        );
+        function.memory_accesses.push(access(
+            MAT_A,
+            PlaceId::new(1).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+    });
+    for (source, exact_steps) in [
+        // (1 block + 5 instructions) + (1 operand per materialization) = 8.
+        (fixture(target), 8u64),
+        // (2 blocks + 6 instructions) + (1 operand per materialization) = 10.
+        (later_block, 10u64),
+        // (1 block + 5 instructions) + (2 + 1 member operands) + (1 roster
+        // row) = 10.
+        (roster_actor, 10u64),
+    ] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result = schedule_selected_pair(&source, 0, MAT_A, MAT_B, &environment, exact).unwrap();
+        validate_local_schedule(
+            &source,
+            0,
+            MAT_A,
+            MAT_B,
+            &environment,
+            exact,
+            result.transformed().clone(),
+        )
+        .unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            schedule_selected_pair(&source, 0, MAT_A, MAT_B, &environment, starved).unwrap_err(),
+            LocalScheduleError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_local_schedule(
+                &source,
+                0,
+                MAT_A,
+                MAT_B,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            LocalScheduleError::WorkBudgetExceeded
+        );
+    }
+}
+
+/// Two runs over the identical source produce the identical validated
+/// result, and the published plan is a legal second input through the sealed
+/// analysis boundary: on the transformed plan the pair's order is flipped,
+/// so naming the stale order refuses, the pair in its new order interchanges
+/// back to restore the source plan bit-identically, a hazard-coupled pair
+/// still declines, and a different independent pair still admits.
+#[test]
+fn interchange_is_deterministic_and_re_admitted() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    let first = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    let second = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. The pair's
+    // order flipped there, so the stale ordering no longer names an
+    // adjacent pair in that order.
+    assert_eq!(
+        schedule_selected_pair(&first, 0, MAT_A, MAT_B, &environment, budget()).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // The pair in its new order interchanges back through the same
+    // admission and replay, restoring the published source bit-identically.
+    let restored = schedule_selected_pair(&first, 0, MAT_B, MAT_A, &environment, budget()).unwrap();
+    assert_eq!(restored.transformed(), source.transformed());
+    assert_eq!(
+        restored.receipt().transformed_selected(),
+        source.selected_identity()
+    );
+    validate_local_schedule(
+        &first,
+        0,
+        MAT_B,
+        MAT_A,
+        &environment,
+        budget(),
+        restored.transformed().clone(),
+    )
+    .unwrap();
+    // A hazard-coupled pair still declines on the second input: the sum
+    // reads the register the swapped materialization defines.
+    assert_eq!(
+        schedule_selected_pair(&first, 0, MAT_A, SUM, &environment, budget()).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // And a different independent pair still admits on the second input.
+    let composed = schedule_selected_pair(&first, 0, SUM, COMPARE, &environment, budget()).unwrap();
+    let body = &composed.transformed().functions[0].blocks[0].instructions;
+    assert_eq!(body[2].id, COMPARE);
+    assert_eq!(body[3].id, SUM);
+}
+
+/// Replay corruption in a block the interchange never touched still rejects:
+/// the restore-by-content check compares the complete plan, not just the
+/// block carrying the swapped pair.
+#[test]
+fn replay_rejects_drift_outside_the_interchanged_block() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Stretch the fixture across one edge: a one-instruction entry block
+    // jumps to the block carrying the pair and the return.
+    let source = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let jump_row = environment.constraint(keys.jump).unwrap().clone();
+        let return_row = environment.constraint(keys.return_unit).unwrap().clone();
+        let materialize = environment
+            .constraint(keys.materialize_i64)
+            .unwrap()
+            .clone();
+        let moved = std::mem::take(&mut function.blocks[0].instructions);
+        function.blocks[0].instructions = vec![instruction(
+            SelectedInstructionId(20),
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(11),
+            },
+            &materialize,
+            &[OUTCOME],
+        )];
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(21),
+                SelectedInstructionKind::Jump,
+                &jump_row,
+                &[],
+            ),
+            successor: successor(SelectedBlockId(1), BlockId::new(2).unwrap(), 2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: moved,
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(22),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    let result = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    assert_eq!(result.transformed().functions[0].blocks.len(), 2);
+    // An extra instruction in the untouched entry block rejects.
+    let mut proposed = result.transformed().clone();
+    let copy = environment
+        .constraint(environment.selected_keys().copy_i64)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks[0]
+        .instructions
+        .push(instruction(
+            SelectedInstructionId(23),
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[FIRST, SECOND],
+        ));
+    assert_eq!(
+        validate_local_schedule(&source, 0, MAT_A, MAT_B, &environment, budget(), proposed)
+            .unwrap_err(),
+        LocalScheduleError::ReplayMismatch
+    );
+    // A changed literal in the untouched entry block rejects.
+    let mut proposed = result.transformed().clone();
+    proposed.functions[0].blocks[0].instructions[0].kind =
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(12),
+        };
+    assert_eq!(
+        validate_local_schedule(&source, 0, MAT_A, MAT_B, &environment, budget(), proposed)
+            .unwrap_err(),
+        LocalScheduleError::ReplayMismatch
+    );
+}
