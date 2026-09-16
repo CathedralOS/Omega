@@ -659,30 +659,21 @@ satisfies CheckedMath::identity
         .iter()
         .position(|machine| machine.name.as_str() == "provide_identity")
         .expect("provider machine index");
-    let machine_symbol = duplicate.typed.machines()[machine_index].symbol;
-    let repeated = duplicate
-        .typed
-        .machine_trait_conformances(&duplicate.typed.machines()[machine_index])[0]
-        .clone();
-    let repeated_checked = duplicate
-        .facts
-        .operators
-        .operator_realization_contracts
-        .iter()
-        .find(|row| row.machine_symbol() == machine_symbol)
-        .expect("provider checked operator-realization contract")
-        .clone();
-    duplicate
-        .facts
-        .operators
-        .operator_realization_contracts
-        .push(repeated_checked);
     let machine_roots = duplicate.typed.roots.machines;
     let tables = &mut duplicate.typed.tables;
     let machine = &mut tables.machines.span_mut_or_empty(machine_roots)[machine_index];
-    tables
+    // Toolchain sources load after the package, so the provider's conformance
+    // span is not the arena tail; duplicate it through a fresh contiguous pair
+    // and let the compiler rederive the retained contracts over the new
+    // handles, so the review reaches the duplicate-realization check rather
+    // than the retained-versus-rederived comparison in front of it.
+    machine.satisfies = tables
         .machine_trait_conformances
-        .append_to_span(&mut machine.satisfies, repeated);
+        .copy_span_pair(machine.satisfies, machine.satisfies);
+    duplicate.facts.operators.operator_realization_contracts =
+        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
+            &duplicate.typed,
+        );
     let diagnostics = project_checked_package_review(&duplicate)
         .expect_err("duplicate exact operator realizations must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {

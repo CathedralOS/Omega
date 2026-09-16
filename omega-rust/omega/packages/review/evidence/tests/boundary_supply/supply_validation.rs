@@ -595,16 +595,16 @@ pub machine invoke_leaf()
         .iter()
         .position(|machine| machine.name.as_str() == "invoke_leaf")
         .expect("external leaf index");
-    let duplicate = duplicate_conformance
-        .typed
-        .machine_trait_conformances(&duplicate_conformance.typed.machines()[leaf_index])[0]
-        .clone();
     let machine_roots = duplicate_conformance.typed.roots.machines;
     let tables = &mut duplicate_conformance.typed.tables;
     let leaf = &mut tables.machines.span_mut_or_empty(machine_roots)[leaf_index];
-    tables
+    // The hosted entry contract and its `core` imports load after the
+    // package, so the leaf's conformance span is not the arena tail and an
+    // in-place append would break span contiguity. Copy the row into a fresh
+    // contiguous pair instead.
+    leaf.satisfies = tables
         .machine_trait_conformances
-        .append_to_span(&mut leaf.satisfies, duplicate);
+        .copy_span_pair(leaf.satisfies, leaf.satisfies);
     let diagnostics = project_checked_package_review(&duplicate_conformance)
         .expect_err("multiple external conformances must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {
