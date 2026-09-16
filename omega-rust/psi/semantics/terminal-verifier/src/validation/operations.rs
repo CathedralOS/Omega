@@ -1,9 +1,19 @@
 //! Validates terminal operation operands against exact SSA value types.
+//!
+//! `validate_operation_operands` checks the owned array payloads a call
+//! passes, then dispatches the operation kind to its family:
+//! `storage_operands` (primitive and byte-sequence reads and stores),
+//! `call_operands`, `scalar_operands` (casts, comparisons, bitwise logic
+//! and shifts) and `arithmetic_operands`.
+
+mod arithmetic_operands;
+mod call_operands;
+mod scalar_operands;
+mod storage_operands;
 
 use super::{
-    BTreeMap, BTreeSet, BoundaryMachineDeclaration, IntegerSign, IntegerType, MachineId,
-    ModuleError, OperationId, OperationKind, ScalarType, StructuralAccess, TerminalMachine,
-    TerminalModule, ValueId,
+    BTreeMap, BTreeSet, BoundaryMachineDeclaration, MachineId, ModuleError, OperationId,
+    OperationKind, ScalarType, StructuralAccess, TerminalMachine, TerminalModule, ValueId,
 };
 pub(super) fn validate_operation_operands(
     module: &TerminalModule,
@@ -50,821 +60,179 @@ pub(super) fn validate_operation_operands(
             return Err(ModuleError::ScalarArrayResultMismatch(operation.id));
         }
     }
-    if matches!(operation.kind, OperationKind::EstablishScalarArray { .. }) {
-        return super::scalar_array::operands(module, machine, operation, value_types, defined);
-    }
-    if matches!(operation.kind, OperationKind::EstablishScalarCase { .. }) {
-        return super::scalar_case::operands(module, machine, operation, value_types, defined);
-    }
-    if matches!(operation.kind, OperationKind::EstablishRecord { .. }) {
-        return super::record::operands(module, machine, operation, value_types, defined);
-    }
-    if let OperationKind::StructuralByteSequenceFieldByteStore {
-        index,
-        value,
-        length,
-        ..
-    } = operation.kind
-    {
-        for (operand, bits) in [(index, 64), (length, 64), (value, 8)] {
-            require_defined(operand, value_types, defined)?;
-            let expected = ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, bits).expect("valid byte operand"),
-            );
-            if value_types[&operand] != expected {
-                return Err(ModuleError::InvalidStructuralByteSequenceFieldAccess(
-                    operation.id,
-                ));
-            }
+    match &operation.kind {
+        OperationKind::EstablishScalarArray { .. } => {
+            super::scalar_array::operands(module, machine, operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::ByteSequenceSubslice {
-        start, end, length, ..
-    } = operation.kind
-    {
-        let expected =
-            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
-        for operand in [start, end, length] {
-            require_defined(operand, value_types, defined)?;
-            let actual = value_types[&operand];
-            if actual != expected {
-                return Err(ModuleError::ByteSequenceSubsliceOperandTypeMismatch {
-                    operation: operation.id,
-                    operand,
-                    actual,
-                });
-            }
+        OperationKind::EstablishScalarCase { .. } => {
+            super::scalar_case::operands(module, machine, operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::StructuralByteSequenceFieldStore { length, .. } = operation.kind {
-        require_defined(length, value_types, defined)?;
-        let expected =
-            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
-        if value_types[&length] != expected {
-            return Err(ModuleError::InvalidStructuralByteSequenceFieldStore(
-                operation.id,
-            ));
+        OperationKind::EstablishRecord { .. } => {
+            super::record::operands(module, machine, operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::ByteSequenceWrite {
-        index,
-        value,
-        length,
-        ..
-    } = operation.kind
-    {
-        for (operand, bits) in [(index, 64), (length, 64), (value, 8)] {
-            require_defined(operand, value_types, defined)?;
-            let expected = ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, bits).expect("valid byte operand width"),
-            );
-            if value_types[&operand] != expected {
-                return Err(ModuleError::InvalidByteSequenceWrite(operation.id));
-            }
+        OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
+            storage_operands::validate_structural_byte_sequence_field_byte_store(
+                operation,
+                value_types,
+                defined,
+            )
         }
-        return Ok(());
-    }
-    if let OperationKind::ByteSequenceRead { index, length, .. } = operation.kind {
-        let expected =
-            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
-        for operand in [index, length] {
-            require_defined(operand, value_types, defined)?;
-            let actual = value_types[&operand];
-            if actual != expected {
-                return Err(ModuleError::ByteSequenceReadOperandTypeMismatch {
-                    operation: operation.id,
-                    operand,
-                    actual,
-                });
-            }
+        OperationKind::ByteSequenceSubslice { .. } => {
+            storage_operands::validate_byte_sequence_subslice(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::IeeeFloatCompare { left, right, .. } = operation.kind {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let left_type = value_types[&left];
-        let right_type = value_types[&right];
-        if !matches!(left_type, ScalarType::IeeeFloat(_)) || left_type != right_type {
-            return Err(ModuleError::IeeeFloatComparisonOperandTypeMismatch {
-                operation: operation.id,
-                left: left_type,
-                right: right_type,
-            });
+        OperationKind::StructuralByteSequenceFieldStore { .. } => {
+            storage_operands::validate_structural_byte_sequence_field_store(
+                operation,
+                value_types,
+                defined,
+            )
         }
-        return Ok(());
-    }
-    if let OperationKind::NearestIeeeFloatFusedMultiplyAdd {
-        left,
-        right,
-        addend,
-    } = operation.kind
-    {
-        let expected = operation.result.expect_scalar().scalar_type;
-        for operand in [left, right, addend] {
-            require_defined(operand, value_types, defined)?;
-            let actual = value_types[&operand];
-            if actual != expected {
-                return Err(ModuleError::IeeeFloatFusedMultiplyAddOperandTypeMismatch {
-                    operation: operation.id,
-                    operand,
-                    expected,
-                    actual,
-                });
-            }
+        OperationKind::ByteSequenceWrite { .. } => {
+            storage_operands::validate_byte_sequence_write(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::EstablishPrimitiveLocal { value } = operation.kind {
-        require_defined(value, value_types, defined)?;
-        let expected =
-            super::primitive_storage::validate_establishment(module, machine, operation)?;
-        let actual = value_types[&value];
-        if actual != expected {
-            return Err(ModuleError::PrimitiveLocalValueTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual,
-            });
+        OperationKind::ByteSequenceRead { .. } => {
+            storage_operands::validate_byte_sequence_read(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::PrimitiveScalarRead { source, ref path } = operation.kind {
-        let expected =
-            super::primitive_storage::read_type(module, machine, operation.id, source, path)?;
-        if operation.result.scalar().map(|result| result.scalar_type) != Some(expected) {
-            return Err(ModuleError::InvalidPrimitiveScalarRead {
-                operation: operation.id,
-                place: source,
-            });
+        OperationKind::IeeeFloatCompare { .. } => {
+            scalar_operands::validate_ieee_float_compare(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::WriteOnlyPrimitiveStore {
-        destination,
-        value,
-        ref path,
-    } = operation.kind
-    {
-        require_defined(value, value_types, defined)?;
-        let expected =
-            super::primitive_storage::store_type(module, machine, operation.id, destination, path)?;
-        let actual = value_types[&value];
-        if actual != expected {
-            return Err(ModuleError::WriteOnlyPrimitiveStoreValueTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual,
-            });
+        OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => {
+            scalar_operands::validate_nearest_ieee_float_fused_multiply_add(
+                operation,
+                value_types,
+                defined,
+            )
         }
-        return Ok(());
-    }
-    if let OperationKind::StructuralScalarFieldStore {
-        destination,
-        ref path,
-        field,
-        value,
-        range_obligation,
-    } = operation.kind
-    {
-        require_defined(value, value_types, defined)?;
-        let expected = super::structural_scalar_fields::structural_scalar_field_store_type(
-            module,
+        OperationKind::EstablishPrimitiveLocal { .. } => {
+            storage_operands::validate_establish_primitive_local(
+                module,
+                machine,
+                operation,
+                value_types,
+                defined,
+            )
+        }
+        OperationKind::PrimitiveScalarRead { .. } => {
+            storage_operands::validate_primitive_scalar_read(module, machine, operation)
+        }
+        OperationKind::WriteOnlyPrimitiveStore { .. } => {
+            storage_operands::validate_write_only_primitive_store(
+                module,
+                machine,
+                operation,
+                value_types,
+                defined,
+            )
+        }
+        OperationKind::StructuralScalarFieldStore { .. } => {
+            storage_operands::validate_structural_scalar_field_store(
+                module,
+                machine,
+                operation,
+                value_types,
+                defined,
+            )
+        }
+        OperationKind::Call { .. } => {
+            call_operands::validate_call(operation, machines, value_types, defined)
+        }
+        OperationKind::CallUnit { .. } => {
+            call_operands::validate_call_unit(operation, machines, value_types, defined)
+        }
+        OperationKind::CallStructuralScalar { .. } => {
+            call_operands::validate_call_structural_scalar(
+                operation,
+                machines,
+                value_types,
+                defined,
+            )
+        }
+        OperationKind::CallStructuralWithScalarArguments { .. } => {
+            call_operands::validate_call_structural_with_scalar_arguments(
+                operation,
+                machines,
+                value_types,
+                defined,
+            )
+        }
+        OperationKind::BoundaryCall { .. } => call_operands::validate_boundary_call(
             machine,
-            operation.id,
-            destination,
-            path,
-            field,
-        )?;
-        let actual = value_types[&value];
-        if super::structural_scalar_fields::structural_scalar_field_store_range(
-            module, machine, operation,
-        )
-        .is_some()
-            != range_obligation.is_some()
-        {
-            return Err(ModuleError::InvalidStructuralScalarFieldStore {
-                operation: operation.id,
-                destination,
-                path: path.clone(),
-                field,
-            });
-        }
-        if actual != expected {
-            return Err(ModuleError::StructuralScalarFieldStoreValueTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::Call {
-        callee, arguments, ..
-    } = &operation.kind
-    {
-        let callee = machines
-            .get(callee)
-            .copied()
-            .expect("call target was validated during operation registration");
-        validate_call_arguments(
-            operation.id,
-            arguments,
-            &callee
-                .parameters
-                .iter()
-                .map(|parameter| parameter.scalar_type)
-                .collect::<Vec<_>>(),
+            operation,
+            boundary_machines,
             value_types,
             defined,
-            ScalarCallKind::Ordinary,
-        )?;
-        return Ok(());
-    }
-    if let OperationKind::CallUnit {
-        callee, arguments, ..
-    } = &operation.kind
-    {
-        let callee = machines
-            .get(callee)
-            .copied()
-            .expect("Unit call target was validated during operation registration");
-        validate_call_arguments(
-            operation.id,
-            arguments,
-            &callee
-                .parameters
-                .iter()
-                .map(|parameter| parameter.scalar_type)
-                .collect::<Vec<_>>(),
-            value_types,
-            defined,
-            ScalarCallKind::Ordinary,
-        )?;
-        return Ok(());
-    }
-    if let OperationKind::CallStructuralScalar {
-        callee, arguments, ..
-    } = &operation.kind
-    {
-        let callee = machines
-            .get(callee)
-            .copied()
-            .expect("structural scalar call target was validated during operation registration");
-        validate_call_arguments(
-            operation.id,
-            arguments,
-            &callee
-                .parameters
-                .iter()
-                .map(|parameter| parameter.scalar_type)
-                .collect::<Vec<_>>(),
-            value_types,
-            defined,
-            ScalarCallKind::Ordinary,
-        )?;
-        return Ok(());
-    }
-    if let OperationKind::CallStructuralWithScalarArguments {
-        callee, arguments, ..
-    } = &operation.kind
-    {
-        let callee = machines
-            .get(callee)
-            .copied()
-            .expect("mixed structural call target was validated during operation registration");
-        validate_call_arguments(
-            operation.id,
-            arguments,
-            &callee
-                .parameters
-                .iter()
-                .map(|parameter| parameter.scalar_type)
-                .collect::<Vec<_>>(),
-            value_types,
-            defined,
-            ScalarCallKind::Ordinary,
-        )?;
-        return Ok(());
-    }
-    if let OperationKind::BoundaryCall {
-        boundary,
-        arguments,
-        ..
-    } = &operation.kind
-    {
-        let boundary = boundary_machines
-            .iter()
-            .find(|candidate| candidate.id == *boundary)
-            .expect("boundary target was validated during operation registration");
-        validate_call_arguments(
-            operation.id,
-            arguments,
-            &boundary.scalar_parameters,
-            value_types,
-            defined,
-            ScalarCallKind::Boundary,
-        )?;
-        super::crash::validate_boundary_call_crash_coverage(
-            machine,
-            boundary,
-            arguments,
-            operation.id,
-        )?;
-        return Ok(());
-    }
-    if let OperationKind::IntegerExactCast { operand, .. } = operation.kind.clone() {
-        require_defined(operand, value_types, defined)?;
-        let actual = value_types[&operand];
-        let expected = operation.result.expect_scalar().scalar_type;
-        let (ScalarType::Integer(source), ScalarType::Integer(target)) = (actual, expected) else {
-            return Err(ModuleError::IntegerExactCastOperandTypeMismatch {
-                operation: operation.id,
-                source: actual,
-                target: expected,
-            });
-        };
-        if !source.can_exact_cast_to(target) || source.can_widen_to(target) || source == target {
-            return Err(ModuleError::IntegerExactCastOperandTypeMismatch {
-                operation: operation.id,
-                source: actual,
-                target: expected,
-            });
+        ),
+        OperationKind::IntegerExactCast { .. } => {
+            scalar_operands::validate_integer_exact_cast(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::IntegerWiden { operand } = operation.kind.clone() {
-        require_defined(operand, value_types, defined)?;
-        let actual = value_types[&operand];
-        let expected = operation.result.expect_scalar().scalar_type;
-        let (ScalarType::Integer(source), ScalarType::Integer(target)) = (actual, expected) else {
-            return Err(ModuleError::IntegerWidenOperandTypeMismatch {
-                operation: operation.id,
-                source: actual,
-                target: expected,
-            });
-        };
-        if !source.can_widen_to(target) {
-            return Err(ModuleError::IntegerWidenOperandTypeMismatch {
-                operation: operation.id,
-                source: actual,
-                target: expected,
-            });
+        OperationKind::IntegerWiden { .. } => {
+            scalar_operands::validate_integer_widen(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::IntegerBitwiseNot { operand } = operation.kind.clone() {
-        require_defined(operand, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual = value_types[&operand];
-        if !matches!(expected, ScalarType::Integer(_)) || actual != expected {
-            return Err(ModuleError::IntegerBitwiseNotOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual,
-            });
+        OperationKind::IntegerBitwiseNot { .. } => {
+            scalar_operands::validate_integer_bitwise_not(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::BooleanNot { operand } = operation.kind.clone() {
-        require_defined(operand, value_types, defined)?;
-        let actual = value_types[&operand];
-        if actual != ScalarType::Boolean {
-            return Err(ModuleError::BooleanNotOperandTypeMismatch {
-                operation: operation.id,
-                operand,
-                actual,
-            });
+        OperationKind::BooleanNot { .. } => {
+            scalar_operands::validate_boolean_not(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::BooleanEqual { left, right } = operation.kind.clone() {
-        for operand in [left, right] {
-            require_defined(operand, value_types, defined)?;
-            let actual = value_types[&operand];
-            if actual != ScalarType::Boolean {
-                return Err(ModuleError::BooleanEqualOperandTypeMismatch {
-                    operation: operation.id,
-                    operand,
-                    actual,
-                });
-            }
+        OperationKind::BooleanEqual { .. } => {
+            scalar_operands::validate_boolean_equal(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::IntegerEqual { left, right } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let left_type = value_types[&left];
-        let right_type = value_types[&right];
-        if !matches!(left_type, ScalarType::Integer(_)) || right_type != left_type {
-            return Err(ModuleError::IntegerEqualOperandTypeMismatch {
-                operation: operation.id,
-                left: left_type,
-                right: right_type,
-            });
+        OperationKind::IntegerEqual { .. } => {
+            scalar_operands::validate_integer_equal(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::IntegerLessThan { left, right }
-    | OperationKind::IntegerLessOrEqual { left, right } = operation.kind.clone()
-    {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let left_type = value_types[&left];
-        let right_type = value_types[&right];
-        if !matches!(left_type, ScalarType::Integer(_)) || right_type != left_type {
-            return Err(ModuleError::IntegerOrderingOperandTypeMismatch {
-                operation: operation.id,
-                left: left_type,
-                right: right_type,
-            });
+        OperationKind::IntegerLessThan { .. } | OperationKind::IntegerLessOrEqual { .. } => {
+            scalar_operands::validate_integer_comparison(operation, value_types, defined)
         }
-        return Ok(());
-    }
-    if let OperationKind::IntegerBitwiseAnd { left, right }
-    | OperationKind::IntegerBitwiseOr { left, right }
-    | OperationKind::IntegerBitwiseXor { left, right } = operation.kind.clone()
-    {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let left_type = value_types[&left];
-        let right_type = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(_))
-            || left_type != expected
-            || right_type != expected
-        {
-            return Err(ModuleError::IntegerBitwiseOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                left: left_type,
-                right: right_type,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::WrappingIntegerShiftLeft { value, count }
-    | OperationKind::WrappingIntegerShiftRight { value, count } = operation.kind.clone()
-    {
-        require_defined(value, value_types, defined)?;
-        require_defined(count, value_types, defined)?;
-        let expected_value = operation.result.expect_scalar().scalar_type;
-        let actual_value = value_types[&value];
-        let actual_count = value_types[&count];
-        if !matches!(expected_value, ScalarType::Integer(_))
-            || actual_value != expected_value
-            || !matches!(actual_count, ScalarType::Integer(_))
-        {
-            return Err(ModuleError::WrappingIntegerShiftOperandTypeMismatch {
-                operation: operation.id,
-                expected_value,
-                actual_value,
-                actual_count,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::ExactIntegerShiftLeft { value, count, .. }
-    | OperationKind::ExactIntegerShiftRight { value, count, .. } = operation.kind.clone()
-    {
-        require_defined(value, value_types, defined)?;
-        require_defined(count, value_types, defined)?;
-        let expected_value = operation.result.expect_scalar().scalar_type;
-        let actual_value = value_types[&value];
-        let actual_count = value_types[&count];
-        if !matches!(expected_value, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_value != expected_value
-            || !matches!(actual_count, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-        {
-            return Err(ModuleError::ExactIntegerShiftOperandTypeMismatch {
-                operation: operation.id,
-                expected_value,
-                actual_value,
-                actual_count,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::ExactIntegerAdd { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::ExactIntegerAddOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::ExactIntegerSubtract { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::ExactIntegerSubtractOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::ExactIntegerMultiply { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::ExactIntegerMultiplyOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::ExactIntegerDivide { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::ExactIntegerDivideOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::ExactIntegerRemainder { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::ExactIntegerRemainderOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::WrappingIntegerDivide { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::WrappingIntegerDivideOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::WrappingIntegerRemainder { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::WrappingIntegerRemainderOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::SaturatingIntegerDivide { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::SaturatingIntegerDivideOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    if let OperationKind::SaturatingIntegerRemainder { left, right, .. } = operation.kind.clone() {
-        require_defined(left, value_types, defined)?;
-        require_defined(right, value_types, defined)?;
-        let expected = operation.result.expect_scalar().scalar_type;
-        let actual_left = value_types[&left];
-        let actual_right = value_types[&right];
-        if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-            || actual_left != expected
-            || actual_right != expected
-        {
-            return Err(ModuleError::SaturatingIntegerRemainderOperandTypeMismatch {
-                operation: operation.id,
-                expected,
-                actual_left,
-                actual_right,
-            });
-        }
-        return Ok(());
-    }
-    let Some((left, right, arithmetic)) = (match operation.kind.clone() {
-        OperationKind::WrappingIntegerAdd { left, right } => {
-            Some((left, right, ArithmeticOperandKind::WrappingAdd))
-        }
-        OperationKind::SaturatingIntegerAdd { left, right } => {
-            Some((left, right, ArithmeticOperandKind::SaturatingAdd))
-        }
-        OperationKind::WrappingIntegerSubtract { left, right } => {
-            Some((left, right, ArithmeticOperandKind::WrappingSubtract))
-        }
-        OperationKind::SaturatingIntegerSubtract { left, right } => {
-            Some((left, right, ArithmeticOperandKind::SaturatingSubtract))
-        }
-        OperationKind::WrappingIntegerMultiply { left, right } => {
-            Some((left, right, ArithmeticOperandKind::WrappingMultiply))
-        }
-        OperationKind::SaturatingIntegerMultiply { left, right } => {
-            Some((left, right, ArithmeticOperandKind::SaturatingMultiply))
-        }
-        OperationKind::IntegerConstant { .. }
-        | OperationKind::BooleanConstant { .. }
-        | OperationKind::IeeeFloatConstant { .. }
-        | OperationKind::IeeeFloatCompare { .. }
-        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
-        | OperationKind::BooleanStructuralField { .. }
-        | OperationKind::StructuralCaseMembership { .. }
-        | OperationKind::IntegerStructuralField { .. }
-        | OperationKind::ByteSequenceLength { .. }
-        | OperationKind::ByteSequenceRead { .. }
-        | OperationKind::ByteSequenceWrite { .. }
-        | OperationKind::ByteSequenceSubslice { .. }
-        | OperationKind::BooleanNot { .. }
-        | OperationKind::BooleanEqual { .. }
-        | OperationKind::IntegerEqual { .. }
-        | OperationKind::IntegerLessThan { .. }
-        | OperationKind::IntegerLessOrEqual { .. }
-        | OperationKind::IntegerBitwiseNot { .. }
-        | OperationKind::IntegerWiden { .. }
-        | OperationKind::IntegerExactCast { .. }
-        | OperationKind::IntegerBitwiseAnd { .. }
+        OperationKind::IntegerBitwiseAnd { .. }
         | OperationKind::IntegerBitwiseOr { .. }
-        | OperationKind::IntegerBitwiseXor { .. }
-        | OperationKind::WrappingIntegerShiftLeft { .. }
-        | OperationKind::WrappingIntegerShiftRight { .. }
-        | OperationKind::ExactIntegerShiftLeft { .. }
-        | OperationKind::ExactIntegerShiftRight { .. }
-        | OperationKind::ExactIntegerAdd { .. }
-        | OperationKind::ExactIntegerSubtract { .. }
-        | OperationKind::ExactIntegerMultiply { .. } => None,
-        OperationKind::ExactIntegerDivide { .. } => None,
-        OperationKind::ExactIntegerRemainder { .. } => None,
-        OperationKind::WrappingIntegerDivide { .. } => None,
-        OperationKind::WrappingIntegerRemainder { .. } => None,
-        OperationKind::SaturatingIntegerDivide { .. } => None,
-        OperationKind::SaturatingIntegerRemainder { .. } => None,
-        OperationKind::Call { .. }
-        | OperationKind::EstablishReference { .. }
-        | OperationKind::ReleaseReference { .. }
-        | OperationKind::EstablishPrimitiveLocal { .. }
-        | OperationKind::PrimitiveScalarRead { .. }
-        | OperationKind::WriteOnlyPrimitiveStore { .. }
-        | OperationKind::StructuralScalarFieldStore { .. }
-        | OperationKind::StructuralByteSequenceFieldStore { .. }
-        | OperationKind::StructuralByteSequenceFieldLength { .. }
-        | OperationKind::StructuralByteSequenceFieldByteStore { .. }
-        | OperationKind::CallUnit { .. }
-        | OperationKind::CallStructuralScalar { .. }
-        | OperationKind::CallDynamicScalar { .. }
-        | OperationKind::CallDynamicParameterScalar { .. }
-        | OperationKind::CallDynamicUnit { .. }
-        | OperationKind::CallDynamicParameterUnit { .. }
-        | OperationKind::CallStructural { .. }
-        | OperationKind::CallStructuralWithScalarArguments { .. }
-        | OperationKind::EstablishScalarCase { .. }
-        | OperationKind::EstablishScalarArray { .. }
-        | OperationKind::BoundaryCall { .. }
-        | OperationKind::PortWrite { .. }
-        | OperationKind::EstablishByteSequenceLiteral { .. }
-        | OperationKind::EstablishTrivialAffineLocal { .. }
-        | OperationKind::EstablishRecord { .. }
-        | OperationKind::StoreDynamicDescriptor { .. } => None,
-    }) else {
-        return Ok(());
-    };
-    let ScalarType::Integer(integer_type) = operation.result.expect_scalar().scalar_type else {
-        unreachable!("operation shape validation requires an integer result")
-    };
-    for operand in [left, right] {
-        require_defined(operand, value_types, defined)?;
-        let actual = value_types[&operand];
-        let expected = ScalarType::Integer(integer_type);
-        if actual != expected {
-            return Err(match arithmetic {
-                ArithmeticOperandKind::SaturatingAdd => {
-                    ModuleError::SaturatingIntegerAddOperandTypeMismatch {
-                        operation: operation.id,
-                        operand,
-                        expected,
-                        actual,
-                    }
-                }
-                ArithmeticOperandKind::WrappingAdd => {
-                    ModuleError::WrappingIntegerAddOperandTypeMismatch {
-                        operation: operation.id,
-                        operand,
-                        expected,
-                        actual,
-                    }
-                }
-                ArithmeticOperandKind::WrappingSubtract => {
-                    ModuleError::WrappingIntegerSubtractOperandTypeMismatch {
-                        operation: operation.id,
-                        operand,
-                        expected,
-                        actual,
-                    }
-                }
-                ArithmeticOperandKind::SaturatingSubtract => {
-                    ModuleError::SaturatingIntegerSubtractOperandTypeMismatch {
-                        operation: operation.id,
-                        operand,
-                        expected,
-                        actual,
-                    }
-                }
-                ArithmeticOperandKind::WrappingMultiply => {
-                    ModuleError::WrappingIntegerMultiplyOperandTypeMismatch {
-                        operation: operation.id,
-                        operand,
-                        expected,
-                        actual,
-                    }
-                }
-                ArithmeticOperandKind::SaturatingMultiply => {
-                    ModuleError::SaturatingIntegerMultiplyOperandTypeMismatch {
-                        operation: operation.id,
-                        operand,
-                        expected,
-                        actual,
-                    }
-                }
-            });
+        | OperationKind::IntegerBitwiseXor { .. } => {
+            scalar_operands::validate_integer_bitwise(operation, value_types, defined)
         }
+        OperationKind::WrappingIntegerShiftLeft { .. }
+        | OperationKind::WrappingIntegerShiftRight { .. } => {
+            scalar_operands::validate_wrapping_shift(operation, value_types, defined)
+        }
+        OperationKind::ExactIntegerShiftLeft { .. }
+        | OperationKind::ExactIntegerShiftRight { .. } => {
+            scalar_operands::validate_exact_shift(operation, value_types, defined)
+        }
+        OperationKind::ExactIntegerAdd { .. } => {
+            arithmetic_operands::validate_exact_integer_add(operation, value_types, defined)
+        }
+        OperationKind::ExactIntegerSubtract { .. } => {
+            arithmetic_operands::validate_exact_integer_subtract(operation, value_types, defined)
+        }
+        OperationKind::ExactIntegerMultiply { .. } => {
+            arithmetic_operands::validate_exact_integer_multiply(operation, value_types, defined)
+        }
+        OperationKind::ExactIntegerDivide { .. } => {
+            arithmetic_operands::validate_exact_integer_divide(operation, value_types, defined)
+        }
+        OperationKind::ExactIntegerRemainder { .. } => {
+            arithmetic_operands::validate_exact_integer_remainder(operation, value_types, defined)
+        }
+        OperationKind::WrappingIntegerDivide { .. } => {
+            arithmetic_operands::validate_wrapping_integer_divide(operation, value_types, defined)
+        }
+        OperationKind::WrappingIntegerRemainder { .. } => {
+            arithmetic_operands::validate_wrapping_integer_remainder(
+                operation,
+                value_types,
+                defined,
+            )
+        }
+        OperationKind::SaturatingIntegerDivide { .. } => {
+            arithmetic_operands::validate_saturating_integer_divide(operation, value_types, defined)
+        }
+        OperationKind::SaturatingIntegerRemainder { .. } => {
+            arithmetic_operands::validate_saturating_integer_remainder(
+                operation,
+                value_types,
+                defined,
+            )
+        }
+        _ => arithmetic_operands::validate_binary_arithmetic(operation, value_types, defined),
     }
-    Ok(())
 }
 
 #[derive(Clone, Copy)]
