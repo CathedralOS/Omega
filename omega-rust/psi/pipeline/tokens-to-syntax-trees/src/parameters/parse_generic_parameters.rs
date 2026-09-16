@@ -21,6 +21,11 @@ pub(crate) enum GenericParameterSyntax {
     TypeAndConst,
     StaticBinders,
     TraitRequirements,
+    /// A requirement signature inside a trait body. Runtime-capable `Value`
+    /// binders are admitted so a finite `where Binder == literal || ...`
+    /// family can enumerate them; conformance binders stay on the trait or
+    /// provider declaration where a dynamic envelope can still refuse them.
+    RequirementSignature,
     MachineDeclaration,
 }
 
@@ -36,7 +41,10 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::MachineDeclaration
     );
     let trait_requirement_parameters = matches!(syntax, GenericParameterSyntax::TraitRequirements);
-    let allow_value_parameters = matches!(syntax, GenericParameterSyntax::MachineDeclaration);
+    let allow_value_parameters = matches!(
+        syntax,
+        GenericParameterSyntax::RequirementSignature | GenericParameterSyntax::MachineDeclaration
+    );
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((ParsedGenericParameters::default(), input));
     }
@@ -204,9 +212,10 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             ));
         }
 
-        // `Name: TypeRef` — a runtime-capable value binder, admitted only on
-        // machine signature generics. Its carrier type parses exactly like a
-        // const binder's; brackets after it attach to the type, not the name.
+        // `Name: TypeRef` — a runtime-capable value binder, admitted on
+        // machine signature generics and trait requirement signatures. Its
+        // carrier type parses exactly like a const binder's; brackets after
+        // it attach to the type, not the name.
         if matches!(kind, TypeParameterKind::Type)
             && allow_value_parameters
             && input.at_punctuation(PunctuationKind::Colon)
@@ -215,6 +224,20 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             let (type_reference, rest) = parse_type_reference_handle(syntax_trees, rest)?;
             kind = TypeParameterKind::Value { type_reference };
             input = rest;
+        }
+
+        // Where `satisfies` binders are not admitted, `Name: Subject
+        // satisfies Carrier` is a rejected conformance binder, not a value
+        // binder with a stray tail; say so rather than failing on `satisfies`
+        // as unexpected punctuation.
+        if matches!(kind, TypeParameterKind::Value { .. })
+            && !allow_conformance_binders
+            && input.at_contextual("satisfies")
+        {
+            return Err(input.error_here(format!(
+                "a `satisfies` conformance binder is not admitted on a requirement signature; `{}: <type>` already declares a runtime value binder",
+                name.as_str()
+            )));
         }
 
         // Rust-style `<T: copy>` is rejected with the bracket spelling

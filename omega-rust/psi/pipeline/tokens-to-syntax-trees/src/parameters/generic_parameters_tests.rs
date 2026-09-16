@@ -8,10 +8,11 @@ use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{MachineParameterContract, TypeParameterKind};
 
-const SYNTAX_CHOICES: [GenericParameterSyntax; 4] = [
+const SYNTAX_CHOICES: [GenericParameterSyntax; 5] = [
     GenericParameterSyntax::TypeAndConst,
     GenericParameterSyntax::StaticBinders,
     GenericParameterSyntax::TraitRequirements,
+    GenericParameterSyntax::RequirementSignature,
     GenericParameterSyntax::MachineDeclaration,
 ];
 
@@ -99,7 +100,11 @@ fn conformance_and_value_binders_keep_distinct_admission() {
         let value = parse_parameters("<Count: usize>", syntax);
         assert_eq!(
             value.is_ok(),
-            matches!(syntax, GenericParameterSyntax::MachineDeclaration)
+            matches!(
+                syntax,
+                GenericParameterSyntax::RequirementSignature
+                    | GenericParameterSyntax::MachineDeclaration
+            )
         );
         if let Ok((trees, parameters)) = value {
             assert!(matches!(
@@ -108,4 +113,22 @@ fn conformance_and_value_binders_keep_distinct_admission() {
             ));
         }
     }
+}
+
+#[test]
+fn requirement_signatures_reject_satisfies_after_a_value_binder() {
+    let result = parse_parameters(
+        "<Evidence: Value satisfies Trait>",
+        GenericParameterSyntax::RequirementSignature,
+    );
+    let Err(error) = result else {
+        panic!("a `satisfies` tail is a conformance binder, not a value binder")
+    };
+    assert!(
+        error
+            .message
+            .contains("conformance binder is not admitted on a requirement signature"),
+        "{:?}",
+        error.message
+    );
 }

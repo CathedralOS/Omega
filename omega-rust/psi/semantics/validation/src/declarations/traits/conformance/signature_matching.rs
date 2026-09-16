@@ -14,6 +14,81 @@ use typed_trees::state::State;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
+/// Count the trailing parameters a specialized instance gained by realizing
+/// runtime-bound `Value` binders as ordinary parameters. The specialization
+/// cloner appends one parameter per runtime-bound slot after the template
+/// state's authored parameters, so the tail is `instance arity - template
+/// arity` on the corresponding state; every tail parameter carries a declared
+/// `Value` carrier in binder order. Zero also reports a non-instance machine
+/// or a tail that cannot be realized subjects: callers then apply the
+/// ordinary strict arity check.
+fn specialized_instance_realized_tail(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+) -> usize {
+    let Some(application) = program
+        .machine_specializations
+        .iter()
+        .find(|application| application.instance == machine.symbol)
+    else {
+        return 0;
+    };
+    let Some(template) = program
+        .machines()
+        .iter()
+        .find(|template| template.symbol == application.template)
+    else {
+        return 0;
+    };
+    // Cloned states keep template order, so the checked state's positional
+    // counterpart in the template supplies the authored parameter count.
+    let Some(state_ordinal) = program
+        .machine_states(machine)
+        .iter()
+        .position(|candidate| candidate.symbol == state.symbol)
+    else {
+        return 0;
+    };
+    let Some(template_state) = program.machine_states(template).get(state_ordinal) else {
+        return 0;
+    };
+    let realized = program
+        .state_parameters(state)
+        .len()
+        .saturating_sub(program.state_parameters(template_state).len());
+    if realized == 0 {
+        return 0;
+    }
+    let carriers = program
+        .data_type_parameters
+        .span_or_empty(application.template_parameters)
+        .iter()
+        .filter_map(|parameter| match &parameter.kind {
+            TypeParameterKind::Value { type_reference } => Some(*type_reference),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let parameters = program.state_parameters(state);
+    let trailing = &parameters[parameters.len() - realized..];
+    // The tail must be realized `Value` subjects: their declared carriers
+    // appear as an order-preserving subsequence of the template's `Value`
+    // binder carriers.
+    let mut cursor = 0usize;
+    let mut matched = 0usize;
+    for parameter in trailing {
+        while cursor < carriers.len() {
+            let carrier = carriers[cursor];
+            cursor += 1;
+            if type_references_match(program, parameter.type_reference, carrier) {
+                matched += 1;
+                break;
+            }
+        }
+    }
+    if matched == realized { realized } else { 0 }
+}
+
 pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     program: &TypedTrees,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -27,6 +102,16 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 ) {
     let mut actual_parameters = program.state_parameters(state);
     let required_parameters = program.state_signature_parameters(requirement);
+    // A specialized instance appends one trailing ordinary parameter per
+    // runtime-bound `Value` binder, after the template's authored parameters
+    // in binder order (see monomorphization's realized-subject cloning). The
+    // realized subjects carry a declared binder carrier at runtime rather
+    // than declaring a new callable argument, so they are sliced off before
+    // the arity and positional checks below.
+    let realized_tail = specialized_instance_realized_tail(program, machine, state);
+    if realized_tail > 0 {
+        actual_parameters = &actual_parameters[..actual_parameters.len() - realized_tail];
+    }
     // PRV4 self-forwarding adapters: a machine satisfying a BOUNDARY trait
     // requirement may take the trait ITSELF as one extra LEADING parameter
     // (adapter dispatch forwards the call's receiver there); the tail must

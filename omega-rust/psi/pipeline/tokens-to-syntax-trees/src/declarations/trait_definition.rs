@@ -294,8 +294,11 @@ fn parse_trait_machine_signature<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StateSignature> {
     let (name, input) = parse_trait_machine_name(input)?;
-    let (generic_parameters, input) =
-        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::StaticBinders)?;
+    let (generic_parameters, input) = parse_generic_parameters(
+        syntax_trees,
+        input,
+        GenericParameterSyntax::RequirementSignature,
+    )?;
     let ((parameters, native_callback_parameters), input) =
         parse_boundary_parameter_telescope(syntax_trees, input)?;
     let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
