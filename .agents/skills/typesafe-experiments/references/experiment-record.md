@@ -725,3 +725,56 @@ Retain for natural handoff shadowing, not a production approval gate. Next highe
 value test: actual worker arrivals with natural failures and missing requirements,
 compared to a warm supervisor, measured through the next consumed workflow step.
 No dropped validation, worker cancellation, publication or authority changes.
+
+## Continuing supervisor and natural outputs: speed gain rejected on quality
+
+`build/experiments/warm-handoff/` contains protocol, probe.py, frozen original
+task/answer hashes, Jev responses, two resumed supervisor histories, public-only
+metrics, consumed answer/retrieval artifacts, SUMMARY.json and REPORT.md.
+Six unmodified outputs from earlier retrieval experiments: three supported and
+three insufficiently supported by their original excerpts. Natural model outputs
+but handpicked and previously exposed, NOT fresh holdout or live compiler arrivals.
+Original source/answer matching verified; no synthetic mutation or new truncation.
+
+Unchanged coverage/support questions and .90 threshold. Jev got 5/6: accepted all
+three supported answers, flagged two of three unsupported ones. It accepted a
+work-claim ticket answer backed by landing-queue history at support .95 / coverage
+.98. Six calls 1.378s, 8,404 input / 438 output tokens, no correctness retries.
+
+Two actual SWE-2 Max conversations resumed by explicit session ID. All-review
+used six review turns; selective used two, actually skipping four in the replay.
+Consumer code emitted unchanged answers or scoped evidence-retrieval requests;
+no retrieval/repair or production action was executed. Both supervisors stayed
+read-only with zero tools and empty workspaces.
+
+| Strategy | Review calls | Review stages | Including setup | Unsupported retained |
+| --- | ---: | ---: | ---: | ---: |
+| Continuing all-review | 6 | 122.970s | 138.432s | 1/3 |
+| Jev plus selective continuing review | 2 | 57.065s | 74.127s | 2/3 |
+
+Selective stages include all Jev calls plus 55.687s supervisor time. Observed
+53.6% lower review-stage time, 46.5% with setup, but the zero-unsafe-retention
+quality gate FAILED and selective quality regressed. One interleaved stream pair,
+not repeatable coding productivity or completed repair. Source prep, human review
+and serialization excluded from measured stage time; producers were archived.
+
+The always-review supervisor made the same wrong-registry error as Jev. A second
+failure came from composition: Jev correctly flagged missing support for compound
+test-scope exclusions, but the selective fallback supervisor approved from generic
+test-selection/doctest language WITHOUT filling the evidence gap. All-review
+rejected that packet. Different conversation histories and model variability are
+not isolated causes. A bare changed verdict must not be treated as resolved evidence.
+
+Resumption confirmed by fixed session identity and increasing exported steps.
+CLI processes still restarted. Cached-token telemetry increased 8,192 -> 35,137
+for all-review and 0 -> 8,192 for selective; final total prompt telemetry 178,434
+versus 68,652 includes setup and cached tokens. Some caching, not proof of full
+resident KV warmth or billing savings. Do not call it a fully warm resident benchmark.
+
+Decision: reject automatic skip/override integration; keep shadow only. The next
+hypothesis is explicit assignment evidence-owner binding and evidence-bearing
+resolution of flagged gaps, possibly fetching authoritative source directly
+instead of another same-evidence model vote. Do not raise the threshold to hide
+the known owner failure. Retain this failed stream as regression; changed policy
+needs fresh operational handoffs. Windows identity/hash/citation/artifact/session,
+zero-tool and Python compile checks passed; macOS not run. No production changes.
