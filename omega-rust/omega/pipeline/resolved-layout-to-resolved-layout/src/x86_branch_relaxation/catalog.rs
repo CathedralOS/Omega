@@ -93,4 +93,47 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn selection_vocabulary_routes_phases_and_rejects_foreign_phase_projections() {
+        // The empty phase selection is the disabled leg.
+        let empty = OptimizationSelections::new([])
+            .unwrap()
+            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+        assert_eq!(x86_rel8_selected(&empty, Architecture::X86_64), Ok(false));
+
+        // A selection naming only another phase's rules projects into this
+        // phase as empty: foreign rules cannot name this rule's enable bit.
+        let foreign =
+            OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                .unwrap()
+                .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+        assert_eq!(x86_rel8_selected(&foreign, Architecture::X86_64), Ok(false));
+
+        // A mixed selection routes only this phase's member here; the
+        // SelectedLowering member is consumed by its own stage.
+        let mixed = OptimizationSelections::new([
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap()
+        .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+        assert_eq!(x86_rel8_selected(&mixed, Architecture::X86_64), Ok(true));
+
+        // A projection built for another phase is rejected at the entrance
+        // even when this rule was in the complete selection.
+        let wrong_phase =
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+                .unwrap()
+                .project_phase(OptimizationExecutionPhase::SelectedLowering);
+        assert_eq!(
+            x86_rel8_selected(&wrong_phase, Architecture::X86_64),
+            Err(FunctionRelativeLayoutCatalogError::WrongPhase(
+                optimization_core::OptimizationPhaseMismatch {
+                    expected: OptimizationExecutionPhase::FunctionRelativeLayout,
+                    actual: OptimizationExecutionPhase::SelectedLowering,
+                },
+            ))
+        );
+    }
 }

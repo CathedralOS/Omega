@@ -6,7 +6,8 @@ use crate::tests::{
     stage_optimized_post_allocation_machine_plan, stage_optimized_resolved_selected_form_layout,
     validate_resolved_layout_optimization,
 };
-use optimization_core::OptimizationExecutionPhase;
+use optimization_core::{OptimizationExecutionPhase, OptimizationPhaseMismatch};
+use resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError;
 
 #[test]
 fn layout_phase_replays_exact_selection_current_and_evidence() {
@@ -123,5 +124,48 @@ fn layout_phase_replays_exact_selection_current_and_evidence() {
     assert_eq!(
         retained_relaxed.identity(),
         retained_relaxed.recomputed_identity()
+    );
+}
+
+#[test]
+fn a_selection_projected_to_another_phase_is_rejected_at_the_phase_entrance() {
+    let homes = super::fixture::physical_homes();
+    let machine = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+    let selected_stage = homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let selected = selected_stage.selected();
+    let physical = selected_stage.register_environment().physical();
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected, &machine, physical, None,
+    )
+    .unwrap();
+    let baseline =
+        stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
+            .unwrap();
+    // A SelectedLowering projection is a typed catalog refusal before the rule
+    // runs, not an implicit disable.
+    let wrong_phase =
+        OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+            .unwrap()
+            .project_phase(OptimizationExecutionPhase::SelectedLowering);
+    assert_eq!(
+        execute_resolved_layout_optimization(
+            selected,
+            &machine,
+            physical,
+            &encoding,
+            &baseline,
+            &wrong_phase,
+            selected_lowering_budget(),
+        ),
+        Err(ResolvedLayoutOptimizationError::Catalog(
+            FunctionRelativeLayoutCatalogError::WrongPhase(OptimizationPhaseMismatch {
+                expected: OptimizationExecutionPhase::FunctionRelativeLayout,
+                actual: OptimizationExecutionPhase::SelectedLowering,
+            }),
+        )),
     );
 }

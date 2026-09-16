@@ -103,6 +103,68 @@ impl StagedOptimizedX86BranchRelaxation {
             .first_mut()
             .expect("the rel8 corruption fixture must contain one action")
             .new_bytes[0] ^= 1;
+        self.reauthenticate_for_test();
+    }
+
+    /// Test-only authenticated corruption of the recorded attempt roster: the
+    /// first attempt reports the terminal decline instead of its recorded
+    /// outcome. Independent replay still reconstructs the true roster.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn corrupt_first_attempt_outcome_and_reauthenticate_for_test(&mut self) {
+        let attempt = self
+            .attempts
+            .first_mut()
+            .expect("the rel8 corruption fixture must contain one attempt");
+        attempt.outcome = match attempt.outcome {
+            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation => {
+                X86BranchRelaxationAttemptOutcome::AlreadyShort
+            }
+            _ => X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
+        };
+        self.reauthenticate_for_test();
+    }
+
+    /// Test-only authenticated corruption of the retained layout: one byte in a
+    /// row the rewrite never touched drifts, with the layout and artifact
+    /// identities honestly recomputed over the drifted content. Independent
+    /// replay reconstructs the untouched layout and rejects.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn corrupt_retained_layout_row_and_reauthenticate_for_test(&mut self) {
+        let program = std::sync::Arc::make_mut(&mut self.layout);
+        let row = program
+            .functions
+            .iter_mut()
+            .flat_map(|function| function.blocks.iter_mut())
+            .flat_map(|block| block.instructions.iter_mut())
+            .find(|row| row.branch.is_none() && !row.bytes.is_empty())
+            .expect("the rel8 corruption fixture must contain a non-branch row");
+        row.bytes[0] ^= 1;
+        program.identity = program.recomputed_identity();
+        self.output = program.identity;
+        self.reauthenticate_for_test();
+    }
+
+    /// Test-only authenticated corruption of the recorded budget: the artifact
+    /// claims a legal budget one below its measured rule-evaluation usage.
+    /// Independent replay checks usage-within-budget before replaying.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn corrupt_recorded_budget_and_reauthenticate_for_test(&mut self) {
+        self.budget = OptimizationWorkBudget::new(
+            self.usage
+                .rule_evaluations
+                .checked_sub(1)
+                .expect("the rel8 corruption fixture must record rule evaluations"),
+            self.usage.candidates,
+            self.usage.validation_steps,
+            self.usage.commits,
+            self.usage.iterations,
+        )
+        .expect("the shrunk recorded budget must remain a legal budget");
+        self.reauthenticate_for_test();
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    fn reauthenticate_for_test(&mut self) {
         let roots = super::identity::RevisionRoots {
             source: self.source,
             selected: self.selected,
