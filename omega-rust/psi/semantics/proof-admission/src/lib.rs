@@ -67,15 +67,17 @@ pub use integer_rules::integer_shift::{
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use mathematical_core::{
-    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, INDEXED_AT, INDEXED_IND,
-    INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily, Level, MathematicalCertificate, QUOTIENT,
-    QUOTIENT_BETA, QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_TRANS, QUOTIENT_IS_SET,
-    QUOTIENT_LIFT, QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND,
-    QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QuotientFamily, Signature, Sort, Term, TermArena,
-    TermHandle, assumption_closure, certificate_assumption_closure, check_signature, check_type,
-    convertible, identity_substitution, indexed_correctness, indexed_scheme, infer_sort,
-    infer_type, instantiate_levels, judgment_assumption_closure, quotient_scheme, shift,
-    substitute, verify_mathematical_certificate, weak_head_normalize,
+    BoundedDenotation, BoundedDenotationError, Budget, Context, CoreError,
+    DEFAULT_CONVERSION_STEPS, Declaration, INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP,
+    INDEXED_W, IndexedFamily, Level, MathematicalCertificate, QUOTIENT, QUOTIENT_BETA,
+    QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_TRANS, QUOTIENT_IS_SET, QUOTIENT_LIFT,
+    QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
+    QUOTIENT_TRANSPORT_CONST, QuotientFamily, Signature, Sort, Term, TermArena, TermHandle,
+    assumption_closure, certificate_assumption_closure, check_signature, check_type, convertible,
+    denote_bounded_certificate, identity_substitution, indexed_correctness, indexed_scheme,
+    infer_sort, infer_type, instantiate_levels, judgment_assumption_closure, quotient_scheme,
+    shift, substitute, verify_bounded_certificate, verify_mathematical_certificate,
+    weak_head_normalize,
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,

@@ -194,7 +194,7 @@ pub fn accept_certificate_with_machine_parameters(
 
 mod equality_rules;
 mod integer_bound_rules;
-mod integer_math_normalization;
+pub(crate) mod integer_math_normalization;
 mod integer_order_rules;
 mod order_discreteness;
 mod propositional_rules;
