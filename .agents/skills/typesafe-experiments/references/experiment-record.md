@@ -531,3 +531,43 @@ automatic gate. Complete-answer coverage is a separate requirement. Windows
 unique-containment, unchanged-claim, response-coverage, Python compile, metadata
 and diff checks passed; macOS not run. Live State docs again inaccessible; existing
 cached guidance/integration reused without new API assumptions.
+
+## Cookbook-driven work-packet example: context did not fix policy
+
+The user prefers worked examples followed by exploration to reduce wasted effort.
+Direct HTTP successfully refreshed the official TypeSafe Markdown reference:
+109 saved URLs, 108 distinct contents, 18 cookbook files, zero failures and checked
+SHA256s. The web fetcher failure was not site unavailability. Discover through
+https://docs.typesafe.ai/llms.txt; /cookbooks.md redirects to a single cookbook.
+Ignored local index/review: `build/references/typesafe/README.md` and
+`COOKBOOK-REVIEW.md`. The parallel-questions example demonstrates batching cost
+and serial-call latency savings, not that more context improves accuracy.
+
+`build/experiments/work-packet/` adapts that shared-state shape to recorded r21:
+two-package Clippy failed in syntax-trees-to-symbol-resolved-trees, and a worker
+proposed checking the emitting dependency alone. Previously Jev incorrectly
+recommended retry review. This is a known development failure, not fresh gold.
+Frozen five-question map retains the original retry wording and adds diagnostic
+owner, historical attribution, proposed-check purpose and repair evidence.
+
+Six calls in symmetric short/full/distractor/distractor/full/short order, no
+correctness retries. Input tokens per call: 1,822 / 16,165 / 19,549. Full adds the
+retained receipt plus pinned AGENTS.md/testing.md; distractor adds another actual
+worktree's AtomicEvent error. Reference rules are not historical revision proof.
+API seconds: short .362/.249, full .386/.409, distractor .433/.410. Total 2.249s,
+75,072 input and 1,344 output tokens. No worker call or actual retry avoided.
+
+All arms got the four descriptive judgments right: resolver owns the diagnostic,
+proposed check isolates that dependency, attribution unresolved, repair not shown.
+All arms still incorrectly selected retry review, P(continue) .20-.24. Independent
+questions do not consume each other's answers: a correct premise and an incorrect
+policy conclusion can coexist. The existing package-scope rule already correctly
+continues this example. Reject larger context as this error's remedy; neither a
+large-input nor unique Jev advantage was demonstrated.
+
+Next hypothesis: let code compose semantic observations instead of outsourcing
+the whole workflow policy. This is post-result direction, not a validated gate.
+Use a neighboring recorded example that challenges the deterministic baseline
+before expanding the experiment. Request hashes, question parity, response coverage,
+sanitization checks and Python compilation passed on Windows; macOS not run.
+No production integration, worker interruption or publication.

@@ -16,6 +16,11 @@ TypeSafe documentation for API details, with the saved local docs as fallback.
 
 ## Tune the actual decision
 
+Jarod prefers example-first exploration: adapt the nearest official cookbook to
+one concrete repository case, inspect what happens, then choose the next variation.
+Avoid building a broad evaluation before a worked example earns it. Narrow output
+does not require tiny input; compare context sufficiency separately from size.
+
 Work backward from what the caller should do differently. Keep exact comparisons,
 execution status, revision identity, and authorization in code. Candidate retrieval,
 semantic relevance, evidence linking, and suggestions for review are useful trial
