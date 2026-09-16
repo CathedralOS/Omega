@@ -6,23 +6,19 @@
 //! aggregates and stack slots are passed; `callback_materializations` binds
 //! native callbacks. Layout and selection consume these; they never re-derive them.
 //!
-//! `host_operations.rs` is the root: the host operation catalog and its
-//! capabilities. `external_bindings.rs` binds an operation to a foreign
-//! symbol, `plans.rs` owns the calling-plan vocabulary, `stack_realizations.rs`
-//! and `callback_materializations.rs` realize stacks and callbacks,
-//! `aggregate_layout.rs` lays out aggregates, and `darwin.rs`, `linux.rs` and
-//! `windows.rs` fix each host's registers, syscall numbers and import
+//! Start at `host_operations.rs`: the host operation catalog, its
+//! capabilities and the external binding rows that bind an operation to a
+//! foreign symbol; `plans` owns the calling-plan vocabulary, `stack_realizations`
+//! and `callback_materializations` realize stacks and callbacks,
+//! `aggregate_layout` lays out aggregates, and `hosts` fixes each host's registers, syscall numbers and import
 //! libraries.
 
 mod aggregate_layout;
 mod callback_materializations;
-mod darwin;
-mod external_bindings;
 mod host_operations;
-mod linux;
+mod hosts;
 mod plans;
 mod stack_realizations;
-mod windows;
 
 pub use aggregate_layout::{
     AggregateLayoutError, ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
@@ -36,12 +32,13 @@ pub use callback_materializations::{
     callback_native_parameter_id, callback_plan_laid_layout_id, callback_requirement_id,
     nominal_callback_native_parameter_id,
 };
-pub use darwin::{
+pub use host_operations::external_bindings::{ExternalBindingKind, ExternalBindingRow};
+pub use host_operations::{HostCapability, HostOperation, HostOperationKey};
+pub use hosts::darwin::{
     DARWIN_COREGRAPHICS_PATH, DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library,
 };
-pub use external_bindings::{ExternalBindingKind, ExternalBindingRow};
-pub use host_operations::{HostCapability, HostOperation, HostOperationKey};
-pub use linux::{linux_clock_gettime_syscall_number, linux_nanosleep_syscall_number};
+pub use hosts::linux::{linux_clock_gettime_syscall_number, linux_nanosleep_syscall_number};
+pub use hosts::windows::windows_import_library;
 pub use plans::{
     BoundaryEntryPlan, BoundaryPlanDiagnostic, BoundaryPlanResult, CallPlan, CallSignature,
     CallingPolicy, CallingPolicyRejection, ConcreteVariadicCallSignature, EntryControl, EntryStack,
@@ -71,4 +68,3 @@ pub use stack_realizations::{
     derive_x86_64_hardware_arrival, validate_entry_stack_domain_closure,
     validate_entry_stack_realization, validate_x86_64_installed_hardware_entry_facts,
 };
-pub use windows::windows_import_library;
