@@ -833,8 +833,13 @@ fn finite_literal_index_suffix_crosses_source_codec_and_verification() {
         panic!("finite literal-index shared-access mutation call")
     };
     structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    // A shared subloan of the same static literal-index path from a shared
+    // root is an ordinary unrestricted reborrow (the verifier's
+    // `is_unrestricted_shared_subloan`), so re-accessing every side as shared
+    // is a different valid module rather than drift; only the asymmetric
+    // drifts above and below reject.
     terminal_verifier::validate_module(&shared_access_drifted)
-        .expect_err("deep literal-index admission is exclusive to write-only access");
+        .expect("a consistently shared literal-index subloan verifies");
 
     let mut target_multiplicity_drifted = decoded;
     target_multiplicity_drifted.machines[1].structural_parameters[0].multiplicity =
