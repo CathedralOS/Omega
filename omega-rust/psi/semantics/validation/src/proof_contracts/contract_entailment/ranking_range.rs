@@ -3,7 +3,8 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
-    StrictArithmeticSymbolBinding, TypedTrees, inductive_judgment,
+    StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding, TypedTrees,
+    inductive_judgment,
 };
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
@@ -24,9 +25,10 @@ pub use requirements::{
 pub use telescope::{discover_state_entry_mappings, discover_state_entry_mappings_preferring};
 mod identity_views;
 pub use identity_views::{
-    DeclaredIdentityView, MeasureBodyShape, declared_identity_view, find_declared_measure,
-    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
-    unwrap_constraint_shells,
+    ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
+    ScalarViewComputation, computation_body_shape, declared_identity_view, declared_scalar_view,
+    find_declared_measure, identity_subject_matches, measure_body_shape,
+    measure_constraints_cover_subject, unwrap_constraint_shells,
 };
 
 pub(crate) use calls::{
@@ -42,6 +44,17 @@ mod tests;
 #[derive(Clone, Copy)]
 pub enum RankingRangeMeasure {
     Single(ExpressionHandle),
+    /// A declared scalar view's computed rank: `body` with the measure's
+    /// `parameter` bound to `subject` (validation's `declared_scalar_view`
+    /// admits the body). The rank must also form inside `carrier`; the
+    /// judgment proves that upper bound from the same hypotheses that prove
+    /// membership, so an unbounded subject cannot claim `{ value * 2 }`.
+    Computed {
+        subject: ExpressionHandle,
+        parameter: symbols::SymbolHandle,
+        body: ExpressionHandle,
+        carrier: symbols::BuiltinTypeAtom,
+    },
     SliceLength(ExpressionHandle),
     Field {
         subject: ExpressionHandle,
@@ -308,6 +321,7 @@ fn prove_edge(
     admit_template(range.end)?;
     match measure {
         RankingRangeMeasure::Single(subject)
+        | RankingRangeMeasure::Computed { subject, .. }
         | RankingRangeMeasure::SliceLength(subject)
         | RankingRangeMeasure::Field { subject, .. } => {
             admit_template(subject)?;
@@ -487,6 +501,12 @@ fn prove_edge(
     let ceiling = engine.normalize(range.end)?;
     let rank = match measure {
         RankingRangeMeasure::Single(subject) => engine.normalize(subject)?,
+        RankingRangeMeasure::Computed {
+            subject,
+            parameter,
+            body,
+            ..
+        } => computed_rank(&mut engine, subject, parameter, body)?,
         RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
         RankingRangeMeasure::SliceLength(subject) => {
             let parameter = lengths::parameter(program, root, subject)?;
@@ -528,6 +548,12 @@ fn prove_edge(
     // For distance views raw subtraction represents the produced natural rank
     // only on this proved branch. The caller retains the separate clamped
     // interval tier for entries where subject <= limit is not established.
+    // A computed rank is a value of its carrier only while the body forms
+    // there; the same hypotheses that bound the subject must bound the rank.
+    let carrier_maximum = match measure {
+        RankingRangeMeasure::Computed { carrier, .. } => Some(carrier_maximum(carrier)?),
+        _ => None,
+    };
     let entry_membership = {
         let prove = |difference: Polynomial, minimum: i64| {
             engine.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
@@ -535,6 +561,9 @@ fn prove_edge(
         prove(rank.clone(), 0)
             && prove(rank.sub(&floor), 0)
             && prove(ceiling.sub(&rank), i64::from(!range.end_inclusive))
+            && carrier_maximum
+                .as_ref()
+                .is_none_or(|maximum| prove(maximum.sub(&rank), 0))
     };
     let Some(arguments) = arguments else {
         return Some(RankingRangeEdgeProof {
@@ -639,6 +668,7 @@ fn prove_edge(
             Some((bound, next))
         }
         RankingRangeMeasure::Single(_)
+        | RankingRangeMeasure::Computed { .. }
         | RankingRangeMeasure::SliceLength(_)
         | RankingRangeMeasure::Field { .. }
         | RankingRangeMeasure::Distance { .. } => None,
@@ -683,7 +713,10 @@ fn prove_edge(
     let membership_and_pinning = entry_membership
         && prove(next_rank.clone(), 0)
         && prove(next_rank.sub(&floor), 0)
-        && prove(ceiling.sub(&next_rank), i64::from(!range.end_inclusive));
+        && prove(ceiling.sub(&next_rank), i64::from(!range.end_inclusive))
+        && carrier_maximum
+            .as_ref()
+            .is_none_or(|maximum| prove(maximum.sub(&next_rank), 0));
     // This same edge judgment owns strict decrease and natural-rank formation;
     // callers need not fall back to a second syntactic `n > 0` recognizer.
     let strictly_decreases = prove(rank.sub(&next_rank), 1) && prove(next_rank.clone(), 0);
@@ -691,6 +724,37 @@ fn prove_edge(
         membership_and_pinning,
         strictly_decreases,
     })
+}
+
+/// The produced rank of a declared computation view: the measure body with
+/// its parameter bound to the subject's current atom, so destination
+/// substitution of the subject reaches the rank through that binding.
+fn computed_rank(
+    engine: &mut Engine<'_>,
+    subject: ExpressionHandle,
+    parameter: symbols::SymbolHandle,
+    body: ExpressionHandle,
+) -> Option<Polynomial> {
+    if !engine.bind_strict_arguments(&[StrictArithmeticExpressionBinding {
+        symbol: parameter,
+        expression: subject,
+    }]) {
+        return None;
+    }
+    engine.normalize(body)
+}
+
+/// The greatest value of an unsigned carrier, as the formation ceiling of a
+/// computed rank.
+fn carrier_maximum(carrier: symbols::BuiltinTypeAtom) -> Option<Polynomial> {
+    let maximum = match carrier {
+        symbols::BuiltinTypeAtom::U8 => u64::from(u8::MAX),
+        symbols::BuiltinTypeAtom::U16 => u64::from(u16::MAX),
+        symbols::BuiltinTypeAtom::U32 => u64::from(u32::MAX),
+        symbols::BuiltinTypeAtom::U64 => u64::MAX,
+        _ => return None,
+    };
+    Some(Polynomial::constant(BigInt::from_u64(maximum)))
 }
 
 /// Read entry facts in the root template, even when their current aliases

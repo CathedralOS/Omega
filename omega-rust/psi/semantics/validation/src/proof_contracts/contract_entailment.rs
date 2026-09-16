@@ -112,9 +112,10 @@ pub(crate) use proof_integer::{
     validate_proof_fact_integer_casts, validate_proof_integer_casts,
 };
 pub use ranking_range::{
-    DeclaredIdentityView, MeasureBodyShape, declared_identity_view, find_declared_measure,
-    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
-    unwrap_constraint_shells,
+    ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
+    ScalarViewComputation, computation_body_shape, declared_identity_view, declared_scalar_view,
+    find_declared_measure, identity_subject_matches, measure_body_shape,
+    measure_constraints_cover_subject, unwrap_constraint_shells,
 };
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
