@@ -35,7 +35,8 @@ pub use model::{
 
 /// Propose every unique-preheader cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
-/// leaves, invariant place observations, byte observations, and
+/// leaves, invariant place observations, byte observations, pure-callee
+/// scalar-signature calls, and
 /// side-effect-free scalar
 /// computations — including exact, saturating, and
 /// wrapping variants carrying a verifier-discharged obligation, which moves
@@ -57,7 +58,15 @@ pub use model::{
 /// `ByteSequenceSubslice` must also substitute each scalar operand under the
 /// same rule and keep its `length` operand coupled to a `ByteSequenceLength`
 /// measuring the rebound root, and a subslice preserves its structural view
-/// result and bounds obligation byte-exact inside the moved operation.
+/// result and bounds obligation byte-exact inside the moved operation. A
+/// scalar-signature `Call` adds the family's first call relocation: its
+/// callee's transitive effect summary must prove no observable effect, no
+/// crash, and no suspension — the `structural_state` axis is exempt because
+/// a scalar call passes no places — and every node inside the member roster
+/// must be unobservable, so hoisting the call's possible divergence can
+/// never reorder member work anyone could see. Its scalar arguments obey the
+/// same member-parameter substitution a computation obeys; discharged
+/// requirement obligations move byte-exact inside the operation.
 /// Computation
 /// and observation
 /// relocation is non-speculative: every successor of the unique preheader's

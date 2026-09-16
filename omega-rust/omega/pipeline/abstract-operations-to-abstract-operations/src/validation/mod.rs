@@ -1047,11 +1047,13 @@ pub(crate) fn invariant_member_parameters(
 /// `None` when the node is not an admitted computation or one of its uses is
 /// genuinely loop-carried. A use whose definition already sits outside the
 /// member roster needs no rewrite; a use of an invariant member parameter is
-/// rebound to the representative every reaching edge agrees on; and a use
-/// whose member-internal definition is the result of another node in the same
+/// rebound to the representative every reaching edge agrees on; a use whose
+/// member-internal definition is the result of another node in the same
 /// relocation run — `relocating` — stays bound to that value, since the run
 /// preserves the producer's result identity and places it earlier in the
-/// preheader. Any other member-internal definition rejects the relocation.
+/// preheader; and a member parameter every reaching edge binds to such a
+/// run-covered result substitutes to that result directly. Any other
+/// member-internal definition rejects the relocation.
 pub(crate) fn invariant_scalar_operand_substitution(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -1068,8 +1070,12 @@ pub(crate) fn invariant_scalar_operand_substitution(
 /// defined outside the member roster needs no rewrite; a use of an invariant
 /// member parameter is rebound to the representative every reaching edge
 /// agrees on; a use of a member-internal node result stays bound only when
-/// that producer relocates in the same run (`relocating`); every other
-/// member-internal definition refuses. The operation-shape gate stays with
+/// that producer relocates in the same run (`relocating`); and a use of a
+/// member parameter every reaching edge binds to one such run-covered result
+/// is rebound to that result directly — the parameter spells the preserved
+/// producer result on every traversal, so the moved node may name it.
+/// Every other member-internal definition refuses. The operation-shape gate
+/// stays with
 /// the callers — [`invariant_scalar_operand_substitution`] admits the pure
 /// computation whitelist and [`invariant_byte_read_admission`] admits the
 /// byte-read shape — while this walk is deliberately operation-agnostic.
@@ -1094,14 +1100,272 @@ fn member_scalar_operand_substitution(
             continue;
         }
         match site {
-            ValueDefinitionSite::BlockParameter { .. } => {
-                substitution.insert(value_use.value, *representatives.get(&value_use.value)?);
+            ValueDefinitionSite::BlockParameter { block, .. } => {
+                if let Some(representative) = representatives.get(&value_use.value) {
+                    substitution.insert(value_use.value, *representative);
+                } else {
+                    let result = member_parameter_run_result(
+                        function,
+                        &members,
+                        &sites,
+                        value_use.value,
+                        *block,
+                        relocating,
+                    )?;
+                    substitution.insert(value_use.value, result);
+                }
             }
             ValueDefinitionSite::Node { .. } if relocating.contains(&value_use.value) => {}
             _ => return None,
         }
     }
     Some(substitution)
+}
+
+/// The run-covered result a member block parameter may substitute to, or
+/// `None` when the parameter does not spell one. [`invariant_member_parameters`]
+/// deliberately marks a parameter bound to a member-internal node result
+/// loop-carried — its static map cannot know which results the relocation run
+/// preserves — but at the use site the run is known: when every edge reaching
+/// the parameter's block binds it to the same member-internal result whose
+/// producer relocates in the same run, the parameter is that result on every
+/// traversal and the moved node may name it directly. A self-respelling
+/// binding contributes nothing; any other binding — a member parameter, an
+/// outside value, or a member result the run does not cover — refuses.
+fn member_parameter_run_result(
+    function: &PsiOptimizationFunction,
+    members: &BTreeSet<BlockId>,
+    sites: &BTreeMap<ValueId, ValueDefinitionSite>,
+    parameter: ValueId,
+    parameter_block: BlockId,
+    relocating: &BTreeSet<ValueId>,
+) -> Option<ValueId> {
+    let mut result = None;
+    let mut bound = false;
+    for edge in function
+        .blocks
+        .iter()
+        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+        .filter(|edge| edge.target == parameter_block)
+    {
+        let binding = edge
+            .bindings
+            .iter()
+            .find(|binding| binding.parameter == parameter)?;
+        if binding.argument == parameter {
+            continue;
+        }
+        let Some(ValueDefinitionSite::Node { block, .. }) = sites.get(&binding.argument) else {
+            return None;
+        };
+        if !members.contains(block) || !relocating.contains(&binding.argument) {
+            return None;
+        }
+        bound = true;
+        match result {
+            None => result = Some(binding.argument),
+            Some(result) if result == binding.argument => {}
+            Some(_) => return None,
+        }
+    }
+    if bound { result } else { None }
+}
+
+/// Scalar-signature machine calls — `Call` — are the call family admitted for
+/// loop-invariant motion: an exact internal callee invocation whose runtime
+/// arguments are all scalars and whose single result is a scalar. The node
+/// must keep its own operation identity as the first provenance row, define
+/// exactly its spelled `result`/`scalar_type`, use exactly its `arguments` in
+/// operand order, and carry no successors or ownership events. A call
+/// carrying `crash_continuations` retains crash-route custody this family
+/// does not yet re-express, so it stays inside; discharged
+/// `requirement_obligations` instead move byte-exact inside the operation,
+/// exactly like an obligated scalar computation's — they were proven against
+/// the argument values, and operand substitution only rebinds a member
+/// parameter to the representative every reaching edge proves equal. Callee
+/// purity and member observability are decided separately by
+/// [`invariant_scalar_call_admission`].
+pub(crate) fn admissible_invariant_scalar_call(node: &OptimizationNode) -> Option<MachineId> {
+    let O::Call {
+        psi_operation,
+        result,
+        scalar_type,
+        callee,
+        arguments,
+        crash_continuations,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.len() == 1
+        && node.definitions[0].value == *result
+        && node.definitions[0].scalar_type == *scalar_type
+        && node.uses.len() == arguments.len()
+        && node
+            .uses
+            .iter()
+            .zip(arguments.iter())
+            .all(|(value_use, argument)| value_use.value == *argument)
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+        && crash_continuations.is_empty())
+    .then_some(*callee)
+}
+
+/// The complete scalar-call admission shared by the proposal and the
+/// relocation freeze replay: `node` must carry the source-owned call shape
+/// ([`admissible_invariant_scalar_call`]) — which yields the exact internal
+/// callee — the callee's transitive effect summary must prove no observable
+/// effect, no crash, and no suspension, and every node inside the
+/// component's member roster must be unobservable under the same summaries.
+/// The member scan is the divergence half of call custody: a pure callee can
+/// still fail to return, and relocating the call moves its possible
+/// non-return ahead of every member node — member work the source traversal
+/// performed before the call is skipped when the moved call never comes
+/// back. That reorder is invisible only when no member performs observable
+/// work, so the gate refuses the call when any member is observable; a
+/// member call qualifies only under the same pure-callee rule the relocated
+/// call obeys. Each scalar argument then obeys the shared use-site
+/// invariance rule ([`member_scalar_operand_substitution`]): defined outside
+/// the component, an invariant member parameter rebound to its agreed
+/// representative, or the preserved result of a node earlier in the same
+/// relocation run.
+///
+/// The callee's `structural_state` axis is deliberately exempt: a `Call`
+/// passes only scalar arguments and returns only a scalar, so every place
+/// the callee could touch is callee-internal — no caller-visible place
+/// moves. The summary's `May` there only reflects control edges carrying
+/// structural bindings, not reachable caller custody.
+pub(crate) fn invariant_scalar_call_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    effects: &crate::EffectSummaryAnalysis,
+) -> Option<BTreeMap<ValueId, ValueId>> {
+    let callee = admissible_invariant_scalar_call(node)?;
+    if !scalar_call_callee_pure(effects, callee) {
+        return None;
+    }
+    if !component_members_unobservable(function, component, effects) {
+        return None;
+    }
+    member_scalar_operand_substitution(function, component, node, relocating)
+}
+
+/// The effect-summary product computed over `unit`: the whole-unit
+/// transitive per-function effect table call admission consults. The product
+/// is keyed to `unit.identity` at computation, so both the proposal and the
+/// freeze replay derive callee purity and member observability from the seed
+/// rather than trusting any plan. An absent product yields an empty table —
+/// every callee lookup then fails closed.
+pub(crate) fn unit_effect_summaries(unit: &PsiOptimizationUnit) -> crate::EffectSummaryAnalysis {
+    match crate::compute_analysis(unit, optimization_core::AnalysisKind::EffectSummaries) {
+        Some(crate::AnalysisProduct::EffectSummaries(analysis)) => analysis,
+        _ => crate::EffectSummaryAnalysis {
+            nodes: Vec::new(),
+            functions: Vec::new(),
+        },
+    }
+}
+
+/// Whether the transitive effect summary proves `callee` performs no
+/// observable effect, no crash, and no suspension — the call-family purity a
+/// relocated scalar call and a member call partner both need.
+/// `structural_state` is deliberately not consulted: a scalar `Call` passes
+/// no places, so any structural work its callee performs is callee-internal.
+fn scalar_call_callee_pure(effects: &crate::EffectSummaryAnalysis, callee: MachineId) -> bool {
+    effects
+        .functions
+        .iter()
+        .find(|summary| summary.machine == callee)
+        .is_some_and(|summary| {
+            summary.observable == crate::EffectKnowledge::No
+                && summary.crash == crate::EffectKnowledge::No
+                && summary.suspension == crate::EffectKnowledge::No
+        })
+}
+
+/// The statically realized callee a member call node invokes, when its call
+/// family carries one: the direct `callee` of the internal-call variants, or
+/// the sole permitted realization row of a rebound or stored dynamic
+/// dispatch. Descriptor-parameter and dynamic-argument calls have no single
+/// static callee here and stay unresolvable.
+fn member_call_target(operation: &O) -> Option<MachineId> {
+    match operation {
+        O::Call { callee, .. }
+        | O::CallUnit { callee, .. }
+        | O::CallStructuralScalar { callee, .. }
+        | O::CallStructural { callee, .. } => Some(*callee),
+        O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        }
+        | O::CallDynamicUnit {
+            dynamic_dispatch, ..
+        } => Some(dynamic_dispatch.dispatch.realization),
+        O::CallStoredDynamicScalar {
+            dynamic_dispatch, ..
+        } => Some(dynamic_dispatch.dispatch.realization),
+        _ => None,
+    }
+}
+
+/// Whether every node inside `component`'s member roster is unobservable —
+/// the member half of call custody. Non-call members consult their own node
+/// summary's observable axis; member calls must invoke a statically resolved
+/// callee whose transitive summary is pure under the same rule the relocated
+/// call obeys, so a descriptor-parameter or dynamic-argument member call —
+/// no single static callee — refuses. A member node absent from the summary
+/// refuses too: the gate fails closed rather than trusting a drifted table.
+fn component_members_unobservable(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    effects: &crate::EffectSummaryAnalysis,
+) -> bool {
+    for member in &component.members {
+        let Some(block) = function.blocks.iter().find(|block| block.id == *member) else {
+            return false;
+        };
+        for (index, node) in block.nodes.iter().enumerate() {
+            let index = match u32::try_from(index) {
+                Ok(index) => index,
+                Err(_) => return false,
+            };
+            match member_call_target(&node.operation) {
+                Some(callee) => {
+                    if !scalar_call_callee_pure(effects, callee) {
+                        return false;
+                    }
+                }
+                None => {
+                    if matches!(
+                        node.operation,
+                        O::CallUnitWithDynamicArguments { .. }
+                            | O::CallStructuralScalarWithDynamicArguments { .. }
+                            | O::CallDynamicParameterScalar { .. }
+                            | O::CallDynamicParameterUnit { .. }
+                    ) {
+                        return false;
+                    }
+                    let observable = effects
+                        .nodes
+                        .iter()
+                        .find(|summary| {
+                            summary.machine == function.machine
+                                && summary.block == *member
+                                && summary.node == index
+                        })
+                        .map(|summary| summary.observable);
+                    if observable != Some(crate::EffectKnowledge::No) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    true
 }
 
 /// Rewrite the scalar operand fields of an admitted invariant computation.
@@ -1184,6 +1448,16 @@ pub(crate) fn substitute_invariant_scalar_operands(
             substitute(left, substitution);
             substitute(right, substitution);
             substitute(addend, substitution);
+        }
+        // A relocated scalar call rebinds each `arguments` operand through the
+        // same invariant-parameter substitution a pure computation uses. Its
+        // `callee`, `result`, `requirement_obligations`, and
+        // `crash_continuations` are not operand positions — they stay
+        // byte-exact inside the moved operation.
+        O::Call { arguments, .. } => {
+            for argument in arguments {
+                substitute(argument, substitution);
+            }
         }
         _ => {}
     }

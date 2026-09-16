@@ -471,12 +471,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   operand substitutes through the same scalar rule, whose bounds
   obligation stays byte-exact, and whose `length` operand relocates with
   its `ByteSequenceLength` producer measuring the same rebound root in the
-  same run, and `ByteSequenceSubslice` views whose scalar operands rebind
+  same run, `ByteSequenceSubslice` views whose scalar operands rebind
   the same way while the structural result and bounds obligation stay
+  byte-exact inside the moved operation, and scalar-signature `Call`
+  nodes — the boundary's first call relocation — whose callee's
+  transitive effect summary proves no observable effect, crash, or
+  suspension (the `structural_state` axis stays exempt because a scalar
+  call passes no places) while every member node stays unobservable, so
+  hoisting the call's possible non-return reorders nothing anyone could
+  see; a call carrying `crash_continuations` keeps its crash-route
+  custody inside, and discharged `requirement_obligations` move
   byte-exact inside the moved operation. Invariant discovery resolves
   member scalar and structural
   parameters transitively across component-internal edges to the
-  representative every reaching edge agrees on, rebinding moved operands
+  representative every reaching edge agrees on — and a member parameter
+  every reaching edge binds to one run-covered member result substitutes
+  to that preserved result — rebinding moved operands
   and observed roots to the preheader-visible anchor. The insertion
   preheader is the one block every authenticated entry edge departs —
   several entry edges of one dispatching terminator share it, while
@@ -489,10 +499,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   preheader. Structural establishments (`EstablishScalarArray`,
   `EstablishRecord`, `EstablishStructuralValue`) currently have no source
   route into a cyclic member block — scalar-graph arrays only emit as
-  call arguments, cyclic scalar machines cannot contain calls, and a
-  structural `let` inside a Unit state removes the machine's ranked
-  cycle evidence — so the next non-scalar family needs an admitted
-  source shape before admission work can begin.
+  call arguments and a structural `let` inside a Unit state removes the
+  machine's ranked cycle evidence — so the next non-scalar family needs
+  an admitted source shape before admission work can begin.
 
 ## Lowering and instruction selection
 

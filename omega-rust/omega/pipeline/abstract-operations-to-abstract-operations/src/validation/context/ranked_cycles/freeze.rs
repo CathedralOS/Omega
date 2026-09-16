@@ -34,13 +34,10 @@ pub(super) fn validate_frozen_component_blocks(
     // custody are checked separately by the enclosing context validator. The
     // bare seed has not yet acquired that verified metadata.
     for (machine, machine_components) in machines {
-        let expected_function = expected
-            .functions
-            .iter()
-            .find(|function| function.machine == machine)
-            .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
-                machine,
-            ))?;
+        // The whole seed unit goes in: the scalar-call leg of relocation
+        // replay needs the seed's transitive per-function effect table, which
+        // is a unit-level product, while every other family needs only the
+        // one function's seed spelling.
         let current_function = unit
             .functions
             .iter()
@@ -48,12 +45,7 @@ pub(super) fn validate_frozen_component_blocks(
             .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
                 machine,
             ))?;
-        relocated_scalars::validate(
-            machine,
-            expected_function,
-            current_function,
-            &machine_components,
-        )?;
+        relocated_scalars::validate(machine, &expected, current_function, &machine_components)?;
     }
     Ok(())
 }
