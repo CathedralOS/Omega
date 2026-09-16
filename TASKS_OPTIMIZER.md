@@ -807,7 +807,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   exact root-set identity binding, roster and root corruption rejected by
   independent product validation, and a fixed-point leg that feeds the
   published pruned product back through the same plan as a legal second input
-  and observes an empty pruned roster; the phase has no budget axis.
+  and observes an empty pruned roster; the phase has no budget axis. The
+  three named memory-rewrite rules in
+  `selected-instructions-to-selected-instructions` — `dead_store`,
+  `load_forwarding`, and `store_motion` — are now fully covered (375 lib
+  tests pass on Linux x86-64): each carries same-block and cross-block
+  positive, negative, and boundary legs; deterministic repeated runs;
+  same-block and cross-block replay-corruption rejection; exact measured
+  validation-step boundaries that admit at the measured count and reject one
+  step below on both the proposal and independent-replay paths; and
+  fixed-point legs that feed the published validated artifact itself back as
+  the legal second input and observe the terminal rejection on both the
+  transformed instruction and the covering store. The three rules have no
+  disabled-policy axis: they are not `Optimization` selection-vocabulary
+  members, so admission is an explicit per-instruction validated call.
   Remaining: the same matrix for the other phases' exact rules.
 
 - **TARGET-MATRICES.** Complete supported target/OS allocator, encoding,
