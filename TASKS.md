@@ -1213,9 +1213,9 @@ Owners include
   assignment; physical lowering may choose locations but not change semantic
   access. Recursive build-time projection/replay carries record depth as data,
   with a bounded traversal; extend that owner rather than adding depth-specific
-  implementations. Nested sum arrays and target-dependent placement remain
-  fenced until their general rules land. Acceptance includes nested field/index
-  canaries on both Linux ISAs.
+  implementations. Target-dependent placement remains fenced until its general
+  rules land. Acceptance includes nested field/index canaries on both Linux
+  ISAs.
 
   Resume evidence: `8ba0bd1fff` landed the index hop; `40347fde2c`,
   `78685f4bff`, and `955ce0427a` landed the `SymbolicFieldInnerLayout` carrier
@@ -1246,9 +1246,26 @@ Owners include
   `omega/backend/layout/src/sum_materialization/tests/recursive.rs`, the
   extended recursive fixtures in `layout-plans` and `build-time-evaluation`
   tests, and the coexisting `route` field in
-  `recursive_sum_symbolic_materialization_realizes_on_both_linux_isas`. Next
-  acceptance: run the `symbolic_materialization` filter on a Linux aarch64
-  host, then lift nested sum arrays under a general rule.
+  `recursive_sum_symbolic_materialization_realizes_on_both_linux_isas`.
+  `eb82c48603` then lifted nested sum arrays under the same general recursive
+  rule: every record level may co-locate direct sums, direct nonzero literal
+  `[S; N]` sum arrays, and deeper record paths at once
+  (`child_sum_array_layouts` on both `ConventionalRecordSumPathsLayoutReport`
+  and the recursive `Leaf`; `project_record_level_children` in
+  `omega/backend/layout/src/sum_materialization.rs` classifies every level;
+  `ValidatedConstRecordLevelSumChildrenMaterialization` in
+  `const_record_with_nested_sum_materializable/record_level.rs` retains the
+  level's per-index array custody, replay, and fingerprints; the carrier fold
+  joins `SumArray` carriers in the same field-keyed namespace). Coverage:
+  `recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths` and the
+  extended drift fixture in
+  `omega/backend/layout/src/sum_materialization/tests/recursive.rs`,
+  `symbolic_recursive_sum_array_materialization_composes_indexed_boundaries`
+  in `layout-plans`, and
+  `recursive_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
+  in `compiler/tests/layout_plans/writer_lowering.rs` (x86-64 native leg
+  executed). Next acceptance: run the `symbolic_materialization` filter on a
+  Linux aarch64 host, then open target-dependent placement.
 
 ## P3 - Terminal Psi, PCC, and observation
 
