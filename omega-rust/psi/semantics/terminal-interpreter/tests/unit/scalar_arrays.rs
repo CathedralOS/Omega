@@ -11,6 +11,7 @@ use super::{
     encode_proof_section, interpret_terminal_artifact_measured, machine_id, obligation_id,
     operation_id, place_id, structural_type_id, unit_module, value_id, verify_module,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 
 #[path = "scalar_arrays/arguments.rs"]
@@ -159,6 +160,8 @@ fn scalar_arrays_decode_and_return_exact_primitive_and_nested_empty_contents() {
             &proof,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         assert_eq!(measured.value(), expected(values.clone()));
@@ -173,12 +176,19 @@ fn scalar_array_fuel_pauses_before_establishment_and_return_without_replaying() 
         let module = fixture(&[values.len() as u64], byte(0).scalar_type(), &values);
         let semantic = encode_module(&module).unwrap();
         let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
-        let mut execution =
-            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-                .unwrap();
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .unwrap();
         let mut meter = TerminalFuelMeter::with_allowance(values.len() as u64);
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert!(
@@ -189,7 +199,9 @@ fn scalar_array_fuel_pauses_before_establishment_and_return_without_replaying() 
         );
         meter.replenish(1).unwrap();
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(
@@ -202,12 +214,16 @@ fn scalar_array_fuel_pauses_before_establishment_and_return_without_replaying() 
         );
         meter.replenish(1).unwrap();
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(expected(values.clone()))
         );
         assert_eq!(meter.usage().total_units(), values.len() as u64 + 2);
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(expected(values.clone()))
         );
         assert_eq!(meter.usage().total_units(), values.len() as u64 + 2);
@@ -236,6 +252,8 @@ fn scalar_array_operand_order_changes_canonical_identity_and_actual_contents() {
         &encode_proof_section(&changed, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     assert_eq!(measured.value(), expected(vec![byte(9), byte(7)]));
@@ -393,17 +411,26 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
     ]);
     let semantic = encode_module(&module).unwrap();
     let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(7);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(3).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(expected(vec![byte(7), byte(9)]))
     );
     assert_eq!(meter.usage().total_units(), 10);
@@ -464,6 +491,8 @@ fn scalar_array_owned_unit_argument_preserves_caller_contents() {
             &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects
         )
         .unwrap()
         .value(),
@@ -582,6 +611,8 @@ fn scalar_array_internal_returns_preserve_nested_payloads_and_caller_arrays_acro
                 &proof,
                 &AdmissionProfile::default(),
                 &[],
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .unwrap();
             assert_eq!(measured.value(), result);
@@ -590,23 +621,30 @@ fn scalar_array_internal_returns_preserve_nested_payloads_and_caller_arrays_acro
                 &proof,
                 &AdmissionProfile::default(),
                 &[],
+                TerminalStructuralInputs::default(),
             )
             .unwrap();
             let mut meter = TerminalFuelMeter::with_allowance(0);
             for _ in 0..measured.usage().total_units() {
                 assert!(matches!(
-                    execution.resume(&mut meter).unwrap(),
+                    execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap(),
                     TerminalExecutionStatus::SponsorExhausted(_)
                 ));
                 meter.replenish(1).unwrap();
             }
             assert_eq!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::Complete(result.clone())
             );
             assert_eq!(meter.usage(), measured.usage());
             assert_eq!(
-                execution.resume(&mut meter).unwrap(),
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
                 TerminalExecutionStatus::Complete(result)
             );
             assert_eq!(meter.usage(), measured.usage());
@@ -670,6 +708,7 @@ fn scalar_array_internal_returns_reject_forged_result_and_call_evidence() {
                     &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
                     &AdmissionProfile::default(),
                     &[],
+                    TerminalStructuralInputs::default()
                 )
                 .is_err(),
                 "forged internal array artifact {mutation}"
@@ -712,6 +751,8 @@ fn scalar_array_internal_returns_preserve_boolean_and_ieee_payload_bits() {
                 &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
                 &AdmissionProfile::default(),
                 &[],
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects
             )
             .unwrap()
             .value(),
@@ -755,6 +796,8 @@ fn scalar_array_call_results_do_not_erase_callee_requirements() {
             &encode_proof_section(&module, &proof).unwrap(),
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects
         )
         .unwrap()
         .value(),
@@ -766,6 +809,7 @@ fn scalar_array_call_results_do_not_erase_callee_requirements() {
             &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default()
         )
         .is_err()
     );
@@ -834,6 +878,8 @@ fn scalar_array_call_results_keep_payload_through_unit_arguments() {
             &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects
         )
         .unwrap()
         .value(),

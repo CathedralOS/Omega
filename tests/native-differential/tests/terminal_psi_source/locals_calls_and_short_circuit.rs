@@ -373,7 +373,10 @@ fn checked_source_guarded_short_circuit_call_argument_uses_the_staged_value() {
     .expect("start the true staged guarded invocation");
     assert!(matches!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .expect("the staged callee crash should execute"),
         TerminalExecutionStatus::Crashed(terminal_interpreter::TerminalCrash {
             cause: CrashCause::Trap,
@@ -492,7 +495,10 @@ fn checked_source_guarded_call_uses_invocation_specific_crash_terms() {
         .expect("start the proved guarded-crash invocation");
     assert!(matches!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .expect("the callee crash should execute"),
         TerminalExecutionStatus::Crashed(terminal_interpreter::TerminalCrash {
             cause: CrashCause::Trap,
@@ -1132,7 +1138,7 @@ fn checked_source_staged_local_sequences_before_an_explicit_crash() {
         let mut meter = TerminalFuelMeter::unbounded();
         assert!(matches!(
             execution
-                .resume(&mut meter)
+                .resume(&mut meter, &mut AcceptTerminalEffects)
                 .expect("staged-local crash should execute"),
             TerminalExecutionStatus::Crashed(terminal_interpreter::TerminalCrash {
                 cause: CrashCause::Abort,

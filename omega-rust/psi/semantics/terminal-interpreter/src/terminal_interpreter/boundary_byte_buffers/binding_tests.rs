@@ -6,6 +6,7 @@ use super::{
     StructuralRuntimePlace, StructuralTypeShape, TerminalExecution, TerminalStructuralValue,
     resolve_structural_arguments,
 };
+use crate::AcceptTerminalEffects;
 use crate::terminal_interpreter::execution::ExecutableMachine;
 use semantic_vocabulary::BlockId;
 use semantic_vocabulary::EdgeId;
@@ -66,7 +67,9 @@ fn repeated_calls_retain_one_code_graph_and_resume_each_paid_prefix_once() {
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for completed_units in 0..5 {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(meter.usage().total_units(), completed_units);
@@ -83,14 +86,18 @@ fn repeated_calls_retain_one_code_graph_and_resume_each_paid_prefix_once() {
         );
         // Repeating a resume without fuel does not repay or re-enter a call.
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(meter.usage().total_units(), completed_units);
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 5);
@@ -329,7 +336,9 @@ fn mutable_field_forwarding_reads_current_backing_and_survives_nested_return_and
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for _ in 0..3 {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(
@@ -343,7 +352,9 @@ fn mutable_field_forwarding_reads_current_backing_and_survives_nested_return_and
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(
@@ -487,7 +498,9 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
     boundary.commit(&mut execution);
     let mut meter = TerminalFuelMeter::with_allowance(1);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.current_machine, MachineId::new(1).unwrap());
@@ -502,7 +515,9 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
     assert_eq!(rebound.values[0].path, actuals[0].path);
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
 }

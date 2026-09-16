@@ -8,6 +8,8 @@ use super::{
     encode_proof_section, machine_id, operation_id, place_id, structural_scalar_field_call_module,
     structural_type_id, value_id, verify_module,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 #[test]
 fn canonical_indexed_store_rejects_bounds_and_carrier_path_corruption() {
     let field = StructuralPathSegment::Field("item".into());
@@ -61,28 +63,35 @@ fn indexed_stores_survive_callee_return_and_every_fuel_pause() {
         // setter returns. Both elements share a type and field identity, so
         // losing the index would make the first read observe the second store.
         for allowance in 0..=10 {
-            let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            let mut execution = TerminalExecution::start_artifact(
                 &semantic,
                 &proof,
                 &AdmissionProfile::default(),
                 &[],
-                &[TerminalStructuralValue {
-                    opaque_identity: 95,
-                    structural_type: structural_type_id(95),
-                    qualifications: Vec::new(),
-                    path: Vec::new(),
-                }],
+                TerminalStructuralInputs {
+                    arguments: &[TerminalStructuralValue {
+                        opaque_identity: 95,
+                        structural_type: structural_type_id(95),
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    }],
+                    ..Default::default()
+                },
             )
             .expect("execution reconstructs the serialized artifact");
             let mut meter = TerminalFuelMeter::with_allowance(allowance);
-            let status = execution.resume(&mut meter).unwrap();
+            let status = execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap();
             let result = if allowance < 10 {
                 assert!(matches!(
                     status,
                     TerminalExecutionStatus::SponsorExhausted(_)
                 ));
                 meter.replenish(10 - allowance).unwrap();
-                execution.resume(&mut meter).unwrap()
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap()
             } else {
                 status
             };

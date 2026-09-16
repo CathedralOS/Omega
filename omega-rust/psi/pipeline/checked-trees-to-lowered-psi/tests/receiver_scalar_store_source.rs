@@ -5,6 +5,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
@@ -117,7 +119,7 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
     }
     let receiver = &entry.structural_parameters[0];
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &profile,
@@ -125,19 +127,24 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
             scalar_type: integer_type,
             value: IntegerValue::Unsigned(23),
         }],
-        &[TerminalStructuralValue {
-            opaque_identity: 71,
-            structural_type: receiver.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 71,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .unwrap();
     let certificate =
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(certificate.ceiling_units());
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), certificate.ceiling_units());
@@ -293,23 +300,29 @@ fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowe
     // Field backing is private; exact stored operands are checked above.
     // Execution additionally checks primitive reads, calls, and field writes
     // complete under suspension without replaying a committed operation.
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &profile,
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 71,
-            structural_type: receiver.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 71,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut complete = false;
     for _ in 0..32 {
-        match execution.resume(&mut meter).unwrap() {
+        match execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
             TerminalExecutionStatus::Complete(result) => {
                 assert_eq!(result, TerminalExecutionResult::Unit);
                 complete = true;
@@ -534,22 +547,27 @@ fn assert_receiver_store_with_access(
     // This is an opaque interpreter argument, not a native ProgramEntry pointer.
     // Projected field storage is private; completion does not assert a public
     // post-return value observation or native receiver provisioning.
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &profile,
         &scalar_arguments,
-        &[TerminalStructuralValue {
-            opaque_identity: 71,
-            structural_type: receiver.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 71,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("canonical store accepts its supplied interpreter receiver");
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(certificate.ceiling_units());
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), certificate.ceiling_units());

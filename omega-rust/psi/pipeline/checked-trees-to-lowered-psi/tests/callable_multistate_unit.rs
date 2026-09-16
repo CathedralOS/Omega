@@ -3,6 +3,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, TerminalScalarValue,
     interpret_terminal_artifact_measured,
@@ -68,6 +69,8 @@ fn execute(lowered: &lowered_psi::LoweredPsi) -> Vec<u128> {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     assert_eq!(execution.value(), TerminalExecutionResult::Unit);
@@ -130,6 +133,8 @@ fn nested_composed_and_ordinary_calls_share_bodies_and_continue_in_order() {
                 &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
                 &AdmissionProfile::default(),
                 &[TerminalScalarValue::Boolean(enabled)],
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .unwrap();
             assert_eq!(execution.value(), TerminalExecutionResult::Unit);

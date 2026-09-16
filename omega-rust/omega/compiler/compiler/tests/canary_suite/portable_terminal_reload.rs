@@ -84,15 +84,14 @@ fn consume_portable_terminal_product() {
         .expect("consumer independently decodes the complete Psi product");
     drop(artifact);
     let mut authority = RejectUnexpectedEffects;
-    let execution =
-        terminal_interpreter::interpret_serialized_terminal_artifact_with_effect_handler_measured(
-            &bytes,
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            &[],
-            &mut authority,
-        )
-        .expect("second invocation must decode, verify, and interpret standalone Terminal Psi");
+    let execution = terminal_interpreter::interpret_serialized_terminal_artifact_measured(
+        &bytes,
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut authority,
+    )
+    .expect("second invocation must decode, verify, and interpret standalone Terminal Psi");
     assert_eq!(
         execution.value(),
         terminal_interpreter::TerminalExecutionResult::Unit

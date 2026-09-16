@@ -1,5 +1,6 @@
 //! Source-produced bounded byte fields presented to an external boundary.
 use super::{checked_source, lower_machine};
+use terminal_interpreter::TerminalStructuralInputs;
 mod checked_provider;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::{
@@ -32,17 +33,20 @@ fn start(source: &str) -> (terminal_psi::TerminalModule, TerminalExecution) {
         .iter()
         .find(|machine| machine.id == module.entry)
         .unwrap();
-    let execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 73,
-            structural_type: entry.structural_parameters[0].structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 73,
+                structural_type: entry.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .unwrap();
     (module, execution)
@@ -109,21 +113,14 @@ fn boundary_crash_retains_pre_call_buffers_and_skips_later_effects() {
     }
     let mut handler = CrashingInput(0);
     let mut fuel = terminal_fuel::TerminalFuelMeter::unbounded();
-    let status = execution
-        .resume_with_effect_handler(&mut fuel, &mut handler)
-        .unwrap();
+    let status = execution.resume(&mut fuel, &mut handler).unwrap();
     assert!(matches!(&status, TerminalExecutionStatus::Crashed(crash)
         if crash.cause == terminal_psi::CrashCause::Abort));
     assert_stored_fields(&module, &execution, &[b"old", b"QQ"]);
     assert_eq!(handler.0, 1);
     assert_eq!(execution.effects().len(), 1);
     let units = fuel.usage().total_units();
-    assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut fuel, &mut handler)
-            .unwrap(),
-        status
-    );
+    assert_eq!(execution.resume(&mut fuel, &mut handler).unwrap(), status);
     assert_eq!(fuel.usage().total_units(), units);
     assert_eq!(handler.0, 1);
 }
@@ -243,10 +240,7 @@ fn assert_sequential_input(source: &str) {
     let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut complete = false;
     for _ in 0..100 {
-        match execution
-            .resume_with_effect_handler(&mut fuel, &mut input)
-            .unwrap()
-        {
+        match execution.resume(&mut fuel, &mut input).unwrap() {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
                 complete = true;
                 break;
@@ -324,7 +318,7 @@ fn boundary_byte_buffer_failed_responses_do_not_commit_bytes_or_effects() {
     for failure in [Failure::Host, Failure::Result, Failure::Capacity] {
         let (module, mut execution) = start(INPUT_SOURCE);
         let error = execution
-            .resume_with_effect_handler(
+            .resume(
                 &mut terminal_fuel::TerminalFuelMeter::with_allowance(100),
                 &mut Reject(failure),
             )
@@ -362,7 +356,7 @@ fn boundary_byte_buffer_default_handler_and_uninitialized_backing_reject_before_
         let (_, mut execution) = start(&source);
         let mut observer = Observe(0);
         let error = execution
-            .resume_with_effect_handler(
+            .resume(
                 &mut terminal_fuel::TerminalFuelMeter::with_allowance(100),
                 &mut observer,
             )
@@ -429,7 +423,7 @@ fn boundary_byte_buffers_keep_field_destinations_separate() {
     }
     for swap in [false, true] {
         let (module, mut execution) = start(source);
-        let result = execution.resume_with_effect_handler(
+        let result = execution.resume(
             &mut terminal_fuel::TerminalFuelMeter::with_allowance(100),
             &mut Input { swap },
         );

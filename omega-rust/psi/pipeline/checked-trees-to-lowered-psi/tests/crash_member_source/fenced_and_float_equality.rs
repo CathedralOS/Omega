@@ -14,9 +14,10 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
-    TerminalStructuralValue, interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     CrashPredicateTerm, CrashRouteGuard, OperationKind, StructuralFieldType, StructuralPathSegment,
@@ -385,12 +386,15 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("nested payload-record equality remains verified metadata at interpretation");
@@ -1067,12 +1071,15 @@ fn empty_record_equality_reuses_boolean_constants_end_to_end() {
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("constant equality remains verified metadata at interpretation");
@@ -1215,12 +1222,15 @@ fn fixed_index_argument_prefix_is_canonical_and_rebases_member_crash_routes_end_
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
         &mut Accept,
     )
     .expect("fixed-index member contract remains verified metadata at interpretation");

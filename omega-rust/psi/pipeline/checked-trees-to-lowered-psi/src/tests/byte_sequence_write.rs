@@ -4,6 +4,8 @@ use super::{checked_source, lower_machine};
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 pub(super) const PUT: &str = r#"
     machine put(out: &mut [u8], byte: u8) {
@@ -216,31 +218,37 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
             (Vec::<StructuralPathSegment>::new(), field.id)
         });
         assert_ne!(fields[0].1, fields[1].1);
-        let mut execution =
-            terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[],
-                &[terminal_interpreter::TerminalStructuralValue {
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs {
+                arguments: &[terminal_interpreter::TerminalStructuralValue {
                     opaque_identity: 73,
                     structural_type: entry.structural_parameters[0].structural_type,
                     qualifications: Vec::new(),
                     path: Vec::new(),
                 }],
-            )
-            .unwrap();
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
         let mut complete = false;
         for _ in 0..100 {
-            let status = execution.resume(&mut fuel).unwrap();
+            let status = execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap();
             let before = execution
                 .structural_byte_sequence_field(73, &fields[0].0, fields[0].1)
                 .map(<[u8]>::to_vec);
             match status {
                 terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(matches!(
-                        execution.resume(&mut fuel).unwrap(),
+                        execution
+                            .resume(&mut fuel, &mut AcceptTerminalEffects)
+                            .unwrap(),
                         terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
                     ));
                     assert_eq!(

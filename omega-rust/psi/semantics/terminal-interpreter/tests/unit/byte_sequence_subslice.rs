@@ -14,6 +14,7 @@ use super::{
     interpret_terminal_artifact_measured, machine_id, obligation_id, operation_id, place_id,
     structural_type_id, value_id, verify_module,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 fn result(place: u64) -> OperationResult {
     OperationResult::Structural(terminal_psi::StructuralOperationResult {
@@ -310,6 +311,7 @@ fn guarded_subslice_calls_keep_bytes_empty_tails_nested_views_joins_and_fuel() {
                 &proof,
                 &AdmissionProfile::default(),
                 &[],
+                TerminalStructuralInputs::default(),
             )
             .unwrap();
             let mut meter = if incremental {
@@ -319,10 +321,7 @@ fn guarded_subslice_calls_keep_bytes_empty_tails_nested_views_joins_and_fuel() {
             };
             let mut handler = RecordingHandler::default();
             loop {
-                match execution
-                    .resume_with_effect_handler(&mut meter, &mut handler)
-                    .unwrap()
-                {
+                match execution.resume(&mut meter, &mut handler).unwrap() {
                     TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => break,
                     status => panic!("unexpected {status:?}"),
@@ -402,6 +401,8 @@ fn subslice_boundary_receives_only_the_window_and_preserves_caller_continuation(
             &proof,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         let TerminalEffect::BoundaryCall {
@@ -749,8 +750,14 @@ fn subslice_wire_and_certificate_tampering_reject_before_execution() {
         let offset = position + 1 + operand * 8;
         corrupt[offset..offset + 8].copy_from_slice(&999_u64.to_le_bytes());
         assert!(
-            TerminalExecution::start_artifact(&corrupt, &proof, &AdmissionProfile::default(), &[])
-                .is_err()
+            TerminalExecution::start_artifact(
+                &corrupt,
+                &proof,
+                &AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs::default()
+            )
+            .is_err()
         );
     }
     let current = terminal_psi::VocabularyMarker::CURRENT.get();
@@ -758,8 +765,14 @@ fn subslice_wire_and_certificate_tampering_reject_before_execution() {
         let mut stale = bytes.clone();
         stale[10..12].copy_from_slice(&generation.to_le_bytes());
         assert!(
-            TerminalExecution::start_artifact(&stale, &proof, &AdmissionProfile::default(), &[])
-                .is_err()
+            TerminalExecution::start_artifact(
+                &stale,
+                &proof,
+                &AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs::default()
+            )
+            .is_err()
         );
     }
     let mut forged = certificate(&module);
@@ -775,7 +788,8 @@ fn subslice_wire_and_certificate_tampering_reject_before_execution() {
             &bytes,
             &encode_proof_section(&module, &forged).unwrap(),
             &AdmissionProfile::default(),
-            &[]
+            &[],
+            TerminalStructuralInputs::default()
         )
         .is_err()
     );

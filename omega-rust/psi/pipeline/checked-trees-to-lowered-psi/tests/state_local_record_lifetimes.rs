@@ -1,5 +1,7 @@
 //! State-local records remain available to calls, then retire on the selected edge.
 
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalScalarValue,
@@ -238,12 +240,16 @@ fn assert_execution(
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[argument],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(initial_allowance);
         let mut complete = false;
         for _ in 0..256 {
-            match execution.resume(&mut meter).unwrap() {
+            match execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 TerminalExecutionStatus::Complete(result) => {
                     assert_eq!(result, TerminalExecutionResult::Unit);
                     complete = true;
@@ -252,7 +258,9 @@ fn assert_execution(
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     let effects = execution.effects().to_vec();
                     assert!(matches!(
-                        execution.resume(&mut meter).unwrap(),
+                        execution
+                            .resume(&mut meter, &mut AcceptTerminalEffects)
+                            .unwrap(),
                         TerminalExecutionStatus::SponsorExhausted(_)
                     ));
                     assert_eq!(

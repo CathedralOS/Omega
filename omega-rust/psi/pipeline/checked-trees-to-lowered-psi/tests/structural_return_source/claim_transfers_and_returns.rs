@@ -11,6 +11,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
     TerminalScalarValue, TerminalStructuralResult, TerminalStructuralValue,
@@ -128,17 +129,20 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
     ));
 
     let parameter = &machine.structural_parameters[0];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 0x0c01_7e17,
-            structural_type: parameter.structural_type,
-            qualifications: parameter.qualifications.clone(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 0x0c01_7e17,
+                structural_type: parameter.structural_type,
+                qualifications: parameter.qualifications.clone(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("content custody artifact starts");
     let initial_claims = execution.live_claim_frontier().collect::<Vec<_>>();
@@ -146,7 +150,7 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
     let mut meter = TerminalFuelMeter::unbounded();
     let mut rejecting = ResultBoundaryHandler { reject: true };
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut meter, &mut rejecting),
+        execution.resume(&mut meter, &mut rejecting),
         Err(TerminalInterpretError::EffectRejected { .. })
     ));
     assert_eq!(
@@ -158,7 +162,7 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
     let mut accepting = ResultBoundaryHandler { reject: false };
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut meter, &mut accepting)
+            .resume(&mut meter, &mut accepting)
             .expect("accepted content exit resumes"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
@@ -203,24 +207,27 @@ fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
         .expect("content-bearing Unit boundary custody verifies");
 
     let parameter = &machine.structural_parameters[0];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 0x0c01_7017,
-            structural_type: parameter.structural_type,
-            qualifications: parameter.qualifications.clone(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 0x0c01_7017,
+                structural_type: parameter.structural_type,
+                qualifications: parameter.qualifications.clone(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("Unit content custody artifact starts");
     assert_eq!(execution.live_claim_frontier().count(), 1);
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("Unit content exit runs"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -402,17 +409,22 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("indexed custody artifact starts");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     let effects = execution.effects();
@@ -433,23 +445,26 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
         assert_eq!(completion_receipts.len(), 1);
     }
 
-    let mut rejected_execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut rejected_execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 0x51b2,
-            structural_type: parameter.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 0x51b2,
+                structural_type: parameter.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("indexed custody rejection artifact starts");
     let mut rejecting = RejectSecondEffect::default();
     let mut meter = TerminalFuelMeter::unbounded();
     assert!(matches!(
-        rejected_execution.resume_with_effect_handler(&mut meter, &mut rejecting),
+        rejected_execution.resume(&mut meter, &mut rejecting),
         Err(TerminalInterpretError::EffectRejected { operation, .. })
             if operation == second.id
     ));
@@ -553,22 +568,29 @@ fn literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblin
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[argument],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            ..Default::default()
+        },
     )
     .expect("ordinary indexed artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(2);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -578,7 +600,10 @@ fn literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblin
     );
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -660,17 +685,22 @@ fn whole_root_source_passthrough_reaches_verified_and_interpreted_terminal_psi()
         qualifications: result.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("source-produced artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -679,7 +709,9 @@ fn whole_root_source_passthrough_reaches_verified_and_interpreted_terminal_psi()
     );
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             TerminalStructuralResult {
                 value: argument,
@@ -861,17 +893,22 @@ fn structural_return_discards_one_claim_free_affine_parameter_after_materializat
         qualifications: scratch_parameter.qualifications.clone(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[returned.clone(), scratch],
+        TerminalStructuralInputs {
+            arguments: &[returned.clone(), scratch],
+            ..Default::default()
+        },
     )
     .expect("artifact starts with both structural inputs");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -880,7 +917,9 @@ fn structural_return_discards_one_claim_free_affine_parameter_after_materializat
     );
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             TerminalStructuralResult {
                 value: returned,
@@ -963,27 +1002,36 @@ fn structural_return_establishes_and_discards_one_trivial_affine_local() {
     };
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("proof encodes");
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             TerminalStructuralResult {
                 value: argument,
@@ -1074,22 +1122,29 @@ fn structural_return_establishes_multiple_locals_in_declaration_order_and_discar
     };
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("proof encodes");
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
     )
     .expect("artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(2);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             TerminalStructuralResult {
                 value: argument,
@@ -1201,22 +1256,29 @@ fn structural_return_cleans_locals_then_every_affine_tail_parameter_in_reverse_o
         .collect::<Vec<_>>();
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("proof encodes");
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .expect("artifact starts with every structural parameter");
     let mut meter = TerminalFuelMeter::with_allowance(1);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
             TerminalStructuralResult {
                 value: TerminalStructuralValue {

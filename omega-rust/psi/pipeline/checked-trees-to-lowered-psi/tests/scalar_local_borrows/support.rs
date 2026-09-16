@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 use checked_trees::CheckedTrees;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, StructuralPlaceKind};
@@ -212,21 +213,24 @@ pub fn execute(
 
     let mut execution = if is_unit {
         let parameter = &root.structural_parameters[0];
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
+        TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &profile,
             arguments,
-            &[TerminalStructuralValue {
-                opaque_identity: 71,
-                structural_type: parameter.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
-            &[TerminalStructuralPrimitiveValue {
-                argument_index: 0,
-                value: unsigned(201),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 71,
+                    structural_type: parameter.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                primitive_values: &[TerminalStructuralPrimitiveValue {
+                    argument_index: 0,
+                    value: unsigned(201),
+                }],
+                ..Default::default()
+            },
         )
         .unwrap()
     } else {
@@ -235,6 +239,7 @@ pub fn execute(
             artifact.proof_bytes(),
             &profile,
             arguments,
+            TerminalStructuralInputs::default(),
         )
         .expect("reload scalar root without external local backing")
     };
@@ -243,7 +248,7 @@ pub fn execute(
     let mut output_observations = Vec::new();
     for _ in 0..256 {
         let status = execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("resume scalar local execution");
         if is_unit {
             output_observations.push(execution.structural_primitive_values()[0].value);

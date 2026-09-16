@@ -6,6 +6,7 @@ use super::{
     TerminalModule, TerminalScalarValue, TerminalStructuralValue, boundary_borrows, encode_module,
     encode_proof_section, structural_boundary_effect_module, structural_type_id,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalArtifactInterpretError, TerminalStructuralScalarFieldValue};
 
 fn restrict(module: &mut TerminalModule, nested: bool) {
@@ -48,9 +49,14 @@ fn bounded_integer_host_result_rejects_before_handler_or_custody() {
         restrict(&mut module, nested);
         let semantic = encode_module(&module).unwrap();
         let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
-        let mut execution =
-            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-                .unwrap();
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .unwrap();
         let mut handler = BoundaryResultHandler {
             result: Ok(TerminalEffectResult::Structural(TerminalStructuralValue {
                 opaque_identity: 71,
@@ -62,7 +68,7 @@ fn bounded_integer_host_result_rejects_before_handler_or_custody() {
             effects: Vec::new(),
         };
         assert!(matches!(
-            execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut handler),
+            execution.resume(&mut TerminalFuelMeter::unbounded(), &mut handler),
             Err(TerminalInterpretError::VerifiedOperationMalformed)
         ));
         assert_eq!(handler.requests, 0);
@@ -78,17 +84,20 @@ fn bounded_integer_opaque_entry_rejects_even_without_a_field_read() {
         let semantic = encode_module(&module).unwrap();
         let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
         assert!(
-            TerminalExecution::start_artifact_with_structural_arguments(
+            TerminalExecution::start_artifact(
                 &semantic,
                 &proof,
                 &AdmissionProfile::default(),
                 &[],
-                &[TerminalStructuralValue {
-                    opaque_identity: 71,
-                    structural_type: structural_type_id(1),
-                    qualifications: Vec::new(),
-                    path: Vec::new(),
-                }],
+                TerminalStructuralInputs {
+                    arguments: &[TerminalStructuralValue {
+                        opaque_identity: 71,
+                        structural_type: structural_type_id(1),
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    }],
+                    ..Default::default()
+                }
             )
             .is_err()
         );
@@ -159,15 +168,17 @@ fn explicit_bounded_entry_fields_validate_all_contents_before_startup() {
                 "duplicate" => supplied.push(supplied[0].clone()),
                 _ => unreachable!(),
             }
-            let result =
-                TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(
-                    &semantic,
-                    &proof,
-                    &AdmissionProfile::default(),
-                    &[],
-                    &roots,
-                    &supplied,
-                );
+            let result = TerminalExecution::start_artifact(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &roots,
+                    scalar_fields: &supplied,
+                    ..Default::default()
+                },
+            );
             if mutation == "none" {
                 assert!(
                     result.is_ok(),

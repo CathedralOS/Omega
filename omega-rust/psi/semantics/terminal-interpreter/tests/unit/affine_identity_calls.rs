@@ -13,6 +13,8 @@ use super::{
     structural_field_id, structural_type_id, value_id, verify_module,
 };
 use semantic_vocabulary::StructuralPlaceKind;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 
 #[path = "affine_identity_calls/result_uses.rs"]
 mod result_uses;
@@ -189,17 +191,20 @@ fn assert_resumes_without_replay(module: &TerminalModule, chained: bool) {
             }
         })
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &scalar_arguments,
-        &[TerminalStructuralValue {
-            opaque_identity: 0xaff1,
-            structural_type: structural_type_id(1),
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 0xaff1,
+                structural_type: structural_type_id(1),
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("verified affine identity caller starts");
     let mut sites = vec![
@@ -220,8 +225,10 @@ fn assert_resumes_without_replay(module: &TerminalModule, chained: bool) {
     for (units, (site, live_place)) in sites.iter().enumerate() {
         // Repeating a paused resume must neither move custody nor charge again.
         for _ in 0..2 {
-            assert!(matches!(execution.resume(&mut meter).unwrap(),
-                TerminalExecutionStatus::SponsorExhausted(exhaustion) if exhaustion.site == *site));
+            assert!(
+                matches!(execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
+                TerminalExecutionStatus::SponsorExhausted(exhaustion) if exhaustion.site == *site)
+            );
             assert_eq!(meter.usage().total_units(), units as u64);
             assert!(execution.live_claim_frontier().next().is_none());
             assert_eq!(
@@ -235,7 +242,9 @@ fn assert_resumes_without_replay(module: &TerminalModule, chained: bool) {
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.live_affine_frontier().next().is_none());

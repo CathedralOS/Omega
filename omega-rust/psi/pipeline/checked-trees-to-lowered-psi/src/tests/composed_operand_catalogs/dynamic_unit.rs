@@ -3,6 +3,7 @@ use super::{
     CheckedTrees, DYNAMIC_CONTINUATION_SOURCE, LoweredPsi, OperationKind, Terminator,
     checked_source, lower_machine, roundtrip,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
@@ -384,20 +385,22 @@ fn dynamic_boolean_result_executes_only_the_selected_ordinary_unit_leaf() {
                     },
                 })
                 .collect::<Vec<_>>();
-            let mut execution =
-                TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
-                    &semantic,
-                    &evidence,
-                    &proof_admission::AdmissionProfile::default(),
-                    &[],
-                    &[argument],
-                    &fields,
-                )
-                .unwrap();
+            let mut execution = TerminalExecution::start_artifact(
+                &semantic,
+                &evidence,
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &[argument],
+                    boolean_fields: &fields,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             let mut observer = Observe::default();
             assert_eq!(
                 execution
-                    .resume_with_effect_handler(
+                    .resume(
                         &mut terminal_fuel::TerminalFuelMeter::unbounded(),
                         &mut observer
                     )

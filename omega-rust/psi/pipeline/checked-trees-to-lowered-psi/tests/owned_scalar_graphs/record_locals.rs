@@ -3,6 +3,7 @@
 use super::support;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 
 const SOURCE: &str = r#"
@@ -97,6 +98,8 @@ fn record_copies_bind_distinct_homes_before_nested_transition_reads() {
                 &proof,
                 &proof_admission::AdmissionProfile::default(),
                 &[TerminalScalarValue::Boolean(take), integer(input)],
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .unwrap();
             assert_eq!(
@@ -179,6 +182,8 @@ fn record_locals_complete_fields_and_selected_arguments_before_cleanup() {
                 &proof,
                 &proof_admission::AdmissionProfile::default(),
                 &[TerminalScalarValue::Boolean(take), integer(input)],
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .unwrap();
             assert_eq!(
@@ -286,6 +291,8 @@ fn record_locals_preserve_effectful_field_order_and_scalar_returns() {
             &proof,
             &proof_admission::AdmissionProfile::default(),
             &arguments,
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         assert_eq!(
@@ -314,6 +321,8 @@ fn record_local_transition_does_not_execute_the_unselected_argument() {
         &proof,
         &proof_admission::AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(false)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     assert_eq!(
@@ -365,9 +374,22 @@ fn record_locals_separate_owned_parameters_and_retain_the_cycle_boundary() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(&bytes, &proof, &proof_admission::AdmissionProfile::default(), &[integer(17)], &[root], &[]).unwrap();
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &bytes,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+        &[integer(17)],
+        TerminalStructuralInputs {
+            arguments: &[root],
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let result = execution
-        .resume(&mut terminal_fuel::TerminalFuelMeter::unbounded())
+        .resume(
+            &mut terminal_fuel::TerminalFuelMeter::unbounded(),
+            &mut AcceptTerminalEffects,
+        )
         .unwrap();
     assert_eq!(
         result,

@@ -7,6 +7,7 @@
 //! obligations, and generic-to-generic forwarding are witnessed on the
 //! published representation rather than only at check time.
 
+use terminal_interpreter::{TerminalStructuralInputs};
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use semantic_vocabulary::{MachineId, ValueId};
 use std::{
@@ -742,13 +743,16 @@ fn replay(
         })
         .collect();
     let execute = || {
-        TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
+        TerminalExecution::start_artifact(
             &published.semantic,
             &published.proof,
             &proof_admission::AdmissionProfile::default(),
             &[],
-            &structural_arguments,
-            byte_arrays,
+            TerminalStructuralInputs {
+                arguments: &structural_arguments,
+                byte_arrays: byte_arrays,
+                ..Default::default()
+            },
         )
         .expect("published artifact independently verifies and reloads")
     };
@@ -757,9 +761,7 @@ fn replay(
     let mut meter = TerminalFuelMeter::with_allowance(1000);
     let mut handler = Trace::default();
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut handler)
-            .unwrap(),
+        execution.resume(&mut meter, &mut handler).unwrap(),
         complete
     );
     assert_eq!(handler.0, expected, "{context}");
@@ -769,16 +771,12 @@ fn replay(
         let mut meter = TerminalFuelMeter::with_allowance(allowance);
         let mut handler = Trace::default();
         assert!(matches!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut handler)
-                .unwrap(),
+            execution.resume(&mut meter, &mut handler).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         meter.replenish(total - allowance).unwrap();
         assert_eq!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut handler)
-                .unwrap(),
+            execution.resume(&mut meter, &mut handler).unwrap(),
             complete
         );
         assert_eq!(handler.0, expected, "{context} at fuel split {allowance}");

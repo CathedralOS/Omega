@@ -2,6 +2,7 @@ use super::{
     AdmissionProfile, TerminalEffect, TerminalExecutionResult, checked, encode_module,
     encode_proof_section, interpret_terminal_artifact_measured,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{TerminalNaturalRankComparison, TerminalRankedScc};
 
 fn lower_writer() -> lowered_psi::LoweredPsi {
@@ -73,6 +74,8 @@ fn slice_ranked_writer_retains_its_witness_through_serialized_execution() {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("independent replay of the ranked writer");
     assert_eq!(executed.value(), TerminalExecutionResult::Unit);
@@ -281,6 +284,8 @@ fn serialized_ranked_writer_resumes_without_repeating_effects() {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     let mut execution = TerminalExecution::start_artifact(
@@ -288,11 +293,15 @@ fn serialized_ranked_writer_resumes_without_repeating_effects() {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(1);
     for _ in 0..1000 {
-        match execution.resume(&mut meter).unwrap() {
+        match execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
             TerminalExecutionStatus::Complete(_) => {
                 assert_eq!(execution.effects(), expected.effects());
                 return;

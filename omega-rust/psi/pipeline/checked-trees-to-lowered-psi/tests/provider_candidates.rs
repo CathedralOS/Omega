@@ -3,6 +3,8 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalEffect, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralValue, admit_provider_installation_from_artifact,
@@ -358,18 +360,25 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
         qualifications: vec![*qualification],
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_provider_installation(
+    let mut execution = TerminalExecution::start_installed_artifact(
         &semantic,
         &proof,
         &proof_admission::AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&argument),
-        &[],
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
         &installation,
     )
     .expect("structural provider execution starts");
     assert_eq!(
-        execution.resume(&mut TerminalFuelMeter::default()).unwrap(),
+        execution
+            .resume(
+                &mut TerminalFuelMeter::default(),
+                &mut AcceptTerminalEffects
+            )
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(
@@ -443,18 +452,25 @@ fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_cl
             path: Vec::new(),
         },
     ];
-    let mut execution = TerminalExecution::start_artifact_with_provider_installation(
+    let mut execution = TerminalExecution::start_installed_artifact(
         produced.artifact().semantic_bytes(),
         produced.artifact().proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
-        &arguments,
-        &[],
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
         &installation,
     )
     .expect("ProgramStorage provider execution starts");
     assert_eq!(
-        execution.resume(&mut TerminalFuelMeter::default()).unwrap(),
+        execution
+            .resume(
+                &mut TerminalFuelMeter::default(),
+                &mut AcceptTerminalEffects
+            )
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(matches!(execution.effects(), [

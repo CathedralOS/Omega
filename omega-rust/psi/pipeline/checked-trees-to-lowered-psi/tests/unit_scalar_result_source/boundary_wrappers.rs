@@ -1,6 +1,7 @@
 //! Fixtures shared by the boundary wrapper tests: sources, artifacts, the
 //! observing handler and the guarantee sources.
 
+use terminal_interpreter::TerminalStructuralInputs;
 #[path = "boundary_wrappers/ordered_boolean_guarantees.rs"]
 mod ordered_boolean_guarantees;
 #[path = "boundary_wrappers/scalar_guarantees_and_boundary_requirements.rs"]
@@ -116,17 +117,20 @@ fn execute(artifact: &(Vec<u8>, Vec<u8>)) -> (TerminalExecutionStatus, Observe) 
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
-        &parameters,
+        TerminalStructuralInputs {
+            arguments: &parameters,
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut observer = Observe::default();
     let status = execution
-        .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+        .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
         .unwrap();
     (status, observer)
 }

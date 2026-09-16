@@ -1,5 +1,6 @@
 use super::{INTERLEAVED_SOURCE, PARAMETER_SOURCE, PROJECTED_FIELD_SOURCE};
 use crate::{TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned};
+use terminal_interpreter::TerminalStructuralInputs;
 
 #[test]
 fn interleaved_live_owner_preserves_mixed_root_cleanup() {
@@ -380,16 +381,18 @@ fn owned_match_parameter_source_returns_the_exact_selected_identity() {
         )
         .collect::<Vec<_>>();
     for (selected, expected) in [(true, 0_usize), (false, 1)] {
-        let execution =
-            terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
-                &semantic_bytes,
-                &proof_bytes,
-                &crate::AdmissionProfile::default(),
-                &[TerminalScalarValue::Boolean(selected)],
-                &arguments,
-                &mut terminal_interpreter::AcceptTerminalEffects,
-            )
-            .expect("parameter-source execution");
+        let execution = terminal_interpreter::interpret_terminal_artifact_measured(
+            &semantic_bytes,
+            &proof_bytes,
+            &crate::AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(selected)],
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
+            &mut terminal_interpreter::AcceptTerminalEffects,
+        )
+        .expect("parameter-source execution");
         assert_eq!(
             execution.value(),
             TerminalExecutionResult::Structural(terminal_interpreter::TerminalStructuralResult {
@@ -599,16 +602,18 @@ fn projected_parameter_roots_move_the_selected_child_with_exact_identity() {
         )
         .collect::<Vec<_>>();
     for (selected, root, field) in [(true, 0_usize, "first"), (false, 1, "second")] {
-        let execution =
-            terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
-                &semantic_bytes,
-                &proof_bytes,
-                &crate::AdmissionProfile::default(),
-                &[TerminalScalarValue::Boolean(selected)],
-                &arguments,
-                &mut terminal_interpreter::AcceptTerminalEffects,
-            )
-            .expect("projected parameter execution");
+        let execution = terminal_interpreter::interpret_terminal_artifact_measured(
+            &semantic_bytes,
+            &proof_bytes,
+            &crate::AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(selected)],
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
+            &mut terminal_interpreter::AcceptTerminalEffects,
+        )
+        .expect("projected parameter execution");
         assert_eq!(
             execution.value(),
             TerminalExecutionResult::Structural(terminal_interpreter::TerminalStructuralResult {

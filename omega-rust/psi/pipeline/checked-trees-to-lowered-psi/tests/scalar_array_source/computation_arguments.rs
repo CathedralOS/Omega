@@ -4,6 +4,7 @@ use super::{
     AdmissionProfile, ExpressionHandle, ExpressionNode, IntegerSign, IntegerType, IntegerValue,
     TerminalExecutionResult, TerminalScalarValue, checked_source, reject,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 #[path = "operation_body_callees.rs"]
 mod operation_body_callees;
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
@@ -38,23 +39,38 @@ fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecution
     drop(lowered);
     drop(checked);
     let profile = AdmissionProfile::default();
-    let measured = interpret_terminal_artifact_measured(&semantic, &proof, &profile, arguments)
-        .unwrap_or_else(|error| {
-            panic!("decoded computation arrays must execute: {error:?}\n{source}")
-        });
+    let measured = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &profile,
+        arguments,
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .unwrap_or_else(|error| panic!("decoded computation arrays must execute: {error:?}\n{source}"));
     let expected = measured.value();
-    let mut execution = TerminalExecution::start_artifact(&semantic, &proof, &profile, arguments)
-        .expect("start independently decoded computation arrays");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &profile,
+        arguments,
+        TerminalStructuralInputs::default(),
+    )
+    .expect("start independently decoded computation arrays");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for _ in 0..measured.usage().total_units() {
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(expected.clone()),
         "one-unit resumption must retain selected computation array results: {source}",
     );

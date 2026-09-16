@@ -12,6 +12,7 @@ use super::{
     partial_affine_field_module, place_id, structural_domain_id, structural_type_id, verify_module,
 };
 use semantic_vocabulary::StructuralPlaceKind;
+use terminal_interpreter::TerminalStructuralInputs;
 
 #[path = "result_residuals/installed_provider.rs"]
 mod installed_provider;
@@ -256,12 +257,15 @@ fn start(module: &TerminalModule, ordinary: bool) -> TerminalExecution {
     } else {
         Vec::new()
     };
-    TerminalExecution::start_artifact_with_structural_arguments(
+    TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &arguments,
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            ..Default::default()
+        },
     )
     .unwrap()
 }
@@ -295,10 +299,7 @@ fn result_residuals_preserve_maximal_subtrees_and_charge_cleanup_only_at_return(
                 let mut complete = false;
                 let mut paused_at_return = false;
                 for _ in 0..64 {
-                    match execution
-                        .resume_with_effect_handler(&mut meter, &mut provider)
-                        .unwrap()
-                    {
+                    match execution.resume(&mut meter, &mut provider).unwrap() {
                         TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
                             assert!(incremental);
                             if exhaustion.site == FuelChargeSite::Edge(edge_id(1)) {
@@ -367,14 +368,12 @@ fn fully_transferred_result_uses_the_existing_empty_unit_return() {
         let mut provider = ProducePair::default();
         let mut meter = TerminalFuelMeter::with_allowance(if ordinary { 6 } else { 5 });
         assert!(
-            matches!(execution.resume_with_effect_handler(&mut meter, &mut provider).unwrap(), TerminalExecutionStatus::SponsorExhausted(exhaustion) if exhaustion.site == FuelChargeSite::Edge(edge_id(1)))
+            matches!(execution.resume(&mut meter, &mut provider).unwrap(), TerminalExecutionStatus::SponsorExhausted(exhaustion) if exhaustion.site == FuelChargeSite::Edge(edge_id(1)))
         );
         assert!(execution.live_affine_frontier().next().is_none());
         meter.replenish(1).unwrap();
         assert_eq!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut provider)
-                .unwrap(),
+            execution.resume(&mut meter, &mut provider).unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert_eq!(provider.calls, usize::from(!ordinary));
@@ -409,9 +408,7 @@ fn result_partial_move_crash_has_no_residual_cleanup_successor() {
         let mut execution = start(&module, ordinary);
         let mut provider = ProducePair::default();
         let mut meter = TerminalFuelMeter::unbounded();
-        let status = execution
-            .resume_with_effect_handler(&mut meter, &mut provider)
-            .unwrap();
+        let status = execution.resume(&mut meter, &mut provider).unwrap();
         assert!(
             matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == CrashCause::Abort)
         );
@@ -424,12 +421,7 @@ fn result_partial_move_crash_has_no_residual_cleanup_successor() {
         );
         let effects = execution.effects().to_vec();
         let usage = meter.usage().clone();
-        assert_eq!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut provider)
-                .unwrap(),
-            status
-        );
+        assert_eq!(execution.resume(&mut meter, &mut provider).unwrap(), status);
         assert_eq!(execution.effects(), effects);
         assert_eq!(meter.usage(), &usage);
         assert_eq!(provider.calls, usize::from(!ordinary));

@@ -5,6 +5,8 @@ use checked_trees::{
     CheckedTrees,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -403,29 +405,33 @@ fn execute(
         })
         .collect::<Vec<_>>();
     assert_eq!(stamp_calls.len(), expected.stamp_calls);
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &profile,
-            arguments,
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        arguments,
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 71,
                 structural_type: parameter.structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-            &[TerminalStructuralPrimitiveValue {
+            primitive_values: &[TerminalStructuralPrimitiveValue {
                 argument_index: 0,
                 value: unsigned(201),
             }],
-        )
-        .unwrap();
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut observations = Vec::new();
     let mut completed = false;
     for _ in 0..128 {
-        let status = execution.resume(&mut meter).unwrap();
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         let referents = execution.structural_primitive_values();
         assert_eq!(referents.len(), 1);
         assert_eq!(referents[0].argument_index, 0);

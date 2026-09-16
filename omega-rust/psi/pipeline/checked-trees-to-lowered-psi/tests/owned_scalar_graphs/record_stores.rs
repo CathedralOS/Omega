@@ -2,6 +2,7 @@
 
 use super::support;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
@@ -65,6 +66,8 @@ machine changed(input: u64, take: bool) -> u64 {
                 &proof,
                 &proof_admission::AdmissionProfile::default(),
                 &[integer(input), TerminalScalarValue::Boolean(take)],
+                TerminalStructuralInputs::default(),
+                &mut AcceptTerminalEffects,
             )
             .unwrap();
             assert_eq!(
@@ -90,12 +93,16 @@ fn local_stores_preserve_record_copies_and_captured_scalar_values() {
                     &proof,
                     &proof_admission::AdmissionProfile::default(),
                     &[integer(input), TerminalScalarValue::Boolean(take)],
+                    TerminalStructuralInputs::default(),
                 )
                 .unwrap();
                 let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
                 let mut completed = false;
                 for _ in 0..256 {
-                    match execution.resume(&mut meter).unwrap() {
+                    match execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap()
+                    {
                         TerminalExecutionStatus::Complete(result) => {
                             assert_eq!(result, TerminalExecutionResult::Scalar(integer(expected)));
                             completed = true;

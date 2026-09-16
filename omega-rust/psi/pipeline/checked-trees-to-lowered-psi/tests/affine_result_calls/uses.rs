@@ -4,6 +4,8 @@ use super::{
     TerminalFuelMeter, TerminalStructuralValue, Terminator, checked, decode_module,
     decode_proof_bundle, encode_module, encode_proof_section, lower_machine, typed,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 const RESULT_USE: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
     machine Main::consume(value: Value) {}
@@ -85,22 +87,27 @@ fn assert_result_use(source: &str, name: &str) {
         lowered.source_call_occurrences[1].source_state,
         lowered.source_call_occurrences[0].source_state
     );
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 0xcafe,
-            structural_type: caller.structural_parameters[0].structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 0xcafe,
+                structural_type: caller.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for _ in 0..5 {
-        let paused = execution.resume(&mut meter).unwrap();
+        let paused = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         assert!(matches!(
             paused,
             TerminalExecutionStatus::SponsorExhausted(_)
@@ -110,7 +117,12 @@ fn assert_result_use(source: &str, name: &str) {
             .cloned()
             .collect::<Vec<_>>();
         let units = meter.usage().total_units();
-        assert_eq!(execution.resume(&mut meter).unwrap(), paused);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            paused
+        );
         assert_eq!(meter.usage().total_units(), units);
         assert_eq!(
             execution
@@ -122,7 +134,9 @@ fn assert_result_use(source: &str, name: &str) {
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 5);

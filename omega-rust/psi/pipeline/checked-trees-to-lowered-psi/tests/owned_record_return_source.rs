@@ -2,6 +2,8 @@
 
 use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -83,14 +85,24 @@ fn owned_record_calls_compose_without_ambiguous_body_catalogs() {
                     qualifications: Vec::new(),
                     path: Vec::new(),
                 };
-                let mut execution = TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-                    artifact.semantic_bytes(), artifact.proof_bytes(), &proof_admission::AdmissionProfile::default(),
-                    &[unsigned(41)], std::slice::from_ref(&input), &[],
-                ).unwrap();
+                let mut execution = TerminalExecution::start_artifact(
+                    artifact.semantic_bytes(),
+                    artifact.proof_bytes(),
+                    &proof_admission::AdmissionProfile::default(),
+                    &[unsigned(41)],
+                    TerminalStructuralInputs {
+                        arguments: std::slice::from_ref(&input),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
                 let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
                 let mut completed = false;
                 for _ in 0..64 {
-                    match execution.resume(&mut fuel).unwrap() {
+                    match execution
+                        .resume(&mut fuel, &mut AcceptTerminalEffects)
+                        .unwrap()
+                    {
                         TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
                         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
                             result,
@@ -300,23 +312,28 @@ fn effectful_discarded_call_writes_before_return_across_fuel() {
             .collect();
         assert_eq!(arguments.len(), 2);
         for allowance in 0..8 {
-            let mut execution =
-                TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-                    artifact.semantic_bytes(),
-                    artifact.proof_bytes(),
-                    &proof_admission::AdmissionProfile::default(),
-                    &[unsigned(41)],
-                    &arguments,
-                    &[TerminalStructuralPrimitiveValue {
+            let mut execution = TerminalExecution::start_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[unsigned(41)],
+                TerminalStructuralInputs {
+                    arguments: &arguments,
+                    primitive_values: &[TerminalStructuralPrimitiveValue {
                         argument_index: 0,
                         value: unsigned(9),
                     }],
-                )
-                .unwrap();
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(allowance);
             let mut completed = false;
             for _ in 0..64 {
-                match execution.resume(&mut fuel).unwrap() {
+                match execution
+                    .resume(&mut fuel, &mut AcceptTerminalEffects)
+                    .unwrap()
+                {
                     TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
                         result,
@@ -494,17 +511,21 @@ fn owned_array_call_results_return_without_fabricated_claims() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
-        std::slice::from_ref(&input),
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&input),
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(64);
-    let TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(result)) =
-        execution.resume(&mut fuel).unwrap()
+    let TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(result)) = execution
+        .resume(&mut fuel, &mut AcceptTerminalEffects)
+        .unwrap()
     else {
         panic!("whole owned array call chain completes");
     };

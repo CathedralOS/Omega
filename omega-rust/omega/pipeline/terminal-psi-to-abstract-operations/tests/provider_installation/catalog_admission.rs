@@ -9,6 +9,8 @@ use terminal_codec::{
     encode_proof_section, encode_terminal_obligation_ledger, semantic_fingerprint,
 };
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
@@ -284,18 +286,22 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
     assert_eq!(installed_call.psi_operation(), operation_id(1));
     assert_eq!(installed_call.boundary(), boundary_id(1));
     assert_eq!(installed_call.provider(), &plan.provider_candidates[1]);
-    let mut execution = TerminalExecution::start_artifact_with_provider_installation(
+    let mut execution = TerminalExecution::start_installed_artifact(
         &semantic,
         &proof,
         &profile,
         &[],
-        &[],
-        &[],
+        TerminalStructuralInputs::default(),
         installation.psi_installation(),
     )
     .expect("selected installation starts");
     assert_eq!(
-        execution.resume(&mut TerminalFuelMeter::default()).unwrap(),
+        execution
+            .resume(
+                &mut TerminalFuelMeter::default(),
+                &mut AcceptTerminalEffects
+            )
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(matches!(
@@ -303,11 +309,17 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
         [TerminalEffect::PortWrite { value: 66, .. }]
     ));
 
-    let mut uninstalled = TerminalExecution::start_artifact(&semantic, &proof, &profile, &[])
-        .expect("artifact starts without an installation");
+    let mut uninstalled = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &profile,
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("artifact starts without an installation");
     let mut handler = CountingEffects::default();
     assert!(matches!(
-        uninstalled.resume_with_effect_handler(&mut TerminalFuelMeter::default(), &mut handler),
+        uninstalled.resume(&mut TerminalFuelMeter::default(), &mut handler),
         Err(TerminalInterpretError::ProviderInstallationMissing(boundary))
             if boundary == boundary_id(1)
     ));
@@ -419,14 +431,13 @@ fn provider_catalog_identity_and_admission_fail_closed_on_tamper_or_reorder() {
     *value = 67;
     let (other_semantic, other_proof) = artifact(&other);
     assert!(matches!(
-        TerminalExecution::start_artifact_with_provider_installation(
+        TerminalExecution::start_installed_artifact(
             &other_semantic,
             &other_proof,
             &profile,
             &[],
-            &[],
-            &[],
-            installation.psi_installation(),
+            TerminalStructuralInputs::default(),
+            installation.psi_installation()
         ),
         Err(
             terminal_interpreter::TerminalArtifactInterpretError::Execution(

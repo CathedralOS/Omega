@@ -6,10 +6,11 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
-    interpret_terminal_artifact, interpret_terminal_artifact_with_effect_handler_measured,
+    interpret_terminal_artifact, interpret_terminal_artifact_measured,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -288,12 +289,12 @@ fn unit_callers_deliver_initial_mutable_boundary_values_and_updated_scalar_resul
         );
         let artifact = encoded(&source);
         let mut observer = ObserveArguments::default();
-        let result = interpret_terminal_artifact_with_effect_handler_measured(
+        let result = interpret_terminal_artifact_measured(
             &artifact.0,
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
-            &[],
+            TerminalStructuralInputs::default(),
             &mut observer,
         )
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
@@ -322,12 +323,12 @@ fn mutable_middle_argument_does_not_reorder_crashing_siblings() {
         );
         let artifact = encoded(&source);
         let mut observer = ObserveArguments::default();
-        let result = interpret_terminal_artifact_with_effect_handler_measured(
+        let result = interpret_terminal_artifact_measured(
             &artifact.0,
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
-            &[],
+            TerminalStructuralInputs::default(),
             &mut observer,
         );
         assert!(

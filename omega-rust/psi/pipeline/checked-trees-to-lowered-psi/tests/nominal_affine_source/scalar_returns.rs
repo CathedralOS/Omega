@@ -5,11 +5,10 @@ use super::{
     TerminalMachineResult, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
     TerminalStructuralValue, Terminator, decode_module, decode_proof_bundle,
     derive_fixed_entry_fuel, encode_module, encode_proof_section,
-    interpret_terminal_artifact_with_effect_handler_measured,
-    interpret_terminal_artifact_with_structural_boolean_fields_measured,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-    validate_fixed_entry_fuel,
+    interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
+    parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 const SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -781,12 +780,15 @@ fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_clean
         path: Vec::new(),
     });
     let mut handler = AcceptTerminalEffects;
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("mixed contextual scalar bindings interpret from canonical artifacts");
@@ -922,12 +924,15 @@ fn mixed_contextual_scalar_return_preserves_interleaved_primitive_inputs() {
         path: Vec::new(),
     });
     let mut handler = AcceptTerminalEffects;
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let measured = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &scalar_arguments,
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect("mixed contextual scalar inputs interpret from canonical artifacts");
@@ -1091,12 +1096,15 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
         ),
     ] {
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
             &scalar_arguments,
-            &structural_arguments,
+            TerminalStructuralInputs {
+                arguments: &structural_arguments,
+                ..Default::default()
+            },
             &mut handler,
         )
         .expect("mixed nominal short-circuit path interprets from canonical artifacts");
@@ -1186,7 +1194,7 @@ fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
     });
     for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
@@ -1194,7 +1202,10 @@ fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
                 TerminalScalarValue::Boolean(left),
                 TerminalScalarValue::Boolean(right),
             ],
-            &structural_arguments,
+            TerminalStructuralInputs {
+                arguments: &structural_arguments,
+                ..Default::default()
+            },
             &mut handler,
         )
         .expect("nested nominal short-circuit path interprets");
@@ -1329,13 +1340,15 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         path: Vec::new(),
     });
     let mut handler = AcceptTerminalEffects;
-    let missing = interpret_terminal_artifact_with_structural_boolean_fields_measured(
+    let missing = interpret_terminal_artifact_measured(
         &semantics,
         &proof,
         &AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(true)],
-        &structural_arguments,
-        &[],
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut handler,
     )
     .expect_err("every retained structural field input must be supplied before execution");
@@ -1347,18 +1360,21 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
     ));
     for (left, ready_value) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_structural_boolean_fields_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(left)],
-            &structural_arguments,
-            &[TerminalStructuralBooleanFieldValue {
-                argument_index: 0,
-                path: Vec::new(),
-                field: ready.id,
-                value: ready_value,
-            }],
+            TerminalStructuralInputs {
+                arguments: &structural_arguments,
+                boolean_fields: &[TerminalStructuralBooleanFieldValue {
+                    argument_index: 0,
+                    path: Vec::new(),
+                    field: ready.id,
+                    value: ready_value,
+                }],
+                ..Default::default()
+            },
             &mut handler,
         )
         .expect("shared nominal Boolean convergence interprets");

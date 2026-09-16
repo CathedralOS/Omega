@@ -5,6 +5,7 @@ use super::{
 };
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::TerminalScalarValue;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 const PREFIX: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
@@ -69,6 +70,8 @@ fn effects(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, i128)> {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("independent scalar graph execution");
     assert_eq!(execution.value(), TerminalExecutionResult::Unit);

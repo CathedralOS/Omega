@@ -9,6 +9,8 @@ use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
 use semantic_vocabulary::IntegerValue;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::{
     Block, OperationKind, StructuralPathSegment, SuccessorEdge, Terminator, ValueDeclaration,
 };
@@ -41,20 +43,22 @@ fn replaced_byte_field_length_reaches_canonical_interpretation() {
         .iter()
         .find(|machine| machine.id == module.entry)
         .unwrap();
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            &[terminal_interpreter::TerminalStructuralValue {
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
                 opaque_identity: 73,
                 structural_type: entry.structural_parameters[0].structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-        )
-        .unwrap();
+            ..Default::default()
+        },
+    )
+    .unwrap();
     #[derive(Default)]
     struct LengthTrace(Vec<u128>);
     impl terminal_interpreter::TerminalEffectHandler for LengthTrace {
@@ -81,9 +85,7 @@ fn replaced_byte_field_length_reaches_canonical_interpretation() {
     }
     let mut trace = LengthTrace::default();
     let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(100);
-    let result = execution
-        .resume_with_effect_handler(&mut fuel, &mut trace)
-        .unwrap();
+    let result = execution.resume(&mut fuel, &mut trace).unwrap();
     assert_eq!(
         result,
         terminal_interpreter::TerminalExecutionStatus::Complete(
@@ -203,24 +205,29 @@ fn bounded_byte_field_literal_replacement_publishes_terminal() {
         else {
             panic!("source replacement retains its byte-field store");
         };
-        let mut execution =
-            terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[],
-                &[terminal_interpreter::TerminalStructuralValue {
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs {
+                arguments: &[terminal_interpreter::TerminalStructuralValue {
                     opaque_identity: 73,
                     structural_type: entry.structural_parameters[0].structural_type,
                     qualifications: Vec::new(),
                     path: Vec::new(),
                 }],
-            )
-            .unwrap();
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
         let mut completed = false;
         for _ in 0..20 {
-            match execution.resume(&mut fuel).unwrap() {
+            match execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
                 terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => {
                     fuel.replenish(1).unwrap()
                 }
@@ -338,25 +345,29 @@ fn byte_replacements_preserve_sibling_and_call_order_at_each_fuel_pause() {
     assert_ne!(field, destination_field);
     assert!(sibling_path.is_empty());
     assert!(destination_path.is_empty());
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            &[terminal_interpreter::TerminalStructuralValue {
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
                 opaque_identity: 91,
                 structural_type: entry.structural_parameters[0].structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-        )
-        .unwrap();
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut snapshots = Vec::new();
     let mut completed = false;
     for _ in 0..100 {
-        let status = execution.resume(&mut fuel).unwrap();
+        let status = execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .unwrap();
         let snapshot = (
             execution
                 .structural_byte_sequence_field(91, sibling_path, *field)
@@ -372,7 +383,9 @@ fn byte_replacements_preserve_sibling_and_call_order_at_each_fuel_pause() {
             terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => {
                 // A second attempt with unchanged allowance must commit nothing.
                 assert!(matches!(
-                    execution.resume(&mut fuel).unwrap(),
+                    execution
+                        .resume(&mut fuel, &mut AcceptTerminalEffects)
+                        .unwrap(),
                     terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
                 ));
                 assert_eq!(
@@ -460,23 +473,27 @@ fn nested_record_byte_field_store_retains_its_exact_carrier_path() {
         panic!("byte store");
     };
     assert!(matches!(path.as_slice(), [StructuralPathSegment::Field(_)]));
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            &[terminal_interpreter::TerminalStructuralValue {
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
                 opaque_identity: 101,
                 structural_type: entry.structural_parameters[0].structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-        )
-        .unwrap();
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(20);
     assert!(matches!(
-        execution.resume(&mut fuel).unwrap(),
+        execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .unwrap(),
         terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Unit
         )
@@ -577,25 +594,29 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .unwrap();
-    let mut execution =
-        terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
-            &semantic,
-            &proof,
-            &proof_admission::AdmissionProfile::default(),
-            &[terminal_interpreter::TerminalScalarValue::Boolean(true)],
-            &[terminal_interpreter::TerminalStructuralValue {
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+        &[terminal_interpreter::TerminalScalarValue::Boolean(true)],
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
                 opaque_identity: 97,
                 structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-        )
-        .unwrap();
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut observed_write = false;
     for allowance in 0..40 {
         assert!(matches!(
-            execution.resume(&mut fuel).unwrap(),
+            execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap(),
             terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(fuel.usage().total_units(), allowance);
@@ -607,7 +628,9 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
             assert_eq!(bytes, Some(b"XXX".as_slice()));
         }
         assert!(matches!(
-            execution.resume(&mut fuel).unwrap(),
+            execution
+                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                .unwrap(),
             terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(fuel.usage().total_units(), allowance);

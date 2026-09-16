@@ -9,6 +9,7 @@ use semantic_vocabulary::{IntegerValue, OperationId, ValueId};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
@@ -61,17 +62,20 @@ fn runtime_unit_proof_output_links_and_executes_its_ordinary_call() {
             .ceiling_units()
             > 0
     );
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &bytes,
         &proof,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("runtime Unit proof-output artifact starts");
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .expect("execute runtime Unit proof output"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -954,17 +958,20 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
         "erased static proof rows add no runtime fuel"
     );
 
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("static i32 artifact starts");
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .expect("execute static i32 requirement call"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Integer {
@@ -1262,17 +1269,20 @@ fn static_requirement_bool_result_uses_one_ordinary_scalar_call_without_runtime_
             .expect("baseline bool call has fixed fuel")
             .ceiling_units()
     );
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic_bytes,
         &proof_bytes,
         &AdmissionProfile::default(),
         &[],
-        &[],
+        TerminalStructuralInputs::default(),
     )
     .expect("static bool artifact starts");
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .expect("execute static bool requirement call"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)

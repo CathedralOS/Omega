@@ -48,11 +48,8 @@ pub use effects::{
 };
 pub use entry::{
     TerminalStructuralInputs, admit_provider_installation_from_artifact,
-    interpret_serialized_terminal_artifact_with_effect_handler_measured,
-    interpret_terminal_artifact, interpret_terminal_artifact_measured,
-    interpret_terminal_artifact_with_effect_handler_measured,
-    interpret_terminal_artifact_with_structural_boolean_fields_measured,
-    interpret_terminal_artifact_with_structural_primitive_values_measured,
+    interpret_serialized_terminal_artifact_measured, interpret_terminal_artifact,
+    interpret_terminal_artifact_measured,
 };
 pub use errors::{
     ProviderInstallationError, TerminalArtifactInterpretError, TerminalInterpretError,

@@ -6,6 +6,7 @@ use super::{
     value_id,
 };
 use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, ScalarQualificationSetId};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{ScalarDomainDeclaration, ScalarQualificationCoercion, ScalarQualificationSet};
 
 fn value(raw: u64, qualified: bool) -> ValueDeclaration {
@@ -90,6 +91,8 @@ fn canonical_scalar_qualification_transports_payload_without_an_operation() {
             &proof,
             &AdmissionProfile::default(),
             &[argument],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         assert_eq!(execution.value(), TerminalExecutionResult::Scalar(argument));
@@ -114,6 +117,8 @@ fn canonical_qualified_root_parameters_require_host_membership_evidence() {
             &proof,
             &AdmissionProfile::default(),
             &[argument],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects
         ),
         Err(
             terminal_interpreter::TerminalArtifactInterpretError::Execution(

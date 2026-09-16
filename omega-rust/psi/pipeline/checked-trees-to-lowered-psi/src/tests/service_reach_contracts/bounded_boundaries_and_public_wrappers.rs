@@ -9,6 +9,7 @@ use crate::unit::attached_unit::{
     lower_published_service_ceiling, lower_root_service_reach,
 };
 use language_semantics::{ServiceReachInterface, ServiceReachPlan};
+use terminal_interpreter::TerminalStructuralInputs;
 
 #[test]
 fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
@@ -135,16 +136,15 @@ fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
                 Ok(())
             }
         }
-        let execution =
-            terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[],
-                &[],
-                &mut Host,
-            )
-            .expect("interpret source-free top-level boundary helpers");
+        let execution = terminal_interpreter::interpret_terminal_artifact_measured(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+            &mut Host,
+        )
+        .expect("interpret source-free top-level boundary helpers");
         assert_eq!(
             execution.value(),
             terminal_interpreter::TerminalExecutionResult::Unit
@@ -234,16 +234,15 @@ fn bounded_boundary_helpers_replay_fixed_parent_and_invocation_reach() {
                 Ok(())
             }
         }
-        let execution =
-            terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[],
-                &[],
-                &mut Host,
-            )
-            .expect("interpret decoded helpers with receiving host authority");
+        let execution = terminal_interpreter::interpret_terminal_artifact_measured(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+            &mut Host,
+        )
+        .expect("interpret decoded helpers with receiving host authority");
         assert_eq!(
             execution.value(),
             terminal_interpreter::TerminalExecutionResult::Unit

@@ -4,6 +4,8 @@
 //! the module fixtures; this file keeps the handlers, structural helpers and
 //! identity helpers.
 
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 #[path = "unit/affine_cleanups.rs"]
 mod affine_cleanups;
 #[path = "unit/affine_identity_calls.rs"]
@@ -135,20 +137,24 @@ fn assert_write_only_store_atomic(
         argument_index: 0,
         value: written_value,
     };
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-            &[],
-            &[structural],
-            &[initial],
-        )
-        .expect("verified Boolean store starts");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[structural],
+            primitive_values: &[initial],
+            ..Default::default()
+        },
+    )
+    .expect("verified Boolean store starts");
     let mut meter = TerminalFuelMeter::with_allowance(2);
 
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Operation(operation_id(93)),
@@ -161,7 +167,9 @@ fn assert_write_only_store_atomic(
 
     meter.replenish(3).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(execution.structural_primitive_values(), vec![written]);

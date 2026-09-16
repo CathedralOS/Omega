@@ -2,6 +2,7 @@
 //! profile, with or without an effect handler, structural inputs and a fuel
 //! measure, and admitting a provider installation from an artifact.
 
+use crate::TerminalStructuralByteArrayValue;
 use crate::TerminalStructuralCaseValue;
 use crate::TerminalStructuralScalarFieldValue;
 use crate::terminal_interpreter::{
@@ -16,154 +17,63 @@ use terminal_fuel::{FuelMeterError, TerminalFuelMeter};
 
 /// Exact initialized contents supplied by the embedding host for structural
 /// entry arguments. All paths remain rooted in the original referents.
+/// Every structural input one artifact execution starts with. The default is
+/// no structural input at all; each field is bound only when it is given.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TerminalStructuralInputs<'input> {
     pub arguments: &'input [TerminalStructuralValue],
     pub scalar_fields: &'input [TerminalStructuralScalarFieldValue],
+    /// Boolean fields are bound as scalar fields; a rejected boolean field is
+    /// reported as a boolean-field argument error.
+    pub boolean_fields: &'input [TerminalStructuralBooleanFieldValue],
     pub primitive_values: &'input [TerminalStructuralPrimitiveValue],
     pub cases: &'input [TerminalStructuralCaseValue],
-}
-
-/// Decode, verify, and execute the canonical semantic and proof sections of one
-/// terminal-Psi artifact. This is the reference-interpreter trust boundary for
-/// executable artifact content: no source, checked tree, producer-owned module,
-/// or prevalidated Rust object crosses it. Installation and debug sections are
-/// separately bound by the artifact manifest and do not affect interpretation.
-pub fn interpret_terminal_artifact_measured(
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
-    arguments: &[TerminalScalarValue],
-) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let mut handler = AcceptTerminalEffects;
-    interpret_terminal_artifact_with_effect_handler_measured(
-        semantic_bytes,
-        proof_bytes,
-        profile,
-        arguments,
-        &[],
-        &mut handler,
-    )
+    pub byte_arrays: &'input [TerminalStructuralByteArrayValue],
 }
 
 /// Decode one complete portable Terminal-Psi envelope, independently verify
 /// its semantic and proof sections, and execute it with a fresh effect-policy
 /// input supplied by the receiver. The envelope contains no checked-tree or
 /// build-process object.
-pub fn interpret_serialized_terminal_artifact_with_effect_handler_measured(
+pub fn interpret_serialized_terminal_artifact_measured(
     artifact_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
     scalar_arguments: &[TerminalScalarValue],
-    structural_arguments: &[TerminalStructuralValue],
+    structural_inputs: TerminalStructuralInputs<'_>,
     handler: &mut impl TerminalEffectHandler,
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
         .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
-    interpret_terminal_artifact_with_effect_handler_measured(
+    interpret_terminal_artifact_measured(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         profile,
         scalar_arguments,
-        structural_arguments,
+        structural_inputs,
         handler,
     )
 }
 
-/// Execute one verified artifact with opaque structural runtime arguments and
-/// an injected deterministic effect handler. The interpreter records every
-/// accepted effect in semantic execution order; the handler cannot inspect or
-/// mutate fuel, values, claims, or control state.
-pub fn interpret_terminal_artifact_with_effect_handler_measured(
+/// Decode, verify and run one artifact to completion under `handler`,
+/// measuring its fuel; every structural input arrives in one record.
+pub fn interpret_terminal_artifact_measured(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
     scalar_arguments: &[TerminalScalarValue],
-    structural_arguments: &[TerminalStructuralValue],
+    structural_inputs: TerminalStructuralInputs<'_>,
     handler: &mut impl TerminalEffectHandler,
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    interpret_terminal_artifact_with_structural_boolean_fields_measured(
+    let mut execution = TerminalExecution::start_artifact(
         semantic_bytes,
         proof_bytes,
         profile,
         scalar_arguments,
-        structural_arguments,
-        &[],
-        handler,
-    )
-}
-
-/// Execute with exact target-neutral values for direct Boolean fields of
-/// structural entry arguments. Field IDs are terminal semantic identities;
-/// this input never exposes or assumes native layout.
-pub fn interpret_terminal_artifact_with_structural_boolean_fields_measured(
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
-    scalar_arguments: &[TerminalScalarValue],
-    structural_arguments: &[TerminalStructuralValue],
-    structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
-    handler: &mut impl TerminalEffectHandler,
-) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    interpret_terminal_artifact_with_structural_runtime_values_measured(
-        semantic_bytes,
-        proof_bytes,
-        profile,
-        scalar_arguments,
-        structural_arguments,
-        structural_boolean_fields,
-        &[],
-        handler,
-    )
-}
-
-/// Execute with exact initial values for direct primitive structural roots.
-/// The returned measurement retains their final values after all internal
-/// calls have completed. This is target-neutral logical storage, not a native
-/// address or layout contract.
-pub fn interpret_terminal_artifact_with_structural_primitive_values_measured(
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
-    scalar_arguments: &[TerminalScalarValue],
-    structural_arguments: &[TerminalStructuralValue],
-    structural_primitive_values: &[TerminalStructuralPrimitiveValue],
-    handler: &mut impl TerminalEffectHandler,
-) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    interpret_terminal_artifact_with_structural_runtime_values_measured(
-        semantic_bytes,
-        proof_bytes,
-        profile,
-        scalar_arguments,
-        structural_arguments,
-        &[],
-        structural_primitive_values,
-        handler,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn interpret_terminal_artifact_with_structural_runtime_values_measured(
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
-    scalar_arguments: &[TerminalScalarValue],
-    structural_arguments: &[TerminalStructuralValue],
-    structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
-    structural_primitive_values: &[TerminalStructuralPrimitiveValue],
-    handler: &mut impl TerminalEffectHandler,
-) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let mut execution = TerminalExecution::start_artifact_with_structural_runtime_values(
-        semantic_bytes,
-        proof_bytes,
-        profile,
-        scalar_arguments,
-        structural_arguments,
-        structural_boolean_fields,
-        structural_primitive_values,
+        structural_inputs,
     )?;
     let mut meter = TerminalFuelMeter::unbounded();
     let value = match execution
-        .resume_with_effect_handler(&mut meter, handler)
+        .resume(&mut meter, handler)
         .map_err(TerminalArtifactInterpretError::Execution)?
     {
         TerminalExecutionStatus::Complete(value) => value,
@@ -195,8 +105,15 @@ pub fn interpret_terminal_artifact(
     profile: &proof_admission::AdmissionProfile,
     arguments: &[TerminalScalarValue],
 ) -> Result<TerminalExecutionResult, TerminalArtifactInterpretError> {
-    interpret_terminal_artifact_measured(semantic_bytes, proof_bytes, profile, arguments)
-        .map(MeasuredTerminalExecution::into_value)
+    interpret_terminal_artifact_measured(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        arguments,
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .map(MeasuredTerminalExecution::into_value)
 }
 
 /// Decode and verify an artifact, then admit only selections that exactly name

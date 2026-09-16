@@ -170,21 +170,20 @@ fn owned_match_membership_subject_executes_the_selected_arm() {
                 case: membership_case(module, "Choice", "Empty"),
             },
         ];
-        let mut execution =
-            terminal_interpreter::TerminalExecution::start_artifact_with_structural_inputs(
-                &semantic_bytes,
-                &proof_bytes,
-                &crate::AdmissionProfile::default(),
-                &[],
-                terminal_interpreter::TerminalStructuralInputs {
-                    arguments: &arguments,
-                    cases: &cases,
-                    ..Default::default()
-                },
-            )
-            .expect("membership subject execution starts");
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            &semantic_bytes,
+            &proof_bytes,
+            &crate::AdmissionProfile::default(),
+            &[],
+            terminal_interpreter::TerminalStructuralInputs {
+                arguments: &arguments,
+                cases: &cases,
+                ..Default::default()
+            },
+        )
+        .expect("membership subject execution starts");
         let status = execution
-            .resume_with_effect_handler(
+            .resume(
                 &mut terminal_fuel::TerminalFuelMeter::unbounded(),
                 &mut terminal_interpreter::AcceptTerminalEffects,
             )

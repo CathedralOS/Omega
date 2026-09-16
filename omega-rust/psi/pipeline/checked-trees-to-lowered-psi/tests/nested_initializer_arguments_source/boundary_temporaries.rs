@@ -7,6 +7,7 @@ use super::{
 };
 use std::collections::BTreeSet;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};
 
@@ -20,8 +21,14 @@ fn observed_source(completion: &str) -> String {
 }
 
 fn start(artifact: &(Vec<u8>, Vec<u8>)) -> TerminalExecution {
-    TerminalExecution::start_artifact(&artifact.0, &artifact.1, &AdmissionProfile::default(), &[])
-        .unwrap()
+    TerminalExecution::start_artifact(
+        &artifact.0,
+        &artifact.1,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap()
 }
 
 fn assert_completion(
@@ -50,10 +57,7 @@ fn assert_completion(
         };
         let mut complete = false;
         for _ in 0..2048 {
-            match execution
-                .resume_with_effect_handler(&mut fuel, &mut observer)
-                .unwrap()
-            {
+            match execution.resume(&mut fuel, &mut observer).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(incremental);
                     fuel.replenish(1).unwrap();
@@ -278,7 +282,7 @@ fn refused_temporary_production_retries_without_replaying_paid_scalar_operands()
     };
     let mut fuel = TerminalFuelMeter::unbounded();
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut fuel, &mut observer),
+        execution.resume(&mut fuel, &mut observer),
         Err(TerminalInterpretError::EffectRejected { .. })
     ));
     assert_eq!(observer.observer.produced, [700, 701]);
@@ -294,9 +298,7 @@ fn refused_temporary_production_retries_without_replaying_paid_scalar_operands()
     let paid = execution.effects().to_vec();
     observer.refuse = false;
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap(),
+        execution.resume(&mut fuel, &mut observer).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert!(execution.effects().starts_with(&paid));
@@ -340,9 +342,8 @@ fn crash_after_boundary_temporary_preserves_production_without_cleanup() {
     let mut fuel = TerminalFuelMeter::with_allowance(0);
     let mut reached = false;
     for _ in 0..1024 {
-        let TerminalExecutionStatus::SponsorExhausted(exhaustion) = execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap()
+        let TerminalExecutionStatus::SponsorExhausted(exhaustion) =
+            execution.resume(&mut fuel, &mut observer).unwrap()
         else {
             panic!("pause before crashing argument")
         };
@@ -358,9 +359,7 @@ fn crash_after_boundary_temporary_preserves_production_without_cleanup() {
     assert!(observer.consumed.is_empty());
     let effects = execution.effects().to_vec();
     fuel.replenish(2048).unwrap();
-    let status = execution
-        .resume_with_effect_handler(&mut fuel, &mut observer)
-        .unwrap();
+    let status = execution.resume(&mut fuel, &mut observer).unwrap();
     assert!(
         matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == terminal_psi::CrashCause::Abort)
     );
@@ -376,12 +375,7 @@ fn crash_after_boundary_temporary_preserves_production_without_cleanup() {
             }
         }
     }
-    assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap(),
-        status
-    );
+    assert_eq!(execution.resume(&mut fuel, &mut observer).unwrap(), status);
     assert_eq!(execution.effects(), effects);
 }
 

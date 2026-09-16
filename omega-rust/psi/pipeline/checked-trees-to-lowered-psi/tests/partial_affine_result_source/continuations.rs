@@ -5,6 +5,7 @@ use super::{
     TerminalFuelMeter, TerminalStructuralValue, Terminator, anonymous_source, checked,
     decode_module, decode_proof_bundle, encode_module, encode_proof_section, path,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 pub(super) fn assert_source(
     source: &str,
     boundary: bool,
@@ -120,12 +121,15 @@ fn assert_source_with_scalars(
         .collect::<Vec<_>>();
     let mut reference = None;
     for incremental in [false, true] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             scalar_arguments,
-            &arguments,
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
         )
         .unwrap();
         let mut factory = Factory::default();
@@ -138,10 +142,7 @@ fn assert_source_with_scalars(
         let mut after = before.clone();
         let mut complete = false;
         for _ in 0..256 {
-            match execution
-                .resume_with_effect_handler(&mut meter, &mut factory)
-                .unwrap()
-            {
+            match execution.resume(&mut meter, &mut factory).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
                     assert!(incremental);
                     for (ordinal, (edge, place, residuals, next_site)) in

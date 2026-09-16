@@ -113,14 +113,4 @@ impl MeasuredTerminalExecution {
     pub fn into_parts(self) -> (TerminalExecutionResult, TerminalFuelUsage) {
         (self.value, self.usage)
     }
-
-    pub fn into_parts_with_effects(
-        self,
-    ) -> (
-        TerminalExecutionResult,
-        TerminalFuelUsage,
-        Vec<TerminalEffect>,
-    ) {
-        (self.value, self.usage, self.effects)
-    }
 }

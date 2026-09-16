@@ -1,6 +1,7 @@
 //! Fixtures shared by the boundary argument tests: checked sources,
 //! artifacts, wrapper sources and the observing handlers.
 
+use terminal_interpreter::TerminalStructuralInputs;
 #[path = "boundary_arguments/anonymous_fields.rs"]
 mod anonymous_fields;
 #[path = "boundary_arguments/constructed_wrappers_and_qualifications.rs"]
@@ -77,17 +78,20 @@ fn start_with_scalars(
     let [parameter] = root.structural_parameters.as_slice() else {
         panic!("one owned receipt");
     };
-    TerminalExecution::start_artifact_with_structural_arguments(
+    TerminalExecution::start_artifact(
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
         scalars,
-        &[TerminalStructuralValue {
-            opaque_identity: 700,
-            structural_type: parameter.structural_type,
-            qualifications: parameter.qualifications.clone(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 700,
+                structural_type: parameter.structural_type,
+                qualifications: parameter.qualifications.clone(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .unwrap()
 }
@@ -228,6 +232,7 @@ fn assert_constructed_wrapper_execution(source: &str) {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     assert!(execution.live_affine_frontier().next().is_none());
@@ -239,9 +244,7 @@ fn assert_constructed_wrapper_execution(source: &str) {
     let mut meter = TerminalFuelMeter::with_allowance(0);
     let mut reached_call = false;
     for _ in 0..128 {
-        let status = execution
-            .resume_with_effect_handler(&mut meter, &mut observer)
-            .unwrap();
+        let status = execution.resume(&mut meter, &mut observer).unwrap();
         let TerminalExecutionStatus::SponsorExhausted(exhaustion) = status else {
             panic!("expected exact-fuel pause: {status:?}");
         };
@@ -257,7 +260,7 @@ fn assert_constructed_wrapper_execution(source: &str) {
     assert!(reached_call, "local establishes before its consuming call");
     assert!(observer.calls.is_empty());
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer),
+        execution.resume(&mut TerminalFuelMeter::unbounded(), &mut observer),
         Err(TerminalInterpretError::EffectRejected { .. })
     ));
     assert!(execution.effects().is_empty());
@@ -265,7 +268,7 @@ fn assert_constructed_wrapper_execution(source: &str) {
     observer.reject = false;
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -562,9 +565,7 @@ fn pause_before_crashing_helper(
     }).unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for _ in 0..256 {
-        let status = execution
-            .resume_with_effect_handler(&mut meter, observer)
-            .unwrap();
+        let status = execution.resume(&mut meter, observer).unwrap();
         let TerminalExecutionStatus::SponsorExhausted(exhaustion) = status else {
             panic!("expected to pause before helper call, got {status:?}");
         };
@@ -658,7 +659,7 @@ fn assert_unsettled_helper_crash(
     assert!(execution.effects().is_empty());
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), observer)
             .unwrap(),
         status,
         "a crash has no cleanup or later boundary successor"

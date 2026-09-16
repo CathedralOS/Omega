@@ -12,6 +12,7 @@ use super::{
     machine_id, obligation_id, operation_id, payloadless_call_module, place_id, structural_case_id,
     structural_type_id, value_id, verify_module,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn count_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
 }
@@ -92,6 +93,8 @@ fn scalar_case_constructor_mixed_call_requires_exact_positional_proof() {
         &encode_proof_section(&module, &bundle).unwrap(),
         &AdmissionProfile::default(),
         &[count(17), count(83)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     assert_eq!(measured.value(), TerminalExecutionResult::Scalar(count(17)));
@@ -351,16 +354,21 @@ fn scalar_case_constructor_returns_runtime_fields_through_call_and_reordered_ins
         &proof,
         &AdmissionProfile::default(),
         &[count(17), count(83)],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(2);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     meter.replenish(10).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(count(17)))
     );
     assert_eq!(
@@ -514,6 +522,8 @@ fn scalar_case_constructor_checks_exact_range_before_any_result_facts() {
         &encode_proof_section(&module, &bundle).unwrap(),
         &AdmissionProfile::default(),
         &[count(17), count(83)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     let TerminalExecutionResult::ScalarCase(returned) = measured.value() else {
@@ -626,6 +636,8 @@ fn scalar_case_constructor_result_disposes_on_ordinary_returns_and_edges() {
             &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
             &AdmissionProfile::default(),
             &[count(17), count(83)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap();
         assert_eq!(
@@ -755,6 +767,8 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
         &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
         &AdmissionProfile::default(),
         &[count(3), count(83)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .unwrap();
     let TerminalExecutionResult::ScalarCase(returned) = measured.value() else {

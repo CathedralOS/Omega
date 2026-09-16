@@ -1,6 +1,8 @@
 //! Readable primitive inputs initialize distinct locals and immutable snapshots.
 
 use semantic_vocabulary::{IeeeFloatValue, IntegerSign, IntegerValue};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -201,21 +203,25 @@ fn execute_with_access(
             value: *value,
         })
         .collect::<Vec<_>>();
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[replacement],
-            &parameters,
-            &primitive_values,
-        )
-        .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[replacement],
+        TerminalStructuralInputs {
+            arguments: &parameters,
+            primitive_values: &primitive_values,
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut observations = Vec::new();
     let mut complete = false;
     for _ in 0..64 {
-        let status = execution.resume(&mut meter).unwrap();
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         let values = execution.structural_primitive_values();
         assert_eq!(
             values[1].value, initial,

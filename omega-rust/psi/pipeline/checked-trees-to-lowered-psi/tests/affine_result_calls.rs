@@ -4,6 +4,8 @@ use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralValue,
@@ -121,23 +123,28 @@ fn assert_call_execution(source: &str, name: &str, scalar_arguments: &[TerminalS
     assert!(receipt.source_site.is_some());
     assert_eq!(receipt.statement_index, 0);
     assert_eq!(receipt.call_ordinal, 0);
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         scalar_arguments,
-        &[TerminalStructuralValue {
-            opaque_identity: 0xaff1,
-            structural_type: caller.structural_parameters[0].structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 0xaff1,
+                structural_type: caller.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("verified caller starts");
     let mut meter = TerminalFuelMeter::with_allowance(0);
     let mut completed = false;
     for _ in 0..32 {
-        let status = execution.resume(&mut meter).unwrap();
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         match status {
             TerminalExecutionStatus::SponsorExhausted(_) => {
                 let frontier = execution
@@ -145,7 +152,12 @@ fn assert_call_execution(source: &str, name: &str, scalar_arguments: &[TerminalS
                     .cloned()
                     .collect::<Vec<_>>();
                 let units = meter.usage().total_units();
-                assert_eq!(execution.resume(&mut meter).unwrap(), status);
+                assert_eq!(
+                    execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap(),
+                    status
+                );
                 assert_eq!(meter.usage().total_units(), units);
                 assert_eq!(
                     execution

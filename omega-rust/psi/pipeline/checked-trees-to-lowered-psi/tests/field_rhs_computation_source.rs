@@ -4,6 +4,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
@@ -144,27 +145,27 @@ fn execute(
             },
         )
         .collect();
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &profile,
-            arguments,
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        arguments,
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 71,
                 structural_type: receiver.structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-            &boolean_fields,
-        )
-        .unwrap();
+            boolean_fields: &boolean_fields,
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut trace = FieldTrace::default();
     let status = loop {
-        let status = execution
-            .resume_with_effect_handler(&mut meter, &mut trace)
-            .unwrap();
+        let status = execution.resume(&mut meter, &mut trace).unwrap();
         if !matches!(status, TerminalExecutionStatus::SponsorExhausted(_)) {
             break status;
         }
@@ -176,9 +177,7 @@ fn execute(
         let usage = meter.usage().clone();
         for _ in 0..2 {
             assert!(matches!(
-                execution
-                    .resume_with_effect_handler(&mut meter, &mut trace)
-                    .unwrap(),
+                execution.resume(&mut meter, &mut trace).unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
             ));
             assert_eq!(trace.0, prefix);

@@ -1,4 +1,5 @@
 use super::super::super::{TerminalScalarValue, TerminalStructuralByteArrayValue};
+use crate::AcceptTerminalEffects;
 
 use super::{
     BTreeMap, BindingRelevance, MachineId, OperationId, OperationKind, StructuralAccess,
@@ -175,7 +176,9 @@ fn array_view_forwarding_keeps_raw_backing_and_rejects_resize_and_aliases() {
         .operations = vec![operation];
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -184,7 +187,9 @@ fn array_view_forwarding_keeps_raw_backing_and_rejects_resize_and_aliases() {
     );
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(
@@ -193,7 +198,10 @@ fn array_view_forwarding_keeps_raw_backing_and_rejects_resize_and_aliases() {
     );
     assert_eq!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded())
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );

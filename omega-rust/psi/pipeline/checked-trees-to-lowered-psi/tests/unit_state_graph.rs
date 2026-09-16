@@ -3,6 +3,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, interpret_terminal_artifact_measured,
 };
@@ -75,6 +76,8 @@ fn free_unit_graph_preserves_view_scalar_edges_effect_order_and_continuation() {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("source-independent graph execution");
     assert_eq!(result.value(), TerminalExecutionResult::Unit);

@@ -3,6 +3,7 @@
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
@@ -375,11 +376,12 @@ fn execute(
         &evidence,
         &proof_admission::AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(selected)],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = Observe::default();
     let status = execution
-        .resume_with_effect_handler(
+        .resume(
             &mut terminal_fuel::TerminalFuelMeter::unbounded(),
             &mut observer,
         )

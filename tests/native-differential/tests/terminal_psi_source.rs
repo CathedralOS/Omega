@@ -286,6 +286,8 @@ fn interpret_verified_artifact(
         &proof_bytes,
         &AdmissionProfile::default(),
         arguments,
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
 }
 
@@ -314,6 +316,7 @@ fn start_verified_artifact(
         &proof_bytes,
         &AdmissionProfile::default(),
         arguments,
+        TerminalStructuralInputs::default(),
     )
 }
 

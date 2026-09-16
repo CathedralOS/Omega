@@ -4,6 +4,7 @@ use super::{
 };
 use semantic_vocabulary::{BlockId, IntegerValue, StructuralPlaceKind, StructuralTypeId};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus, TerminalScalarValue};
 use terminal_psi::{
     Block, ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument,
@@ -189,6 +190,8 @@ fn direct_conditional_join_selects_two_views_and_independent_scalar_permutations
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("serialized source module and proof execute");
     assert_eq!(execution.value(), TerminalExecutionResult::Unit);
@@ -245,19 +248,35 @@ fn one_unit_resume_preserves_selected_views_and_emits_each_call_once() {
         .expect("serialized acyclic bindings verify under ordinary execution");
     let certificate = terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, decoded_module.entry)
         .expect("acyclic structural transfers retain the existing logical fuel schedule");
-    let unlimited = interpret_terminal_artifact_measured(&semantic, &proof, &profile, &[]).unwrap();
+    let unlimited = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &profile,
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .unwrap();
     assert!(unlimited.usage().total_units() <= certificate.ceiling_units());
     assert_eq!(
         unlimited.usage().total_units(),
         certificate.ceiling_units(),
         "both direct arms enter the same body and attain the maximal route bound"
     );
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &profile, &[]).unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &profile,
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(1);
     let mut completed = false;
     for _ in 0..=unlimited.usage().total_units() {
-        let status = execution.resume(&mut meter).unwrap();
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         assert!(
             unlimited.effects().starts_with(execution.effects()),
             "every pause preserves the exact effect prefix"
@@ -284,7 +303,9 @@ fn one_unit_resume_preserves_selected_views_and_emits_each_call_once() {
     assert_eq!(meter.usage().total_units(), unlimited.usage().total_units());
     assert_eq!(meter.usage().total_units(), certificate.ceiling_units());
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(
@@ -623,11 +644,14 @@ fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
         &encode_proof_section(&changed, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(100);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     let prefix = execution.effects().to_vec();
@@ -638,7 +662,9 @@ fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
     );
     meter.replenish(100).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.effects(), prefix);

@@ -1,5 +1,6 @@
 //! Fixtures shared by the crash member source tests.
 
+use terminal_interpreter::TerminalStructuralInputs;
 #[path = "crash_member_source/aggregate_equality.rs"]
 mod aggregate_equality;
 #[path = "crash_member_source/bounded_inputs.rs"]
@@ -24,7 +25,7 @@ use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_p
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
-    TerminalStructuralValue, interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{CrashRouteGuard, OperationKind, StructuralFieldType, StructuralTypeShape};
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -2085,12 +2086,15 @@ fn assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
                 path: Vec::new(),
             })
             .collect::<Vec<_>>();
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        let measured = interpret_terminal_artifact_measured(
             &semantics,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &arguments,
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
             &mut Accept,
         )
         .expect("verified nested mixed equality remains executable metadata");

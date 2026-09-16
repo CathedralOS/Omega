@@ -9,6 +9,7 @@ use super::{
     encode_proof_section, field, machine_id, operation_id, place_id, produced_partial_module,
     start, structural_type_id, verify_module,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     ProviderInstallationSelection, admit_provider_installation_from_artifact,
 };
@@ -120,13 +121,15 @@ fn installed_start_with_arguments(
     let installation =
         admit_provider_installation_from_artifact(&semantic, &proof, &profile, &[selection()])
             .expect("verified structural-result provider installation");
-    TerminalExecution::start_artifact_with_provider_installation(
+    TerminalExecution::start_installed_artifact(
         &semantic,
         &proof,
         &profile,
         &[],
-        structural_arguments,
-        &[],
+        TerminalStructuralInputs {
+            arguments: structural_arguments,
+            ..Default::default()
+        },
         &installation,
     )
     .unwrap()
@@ -180,10 +183,7 @@ fn installed_structural_provider_preserves_result_residuals_across_fuel_suspensi
                 let mut before_return = false;
                 let mut after_return = false;
                 for _ in 0..32 {
-                    match execution
-                        .resume_with_effect_handler(&mut meter, &mut host)
-                        .unwrap()
-                    {
+                    match execution.resume(&mut meter, &mut host).unwrap() {
                         TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
                             assert!(incremental);
                             if exhaustion.site == FuelChargeSite::Edge(edge_id(3)) {
@@ -330,10 +330,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
         };
         let mut host = ObserveLeaf::default();
         loop {
-            match execution
-                .resume_with_effect_handler(&mut meter, &mut host)
-                .unwrap()
-            {
+            match execution.resume(&mut meter, &mut host).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(incremental);
                     meter.replenish(1).unwrap();
@@ -367,7 +364,7 @@ fn installed_structural_provider_rejects_missing_foreign_or_drifted_custody() {
             .unwrap();
     let mut missing = start(&module, true);
     assert!(matches!(
-        missing.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut ProducePair::default()),
+        missing.resume(&mut TerminalFuelMeter::unbounded(), &mut ProducePair::default()),
         Err(TerminalInterpretError::ProviderInstallationMissing(boundary)) if boundary == boundary_id(1)
     ));
     assert_eq!(
@@ -391,14 +388,16 @@ fn installed_structural_provider_rejects_missing_foreign_or_drifted_custody() {
     let foreign_semantic = encode_module(&foreign).unwrap();
     let foreign_proof = encode_proof_section(&foreign, &ProofBundle::default()).unwrap();
     assert!(matches!(
-        TerminalExecution::start_artifact_with_provider_installation(
+        TerminalExecution::start_installed_artifact(
             &foreign_semantic,
             &foreign_proof,
             &profile,
             &[],
-            &arguments(),
-            &[],
-            &installation,
+            TerminalStructuralInputs {
+                arguments: &arguments(),
+                ..Default::default()
+            },
+            &installation
         ),
         Err(
             terminal_interpreter::TerminalArtifactInterpretError::Execution(

@@ -49,7 +49,7 @@ fn returned_boolean_and_integer_boundary_values_preserve_computed_and_pure_opera
         let mut observer = ObserveSettlement::default();
         assert_eq!(
             execution
-                .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+                .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
                 .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
                 *expected.last().unwrap()
@@ -95,7 +95,7 @@ fn returned_boundary_provider_rejection_preserves_receipt_until_successful_retry
             ..ObserveSettlement::default()
         };
         assert!(
-            matches!(execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer), Err(TerminalInterpretError::EffectRejected { rejection, .. }) if rejection.reason == "settlement refused")
+            matches!(execution.resume(&mut TerminalFuelMeter::unbounded(), &mut observer), Err(TerminalInterpretError::EffectRejected { rejection, .. }) if rejection.reason == "settlement refused")
         );
         assert_eq!(execution.live_claim_frontier().collect::<Vec<_>>(), claims);
         assert!(execution.effects().is_empty());
@@ -103,7 +103,7 @@ fn returned_boundary_provider_rejection_preserves_receipt_until_successful_retry
         observer.reject = false;
         assert_eq!(
             execution
-                .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+                .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
                 .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
                 *expected.last().unwrap()
@@ -140,7 +140,7 @@ fn returned_boundary_boolean_arguments_short_circuit_without_settling_on_crash()
             pause_before_crashing_helper(&artifact, &mut execution, &mut observer, &claims, cause);
         }
         let status = execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap();
         if let Some(cause) = cause {
             assert_unsettled_helper_crash(
@@ -191,7 +191,7 @@ fn returned_boundary_first_argument_crash_precedes_later_cast_and_retains_linear
         let mut observer = ObserveSettlement::default();
         pause_before_crashing_helper(&artifact, &mut execution, &mut observer, &claims, cause);
         let status = execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap();
         assert_unsettled_helper_crash(
             &artifact,

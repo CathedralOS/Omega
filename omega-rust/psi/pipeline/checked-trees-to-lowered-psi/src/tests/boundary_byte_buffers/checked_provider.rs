@@ -7,6 +7,7 @@ use super::{
     TerminalStructuralValue, assert_stored_fields, checked_source, lower_machine,
 };
 use checked_trees::CheckedStructuralAccess;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     ProviderInstallationSelection, admit_provider_installation_from_artifact,
 };
@@ -158,13 +159,15 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
     }
     let mut usages = Vec::new();
     for incremental in [false, true] {
-        let mut execution = TerminalExecution::start_artifact_with_provider_installation(
+        let mut execution = TerminalExecution::start_installed_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &profile,
             &[],
-            std::slice::from_ref(&argument),
-            &[],
+            TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&argument),
+                ..Default::default()
+            },
             &installation,
         )
         .unwrap();
@@ -178,7 +181,7 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
         let mut complete = false;
         for _ in 0..100 {
             match execution
-                .resume_with_effect_handler(&mut fuel, &mut input)
+                .resume(&mut fuel, &mut input)
                 .expect("checked provider forwards mutable byte destination")
             {
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {

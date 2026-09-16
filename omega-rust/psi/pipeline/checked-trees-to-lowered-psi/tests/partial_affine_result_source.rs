@@ -8,6 +8,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralValue,
@@ -329,12 +330,15 @@ fn assert_source(
     };
     let mut reference = None;
     for incremental in [false, true] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &arguments,
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
         )
         .unwrap();
         let mut factory = Factory::default();
@@ -347,10 +351,7 @@ fn assert_source(
         let mut paused_return = false;
         let mut call_order = Vec::new();
         for _ in 0..256 {
-            match execution
-                .resume_with_effect_handler(&mut meter, &mut factory)
-                .unwrap()
-            {
+            match execution.resume(&mut meter, &mut factory).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
                     assert!(incremental);
                     if exhaustion.site == FuelChargeSite::Edge(block.terminator.edge()) {

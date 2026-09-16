@@ -3,6 +3,7 @@
 //! Fixtures shared by the entry requirement crash coverage tests: typed
 //! programs, callers and the trap assertions.
 
+use terminal_interpreter::TerminalStructuralInputs;
 #[path = "entry_requirement_crash_coverage/boolean_and_disjunctive_requirements.rs"]
 mod boolean_and_disjunctive_requirements;
 #[path = "entry_requirement_crash_coverage/numeric_and_field_entry_requirements.rs"]
@@ -109,17 +110,20 @@ fn assert_trap_with_entry_arguments(
                 panic!("the trigger must trap before the Sink effect");
             }
         }
-        terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
+        terminal_interpreter::interpret_terminal_artifact_measured(
             &artifact.0,
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
-            &[terminal_interpreter::TerminalStructuralValue {
-                opaque_identity: 71,
-                structural_type: record.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[terminal_interpreter::TerminalStructuralValue {
+                    opaque_identity: 71,
+                    structural_type: record.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
             &mut NoEffects,
         )
         .map(|_| ())

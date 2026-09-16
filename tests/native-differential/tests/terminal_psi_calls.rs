@@ -60,6 +60,8 @@ fn frontend_generated_scalar_terminals_are_product_valid() {
             &proof,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap_or_else(|error| panic!("interpret frontend scalar case {file_name}: {error:?}"));
         assert_eq!(
@@ -119,6 +121,8 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
         .expect("empty scalar call proof"),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("interpret scalar i32 call fixture");
     assert_eq!(
@@ -227,9 +231,15 @@ fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
     let fixed = derive_fixed_entry_fuel(&verified, machine_id(1)).expect("fixed call fuel");
     assert_eq!(fixed.ceiling_units(), 4);
 
-    let measured =
-        interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("interpret direct call");
+    let measured = interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .expect("interpret direct call");
     assert_eq!(
         measured.value(),
         TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
@@ -244,9 +254,14 @@ fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
         1
     );
 
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("start resumable call");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("start resumable call");
     let mut meter = TerminalFuelMeter::with_allowance(2);
     assert_eq!(
         execution.resume(&mut meter).expect("exhaust in callee"),
@@ -344,12 +359,17 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
         3
     );
 
-    let mut execution =
-        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-            .expect("start crash-capable call");
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("start crash-capable call");
     let mut meter = TerminalFuelMeter::unbounded();
     let TerminalExecutionStatus::Crashed(crash) = execution
-        .resume(&mut meter)
+        .resume(&mut meter, &mut AcceptTerminalEffects)
         .expect("interpret crash-capable call")
     else {
         panic!("the callee's explicit crash must escape the caller")

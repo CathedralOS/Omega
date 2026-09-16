@@ -1,6 +1,8 @@
 //! Ordinary Unit calls borrow original primitive locals across every scalar width.
 
 use semantic_vocabulary::{IeeeFloatValue, IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -215,29 +217,33 @@ fn execute(
         .find(|machine| machine.id == module.entry)
         .unwrap();
     let parameter = &caller.structural_parameters[0];
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[initial, replacement],
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[initial, replacement],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 71,
                 structural_type: parameter.structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-            &[TerminalStructuralPrimitiveValue {
+            primitive_values: &[TerminalStructuralPrimitiveValue {
                 argument_index: 0,
                 value: initial,
             }],
-        )
-        .unwrap();
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut observations = Vec::new();
     let mut complete = false;
     for _ in 0..64 {
-        let status = execution.resume(&mut meter).unwrap();
+        let status = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         observations.push(execution.structural_primitive_values()[0].value);
         match status {
             TerminalExecutionStatus::Complete(result) => {

@@ -1,6 +1,7 @@
 //! Primitive replacement completes scalar evaluation before its ordered store.
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -235,30 +236,32 @@ fn execute(source: &str, arguments: &[TerminalScalarValue], expected: &[Terminal
         .map(|operation| operation.id)
         .collect::<Vec<_>>();
     assert_eq!(stores.len(), expected.len() - 1);
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &profile,
-            arguments,
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        arguments,
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 91,
                 structural_type: parameter.structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-            &[TerminalStructuralPrimitiveValue {
+            primitive_values: &[TerminalStructuralPrimitiveValue {
                 argument_index: 0,
                 value: expected[0],
             }],
-        )
-        .expect("start with original referent");
+            ..Default::default()
+        },
+    )
+    .expect("start with original referent");
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
     let mut observations = Vec::new();
     let mut complete = false;
     for _ in 0..64 {
         let status = execution
-            .resume(&mut meter)
+            .resume(&mut meter, &mut AcceptTerminalEffects)
             .expect("execute store sequence");
         observations.push(execution.structural_primitive_values()[0].value);
         match status {

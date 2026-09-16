@@ -1,5 +1,6 @@
 use semantic_vocabulary::IntegerValue;
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralScalarFieldValue, TerminalStructuralValue,
@@ -186,23 +187,25 @@ fn execute(
                     qualifications: Vec::new(),
                     path: Vec::new(),
                 };
-                let mut execution =
-                    TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(
-                        semantic_bytes,
-                        proof_bytes,
-                        &proof_admission::AdmissionProfile::default(),
-                        &[unsigned(u128::from(remaining)), unsigned(201)],
-                        &[root],
-                        &field_values,
-                    )
-                    .expect("reload the actual owned scalar cycle with explicit integer fields");
+                let mut execution = TerminalExecution::start_artifact(
+                    semantic_bytes,
+                    proof_bytes,
+                    &proof_admission::AdmissionProfile::default(),
+                    &[unsigned(u128::from(remaining)), unsigned(201)],
+                    TerminalStructuralInputs {
+                        arguments: &[root],
+                        scalar_fields: &field_values,
+                        ..Default::default()
+                    },
+                )
+                .expect("reload the actual owned scalar cycle with explicit integer fields");
                 let mut meter = TerminalFuelMeter::with_allowance(0);
                 let mut observed = Vec::new();
                 let mut completed = false;
                 for _ in 0..4096 {
                     let previous = meter.usage().clone();
                     let status = execution
-                        .resume(&mut meter)
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
                         .expect("resume owned cyclic state");
                     assert!(meter.usage().total_units() - previous.total_units() <= 1);
                     for site in observed_sites {

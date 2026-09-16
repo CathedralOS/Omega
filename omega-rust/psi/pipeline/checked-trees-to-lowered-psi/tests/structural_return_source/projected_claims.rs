@@ -3,6 +3,8 @@ use super::{
     TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralResult, TerminalStructuralValue,
     decode_module, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 pub(super) fn checked(length: usize) -> checked_trees::CheckedTrees {
     // The same customer is also run through the CLI with the bundled library.
     // The stage-local harness supplies only its imported content vocabulary.
@@ -59,17 +61,22 @@ fn projected_claims_survive_nominal_mixed_call_chains_without_source() {
             qualifications: parameter.qualifications.clone(),
             path: Vec::new(),
         };
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &AdmissionProfile::default(),
             &[],
-            std::slice::from_ref(&argument),
+            TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&argument),
+                ..Default::default()
+            },
         )
         .expect("start source-free artifact");
         let mut meter = TerminalFuelMeter::with_allowance(32);
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
                 TerminalStructuralResult {
                     value: argument,

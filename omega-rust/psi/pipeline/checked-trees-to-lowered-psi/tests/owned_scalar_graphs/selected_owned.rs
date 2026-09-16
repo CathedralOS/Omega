@@ -1,5 +1,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralScalarFieldValue, TerminalStructuralValue,
@@ -38,25 +40,30 @@ fn skipped_and_taken_owned_calls_each_settle_their_selected_affine_frontier() {
                         },
                     }
                 });
-                let mut execution =
-                    TerminalExecution::start_artifact_with_structural_arguments_and_scalar_fields(
-                        &semantic,
-                        &proof,
-                        &proof_admission::AdmissionProfile::default(),
-                        &[TerminalScalarValue::Boolean(take)],
-                        &[TerminalStructuralValue {
+                let mut execution = TerminalExecution::start_artifact(
+                    &semantic,
+                    &proof,
+                    &proof_admission::AdmissionProfile::default(),
+                    &[TerminalScalarValue::Boolean(take)],
+                    TerminalStructuralInputs {
+                        arguments: &[TerminalStructuralValue {
                             opaque_identity: 71,
                             structural_type: parameter.structural_type,
                             qualifications: Vec::new(),
                             path: Vec::new(),
                         }],
-                        &fields,
-                    )
-                    .unwrap();
+                        scalar_fields: &fields,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
                 let mut meter = TerminalFuelMeter::with_allowance(0);
                 let mut complete = false;
                 for _ in 0..128 {
-                    match execution.resume(&mut meter).unwrap() {
+                    match execution
+                        .resume(&mut meter, &mut AcceptTerminalEffects)
+                        .unwrap()
+                    {
                         TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
                         TerminalExecutionStatus::Complete(result) => {
                             assert_eq!(

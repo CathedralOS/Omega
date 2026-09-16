@@ -8,9 +8,10 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
-    TerminalScalarValue, interpret_terminal_artifact_with_effect_handler_measured,
+    TerminalScalarValue, interpret_terminal_artifact_measured,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::statement::StatementNode;
@@ -212,12 +213,12 @@ fn boundary_and_unit_scalar_arguments_keep_their_authored_values_after_roundtrip
         );
         let artifact = encoded(&checked);
         let mut handler = ObserveArguments::default();
-        let execution = interpret_terminal_artifact_with_effect_handler_measured(
+        let execution = interpret_terminal_artifact_measured(
             &artifact.0,
             &artifact.1,
             &AdmissionProfile::default(),
             &parameters,
-            &[],
+            TerminalStructuralInputs::default(),
             &mut handler,
         )
         .unwrap();
@@ -882,7 +883,7 @@ fn composed_unit_boundary_leaves_verify_and_reject_changed_operand_custody() {
     for first in [false, true] {
         for second in [false, true] {
             let mut handler = ObserveArguments::default();
-            let execution = interpret_terminal_artifact_with_effect_handler_measured(
+            let execution = interpret_terminal_artifact_measured(
                 &artifact.0,
                 &artifact.1,
                 &AdmissionProfile::default(),
@@ -890,7 +891,7 @@ fn composed_unit_boundary_leaves_verify_and_reject_changed_operand_custody() {
                     TerminalScalarValue::Boolean(first),
                     TerminalScalarValue::Boolean(second),
                 ],
-                &[],
+                TerminalStructuralInputs::default(),
                 &mut handler,
             )
             .unwrap();

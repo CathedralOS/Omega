@@ -170,10 +170,7 @@ fn partial_continuation_charges_before_cleanup_and_carries_scalar_bindings() {
                 let mut after_cleanup = false;
                 let mut complete = false;
                 for _ in 0..64 {
-                    match execution
-                        .resume_with_effect_handler(&mut meter, &mut effects)
-                        .unwrap()
-                    {
+                    match execution.resume(&mut meter, &mut effects).unwrap() {
                         TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
                             assert!(incremental);
                             if exhaustion.site == FuelChargeSite::Edge(edge_id(1)) {

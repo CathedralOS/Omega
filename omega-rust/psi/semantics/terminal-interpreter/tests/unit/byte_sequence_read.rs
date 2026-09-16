@@ -10,6 +10,7 @@ use super::{
     contract_id, decode_module, edge_id, encode_module, encode_proof_section, machine_id,
     obligation_id, operation_id, place_id, structural_type_id, value_id, verify_module,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 pub(super) fn unsigned_type(bits: u16) -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap())
 }
@@ -244,6 +245,7 @@ fn guarded_byte_reads_preserve_raw_bytes_empty_skip_continuation_and_fuel() {
                 &proof,
                 &AdmissionProfile::default(),
                 &[],
+                TerminalStructuralInputs::default(),
             )
             .unwrap();
             let mut meter = if incremental {
@@ -253,10 +255,7 @@ fn guarded_byte_reads_preserve_raw_bytes_empty_skip_continuation_and_fuel() {
             };
             let mut handler = RecordingHandler::default();
             loop {
-                match execution
-                    .resume_with_effect_handler(&mut meter, &mut handler)
-                    .unwrap()
-                {
+                match execution.resume(&mut meter, &mut handler).unwrap() {
                     TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
                     TerminalExecutionStatus::Complete(result) => {
                         assert_eq!(result, TerminalExecutionResult::Unit);

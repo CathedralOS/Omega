@@ -9,6 +9,7 @@ use super::{
     encode_proof_section, machine_id, operation_id, payloadless_call_module, place_id,
     structural_type_id, unit_module, value_id, verify_module,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 fn helper(ordinal: u64, places: &[u64]) -> TerminalMachine {
     let mut machine = unit_module().machines.remove(0);
     machine.id = machine_id(ordinal);
@@ -149,9 +150,14 @@ fn assert_byte_effects(module: &TerminalModule, expected: &[Vec<Vec<u8>>]) {
     let proof = encode_proof_section(module, &ProofBundle::default()).unwrap();
     let mut reference = None;
     for incremental in [false, true] {
-        let mut execution =
-            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
-                .expect("byte forwarding module verifies");
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .expect("byte forwarding module verifies");
         let mut handler = RecordingHandler::default();
         let mut meter = if incremental {
             TerminalFuelMeter::with_allowance(0)
@@ -160,10 +166,7 @@ fn assert_byte_effects(module: &TerminalModule, expected: &[Vec<Vec<u8>>]) {
         };
         let mut complete = false;
         for _ in 0..256 {
-            match execution
-                .resume_with_effect_handler(&mut meter, &mut handler)
-                .unwrap()
-            {
+            match execution.resume(&mut meter, &mut handler).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(incremental);
                     meter.replenish(1).unwrap();
@@ -430,22 +433,25 @@ fn opaque_identity_does_not_supply_missing_incoming_byte_contents() {
             TerminalInterpretError::VerifiedOperationMalformed,
         ),
     ] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             &[],
-            &[TerminalStructuralValue {
-                opaque_identity: place_id(1).get(),
-                structural_type: structural_type_id(1),
-                qualifications: Vec::new(),
-                path,
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: place_id(1).get(),
+                    structural_type: structural_type_id(1),
+                    qualifications: Vec::new(),
+                    path,
+                }],
+                ..Default::default()
+            },
         )
         .unwrap();
         let mut handler = RecordingHandler::default();
         assert_eq!(
-            execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut handler),
+            execution.resume(&mut TerminalFuelMeter::unbounded(), &mut handler),
             Err(expected),
         );
         assert_eq!(

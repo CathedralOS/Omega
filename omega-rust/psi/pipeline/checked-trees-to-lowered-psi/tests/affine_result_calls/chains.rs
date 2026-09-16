@@ -5,6 +5,8 @@ use super::{
     Terminator, checked, decode_module, decode_proof_bundle, encode_module, encode_proof_section,
     lower_machine, typed,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 const CHAIN: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
     machine Main::consume(value: Value) {}
@@ -168,17 +170,22 @@ pub(super) fn assert_execution(
             path: Vec::new(),
         })
         .collect::<Vec<_>>();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
         scalar_arguments,
-        &structural_arguments,
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for _ in 0..fuel {
-        let paused = execution.resume(&mut meter).unwrap();
+        let paused = execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap();
         assert!(matches!(
             paused,
             TerminalExecutionStatus::SponsorExhausted(_)
@@ -188,7 +195,12 @@ pub(super) fn assert_execution(
             .cloned()
             .collect::<Vec<_>>();
         let units = meter.usage().total_units();
-        assert_eq!(execution.resume(&mut meter).unwrap(), paused);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            paused
+        );
         assert_eq!(meter.usage().total_units(), units);
         assert_eq!(
             execution
@@ -200,7 +212,9 @@ pub(super) fn assert_execution(
         meter.replenish(1).unwrap();
     }
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), fuel as u64);

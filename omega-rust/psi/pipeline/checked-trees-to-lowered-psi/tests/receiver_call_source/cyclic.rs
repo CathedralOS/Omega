@@ -6,6 +6,8 @@ use super::{
     TerminalStructuralValue, checked_from_source, lower_symbol_resolved_trees, parse_syntax_trees,
     resolve,
 };
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 const SOURCE: &str = r#"
 boundary trait Observe { machine record(value: u64) reaches Observe; }
 data Child { value: u64; }
@@ -270,24 +272,29 @@ fn assert_observations(
         panic!("one authored callee store");
     };
     let start = || {
-        TerminalExecution::start_artifact_with_structural_arguments(
+        TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[],
-            &[TerminalStructuralValue {
-                opaque_identity: 73,
-                structural_type: receiver.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 73,
+                    structural_type: receiver.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .unwrap()
     };
     let mut execution = start();
     let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(1000);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     let observed = |execution: &TerminalExecution| {
@@ -314,12 +321,16 @@ fn assert_observations(
         let mut execution = start();
         let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(allowance);
         assert!(matches!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         meter.replenish(work - allowance).unwrap();
         assert_eq!(
-            execution.resume(&mut meter).unwrap(),
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         observed(&execution);

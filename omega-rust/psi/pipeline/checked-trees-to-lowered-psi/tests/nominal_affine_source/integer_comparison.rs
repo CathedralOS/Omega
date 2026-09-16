@@ -3,10 +3,10 @@ use super::{
     Lexer, OperationKind, ProofRule, Proposition, ResolutionRequest, ScalarTerm, ScalarType,
     TerminalExecutionResult, TerminalFuelSchedule, TerminalScalarValue, TerminalStructuralValue,
     Terminator, decode_module, decode_proof_bundle, derive_fixed_entry_fuel, encode_module,
-    encode_proof_section, interpret_terminal_artifact_with_effect_handler_measured,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-    validate_fixed_entry_fuel,
+    encode_proof_section, interpret_terminal_artifact_measured, lower_symbol_resolved_trees,
+    lower_typed_trees, parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
+use terminal_interpreter::TerminalStructuralInputs;
 const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -6372,11 +6372,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         let wrapped_add = (input + 1) & mask;
         let nested_wrapped_add = (wrapped_add + 1) & mask;
         let mut handler = AcceptTerminalEffects;
-        let measured = interpret_terminal_artifact_with_effect_handler_measured(
-            &semantics,
-            &proof,
-            &AdmissionProfile::default(),
-            &[
+        let measured = interpret_terminal_artifact_measured(&semantics, &proof, &AdmissionProfile::default(), &[
                 TerminalScalarValue::Integer {
                     scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                     value: IntegerValue::Unsigned(input),
@@ -6446,10 +6442,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                     scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
                     value: IntegerValue::Unsigned(wide),
                 },
-            ],
-            &structural_arguments,
-            &mut handler,
-        )
+            ], TerminalStructuralInputs { arguments: &structural_arguments, ..Default::default() }, &mut handler)
         .expect("shared integer convergence interprets");
         assert_eq!(
             measured.value(),

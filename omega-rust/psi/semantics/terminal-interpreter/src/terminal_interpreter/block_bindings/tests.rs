@@ -3,6 +3,7 @@ use super::{
     StructuralTypeShape, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralValue, ValueId,
 };
+use crate::AcceptTerminalEffects;
 use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
 use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
 use crate::terminal_interpreter::execution::ExecutableMachine;
@@ -185,7 +186,9 @@ fn assert_swap_after_fuel(terminator: Terminator) {
     let original_views = execution.byte_sequence_values.clone();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     assert_eq!(execution.structural_values, original_structural);
@@ -199,7 +202,9 @@ fn assert_swap_after_fuel(terminator: Terminator) {
     );
     meter.replenish(1).unwrap();
     assert!(matches!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
     ));
     for (destination, source) in [(1, 2), (2, 1)] {
@@ -242,7 +247,9 @@ fn assert_swap_after_fuel(terminator: Terminator) {
     assert!(execution.live_claims.is_empty());
     meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 2);

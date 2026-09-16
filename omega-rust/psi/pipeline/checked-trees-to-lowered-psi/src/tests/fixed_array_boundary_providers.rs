@@ -1,6 +1,7 @@
 //! Installed checked providers write the caller's fixed extent, not replacement storage.
 use super::{CheckedTrees, byte_sequence_write, checked_source, lower_machine};
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralByteArrayValue, TerminalStructuralValue,
@@ -128,13 +129,16 @@ fn fixed_array_boundary_provider_writes_original_storage_across_every_fuel_pause
         drop(checked);
         let mut usages = Vec::new();
         for incremental in [false, true] {
-            let mut execution = TerminalExecution::start_artifact_with_provider_installation(
+            let mut execution = TerminalExecution::start_installed_artifact(
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &profile,
                 &[],
-                std::slice::from_ref(&argument),
-                &arrays,
+                TerminalStructuralInputs {
+                    arguments: std::slice::from_ref(&argument),
+                    byte_arrays: &arrays,
+                    ..Default::default()
+                },
                 &installation,
             )
             .unwrap();
@@ -143,7 +147,9 @@ fn fixed_array_boundary_provider_writes_original_storage_across_every_fuel_pause
             let mut complete = false;
             let mut saw_first_write = false;
             for _ in 0..200 {
-                let status = execution.resume(&mut fuel).unwrap();
+                let status = execution
+                    .resume(&mut fuel, &mut AcceptTerminalEffects)
+                    .unwrap();
                 let observed = execution.structural_byte_array(73, &path).unwrap().to_vec();
                 assert_eq!(
                     observed.len(),
@@ -165,7 +171,9 @@ fn fixed_array_boundary_provider_writes_original_storage_across_every_fuel_pause
                 match status {
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         assert!(matches!(
-                            execution.resume(&mut fuel).unwrap(),
+                            execution
+                                .resume(&mut fuel, &mut AcceptTerminalEffects)
+                                .unwrap(),
                             TerminalExecutionStatus::SponsorExhausted(_)
                         ));
                         assert_eq!(
@@ -241,48 +249,58 @@ fn fixed_array_boundary_provider_rejects_missing_initialization_and_installation
         vec![valid.clone(), valid.clone()],
     ] {
         assert!(
-            TerminalExecution::start_artifact_with_provider_installation(
+            TerminalExecution::start_installed_artifact(
                 artifact.semantic_bytes(),
                 artifact.proof_bytes(),
                 &profile,
                 &[],
-                std::slice::from_ref(&argument),
-                &arrays,
-                &installation,
+                TerminalStructuralInputs {
+                    arguments: std::slice::from_ref(&argument),
+                    byte_arrays: &arrays,
+                    ..Default::default()
+                },
+                &installation
             )
             .is_err(),
             "short or duplicate backing rejects during startup"
         );
     }
-    if let Ok(mut execution) = TerminalExecution::start_artifact_with_provider_installation(
+    if let Ok(mut execution) = TerminalExecution::start_installed_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &profile,
         &[],
-        std::slice::from_ref(&argument),
-        &[],
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&argument),
+            ..Default::default()
+        },
         &installation,
     ) {
         assert!(
             execution
-                .resume(&mut terminal_fuel::TerminalFuelMeter::with_allowance(200))
+                .resume(
+                    &mut terminal_fuel::TerminalFuelMeter::with_allowance(200),
+                    &mut AcceptTerminalEffects
+                )
                 .is_err(),
             "an opaque root cannot fabricate initialized array bytes"
         );
         assert!(execution.effects().is_empty());
     }
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &profile,
-            &[],
-            &[argument],
-            &[valid],
-        )
-        .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[argument],
+            byte_arrays: &[valid],
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert!(
-        matches!(execution.resume(&mut terminal_fuel::TerminalFuelMeter::with_allowance(200)), Err(terminal_interpreter::TerminalInterpretError::ProviderInstallationMissing(boundary)) if boundary == candidate.boundary)
+        matches!(execution.resume(&mut terminal_fuel::TerminalFuelMeter::with_allowance(200), &mut AcceptTerminalEffects), Err(terminal_interpreter::TerminalInterpretError::ProviderInstallationMissing(boundary)) if boundary == candidate.boundary)
     );
     assert!(
         execution.effects().is_empty(),

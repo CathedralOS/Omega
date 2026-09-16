@@ -5,6 +5,7 @@ use super::{
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{OperationKind, StructuralPathSegment};
 #[test]
 fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
@@ -105,14 +106,33 @@ fn source_indexed_primitive_store_and_read_share_serialized_backing() {
     let path = vec![StructuralPathSegment::Field("bytes".into())];
     let mut bytes = vec![0; 256];
     bytes[254] = 17;
-    let mut execution = terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
-        artifact.semantic_bytes(), artifact.proof_bytes(), &proof_admission::AdmissionProfile::default(), &[],
-        &[terminal_interpreter::TerminalStructuralValue { opaque_identity: 700, structural_type, qualifications: Vec::new(), path: Vec::new() }],
-        &[terminal_interpreter::TerminalStructuralByteArrayValue { argument_index: 0, path: path.clone(), bytes }],
-    ).unwrap();
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 700,
+                structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            byte_arrays: &[terminal_interpreter::TerminalStructuralByteArrayValue {
+                argument_index: 0,
+                path: path.clone(),
+                bytes,
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert_eq!(
         execution
-            .resume(&mut terminal_fuel::TerminalFuelMeter::unbounded())
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
             .unwrap(),
         terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Scalar(

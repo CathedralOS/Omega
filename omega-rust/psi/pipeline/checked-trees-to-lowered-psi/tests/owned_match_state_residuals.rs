@@ -9,6 +9,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, TerminalScalarValue,
     interpret_terminal_artifact_measured,
@@ -56,6 +57,8 @@ fn recorded_source(source: &str, selected: bool) -> Vec<u128> {
         &proof_bytes,
         &AdmissionProfile::default(),
         &[TerminalScalarValue::Boolean(selected), unsigned(41)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("execution");
     assert_eq!(execution.value(), TerminalExecutionResult::Unit);

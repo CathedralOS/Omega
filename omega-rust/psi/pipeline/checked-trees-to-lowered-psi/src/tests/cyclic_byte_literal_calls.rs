@@ -2,6 +2,7 @@
 
 use super::checked_source;
 use crate::{LoweringError, lower_machine};
+use terminal_interpreter::TerminalStructuralInputs;
 mod mixed_and_custody;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -66,17 +67,20 @@ machine Main::main(&mut self) reaches Trace {
         terminal_psi::StructuralAccess::MutableBorrow
     );
     let execute = || {
-        TerminalExecution::start_artifact_with_structural_arguments(
+        TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[],
-            &[TerminalStructuralValue {
-                opaque_identity: 1,
-                structural_type: receiver.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 1,
+                    structural_type: receiver.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .expect("canonical artifact reloads and independently verifies")
     };
@@ -89,12 +93,7 @@ machine Main::main(&mut self) reaches Trace {
     let mut execution = execute();
     let mut meter = TerminalFuelMeter::with_allowance(1000);
     let mut trace = ByteTrace::default();
-    assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut trace)
-            .unwrap(),
-        complete
-    );
+    assert_eq!(execution.resume(&mut meter, &mut trace).unwrap(), complete);
     assert_eq!(trace.0, expected);
     let total = meter.usage().total_units();
     for allowance in 0..total {
@@ -102,18 +101,14 @@ machine Main::main(&mut self) reaches Trace {
         let mut meter = TerminalFuelMeter::with_allowance(allowance);
         let mut trace = ByteTrace::default();
         assert!(matches!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut trace)
-                .unwrap(),
+            execution.resume(&mut meter, &mut trace).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         let prefix = trace.0.clone();
         let usage = meter.usage().clone();
         for _ in 0..3 {
             assert!(matches!(
-                execution
-                    .resume_with_effect_handler(&mut meter, &mut trace)
-                    .unwrap(),
+                execution.resume(&mut meter, &mut trace).unwrap(),
                 TerminalExecutionStatus::SponsorExhausted(_)
             ));
             assert_eq!(
@@ -123,12 +118,7 @@ machine Main::main(&mut self) reaches Trace {
             assert_eq!(meter.usage(), &usage);
         }
         meter.replenish(total - allowance).unwrap();
-        assert_eq!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut trace)
-                .unwrap(),
-            complete
-        );
+        assert_eq!(execution.resume(&mut meter, &mut trace).unwrap(), complete);
         assert_eq!(
             trace.0, expected,
             "exact selected contents/order at fuel split {allowance}"
@@ -220,25 +210,26 @@ machine Main::main(&mut self) reaches Trace {
     let [receiver] = entry.structural_parameters.as_slice() else {
         panic!("persistent receiver survives publication")
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 1,
-            structural_type: receiver.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("canonical artifact reloads and independently verifies");
     let mut meter = TerminalFuelMeter::with_allowance(1000);
     let mut trace = ByteTrace::default();
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut trace)
-            .unwrap(),
+        execution.resume(&mut meter, &mut trace).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(trace.0, [b"done".to_vec()]);
@@ -335,25 +326,26 @@ machine Main::main(&mut self) reaches Trace {
         .find(|machine| machine.id == module.entry)
         .unwrap();
     let receiver = &entry.structural_parameters[0];
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 1,
-            structural_type: receiver.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .expect("equality-bound guarded exit reloads and independently verifies");
     let mut meter = TerminalFuelMeter::with_allowance(1000);
     let mut trace = ByteTrace::default();
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut trace)
-            .unwrap(),
+        execution.resume(&mut meter, &mut trace).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(
@@ -461,32 +453,32 @@ machine Main::main(&mut self) reaches Trace {
             _ => None,
         })
         .expect("the loop reads its ready field");
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 1,
                 structural_type: receiver.structural_type,
                 qualifications: Vec::new(),
                 path: Vec::new(),
             }],
-            &[terminal_interpreter::TerminalStructuralBooleanFieldValue {
+            boolean_fields: &[terminal_interpreter::TerminalStructuralBooleanFieldValue {
                 argument_index: 0,
                 path: Vec::new(),
                 field: ready_field,
                 value: false,
             }],
-        )
-        .expect("guarded loop reloads with every arrival independently checked");
+            ..Default::default()
+        },
+    )
+    .expect("guarded loop reloads with every arrival independently checked");
     let mut meter = TerminalFuelMeter::with_allowance(1000);
     let mut trace = ByteTrace::default();
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut trace)
-            .unwrap(),
+        execution.resume(&mut meter, &mut trace).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(
@@ -573,25 +565,26 @@ machine Main::clear(&mut self) { self.divisor = 0; }
             .find(|machine| machine.id == module.entry)
             .unwrap();
         let receiver = &entry.structural_parameters[0];
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[],
-            &[TerminalStructuralValue {
-                opaque_identity: 1,
-                structural_type: receiver.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 1,
+                    structural_type: receiver.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                ..Default::default()
+            },
         )
         .expect("saved-value proof independently reloads");
         let mut meter = TerminalFuelMeter::with_allowance(1000);
         let mut trace = ByteTrace::default();
         assert_eq!(
-            execution
-                .resume_with_effect_handler(&mut meter, &mut trace)
-                .unwrap(),
+            execution.resume(&mut meter, &mut trace).unwrap(),
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
         assert_eq!(trace.0, [b"saved".to_vec()]);
@@ -717,25 +710,26 @@ machine Main::main(&mut self) reaches Trace {
     let [receiver] = entry.structural_parameters.as_slice() else {
         panic!("receiver")
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 1,
-            structural_type: receiver.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(1000);
     let mut trace = ByteTrace::default();
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut meter, &mut trace)
-            .unwrap(),
+        execution.resume(&mut meter, &mut trace).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(trace.0, [b"done".to_vec()]);

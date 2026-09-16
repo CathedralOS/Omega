@@ -127,14 +127,14 @@ fn interpreted_nested_receivers_preserve_original_referents_across_suspension() 
                     path: Vec::new(),
                 })
                 .collect::<Vec<_>>();
-            let mut execution =
-                TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
-                    artifact.semantic_bytes(),
-                    artifact.proof_bytes(),
-                    &AdmissionProfile::default(),
-                    &[TerminalScalarValue::Boolean(choose_first)],
-                    &structural_arguments,
-                    &[
+            let mut execution = TerminalExecution::start_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &AdmissionProfile::default(),
+                &[TerminalScalarValue::Boolean(choose_first)],
+                TerminalStructuralInputs {
+                    arguments: &structural_arguments,
+                    primitive_values: &[
                         TerminalStructuralPrimitiveValue {
                             argument_index: 0,
                             value: integer(999),
@@ -144,8 +144,10 @@ fn interpreted_nested_receivers_preserve_original_referents_across_suspension() 
                             value: integer(888),
                         },
                     ],
-                )
-                .unwrap();
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(initial_fuel);
             let mut completed = false;
             let mut trace = Vec::new();

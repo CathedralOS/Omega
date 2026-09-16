@@ -2,6 +2,8 @@
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_interpreter::AcceptTerminalEffects;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
@@ -77,11 +79,15 @@ fn execute(source: &str, arguments: &[TerminalScalarValue], expected: TerminalSc
         artifact.proof_bytes(),
         &profile,
         arguments,
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     for _ in 0..256 {
-        match execution.resume(&mut meter).unwrap() {
+        match execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
             TerminalExecutionStatus::Complete(result) => {
                 assert_eq!(result, TerminalExecutionResult::Scalar(expected));
                 for call in calls {

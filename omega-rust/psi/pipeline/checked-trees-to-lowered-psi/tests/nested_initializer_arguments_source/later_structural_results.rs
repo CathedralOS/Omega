@@ -6,6 +6,7 @@ use super::{
     execute, main_machine, structural_source, unsigned,
 };
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 
 #[test]
@@ -134,6 +135,7 @@ fn multiple_structural_boundaries_retain_scalar_values_and_reverse_result_cleanu
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut observer = ObserveLaterStructuralResults::default();
@@ -144,10 +146,7 @@ fn multiple_structural_boundaries_retain_scalar_values_and_reverse_result_cleanu
         };
         let mut complete = false;
         for _ in 0..1024 {
-            match execution
-                .resume_with_effect_handler(&mut meter, &mut observer)
-                .unwrap()
-            {
+            match execution.resume(&mut meter, &mut observer).unwrap() {
                 TerminalExecutionStatus::SponsorExhausted(_) => {
                     assert!(incremental);
                     meter.replenish(1).unwrap();
@@ -214,15 +213,14 @@ fn later_structural_operand_crash_keeps_earlier_results_without_cleanup() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveLaterStructuralResults::default();
     let mut meter = TerminalFuelMeter::with_allowance(0);
     let mut reached_operand = false;
     for _ in 0..1024 {
-        let status = execution
-            .resume_with_effect_handler(&mut meter, &mut observer)
-            .unwrap();
+        let status = execution.resume(&mut meter, &mut observer).unwrap();
         let TerminalExecutionStatus::SponsorExhausted(exhaustion) = status else {
             panic!("expected pause before entering crashing operand: {status:?}");
         };
@@ -236,9 +234,7 @@ fn later_structural_operand_crash_keeps_earlier_results_without_cleanup() {
     // The public frontier is frame-local; inspect before suspending this caller.
     assert_eq!(execution.live_affine_frontier().count(), 1);
     meter.replenish(1024).unwrap();
-    let status = execution
-        .resume_with_effect_handler(&mut meter, &mut observer)
-        .unwrap();
+    let status = execution.resume(&mut meter, &mut observer).unwrap();
     assert!(
         matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == terminal_psi::CrashCause::Abort)
     );
@@ -266,7 +262,7 @@ fn later_structural_operand_crash_keeps_earlier_results_without_cleanup() {
     let effects = execution.effects().to_vec();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         status
     );
@@ -481,23 +477,26 @@ fn boundary_and_ordinary_results_share_ordinals_without_sharing_forwarding_custo
     let [parameter] = entry.structural_parameters.as_slice() else {
         panic!("one input token")
     };
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+    let mut execution = TerminalExecution::start_artifact(
         &artifact.0,
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 900,
-            structural_type: parameter.structural_type,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 900,
+                structural_type: parameter.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
     )
     .unwrap();
     let mut observer = ObserveLaterStructuralResults::default();
     assert_eq!(
         execution
-            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );

@@ -138,6 +138,8 @@ fn declared_range_inference_returns_the_selected_endpoint() {
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &terminal_arguments,
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap_or_else(|error| panic!("Terminal range execution {name}: {error:?}"));
         assert_eq!(
@@ -264,6 +266,8 @@ fn declared_range_inference_record_copies_and_full_width_fields_execute() {
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap_or_else(|error| panic!("{name}: {error:?}"));
         assert_eq!(

@@ -4,6 +4,7 @@ use super::{
 };
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalStructuralByteArrayValue,
     TerminalStructuralValue,
@@ -54,6 +55,8 @@ fn effects(source: &str) -> Vec<Vec<u8>> {
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("independently verified discarded results execute");
     assert_eq!(execution.value(), TerminalExecutionResult::Unit);
@@ -316,28 +319,33 @@ fn assert_original_buffer_is_updated(source: &str) {
     assert_eq!(root.result, TerminalMachineResult::Unit);
     let parameter = &root.structural_parameters[0];
     let path = vec![StructuralPathSegment::Field("buffer".into())];
-    let mut execution =
-        TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
-            &encode_module(module).unwrap(),
-            &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
-            &AdmissionProfile::default(),
-            &[],
-            &[TerminalStructuralValue {
+    let mut execution = TerminalExecution::start_artifact(
+        &encode_module(module).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
                 opaque_identity: 1,
                 structural_type: parameter.structural_type,
                 qualifications: parameter.qualifications.clone(),
                 path: Vec::new(),
             }],
-            &[TerminalStructuralByteArrayValue {
+            byte_arrays: &[TerminalStructuralByteArrayValue {
                 argument_index: 0,
                 path: path.clone(),
                 bytes: vec![19],
             }],
-        )
-        .unwrap();
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let mut fuel = TerminalFuelMeter::with_allowance(0);
     for _ in 0..256 {
-        match execution.resume(&mut fuel).unwrap() {
+        match execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
             TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
             TerminalExecutionStatus::Complete(result) => {
                 assert_eq!(result, TerminalExecutionResult::Unit);

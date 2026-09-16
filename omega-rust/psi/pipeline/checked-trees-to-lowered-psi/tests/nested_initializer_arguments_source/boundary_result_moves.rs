@@ -5,6 +5,7 @@ use super::{
     checked, decode_module, decode_proof_bundle, main_machine, unsigned,
 };
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};
 
@@ -173,6 +174,7 @@ fn ordinary_and_direct_boundary_consumers_transfer_the_exact_result_once() {
                 &artifact.1,
                 &AdmissionProfile::default(),
                 &[],
+                TerminalStructuralInputs::default(),
             )
             .unwrap();
             let mut observer = ObserveMoves::default();
@@ -183,10 +185,7 @@ fn ordinary_and_direct_boundary_consumers_transfer_the_exact_result_once() {
             };
             let mut complete = false;
             for _ in 0..1024 {
-                match execution
-                    .resume_with_effect_handler(&mut fuel, &mut observer)
-                    .unwrap()
-                {
+                match execution.resume(&mut fuel, &mut observer).unwrap() {
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         assert!(incremental);
                         fuel.replenish(1).unwrap();
@@ -224,13 +223,14 @@ fn rejected_boundary_results_do_not_establish_or_transfer_before_retry() {
         &artifact.1,
         &AdmissionProfile::default(),
         &[],
+        TerminalStructuralInputs::default(),
     )
     .unwrap();
     let mut observer = ObserveMoves::default();
     observer.results.structural_response = StructuralResponse::Rejected;
     let mut fuel = TerminalFuelMeter::unbounded();
     assert!(matches!(
-        execution.resume_with_effect_handler(&mut fuel, &mut observer),
+        execution.resume(&mut fuel, &mut observer),
         Err(TerminalInterpretError::EffectRejected { .. })
     ));
     assert!(execution.live_affine_frontier().next().is_none());
@@ -238,9 +238,7 @@ fn rejected_boundary_results_do_not_establish_or_transfer_before_retry() {
     assert!(observer.consumed.is_empty());
     observer.results.structural_response = StructuralResponse::Correct;
     assert_eq!(
-        execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap(),
+        execution.resume(&mut fuel, &mut observer).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(observer.produced, [700, 701]);
@@ -301,15 +299,15 @@ fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
             &artifact.1,
             &AdmissionProfile::default(),
             &[],
+            TerminalStructuralInputs::default(),
         )
         .unwrap();
         let mut observer = ObserveMoves::default();
         let mut fuel = TerminalFuelMeter::with_allowance(0);
         let mut reached_operand = false;
         for _ in 0..1024 {
-            let TerminalExecutionStatus::SponsorExhausted(exhaustion) = execution
-                .resume_with_effect_handler(&mut fuel, &mut observer)
-                .unwrap()
+            let TerminalExecutionStatus::SponsorExhausted(exhaustion) =
+                execution.resume(&mut fuel, &mut observer).unwrap()
             else {
                 panic!("expected pause before crashing operand")
             };
@@ -322,9 +320,7 @@ fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
         assert!(reached_operand);
         assert_eq!(execution.live_affine_frontier().count(), 2);
         fuel.replenish(1024).unwrap();
-        let status = execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap();
+        let status = execution.resume(&mut fuel, &mut observer).unwrap();
         assert!(
             matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == terminal_psi::CrashCause::Abort)
         );
@@ -341,12 +337,7 @@ fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
             }
         }
         let effects = execution.effects().to_vec();
-        assert_eq!(
-            execution
-                .resume_with_effect_handler(&mut fuel, &mut observer)
-                .unwrap(),
-            status
-        );
+        assert_eq!(execution.resume(&mut fuel, &mut observer).unwrap(), status);
         assert_eq!(execution.effects(), effects);
     }
 }

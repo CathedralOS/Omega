@@ -3,6 +3,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -183,12 +184,15 @@ fn exercise_boundary_outcomes(
         TerminalEffectResult::Crash(CrashCause::Abort),
         TerminalEffectResult::Crash(CrashCause::Trap),
     ] {
-        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        let mut execution = TerminalExecution::start_artifact(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             arguments,
-            &structural,
+            TerminalStructuralInputs {
+                arguments: &structural,
+                ..Default::default()
+            },
         )
         .expect("crash-capable boundary module starts");
         let claims = execution.live_claim_frontier().collect::<Vec<_>>();
@@ -198,14 +202,12 @@ fn exercise_boundary_outcomes(
         };
         let mut empty_meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
         assert!(matches!(
-            execution
-                .resume_with_effect_handler(&mut empty_meter, &mut handler)
-                .unwrap(),
+            execution.resume(&mut empty_meter, &mut handler).unwrap(),
             TerminalExecutionStatus::SponsorExhausted(_)
         ));
         assert_eq!(handler.calls, 0);
         let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
-        let outcome = execution.resume_with_effect_handler(&mut meter, &mut handler);
+        let outcome = execution.resume(&mut meter, &mut handler);
         assert_eq!(handler.calls, 1);
         match returned {
             TerminalEffectResult::Unit | TerminalEffectResult::Scalar(_) => {
@@ -247,12 +249,7 @@ fn exercise_boundary_outcomes(
                 assert_eq!(crash.frontier_lower_bound, claims);
                 assert_eq!(execution.live_claim_frontier().collect::<Vec<_>>(), claims);
                 let usage = meter.usage().total_units();
-                assert_eq!(
-                    execution
-                        .resume_with_effect_handler(&mut meter, &mut handler)
-                        .unwrap(),
-                    outcome
-                );
+                assert_eq!(execution.resume(&mut meter, &mut handler).unwrap(), outcome);
                 assert_eq!(meter.usage().total_units(), usage);
                 assert_eq!(handler.calls, 1);
             }

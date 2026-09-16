@@ -64,6 +64,8 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(500), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified exact division should interpret");
     assert_eq!(
@@ -122,6 +124,8 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(-101), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified signed exact division should interpret");
     assert_eq!(
@@ -206,6 +210,8 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(503), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified exact remainder should interpret");
     assert_eq!(
@@ -265,6 +271,8 @@ fn checked_source_signed_exact_remainder_is_truncating() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(-101), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified signed exact remainder should interpret");
     assert_eq!(
@@ -407,6 +415,8 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(505), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified wrapping division should interpret");
     assert_eq!(
@@ -528,6 +538,8 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(i64::MIN as i128), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified signed wrapping division should interpret");
     assert_eq!(
@@ -677,6 +689,8 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(503), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified wrapping remainder should interpret");
     assert_eq!(
@@ -739,6 +753,8 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
         &proof,
         &AdmissionProfile::default(),
         &[argument(i64::MIN as i128), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified signed wrapping remainder should interpret");
     assert_eq!(
@@ -887,6 +903,8 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(505), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified saturating division should interpret");
     assert_eq!(
@@ -949,6 +967,8 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(i64::MIN as i128), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified signed saturating division should interpret");
     assert_eq!(
@@ -1104,6 +1124,8 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
         &proof,
         &AdmissionProfile::default(),
         &[argument(507), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified saturating remainder should interpret");
     assert_eq!(
@@ -1166,6 +1188,8 @@ fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negati
         &proof,
         &AdmissionProfile::default(),
         &[argument(i64::MIN as i128), argument(0)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("verified signed saturating remainder should interpret");
     assert_eq!(
@@ -1244,6 +1268,8 @@ fn checked_source_signed_saturating_i64_ordinary_divisors_execute_on_the_host() 
             &proof,
             &AdmissionProfile::default(),
             &[argument(-101), argument(0)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap_or_else(|error| panic!("interpret {machine}: {error:?}"));
         assert_eq!(
@@ -1363,6 +1389,8 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(23), argument(5)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap_or_else(|error| panic!("{machine} should interpret: {error:?}"));
         assert_eq!(
@@ -1374,6 +1402,8 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
             &proof,
             &AdmissionProfile::default(),
             &[argument(23), argument(0)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap_or_else(|error| panic!("{machine} zero path should bypass arithmetic: {error:?}"));
         assert_eq!(
@@ -1424,6 +1454,8 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
         &proof,
         &AdmissionProfile::default(),
         &[argument(23), argument(-5)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("negative guarded divisor should interpret");
     assert_eq!(
@@ -1435,6 +1467,8 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
         &proof,
         &AdmissionProfile::default(),
         &[argument(23), argument(-1)],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
     )
     .expect("negative one should take the bypass arm");
     assert_eq!(
@@ -1494,6 +1528,8 @@ fn checked_source_negative_one_range_uses_policy_appropriate_dividend_evidence()
             &proof,
             &AdmissionProfile::default(),
             &[argument(value), argument(-1)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
         )
         .unwrap_or_else(|error| panic!("{machine} should interpret: {error:?}"));
         assert_eq!(
