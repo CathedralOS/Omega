@@ -43,6 +43,70 @@ pub(in crate::selection::validation::scalar_graph) fn fixed_array_argument(
     address(replay, row, slot, 0, 16, false)
 }
 
+/// Replay only the staged descriptor; the field's live length word and bytes
+/// remain in the caller's record. `field` points at the inline storage itself,
+/// so the length is loaded there and the data begins eight bytes later — the
+/// declared capacity is never the descriptor's length.
+pub(in crate::selection::validation::scalar_graph) fn byte_field_argument(
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    field: VirtualRegisterId,
+    field_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let slot = LocalStorageSlotId::Structural {
+        operation: row.operation,
+        place,
+    };
+    replay
+        .transport
+        .local_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+    let length = result(replay, place, field_offset)?;
+    memory(
+        replay,
+        row,
+        place,
+        field_offset,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    replay.check_instruction(
+        SelectedInstructionKind::Load64 { byte_offset: 0 },
+        replay
+            .constraints
+            .keys
+            .load64
+            .ok_or_else(|| replay.invalid())?,
+        &[field, length],
+        &provenance(row),
+    )?;
+    let data = result(
+        replay,
+        place,
+        field_offset
+            .checked_add(8)
+            .ok_or_else(|| replay.invalid())?,
+    )?;
+    replay.check_instruction(
+        SelectedInstructionKind::AddressOffset { byte_offset: 8 },
+        replay
+            .constraints
+            .keys
+            .address_offset
+            .ok_or_else(|| replay.invalid())?,
+        &[field, data],
+        &provenance(row),
+    )?;
+    store(replay, row, slot, 0, data)?;
+    store(replay, row, slot, 8, length)?;
+    address(replay, row, slot, 0, 16, false)
+}
+
 pub(super) fn store(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,

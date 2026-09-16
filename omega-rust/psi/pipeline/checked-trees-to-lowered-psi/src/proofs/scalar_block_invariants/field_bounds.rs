@@ -108,11 +108,23 @@ pub(super) fn candidates(
             // reachable only through the cycle itself carry the same facts
             // forward; the externally entered member is where the iteration
             // hypothesis must hold on every actual arrival.
+            let externally_entered = |member: &BlockId| {
+                predecessors
+                    .get(member)
+                    .is_some_and(|sources| sources.iter().any(|source| !component.contains(source)))
+            };
+            // Nested cycles share one component but have their own iteration
+            // entries: reconstruction cuts incoming facts at each feedback
+            // target, so a bound the inner backedge invalidates can only be
+            // inductive at the inner header dominating this operation.
+            let Ok(iteration_entries) =
+                terminal_verifier::dominating_control_cycle_entries(machine, block.id)
+            else {
+                continue;
+            };
             for header in component.iter().copied().filter(|member| {
                 *member != machine.entry
-                    && predecessors.get(member).is_some_and(|sources| {
-                        sources.iter().any(|source| !component.contains(source))
-                    })
+                    && (externally_entered(member) || iteration_entries.contains(member))
             }) {
                 let Some(header_block) = machine.blocks.iter().find(|block| block.id == header)
                 else {

@@ -43,6 +43,64 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     address(builder, row, slot, 0, 16, false)
 }
 
+/// Stage only the descriptor; the field's live length word and bytes remain in
+/// the caller's record. `field` points at the inline storage itself, so the
+/// length is loaded there and the data begins eight bytes later — the declared
+/// capacity is never the descriptor's length.
+pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    field: VirtualRegisterId,
+    field_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let slot = LocalStorageSlotId::Structural {
+        operation: row.operation,
+        place,
+    };
+    builder
+        .transport
+        .local_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+    let length = transport_register(builder, place, field_offset)?;
+    memory(
+        builder,
+        row,
+        place,
+        field_offset,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Load64 { byte_offset: 0 },
+        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        &[field, length],
+        provenance(row),
+    )?;
+    let data = transport_register(
+        builder,
+        place,
+        field_offset.checked_add(8).ok_or_else(invalid)?,
+    )?;
+    builder.emit(
+        SelectedInstructionKind::AddressOffset { byte_offset: 8 },
+        builder
+            .constraints
+            .keys
+            .address_offset
+            .ok_or_else(invalid)?,
+        &[field, data],
+        provenance(row),
+    )?;
+    store(builder, row, slot, 0, data)?;
+    store(builder, row, slot, 8, length)?;
+    address(builder, row, slot, 0, 16, false)
+}
+
 pub(super) fn store(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,

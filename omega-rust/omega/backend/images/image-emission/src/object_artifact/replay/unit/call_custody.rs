@@ -281,13 +281,6 @@ pub(crate) fn exact_borrowed_projection(
     let Some(source_placement) = argument.source.placement() else {
         return false;
     };
-    if !argument
-        .path
-        .iter()
-        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)))
-    {
-        return false;
-    }
     // Reconstruct the original root and selected leaf without granting a
     // stronger loan or mistaking a primitive pointer for a byte descriptor.
     if argument.access != destination.access
@@ -307,14 +300,64 @@ pub(crate) fn exact_borrowed_projection(
     {
         return false;
     }
-    let Some((leaf_type, leaf_shape, byte_offset)) =
-        crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
-            source.structural_type,
-            &argument.path,
-            structural_types,
+    let (leaf_type, expected_shape, byte_offset) = if argument
+        .path
+        .iter()
+        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)))
+    {
+        let Some((leaf_type, leaf_shape, byte_offset)) =
+            crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
+                source.structural_type,
+                &argument.path,
+                structural_types,
+            )
+        else {
+            return false;
+        };
+        let leaf_is_material = structural_types.iter().any(|declaration| {
+            declaration.id == leaf_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+                        | terminal_psi::StructuralTypeShape::Record { .. }
+                )
+        });
+        if !leaf_is_material {
+            return false;
+        }
+        (
+            leaf_type,
+            ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment),
+            byte_offset,
         )
-    else {
-        return false;
+    } else {
+        // An inline bounded byte field presents the callee's borrowed byte
+        // view: the field has no catalog identity of its own, so the record
+        // walk supplies the offset and the destination supplies the view type.
+        let Some((byte_offset, _capacity)) =
+            crate::object_artifact::replay::structural::condition_layout::replay_bounded_byte_field(
+                source.structural_type,
+                &argument.path,
+                structural_types,
+            )
+        else {
+            return false;
+        };
+        let destination_is_byte_view = structural_types.iter().any(|declaration| {
+            declaration.id == destination.structural_type
+                && declaration.shape
+                    == terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    )
+        });
+        if !destination_is_byte_view {
+            return false;
+        }
+        (
+            destination.structural_type,
+            ValueShape::borrowed_reference(16, 8),
+            byte_offset,
+        )
     };
     let Some(root_shape) =
         crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(
@@ -324,17 +367,7 @@ pub(crate) fn exact_borrowed_projection(
     else {
         return false;
     };
-    let leaf_is_material = structural_types.iter().any(|declaration| {
-        declaration.id == leaf_type
-            && matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                    | terminal_psi::StructuralTypeShape::Record { .. }
-            )
-    });
-    let expected_shape = ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment);
-    leaf_is_material
-        && argument.place == source.place
+    argument.place == source.place
         && argument.root_structural_type == source.structural_type
         && argument.structural_type == leaf_type
         && destination.structural_type == leaf_type

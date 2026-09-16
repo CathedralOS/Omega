@@ -23,7 +23,7 @@ mod byte_field_store;
 mod byte_views;
 mod literals;
 mod local_storage;
-pub(super) use local_storage::fixed_array_argument;
+pub(super) use local_storage::{byte_field_argument, fixed_array_argument};
 mod case_membership;
 mod primitive_locals;
 pub(super) use case_membership::observe;

@@ -235,6 +235,80 @@ pub(super) fn map_word(
     target: &ScalarTerm,
     definition_axioms: &[usize],
 ) -> Option<ProofNode> {
+    let (form, evidence, witness) = check_word(
+        context,
+        semantic_axioms,
+        definitions,
+        bound,
+        target,
+        definition_axioms,
+    )?;
+    if evidence.is_empty() && !matches!(bound.proposition, Proposition::LessThan(_, _)) {
+        // A bare non-strict relation is already the ordinary affine path's
+        // root bound. This leg exists for strict roots and for the wrapping
+        // evidence conjunction the ordinary path cannot construct.
+        return None;
+    }
+    map_checked_word(
+        context,
+        assumptions,
+        semantic_axioms,
+        definitions,
+        bound,
+        &form,
+        &evidence,
+        witness,
+    )
+}
+
+/// The contradiction leg pool has no goal-directed ordinary path that already
+/// produces these relations: a carrier root such as `0 <= counter` mapped
+/// through `next = counter + 1` is exactly the `1 <= next` leg the strict
+/// premise contradicts. Map every cited bound here; the de-duplication gate
+/// above only belongs to the goal-checking caller.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn map_derived_word(
+    context: &PropositionContext,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    bound: &RootedBound,
+    target: &ScalarTerm,
+    definition_axioms: &[usize],
+) -> Option<ProofNode> {
+    let (form, evidence, witness) = check_word(
+        context,
+        semantic_axioms,
+        definitions,
+        bound,
+        target,
+        definition_axioms,
+    )?;
+    map_checked_word(
+        context,
+        assumptions,
+        semantic_axioms,
+        definitions,
+        bound,
+        &form,
+        &evidence,
+        witness,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_word(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    bound: &RootedBound,
+    target: &ScalarTerm,
+    definition_axioms: &[usize],
+) -> Option<(
+    proof_admission::CheckedIntegerAffineForm,
+    Vec<Proposition>,
+    IntegerAffineWitness,
+)> {
     let literal_axioms = affine_custody::literal_axioms(
         context,
         semantic_axioms,
@@ -251,15 +325,23 @@ pub(super) fn map_word(
     };
     let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
     let evidence = integer_affine_wrapping_evidence(&form, &bound.proposition).ok()?;
-    if evidence.is_empty() && !matches!(bound.proposition, Proposition::LessThan(_, _)) {
-        // A bare non-strict relation is already the ordinary affine path's
-        // root bound. This leg exists for strict roots and for the wrapping
-        // evidence conjunction the ordinary path cannot construct.
-        return None;
-    }
+    Some((form, evidence, witness))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn map_checked_word(
+    context: &PropositionContext,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    bound: &RootedBound,
+    form: &proof_admission::CheckedIntegerAffineForm,
+    evidence: &[Proposition],
+    witness: IntegerAffineWitness,
+) -> Option<ProofNode> {
     let mut children = Vec::with_capacity(evidence.len() + 1);
     children.push(bound.proof.clone());
-    for required in &evidence {
+    for required in evidence {
         children.push(bound::prove_candidate_endpoint(
             context,
             required,
@@ -283,7 +365,7 @@ pub(super) fn map_word(
             rule: ProofRule::ConjunctionIntroduction(children),
         }
     };
-    let mapped = map_integer_affine_bound(&form, &root_bound.conclusion).ok()?;
+    let mapped = map_integer_affine_bound(form, &root_bound.conclusion).ok()?;
     Some(ProofNode {
         conclusion: mapped,
         rule: ProofRule::IntegerAffineBound {

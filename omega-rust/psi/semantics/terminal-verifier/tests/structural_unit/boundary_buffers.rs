@@ -224,7 +224,7 @@ fn boundary_buffer_checks_nested_field_identity_and_relevance() {
     let argument = arguments(&mut module)[0].clone();
     assert_eq!(
         terminal_semantics::boundary_buffer_capacity(
-            &module,
+            module.structural_types.iter(),
             structural_type_id(3),
             &argument,
             &module.boundary_machines[0].structural_parameters[0],

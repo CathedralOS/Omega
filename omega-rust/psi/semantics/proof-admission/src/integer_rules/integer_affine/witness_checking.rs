@@ -310,6 +310,26 @@ pub fn check_integer_affine_witness(
             landed.as_ref(),
             index,
         );
+        let exact_backward = apply_exact_add_inverse(
+            left,
+            right,
+            &current,
+            integer_type,
+            coefficient,
+            offset,
+            landed.as_ref(),
+            index,
+        );
+        let exact_backward_reverse = apply_exact_add_inverse(
+            right,
+            left,
+            &current,
+            integer_type,
+            coefficient,
+            offset,
+            landed.as_ref(),
+            index,
+        );
         let candidates = [
             forward,
             reverse,
@@ -317,6 +337,8 @@ pub fn check_integer_affine_witness(
             shift_reverse,
             wrapping_backward,
             wrapping_backward_reverse,
+            exact_backward,
+            exact_backward_reverse,
         ]
         .into_iter()
         .flatten()
@@ -1009,6 +1031,74 @@ fn apply_wrapping_add_inverse(
                 operand: operand.clone(),
                 literal,
             },
+        )),
+        None => Err(IntegerAffineWitnessError::CoefficientOverflow),
+    })
+}
+
+/// Traverse an `Equal(defined, exact_add(operand, literal))` row toward its
+/// operand. The exact add already carries a checked no-overflow obligation,
+/// so `operand = defined - literal` is a true integer equation in either
+/// sign: the plain `Subtract` step maps the bound without wrap evidence.
+/// Exactly one addend may be the chain operand — two literal addends make the
+/// backward step ambiguous and reject rather than guess which produced it.
+#[allow(clippy::too_many_arguments)]
+fn apply_exact_add_inverse(
+    defined: &ScalarTerm,
+    expression: &ScalarTerm,
+    current: &ScalarTerm,
+    integer_type: IntegerType,
+    coefficient: i128,
+    offset: i128,
+    landed: Option<&LandedInteger>,
+    definition_index: usize,
+) -> Option<
+    Result<(ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep), IntegerAffineWitnessError>,
+> {
+    if !matches!(defined, ScalarTerm::Value { .. }) || defined != current {
+        return None;
+    }
+    let ScalarTerm::ExactIntegerAdd {
+        scalar_type,
+        left,
+        right,
+    } = expression
+    else {
+        return None;
+    };
+    if *scalar_type != integer_type {
+        return None;
+    }
+    let left_operand = if matches!(left.as_ref(), ScalarTerm::Value { .. }) {
+        signed_literal(right, integer_type, landed)
+    } else {
+        None
+    };
+    let right_operand = if matches!(right.as_ref(), ScalarTerm::Value { .. }) {
+        signed_literal(left, integer_type, landed)
+    } else {
+        None
+    };
+    let (operand, literal, used_landing) = match (left_operand, right_operand) {
+        (Some((literal, used)), None) => (left.as_ref(), literal, used),
+        (None, Some((literal, used))) => (right.as_ref(), literal, used),
+        (None, None) => return None,
+        (Some(_), Some(_)) => {
+            return Some(Err(IntegerAffineWitnessError::AmbiguousDefinition(
+                definition_index,
+            )));
+        }
+    };
+    // `operand = defined - literal` keeps the coefficient; the mapped offset
+    // moves opposite the forward step, and the `Subtract` endpoint step maps
+    // the bound's literal the same way.
+    Some(match offset.checked_sub(literal) {
+        Some(offset) => Ok((
+            operand.clone(),
+            coefficient,
+            offset,
+            used_landing,
+            CheckedIntegerEndpointStep::Subtract(literal),
         )),
         None => Err(IntegerAffineWitnessError::CoefficientOverflow),
     })

@@ -14,15 +14,37 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 /// Snapshot the projected pointer, then place its bits in the exact outgoing ABI slot.
 pub(super) fn argument_pointer(
     replay: &mut Replay<'_>,
+    source: &LegalizedScalarFunction,
     operation: &legalized_operations::LegalizedScalarInstruction,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
+    // A bounded inline byte field presents as a borrowed view: the descriptor's
+    // length is the field's own live length word, never its declared capacity.
+    let byte_field = source.structural.as_ref().and_then(|signature| {
+        signature
+            .parameters
+            .iter()
+            .find(|parameter| parameter.semantic.place == semantic.place)
+            .and_then(|parameter| {
+                crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
+                    &parameter.semantic,
+                    semantic,
+                    target.structural_type,
+                    &signature.structural_types,
+                )
+            })
+    });
     let pointer =
         structural::call_pointer(replay, operation, semantic.place, target.source_byte_offset)?;
     let pointer = if let Some(length) = target.fixed_array_length {
         structural::fixed_array_argument(replay, operation, semantic.place, pointer, length)?
+    } else if let Some((field_offset, _)) = byte_field {
+        if field_offset != target.source_byte_offset {
+            return Err(SelectedInstructionError::SourceCustodyMismatch);
+        }
+        structural::byte_field_argument(replay, operation, semantic.place, pointer, field_offset)?
     } else {
         pointer
     };
@@ -136,7 +158,7 @@ pub(super) fn validate(
                 continue;
             }
             if let Some(pointer) =
-                argument_pointer(replay, operation, argument_index, semantic, target)?
+                argument_pointer(replay, source, operation, argument_index, semantic, target)?
             {
                 operands.push((argument_index, pointer));
             }

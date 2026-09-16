@@ -360,6 +360,49 @@ fn integer_contradiction_search_rejects_consistent_or_unmatched_bounds() {
     assert!(prove(&[], &[]).is_none());
 }
 
+/// The guarded-exit vacuous clause: `v2 < 1` cannot hold because the carrier
+/// `0 <= v1` maps forward through the exact `v2 = v1 + 1` into `1 <= v2`.
+/// The strict bound is the introduced premise; the addend literal is a
+/// separately cited value axiom exactly as the block publishes it.
+#[test]
+fn carrier_bound_maps_through_exact_add_forward_to_contradict_a_strict_bound() {
+    let axioms = [
+        Proposition::Equal(value(3), literal(1)),
+        Proposition::Equal(
+            value(2),
+            ScalarTerm::exact_integer_add(integer_type(), value(1), value(3)).unwrap(),
+        ),
+    ];
+    let assumptions = [Proposition::LessThan(value(2), literal(1))];
+    let goal = Proposition::LessOrEqual(literal(100), value(2));
+    let proof = super::super::prove_contradiction(
+        &context(),
+        &goal,
+        &assumptions,
+        &axioms,
+        &mut DefinitionIndex::new(&axioms),
+    )
+    .expect("the carrier bound contradicts the strict premise");
+    let acceptance = accept_certificate(&context(), &goal, &assumptions, &axioms, &proof).unwrap();
+    assert_eq!(acceptance.assumptions.len(), 1);
+    assert!(
+        acceptance
+            .rules
+            .contains(&AcceptedProofRule::PredicateDenotation)
+    );
+    // Without the defining equation the same facts stay consistent.
+    assert!(
+        super::super::prove_contradiction(
+            &context(),
+            &goal,
+            &assumptions,
+            &axioms[..1],
+            &mut DefinitionIndex::new(&axioms[..1]),
+        )
+        .is_none()
+    );
+}
+
 #[test]
 fn directly_cited_closed_integer_falsehood_is_not_an_unconditional_primitive() {
     for proposition in [

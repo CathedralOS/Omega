@@ -396,6 +396,74 @@ pub(super) fn resolve_structural_field_path(
         .ok_or(LoweringError::UnknownStructuralType(root_type))
 }
 
+/// Bounded inline byte storage is a field, not a structural type: the path's
+/// last segment names a record field carrying `ByteSequence(BoundedOwned)`
+/// directly. Resolve only the field's offset and declared capacity; the live
+/// length word at that offset and the bytes after it stay the caller's storage.
+/// `Ok(None)` means the path does not end in such a field; `Err` means the
+/// prefix itself is malformed.
+pub(super) fn bounded_byte_field_geometry(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<Option<(u32, u64)>, LoweringError> {
+    let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
+        return Ok(None);
+    };
+    let (parent_type, _, parent_offset) = if prefix.is_empty() {
+        (
+            structural_type,
+            structural_shape(structural_type, declarations, cache, active)?,
+            0,
+        )
+    } else {
+        resolve_structural_projection_path(structural_type, prefix, declarations, cache, active)?
+    };
+    let declaration = declarations
+        .get(&parent_type)
+        .copied()
+        .ok_or(LoweringError::UnknownStructuralType(parent_type))?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Ok(None);
+    };
+    let mut local_offset = 0_u32;
+    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+        let field_shape = match structural_field_shape(
+            &field.field_type,
+            parent_type,
+            declarations,
+            cache,
+            active,
+        ) {
+            // Erased carriers occupy no storage; the shape helper declines them.
+            Ok(shape) => shape,
+            Err(_) if matches!(field.field_type, StructuralFieldType::Erased { .. }) => continue,
+            Err(error) => return Err(error),
+        };
+        local_offset = checked_align_up_u32(local_offset, u32::from(field_shape.alignment))
+            .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?;
+        if field.identity == *identity {
+            return match field.field_type {
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                ) => Ok(Some((
+                    parent_offset
+                        .checked_add(local_offset)
+                        .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?,
+                    capacity,
+                ))),
+                _ => Ok(None),
+            };
+        }
+        local_offset = local_offset
+            .checked_add(u32::from(field_shape.byte_size))
+            .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?;
+    }
+    Ok(None)
+}
+
 pub(super) fn resolve_structural_projection_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],

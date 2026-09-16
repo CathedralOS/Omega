@@ -331,6 +331,100 @@ machine Main::main(&mut self) reaches Trace {
     assert_eq!(trace.0, [b"done".to_vec()]);
 }
 
+/// The `print_squares` `digit_div` shape keeps the guarded counter as a
+/// plain `u64` — its increment is an exact add, not a wrapping one — and
+/// writes the divisor and counter in a later block than the divide. The
+/// same lockstep family `p < k -> 10^(3-k) <= place` must still prove the
+/// backedge arrivals before the artifact publishes and runs to `done`.
+#[test]
+fn cyclic_field_divisor_lockstep_accepts_exact_counter_and_split_updates() {
+    let checked = checked_source(
+        r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { p: u64; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
+machine Main::main(&mut self) reaches Trace {
+    self.p = 0;
+    self.sq = 81;
+    self.place = 100;
+    transition { _ -> itoa_loop() }
+    state itoa_loop(&mut self) {
+        transition self.p < 3 { true -> digit_div() _ -> done() }
+    }
+    state digit_div(&mut self) {
+        self.d = self.sq / self.place;
+        transition { _ -> digit_write() }
+    }
+    state digit_write(&mut self) {
+        self.place = self.place / 10;
+        self.p = self.p + 1;
+        transition { _ -> itoa_loop() }
+    }
+    state done(&mut self) { Trace::write("done"); }
+}
+"#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("the lockstep invariant proves the split-update cycle");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let invariant = module
+        .scalar_block_invariants
+        .iter()
+        .find(|invariant| {
+            matches!(
+                &invariant.predicate,
+                semantic_vocabulary::Proposition::Conjunction(members)
+                    if members.iter().any(|member| matches!(
+                        member,
+                        semantic_vocabulary::Proposition::Implication {
+                            conclusion,
+                            ..
+                        } if matches!(
+                            conclusion.as_ref(),
+                            semantic_vocabulary::Proposition::LessOrEqual(
+                                semantic_vocabulary::ScalarTerm::Integer {
+                                    value: semantic_vocabulary::IntegerValue::Unsigned(100),
+                                    ..
+                                },
+                                semantic_vocabulary::ScalarTerm::IntegerField { .. },
+                            )
+                        )
+                    ))
+            )
+        })
+        .expect("the lockstep family retains the strongest clause");
+    assert_eq!(invariant.arrivals.len(), 2, "entry and backedge arrivals");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let receiver = &entry.structural_parameters[0];
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
+    )
+    .expect("split-update artifact reloads and independently verifies");
+    let mut meter = TerminalFuelMeter::with_allowance(1000);
+    let mut trace = ByteTrace::default();
+    assert_eq!(
+        execution.resume(&mut meter, &mut trace).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(trace.0, [b"done".to_vec()]);
+}
+
 /// A lockstep candidate that under-provisions its divisor is a proposal the
 /// arrival check drops: `place = 4` reaches zero before `counter < 3` exits,
 /// so neither the family nor the original guarded bound can prove, and the

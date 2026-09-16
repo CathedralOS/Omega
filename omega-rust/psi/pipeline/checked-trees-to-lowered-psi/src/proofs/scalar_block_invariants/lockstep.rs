@@ -3,7 +3,11 @@
 //! A bounded exit guard `counter < N` combined with the body's exact updates
 //! `divisor = divisor / d` and `counter = counter + 1` leaves the plain bound
 //! `counter < N -> B <= divisor` non-inductive: the last in-guard iteration
-//! already divided `divisor` once too often. The inductive predicate is the
+//! already divided `divisor` once too often. Wrapping and exact adds measure
+//! the same stride for this family: the exact add's own overflow obligation
+//! is already checked, so its arrival equation maps the carrier bound the
+//! vacuous clause needs just like the wrapping row does. The inductive
+//! predicate is the
 //! lockstep family `counter < k -> B * d^(N-k) <= divisor` for `k` in `1..=N`;
 //! the clause at `k = N` is the original bound and earlier clauses carry the
 //! remaining quotients. These are still proposals — the retained roster
@@ -195,15 +199,20 @@ fn update_literal(
                     .is_some_and(|result| result.id == *value)
             })?;
             // A divide's read must be the dividend; an add's literal may sit
-            // on either side of the commutative step.
+            // on either side of the commutative step. Exact arithmetic
+            // measures the same per-iteration stride: its checked obligations
+            // already reject the wraps that would break the measured chain.
             let pairs: &[(ValueId, ValueId)] = match (&definition.kind, update) {
                 (
-                    terminal_psi::OperationKind::WrappingIntegerDivide { left, right, .. },
+                    terminal_psi::OperationKind::WrappingIntegerDivide { left, right, .. }
+                    | terminal_psi::OperationKind::ExactIntegerDivide { left, right, .. },
                     Update::Divide,
                 ) => &[(*left, *right)],
-                (terminal_psi::OperationKind::WrappingIntegerAdd { left, right }, Update::Add) => {
-                    &[(*left, *right), (*right, *left)]
-                }
+                (
+                    terminal_psi::OperationKind::WrappingIntegerAdd { left, right }
+                    | terminal_psi::OperationKind::ExactIntegerAdd { left, right, .. },
+                    Update::Add,
+                ) => &[(*left, *right), (*right, *left)],
                 _ => continue,
             };
             let mut literal = None;

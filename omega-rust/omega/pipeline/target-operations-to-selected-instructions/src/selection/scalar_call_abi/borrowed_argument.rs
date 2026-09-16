@@ -112,9 +112,30 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
+    // A bounded inline byte field presents as a borrowed view too; unlike the
+    // fixed array it has no projected carrier identity, so the field's own
+    // record geometry supplies the offset and the callee's type supplies the
+    // view identity.
+    let byte_field = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == semantic.place)
+        .and_then(|parameter| {
+            crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
+                &parameter.semantic,
+                semantic,
+                target.structural_type,
+                &signature.structural_types,
+            )
+        });
     let shape = if let Some(shape) = aggregate {
         shape
     } else if let Some((offset, _)) = byte_view {
+        if offset != target.source_byte_offset {
+            return None;
+        }
+        ValueShape::borrowed_reference(16, 8)
+    } else if let Some((offset, _)) = byte_field {
         if offset != target.source_byte_offset {
             return None;
         }
@@ -201,15 +222,20 @@ pub(super) fn validate_borrowed_argument(
         || call.call_plan != expected
         || (!exclusive
             && aggregate.is_none()
+            && byte_field.is_none()
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
         || target.access != semantic.access
         || target.path != semantic.path
         || (!exclusive
             && aggregate.is_none()
+            && byte_field.is_none()
             && target.root_structural_type != target.structural_type)
         || target.shape != shape
-        || (!exclusive && aggregate.is_none() && target.source_byte_offset != 0)
+        || (!exclusive
+            && aggregate.is_none()
+            && byte_field.is_none()
+            && target.source_byte_offset != 0)
         || target.fixed_array_length != byte_view.map(|(_, length)| length)
         || target.element_stride != byte_view.map(|_| 1)
         || Some(&target.destination) != expected.parameters.get(argument_index)

@@ -376,6 +376,83 @@ pub(crate) fn fixed_byte_array_view(
         .then_some((offset, length))
 }
 
+/// Reconstruct a borrowed view presented from a bounded inline byte field.
+/// The field's live length word and capacity bytes stay in the caller's record
+/// storage; the descriptor staged for the call reads that length in place.
+/// This returns metadata geometry only — it grants neither byte access nor
+/// authority to replace the field.
+pub(crate) fn bounded_byte_field_view(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u64)> {
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    let Some((StructuralPathSegment::Field(name), prefix)) = argument.path.split_last() else {
+        return None;
+    };
+    if source.place != argument.place
+        || !matches!(
+            (source.access, argument.access),
+            (
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+            ) | (
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::SharedBorrow
+            )
+        )
+        || source.multiplicity != StructuralMultiplicity::Unrestricted
+        || !source.qualifications.is_empty()
+        || !source.projected_qualifications.is_empty()
+        || !declarations.iter().any(|declaration| {
+            declaration.id == view_type
+                && declaration.shape
+                    == StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    )
+        })
+    {
+        return None;
+    }
+    let (carrier, carrier_offset) = if prefix.is_empty() {
+        (source.structural_type, 0)
+    } else {
+        project(source.structural_type, prefix, declarations)?
+    };
+    let StructuralTypeShape::Record { fields } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == carrier)?
+        .shape
+    else {
+        return None;
+    };
+    let mut local_offset = 0_u32;
+    for candidate in fields.iter().filter(|field| {
+        !field.relevance.is_erased()
+            && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+    }) {
+        let layout = field_shape(&candidate.field_type, declarations, &mut Vec::new())?;
+        local_offset = align(local_offset, layout.alignment)?;
+        if candidate.identity == *name {
+            let StructuralFieldType::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+            ) = candidate.field_type
+            else {
+                return None;
+            };
+            let field_offset = carrier_offset.checked_add(local_offset)?;
+            return (u64::from(field_offset)
+                .checked_add(8)?
+                .checked_add(capacity)?
+                <= u64::from(shape(source.structural_type, declarations)?.byte_size))
+            .then_some((field_offset, capacity));
+        }
+        local_offset = local_offset.checked_add(u32::from(layout.byte_size))?;
+    }
+    None
+}
+
 fn shape_inner(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],

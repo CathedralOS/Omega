@@ -55,6 +55,7 @@ pub(super) fn emit(
                 }
                 if let Some(pointer) = super::scalar_call::argument_pointer(
                     builder,
+                    source,
                     operation,
                     argument_index,
                     semantic,

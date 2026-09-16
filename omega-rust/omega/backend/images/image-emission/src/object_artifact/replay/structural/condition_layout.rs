@@ -178,6 +178,108 @@ pub(crate) fn replay_structural_projection(
     Some((structural_type, selected_shape?, total_offset))
 }
 
+/// Replay a path whose last step names an inline bounded byte field: returns
+/// the field's byte offset inside the root and its declared capacity. The
+/// field has no catalog identity of its own, so this walks the record fields
+/// directly; prefix segments resolve through records and fixed arrays exactly
+/// as `replay_structural_projection` does.
+pub(crate) fn replay_bounded_byte_field(
+    mut structural_type: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<(u32, u64)> {
+    let declaration_count = declarations.len();
+    let declarations = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if declarations.len() != declaration_count {
+        return None;
+    }
+    let mut cache = std::collections::BTreeMap::new();
+    let mut active = std::collections::BTreeSet::new();
+    let (last, prefix) = path.split_last()?;
+    let terminal_psi::StructuralPathSegment::Field(identity) = last else {
+        return None;
+    };
+    let mut total_offset = 0_u32;
+    for segment in prefix {
+        let declaration = declarations.get(&structural_type)?;
+        let (selected_type, local_offset) = match (segment, &declaration.shape) {
+            (
+                terminal_psi::StructuralPathSegment::Field(identity),
+                terminal_psi::StructuralTypeShape::Record { fields },
+            ) => {
+                let mut field_offset = 0_u32;
+                let mut selected = None;
+                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                    let shape = replay_structural_field_shape(
+                        &field.field_type,
+                        &declarations,
+                        &mut cache,
+                        &mut active,
+                    )?;
+                    field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
+                    if field.identity == *identity {
+                        let terminal_psi::StructuralFieldType::Structural(nested) =
+                            field.field_type
+                        else {
+                            return None;
+                        };
+                        selected = Some((nested, field_offset));
+                        break;
+                    }
+                    field_offset = field_offset.checked_add(u32::from(shape.byte_size))?;
+                }
+                selected?
+            }
+            (
+                terminal_psi::StructuralPathSegment::FixedIndex(index),
+                terminal_psi::StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => {
+                let shape =
+                    replay_structural_shape(*element, &declarations, &mut cache, &mut active)?;
+                let stride =
+                    checked_align_up(u32::from(shape.byte_size), u32::from(shape.alignment))?;
+                let offset = u64::from(stride)
+                    .checked_mul(*index)
+                    .and_then(|offset| u32::try_from(offset).ok())?;
+                (*element, offset)
+            }
+            _ => return None,
+        };
+        total_offset = total_offset.checked_add(local_offset)?;
+        structural_type = selected_type;
+    }
+    let declaration = declarations.get(&structural_type)?;
+    let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    let mut field_offset = 0_u32;
+    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+        let shape = replay_structural_field_shape(
+            &field.field_type,
+            &declarations,
+            &mut cache,
+            &mut active,
+        )?;
+        field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
+        if field.identity == *identity {
+            let terminal_psi::StructuralFieldType::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+            ) = field.field_type
+            else {
+                return None;
+            };
+            return total_offset
+                .checked_add(field_offset)
+                .map(|offset| (offset, capacity));
+        }
+        field_offset = field_offset.checked_add(u32::from(shape.byte_size))?;
+    }
+    None
+}
+
 fn replay_structural_field_shape(
     field_type: &terminal_psi::StructuralFieldType,
     declarations: &std::collections::BTreeMap<
