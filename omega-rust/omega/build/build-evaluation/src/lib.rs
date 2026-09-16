@@ -89,6 +89,7 @@ pub use admitted_build_program::{
     AdmittedBuildTargetInputs, BuildSnapshotRequest, ComputedBuildConfig, admit_build_program,
     reject_uncompiled_generated_sources,
 };
+pub use build_output::BuildStagedOutputEntryKind;
 pub use evidence::filesystem_scope::preparation::prepare_filesystem_scope;
 pub use evidence::filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,

@@ -162,9 +162,45 @@ fn package_build_reads_its_template_through_the_captured_snapshot_and_completes_
     let before = fixture.accepted_files();
     let output = audit(&fixture);
     assert_status(&output, 0);
-    let report = String::from_utf8_lossy(&output.stdout);
+    let report = String::from_utf8_lossy(&output.stdout).into_owned();
     assert!(report.contains("fresh-analysis complete"), "{report}");
     assert_eq!(fixture.accepted_files(), before);
+    // The report surfaces the binding: captured inventory extent, each
+    // settled required output, and the sealed staged entries under --details.
+    let captured = format!(
+        "build-snapshot captured-entries 5 captured-file-bytes {}",
+        COMPLETING_BUILD.len() + MAIN.len() + TEMPLATE.len()
+    );
+    assert!(report.contains(&captured), "{report}");
+    assert!(report.contains("settled-outputs 1\n"), "{report}");
+    assert!(
+        report.contains("  settled-output \"artifact.txt\"\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("sealed-outputs 1; each sealed entry: --details\n"),
+        "{report}"
+    );
+    assert!(!report.contains("  sealed-output "), "{report}");
+    let detailed = fixture.omega_with_env(
+        &[
+            "audit",
+            "packages",
+            "--target",
+            "linux_x86_64",
+            "--offline",
+            "--details",
+        ],
+        &[("TMPDIR", fixture.path("scratch").to_str().unwrap())],
+    );
+    assert_status(&detailed, 0);
+    let detailed = String::from_utf8_lossy(&detailed.stdout).into_owned();
+    assert!(detailed.contains(&captured), "{detailed}");
+    assert!(detailed.contains("sealed-outputs 1\n"), "{detailed}");
+    assert!(
+        detailed.contains("  sealed-output \"artifact.txt\" file 12 bytes\n"),
+        "{detailed}"
+    );
 
     let fresh = fixture.fresh_reviews(TARGET);
     let review = fresh
