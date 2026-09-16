@@ -13,13 +13,34 @@ Rows verified by independent stash-baseline reproduction at revision
 
 ## typed-trees-to-checked-trees
 
-`mbx nextest run -p typed-trees-to-checked-trees` — 3612/3624 pass; 12 fail in
-boundary, attached-frame, borrow, terminal-unit, and contract test areas
-unreachable from the `src/flow/` modules and the additive `product_pruning`
-module. Sampled members (`erased_record_equality…`,
-`discarded_calls_in_open_templates…`,
-`accepts_static_persistent_copy_across…`) reproduce identically with the diff
-stashed. Independently verified twice on this revision.
+`cargo nextest run --workspace --lib --no-fail-fast` at 2c234a684c on
+2026-09-16 (macOS arm64) reports 14 failures in this crate's lib tests:
+`execution::terminal_unit::calls::computation_arguments::tests::scalar_caller_retains_call_produced_record_local_before_getter`,
+`tests::borrow::checks::persistent_storage::accepts_static_persistent_copy_across_attached_transparent_result_frame`,
+`tests::contracts::boolean_call_results::call_produced_boolean_guarantees_reject_altered_call_and_argument_custody`,
+`tests::flow::terminal_cleanup::machine_edges_and_projections::affine_locals_fail_closed_in_the_whole_parameter_edge_slice`,
+`tests::flow::terminal_unit::calls::boundary_calls::static_boundary_reaches_keep_every_direct_intrinsic_and_parameter_call`,
+`tests::flow::terminal_unit::cleanup::unit_and_scalar_cleanup::unit_body_affine_local_slice_fences_every_wider_local_shape`,
+`tests::flow::terminal_unit::nested_boundary_results::nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers`,
+`tests::flow::terminal_unit::nested_boundary_results::nested_ordinary_results_keep_postorder_and_exact_boundary_operand_roles`,
+`tests::flow::terminal_unit::state_graph_scalars::general_state_graph_rejects_interleaved_scalar_storage_write`,
+`tests::generics::symbolic_ranges::discarded_calls_in_open_templates_validate_inferred_const_bounds`,
+`tests::multiplicity::borrowed_observations::indexed_operand_access_preserves_shared_collection_and_owned_index`,
+`tests::multiplicity::obligations_and_state_call_results::consuming_call_that_returns_an_obligation_transfers_its_origin`,
+`tests::termination::crash_routes::crash_fallthrough_and_equality::erased_record_equality_is_not_mistaken_for_empty_record_equality`, and
+`tests::values::initializer_call_computations::later_results::direct_boundary_result_operands_retain_exact_nonself_transfer_events`.
+The earlier 12-failure row (8220f55febc1, 2026-09-13) named a subset of these.
+The crate's `src/tests`, `src/flow`, `src/values`, `src/facts`, and
+termination/multiplicity check areas were under live work claims when this row
+was refreshed, so no attribution beyond the names is recorded here.
+
+## checked-trees-to-lowered-psi
+
+`cargo nextest run --workspace --lib --no-fail-fast` at 2c234a684c on
+2026-09-16 (macOS arm64): 1 failure,
+`tests::store_lowering::write_only_stores_and_subloans::finite_literal_index_suffix_crosses_source_codec_and_verification`
+("deep literal-index admission is exclusive to write-only access"). The
+crate's `src/tests` was under a live claim when recorded.
 
 ## compiler build-target activation
 

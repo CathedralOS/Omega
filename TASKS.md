@@ -311,8 +311,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `text_greeting`, `unit_converter` — the same missing checked transitive
   machine plan family as `recursive_sum`, `dutch_flag`, and `window_app`
   above (**GENERAL-CYCLIC-EXECUTION**). `number_guess` reaches
-  `Selection(Legalization(SourceCustodyMismatch))` in native physical
-  staging, a category not previously recorded on this board.
+  `Selection(Legalization(UnsupportedScalarOperation { .. SaturatingIntegerAdd
+  { scalar_type: i32 .. } }))` in native physical staging (macOS ARM64,
+  2c234a684c): the legalized and selected instruction vocabularies carry only
+  `SaturatingAddU64`/`SaturatingSubtractU64`, so every `i32 in Saturating`
+  operation (460 uses across samples and corpus, against 6 for `u64`) has no
+  legal physical instruction. The signed 32-bit saturating add/subtract/divide
+  family (`MIN / -1` saturates to `MAX`, zero divisors keep their obligation)
+  is the owning repair across `legalized-operations`, `selected-instructions`,
+  both ISA encoders, and `target-operations-to-selected-instructions`.
   `multiplication_table` still fails checked-stage `Utf8` field proofs and
   `print_squares` still stops at `OperationProofUnavailable(ObligationId(25))`.
 
