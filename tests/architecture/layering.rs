@@ -1234,7 +1234,7 @@ fn program_storage_source_contracts_are_not_owned_by_the_compiler() {
         "program-storage domain ownership must not return to compiler"
     );
     assert!(
-        root.join("omega-rust/omega/backend/plans/program-entry-plan/src/source_signature.rs")
+        root.join("omega-rust/omega/backend/plans/program-entry-plan/src/source_signature/mod.rs")
             .is_file(),
         "program-entry-plan must own the shared source-signature contract"
     );
@@ -5253,7 +5253,7 @@ fn build_time_const_layout_fingerprints_are_report_only_beside_exact_replay() {
 fn build_evaluation_physical_package_source_uses_strong_commitment() {
     let root = workspace_root();
     let plan_path = root
-        .join("omega-rust/omega/backend/plans/program-entry-plan/src/program_entry_physical.rs");
+        .join("omega-rust/omega/backend/plans/program-entry-plan/src/program_entry_physical/mod.rs");
     let plan = std::fs::read_to_string(&plan_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", plan_path.display()));
     let carrier = plan
