@@ -408,6 +408,17 @@ pub(crate) fn prove_ranking_range_call(
     }
 }
 
+/// The caller-side premise carriers a call-site judgment may read, resolved
+/// through the member's exact scalar entry (see `ranking_range_premise_symbols`).
+/// `None` when the member has no supported scalar witness.
+pub(crate) fn call_member_premise_symbols(
+    program: &TypedTrees,
+    member: &RankingRangeCallMember<'_>,
+) -> Option<Vec<SymbolHandle>> {
+    let (_, measure) = scalar_entry(program, member)?;
+    super::ranking_range_premise_symbols(program, member.machine, member.range, measure)
+}
+
 fn admit_member(
     program: &TypedTrees,
     member: &RankingRangeCallMember<'_>,

@@ -1,0 +1,20 @@
+// PASS CANARY. `count` is a mutable input outside every ranking premise: it is
+// not the subject, the pinned view bound, a range endpoint, or named by a
+// requires fact. Its complete write frame is disjoint from those carriers, so
+// the store before the transition leaves the entry-relative ranking intact.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.walk(0, 4, 0) }
+}
+
+machine Main::walk(&mut self, index: u64, limit: u64, mut count: u64)
+requires index <= limit;
+terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
+-> u64 {
+    count = index;
+    transition index < limit {
+        true -> walk(index + 1, limit, count)
+        false -> count
+    }
+}

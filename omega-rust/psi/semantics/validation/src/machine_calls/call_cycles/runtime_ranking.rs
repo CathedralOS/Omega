@@ -18,8 +18,8 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    discover_state_entry_mappings, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
-    prove_ranking_range_call_entry,
+    call_member_premise_symbols, discover_state_entry_mappings, mixed_call_endpoints_are_pinned,
+    prove_ranking_range_call, prove_ranking_range_call_entry,
 };
 use comparison::Comparison;
 use projection::RankProjection;
@@ -130,6 +130,26 @@ pub(super) fn check_component(
     let Some(member_mappings) = member_mappings else {
         return Err("the ranking needs entry-to-state arrival evidence");
     };
+    // A prefix store is judged against the premise carriers the call-site
+    // judgment actually reads (subjects, endpoints, requires facts, and
+    // constrained entries), located in each state through the same telescope.
+    // A member whose witness resolves no scalar premise set keeps every
+    // store rejected; the reader fails closed on `None`.
+    let member_premises = ranks
+        .iter()
+        .zip(component)
+        .map(|(rank, index)| {
+            call_member_premise_symbols(
+                program,
+                &RankingRangeCallMember {
+                    machine: &program.machines()[*index],
+                    subject: rank.subject,
+                    paired_subject: rank.paired_subject,
+                    range: rank.range,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
     let mut range_edges = Vec::new();
     let mut weak_edges = vec![Vec::new(); component.len()];
     for (position, index) in component.iter().copied().enumerate() {
@@ -149,6 +169,8 @@ pub(super) fn check_component(
                         machine,
                         state,
                         &ranks[position],
+                        member_premises[position].as_deref(),
+                        &mappings[state_position],
                         statement,
                         frames.as_ref(),
                     ) {

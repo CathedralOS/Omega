@@ -122,7 +122,12 @@ discovered telescope aliases each carried entry role onto the site's own atom,
 so authored subjects and endpoints keep naming the same value. Internal
 arrivals and self transitions belong to the member's own witness, requires
 clauses stay entry-site evidence, and mixed-range endpoint conservation still
-only covers call sites at the entry state.
+only covers call sites at the entry state. A prefix store before a component
+call is judged against the member's premise carriers
+(`ranking_range_premise_symbols`: subjects, endpoints, requires-named inputs,
+and range-constrained entries), located in the site state through that same
+telescope; a mutable input or role-less slot outside the set may be stored to,
+while any store into a carrier still invalidates the entry-relative ranking.
 
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
 scalar ranks, slice lengths, and exact direct-field coordinates. `fields.rs`
