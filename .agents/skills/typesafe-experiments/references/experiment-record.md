@@ -944,3 +944,66 @@ not making the coding model itself faster. Next validate fresh natural plan clai
 and a warm/continuing consumer before recurring-planner savings claims. Literal
 provenance, valid choices, unchanged claims, frozen identity, zero worker tools and
 Python syntax checked on Windows; macOS not run. Raw exports remain ignored.
+
+## First supervised live task: speed signal retained, support gate failed
+
+User explicitly confirmed live Omega/Devin and chose a real task rather than wait
+for a handoff. The read-only session inventory's latest non-experiment activity was
+10.5 hours old; no replay was presented as live verification. Local cutoff metadata
+was frozen, but no background watcher/automation started. `build/experiments/production-shadow/`
+preserves the real task, frozen handoff, labels-before-models, source snapshots,
+requests, outputs, resumed-comparator identity, result packet and REPORT.md.
+
+Real defect at fetched main c7465c23bc: claims audit parsed quoted Git filenames
+as paths and lost rename sources. Actual temporary Git tests reproduced Unicode
+and staged-rename conflicts returning clean exit 0. Registry acquisition/output is
+mocked, Git is real. A preliminary stdout-decoding failure was harness-only; fixed
+with UTF-8 transport, then both assertion failures witnessed in 12.666s. One fresh
+SWE-2 Max bypass worker produced a real repair and unchanged five-claim JSON handoff
+in 457.246s, plus independent two-test verification 13.012s. Handoff formatting was
+requested, but claim content was not authored, mutated or selected for model success.
+
+AST-extracted source functions and independent execution receipt were hashed and
+lexically shortlisted, six per claim. Direct full-support/none selection now takes
+code/receipt excerpts rather than documentation paragraphs, with an explicit rule
+that code cannot prove execution. Independent labels froze before selector outputs.
+
+| Selector | Correct complete-support/none / 5 | Incomplete bindings | Stage time |
+| --- | ---: | ---: | ---: |
+| Lexical top-one | 1 | 4 | Included in candidate preparation |
+| Jev | 4 | 1 | .477s |
+| Resumed SWE-2 Max | 3 | 2 | 71.021s |
+
+Jev preparation .121685s, API .353995s, packet .000825s; 7,246 input / 383 output
+tokens. Approximately 149x observed stage-time ratio, but no quality-gate pass.
+SWE resumed the dedicated prior evidence-selection session, with zero tools and
+8,192 cumulative cached tokens. CLI restarted; not a resident-KV benchmark. One
+run each, uncontrolled service variability. Shadow added work, so actual time saved
+was ZERO; replacement savings remain hypothetical. No approval or checks skipped.
+
+Both models cited status_paths for a compound relationship requiring that helper
+AND audit's caller. SWE also cited audit for a claim needing nul_paths and ??
+handling; status_paths was absent from that claim's shortlist. Under the frozen
+single-excerpt contract these are incomplete bindings, not false underlying claims.
+A looser convention permitting unreturned caller context could count the first
+supported; labels were not relaxed after inference. Jev correctly abstained on the
+second compound claim. Both abstained on no-global-config/no-test-edit history and
+before/after-three-test claims: the candidate set contained only final code and a
+two-test post-fix receipt, not the required before/after/action evidence. Coverage
+failures are retrieval limitations, not proof the claims are false.
+
+Independent coordinator code review, not Jev, then reproduced two adjacent gaps:
+copies marked unchanged sources as changed; committed renames lost removed sources.
+Consume copy metadata without adding that source; --no-renames preserves committed
+deletion/addition paths. Four GitPathAuditTests plus the existing ASCII/clean test
+passed, 5/5 in 52.331s on Windows. Local fix checkpoint f7d95d710c on
+codex/claim-path-shadow, over test-first seed; not pushed/landed. Separate invalid-base
+behavior remains out of scope; macOS not run. Old evidence hashes correctly detect
+the corrected source/test snapshots as stale; old packet must not certify new code.
+
+Decision: supervised live feasibility observed, production reliability NOT verified.
+Keep nonblocking shadow. Next acquire bounded caller/callee evidence bundles and
+actual before/after receipts, then test a changed recipe on a fresh handoff. Replaying
+these five is development, not fresh validation. Git -z semantics checked against
+official git-status documentation; TypeSafe State docs refreshed. Python syntax,
+literal source/choice identity, resumed session and diff/skill checks pass.

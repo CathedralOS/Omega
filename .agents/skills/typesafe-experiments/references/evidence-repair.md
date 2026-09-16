@@ -100,3 +100,12 @@ was 22.8x faster in measured selection stages. Lexical completed the four positi
 cases but could not supply the required no-support judgments; always abstain
 completed none. See the ledger for cold-start, sample and timing limits. This earns
 fresh operational validation, not automatic approval or a general reliability claim.
+
+The first supervised live task exposed a boundary: natural implementation claims
+span callers, helpers and execution history. One function can be relevant without
+supporting the whole claim. Retrieve a bounded provenance-bearing evidence bundle
+when that relationship is required, or keep the gap; do not silently weaken the
+complete-support rule. Source code is not an execution receipt. A before/after claim
+needs both observations, not a test definition or final-only run. Preserve source
+hashes and reject reuse after the code changes. The live trial was fast but failed
+the zero-incomplete-binding gate; its packet is not an automatic approval artifact.
