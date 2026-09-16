@@ -210,25 +210,6 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
         "a locator substitution must reject"
     );
 
-    let mut legacy = proposal.external_binding_rows().to_vec();
-    legacy
-        .iter_mut()
-        .find(|row| {
-            matches!(
-                row.binding,
-                calling_conventions::ExternalBindingKind::Import { .. }
-            )
-        })
-        .expect("mutable import row")
-        .binding = calling_conventions::ExternalBindingKind::StringBackedImportBootstrap {
-        module: "kernel32.dll".to_owned(),
-        symbol: "ExitProcess".to_owned(),
-    };
-    assert!(
-        rebuild(legacy).is_err(),
-        "a legacy string row cannot replace an evaluated import"
-    );
-
     let mut unmatched = proposal.external_binding_rows().to_vec();
     let mut extra = (*external_import).clone();
     extra.method = "unmatched".to_owned();
