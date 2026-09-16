@@ -558,7 +558,7 @@ rows! {
     FORM_PARTIAL_AFFINE => (
         "formation:partial-affine",
         SharedFormation,
-        "the machine's partial and trivial affine locals and discards, plus projected affine roots reached through locals, call products, and constructed records",
+        "the machine's partial and trivial affine locals and discards, plus projected affine roots reached through locals, call products, constructed records, and join block parameters",
         "partial affine structure validates before affine facts or obligations are reconstructed",
         &["formation:machine-validation"],
         &[tv!( "validation/partial_affine.rs")]

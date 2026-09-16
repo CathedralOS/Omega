@@ -279,8 +279,36 @@ fn validate_partial_affine_discards(
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == discard.place);
+        let block_parameter = || {
+            let declaration = machine
+                .structural_places
+                .iter()
+                .find(|declaration| declaration.id == discard.place)?;
+            let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
+                return None;
+            };
+            machine
+                .blocks
+                .iter()
+                .find(|candidate| candidate.id == block)?
+                .structural_parameters
+                .get(position as usize)
+                .filter(|parameter| {
+                    parameter.place == discard.place
+                        && parameter.position == position
+                        && !parameter.is_self
+                })
+        };
         let supported_root = parameter.map_or_else(
-            || is_plain_affine_call_result(machine, discard.place),
+            || {
+                is_plain_affine_call_result(machine, discard.place)
+                    || block_parameter().is_some_and(|parameter| {
+                        parameter.multiplicity == StructuralMultiplicity::Affine
+                            && parameter.access == terminal_psi::StructuralAccess::Owned
+                            && parameter.qualifications.is_empty()
+                            && parameter.projected_qualifications.is_empty()
+                    })
+            },
             |parameter| parameter.multiplicity == StructuralMultiplicity::Affine,
         );
         if !supported_root

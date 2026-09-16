@@ -26,6 +26,7 @@ pub(super) fn partial_affine_root_type(
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == place)
+        .or_else(|| super::block_views::parameter(machine, place))
     {
         return (parameter.multiplicity == StructuralMultiplicity::Affine
             && parameter.access == StructuralAccess::Owned

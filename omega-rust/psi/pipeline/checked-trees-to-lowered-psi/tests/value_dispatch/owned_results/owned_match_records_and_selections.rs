@@ -625,36 +625,294 @@ fn chained_owned_selection_rejects_substituted_origin_receipt() {
     }
 }
 
+const PROJECTED_CHAINED_SOURCE: &str = "data Payload { left: u64; right: u64; }
+    data Pair { first: Payload; second: Payload; }
+    machine choose(selected: bool, other: bool) -> u64 {
+        let x: Pair = Pair {
+            first: Payload { left: 1, right: 2 },
+            second: Payload { left: 3, right: 4 }
+        };
+        let y: Pair = Pair {
+            first: Payload { left: 5, right: 6 },
+            second: Payload { left: 7, right: 8 }
+        };
+        let a: Pair = match selected { true -> x, false -> y };
+        let b: Pair = Pair {
+            first: Payload { left: 9, right: 10 },
+            second: Payload { left: 11, right: 12 }
+        };
+        let result: Payload = match other {
+            true -> a.first,
+            false -> b.second
+        };
+        result.left ^ result.right
+    }";
+
 #[test]
-fn projected_move_of_a_prior_selection_result_rejects_explicitly() {
-    let source = "data Payload { left: u64; right: u64; }
-        data Pair { first: Payload; second: Payload; }
-        machine choose(selected: bool, other: bool) -> u64 {
-            let x: Pair = Pair {
-                first: Payload { left: 1, right: 2 },
-                second: Payload { left: 3, right: 4 }
+fn projected_move_of_a_prior_selection_result_executes_the_selected_child() {
+    for selected in [true, false] {
+        for other in [true, false] {
+            let (module, execution) = execute(
+                PROJECTED_CHAINED_SOURCE,
+                &[
+                    TerminalScalarValue::Boolean(selected),
+                    TerminalScalarValue::Boolean(other),
+                ],
+            );
+            // The first match moves one of the Pair locals into `a`; the
+            // second projects `a.first` out of the join block parameter on
+            // its true arm and `b.second` out of a plain local otherwise.
+            let first = if selected {
+                (1u128, 2u128)
+            } else {
+                (5u128, 6u128)
             };
-            let y: Pair = Pair {
-                first: Payload { left: 5, right: 6 },
-                second: Payload { left: 7, right: 8 }
-            };
-            let a: Pair = match selected { true -> x, false -> y };
-            let fallback: Payload = Payload { left: 9, right: 10 };
-            let result: Payload = match other {
-                true -> a.first,
-                false -> fallback
-            };
-            result.left ^ result.right
-        }";
-    let checked = check_source(source).expect("projected chained selection checks");
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect_err("a projected move out of a join result is not admitted yet");
-    assert!(
-        format!("{error:?}").contains(
-            "projected selection of a prior selection result requires block-parameter residual custody"
-        ),
-        "expected the explicit residual-custody rejection, got {error:?}"
+            let second = (11u128, 12u128);
+            let (left, right) = if other { first } else { second };
+            assert_eq!(
+                execution.value(),
+                TerminalExecutionResult::Scalar(unsigned(left ^ right)),
+                "selected={selected} other={other}"
+            );
+            let machine = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == module.entry)
+                .unwrap();
+            assert_eq!(
+                machine
+                    .blocks
+                    .iter()
+                    .filter(|block| !block.structural_parameters.is_empty())
+                    .count(),
+                2,
+                "each selection keeps its own result/residual continuation"
+            );
+        }
+    }
+}
+
+#[test]
+fn projected_chained_selection_carries_block_parameter_residual_evidence() {
+    let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect("chained projected selection lowers");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let mut projected = 0;
+    let mut block_parameter_roots = 0;
+    for block in &machine.blocks {
+        let terminal_psi::Terminator::Jump {
+            structural_arguments,
+            residual_affine_discards,
+            ..
+        } = &block.terminator
+        else {
+            continue;
+        };
+        if !structural_arguments
+            .iter()
+            .any(|argument| !argument.path.is_empty())
+        {
+            continue;
+        }
+        projected += 1;
+        assert_eq!(residual_affine_discards.len(), 1);
+        // The true edge moves `a.first` out of the first join's block
+        // parameter and discards `a.second` against that same root. The
+        // false edge moves `b.second` out of the surviving local instead;
+        // the block-parameter root itself arrives as the residual argument.
+        let root = residual_affine_discards[0].place;
+        let declaration = machine
+            .structural_places
+            .iter()
+            .find(|declaration| declaration.id == root)
+            .expect("residual root place is declared");
+        assert_eq!(
+            structural_arguments.last().map(|argument| argument.place),
+            Some(root),
+            "the moved child argument names its residual root"
+        );
+        if matches!(
+            declaration.kind,
+            semantic_vocabulary::StructuralPlaceKind::BlockParameter { .. }
+        ) {
+            block_parameter_roots += 1;
+        }
+    }
+    assert_eq!(projected, 2, "both selection arms carry projected custody");
+    assert_eq!(
+        block_parameter_roots, 1,
+        "the prior result's residual root is its join block parameter"
     );
+}
+
+#[test]
+fn projected_chained_selection_rejects_mutated_residual_evidence() {
+    let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect("chained projected selection lowers");
+    for mutation in 0..4 {
+        let mut changed = lowered.semantic_module.clone();
+        let machine = changed
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed.entry)
+            .unwrap();
+        let mut touched = 0;
+        for block in &mut machine.blocks {
+            if let terminal_psi::Terminator::Jump {
+                structural_arguments,
+                residual_affine_discards,
+                ..
+            } = &mut block.terminator
+                && structural_arguments
+                    .iter()
+                    .any(|argument| !argument.path.is_empty())
+            {
+                match mutation {
+                    // The residual complement must die on this exact edge.
+                    0 => residual_affine_discards.clear(),
+                    // The discard must name the untouched sibling path, not
+                    // the moved child's path again.
+                    1 => {
+                        residual_affine_discards[0].path =
+                            structural_arguments.last().unwrap().path.clone();
+                    }
+                    // A residual discard cannot be re-rooted onto the
+                    // surviving source passed beside it.
+                    2 => {
+                        residual_affine_discards[0].place = structural_arguments
+                            .iter()
+                            .find(|argument| argument.path.is_empty())
+                            .unwrap()
+                            .place;
+                    }
+                    // A whole binding cannot carry the moved child's custody.
+                    _ => structural_arguments
+                        .iter_mut()
+                        .for_each(|argument| argument.path.clear()),
+                }
+                touched += 1;
+            }
+        }
+        assert_eq!(touched, 2, "both arm edges carry projected custody");
+        assert!(
+            terminal_codec::encode_module(&changed).is_err()
+                || terminal_verifier::verify_module(
+                    &changed,
+                    &lowered.proof_bundle,
+                    &crate::AdmissionProfile::default()
+                )
+                .is_err(),
+            "projected chained residual mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn projected_chained_selection_rejects_mutated_join_arguments() {
+    let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect("chained projected selection lowers");
+    for mutation in 0..2 {
+        let mut changed = lowered.semantic_module.clone();
+        let machine = changed
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed.entry)
+            .unwrap();
+        let mut touched = 0;
+        for block in &mut machine.blocks {
+            let terminal_psi::Terminator::Jump {
+                structural_arguments,
+                ..
+            } = &mut block.terminator
+            else {
+                continue;
+            };
+            match mutation {
+                // Dropping the selected result argument leaves the join's
+                // result slot unbound.
+                0 if structural_arguments.len() > 1 => {
+                    structural_arguments.pop();
+                    touched += 1;
+                }
+                // Moving the residual source into the result slot as well
+                // moves one owner into two frontier positions.
+                1 if structural_arguments.len() > 1 => {
+                    let last = structural_arguments.len() - 1;
+                    structural_arguments[last].place = structural_arguments[0].place;
+                    touched += 1;
+                }
+                _ => {}
+            }
+        }
+        assert!(touched > 0, "chained selection edges carry join evidence");
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &lowered.proof_bundle,
+                &crate::AdmissionProfile::default()
+            )
+            .is_err(),
+            "projected chained join mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn projected_chained_selection_rejects_substituted_origin_receipt() {
+    let checked = check_source(PROJECTED_CHAINED_SOURCE).expect("chained selection checks");
+    let (second, receipt) = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selections
+        .iter()
+        .nth(1)
+        .expect("the second match keeps its receipt");
+    let sources = checked
+        .facts
+        .flow
+        .ownership
+        .selection_sources
+        .span(receipt.sources)
+        .expect("chained source span");
+    let chained = sources
+        .iter()
+        .position(|source| source.origin_selection.is_valid())
+        .expect("the second match records the prior destination's origin");
+    assert_eq!(
+        sources[chained].provenance,
+        language_semantics::PermissionProvenance::Unknown
+    );
+    for mutation in 0..2 {
+        let mut changed = checked.clone();
+        let ownership = &mut changed.facts.flow.ownership;
+        let source = ownership
+            .selection_sources
+            .get_mut(arena::Handle::from_parts(
+                receipt.sources.start().arena_index() + chained as u32,
+                receipt.sources.start().generation(),
+            ));
+        match mutation {
+            // A missing origin handle does not authorize the Unknown
+            // provenance row.
+            0 => source.origin_selection = arena::Handle::invalid(),
+            // The second receipt is a valid handle but names the wrong
+            // destination for this source's statement.
+            _ => source.origin_selection = second,
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "choose").is_err(),
+            "projected chained origin mutation {mutation}"
+        );
+    }
 }
 
 #[test]
