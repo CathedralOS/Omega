@@ -632,3 +632,42 @@ acceptance. Park retry-adviser tuning: the recorded evidence still does not
 justify a model in this path. Revisit only for a genuine recorded semantic
 distinction beyond deterministic command/flag handling, not more constructed
 examples or a deliberately weak baseline. No production change or publication.
+
+## Pre-planning workflow awareness: positive but bounded consumer signal
+
+`build/experiments/workflow-routing/` adapts the official skill_suggestion cookbook
+(https://docs.typesafe.ai/cookbooks/skill_suggestion.md, live stages 3-4 read) to
+61 installed descriptions, including repository overrides. Full descriptions and
+explicit none; no two-stage reranking needed. These are installed skills, not a
+claim all are active in every agent session. No mandatory instructions removed.
+
+Eight actual public user requests from the recorded Omega rare-meeting session:
+six actionable routes, two conversational remarks. Labels frozen before Jev;
+hand-selected swarm-heavy data with no surrounding conversation supplied. Jev
+1.13.0 got 8/8 first-workflow and 8/8 operation labels; IDF keyword overlap got
+4/8 routes. Misroutes included wizard for draining and to-spec for a concurrency
+request. A stronger hand-written router was not evaluated. API median .318s,
+range .271-.418s, summed 2.595s, 46,960 input / 5,471 output tokens, no retries.
+
+Unlike the earlier classifier-only probes, five cases then went to two fresh
+SWE-2 Max planning sessions with the same full catalog. Plain chose intended
+workflow 4/5; Jev-hinted 5/5. Both got immediate operation 5/5 and preserved
+inspect-before-relaunch, drain without refill, and ten-agent concurrency.
+The observed correction was treating a throughput remark as discussion without
+selecting local-swarm. Plain also supplied numeric machine limits absent from the
+packet; hinted did not. Neither worker actually loaded a skill or executed tools.
+
+Plain process 61.526s; hinted 41.728s plus 1.565s relevant Jev overhead = 43.294s.
+Observed 29.6% lower measured stages in one fixed-order pair; not a repeatable or
+causal speed claim. Shared five-case prompts, prior case exposure and provider
+variation limit generalization. Common preparation/coordinator review excluded.
+No coding task completed or actual unnecessary worker launch prevented.
+
+Both plans mention a no-refuel manifest marker without demonstrating a real
+field. Full workflow instructions and live state must precede execution; even a
+correct intent hint does not validate generated operational details. Retain this
+as an advisory pre-planning candidate, not a mandatory gate or justification to
+remove catalog/mandatory instructions. Next: fresh end-to-end planning work, not
+more tuning these excerpts. Hashes, response IDs, sanitization, lexical self-checks,
+Python compilation, zero worker tool calls and empty workspace checked on Windows;
+no macOS runtime or production changes. Raw sessions remain local, not uploaded.
