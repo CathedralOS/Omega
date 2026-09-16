@@ -51,6 +51,14 @@ fresh sessions, witnessed assertion failures, and trusted acceptance tests outsi
 worker control. Verify checkout population and permitted read/test commands before
 launching the matrix. Keep all arms' mandatory repository instructions intact.
 
+For these owner-authorized local Devin experiments, Jarod explicitly requested
+bypass/YOLO mode after repeated headless permission failures. Invoke Devin with
+`--permission-mode dangerous` in the isolated experiment worktree; do not keep
+patching individual harmless command allowlists. Use the same mode across new
+comparison arms. This changes tool confirmation, not task scope: no live claims,
+publication, unrelated edits or global permission-setting changes are authorized.
+Preserve interrupted attempts and their costs when switching an existing trial.
+
 Inspect failed outcomes before tuning: absent evidence, truncated candidates,
 ambiguous criteria, policy mistakes, model errors, and runner failures need different
 repairs. Preserve attempts; do not retry wrong answers until they pass. Narrow
