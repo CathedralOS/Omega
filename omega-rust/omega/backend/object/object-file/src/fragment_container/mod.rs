@@ -1,13 +1,11 @@
 //! Optimizer module role: executable entrance. Object publication and source custody.
 //! Object-format construction and independent correspondence live in the backend.
-pub use crate::{
-    FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerStage,
-    FunctionFragmentObjectContainerUnavailableData,
-};
 use crate::{
-    RelocationFreeObjectContainer, RelocationFreeObjectDecodeError, RelocationFreeObjectError,
-    RelocationFreeObjectFromTextError, RelocationFreeObjectPlan,
-    construct_relocation_free_object_from_text, encode_relocation_free_object,
+    FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerStage,
+    FunctionFragmentObjectContainerUnavailableData, RelocationFreeObjectContainer,
+    RelocationFreeObjectDecodeError, RelocationFreeObjectError, RelocationFreeObjectFromTextError,
+    RelocationFreeObjectPlan, construct_relocation_free_object_from_text,
+    encode_relocation_free_object,
 };
 use optimization_core::{
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
@@ -21,7 +19,11 @@ mod validation;
 use machine_emission::{
     StagedOptimizedFixedFrameTextSection, validate_optimized_fixed_frame_text_section,
 };
-pub use model::*;
+pub use model::{
+    RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer,
+    StagedRelocationFreeObjectContainerCustodyReceipt,
+    ValidatedFunctionFragmentObjectContainerManifest,
+};
 use reconstruction::*;
 pub use validation::validate_optimized_relocation_free_object_container;
 

@@ -31,7 +31,14 @@ mod codec;
 mod model;
 mod reconstruction;
 
-pub use model::*;
+pub use model::{
+    OptimizedObjectArtifactCustodyReceipt, OptimizedObjectArtifactError,
+    OptimizedObjectArtifactManifest, OptimizedObjectArtifactManifestDecodeError,
+    OptimizedObjectArtifactRecord, OptimizedObjectArtifactRecordDecodeError,
+    OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
+    OptimizedObjectArtifactUnavailableData, StagedValidatedOptimizedObjectArtifact,
+    ValidatedOptimizedObjectArtifactManifest,
+};
 
 use reconstruction::*;
 
