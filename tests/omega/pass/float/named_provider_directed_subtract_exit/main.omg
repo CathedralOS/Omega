@@ -27,7 +27,7 @@ data Main {
     ordinary64: f64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.one32 = 1.0f32;
     self.midpoint_delta32 = 0.0000000298023223876953125f32;
     self.below_one32 = 0.999999940395355224609375f32;

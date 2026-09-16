@@ -14,7 +14,7 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.dir_mode = 493;
     self.file_mode = 420;
     self.rc = self.fs.create_dir("/tmp/omega_fsdir", self.dir_mode);

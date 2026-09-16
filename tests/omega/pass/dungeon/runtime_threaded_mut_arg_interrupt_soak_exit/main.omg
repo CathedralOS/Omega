@@ -10,7 +10,7 @@
 // million times so the run spans many timer ticks; if any emitted slot copy
 // parks data in an interrupt-clobbered register, the pointer (or the count)
 // corrupts and the run crashes or exits 71 instead of 70.
-use platform::console;
+use omega_language_std::console;
 
 data Tally {
     value: u64;
@@ -32,7 +32,7 @@ data Main {
     tally: Tally;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.tally.value = 0;
 
     transition {

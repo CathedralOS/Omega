@@ -51,7 +51,7 @@ data Main {
     issuer: TokenIssuer;
 }
 
-machine Main::probe(&mut self) {
+machine Main::probe(&mut self) reaches TokenIssuer {
     let token: Token = self.issuer.issue(7);
     let task: Task<Token> = self.runtime.start<Worker::run>(token);
     Task::settle(task);

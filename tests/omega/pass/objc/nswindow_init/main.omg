@@ -48,7 +48,7 @@ data Main {
     mask: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.ns_app_cls = self.objc.get_class("NSApplication");
     self.sel_shared = self.objc.register_selector("sharedApplication");
     self.app = self.objc.send(self.ns_app_cls, self.sel_shared);

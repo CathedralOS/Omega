@@ -12,6 +12,6 @@ ensures Real::add(a, b) == Real::add(b, a)
     real_add_commutative(a, b);
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.exit_process(70);
 }

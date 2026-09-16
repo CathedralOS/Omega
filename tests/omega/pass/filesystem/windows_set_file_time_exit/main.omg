@@ -29,7 +29,7 @@ data Main {
     mtime: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     // Seed and CLOSE first: a pending write flushed by a later close would
     // update mtime past the stamp (both engines model this). The stamp
     // rides a clean read-write reopen.

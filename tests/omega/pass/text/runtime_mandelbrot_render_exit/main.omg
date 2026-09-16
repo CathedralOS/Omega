@@ -38,7 +38,7 @@ data Main {
     inset: i32 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.palette = " .:-=+*#";
     self.row = "........................................";
     self.y = 0;

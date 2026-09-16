@@ -48,7 +48,7 @@ data Main {
     navigation: Navigation;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let observed: LineReadResult = self.console.read_line(&mut self.line);
     transition observed {
         LineReadResult::LineComplete { count } -> bounded_input(count, true)

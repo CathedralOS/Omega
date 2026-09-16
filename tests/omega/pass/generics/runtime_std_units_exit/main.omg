@@ -10,7 +10,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let kilometers: i64 in Quantity<Units::KILOMETER> = kilometers_i64(2);
     let meters: i64 in Quantity<Units::METER> =
         kilometers_to_meters_trapping_i64(kilometers);

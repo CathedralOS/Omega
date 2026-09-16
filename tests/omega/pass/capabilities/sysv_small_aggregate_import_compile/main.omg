@@ -15,7 +15,7 @@ boundary trait AggregateImport {
     machine call(tag: u64, pair: Pair) -> Pair;
 }
 
-linux_x86_64 machine aggregate_binding() -> Binding<18, 31, 7> {
+linux_x86_64 machine aggregate_binding() -> Binding<18, 32, 7> {
     Binding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libomega-probes.so",

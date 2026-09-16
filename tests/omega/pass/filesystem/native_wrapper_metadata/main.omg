@@ -30,7 +30,7 @@ data Main {
     res: MetadataResult;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.fd = self.raw.create("/tmp/omega_wrapper_metadata.txt", self.mode);
     self.n = self.raw.write(self.fd, "hello");

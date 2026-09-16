@@ -42,7 +42,7 @@ data Main {
     res: PairResult;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.res = self.probe.make();
     transition self.res {
         PairResult::Ok { pair } -> check(pair)

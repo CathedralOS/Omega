@@ -1,7 +1,7 @@
 domain [u8]::Utf8
 requires
     valid_utf8(self);
-use platform::console;
+use omega_language_std::console;
 
 data CommandParser {}
 
@@ -68,7 +68,7 @@ data Main {
     treasure_taken: bool;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.input = "";
     self.output = "";
     self.current_room_index = 2;

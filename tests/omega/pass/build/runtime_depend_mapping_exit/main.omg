@@ -9,7 +9,7 @@
 use mylib::values;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition ANSWER == 42 { true -> yes() _ -> no() }
     state yes(&mut self) { self.console.exit_process(70); }
     state no(&mut self)  { self.console.exit_process(71); }

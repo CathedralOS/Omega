@@ -23,7 +23,7 @@ data Main {
     ordinary64: f64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.two32 = 2.0f32;
     self.lower32 = 1.41421353816986083984375f32;
     self.upper32 = 1.414213657379150390625f32;

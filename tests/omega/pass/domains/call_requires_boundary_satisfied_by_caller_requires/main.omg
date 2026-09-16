@@ -24,7 +24,7 @@ data Worker {
 machine Worker::run(&self, item: &Item)
 requires
     item in Item::Ready
-{
+reaches Console {
     self.console.show(item);
 }
 

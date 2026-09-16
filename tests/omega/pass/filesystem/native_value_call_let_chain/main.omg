@@ -21,7 +21,7 @@ data Main {
     fd2: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.cmode = 420;
     self.rdonly = 0;
     self.n = self.helper("hello");

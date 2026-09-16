@@ -17,10 +17,10 @@
 // windows-gated in the suite and differential-excluded with a reason (a
 // darwin-host differential run would decode garbage at 40).
 // Expected exit: 70.
-use omega::language::std::filesystem_host;
-use omega::language::std::time;
+use omega_language_std::filesystem_host;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {
@@ -38,7 +38,7 @@ data Main {
     diff: SystemTimeDifference;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.mode = 438;
     self.fd = self.fs.create("omega_wintime_interop.txt", self.mode);
     self.n = self.fs.write(self.fd, "interop");

@@ -36,7 +36,7 @@ data Main {
     diff: SystemTimeDifference;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.mode = 438;
     self.fd = self.fs.create("/tmp/omega_time_interop.txt", self.mode);
     self.n = self.fs.write(self.fd, "interop");

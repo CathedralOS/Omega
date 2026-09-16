@@ -16,7 +16,7 @@ data Main {
     n: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.readonly = 292;   // 0o444
     self.wronly = 1;       // O_WRONLY

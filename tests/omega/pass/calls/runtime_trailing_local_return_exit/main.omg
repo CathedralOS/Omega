@@ -1,4 +1,4 @@
-use platform::console;
+use omega_language_std::console;
 
 // A machine whose TRAILING TERMINAL EXPRESSION IS A BARE LOCAL NAME must
 // return that local's value -- captured at its declaration, exactly like the
@@ -44,7 +44,7 @@ data Main {
     b: Box1;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.b.n = 40;
     let taken: i32 in Wrapping = self.b.take();
     let off: i32 in Wrapping = self.b.offset(4);

@@ -205,7 +205,7 @@ data Main {
     slots: [u8; float_semantics_twin_code()];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let runtime_code: u64 = float_semantics_twin_code();
     self.slots[15] = 54;
     transition runtime_code == 16 && self.slots[15] == 54 {

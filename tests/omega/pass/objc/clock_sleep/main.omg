@@ -20,7 +20,7 @@ data Main {
     ticks: i32 [0..=3];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Clock + Console {
     self.ticks = 0;
     transition { _ -> loop() }
     state loop(&mut self) {

@@ -38,7 +38,7 @@ data Main {
     m: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + Math {
     self.x = 10.0;
     self.y = 20.0;
     self.w = 30.0;

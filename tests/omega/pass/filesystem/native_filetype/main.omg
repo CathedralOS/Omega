@@ -19,7 +19,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     // 1: /dev/null must stat as a character device
     self.rc = self.fs.read_metadata("/dev/null", &mut self.buffer);

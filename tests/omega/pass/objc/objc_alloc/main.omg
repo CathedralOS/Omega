@@ -24,7 +24,7 @@ data Main {
     obj: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cls = self.objc.get_class("NSObject");
     self.sel = self.objc.register_selector("alloc");
     self.obj = self.objc.send(self.cls, self.sel);

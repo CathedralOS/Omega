@@ -13,7 +13,7 @@ data Main {
     value: Mixed<i32 in Wrapping>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.value = Mixed::Some { common: 7, value: 63 };
     transition self.value {
         Mixed::Some { value, case_proof as _ } -> good(value)

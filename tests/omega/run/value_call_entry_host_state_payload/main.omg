@@ -62,7 +62,7 @@ machine Probe::classify(&mut self) -> i64 {
     state unknown(&mut self) -> i64 { 1 }
 }
 
-machine Probe::make(&mut self) -> BigResult {
+machine Probe::make(&mut self) -> BigResult reaches Console {
     self.console.read_line(&mut self.buf);
     transition self.buf == "ok" { true -> mk_ok() _ -> mk_err() }
     state mk_err(&mut self) -> BigResult {
@@ -81,7 +81,7 @@ data Main {
     res: BigResult;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.res = self.probe.make();
     transition self.res {
         BigResult::Ok { meta } -> check_len(meta)

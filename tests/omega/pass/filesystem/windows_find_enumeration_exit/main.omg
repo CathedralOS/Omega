@@ -31,7 +31,7 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.rc = self.raw.create_dir("finddir", 493);
     self.fd = self.raw.create("finddir/a.txt", 438);
     self.rc = self.raw.close(self.fd);

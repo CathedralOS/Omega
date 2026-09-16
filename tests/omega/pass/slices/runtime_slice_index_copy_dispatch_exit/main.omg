@@ -1,4 +1,4 @@
-use platform::console;
+use omega_language_std::console;
 
 data Entry {
     value: i32;
@@ -9,7 +9,7 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition true {
         true -> copy_alias()
     }

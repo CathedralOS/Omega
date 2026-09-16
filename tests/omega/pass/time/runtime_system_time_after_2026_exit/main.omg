@@ -28,7 +28,7 @@ data Main {
     backward: SystemTimeDifference;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + Clock {
     self.clock.sleep(30);
     self.now_keep = self.time.system_time_now();
     self.epoch_2026 = SystemTime::from_unix_seconds(1767225600);

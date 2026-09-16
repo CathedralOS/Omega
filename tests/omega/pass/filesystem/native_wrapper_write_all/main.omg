@@ -24,7 +24,7 @@ data Main {
     buffer: [u8; 16];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.cap = 16;
     self.wrote = self.fs.write_all("/tmp/omega_wrapper.txt", "hello");
     self.got = self.fs.read_all("/tmp/omega_wrapper.txt", &mut self.buffer, self.cap);

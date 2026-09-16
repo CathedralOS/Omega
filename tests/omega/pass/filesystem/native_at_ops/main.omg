@@ -19,7 +19,7 @@ data Main {
     n: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.dirmode = 493;
     self.filemode = 420;
     self.rdonly = 0;

@@ -3,7 +3,7 @@
 // the descriptor lowering stays on the canonical `[start, end)` shape:
 // ptr = sub.ptr + 1*elem, len = 3 (elements 1, 2, 3).
 
-use platform::console;
+use omega_language_std::console;
 
 data Entry { value: i32; }
 
@@ -19,7 +19,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, sub: &[Entry]) {
+machine Main::check(&mut self, sub: &[Entry]) reaches Console {
     transition sub.len > 3 {
         true -> self.verify(sub[1..=3])
         false -> bad()
@@ -27,7 +27,7 @@ machine Main::check(&mut self, sub: &[Entry]) {
     state bad(&mut self) { self.console.exit_process(71); }
 }
 
-machine Main::verify(&mut self, sub: &[Entry]) {
+machine Main::verify(&mut self, sub: &[Entry]) reaches Console {
     transition sub.len == 3 {
         true -> good()
         false -> wrong()

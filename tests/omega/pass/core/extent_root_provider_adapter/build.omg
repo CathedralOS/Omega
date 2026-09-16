@@ -2,4 +2,8 @@ machine build(builder: &mut Build) {
     builder.application("extent-root-provider-adapter");
     builder.accept_boundary<ExtentRootProvider>();
     builder.select_provider<ExtentRootProvider, ExtentRootProviderImpl>();
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

@@ -40,7 +40,7 @@ machine Main::main(&mut self) {
 
 machine Main::accumulate(&mut self, items: &[Entry], take: u32 in Wrapping)
 terminates by items -> Slice::Length;
-{
+reaches Console {
     self.total = self.total + take;
 
     transition items.len > 0 {

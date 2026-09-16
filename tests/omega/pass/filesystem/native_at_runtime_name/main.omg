@@ -22,7 +22,7 @@ data Main {
     namebuf: [u8; 16];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches FilesystemHost {
     self.dirmode = 493;
     self.filemode = 420;
     self.rdonly = 0;
