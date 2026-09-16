@@ -56,6 +56,12 @@ impl Fixture {
     }
 
     pub(super) fn omega(&self, arguments: &[&str]) -> Output {
+        self.omega_with_env(arguments, &[])
+    }
+
+    /// Run `omega` with extra environment for the child only, such as a
+    /// fixture-private `TMPDIR` that lets a test observe scratch residue.
+    pub(super) fn omega_with_env(&self, arguments: &[&str], env: &[(&str, &str)]) -> Output {
         let executable = fs::canonicalize(env!("CARGO_BIN_EXE_omega"))
             .expect("resolve omega before changing child directory");
         // Use the resolver's supported per-user cache selection. Cleanup owns
@@ -63,6 +69,7 @@ impl Fixture {
         Command::new(executable)
             .current_dir(self.path("root"))
             .args(arguments)
+            .envs(env.iter().copied())
             .output()
             .expect("run omega")
     }

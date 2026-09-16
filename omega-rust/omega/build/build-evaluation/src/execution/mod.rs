@@ -37,6 +37,20 @@ use diagnostics::Diagnostic;
 pub fn execute_admitted_build_program(
     admitted: AdmittedBuildProgram,
 ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+    // The private captured-source backing is scratch for this occurrence
+    // only. Settlement releases it before staged custody is captured; every
+    // other exit (an evaluator halt, a rejected Build, a failed replay or
+    // settlement) must release it as well, so a failed build leaves no
+    // residue outside its build directory.
+    let captured_snapshot = admitted.filesystem_scope.captured_snapshot_release();
+    let outcome = execute_admitted_build_occurrence(admitted);
+    captured_snapshot.release();
+    outcome
+}
+
+fn execute_admitted_build_occurrence(
+    admitted: AdmittedBuildProgram,
+) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
     let AdmittedBuildProgram {
         prepared,
         machine,
