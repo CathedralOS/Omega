@@ -31,6 +31,7 @@ pub(super) fn preserves_rank(
             | RankOrder::IncreasingTo(_)
             | RankOrder::BoundedDistance(_)
             | RankOrder::SliceLength
+            | RankOrder::DeclaredIdentity { .. }
     ) {
         return false;
     }

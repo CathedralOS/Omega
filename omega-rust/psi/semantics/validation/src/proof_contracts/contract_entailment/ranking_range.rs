@@ -22,6 +22,12 @@ pub use requirements::{
     arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
 };
 pub use telescope::{discover_state_entry_mappings, discover_state_entry_mappings_preferring};
+mod identity_views;
+pub use identity_views::{
+    DeclaredIdentityView, MeasureBodyShape, declared_identity_view, find_declared_measure,
+    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
+    unwrap_constraint_shells,
+};
 
 pub(crate) use calls::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,

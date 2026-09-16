@@ -116,7 +116,13 @@ also checks unconditional termination and crash freedom.
 
 `call_cycles/runtime_ranking.rs` owns whole-component runtime tail-call ranking;
 proof-only components require strict structural subterms at every resolved call
-occurrence. No parallel edge may supply an unclassified call's certificate.
+occurrence. Members may select a declared identity measure: the classification
+in `ranking_range/identity_views.rs` (the body forwards its parameter, the
+parameter, result and subject share one unsigned carrier, and every declared
+range refinement covers the subject's enforced bounds) is shared with the
+checked termination stage, the produced rank is the subject itself, and the
+authored measure stays private witness identity -- members share the order
+only through the same measure, never with `Nat::Descending`. No parallel edge may supply an unclassified call's certificate.
 Members may issue component calls from subordinate states: the state's
 discovered telescope aliases each carried entry role onto the site's own atom,
 so authored subjects and endpoints keep naming the same value. Internal

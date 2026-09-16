@@ -1,0 +1,31 @@
+// FAIL CANARY. The declared identity measure produces the same natural rank
+// as `Nat::Descending`, but the authored view remains private witness
+// identity: one member selecting the measure and the other the builtin view
+// do not share a ranking order.
+data Countdown {}
+
+measure Countdown::Remaining(value: u32) -> u32 { value }
+
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.scan_a(5) }
+}
+
+machine Main::scan_a(&mut self, remaining: u32 [0..=5])
+terminates by remaining -> Countdown::Remaining in 0..=5;
+-> u32 {
+    transition remaining > 0 {
+        true -> self.scan_b(remaining)
+        false -> remaining
+    }
+}
+
+machine Main::scan_b(&mut self, pending: u32 [0..=5])
+terminates by pending -> Nat::Descending in 0..=5;
+-> u32 {
+    transition pending > 0 {
+        true -> self.scan_a(pending - 1)
+        false -> pending
+    }
+}

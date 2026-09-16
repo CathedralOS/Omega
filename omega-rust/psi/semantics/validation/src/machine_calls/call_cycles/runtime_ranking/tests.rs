@@ -7,6 +7,7 @@ use source_files_to_tokens::Lexer;
 
 mod clamped;
 mod distance;
+mod identity;
 mod increasing;
 mod meaning;
 mod ranges;
