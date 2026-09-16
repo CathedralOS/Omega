@@ -687,7 +687,21 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   required file, plus an omitted-required rejection, on macOS. A further
   slice landed at 17034140c0 (Linux x86-64, linw1): deterministic
   snapshot reads, inert symlink handling, and linear required-output
-  settlement with 24 tests. Remaining:
+  settlement with 24 tests. The manager's review compilation
+  (`packages/manager/src/review/candidate/compilation/package_pass.rs`)
+  and the packaged `compiler::compile` route
+  (`assembled-syntax-to-checked-compilation/src/checking.rs`, whenever the
+  root binding carries the canonical Source metadata index) now bind a
+  rosterless `BuildSnapshotRequest`: required outputs stay the obligations
+  the build registers through `builder.output.require`, not a second
+  roster inferred from the declaration.
+  `omega/tests/package_commands/snapshot_outputs.rs` witnesses `omega
+  audit packages --offline` on a root that reads a template through
+  `builder.source` and completes `artifact.txt` (5-entry captured
+  inventory, one settled output, exit 0) and the never-completed control
+  (exit 1, nothing published) on macOS ARM64. Non-packaged `omega
+  main.omg` compiles still run unbound; the audit report text does not
+  surface the inventory. Remaining:
   `builder.output.require`/`complete`/`fail` facet obligations and
   `artifact_only()` root declaration, negative-lookup/ordering/metadata and
   symlink/substitution escape cases, retry-after-failed-completion and
@@ -825,10 +839,9 @@ an implementation shortcut.
   ("build-root path must use canonical relative components"): its
   `read_roots` bind only the requesting root, so evaluated code cannot
   reach descriptions staged beside a dependency package.
-  `BuildSnapshotRequest` (captured source input plus the declared roster)
-  is still constructed only under `compiler/tests/`, never by the
-  manager's compile path (`package_pass.rs` leaves the request field at
-  its `None` default) — the remaining BUILD-SNAPSHOT-OUTPUTS binding.
+  `BuildSnapshotRequest` is now bound on both compile routes (see
+  BUILD-SNAPSHOT-OUTPUTS), so the manager's review observation carries the
+  captured inventory and settled required outputs.
   `verify_component`/`VerifiedComponent` and the schema-V1
   `ComponentDescription` codec exist in
   `omega-rust/omega/backend/artifacts/component-candidate` (with
