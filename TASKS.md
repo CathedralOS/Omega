@@ -709,12 +709,21 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   inventory, one settled output, exit 0) and the never-completed control
   (exit 1, nothing published) on macOS ARM64. Non-packaged `omega
   main.omg` compiles still run unbound; the audit report text does not
-  surface the inventory. Remaining:
-  `builder.output.require`/`complete`/`fail` facet obligations and
-  `artifact_only()` root declaration, negative-lookup/ordering/metadata and
-  symlink/substitution escape cases, retry-after-failed-completion and
-  cross-occurrence receipt custody, interruption without a committed set,
-  Windows host coverage, and the retained-state measurement. Acceptance: an
+  surface the inventory. The `require`/`complete`/`fail` facet
+  obligations, `OutputCompletion::Retry` custody, `artifact_only()`,
+  narrowed negative lookups, deterministic reads, inert symlinks,
+  substitution and forged-marker rejection, omitted-required ordering and
+  interruption without a committed set all exist
+  (`compiler/tests/build_snapshot_outputs.rs`, 24 tests); receipts live in
+  the evaluator's private per-activation table, so one occurrence's receipt
+  cannot settle another. 4428a61d9d releases the occurrence's private
+  captured-source materialization on every exit (halted builds previously
+  left read-only `omega-captured-source-*` trees in the host temp dir),
+  witnessed through `omega audit packages --offline` for sticky `fail`,
+  mixed completion, a forged obligation and an explicit retry in
+  `omega/tests/package_commands/snapshot_outputs.rs` (macOS ARM64).
+  Remaining: Windows host coverage, the audit report surfacing the
+  captured inventory, and the retained-state measurement. Acceptance: an
   ordinary generator reads a template and completes a required file;
   artifact-only and executable-with-companion routes both work. Exercise
   negative lookups, ordering/metadata, symlink and substitution escapes, sealed
