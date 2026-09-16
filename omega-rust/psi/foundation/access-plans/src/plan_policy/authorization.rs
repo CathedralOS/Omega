@@ -30,24 +30,25 @@ pub(crate) fn authorize_descriptor(
     operation: AccessOperation,
 ) -> Result<(), AccessPlanDiagnostic> {
     validate_operation_ordering(operation)?;
-    let permitted = match operation {
+    // The operation's declared receiver polarity is the only borrow demand:
+    // an exclusive requirement needs both the current borrow and the source
+    // loan exclusive (reborrowing a shared source cannot upgrade authority),
+    // while a shared requirement -- reads and every atomic family -- is
+    // satisfied by any borrow.
+    let borrow_permits = match operation.receiver_polarity() {
+        BorrowPolarity::Shared => true,
+        BorrowPolarity::Exclusive => {
+            current_borrow == BorrowPolarity::Exclusive && source_loan == BorrowPolarity::Exclusive
+        }
+    };
+    let permission_admits = match operation {
         AccessOperation::Read => descriptor.permissions.read,
-        AccessOperation::Take => {
-            descriptor.permissions.take
-                && current_borrow == BorrowPolarity::Exclusive
-                && source_loan == BorrowPolarity::Exclusive
-        }
-        AccessOperation::Write => {
-            descriptor.permissions.write
-                && current_borrow == BorrowPolarity::Exclusive
-                && source_loan == BorrowPolarity::Exclusive
-        }
+        AccessOperation::Take => descriptor.permissions.take,
+        AccessOperation::Write => descriptor.permissions.write,
         AccessOperation::CompoundMutation => {
             descriptor.observation == ObservationModel::Stable
                 && descriptor.permissions.read
                 && descriptor.permissions.write
-                && current_borrow == BorrowPolarity::Exclusive
-                && source_loan == BorrowPolarity::Exclusive
         }
         AccessOperation::Atomic(AtomicAccessOperation::Load(_)) => {
             descriptor.permissions.atomic.load
@@ -80,7 +81,7 @@ pub(crate) fn authorize_descriptor(
             descriptor.permissions.atomic.compare_exchange_once
         }
     };
-    if permitted {
+    if borrow_permits && permission_admits {
         Ok(())
     } else {
         Err(AccessPlanDiagnostic(format!(

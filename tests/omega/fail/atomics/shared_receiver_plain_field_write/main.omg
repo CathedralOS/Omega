@@ -1,0 +1,16 @@
+// FAIL canary: the shared-receiver admission for atomic operations
+// (pass/atomics/shared_receiver_atomic_store) does not widen ordinary writes.
+// A plain `u32` field written through `&self` keeps the exclusive-receiver
+// demand and the usual "not mutable in this state" diagnostic.
+
+data Counter {
+    count: u32;
+}
+
+machine Counter::bump(&self) {
+    self.count = 1;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

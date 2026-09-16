@@ -14,6 +14,12 @@ An unsupported single-attempt route must reject rather than erase `Uncommitted`
 into a decisive scalar carrier. Generic outcomes retain payload multiplicity;
 neither result shape nor zero initialization proves an event happened.
 
+Every atomic family takes a shared receiver. The access-plan vocabulary
+carries that fact as `AccessOperation::receiver_polarity`, and validation's
+`value_custody::atomic_operations` reads it so a store, fetch, swap, or
+compare-exchange on an atomic cell is admitted through `&self` while ordinary
+assignment keeps its exclusive demand.
+
 Atomic source, interpreter, and native consumers require the same exact
 operation and instruction-observed prior. A separately loaded prior is not a
 valid implementation of swap/fetch/exchange. Target retries keep their work

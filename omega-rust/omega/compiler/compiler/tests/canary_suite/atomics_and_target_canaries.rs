@@ -287,6 +287,34 @@ fn runtime_atomic_compare_exchange_exit_canary_runs() {
 /// ordering beneath GlobalOrder success. Terminal Psi does not yet emit
 /// normalized atomic events, so the assertion deliberately ends at checked
 /// compilation rather than a native executable.
+/// Atomic operations take a shared receiver
+/// (`wiki/spec/language/concurrency.md`): a store and a fetch_or on an
+/// `AtomicU32` field reached through `&self` compile and run, and the cell
+/// observes both (store 10, fetch_or 5 -> prior 10, value 15; exit 70). The
+/// ordinary-write control is `shared_receiver_plain_field_write`, checked by
+/// the fail umbrella through its `expected.txt`.
+#[test]
+fn shared_receiver_atomic_store_canary_runs() {
+    let canary = pass_canary(fixture_roster::SHARED_RECEIVER_ATOMIC_STORE);
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-shared-receiver-atomic-store-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("shared-receiver atomic store canary should compile from its authored root");
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "shared-receiver atomic store canary",
+        "store and fetch_or through `&self` should update the cell (71 = wrong fetch_or prior, \
+         72 = wrong stored value)",
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn atomic_global_order_operations_canary_checks() {
     let canary = pass_canary(fixture_roster::ATOMIC_GLOBAL_ORDER_OPERATIONS);

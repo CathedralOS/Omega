@@ -1710,6 +1710,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "atomics/atomic_compare_exchange_failure_stronger_rejected",
     "atomics/atomic_legacy_ordering_rejected",
     "atomics/atomic_unknown_ordering_rejected",
+    "atomics/shared_receiver_plain_field_write",
     "wire/encode_wire_spelling_renamed",
     "wire/decode_verdict_must_be_enum",
     "wire/wire_data_form_retired",

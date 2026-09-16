@@ -1,5 +1,6 @@
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
+use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
@@ -7,6 +8,12 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Check that an assignment's target names a place this state may reach with
+/// the polarity `receiver` demands: `Exclusive` for an ordinary write, or
+/// `Shared` when the assignment is the parser's carrier for a sealed atomic
+/// operation on atomic storage (see `value_custody::atomic_operations`). The
+/// place-shape and unknown-field checks are the same for both; only the
+/// final root demand differs.
 pub(crate) fn validate_assignment_target_handle(
     program: &TypedTrees,
     target: ExpressionHandle,
@@ -15,6 +22,7 @@ pub(crate) fn validate_assignment_target_handle(
     machine: &Machine,
     current_state: Option<&typed_trees::state::State>,
     state_name: &str,
+    receiver: BorrowPolarity,
 ) {
     let machine_name = machine.name.as_str();
     if !is_mutable_place_handle(program, target) {
@@ -74,6 +82,19 @@ pub(crate) fn validate_assignment_target_handle(
         program.expression_table.expression(target),
         ExpressionNode::Name(_)
     );
+
+    // A shared-receiver operation (an atomic store/fetch/swap/exchange on an
+    // atomic cell) needs the root to exist, not to be mutable: `&self`
+    // reaches its attached fields exactly as it does for a read.
+    if receiver == BorrowPolarity::Shared {
+        if !writable_roots.contains_for_shared_access(root_name) {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{machine_name}` state `{state_name}` atomic operation cannot reach \
+                 `{root_name}` because no such field or local exists in this state"
+            )));
+        }
+        return;
+    }
 
     if !writable_roots.contains_for_write(root_name, target_is_bare_name) {
         // The writable set cannot distinguish a nonexistent root (a typo) from a real
