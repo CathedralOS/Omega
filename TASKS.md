@@ -2523,8 +2523,14 @@ Owners include
   `fail/generics/declared_range_endpoint_domain_argument_rejected`, not yet
   in the harness roster); authored `requires` clauses and nested-callee
   premises keep the closure fence. Typed operators in endpoint arguments
-  and narrow carriers already fold. Noninteger (Boolean) arguments/results,
-  nominal/policy qualifications, generic calls (which need type-position
+  and narrow carriers already fold. Boolean literals, `&&`/`||` and
+  `bool`-returning helpers fold in endpoint-call argument position through
+  the shared scalar evaluator at a49ab393fe
+  (`generics/declared_range_endpoint_boolean_arguments`,
+  `fail/generics/declared_range_endpoint_boolean_result_rejected`); the
+  bound position, bound arithmetic and signature bounds keep the integer
+  carrier, and comparisons/negation in Boolean arguments stay outside.
+  Nominal/policy qualifications, generic calls (which need type-position
   static demand in monomorphization and reverse a pinned rejection),
   trait-operator owners and open symbolic endpoints remain. Omitted data
   binders (`data TinyBytes<u64[0..=256]>` still reports "expected 2
