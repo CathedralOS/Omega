@@ -408,6 +408,118 @@ fn call_result_alias_carries_the_ensured_result_bounds() {
     }
 }
 
+/// An unknown-length slice consults the same ensured result contract: the
+/// call's inclusive high is met against the collection's own length evidence —
+/// a `requires`-seeded `minimum_length` floor or a shrunk window's derived
+/// floor — exactly like a folded literal bound, and a signed result's `>= 0`
+/// conjunct supplies the non-negativity the collection-relative vocabulary
+/// never implies. Without a floor fact the contract alone cannot prove
+/// `result < len`; a bound at the floor is still out of range.
+#[test]
+fn call_index_on_unknown_slice_meets_ensured_bounds_against_length_facts() {
+    fn check(source: &str) -> Result<(), Vec<String>> {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        crate::lower_typed_trees(program)
+            .map(|_| ())
+            .map_err(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.clone())
+                    .collect()
+            })
+    }
+    for (callee, contract, body, accepted) in [
+        // The ensured inclusive high meets the `requires` length floor.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "output[idx()] = 65;",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result < 4 { 1 }",
+            "requires output.len >= 4",
+            "output[idx()] = 65;",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result == 1 { 1 }",
+            "requires output.len >= 4",
+            "output[idx()] = 65;",
+            true,
+        ),
+        // A signed result owes both halves to the contract: `>= 0` supplies
+        // the non-negativity the slice vocabulary cannot imply.
+        (
+            "machine idx() -> i64 ensures result >= 0 && result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "output[idx()] = 65;",
+            true,
+        ),
+        (
+            "machine idx() -> i64 ensures result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "output[idx()] = 65;",
+            false,
+        ),
+        // The ensured bound AT the floor is still out of range.
+        (
+            "machine idx() -> u64 ensures result <= 4 { 1 }",
+            "requires output.len >= 4",
+            "output[idx()] = 65;",
+            false,
+        ),
+        // No length floor: the contract alone cannot prove `result < len`.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "",
+            "output[idx()] = 65;",
+            false,
+        ),
+        // No contract bound keeps the ordinary rejection.
+        (
+            "machine idx() -> u64 { 1 }",
+            "requires output.len >= 4",
+            "output[idx()] = 65;",
+            false,
+        ),
+        // A shrunk tail window's derived floor (`4 - 2`) meets the bound too.
+        (
+            "machine idx() -> u64 ensures result <= 1 { 1 }",
+            "requires output.len >= 4",
+            "let tail: &[u8] = output[2..]; let picked: u8 = tail[idx()];",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result <= 2 { 1 }",
+            "requires output.len >= 4",
+            "let tail: &[u8] = output[2..]; let picked: u8 = tail[idx()];",
+            false,
+        ),
+    ] {
+        let source = format!("{callee} machine write(output: &mut [u8]) {contract} {{ {body} }}");
+        match (check(&source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove")),
+                "{callee} | {body}: {messages:?}"
+            ),
+            (result, _) => panic!("{callee} | {body}: {result:?}"),
+        }
+    }
+}
+
 #[test]
 fn nested_index_traversal_checks_each_collection_extent() {
     for (access, accepted) in [("[3][1]", true), ("[4][1]", false), ("[3][2]", false)] {
