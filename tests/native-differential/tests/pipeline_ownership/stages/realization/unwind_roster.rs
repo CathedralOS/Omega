@@ -78,8 +78,10 @@ fn x86_64_register_name(code: u8) -> String {
 /// `(register name, frame offset)` roster and the released byte count.
 fn aarch64_epilogue(epilogue: &[u8]) -> (Vec<(String, u64)>, u64) {
     let mut restore_words = epilogue
-        .chunks_exact(4)
-        .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|chunk| u32::from_le_bytes(*chunk))
         .collect::<Vec<_>>();
     let mut released = 0_u64;
     while let Some(&last) = restore_words.last() {

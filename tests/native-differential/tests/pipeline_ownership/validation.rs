@@ -415,8 +415,10 @@ fn staged_selection_custody_rejects_detached_environment_and_selected_plan() {
         .provenance
         .operations
         .push(forged_operation);
-    // Ordinary graph correspondence rejects the forged provenance. Its
-    // structural replay fallback also rejects, as a noncanonical proposal.
+    // Ordinary graph correspondence rejects the forged provenance as a custody
+    // disagreement between the raw target and its abstract and optimized
+    // owners. The structural replay fallback that once reported it as a
+    // noncanonical proposal was removed with the whole-function forks.
     assert_eq!(
         validate_legalized_operations(
             &target,
@@ -424,7 +426,7 @@ fn staged_selection_custody_rejects_detached_environment_and_selected_plan() {
             x86.optimized_target().optimized().unit(),
             x86.legalized().plan().clone(),
         ),
-        Err(LegalizationError::NonCanonicalLegalizedPlan)
+        Err(LegalizationError::SourceCustodyMismatch)
     );
 
     let mut unit = x86.optimized_target().optimized().unit().clone();

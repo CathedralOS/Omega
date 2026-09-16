@@ -150,10 +150,10 @@ fn preheader(session: &VerifiedPsiOptimizationSession) -> semantic_vocabulary::B
     entry.source
 }
 
-fn block<'unit>(
-    unit: &'unit optimization_unit::PsiOptimizationUnit,
+fn block(
+    unit: &optimization_unit::PsiOptimizationUnit,
     id: semantic_vocabulary::BlockId,
-) -> &'unit optimization_unit::OptimizationBlock {
+) -> &optimization_unit::OptimizationBlock {
     unit.functions
         .iter()
         .flat_map(|function| &function.blocks)
