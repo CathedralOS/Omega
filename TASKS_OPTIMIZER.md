@@ -957,7 +957,32 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   equivalents, structural change — plus malformed carriers refused at
   the stage's module-validation gate. Both proof-freeze triggers are
   covered: a contract `ensures` clause and an operation-site obligation
-  each freeze the whole closure with an identity record. Remaining:
+  each freeze the whole closure with an identity record.
+  `resolved-layout-to-resolved-layout`'s sole exact rule,
+  `X86RelaxConditionalBranchesToRel8V1` (`x86_branch_relaxation`), now
+  carries the same matrix (17 lib tests and 13 native-differential stage
+  tests pass on macOS arm64): it is the sole `FunctionRelativeLayout`
+  `Optimization` selection member, so the disabled leg is the empty phase
+  projection retaining the baseline layout by shared `Arc`; positive legs
+  cover all three conditional predicates with their `jb`/`jl` opcode
+  choices and jump re-encoding across a shrink; boundary legs cover the
+  +127/-128 reachable and +128/-129 refused displacements on both the
+  production and replay inspectors; structural legs cover absent taken
+  blocks, non-adjacent fallthroughs, drifted recorded effects, and
+  malformed short opcodes; the measured five-axis budget admits at the
+  exact usage and refuses one below on each axis, and the
+  independent-replay admission path both honors the measured budget and
+  rejects a forged recorded budget; determinism holds across independent
+  stagings and repeated phase executions; and corruption legs reject
+  reauthenticated action bytes, attempt-roster outcomes, retained-layout
+  drift outside the rewrite, foreign evidence substitution, and every
+  receipt, manifest, and exit-contract field. Its fixed-point leg is the
+  recorded terminal no-change sweep that re-declines every conditional
+  branch on the final layout — the relaxed published layout is
+  intentionally not a legal second input because baseline admission plans
+  the six-byte branch rows the rewrite replaced — while a change-free
+  output admits as a fresh baseline and re-stages to no actions.
+  Remaining:
   the same matrix for the selected-instructions phase's `runtime_spill`
   exact rule, then the other phases' exact rules.
 
