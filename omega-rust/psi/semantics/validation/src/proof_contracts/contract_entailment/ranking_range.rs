@@ -21,7 +21,7 @@ mod telescope;
 pub use requirements::{
     arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
 };
-pub use telescope::discover_state_entry_mappings;
+pub use telescope::{discover_state_entry_mappings, discover_state_entry_mappings_preferring};
 
 pub(crate) use calls::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,

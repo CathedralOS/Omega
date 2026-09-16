@@ -196,8 +196,9 @@ pub use proof_contracts::contract_entailment::{
 pub use proof_contracts::contract_entailment::{
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
     arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
-    prove_arithmetic_call_requirement, prove_ranking_range_edge, prove_ranking_range_entry,
-    prove_ranking_range_transition, ranking_range_required_symbols,
+    discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
+    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
+    ranking_range_required_symbols,
 };
 pub use proof_contracts::contract_entailment::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
