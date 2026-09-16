@@ -13,7 +13,8 @@ use crate::register_model::{
     X86_64_LOAD8_INDEXED, X86_64_LOAD16, X86_64_LOAD32, X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN,
     X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_REMAINDER_I64, X86_64_REQUIRED_REGISTER_CONSTRAINTS,
-    X86_64_SATURATING_ADD_U64, X86_64_SATURATING_SUBTRACT_U64, X86_64_STORE, X86_64_STORE64,
+    X86_64_SATURATING_ADD_I32, X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_I32,
+    X86_64_SATURATING_SUBTRACT_I32, X86_64_SATURATING_SUBTRACT_U64, X86_64_STORE, X86_64_STORE64,
     X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
     x86_64_microsoft_aggregate_call_keys, x86_64_microsoft_aggregate_return_keys,
@@ -416,6 +417,49 @@ pub fn x86_64_register_constraint_catalog(
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),
         clobbers: view("rflags").units.clone(),
+    });
+    // The signed i32 saturating add/subtract accumulate in an early-clobber
+    // result and clamp through an early-clobber bound scratch (operand 3).
+    for key in [X86_64_SATURATING_ADD_I32, X86_64_SATURATING_SUBTRACT_I32] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                {
+                    let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
+                    output.early_clobber = true;
+                    output
+                },
+                {
+                    let mut scratch = allocatable(3, RegisterOperandAccess::Def, GPR64);
+                    scratch.early_clobber = true;
+                    scratch
+                },
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: view("rflags").units.clone(),
+        });
+    }
+    // Like unsigned division, the explicit RDX input keeps the divisor out of
+    // RDX; CQO then redefines RDX and the clamp reuses it as bound scratch.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_SATURATING_DIVIDE_I32,
+        operands: vec![
+            fixed(0, RegisterOperandAccess::Use, "rax"),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            fixed(2, RegisterOperandAccess::Def, "rax"),
+            fixed(3, RegisterOperandAccess::Use, "rdx"),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: ["rdx", "rflags"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied())
+            .collect(),
     });
     let scalar_call = constraints
         .iter()

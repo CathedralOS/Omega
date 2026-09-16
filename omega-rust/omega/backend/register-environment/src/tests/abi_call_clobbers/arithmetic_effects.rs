@@ -73,6 +73,12 @@ fn selected_arithmetic_rules(
         (Some(keys.saturating_add_u64), &[SaturatingAddU64][..]),
         (Some(keys.divide_u64), &[ExactDivideU64][..]),
         (Some(keys.remainder_i64), &[WrappingRemainderI64][..]),
+        (Some(keys.saturating_add_i32), &[SaturatingAddI32][..]),
+        (
+            Some(keys.saturating_subtract_i32),
+            &[SaturatingSubtractI32][..],
+        ),
+        (Some(keys.saturating_divide_i32), &[SaturatingDivideI32][..]),
         (Some(keys.compare_i64_zero), &[CompareI64Zero][..]),
         (Some(keys.compare_i64), &[CompareI64][..]),
         (Some(keys.compare_i64_immediate), &[CompareI64Immediate][..]),
@@ -167,6 +173,8 @@ fn expected_size(
             Float32ToBits | BitsToFloat32 => resolved(4, 5),
             Float64ToBits | BitsToFloat64 => MachineSizeKnowledge::ExactBytes(5),
             WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(17),
+            SaturatingAddI32 | SaturatingSubtractI32 => MachineSizeKnowledge::ExactBytes(40),
+            SaturatingDivideI32 => MachineSizeKnowledge::ExactBytes(22),
             CompareI64Immediate => MachineSizeKnowledge::ExactBytes(7),
             SaturatingSubtractU64 => MachineSizeKnowledge::ExactBytes(13),
             SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(19),
@@ -183,6 +191,8 @@ fn expected_size(
             SaturatingSubtractU64 | SaturatingAddU64 | WrappingRemainderI64 => {
                 MachineSizeKnowledge::ExactBytes(8)
             }
+            SaturatingAddI32 | SaturatingSubtractI32 => MachineSizeKnowledge::ExactBytes(28),
+            SaturatingDivideI32 => MachineSizeKnowledge::ExactBytes(16),
             _ => MachineSizeKnowledge::ExactBytes(4),
         },
     }
@@ -365,6 +375,49 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
+        // The signed i32 saturating forms clamp through an early-clobber
+        // bound scratch; x86-64 additionally accumulates in an early-clobber
+        // result and pins the divide to `rax`/`rdx`.
+        SaturatingAddI32 | SaturatingSubtractI32 => ArithmeticContract {
+            early_clobbers: &[2, 3],
+            flags: if x86 {
+                FlagsCustody::Clobber
+            } else {
+                FlagsCustody::Def
+            },
+            ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
+        },
+        // x86-64 keeps the unsigned-division operand shape (an explicit RDX
+        // input that CQO discards and the clamp reuses); AArch64 clamps through
+        // an early-clobber scratch beside an early-clobber result.
+        SaturatingDivideI32 => ArithmeticContract {
+            early_clobbers: if x86 { &[] } else { &[2, 3] },
+            fixed_views: if x86 {
+                &[(0, "rax"), (2, "rax"), (3, "rdx")]
+            } else {
+                &[]
+            },
+            flags: if x86 {
+                FlagsCustody::Clobber
+            } else {
+                FlagsCustody::Def
+            },
+            extra_clobbers: if x86 { &["rdx"] } else { &[] },
+            faulting: x86,
+            alternatives: if x86 {
+                one(&[0, 1, 3], &[2])
+            } else {
+                one(&[0, 1], &[2, 3])
+            },
+            ..ArithmeticContract::plain(
+                if x86 {
+                    &[Use, Use, Def, Use]
+                } else {
+                    &[Use, Use, Def, Def]
+                },
+                Vec::new(),
+            )
+        },
         CompareI64Zero | CompareI64Immediate => ArithmeticContract {
             flags: FlagsCustody::Def,
             ..ArithmeticContract::plain(&[Use], one(&[0], &[]))
@@ -407,7 +460,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         let arithmetic_rules = selected_arithmetic_rules(&environment);
         assert_eq!(
             arithmetic_rules.len(),
-            32,
+            35,
             "{} selects an unexpected arithmetic roster",
             case.convention
         );

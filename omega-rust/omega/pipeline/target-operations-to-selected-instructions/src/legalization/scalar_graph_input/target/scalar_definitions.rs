@@ -2,10 +2,12 @@
 use super::super::{ScalarType, ValueShape, scalar_shape};
 use super::{AbstractOperation, TargetScalarExpression, TargetUnitOperation, ValueId};
 use crate::LegalizationError;
-use crate::legalization::scalar_graph_input::supports_signed_wrapping_remainder;
 use crate::legalization::scalar_graph_input::target::Checker;
 use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::target::location_matches;
+use crate::legalization::scalar_graph_input::{
+    supports_signed_saturating_i32, supports_signed_wrapping_remainder,
+};
 use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
 pub(super) fn validate(
@@ -133,6 +135,28 @@ pub(super) fn observation(
         return Err(invalid);
     };
     let (operation, value, scalar_type) = match abstracted {
+        AbstractOperation::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            if !supports_signed_saturating_i32(*scalar_type)
+                || checker.available.is_none_or(|sources| {
+                    [left, right].iter().any(|operand| {
+                        !sources.iter().any(|(value, source)| {
+                            value == *operand
+                                && source.scalar_type() == ScalarType::Integer(*scalar_type)
+                        })
+                    })
+                })
+            {
+                return Err(invalid);
+            }
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
+        }
         AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             result,

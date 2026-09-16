@@ -33,6 +33,14 @@ pub(crate) enum DecodedInstruction {
         source: u8,
         destination: u8,
     },
+    MoveOnGreater {
+        source: u8,
+        destination: u8,
+    },
+    MoveOnLess {
+        source: u8,
+        destination: u8,
+    },
     BitwiseAnd {
         source: u8,
         destination: u8,
@@ -152,14 +160,27 @@ pub(crate) fn decode_one(
             4,
         ));
     }
-    if let [rex, 0x0f, 0x42, modrm, ..] = bytes
+    if let [rex, 0x0f, opcode, modrm, ..] = bytes
         && rex & !0x05 == 0x48
+        && matches!(*opcode, 0x42 | 0x4c | 0x4f)
         && modrm & 0xc0 == 0xc0
     {
+        let source = (modrm & 7) | ((rex & 1) << 3);
+        let destination = ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3);
         return Ok((
-            DecodedInstruction::MoveOnBorrow {
-                source: (modrm & 7) | ((rex & 1) << 3),
-                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+            match opcode {
+                0x42 => DecodedInstruction::MoveOnBorrow {
+                    source,
+                    destination,
+                },
+                0x4c => DecodedInstruction::MoveOnLess {
+                    source,
+                    destination,
+                },
+                _ => DecodedInstruction::MoveOnGreater {
+                    source,
+                    destination,
+                },
             },
             4,
         ));
@@ -609,6 +630,73 @@ pub(crate) fn validate_decoded(
                         },
                     ]
         }
+        SelectedInstructionKind::SaturatingAddI32
+        | SelectedInstructionKind::SaturatingSubtractI32
+        | SelectedInstructionKind::SaturatingDivideI32 { .. } => {
+            let (value, scratch) = (registers[2], registers[3]);
+            let clamp = |bound: i64, select: fn(u8, u8) -> DecodedInstruction| {
+                [
+                    DecodedInstruction::Materialize {
+                        destination: scratch,
+                        value: bound as u64,
+                    },
+                    DecodedInstruction::Compare {
+                        left: value,
+                        right: scratch,
+                    },
+                    select(scratch, value),
+                ]
+            };
+            let upper = clamp(i64::from(i32::MAX), |source, destination| {
+                DecodedInstruction::MoveOnGreater {
+                    source,
+                    destination,
+                }
+            });
+            let lower = clamp(i64::from(i32::MIN), |source, destination| {
+                DecodedInstruction::MoveOnLess {
+                    source,
+                    destination,
+                }
+            });
+            if let SelectedInstructionKind::SaturatingDivideI32 { .. } = kind {
+                let mut expected = vec![
+                    DecodedInstruction::SignExtendDividend,
+                    DecodedInstruction::SignedDivide {
+                        divisor: registers[1],
+                    },
+                ];
+                expected.extend(upper);
+                registers[0] == 0
+                    && value == 0
+                    && scratch == 2
+                    && registers[1] != 2
+                    && decoded == expected
+            } else {
+                let mut expected = vec![
+                    DecodedInstruction::Move {
+                        source: registers[0],
+                        destination: value,
+                    },
+                    if kind == SelectedInstructionKind::SaturatingAddI32 {
+                        DecodedInstruction::Add {
+                            source: registers[1],
+                            destination: value,
+                        }
+                    } else {
+                        DecodedInstruction::Subtract {
+                            source: registers[1],
+                            destination: value,
+                        }
+                    },
+                ];
+                expected.extend(upper);
+                expected.extend(lower);
+                !registers[..2].contains(&value)
+                    && !registers[..3].contains(&scratch)
+                    && decoded == expected
+            }
+        }
         SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             let operation = |source, destination| {
                 if kind == SelectedInstructionKind::BitwiseXorI64 {
@@ -758,12 +846,15 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![operands[0]], vec![], true),
-        SelectedInstructionKind::ExactDivideU64 { .. } => (
+        SelectedInstructionKind::ExactDivideU64 { .. }
+        | SelectedInstructionKind::SaturatingDivideI32 { .. } => (
             vec![operands[0], operands[1], operands[3]],
             vec![operands[2]],
             true,
         ),
-        SelectedInstructionKind::WrappingRemainderI64 { .. } => (
+        SelectedInstructionKind::WrappingRemainderI64 { .. }
+        | SelectedInstructionKind::SaturatingAddI32
+        | SelectedInstructionKind::SaturatingSubtractI32 => (
             vec![operands[0], operands[1]],
             vec![operands[2], operands[3]],
             true,
@@ -892,8 +983,11 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64 => vec![0, 1],
-                SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1, 3],
-                SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![0, 1],
+                SelectedInstructionKind::ExactDivideU64 { .. }
+                | SelectedInstructionKind::SaturatingDivideI32 { .. } => vec![0, 1, 3],
+                SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::SaturatingAddI32
+                | SelectedInstructionKind::SaturatingSubtractI32 => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
@@ -934,8 +1028,11 @@ pub(crate) fn footprint(
                     vec![2]
                 }
                 SelectedInstructionKind::CompareI64Zero => vec![],
-                SelectedInstructionKind::ExactDivideU64 { .. } => vec![2],
-                SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![2, 3],
+                SelectedInstructionKind::ExactDivideU64 { .. }
+                | SelectedInstructionKind::SaturatingDivideI32 { .. } => vec![2],
+                SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::SaturatingAddI32
+                | SelectedInstructionKind::SaturatingSubtractI32 => vec![2, 3],
                 SelectedInstructionKind::CompareI64 => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
                 _ => unreachable!("control forms handled separately"),
@@ -956,6 +1053,8 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::SaturatingSubtractU64
                 | SelectedInstructionKind::SaturatingAddU64
+                | SelectedInstructionKind::SaturatingAddI32
+                | SelectedInstructionKind::SaturatingSubtractI32
         ) {
             effects.implicit_unit_clobbers = units("rflags");
         }
@@ -969,7 +1068,11 @@ pub(crate) fn footprint(
         ) {
             effects.implicit_unit_uses = units("rflags");
         }
-        if matches!(kind, SelectedInstructionKind::ExactDivideU64 { .. }) {
+        if matches!(
+            kind,
+            SelectedInstructionKind::ExactDivideU64 { .. }
+                | SelectedInstructionKind::SaturatingDivideI32 { .. }
+        ) {
             effects.implicit_unit_clobbers = units("rdx");
             effects.implicit_unit_clobbers.extend(units("rflags"));
             effects.implicit_unit_clobbers.sort_unstable();

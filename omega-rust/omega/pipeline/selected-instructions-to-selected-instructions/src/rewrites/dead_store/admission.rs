@@ -613,6 +613,9 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), DeadStore
         | SaturatingSubtractU64
         | ExactDivideU64 { .. }
         | WrappingRemainderI64 { .. }
+        | SaturatingAddI32
+        | SaturatingSubtractI32
+        | SaturatingDivideI32 { .. }
         | BitwiseAndI64
         | BitwiseXorI64
         | ZeroExtendU8

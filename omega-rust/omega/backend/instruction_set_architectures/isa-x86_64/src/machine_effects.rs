@@ -255,6 +255,9 @@ fn selected_keys(
         saturating_add_u64: crate::register_model::X86_64_SATURATING_ADD_U64,
         divide_u64: crate::register_model::X86_64_DIVIDE_U64,
         remainder_i64: crate::register_model::X86_64_REMAINDER_I64,
+        saturating_add_i32: crate::register_model::X86_64_SATURATING_ADD_I32,
+        saturating_subtract_i32: crate::register_model::X86_64_SATURATING_SUBTRACT_I32,
+        saturating_divide_i32: crate::register_model::X86_64_SATURATING_DIVIDE_I32,
         add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
@@ -273,7 +276,11 @@ fn declaration(
     keys: &SelectedConstraintKeys,
 ) -> MachineEffectDeclaration {
     let alternatives = match semantic {
-        MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::WrappingRemainderI64 => {
+        MachineSemanticKind::ExactDivideU64
+        | MachineSemanticKind::WrappingRemainderI64
+        | MachineSemanticKind::SaturatingAddI32
+        | MachineSemanticKind::SaturatingSubtractI32
+        | MachineSemanticKind::SaturatingDivideI32 => {
             vec![alternative(
                 semantic,
                 0,
@@ -433,7 +440,10 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::SignExtendI32
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ExactDivideU64 => (vec![0, 1, 3], vec![2]),
-        MachineSemanticKind::WrappingRemainderI64 => (vec![0, 1], vec![2, 3]),
+        MachineSemanticKind::WrappingRemainderI64
+        | MachineSemanticKind::SaturatingAddI32
+        | MachineSemanticKind::SaturatingSubtractI32 => (vec![0, 1], vec![2, 3]),
+        MachineSemanticKind::SaturatingDivideI32 => (vec![0, 1, 3], vec![2]),
         MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
         | MachineSemanticKind::SaturatingSubtractU64
@@ -502,7 +512,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::NeverV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
-            MachineSemanticKind::ExactDivideU64 => (
+            MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::SaturatingDivideI32 => (
                 vec![],
                 vec![],
                 {
@@ -530,6 +540,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             | MachineSemanticKind::BitwiseXorI64
             | MachineSemanticKind::SaturatingSubtractU64
             | MachineSemanticKind::SaturatingAddU64
+            | MachineSemanticKind::SaturatingAddI32
+            | MachineSemanticKind::SaturatingSubtractI32
             | MachineSemanticKind::ExactSubtractI64 => (
                 vec![],
                 vec![],
@@ -647,6 +659,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(19),
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(17),
+        // MOV/ADD (6) plus two MOVABS/CMP/CMOV clamps (17 each).
+        MachineSemanticKind::SaturatingAddI32 | MachineSemanticKind::SaturatingSubtractI32 => {
+            MachineSizeKnowledge::ExactBytes(40)
+        }
+        // CQO/IDIV (5) plus one MOVABS/CMP/CMOV clamp (17).
+        MachineSemanticKind::SaturatingDivideI32 => MachineSizeKnowledge::ExactBytes(22),
         MachineSemanticKind::BitwiseAndI64 | MachineSemanticKind::BitwiseXorI64 => {
             MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 3,

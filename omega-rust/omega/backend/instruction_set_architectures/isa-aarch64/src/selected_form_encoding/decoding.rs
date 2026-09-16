@@ -50,6 +50,25 @@ pub(crate) enum DecodedWord {
         source: u8,
         destination: u8,
     },
+    /// `mov destination, #0x7fffffff` as one ORR bitmask immediate.
+    MaterializeI32Maximum {
+        destination: u8,
+    },
+    /// `mov destination, #-0x80000000` as one ORR bitmask immediate.
+    MaterializeI32Minimum {
+        destination: u8,
+    },
+    /// `csel destination, source, destination, gt`: keep the value unless the
+    /// preceding compare found it greater than the bound in `source`.
+    SelectOnGreater {
+        source: u8,
+        destination: u8,
+    },
+    /// `csel destination, source, destination, lt`.
+    SelectOnLess {
+        source: u8,
+        destination: u8,
+    },
     BitwiseXor {
         left: u8,
         right: u8,
@@ -200,6 +219,28 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
     }
     if word & 0xffff_fc00 == 0x9a9f_2000 {
         return Ok(DecodedWord::SelectZeroOnBorrow {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_ffe0 == 0xb240_7be0 {
+        return Ok(DecodedWord::MaterializeI32Maximum {
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_ffe0 == 0xb261_83e0 {
+        return Ok(DecodedWord::MaterializeI32Minimum {
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9a80_c000 && (word >> 16) & 31 == word & 31 {
+        return Ok(DecodedWord::SelectOnGreater {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9a80_b000 && (word >> 16) & 31 == word & 31 {
+        return Ok(DecodedWord::SelectOnLess {
             source: ((word >> 5) & 31) as u8,
             destination: (word & 31) as u8,
         });
@@ -524,6 +565,62 @@ pub(crate) fn validate_decoded(
                         },
                     ]
         }
+        SelectedInstructionKind::SaturatingAddI32
+        | SelectedInstructionKind::SaturatingSubtractI32
+        | SelectedInstructionKind::SaturatingDivideI32 { .. } => {
+            let (value, scratch) = (registers[2], registers[3]);
+            let arithmetic = match kind {
+                SelectedInstructionKind::SaturatingAddI32 => DecodedWord::Add {
+                    left: registers[0],
+                    right: registers[1],
+                    destination: value,
+                },
+                SelectedInstructionKind::SaturatingSubtractI32 => DecodedWord::Subtract {
+                    left: registers[0],
+                    right: registers[1],
+                    destination: value,
+                },
+                _ => DecodedWord::SignedDivide {
+                    dividend: registers[0],
+                    divisor: registers[1],
+                    destination: value,
+                },
+            };
+            let mut expected = vec![
+                arithmetic,
+                DecodedWord::MaterializeI32Maximum {
+                    destination: scratch,
+                },
+                DecodedWord::Compare {
+                    left: value,
+                    right: scratch,
+                },
+                DecodedWord::SelectOnGreater {
+                    source: scratch,
+                    destination: value,
+                },
+            ];
+            // A quotient of sign-normalized i32 carriers only exceeds the
+            // carrier upward (i32::MIN / -1); add and subtract clamp both ends.
+            if !matches!(kind, SelectedInstructionKind::SaturatingDivideI32 { .. }) {
+                expected.extend([
+                    DecodedWord::MaterializeI32Minimum {
+                        destination: scratch,
+                    },
+                    DecodedWord::Compare {
+                        left: value,
+                        right: scratch,
+                    },
+                    DecodedWord::SelectOnLess {
+                        source: scratch,
+                        destination: value,
+                    },
+                ]);
+            }
+            !registers[..2].contains(&value)
+                && !registers[..3].contains(&scratch)
+                && decoded == expected
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             decoded
                 == [DecodedWord::BitwiseXor {
@@ -713,6 +810,13 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::SaturatingAddU64 => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
+        SelectedInstructionKind::SaturatingAddI32
+        | SelectedInstructionKind::SaturatingSubtractI32
+        | SelectedInstructionKind::SaturatingDivideI32 { .. } => (
+            vec![operands[0], operands[1]],
+            vec![operands[2], operands[3]],
+            true,
+        ),
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseXorI64
@@ -819,7 +923,10 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64
                 | SelectedInstructionKind::ExactDivideU64 { .. }
-                | SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![0, 1],
+                | SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::SaturatingAddI32
+                | SelectedInstructionKind::SaturatingSubtractI32
+                | SelectedInstructionKind::SaturatingDivideI32 { .. } => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseXorI64
@@ -858,6 +965,9 @@ pub(crate) fn footprint(
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
                 SelectedInstructionKind::ExactDivideU64 { .. }
                 | SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![2],
+                SelectedInstructionKind::SaturatingAddI32
+                | SelectedInstructionKind::SaturatingSubtractI32
+                | SelectedInstructionKind::SaturatingDivideI32 { .. } => vec![2, 3],
                 SelectedInstructionKind::CompareI64 => vec![],
                 _ => unreachable!("control forms handled separately"),
             },

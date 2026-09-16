@@ -15,7 +15,8 @@ use crate::register_model::{
     AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_JUMP, AARCH64_LINUX_SYSTEM_CALL, AARCH64_LOAD_PACKED,
     AARCH64_LOAD8, AARCH64_LOAD8_INDEXED, AARCH64_LOAD16, AARCH64_LOAD32, AARCH64_LOAD64,
     AARCH64_MATERIALIZE_BOOLEAN, AARCH64_MATERIALIZE_I64, AARCH64_REMAINDER_I64,
-    AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SATURATING_ADD_U64,
+    AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SATURATING_ADD_I32, AARCH64_SATURATING_ADD_U64,
+    AARCH64_SATURATING_DIVIDE_I32, AARCH64_SATURATING_SUBTRACT_I32,
     AARCH64_SATURATING_SUBTRACT_U64, AARCH64_STORE, AARCH64_STORE_PACKED, AARCH64_STORE64,
     AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_register_call_keys,
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_call_keys,
@@ -728,6 +729,37 @@ pub fn aarch64_register_constraint_catalog(
         implicit_defs: view("nzcv").units.clone(),
         clobbers: Vec::new(),
     });
+    // The signed i32 saturating forms clamp through a bound scratch (operand 3).
+    // Both outputs are early-clobber: liveness admits independent early
+    // outputs only when every definition of the instruction is early, which
+    // keeps the scratch distinct from the inputs and from the result.
+    for key in [
+        AARCH64_SATURATING_ADD_I32,
+        AARCH64_SATURATING_SUBTRACT_I32,
+        AARCH64_SATURATING_DIVIDE_I32,
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                {
+                    let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
+                    output.early_clobber = true;
+                    output
+                },
+                {
+                    let mut scratch = allocatable(3, RegisterOperandAccess::Def, GPR64);
+                    scratch.early_clobber = true;
+                    scratch
+                },
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: view("nzcv").units.clone(),
+            clobbers: Vec::new(),
+        });
+    }
     mixed_calls::append_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);

@@ -105,6 +105,9 @@ impl LegalizedScalarInstruction {
                         .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
                     LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
                     | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
+                    | LegalizedScalarInstructionKind::SaturatingAddI32 { left, right }
+                    | LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right }
+                    | LegalizedScalarInstructionKind::SaturatingDivideI32 { left, right, .. }
                     | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingAdd { left, right }
@@ -282,6 +285,25 @@ pub enum LegalizedScalarInstructionKind {
     SaturatingSubtractU64 {
         left: ValueId,
         right: ValueId,
+    },
+    /// Signed 32-bit addition clamps overflow to the i32 carrier bounds.
+    SaturatingAddI32 {
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Signed 32-bit subtraction clamps overflow to the i32 carrier bounds.
+    SaturatingSubtractI32 {
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Signed 32-bit division clamps i32::MIN / -1 to i32::MAX. Saturating
+    /// does not define a zero divisor: the accepted nonzero-divisor
+    /// obligation remains required.
+    SaturatingDivideI32 {
+        left: ValueId,
+        right: ValueId,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     /// Signed remainder retains its declared width. MIN % -1 is zero under
     /// Wrapping, but the accepted nonzero-divisor obligation remains required.

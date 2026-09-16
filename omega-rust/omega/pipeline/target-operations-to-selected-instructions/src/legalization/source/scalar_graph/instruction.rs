@@ -225,17 +225,12 @@ pub(super) fn project(
         AbstractOperation::Call { .. } => {
             call_instructions::project_call(node, native, plan, unit)?
         }
-        AbstractOperation::SaturatingIntegerSubtract { left, right, .. } => {
-            LegalizedScalarInstructionKind::SaturatingSubtractU64 {
-                left: *left,
-                right: *right,
-            }
+        AbstractOperation::SaturatingIntegerSubtract { .. }
+        | AbstractOperation::SaturatingIntegerAdd { .. } => {
+            scalar_instructions::project_saturating_integer_add_or_subtract(node, optimized)?
         }
-        AbstractOperation::SaturatingIntegerAdd { left, right, .. } => {
-            LegalizedScalarInstructionKind::SaturatingAddU64 {
-                left: *left,
-                right: *right,
-            }
+        AbstractOperation::SaturatingIntegerDivide { .. } => {
+            scalar_instructions::project_saturating_integer_divide(node, optimized, unit)?
         }
         AbstractOperation::WrappingIntegerAdd { left, right, .. } => {
             LegalizedScalarInstructionKind::WrappingAdd {

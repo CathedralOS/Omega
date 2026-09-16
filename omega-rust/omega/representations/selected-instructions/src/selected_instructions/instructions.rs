@@ -114,6 +114,19 @@ pub enum SelectedInstructionKind {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
+    /// Signed 32-bit saturating addition of sign-normalized carriers: the
+    /// exact 64-bit sum is clamped to [i32::MIN, i32::MAX] and the result
+    /// stays sign-normalized. Operand 3 is an early-clobber bound scratch.
+    SaturatingAddI32,
+    /// Signed 32-bit saturating subtraction; see `SaturatingAddI32`.
+    SaturatingSubtractI32,
+    /// Signed 32-bit saturating division with a proven nonzero divisor. The
+    /// 64-bit quotient of sign-normalized carriers never faults; only
+    /// i32::MIN / -1 exceeds the carrier and is clamped to i32::MAX.
+    SaturatingDivideI32 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     /// Add register payloads modulo 2^64 without an Exact overflow obligation.
     /// Narrow semantic results require a subsequent signed/unsigned normalization.
     WrappingAddI64,

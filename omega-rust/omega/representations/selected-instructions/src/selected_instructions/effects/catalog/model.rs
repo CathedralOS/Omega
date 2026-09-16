@@ -83,10 +83,13 @@ pub enum MachineSemanticKind {
     MaterializeBooleanI64LessOrEqual,
     WrappingRemainderI64,
     WrappingAddI64,
+    SaturatingAddI32,
+    SaturatingSubtractI32,
+    SaturatingDivideI32,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 60] = [
+    pub const ALL: [Self; 63] = [
         Self::CopyBytes,
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
@@ -147,6 +150,9 @@ impl MachineSemanticKind {
         Self::MaterializeBooleanI64LessOrEqual,
         Self::WrappingRemainderI64,
         Self::WrappingAddI64,
+        Self::SaturatingAddI32,
+        Self::SaturatingSubtractI32,
+        Self::SaturatingDivideI32,
     ];
 }
 
@@ -212,6 +218,9 @@ pub enum MachineAlternativeFamily {
     MaterializeBooleanI64LessOrEqual,
     WrappingRemainderI64,
     WrappingAddI64,
+    SaturatingAddI32,
+    SaturatingSubtractI32,
+    SaturatingDivideI32,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -252,6 +261,9 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactDivideU64 => Self::ExactDivideU64,
             MachineSemanticKind::WrappingRemainderI64 => Self::WrappingRemainderI64,
             MachineSemanticKind::WrappingAddI64 => Self::WrappingAddI64,
+            MachineSemanticKind::SaturatingAddI32 => Self::SaturatingAddI32,
+            MachineSemanticKind::SaturatingSubtractI32 => Self::SaturatingSubtractI32,
+            MachineSemanticKind::SaturatingDivideI32 => Self::SaturatingDivideI32,
             MachineSemanticKind::ExactSubtractI64Immediate => Self::ExactSubtractI64Immediate,
             MachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
             MachineSemanticKind::ReturnScalar => Self::ReturnScalar,
