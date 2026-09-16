@@ -1,16 +1,20 @@
 //! Executable container encoding and validation tests.
 
-use super::super::EntryStubId;
+use super::super::{ArtifactAdmissionEvidence, EntryStubId, admit_executable};
 use super::{
     AdmissionReceiptId, Architecture, ArtifactAuthorityCommitments, ArtifactEntry, ArtifactId,
     ArtifactRelocationKind, ContainerLimits, ContainerSection, ContainerSectionKind,
     DecodedArtifactContainer, DecodedArtifactRelocation, EntrySetId, InstallationDiagnostic,
     MachineContractSetId, MachineFootprintId, NonAuthoritativeContainerFingerprint64,
     NonAuthoritativeInformationalFingerprint64, OMEGA_EXECUTABLE_CONTAINER_MARKER,
-    PlacementConstraints, PlacementPlanId, RelocationSetId, RelocationTarget,
-    ValidatedContainerAdmissionEvidence, admit_validated_container,
-    non_authoritative_decoded_container_fingerprint, normalized_decoded_content_digest,
-    normalized_proof_payload_digest, validate_decoded_container,
+    OMEGA_EXECUTABLE_CONTAINER_V1_MARKER, PlacementConstraints, PlacementPlanId, RelocationSetId,
+    RelocationTarget, ValidatedArtifactContainer, ValidatedContainerAdmissionEvidence,
+    admit_validated_container, non_authoritative_decoded_container_fingerprint,
+    normalized_decoded_content_digest, normalized_proof_payload_digest, validate_decoded_container,
+};
+use layout_plans::{
+    ArtifactInstallationScopeId, DataSymbolId, MachineRegimeId, PlacementAddressRange,
+    PlacementPhase,
 };
 
 fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDiagnostic>) -> T {
@@ -482,4 +486,614 @@ fn content_identity_binds_code_and_normalized_semantics_not_evidence() {
     changed_proof.sections[6].kind = ContainerSectionKind::Proof(changed_proof.proof_payload);
     let validated = validate_decoded_container(changed_proof, limits()).expect("proof is evidence");
     assert_eq!(validated.artifact().content(), baseline_identity);
+}
+
+/// Rebuild the strong authority commitments for the exact report coordinates
+/// one mutated container carries. The commitment bytes are provider evidence;
+/// this helper derives them honestly so the coordinate join stays canonical.
+fn commitments_for(container: &DecodedArtifactContainer) -> ArtifactAuthorityCommitments {
+    ArtifactAuthorityCommitments::from_canonical_evidence(
+        container.contracts,
+        b"test imported contract set",
+        container.declared_footprint,
+        b"test declared footprint",
+        container
+            .placement_constraints
+            .machine_regime()
+            .map(|regime| (regime, b"test machine regime".as_slice())),
+        container
+            .placement_constraints
+            .installation_scope()
+            .map(|scope| (scope, b"test installation scope".as_slice())),
+    )
+}
+
+/// Honestly rewrite every copy of the strong commitments a mutated container
+/// carries: the decoded field and the authority-commitment section kind are a
+/// canonical join, so both must move together.
+fn recommit(changed: &mut DecodedArtifactContainer) {
+    let commitments = commitments_for(changed);
+    changed.authority_commitments = Some(commitments);
+    for section in &mut changed.sections {
+        if let ContainerSectionKind::AuthorityCommitments(_) = section.kind {
+            section.kind = ContainerSectionKind::AuthorityCommitments(commitments);
+        }
+    }
+}
+
+/// Honestly recompute the containing compatibility fingerprint over a mutated
+/// candidate, then run the full canonical validation. A substitution that is
+/// representable survives this and yields a different artifact.
+fn reidentified(mut changed: DecodedArtifactContainer) -> ValidatedArtifactContainer {
+    changed.content_fingerprint = non_authoritative_decoded_container_fingerprint(&changed)
+        .expect("honest compatibility-fingerprint recompute");
+    validate_decoded_container(changed, limits())
+        .expect("representable substitution must remain canonical")
+}
+
+/// Replay the authentic container's admission evidence against a substituted
+/// candidate. The evidence carries the exact original artifact, so every
+/// substitution that produces a different artifact must reject.
+fn replay_rejects(
+    authentic: &ValidatedArtifactContainer,
+    substituted: &ValidatedArtifactContainer,
+    needle: &str,
+) {
+    let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+        id(70, AdmissionReceiptId::from_normalized_identity),
+        authentic,
+        true,
+    );
+    let error = admit_validated_container(substituted, evidence)
+        .expect_err("independent replay must reject the substitution");
+    assert!(
+        error.0.contains(needle),
+        "unexpected replay rejection: {}",
+        error.0
+    );
+}
+
+/// Recompute the fingerprint when the mutation still permits one, then assert
+/// canonical validation rejects the substitution for the structural reason.
+fn rejects_validation(changed: DecodedArtifactContainer, needle: &str) {
+    let mut changed = changed;
+    if let Ok(fingerprint) = non_authoritative_decoded_container_fingerprint(&changed) {
+        changed.content_fingerprint = fingerprint;
+    }
+    let error = validate_decoded_container(changed, limits())
+        .expect_err("non-representable substitution must reject");
+    assert!(
+        error.0.contains(needle),
+        "unexpected validation rejection: {}",
+        error.0
+    );
+}
+
+#[test]
+fn executable_container_rejects_every_one_field_substitution() {
+    let authentic = validate_decoded_container(decoded(), limits()).expect("authentic container");
+
+    // The claimed normalized artifact identity is bound only by the admission
+    // evidence: it deliberately rides outside the content digest, so an
+    // honestly reidentified substitution still replays as a different artifact.
+    let mut changed = decoded();
+    changed.artifact = id(2, ArtifactId::from_normalized_identity);
+    let substituted = reidentified(changed);
+    assert_eq!(
+        substituted.artifact().content(),
+        authentic.artifact().content(),
+        "the claimed artifact identity rides outside the content digest",
+    );
+    assert_ne!(substituted.artifact(), authentic.artifact());
+    replay_rejects(&authentic, &substituted, "different validated container");
+
+    // Every content-bound field: substitute the field, honestly recompute the
+    // derived directory/commitment joins and the compatibility fingerprint.
+    // The substituted container validates canonically, carries a different
+    // content identity, and independent admission replay rejects it.
+    let axes: Vec<(&str, Box<dyn Fn(&mut DecodedArtifactContainer)>)> = vec![
+        (
+            "architecture",
+            Box::new(|changed| {
+                changed.architecture = Architecture::Aarch64;
+                changed.relocations[0].kind = ArtifactRelocationKind::Absolute64;
+            }),
+        ),
+        ("code bytes", Box::new(|changed| changed.code[0] ^= 1)),
+        (
+            "code extent",
+            Box::new(|changed| {
+                changed.code.truncate(32);
+                changed.code_length = 32;
+                changed.sections[0].length = 32;
+                changed.relocations[0].destination_offset = 8;
+            }),
+        ),
+        (
+            "contracts",
+            Box::new(|changed| {
+                changed.contracts = id(13, MachineContractSetId::from_normalized_identity);
+                changed.sections[2].kind = ContainerSectionKind::Contracts(changed.contracts);
+                recommit(changed);
+            }),
+        ),
+        (
+            "declared footprint",
+            Box::new(|changed| {
+                changed.declared_footprint = id(14, MachineFootprintId::from_normalized_identity);
+                changed.sections[3].kind =
+                    ContainerSectionKind::Footprint(changed.declared_footprint);
+                recommit(changed);
+            }),
+        ),
+        (
+            "placement plan",
+            Box::new(|changed| {
+                changed.placement_plan = id(15, PlacementPlanId::from_normalized_identity);
+                changed.sections[4].kind = ContainerSectionKind::Placement(changed.placement_plan);
+            }),
+        ),
+        (
+            "placement phase",
+            Box::new(|changed| {
+                changed.placement_constraints =
+                    PlacementConstraints::unconstrained(PlacementPhase::PostHandoff);
+            }),
+        ),
+        (
+            "placement alignment",
+            Box::new(|changed| {
+                changed.placement_constraints =
+                    PlacementConstraints::new(None, 8, PlacementPhase::Load, None, None)
+                        .expect("aligned placement constraints");
+            }),
+        ),
+        (
+            "placement permitted range",
+            Box::new(|changed| {
+                changed.placement_constraints = PlacementConstraints::new(
+                    Some(PlacementAddressRange::new(0x1000, 0x2000).expect("permitted range")),
+                    1,
+                    PlacementPhase::Load,
+                    None,
+                    None,
+                )
+                .expect("ranged placement constraints");
+            }),
+        ),
+        (
+            "placement machine regime",
+            Box::new(|changed| {
+                let regime = MachineRegimeId::from_normalized_identity(10).expect("regime");
+                changed.placement_constraints =
+                    PlacementConstraints::new(None, 1, PlacementPhase::Load, Some(regime), None)
+                        .expect("regime placement constraints");
+                recommit(changed);
+            }),
+        ),
+        (
+            "placement installation scope",
+            Box::new(|changed| {
+                let scope =
+                    ArtifactInstallationScopeId::from_normalized_identity(11).expect("scope");
+                changed.placement_constraints =
+                    PlacementConstraints::new(None, 1, PlacementPhase::Load, None, Some(scope))
+                        .expect("scope placement constraints");
+                recommit(changed);
+            }),
+        ),
+        (
+            "entry set",
+            Box::new(|changed| {
+                changed.entry_set = id(18, EntrySetId::from_normalized_identity);
+                changed.sections[5].kind = ContainerSectionKind::Entries(changed.entry_set);
+            }),
+        ),
+        (
+            "entry identity",
+            Box::new(|changed| {
+                changed.entries[0] = ArtifactEntry::from_canonical_decode(
+                    EntryStubId::from_normalized_identity(10).expect("entry identity"),
+                    changed.entries[0].code_offset(),
+                );
+            }),
+        ),
+        (
+            "entry code offset",
+            Box::new(|changed| {
+                changed.entries[0] =
+                    ArtifactEntry::from_canonical_decode(changed.entries[0].identity(), 24);
+            }),
+        ),
+        (
+            "entry roster",
+            Box::new(|changed| {
+                changed.entries.push(ArtifactEntry::from_canonical_decode(
+                    EntryStubId::from_normalized_identity(10).expect("entry identity"),
+                    24,
+                ));
+                changed.sections[5].length = 32;
+            }),
+        ),
+        (
+            "relocation set",
+            Box::new(|changed| {
+                changed.relocation_set = id(16, RelocationSetId::from_normalized_identity);
+                changed.sections[1].kind =
+                    ContainerSectionKind::Relocations(changed.relocation_set);
+            }),
+        ),
+        (
+            "relocation kind",
+            Box::new(|changed| {
+                changed.relocations[0].kind = ArtifactRelocationKind::Absolute64;
+            }),
+        ),
+        (
+            "relocation destination",
+            Box::new(|changed| {
+                changed.relocations[0].destination_offset = 40;
+            }),
+        ),
+        (
+            "relocation target",
+            Box::new(|changed| {
+                changed.relocations[0].target = RelocationTarget::Data(
+                    DataSymbolId::from_normalized_identity(12).expect("data symbol"),
+                );
+            }),
+        ),
+        (
+            "relocation addend",
+            Box::new(|changed| changed.relocations[0].addend = 7),
+        ),
+        (
+            "relocation roster",
+            Box::new(|changed| {
+                changed.relocations.clear();
+                changed.sections[1].length = 8;
+            }),
+        ),
+        (
+            "authority commitments",
+            Box::new(|changed| {
+                let forged = ArtifactAuthorityCommitments::from_canonical_evidence(
+                    changed.contracts,
+                    b"forged imported contract set",
+                    changed.declared_footprint,
+                    b"test declared footprint",
+                    None,
+                    None,
+                );
+                changed.authority_commitments = Some(forged);
+                for section in &mut changed.sections {
+                    if let ContainerSectionKind::AuthorityCommitments(_) = section.kind {
+                        section.kind = ContainerSectionKind::AuthorityCommitments(forged);
+                    }
+                }
+            }),
+        ),
+    ];
+    for (name, mutate) in &axes {
+        let mut changed = decoded();
+        mutate(&mut changed);
+        let substituted = reidentified(changed);
+        assert_ne!(
+            substituted.artifact().content(),
+            authentic.artifact().content(),
+            "the {name} substitution must change the normalized content digest",
+        );
+        assert_ne!(
+            substituted.artifact(),
+            authentic.artifact(),
+            "the {name} substitution must produce a different artifact",
+        );
+        replay_rejects(&authentic, &substituted, "different validated container");
+    }
+
+    // The exact proof payload is admission evidence: it stays outside the
+    // executable content identity yet replay still binds the exact bytes.
+    let mut changed = decoded();
+    changed.proof[0] ^= 1;
+    changed.proof_payload = normalized_proof_payload_digest(&changed.proof);
+    changed.sections[6].kind = ContainerSectionKind::Proof(changed.proof_payload);
+    let substituted = reidentified(changed);
+    assert_eq!(
+        substituted.artifact().content(),
+        authentic.artifact().content(),
+        "proof bytes remain outside executable content identity",
+    );
+    replay_rejects(&authentic, &substituted, "different proof payload");
+
+    // Entry and relocation rosters canonicalize by sort: a permuted honest
+    // roster replays to the identical artifact identity, and the identical
+    // artifact still cannot borrow the original admission evidence unless the
+    // roster itself is unchanged.
+    let extra_relocation = DecodedArtifactRelocation {
+        kind: ArtifactRelocationKind::Absolute64,
+        destination_offset: 8,
+        target: RelocationTarget::Data(
+            DataSymbolId::from_normalized_identity(12).expect("data symbol"),
+        ),
+        addend: 0,
+    };
+    let mut forward = decoded();
+    forward.relocations.push(extra_relocation);
+    forward.sections[1].length = 72;
+    let forward = reidentified(forward);
+    let mut permuted = decoded();
+    permuted.relocations.push(extra_relocation);
+    permuted.relocations.swap(0, 1);
+    permuted.sections[1].length = 72;
+    let permuted = reidentified(permuted);
+    assert_eq!(
+        permuted.artifact().content(),
+        forward.artifact().content(),
+        "relocation roster order must canonicalize",
+    );
+    assert_eq!(permuted.artifact(), forward.artifact());
+    replay_rejects(&authentic, &permuted, "different validated container");
+
+    let mut forward = decoded();
+    forward.entries.push(ArtifactEntry::from_canonical_decode(
+        EntryStubId::from_normalized_identity(10).expect("entry identity"),
+        24,
+    ));
+    forward.sections[5].length = 32;
+    let forward = reidentified(forward);
+    let mut permuted = decoded();
+    permuted.entries.push(ArtifactEntry::from_canonical_decode(
+        EntryStubId::from_normalized_identity(10).expect("entry identity"),
+        24,
+    ));
+    permuted.entries.swap(0, 1);
+    permuted.sections[5].length = 32;
+    let permuted = reidentified(permuted);
+    assert_eq!(
+        permuted.artifact().content(),
+        forward.artifact().content(),
+        "entry roster order must canonicalize",
+    );
+    assert_eq!(permuted.artifact(), forward.artifact());
+    replay_rejects(&authentic, &permuted, "different validated container");
+
+    // Envelope axes the artifact identity deliberately does not carry: the
+    // declared total length, the section roster order, and the payload
+    // coordinates are wire-canonical joins, so a consistent substitution
+    // replays to the identical artifact and the original evidence still admits
+    // it — exactly like informational sections.
+    let mut reordered = decoded();
+    reordered.sections.swap(2, 3);
+    let substituted = reidentified(reordered);
+    assert_eq!(substituted.artifact(), authentic.artifact());
+    let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+        id(70, AdmissionReceiptId::from_normalized_identity),
+        &authentic,
+        true,
+    );
+    admit_validated_container(&substituted, evidence)
+        .expect("section roster order is wire-canonical, not artifact content");
+
+    let mut inflated = decoded();
+    inflated.total_length = 640;
+    let substituted = reidentified(inflated);
+    assert_eq!(substituted.artifact(), authentic.artifact());
+    let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+        id(70, AdmissionReceiptId::from_normalized_identity),
+        &authentic,
+        true,
+    );
+    admit_validated_container(&substituted, evidence)
+        .expect("declared length beyond the joined sections is envelope data");
+
+    let mut moved = decoded();
+    moved.sections[2].offset = 208;
+    moved.sections[3].offset = 144;
+    let substituted = reidentified(moved);
+    assert_eq!(substituted.artifact(), authentic.artifact());
+    let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+        id(70, AdmissionReceiptId::from_normalized_identity),
+        &authentic,
+        true,
+    );
+    admit_validated_container(&substituted, evidence)
+        .expect("payload coordinates are wire-canonical, not artifact content");
+
+    // A consistent version-1 encoding still decodes for compatibility but its
+    // own honest evidence cannot admit it — the marker axis fails closed.
+    let mut version_one = decoded();
+    version_one.format_marker = OMEGA_EXECUTABLE_CONTAINER_V1_MARKER;
+    version_one.authority_commitments = None;
+    version_one.sections.pop();
+    let substituted = reidentified(version_one);
+    let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+        id(70, AdmissionReceiptId::from_normalized_identity),
+        &substituted,
+        true,
+    );
+    let error = admit_validated_container(&substituted, evidence)
+        .expect_err("version-1 compatibility candidate cannot be admitted");
+    assert!(
+        error.0.contains("container-v1 compatibility"),
+        "unexpected v1 rejection: {}",
+        error.0
+    );
+
+    // The admission gate itself binds the acceptance flag and the exact
+    // artifact, independent of the container envelope.
+    let mut evidence = ArtifactAdmissionEvidence::from_validator(
+        id(70, AdmissionReceiptId::from_normalized_identity),
+        authentic.artifact(),
+        true,
+    );
+    evidence.accepted = false;
+    let error = admit_executable(authentic.artifact(), evidence)
+        .expect_err("unaccepted evidence must not admit");
+    assert!(error.0.contains("did not accept"));
+    let mut colliding = decoded();
+    colliding.artifact = id(2, ArtifactId::from_normalized_identity);
+    let colliding = reidentified(colliding);
+    let evidence = ArtifactAdmissionEvidence::from_validator(
+        id(70, AdmissionReceiptId::from_normalized_identity),
+        authentic.artifact(),
+        true,
+    );
+    let error = admit_executable(colliding.artifact(), evidence)
+        .expect_err("evidence for another artifact must not admit");
+    assert!(error.0.contains("does not match canonical candidate"));
+
+    // Zero is never a representable normalized identity: every identity
+    // constructor rejects it before any substitution can be encoded.
+    assert!(ArtifactId::from_normalized_identity(0).is_err());
+    assert!(MachineContractSetId::from_normalized_identity(0).is_err());
+    assert!(MachineFootprintId::from_normalized_identity(0).is_err());
+    assert!(PlacementPlanId::from_normalized_identity(0).is_err());
+    assert!(EntrySetId::from_normalized_identity(0).is_err());
+    assert!(RelocationSetId::from_normalized_identity(0).is_err());
+    assert!(AdmissionReceiptId::from_normalized_identity(0).is_err());
+    assert!(EntryStubId::from_normalized_identity(0).is_err());
+    assert!(DataSymbolId::from_normalized_identity(0).is_err());
+    assert!(MachineRegimeId::from_normalized_identity(0).is_err());
+    assert!(ArtifactInstallationScopeId::from_normalized_identity(0).is_err());
+    assert!(NonAuthoritativeContainerFingerprint64::from_compatibility_value(0).is_err());
+
+    // Substitutions that cannot keep the canonical joins reject at validation
+    // even under an honest compatibility-fingerprint recompute.
+    let mut changed = decoded();
+    changed.format_marker = 0x9999;
+    rejects_validation(changed, "unsupported Omega executable container marker");
+
+    let mut changed = decoded();
+    changed.format_marker = OMEGA_EXECUTABLE_CONTAINER_V1_MARKER;
+    rejects_validation(
+        changed,
+        "container-v1 cannot carry v2 authority commitments",
+    );
+
+    let mut changed = decoded();
+    changed.code_length = 32;
+    rejects_validation(changed, "canonical header declares");
+
+    let mut changed = decoded();
+    changed.total_length = 512;
+    rejects_validation(changed, "exceeds 512-byte container");
+
+    let mut changed = decoded();
+    changed.sections[1].kind =
+        ContainerSectionKind::Relocations(id(99, RelocationSetId::from_normalized_identity));
+    rejects_validation(
+        changed,
+        "relocation section identity does not match canonical header",
+    );
+
+    let mut changed = decoded();
+    changed.sections[6].kind = ContainerSectionKind::Proof(normalized_proof_payload_digest(b"x"));
+    rejects_validation(
+        changed,
+        "proof section identity does not match canonical header",
+    );
+
+    let mut changed = decoded();
+    changed.contracts = id(13, MachineContractSetId::from_normalized_identity);
+    rejects_validation(
+        changed,
+        "contract section identity does not match canonical header",
+    );
+
+    let mut changed = decoded();
+    changed.contracts = id(13, MachineContractSetId::from_normalized_identity);
+    changed.sections[2].kind = ContainerSectionKind::Contracts(changed.contracts);
+    rejects_validation(changed, "compact report coordinates");
+
+    let mut changed = decoded();
+    changed.declared_footprint = id(14, MachineFootprintId::from_normalized_identity);
+    changed.sections[3].kind = ContainerSectionKind::Footprint(changed.declared_footprint);
+    rejects_validation(changed, "compact report coordinates");
+
+    let mut changed = decoded();
+    changed.placement_constraints = PlacementConstraints::new(
+        None,
+        1,
+        PlacementPhase::Load,
+        Some(MachineRegimeId::from_normalized_identity(10).expect("regime")),
+        None,
+    )
+    .expect("regime placement constraints");
+    rejects_validation(changed, "compact report coordinates");
+
+    let mut changed = decoded();
+    changed.placement_constraints = PlacementConstraints::new(
+        None,
+        1,
+        PlacementPhase::Load,
+        None,
+        Some(ArtifactInstallationScopeId::from_normalized_identity(11).expect("scope")),
+    )
+    .expect("scope placement constraints");
+    rejects_validation(changed, "compact report coordinates");
+
+    let mut changed = decoded();
+    changed.authority_commitments = None;
+    rejects_validation(changed, "does not match decoded strong evidence");
+
+    let mut changed = decoded();
+    changed.authority_commitments = None;
+    changed.sections.pop();
+    rejects_validation(
+        changed,
+        "container-v2 requires exactly one authority-commitment section",
+    );
+
+    let mut changed = decoded();
+    changed.sections.remove(2);
+    rejects_validation(changed, "exactly one contracts section");
+
+    let mut changed = decoded();
+    changed.entries.clear();
+    rejects_validation(changed, "does not match 0 canonical entries");
+
+    let mut changed = decoded();
+    changed.entries.clear();
+    changed.sections[5].length = 0;
+    rejects_validation(changed, "is empty or exceeds configured bound");
+
+    let mut changed = decoded();
+    changed.entries.push(changed.entries[0]);
+    changed.sections[5].length = 32;
+    rejects_validation(changed, "must be unique");
+
+    let mut changed = decoded();
+    changed.entries[0] = ArtifactEntry::from_canonical_decode(changed.entries[0].identity(), 64);
+    rejects_validation(changed, "lies outside");
+
+    let mut changed = decoded();
+    changed.architecture = Architecture::Aarch64;
+    changed.relocations[0].kind = ArtifactRelocationKind::Absolute64;
+    changed.entries[0] = ArtifactEntry::from_canonical_decode(changed.entries[0].identity(), 17);
+    rejects_validation(changed, "not instruction-aligned");
+
+    let mut changed = decoded();
+    changed.relocations[0].destination_offset = 62;
+    rejects_validation(changed, "exceeds 64-byte code");
+
+    let mut changed = decoded();
+    changed.relocations[0].kind = ArtifactRelocationKind::Aarch64Branch26;
+    rejects_validation(changed, "incompatible with architecture X86_64");
+
+    let mut changed = decoded();
+    changed.relocations.push(changed.relocations[0]);
+    changed.sections[1].length = 72;
+    rejects_validation(changed, "overlaps");
+
+    let mut changed = decoded();
+    changed.proof_payload = normalized_proof_payload_digest(b"different proof");
+    rejects_validation(changed, "does not match the exact proof bytes");
+
+    // A fingerprint drift that no honest recompute produces rejects the same
+    // canonical check.
+    let mut changed = decoded();
+    changed.code[0] ^= 1;
+    let error = validate_decoded_container(changed, limits())
+        .expect_err("a stale compatibility fingerprint must reject");
+    assert!(error.0.contains("content fingerprint"));
 }
