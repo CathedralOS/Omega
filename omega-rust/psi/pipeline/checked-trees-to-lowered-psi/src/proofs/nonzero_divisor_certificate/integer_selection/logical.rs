@@ -1,7 +1,9 @@
 //! Canonical compound integer proposition proof construction.
 
 use proof_admission::{ProofNode, ProofRule};
-use semantic_vocabulary::{Proposition, ScalarTerm};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
+
+use super::super::affine_custody::DefinitionIndex;
 
 mod integer_contradiction;
 
@@ -11,9 +13,11 @@ mod integer_contradiction;
 /// conversion and conjunction elimination close the goal without a new rule
 /// or a trusted prune. Every contradictory citation remains in the proof.
 pub(super) fn prove_contradiction(
+    context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     // Reconstruction closes a literal guard directly to Falsehood, whereas a
     // call-produced guard can retain contradictory value equations. Both need
@@ -30,7 +34,9 @@ pub(super) fn prove_contradiction(
                     semantic_axioms,
                 )
             })
-            .or_else(|| integer_contradiction::prove(assumptions, semantic_axioms))?;
+            .or_else(|| {
+                integer_contradiction::prove(context, assumptions, semantic_axioms, definitions)
+            })?;
     Some(ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::ConjunctionElimination {
@@ -81,6 +87,7 @@ pub(super) fn prove_disjunction(
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::affine_custody::DefinitionIndex;
     use super::{Proposition, ScalarTerm, prove_contradiction};
     use proof_admission::check_certificate;
     use semantic_vocabulary::{PropositionContext, ScalarType, ValueId};
@@ -105,7 +112,14 @@ mod tests {
                 } else {
                     (&[], &facts)
                 };
-                let proof = prove_contradiction(&goal, assumptions, axioms).unwrap();
+                let proof = prove_contradiction(
+                    &context,
+                    &goal,
+                    assumptions,
+                    axioms,
+                    &mut DefinitionIndex::new(axioms),
+                )
+                .unwrap();
                 check_certificate(&context, &goal, assumptions, axioms, &proof).unwrap();
                 // Changing the cited row or moving its conjunction leaf cannot
                 // repair an old proof, even if the new roster is contradictory.
@@ -142,10 +156,31 @@ mod tests {
                 conclusion: Box::new(Proposition::Falsehood),
             },
         ] {
-            assert!(prove_contradiction(&goal, std::slice::from_ref(&conditional), &[]).is_none());
-            assert!(prove_contradiction(&goal, &[], &[conditional]).is_none());
+            assert!(
+                prove_contradiction(
+                    &context,
+                    &goal,
+                    std::slice::from_ref(&conditional),
+                    &[],
+                    &mut DefinitionIndex::new(&[])
+                )
+                .is_none()
+            );
+            assert!(
+                prove_contradiction(
+                    &context,
+                    &goal,
+                    &[],
+                    &[conditional],
+                    &mut DefinitionIndex::new(&[])
+                )
+                .is_none()
+            );
         }
-        assert!(prove_contradiction(&goal, &[], &[]).is_none());
+        assert!(
+            prove_contradiction(&context, &goal, &[], &[], &mut DefinitionIndex::new(&[]))
+                .is_none()
+        );
     }
 
     #[test]
@@ -162,23 +197,57 @@ mod tests {
             Proposition::Equal(value(1), value(2)),
             Proposition::Equal(value(2), ScalarTerm::Boolean(true)),
         ];
-        let proof = prove_contradiction(&goal, &[], &axioms).unwrap();
+        let proof = prove_contradiction(
+            &context,
+            &goal,
+            &[],
+            &axioms,
+            &mut DefinitionIndex::new(&axioms),
+        )
+        .unwrap();
         check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
         for missing in 0..axioms.len() {
             let mut changed = axioms.to_vec();
             changed.remove(missing);
             assert!(check_certificate(&context, &goal, &[], &changed, &proof).is_err());
-            assert!(prove_contradiction(&goal, &[], &changed).is_none());
+            assert!(
+                prove_contradiction(
+                    &context,
+                    &goal,
+                    &[],
+                    &changed,
+                    &mut DefinitionIndex::new(&changed)
+                )
+                .is_none()
+            );
         }
         let mut consistent = axioms.clone();
         consistent[2] = Proposition::Equal(value(2), ScalarTerm::Boolean(false));
-        assert!(prove_contradiction(&goal, &[], &consistent).is_none());
+        assert!(
+            prove_contradiction(
+                &context,
+                &goal,
+                &[],
+                &consistent,
+                &mut DefinitionIndex::new(&consistent)
+            )
+            .is_none()
+        );
         assert!(check_certificate(&context, &goal, &[], &consistent, &proof).is_err());
         // An alternative is not an unconditional contradiction.
         let alternatives = [Proposition::Disjunction(vec![
             Proposition::Conjunction(axioms.to_vec()),
             Proposition::Truth,
         ])];
-        assert!(prove_contradiction(&goal, &[], &alternatives).is_none());
+        assert!(
+            prove_contradiction(
+                &context,
+                &goal,
+                &[],
+                &alternatives,
+                &mut DefinitionIndex::new(&alternatives)
+            )
+            .is_none()
+        );
     }
 }

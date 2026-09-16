@@ -235,21 +235,22 @@ machine Main::main(&mut self) reaches Trace {
     assert_eq!(trace.0, [b"done".to_vec()]);
 }
 
-/// `self.place` is replaced every iteration and reaches zero on the last one,
-/// so the divide's nonzero-divisor obligation `1 <= self.place` needs a
-/// guarded-exit invariant. Integer contradictions now use ordinary order
-/// transitivity and predicate denotation, but `counter < 3 -> place >= 1`
-/// alone is not inductive: counter=0, place=1 satisfies it before the body and
-/// violates it afterward. Candidate synthesis still needs a stronger lockstep
-/// relation and checked updates at every arrival, so this remains
-/// `OperationProofUnavailable` (TASKS.md GENERAL-CYCLIC-EXECUTION).
+/// `self.place` is divided by ten every iteration, so the divide's
+/// nonzero-divisor obligation `1 <= self.place` cannot be discharged by the
+/// plain bound `counter < 3 -> place >= 1`: the last in-guard iteration
+/// already divided `place` once more. The retained invariant is the lockstep
+/// family `counter < k -> 10^(3-k) <= place`, each clause proved at the entry
+/// and backedge arrivals — the vacuous `counter < 1` clause through a checked
+/// integer contradiction — and the artifact still reloads, verifies, and
+/// executes to `done` (TASKS.md GENERAL-CYCLIC-EXECUTION).
 #[test]
-fn cyclic_field_divisor_awaits_storage_observation_invariants() {
+fn cyclic_field_divisor_retains_lockstep_invariant() {
     let checked = checked_source(
         r#"
 boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
 data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
 machine Main::main(&mut self) reaches Trace {
+    self.counter = 0;
     self.sq = 81;
     self.place = 100;
     transition { _ -> head() }
@@ -264,13 +265,167 @@ machine Main::main(&mut self) reaches Trace {
     }
     state done(&mut self) { Trace::write("done"); }
 }
+"#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("the lockstep invariant proves every arrival");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let invariant = module
+        .scalar_block_invariants
+        .iter()
+        .find(|invariant| {
+            matches!(
+                &invariant.predicate,
+                semantic_vocabulary::Proposition::Conjunction(members)
+                    if members.iter().any(|member| matches!(
+                        member,
+                        semantic_vocabulary::Proposition::Implication {
+                            conclusion,
+                            ..
+                        } if matches!(
+                            conclusion.as_ref(),
+                            semantic_vocabulary::Proposition::LessOrEqual(
+                                semantic_vocabulary::ScalarTerm::Integer {
+                                    value: semantic_vocabulary::IntegerValue::Unsigned(100),
+                                    ..
+                                },
+                                semantic_vocabulary::ScalarTerm::IntegerField { .. },
+                            )
+                        )
+                    ))
+            )
+        })
+        .expect("the lockstep family retains the strongest clause");
+    assert_eq!(invariant.arrivals.len(), 2, "entry and backedge arrivals");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let [receiver] = entry.structural_parameters.as_slice() else {
+        panic!("persistent receiver survives publication")
+    };
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 1,
+                structural_type: receiver.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
+    )
+    .expect("canonical artifact reloads and independently verifies");
+    let mut meter = TerminalFuelMeter::with_allowance(1000);
+    let mut trace = ByteTrace::default();
+    assert_eq!(
+        execution.resume(&mut meter, &mut trace).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(trace.0, [b"done".to_vec()]);
+}
 
+/// A lockstep candidate that under-provisions its divisor is a proposal the
+/// arrival check drops: `place = 4` reaches zero before `counter < 3` exits,
+/// so neither the family nor the original guarded bound can prove, and the
+/// divide keeps its checked nonzero obligation.
+#[test]
+fn cyclic_field_divisor_rejects_reachable_zero_divisor() {
+    let checked = checked_source(
+        r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
+machine Main::main(&mut self) reaches Trace {
+    self.counter = 0;
+    self.sq = 81;
+    self.place = 4;
+    transition { _ -> head() }
+    state head(&mut self) {
+        transition self.counter < 3 { true -> digit() _ -> done() }
+    }
+    state digit(&mut self) {
+        self.d = self.sq / self.place;
+        self.place = self.place / 10;
+        self.counter = self.counter + 1;
+        transition { _ -> head() }
+    }
+    state done(&mut self) { Trace::write("done"); }
+}
 "#,
     );
     assert!(matches!(
         lower_machine(&checked, "Main::main"),
         Err(LoweringError::OperationProofUnavailable(_))
     ));
+}
+
+/// The lockstep certificate binds each clause to its exact cited evidence;
+/// widening the loop guard after production makes the retained family stale,
+/// and independent verification must refuse it even though the changed module
+/// still lowers structurally.
+#[test]
+fn cyclic_field_divisor_lockstep_evidence_rejects_a_widened_guard() {
+    let checked = checked_source(
+        r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
+machine Main::main(&mut self) reaches Trace {
+    self.counter = 0;
+    self.sq = 81;
+    self.place = 100;
+    transition { _ -> head() }
+    state head(&mut self) {
+        transition self.counter < 3 { true -> digit() _ -> done() }
+    }
+    state digit(&mut self) {
+        self.d = self.sq / self.place;
+        self.place = self.place / 10;
+        self.counter = self.counter + 1;
+        transition { _ -> head() }
+    }
+    state done(&mut self) { Trace::write("done"); }
+}
+"#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
+        .produce_artifact()
+        .expect("the lockstep invariant proves every arrival");
+    let mut widened = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let guard = widened
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(3),
+                }
+            )
+        })
+        .expect("the loop guard carries its bound literal");
+    guard.kind = terminal_psi::OperationKind::IntegerConstant {
+        value: semantic_vocabulary::IntegerValue::Unsigned(4),
+    };
+    terminal_verifier::validate_module(&widened)
+        .expect("the widened guard keeps structural validity");
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    assert!(
+        terminal_verifier::verify_module(
+            &widened,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "the retained family cannot discharge a fourth iteration's divide"
+    );
 }
 
 /// The guarded exit pins `counter` to an exact stored bound (`self.counter =

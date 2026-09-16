@@ -7,9 +7,13 @@
 //! relation primitive keep every contradiction inside the same two-leg search.
 
 use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule};
-use semantic_vocabulary::{IntegerCarrier, Proposition, ScalarTerm, ScalarType};
+use semantic_vocabulary::{
+    IntegerCarrier, Proposition, PropositionContext, ScalarTerm, ScalarType,
+};
 
-use super::super::super::integer_evidence::projected_facts;
+use super::super::super::affine_custody::{self, DefinitionIndex};
+use super::super::super::integer_evidence::{integer_carrier_bound, projected_facts};
+use super::super::wrapping;
 
 /// One checked `left </<= right` bound with its proof. Legs are built from
 /// citations only; a leg's proof is what the kernel replays, so a derived leg
@@ -22,8 +26,10 @@ struct OrderLeg {
 }
 
 pub(super) fn prove(
+    context: &PropositionContext,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut legs = Vec::new();
@@ -77,7 +83,128 @@ pub(super) fn prove(
             _ => {}
         }
     }
-    for leg in &legs {
+    if let Some(proof) = closed_falsehood(&legs, assumptions, semantic_axioms) {
+        return Some(proof);
+    }
+    derived_legs(
+        context,
+        &mut legs,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    );
+    closed_falsehood(&legs, assumptions, semantic_axioms)
+}
+
+/// Bounds transported through the checked definition words can contradict a
+/// cited bound on the same value. The carrier `0 <= x` maps forward through
+/// `v = wrapping_add(x, c)` to `c <= v` once the no-wrap evidence is
+/// independently proved, and that derived leg joins a cited `v < c` into the
+/// closed false relation above. Derived legs extend the pool; they never
+/// replace a citation and the same bounded pair search closes them.
+fn derived_legs(
+    context: &PropositionContext,
+    legs: &mut Vec<OrderLeg>,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) {
+    // A derived leg only joins the search when a cited leg already names its
+    // open endpoint, so the targets stay inside the question being asked.
+    let mut targets = Vec::new();
+    for leg in legs.iter() {
+        for term in [&leg.left, &leg.right] {
+            if matches!(term, ScalarTerm::Value { .. }) && !targets.contains(term) {
+                targets.push((*term).clone());
+            }
+        }
+    }
+    let mut roots = wrapping::rooted_bounds(assumptions, semantic_axioms);
+    for value in value_terms(assumptions, semantic_axioms) {
+        let ScalarType::Integer(integer_type) = value.scalar_type() else {
+            continue;
+        };
+        for endpoints in [
+            (
+                ScalarTerm::integer(integer_type, integer_type.minimum_value()),
+                Ok(value.clone()),
+            ),
+            (
+                Ok(value.clone()),
+                ScalarTerm::integer(integer_type, integer_type.maximum_value()),
+            ),
+        ] {
+            let (Ok(left), Ok(right)) = endpoints else {
+                continue;
+            };
+            let bound = Proposition::LessOrEqual(left, right);
+            let Some(proof) = integer_carrier_bound(context, &bound) else {
+                continue;
+            };
+            roots.push(wrapping::RootedBound {
+                proposition: bound,
+                proof,
+                root: value.clone(),
+            });
+        }
+    }
+    // Bounded like the pair search below: exhaustion leaves legs unchanged
+    // rather than weakening the question.
+    let mut remaining_words = 4096usize;
+    for bound in &roots {
+        for target in &targets {
+            if bound.root == *target {
+                continue;
+            }
+            let words = affine_custody::definition_words_to_target(
+                context,
+                semantic_axioms,
+                definitions,
+                &bound.root,
+                target,
+            );
+            for word in words.iter() {
+                if remaining_words == 0 {
+                    return;
+                }
+                remaining_words -= 1;
+                let Some(mapped) = wrapping::map_word(
+                    context,
+                    assumptions,
+                    semantic_axioms,
+                    definitions,
+                    bound,
+                    target,
+                    word,
+                ) else {
+                    continue;
+                };
+                let (left, right, strict) = match &mapped.conclusion {
+                    Proposition::LessThan(left, right) => (left, right, true),
+                    Proposition::LessOrEqual(left, right) => (left, right, false),
+                    _ => continue,
+                };
+                if legs
+                    .iter()
+                    .any(|leg| leg.left == *left && leg.right == *right && leg.strict == strict)
+                {
+                    continue;
+                }
+                legs.push(leg(left.clone(), right.clone(), strict, mapped));
+            }
+        }
+    }
+}
+
+/// The closed-false and bounded pair search over one leg pool. The cited and
+/// derived legs share exactly this search; exhaustion leaves the goal
+/// unproved and never changes the reconstructed question.
+fn closed_falsehood(
+    legs: &[OrderLeg],
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    for leg in legs {
         if is_closed_false(&relation(leg)) {
             return Some(falsehood(leg.proof.clone()));
         }
@@ -85,11 +212,11 @@ pub(super) fn prove(
     // This is a bounded two-edge search, not interval propagation. Exhaustion
     // leaves the goal unproved and never changes the reconstructed question.
     let mut remaining_pairs = 4096usize;
-    for lower in &legs {
+    for lower in legs {
         if !matches!(lower.left, ScalarTerm::Integer { .. }) {
             continue;
         }
-        for upper in &legs {
+        for upper in legs {
             remaining_pairs = remaining_pairs.checked_sub(1)?;
             if lower.left.scalar_type() != lower.right.scalar_type()
                 || lower.right.scalar_type() != upper.left.scalar_type()
@@ -146,6 +273,72 @@ pub(super) fn prove(
         }
     }
     None
+}
+
+/// Every value leaf the cited facts mention, including inside the compound
+/// terms of definition equations. Carrier roots need the same custody the
+/// leg search already trusts, so the walk stays inside projected facts.
+fn value_terms(assumptions: &[Proposition], semantic_axioms: &[Proposition]) -> Vec<ScalarTerm> {
+    let mut terms = Vec::new();
+    let mut pending = Vec::new();
+    for fact in projected_facts(assumptions, semantic_axioms) {
+        match fact.proposition {
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => {
+                pending.push(left.clone());
+                pending.push(right.clone());
+            }
+            _ => {}
+        }
+    }
+    while let Some(term) = pending.pop() {
+        if let ScalarTerm::Value { .. } = &term
+            && !terms.contains(&term)
+        {
+            terms.push(term.clone());
+        }
+        match term {
+            ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
+            | ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
+                pending.push(*left);
+                pending.push(*right);
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                pending.push(*value);
+                pending.push(*count);
+            }
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => pending.push(*operand),
+            _ => {}
+        }
+    }
+    terms
 }
 
 fn relation(leg: &OrderLeg) -> Proposition {

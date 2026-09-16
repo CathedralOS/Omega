@@ -1,8 +1,18 @@
-use super::{Proposition, ScalarTerm, prove};
-use proof_admission::{AcceptedProofRule, accept_certificate, check_certificate};
+use super::super::super::super::affine_custody::DefinitionIndex;
+use super::{Proposition, ScalarTerm};
+use proof_admission::{AcceptedProofRule, ProofNode, accept_certificate, check_certificate};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, PropositionContext, ScalarType, ValueId,
 };
+
+fn prove(assumptions: &[Proposition], axioms: &[Proposition]) -> Option<ProofNode> {
+    super::prove(
+        &context(),
+        assumptions,
+        axioms,
+        &mut DefinitionIndex::new(axioms),
+    )
+}
 
 fn integer_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
@@ -55,7 +65,13 @@ fn incompatible_integer_bounds_retain_exact_projected_premises() {
                     Proposition::Conjunction(vec![Proposition::Truth, upper_fact.clone()]),
                 ]),
             ];
-            let proof = super::super::prove_contradiction(&goal, &assumptions, &axioms);
+            let proof = super::super::prove_contradiction(
+                &context(),
+                &goal,
+                &assumptions,
+                &axioms,
+                &mut DefinitionIndex::new(&axioms),
+            );
             if lower == upper && !strict[0] && !strict[1] {
                 assert!(proof.is_none());
                 continue;

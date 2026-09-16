@@ -23,6 +23,7 @@ use lowered_psi::LoweredPsi;
 mod entry_ranges;
 mod field_bounds;
 mod joins;
+mod lockstep;
 mod retained_evidence;
 
 #[cfg(test)]
@@ -39,6 +40,10 @@ pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
     let mut candidates = entry_ranges::candidates(module);
     candidates.extend(field_bounds::candidates(module, &original, &mut remaining));
     candidates.extend(joins::candidates(module, &original, &mut remaining));
+    // A guarded bound the cycle's own update can break is rewritten into the
+    // lockstep family the induction step needs; the prove-or-drop boundary
+    // below still decides every clause.
+    lockstep::strengthen(module, &mut candidates);
     if candidates.is_empty() {
         return Ok(());
     }
