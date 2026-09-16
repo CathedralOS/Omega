@@ -602,3 +602,33 @@ a recorded semantic distinction beyond that baseline, not more tuning of this se
 All 13 calls 3.475s, 23,665 input / 1,517 output, no retries. Policy self-checks,
 request hashes, response coverage, sanitization and Python compilation passed on
 Windows. No macOS runtime, worker interruption, compiler change or publication.
+
+## Validation obligation versus useful diagnosis; retry lane parked
+
+The next command/event inventory covered 35 recorded transitions without finding
+an obvious unique model advantage worth asserting. A bounded follow-up tested
+three actual cases: r09 allows permissions-set-readonly-false, r22 allows
+needless_lifetimes, r26 replaces a missing function call while retaining the
+check. This is hand-selected development evidence, not a representative audit
+of all 35 full traces. No subsequent outcomes were supplied to the model.
+
+`build/experiments/decision-composition/BOUNDARY-PROTOCOL.md`, `boundary.py`,
+`validation-boundary/` and `BOUNDARY-REPORT.md` preserve frozen labels, inputs,
+responses and conclusions. Previous questions/composition stayed fixed; one
+independent question asks whether the preceding blocking requirement remains
+enforced. Jev correctly labels weakened/weakened/preserved. Direct and composed
+retry policies continue all three, compatible with diagnostic utility but NOT
+original-gate satisfaction or permission to publish. Preserved does not prove
+the attempted source repair succeeds.
+
+A small added -A flag detector also gets 3/3. Its scope is these explicit CLI
+waivers, not source attributes, hidden config or general command validity.
+No model-specific gain. Three calls .354/.249/.281s, total .884s, 9,008 input /
+480 output tokens, no retries. Windows hash/coverage/sanitization checks, flag
+positive/negative assertions and Python compilation pass; no macOS runtime.
+
+Retain the conceptual separation between useful diagnosis and original-check
+acceptance. Park retry-adviser tuning: the recorded evidence still does not
+justify a model in this path. Revisit only for a genuine recorded semantic
+distinction beyond deterministic command/flag handling, not more constructed
+examples or a deliberately weak baseline. No production change or publication.
