@@ -155,13 +155,86 @@ Both variants shared each request, so this is not a single-policy deployment cos
 No worker ran, and no worker token/time savings were measured. Request identity was
 checked after normalizing platform newlines; no answers were retried for correctness.
 
+## Follow-up: query-centered excerpt coverage
+
+`build/experiments/context-windows/` preserves `windows.py`, `PROTOCOL.md`,
+the frozen labels/request, API responses and `REPORT.md`. Ten new authored queries
+used the same frozen 13-document corpus, with eight repository questions and two
+self-contained literal transformations containing misleading repository terms.
+They deliberately challenge buried details; this is not a representative random
+sample or unseen-domain evaluation. One API run per query/arm, no accuracy retries.
+
+The broad question and 0.5 cutoff stayed fixed. Centered excerpts use the existing
+lexical ranker to select two nonoverlapping 1,000-character windows at 500-character
+strides, reassembled in source order and capped at 2,015 characters. Short documents
+are not duplicated. Query-window construction took approximately 0.05s total.
+Labels include a required owner document and an exact evidence sentence, neither
+used in extraction or sent to Jev. First/last excerpts exposed 1/8 evidence anchors;
+centered excerpts exposed 7/8 before inference.
+
+| Policy | Required documents | Selected exact evidence anchors | Correct abstention | References | Characters |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Lexical, first/last | 6/8 | 1/8 | 0/2 | 20 | 40,300 |
+| Jev cutoff, first/last | 6/8 | 1/8 | 2/2 | 12 | 24,180 |
+| Lexical, centered | 7/8 | 6/8 | 0/2 | 20 | 38,574 |
+| Jev cutoff, centered | 8/8 | 7/8 | 2/2 | 13 | 26,126 |
+
+Frozen promotion signal passed: no loss of required-document recall, both
+abstentions, at least two additional anchors versus old Jev, and more anchors than
+centered lexical. Most improvement comes from deterministic excerpt construction;
+Jev adds one retained owner/anchor over centered lexical plus selective abstention.
+Lexical forced top-two cannot abstain by design. No wholesale gain is attributed to
+Jev alone. Joint API evaluation: 20 calls, 6.784s, 150,143 input and 10,174 output
+tokens. No worker-speed claim follows from these retrieval scores.
+
+Exact-anchor coverage is deliberately narrow. The live-worker question lacks its
+frozen anchor but another selected recovery paragraph may support its answer. Keep
+the frozen score; separately review semantic support rather than moving the label.
+
+## Consumer follow-up: evidence-backed answers
+
+The cutoff and excerpt probes are complete. The consumer probe used three
+fresh SWE-2 Max sessions on the exposed ten-query batch: old Jev excerpts, centered
+lexical excerpts, centered Jev excerpts. Require supported answer choices and exact
+per-query citations; unknown is safe noncompletion. This tests downstream use, not
+fresh generalization or coding productivity. `CONSUMER-PROTOCOL.md`, `consume.py`,
+and `consumer-*` artifacts in the same local directory preserve the trial.
+`CONSUMER-REPORT.md` and `semantic-review.json` retain the result and per-case
+source judgments. All three workers made zero tool calls and every quotation
+matched the per-query supplied text after whitespace normalization.
+
+| Context | Correct options | Supported correct | Safe unknown | Incomplete/wrong-owner support | Worker seconds | Selection/window seconds |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Jev first/last | 6/10 | 3/10 | 4 | 3 | 136.01 | 3.501 |
+| Lexical centered | 10/10 | 9/10 | 0 | 1 | 237.90 | 0.049 |
+| Jev centered | 10/10 | 10/10 | 0 | 0 | 56.66 | 3.332 |
+
+The concrete lexical miss is useful: a question about removed **work-claim**
+tickets received the **landing-queue** document. Devin selected the expected
+answer but cited a different registry's retained-history rule. Jev supplied
+`tools/claims.md`, and Devin cited the requested registry's actual rule. Exact
+quote matching and answer-key accuracy both missed this provenance error.
+
+The old excerpts yielded four safe unknowns plus three correct choices with
+incomplete evidence: exit-code semantics from generic queue text, liveness from
+advisory ownership, and a compound exclusion claim from doctest-only guidance.
+The centered live-worker passage supported its answer despite lacking the frozen
+anchor. This is why literal-anchor recall and semantic support remain separate.
+
+Support review was coordinator-authored, unblinded, and conservative about full
+answer entailment. Ten questions shared each worker prompt; per-question isolation
+was instructed, not enforced. No code was repaired. Fixed arm order, provider
+cache variation, and one run per arm prohibit claiming a repeatable 4x speedup.
+Prompt telemetry was 27,978 / 31,572 / 28,576 tokens respectively, including cached
+tokens; common preparation and coordinator review were not timed. The quality
+signal is promising on this constructed batch, not compiler productivity proof.
+
 ## Next tuning step
 
-The two-reference rule always fills both slots, even for weak or irrelevant matches.
-The cutoff probe above is complete; do not rerun it as fresh evidence. Carry the
-simpler broad-relevance cutoff as the candidate. Check omitted-middle evidence on
-new cases using query-centered excerpt windows, retaining deterministic selection
-as a baseline. If that transfers, compare worker completion with a fixed validation
-scope and preflighted permissions. Do not turn the 53% character reduction into a
-worker-speed claim before measuring it. The six exposed queries are now development
-examples, not a reusable blind holdout.
+Keep centered excerpts plus the broad-relevance cutoff as the candidate. Replicate
+on fresh ambiguous-owner questions with per-question worker isolation and rotated
+arm order, including a strong centered lexical baseline. Freeze supporting-owner
+rubrics before calls, not just answer choices. Measure quality and total latency;
+avoid claiming the large observed single-run time difference as established gain.
+These 16 exposed retrieval queries are now development data. Do not rerun them as
+fresh generalization evidence or tighten their prompts until every answer passes.
