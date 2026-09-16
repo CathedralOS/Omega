@@ -925,9 +925,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   copy's site refuses, and a surviving chained copy whose destination
   nobody reads is dead code the rule declines. Like the memory rules,
   none of the four is an `Optimization` selection-vocabulary member, so
-  the disabled-policy axis stays absent. Remaining: the same matrix for
-  the phase's `runtime_spill` exact rule, then the other phases' exact
-  rules.
+  the disabled-policy axis stays absent. All six
+  `lowered-psi-to-lowered-psi` rules — `ControlFlowCleanup`,
+  `SparseConditionalConstantPropagation`, `CopyPropagation`,
+  `GlobalValueNumbering`, `DeadPureScalarElimination`, and
+  `ProofCheckElision` — now carry the same matrix through the public
+  `run_psi_optimization` entrance (117 tests pass on macOS arm64): each
+  is a `PsiOptimization` selection member, so the disabled-policy axis
+  is a sibling-selection identity leg on the rule's own workload; the
+  validators carry no step budget, so the phase has no measured-budget
+  axis; every fixed-point leg feeds the published `LoweredPsi` back
+  through the entrance as a legal second input and observes the
+  recorded identity; and replay corruption is the independent
+  `terminal_verifier::validate_*` check rejecting forged `after`
+  modules — non-copy or non-total removals, survivors with drifted
+  contents, parameter and edge-argument drift, missing dominating
+  equivalents, structural change — plus malformed carriers refused at
+  the stage's module-validation gate. Both proof-freeze triggers are
+  covered: a contract `ensures` clause and an operation-site obligation
+  each freeze the whole closure with an identity record. Remaining:
+  the same matrix for the selected-instructions phase's `runtime_spill`
+  exact rule, then the other phases' exact rules.
 
 - **TARGET-MATRICES.** Complete supported target/OS allocator, encoding,
   unwind, object, and callable matrices. Existing selected-lowering and
