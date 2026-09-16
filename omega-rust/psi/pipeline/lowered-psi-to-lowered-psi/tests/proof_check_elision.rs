@@ -323,6 +323,69 @@ fn verifier_rejects_evidence_dropped_for_a_surviving_obligation() {
 }
 
 #[test]
+fn discharged_checks_survive_when_proof_check_elision_is_not_selected() {
+    // Disabled coverage: the discharged workload under a CopyPropagation-only
+    // selection keeps every goal-bearing row — elision is not selected.
+    let lowered = proof_check_fixture();
+    let optimized = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::CopyPropagation]).unwrap(),
+    )
+    .expect("the stage executes");
+    assert_eq!(optimized.lowered(), &lowered);
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+    assert_eq!(
+        optimized.execution().input_proof(),
+        optimized.execution().output_proof()
+    );
+}
+
+#[test]
+fn structurally_invalid_inputs_fail_before_rewrite() {
+    // Corruption coverage: each malformed carrier fails closed at the
+    // module-validation gate before any rewrite decision.
+    let mut no_machines = proof_check_fixture();
+    no_machines.semantic_module.machines.clear();
+    assert!(matches!(
+        run_psi_optimization(no_machines, selections()),
+        Err(
+            lowered_psi_to_lowered_psi::PsiOptimizationStageError::InvalidModule(
+                terminal_verifier::ModuleError::EmptyModule
+            )
+        )
+    ));
+
+    let mut bad_target = undischarged_proof_check_fixture();
+    let terminal_psi::Terminator::Return {
+        value: returned, ..
+    } = &mut bad_target.semantic_module.machines[0].blocks[0].terminator
+    else {
+        panic!("b1 is a return")
+    };
+    *returned = value(99);
+    assert!(matches!(
+        run_psi_optimization(bad_target, selections()),
+        Err(lowered_psi_to_lowered_psi::PsiOptimizationStageError::InvalidModule(_))
+    ));
+
+    let mut bad_debug = proof_check_fixture();
+    common::with_debug_sites(&mut bad_debug, &[]);
+    bad_debug
+        .debug_map
+        .as_mut()
+        .unwrap()
+        .semantic
+        .program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([0xff; 32]);
+    assert!(matches!(
+        run_psi_optimization(bad_debug, selections()),
+        Err(lowered_psi_to_lowered_psi::PsiOptimizationStageError::InvalidDebugMap(_))
+    ));
+}
+
+#[test]
 fn optimized_output_is_a_legal_second_input_and_reaches_a_fixed_point() {
     let first = run_psi_optimization(proof_check_fixture(), selections()).unwrap();
     let second = run_psi_optimization(first.lowered().clone(), selections())
