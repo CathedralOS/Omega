@@ -191,8 +191,15 @@ fn validate_recovery_selection(
     use super::AllocationEvidence;
     use optimization_core::{Optimization, OptimizationExecutionPhase};
     let expected: &[Optimization] = match current.evidence() {
-        AllocationEvidence::FixedViewCopies(_) => {
-            &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
+        AllocationEvidence::FixedViewCopies(receipt) => {
+            match receipt.source().source().policy() {
+                crate::FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => {
+                    &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
+                }
+                // Leaf-local copies are the default-path recovery for
+                // authenticated entry transitions, not a declared selection.
+                crate::FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => &[],
+            }
         }
         AllocationEvidence::ActiveResidentRematerialization(_) => {
             &[Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
