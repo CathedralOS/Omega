@@ -1,4 +1,11 @@
 //! Actual hosted output uses published image bytes, including caller continuation.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
 use super::super::native_function;
 use super::{
     NativeTarget, TerminalModule, byte_output_module, stage_byte_output_module, unit_calls,
@@ -9,13 +16,6 @@ use super::{
         any(target_arch = "x86_64", target_arch = "aarch64")
     ),
     all(target_os = "macos", target_arch = "aarch64"),
-))]
-#[cfg(any(
-    all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ),
-    all(target_os = "macos", target_arch = "aarch64")
 ))]
 fn published(module: &TerminalModule) -> (image_emission::ExecutableImage, usize) {
     let source = std::sync::Arc::new(

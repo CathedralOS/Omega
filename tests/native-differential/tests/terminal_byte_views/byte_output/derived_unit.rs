@@ -1,5 +1,13 @@
 //! A caller-owned checked suffix reaches an effectful Unit reader.
-use super::super::{PlaceId, native_function};
+use super::super::{PlaceId};
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::super::native_function;
 use super::{
     AdmissionProfile, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
     CompilerBuiltinExecution, EdgeId, HostedWriteByteI32Realization, IntegerSign, IntegerType,

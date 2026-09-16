@@ -228,7 +228,9 @@ pub(crate) fn resolver_package_controlled_roots(
 
 #[cfg(test)]
 mod tests {
-    use super::{Path, PathBuf, SourceResolveError, capture_primary_git_from_snapshot};
+    use super::Path;
+    #[cfg(unix)]
+    use super::{PathBuf, SourceResolveError, capture_primary_git_from_snapshot};
     use crate::git::executable::validation::is_direct_windows_git_executable;
     #[cfg(unix)]
     use crate::test_support::temp_root;

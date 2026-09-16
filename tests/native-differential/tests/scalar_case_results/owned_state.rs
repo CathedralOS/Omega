@@ -1,4 +1,12 @@
-use super::{NativeTarget, native_function, produce_source, publish};
+use super::{NativeTarget, produce_source, publish};
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 #[test]
 fn fresh_match_case_flows_through_owned_state_and_borrowed_storage() {
     assert_owned_case_source(

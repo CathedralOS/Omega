@@ -1,6 +1,14 @@
 //! Record construction uses runtime operands and the ordinary aggregate return.
 
-use super::{NativeTarget, native_function, produce_source, publish};
+use super::{NativeTarget, produce_source, publish};
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 pub(super) const PROJECTED_RECORD_GETTER: &str = "
     data Inner { left: u64; right: u64; }
     data Outer { leading: u64; inner: Inner; other: Inner; }

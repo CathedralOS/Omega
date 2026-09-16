@@ -1,3 +1,4 @@
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use super::{
     AbstractOperation, AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget,
     OperationKind, ScalarType, TargetLoweringRequest, TerminalExecutionResult,

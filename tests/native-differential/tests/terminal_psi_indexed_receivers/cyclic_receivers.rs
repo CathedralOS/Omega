@@ -65,7 +65,7 @@ fn ranked_and_unranked_projected_loops_publish_and_update_caller_storage() {
             }
             #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
             {
-                let code = native_execution::Code::new(&bytes);
+                let code = super::native_execution::Code::new(&bytes);
                 for count in 0..9 {
                     let mut frame = [0xa5a5_a5a5_a5a5_a5a5; 5];
                     frame[1..4].fill(0x3c3c_3c3c_3c3c_3c3c);

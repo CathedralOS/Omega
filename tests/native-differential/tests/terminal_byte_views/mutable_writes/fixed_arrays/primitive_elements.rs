@@ -1,7 +1,15 @@
 //! Ordinary scalar subloans must address the caller's actual array element.
 
 use super::super::super::byte_view_target;
-use super::{NativeTarget, lower_writer, native_function, publish_lowered};
+use super::{NativeTarget, lower_writer, publish_lowered};
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 const SOURCE: &str = r#"
 data Record { before: u8; bytes: [u8; 3]; after: u64; }
 machine replace(destination: &write u8, value: u8) { destination = value; }

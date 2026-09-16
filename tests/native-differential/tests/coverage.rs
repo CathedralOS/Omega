@@ -20,6 +20,7 @@
 //!   only devirtualizes single-impl traits; as of this writing it emits a crashing binary
 //!   for the two-impl program below).
 
+use checked_interpreter::{InterpretOptions};
 use checked_interpreter::{InterpretOutcome, interpret_entry};
 use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};

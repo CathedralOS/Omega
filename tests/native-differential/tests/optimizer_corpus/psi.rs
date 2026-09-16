@@ -1,3 +1,4 @@
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IeeeFloatComparisonOperation, IeeeFloatFormat,

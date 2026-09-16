@@ -1,3 +1,4 @@
+use terminal_interpreter::{AcceptTerminalEffects};
 use super::{
     AbstractOperation, AdmissionProfile, CrashCause, DebugSubject, IntegerSign, IntegerType,
     IntegerValue, LoweringError, MachineId, NativeTarget, OperationKind, ScalarType,

@@ -1,9 +1,14 @@
 //! Computed Booleans retain their value through scalar and array return paths.
 
-use super::{
-    NativeTarget, ReplayExpectation, native_function, publish,
-    publish_target_with_replay_expectation, target_plan,
-};
+use super::{NativeTarget, ReplayExpectation, publish, publish_target_with_replay_expectation, target_plan};
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 const COMPARISONS: &str =
     include_str!("../../../omega/pass/collections/owned_array_scalar_comparisons/main.omg");
 

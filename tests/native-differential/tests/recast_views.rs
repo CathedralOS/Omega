@@ -1,5 +1,6 @@
 //! Focused interpreter parity for programmable-layout recast views.
 
+use checked_interpreter::InterpretOptions;
 #[path = "../fixture_rosters/recast_views.rs"]
 mod fixture_roster;
 

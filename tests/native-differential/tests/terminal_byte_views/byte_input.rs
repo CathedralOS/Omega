@@ -1,5 +1,13 @@
 //! A boundary result and guarded mutable view compose through ordinary edges.
-use super::{AdmissionProfile, IntegerValue, NativeTarget, calls, native_function};
+use super::{AdmissionProfile, IntegerValue, NativeTarget, calls};
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };

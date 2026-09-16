@@ -1,5 +1,6 @@
 //! Scalar call results cross two ordinary machine boundaries and the final return.
 
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use crate::tests::{
     AdmissionProfile, CertificateEnvelope, EdgeId, EvidenceIdentity, EvidenceRoute, IntegerValue,
     NativeTarget, ObligationEvidence, ObligationId, Operation, OperationId, OperationKind,
