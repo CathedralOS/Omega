@@ -104,6 +104,12 @@ pub(super) fn check_statement<'program>(
             {
                 facts.assign_field_integer(symbol, name, next_integer);
                 seed_offset_index_bound(program, facts, assignment.target, assignment.value);
+                aliases::seed_ensured_call_result_bounds(
+                    program,
+                    facts,
+                    &program.expression_table.display_name(assignment.target),
+                    assignment.value,
+                );
             }
             super::assignment_lengths::seed_assigned_extent(program, machine, state, facts, extent);
         }
