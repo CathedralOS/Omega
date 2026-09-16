@@ -288,3 +288,334 @@ fn module_domain_proof_facts_select_their_own_domain() {
         "a relative proof-fact path selects the same-module domain"
     );
 }
+
+fn fact_membership_domain_symbols(
+    program: &SymbolResolvedTrees,
+    facts: arena::HandleSpan<symbol_resolved_trees::domain::ProofFact>,
+) -> Vec<symbols::SymbolHandle> {
+    program
+        .proof_facts(facts)
+        .iter()
+        .filter_map(|fact| match fact {
+            symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                Some(membership.domain_symbol)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn domain_named<'a>(
+    program: &'a SymbolResolvedTrees,
+    name: &str,
+) -> &'a symbol_resolved_trees::domain::DomainDefinition {
+    program
+        .domain_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == name)
+        .unwrap_or_else(|| panic!("{name} domain"))
+}
+
+/// `use units;` imports the declaring module and exposes its directly
+/// declared domains to the carrier-qualified spelling in both proof-fact and
+/// executable membership positions.
+#[test]
+fn imported_module_exposes_carrier_qualified_domain_spelling() {
+    let program = lower_multi(&[
+        (
+            "units.omg",
+            "module units; pub domain u64::Long requires self > 0;",
+        ),
+        (
+            "check.omg",
+            r#"
+            use units;
+            domain u64::Near requires self in u64::Long;
+            machine check(value: u64) -> bool { value in u64::Long }
+            "#,
+        ),
+    ]);
+    let long = domain_named(&program, "u64::Long");
+    assert_eq!(
+        program.symbols.display_path(long.symbol, "::"),
+        "units::u64::Long"
+    );
+    let near = domain_named(&program, "u64::Near");
+    let [fact] = fact_membership_domain_symbols(&program, near.facts)
+        .try_into()
+        .expect("one fact membership");
+    assert_eq!(
+        fact, long.symbol,
+        "a declaring-module import exposes the carrier-qualified proof fact"
+    );
+    let [expression] = membership_domain_symbols(&program)
+        .try_into()
+        .expect("one expression membership");
+    assert_eq!(
+        expression, long.symbol,
+        "a declaring-module import exposes the carrier-qualified expression"
+    );
+}
+
+/// `use units::u64::Long;` exposes the exact declaration to both its leaf and
+/// its declared carrier-qualified spelling.
+#[test]
+fn narrow_domain_import_exposes_leaf_and_carrier_qualified_spellings() {
+    let program = lower_multi(&[
+        (
+            "units.omg",
+            "module units; pub domain u64::Long requires self > 0;",
+        ),
+        (
+            "check.omg",
+            r#"
+            use units::u64::Long;
+            machine carrier(value: u64) -> bool { value in u64::Long }
+            machine leaf(value: u64) -> bool { value in Long }
+            "#,
+        ),
+    ]);
+    let long = domain_named(&program, "u64::Long");
+    let selections = membership_domain_symbols(&program);
+    assert_eq!(selections.len(), 2, "both spellings resolve");
+    for selected in selections {
+        assert_eq!(selected, long.symbol);
+    }
+}
+
+/// Spellings that lack an exposing import — or import the wrong declaration
+/// kind — must never select a foreign attached domain. Resolution retains
+/// the checked obligation (an invalid domain symbol) for downstream
+/// diagnostics instead of reaching through the carrier or a sibling.
+#[test]
+fn unexposed_foreign_domain_spellings_keep_checked_obligations() {
+    let units = "module units; pub domain u64::Long requires self > 0;";
+    let units_with_machine = "module units; pub domain u64::Long requires self > 0; pub machine helper() -> bool { true }";
+    let geometry = "module geometry; pub data Point { x: u64; }";
+    let screen = "module ui_policy::screen; use geometry::Point; pub domain Point::OnScreen requires self.x > 0;";
+    for (tag, declaring, check) in [
+        (
+            "no import",
+            units,
+            "domain u64::Near requires self in u64::Long;",
+        ),
+        // A broad module import exposes the carrier-qualified form only; the
+        // leaf is not a bare local name.
+        (
+            "broad import, leaf spelling",
+            units,
+            "use units; domain u64::Near requires self in Long;",
+        ),
+        // Importing an ordinary sibling machine exposes no sibling domains.
+        (
+            "sibling machine import",
+            units_with_machine,
+            "use units::helper; domain u64::Near requires self in u64::Long;",
+        ),
+    ] {
+        let program = lower_multi(&[("units.omg", declaring), ("check.omg", check)]);
+        let near = domain_named(&program, "u64::Near");
+        let [fact] = fact_membership_domain_symbols(&program, near.facts)
+            .try_into()
+            .expect("one fact membership");
+        assert!(!fact.is_valid(), "{tag} must not select a foreign domain");
+    }
+    for (tag, check) in [
+        // Importing the carrier type exposes nothing attached to it.
+        (
+            "carrier type import",
+            "use geometry::Point; domain Point::Near requires self in Point::OnScreen;",
+        ),
+        // An ancestor module exposes no descendant-module declarations.
+        (
+            "ancestor module import",
+            "use ui_policy; use geometry::Point; domain Point::Near requires self in Point::OnScreen;",
+        ),
+        // A caller's same-spelled carrier cannot redirect the attachment:
+        // the local `Point` is not the carrier `Point::OnScreen` was
+        // declared against.
+        (
+            "same-spelled local carrier",
+            "use ui_policy::screen; data Point { x: u64; } domain Point::Near requires self in Point::OnScreen;",
+        ),
+    ] {
+        let program = lower_multi(&[
+            ("geom.omg", geometry),
+            ("screen.omg", screen),
+            ("check.omg", check),
+        ]);
+        let near = domain_named(&program, "Point::Near");
+        let [fact] = fact_membership_domain_symbols(&program, near.facts)
+            .try_into()
+            .expect("one fact membership");
+        assert!(!fact.is_valid(), "{tag} must not select a foreign domain");
+    }
+}
+
+/// Two visible declarations of the same carrier-qualified domain contest the
+/// spelling; neither import order nor traversal order selects a winner. The
+/// membership keeps its checked obligation for downstream diagnostics.
+#[test]
+fn distinct_exposed_domain_owners_contest_the_spelling() {
+    let program = lower_multi(&[
+        (
+            "units.omg",
+            "module units; pub domain u64::Long requires self > 0;",
+        ),
+        (
+            "more.omg",
+            "module more_units; pub domain u64::Long requires self > 0;",
+        ),
+        (
+            "check.omg",
+            r#"
+            use units;
+            use more_units;
+            domain u64::Near requires self in u64::Long;
+            machine check(value: u64) -> bool { value in u64::Long }
+            "#,
+        ),
+    ]);
+    let near = domain_named(&program, "u64::Near");
+    let [fact] = fact_membership_domain_symbols(&program, near.facts)
+        .try_into()
+        .expect("one fact membership");
+    assert!(
+        !fact.is_valid(),
+        "two exposed owners must not let either win the fact"
+    );
+    let [expression] = membership_domain_symbols(&program)
+        .try_into()
+        .expect("one expression membership");
+    assert!(
+        !expression.is_valid(),
+        "two exposed owners must not let either win the expression"
+    );
+}
+
+/// A domain declared in the reference's own module outranks an exposed
+/// foreign declaration of the same carrier-qualified spelling.
+#[test]
+fn module_local_domain_outranks_exposed_foreign_domain() {
+    let program = lower_multi(&[
+        (
+            "units.omg",
+            "module units; pub domain u64::Long requires self > 0;",
+        ),
+        (
+            "check.omg",
+            r#"
+            module local_units;
+            use units;
+            domain u64::Long requires self > 1;
+            domain u64::Near requires self in u64::Long;
+            "#,
+        ),
+    ]);
+    let local = program
+        .domain_definitions
+        .iter()
+        .find(|definition| {
+            program.symbols.display_path(definition.symbol, "::") == "local_units::u64::Long"
+        })
+        .expect("the module-local u64::Long domain");
+    let near = domain_named(&program, "u64::Near");
+    let [fact] = fact_membership_domain_symbols(&program, near.facts)
+        .try_into()
+        .expect("one fact membership");
+    assert_eq!(fact, local.symbol, "the module-local owner wins");
+}
+
+/// A qualified case path in a declared-domain proof fact resolves to the
+/// exact case owner and case symbol, same-module or through imports.
+#[test]
+fn proof_fact_case_membership_retains_case_identity() {
+    // Same-module case membership on a domain requirement.
+    let program = lower_multi(&[(
+        "choice.omg",
+        "data Choice { case Empty; case Some(v: u32); } domain Choice::NonEmpty requires self in Choice::Some;",
+    )]);
+    let choice = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Choice")
+        .expect("Choice data");
+    let some_case = program
+        .data_members(choice.members)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Variant(variant) if variant.name.as_str() == "Some" => Some(variant.symbol),
+            _ => None,
+        })
+        .expect("Choice::Some case");
+    let non_empty = domain_named(&program, "Choice::NonEmpty");
+    let [fact] = program.proof_facts(non_empty.facts) else {
+        panic!("one proof fact")
+    };
+    assert_case_membership_fact(&program, fact, choice.symbol, some_case);
+
+    // Foreign qualified and imported case paths keep the same identities.
+    for (tag, check) in [
+        (
+            "fully qualified",
+            "data Holder where c in shapes::Choice::Some, { c: shapes::Choice; }",
+        ),
+        (
+            "imported carrier",
+            "use shapes::Choice; data Holder where c in Choice::Some, { c: Choice; }",
+        ),
+    ] {
+        let program = lower_multi(&[
+            (
+                "shapes.omg",
+                "module shapes; pub data Choice { case Empty; case Some(v: u32); }",
+            ),
+            ("check.omg", check),
+        ]);
+        let choice = program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name.as_str() == "Choice")
+            .expect("Choice data");
+        let some_case = program
+            .data_members(choice.members)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Variant(variant) if variant.name.as_str() == "Some" => {
+                    Some(variant.symbol)
+                }
+                _ => None,
+            })
+            .expect("Choice::Some case");
+        let holder = program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name.as_str() == "Holder")
+            .expect("Holder data");
+        let [fact] = program.proof_facts(holder.where_facts) else {
+            panic!("{tag}: one where fact")
+        };
+        assert_case_membership_fact(&program, fact, choice.symbol, some_case);
+    }
+}
+
+fn assert_case_membership_fact(
+    program: &SymbolResolvedTrees,
+    fact: &symbol_resolved_trees::domain::ProofFact,
+    expected_owner: symbols::SymbolHandle,
+    expected_case: symbols::SymbolHandle,
+) {
+    // Case membership rewrites the proof fact to a membership expression
+    // that retains the exact case owner and case symbol.
+    let symbol_resolved_trees::domain::ProofFact::Expression(expression) = fact else {
+        panic!("a case-membership fact becomes a membership expression")
+    };
+    let ExpressionNode::Membership(membership) =
+        program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("a case-membership fact holds a membership expression")
+    };
+    assert!(!membership.domain_symbol.is_valid());
+    assert_eq!(membership.case_type_symbol, expected_owner);
+    assert_eq!(membership.case_symbol, expected_case);
+}
