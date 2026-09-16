@@ -5,11 +5,11 @@ use selected_instructions::SelectedInstructionId;
 use super::{DeadStoreEliminationError, ValidatedDeadStoreElimination, admission};
 use crate::ValidatedSelectedAnalysis;
 
-/// Remove one admitted `Store` whose bytes a later covering store replaces
-/// unobserved. The roster drops exactly the dead write row and the block's
-/// boundary settlements shift over the removed ordinal; every other function,
-/// block, instruction, register, call, settlement, and access is retained,
-/// and replay independently confirms that.
+/// Remove one admitted `Store` or `StorePacked` whose bytes a later covering
+/// store replaces unobserved. The roster drops exactly the dead write row and
+/// the block's boundary settlements shift over the removed ordinal; every
+/// other function, block, instruction, register, call, settlement, and
+/// access is retained, and replay independently confirms that.
 pub fn eliminate_selected_dead_store(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,

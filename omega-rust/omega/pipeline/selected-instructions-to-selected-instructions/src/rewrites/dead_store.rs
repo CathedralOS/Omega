@@ -1,12 +1,16 @@
 //! Borrow-aware dead-store elimination on the selected CFG.
 //!
 //! A `Store { byte_offset, byte_size }` writes the low exact-width bits of
-//! its value operand through the referent pointer. A later place store whose
-//! byte range covers the first store's range entirely replaces those bytes.
-//! When no intervening instruction can observe or partially overwrite the
-//! first store's bytes, the earlier store is dead: every observer of the
-//! place sees the covering store's value, so the first instruction and its
-//! roster row can be removed without changing any reachable memory state.
+//! its value operand through the referent pointer, and a `StorePacked`
+//! writes its packed width the same way; either can be the dead store, the
+//! packed form only when its early-clobber scratch `Def` occurs nowhere
+//! else in the function — a surviving mention would lose its definition to
+//! the removal. A later place store whose byte range covers the first
+//! store's range entirely replaces those bytes. When no intervening
+//! instruction can observe or partially overwrite the first store's bytes,
+//! the earlier store is dead: every observer of the place sees the covering
+//! store's value, so the first instruction and its roster row can be
+//! removed without changing any reachable memory state.
 //!
 //! The alias decision is borrow-aware: it comes from the validated
 //! `memory_accesses` roster, not from pointer-register equality. Each access

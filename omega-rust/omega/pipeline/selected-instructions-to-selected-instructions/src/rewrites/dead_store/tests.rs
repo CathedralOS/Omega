@@ -13,12 +13,12 @@ use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
-    SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    PackedByteWidth, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
+    SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
+    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
@@ -74,6 +74,10 @@ const POINTER: VirtualRegisterId = VirtualRegisterId(0);
 const VALUE: VirtualRegisterId = VirtualRegisterId(1);
 
 const SCRATCH: VirtualRegisterId = VirtualRegisterId(2);
+
+/// The packed dead store's early-clobber scratch: the register occurs only
+/// at that `Def`, the custody the packed removal requires.
+const PACKED_SCRATCH: VirtualRegisterId = VirtualRegisterId(9);
 
 fn place() -> PlaceId {
     PlaceId::new(1).unwrap()
@@ -342,4 +346,53 @@ fn crossed_edge(function: &mut SelectedFunction) -> &mut SelectedSuccessor {
         unreachable!()
     };
     successor
+}
+
+/// Replace the dead `Store` with its packed form: a `StorePacked` of five
+/// bytes at offset 0 on the target's packed row — `[use pointer, use value,
+/// def scratch]` — with PACKED_SCRATCH occurring only at that `Def`. The
+/// packed range sits inside the covering store's eight bytes at offset 0.
+fn make_packed_dead(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) {
+    let packed = environment
+        .constraint(environment.selected_keys().store_packed.unwrap())
+        .unwrap();
+    function.virtual_registers.push(VirtualRegister {
+        id: PACKED_SCRATCH,
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        class: packed.operands[0].class,
+        origin: VirtualRegisterOrigin::InstructionResult {
+            instruction: STORE,
+            source_value: ValueId::new(8).unwrap(),
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    function.blocks[0].instructions[1] = instruction(
+        STORE,
+        SelectedInstructionKind::StorePacked {
+            byte_offset: 0,
+            width: PackedByteWidth::Five,
+        },
+        packed,
+        &[POINTER, VALUE, PACKED_SCRATCH],
+    );
+    function.memory_accesses[0].byte_count = 5;
+}
+
+/// The single-block fixture with the packed dead store.
+fn packed_dead(target: NativeTarget) -> ValidatedDeadStoreElimination {
+    mutated(target, |function, environment| {
+        make_packed_dead(function, environment)
+    })
+}
+
+/// The chained fixture with the packed dead store: the packed store sits in
+/// block 0 and the covering store opens block 1 across the edge.
+fn packed_dead_chained(target: NativeTarget) -> ValidatedDeadStoreElimination {
+    mutated_chained(target, |function, environment| {
+        make_packed_dead(function, environment)
+    })
 }

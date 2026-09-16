@@ -1,6 +1,7 @@
 use super::{
-    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, crossed_edge,
-    eliminate, fixture, instruction, mutated_chained, place, settlement, settlement_at, successor,
+    BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
+    crossed_edge, eliminate, fixture, instruction, make_packed_dead, mutated_chained,
+    packed_dead_chained, place, settlement, settlement_at, successor,
 };
 use crate::rewrites::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
@@ -768,6 +769,116 @@ fn cross_block_covering_killers_beyond_the_exact_pair_eliminate() {
     assert_eq!(
         eliminate(&short, &environment).unwrap_err(),
         DeadStoreEliminationError::InterveningAccess
+    );
+}
+
+/// A packed dead store eliminates across the crossed edge the same way the
+/// plain store does — the covering store at the successor's head rewrites
+/// its range before any observer — and the scratch-`Def` custody still
+/// applies: a successor transport or case payload naming the scratch
+/// register would observe the definition the removal drops.
+#[test]
+fn cross_block_packed_dead_store_eliminates_and_keeps_scratch_custody() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = packed_dead_chained(target);
+        let result = eliminate(&source, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN]
+        );
+        assert_eq!(
+            function.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![KILLER]
+        );
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![(KILLER, SelectedMemoryAccessRole::WritePlace)]
+        );
+        validate_dead_store_elimination(
+            &source,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A register transport on the crossed edge naming the scratch register
+    // still reads the definition the removal would drop.
+    let carried = mutated_chained(target, |function, environment| {
+        make_packed_dead(function, environment);
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: PACKED_SCRATCH,
+                parameter: VALUE,
+            },
+        });
+    });
+    assert_eq!(
+        eliminate(&carried, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // A case payload's register parameter naming the scratch register is an
+    // occurrence too.
+    let payload = mutated_chained(target, |function, environment| {
+        make_packed_dead(function, environment);
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(9).unwrap(),
+                place: PlaceId::new(2).unwrap(),
+            },
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: vec![SelectedCasePayloadBinding {
+                semantic: legalized_operations::LegalizedStructuralCasePayload {
+                    field: StructuralFieldId::new(1).unwrap(),
+                    field_byte_offset: 0,
+                    parameter: legalized_operations::LegalizedValueDefinition {
+                        value: ValueId::new(5).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        ),
+                        definition_site: ValueDefinitionSite::BlockParameter {
+                            block: BlockId::new(2).unwrap(),
+                            position: 0,
+                        },
+                    },
+                },
+                transport: SelectedCasePayloadTransport::Registers {
+                    argument: PACKED_SCRATCH,
+                    parameter: VALUE,
+                },
+            }],
+            trivial_affine_discards: Vec::new(),
+        });
+    });
+    assert_eq!(
+        eliminate(&payload, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
     );
 }
 

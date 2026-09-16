@@ -1,7 +1,7 @@
-//! Shared admission for dead-store elimination: locate the named `Store`,
-//! prove its exact `WritePlace` row, then walk forward to the first access on
-//! the dead place and require it to be a place store whose own row covers the
-//! dead range entirely.
+//! Shared admission for dead-store elimination: locate the named `Store` or
+//! `StorePacked`, prove its exact `WritePlace` row, then walk forward to the
+//! first access on the dead place and require it to be a place store whose
+//! own row covers the dead range entirely.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! dead place interferes when it can observe the stored bytes or leave them
@@ -90,19 +90,27 @@ pub(super) fn admit<'source>(
         .ok_or(DeadStoreEliminationError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let dead_store = &block.instructions[store_index];
-    let SelectedInstructionKind::Store {
-        byte_offset,
-        byte_size,
-    } = dead_store.kind
-    else {
-        return Err(DeadStoreEliminationError::UnsupportedInstruction);
+    // The dead store is one of the target's place stores: the plain
+    // exact-width `Store`, or the `StorePacked` an odd fragment width
+    // selects. The packed form's extra early-clobber scratch `Def` drops
+    // with the instruction, so its admission additionally proves that
+    // register occurs nowhere else in the function — a surviving mention
+    // would lose its definition to the removal.
+    let (encoded_offset, encoded_size, packed) = match dead_store.kind {
+        SelectedInstructionKind::Store {
+            byte_offset,
+            byte_size,
+        } => {
+            if !matches!(byte_size, 1 | 2 | 4 | 8) {
+                return Err(DeadStoreEliminationError::UnsupportedInstruction);
+            }
+            (byte_offset, u32::from(byte_size), false)
+        }
+        SelectedInstructionKind::StorePacked { byte_offset, width } => {
+            (byte_offset, u32::from(width.byte_size()), true)
+        }
+        _ => return Err(DeadStoreEliminationError::UnsupportedInstruction),
     };
-    // The dead store is the target's plain exact-width place store; packed
-    // fragment widths select `StorePacked`, whose extra scratch operand would
-    // leave its defining register orphaned by removal.
-    if !matches!(byte_size, 1 | 2 | 4 | 8) {
-        return Err(DeadStoreEliminationError::UnsupportedInstruction);
-    }
     // The write's semantic identity: exactly one roster row, one place root,
     // and the same bytes the instruction encodes. `WritePlace` carries
     // no obligation payload, so dropping the row loses no proof receipt.
@@ -116,8 +124,8 @@ pub(super) fn admit<'source>(
         .ok_or(DeadStoreEliminationError::UnsupportedInstruction)?;
     if rows.next().is_some()
         || write.role != SelectedMemoryAccessRole::WritePlace
-        || write.byte_offset != byte_offset
-        || write.byte_count != u32::from(byte_size)
+        || write.byte_offset != encoded_offset
+        || write.byte_count != encoded_size
     {
         return Err(DeadStoreEliminationError::UnsupportedPair);
     }
@@ -126,9 +134,15 @@ pub(super) fn admit<'source>(
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
     };
-    // The removed instruction must be the target's plain two-use place store;
-    // an exotic operand surface would make the removal contract unclear.
-    place_store_shape(dead_store, environment)?;
+    // The removed instruction must keep the operand surface its kind
+    // declares: the plain two-use place store, or the packed store's
+    // two-use-plus-dead-scratch row. An exotic operand surface would make
+    // the removal contract unclear.
+    if packed {
+        packed_store_shape(dead_store, function, environment)?;
+    } else {
+        place_store_shape(dead_store, environment)?;
+    }
     // Walk forward to the first access that can reach the dead bytes. It must
     // be a place store whose row covers the dead range entirely; anything else
     // leaves the bytes observable or only partially overwritten. Reaching a
@@ -278,6 +292,115 @@ fn place_store_shape(
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     Ok(())
+}
+
+/// The removed packed store carries the target's declared `store_packed`
+/// row: `[use pointer, use packed value]` plus the early-clobber scratch
+/// `Def` the multi-instruction store writes through. Removing the
+/// instruction removes that definition, so the scratch register must occur
+/// nowhere else in the function — any other operand position, terminator
+/// operand, or successor transport still naming it would observe a
+/// definition the rewrite stopped making.
+fn packed_store_shape(
+    instruction: &SelectedInstruction,
+    function: &SelectedFunction,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<(), DeadStoreEliminationError> {
+    if environment.selected_keys().store_packed != Some(instruction.constraint) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let row = environment
+        .constraint(instruction.constraint)
+        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
+    if row.operands.len() != 3
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || row.operands[1].operand != 1
+        || row.operands[1].access != RegisterOperandAccess::Use
+        || row.operands[2].operand != 2
+        || row.operands[2].access != RegisterOperandAccess::Def
+        || !row.operands[2].early_clobber
+    {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    if instruction.operands.len() != 3
+        || instruction.operands[2].operand != 2
+        || instruction.operands[2].access != RegisterOperandAccess::Def
+    {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    if !scratch_definition_is_dead(function, instruction.operands[2].virtual_register) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    Ok(())
+}
+
+/// Whether `register`'s only occurrence in `function` is one `Def` operand —
+/// the custody the packed store's dropped scratch requires. The operand
+/// itself is that one occurrence: any other operand position, terminator
+/// operand, or successor transport naming the register would leave the
+/// elimination removing a definition a surviving read or second definition
+/// still observes.
+fn scratch_definition_is_dead(
+    function: &SelectedFunction,
+    register: selected_instructions::VirtualRegisterId,
+) -> bool {
+    let mut occurrences = 0_usize;
+    for block in &function.blocks {
+        for instruction in block
+            .instructions
+            .iter()
+            .chain(std::iter::once(terminator_instruction(&block.terminator)))
+        {
+            occurrences += instruction
+                .operands
+                .iter()
+                .filter(|operand| operand.virtual_register == register)
+                .count();
+        }
+        for successor in successors(&block.terminator) {
+            occurrences += successor
+                .structural_bindings
+                .iter()
+                .filter(|binding| {
+                    matches!(
+                        binding.transport,
+                        SelectedStructuralTransport::WholeValue { argument, .. }
+                            | SelectedStructuralTransport::Descriptor { argument, .. }
+                            if argument == register
+                    )
+                })
+                .count();
+            if let Some(case) = &successor.structural_case {
+                occurrences += case
+                    .payloads
+                    .iter()
+                    .filter(|payload| match &payload.transport {
+                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                            parameter,
+                        } => *parameter == register,
+                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                            argument,
+                            parameter,
+                        } => *argument == register || *parameter == register,
+                    })
+                    .count();
+            }
+            occurrences += successor
+                .bindings
+                .iter()
+                .filter(|binding| match &binding.transport {
+                    selected_instructions::SelectedValueTransport::Unused => false,
+                    selected_instructions::SelectedValueTransport::Registers {
+                        argument,
+                        parameter,
+                    } => *argument == register || *parameter == register,
+                })
+                .count();
+        }
+    }
+    occurrences == 1
 }
 
 /// Whether one roster row can observe the dead bytes or leave them
