@@ -1191,9 +1191,32 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   foreign complete-selection projection refused at the phase entrance;
   and malformed carriers fail closed at the external-decision decode
   and artifact admission boundaries.
-  Remaining:
-  the same matrix for the selected-instructions phase's `runtime_spill`
-  exact rule, then the other phases' exact rules.
+  The phase's `runtime_spill` exact rule — including this wave's shared
+  call-spanning reloads — now carries the same matrix (484 lib tests pass
+  on Linux x86-64): positive legs cover instruction-result and
+  edge-initialized parameter victims across body, terminator, binding, and
+  case-payload uses on all four targets, with a dedicated leg showing one
+  shared reload interval spanning an intervening `CallUnit`; negative legs
+  cover address and non-GPR-width values, undominated and bypassed uses,
+  inconsistent transport declarations, and incomplete edge arrivals; the
+  measured validation-step boundary admits at the exact count and rejects
+  one step below on both the proposal and independent-replay paths at
+  three fixture sizes exercising the plan-scan, use, definition, and
+  block terms; the shared/private boundary keeps every flexible use on a
+  private pair when no view of the victim's class survives the block's
+  effects; determinism holds across repeated runs; replay corruption
+  rejects drift in storage, stream, terminator, settlement, roster, and
+  slot content, including a forged extra pair inside the shared shape;
+  and the fixed-point leg feeds the published `ValidatedRuntimeSpill` back
+  through the sealed analysis boundary — the real liveness and live-range
+  analyses accept it, re-admission of the same victim refuses on its
+  existing slot, the produced `SpillAddress` register stays outside
+  admission, and the shared reload register admits a second independently
+  validated spill whose receipt chains the first artifact's identity.
+  Like the memory rules, `runtime_spill` is not an `Optimization`
+  selection-vocabulary member — admission is an explicit per-victim
+  validated call — so the disabled-policy axis stays absent.
+  Remaining: the same matrix for the other phases' exact rules.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target.
