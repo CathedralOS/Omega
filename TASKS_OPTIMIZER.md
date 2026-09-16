@@ -706,10 +706,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Acceptance: every admitted frame policy
   replays its exact physical accesses through callable publication;
   requirements artifacts remain non-authoritative until that replay
-  succeeds. Remaining: dynamic-allocation constraints; general
-  calls still need target-owned frame, callee-save, and link-register
-  plan legs beyond the landed callee-save frames and call-site stack
-  contract.
+  succeeds. General-call legs are landed: the frame resolves its
+  target-owned policy and call-site stack contract through declared
+  (Architecture, ObjectFormat) pair matrices, the callee-save plan is
+  recorded and independently replayed, saved-link-register restore
+  order rides the unwind roster (frame identity v10), and call-site
+  alignment rejects residue-breaking rows under replay. Remaining:
+  dynamic-allocation constraints only, which are blocked upstream —
+  no runtime-sized stack-allocation representation exists (every
+  selected local/outgoing slot resolves to a static byte extent), so
+  this leg waits on a language/Terminal-Psi alloca-style contract
+  rather than on frame-layout work itself.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
