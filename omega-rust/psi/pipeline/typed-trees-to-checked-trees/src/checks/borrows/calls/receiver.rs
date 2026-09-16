@@ -7,7 +7,7 @@ use language_semantics::ReferenceAccess;
 use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
 
-use super::super::overlap::captured_place_compatibility;
+use super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 
 mod aliases;
 
@@ -20,6 +20,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
     state_flow: &FlowStateFact,
     statement: &checked_trees::FlowStatementFact,
     expression: typed_trees::expression::ExpressionHandle,
+    stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(crate::flow::CanonicalPlace {
@@ -80,6 +81,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
                 segments: facts.borrow.loan_segments(loan).to_vec(),
             },
             &loan.kind,
+            stated_premises,
         )
         .non_interfering
         {
@@ -98,6 +100,7 @@ pub(super) fn check_receiver_conflicts(
     call: &BorrowCallFact,
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
     target_name: &str,
+    stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !call.has_receiver {
@@ -211,6 +214,7 @@ pub(super) fn check_receiver_conflicts(
             &receiver_access,
             &attached_place(program, machine, place),
             access,
+            stated_premises,
         )
         .non_interfering
     };

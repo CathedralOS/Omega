@@ -218,6 +218,22 @@ fn premise_orientation_proves(
     }
 }
 
+/// A premise with no durable fact identity, for unit tests that exercise the
+/// ordering consult without a contract-fact arena.
+#[cfg(test)]
+pub(super) fn ordering_premise(
+    left: NormalizedBound,
+    relation: BorrowCompatibilityPremiseRelation,
+    right: NormalizedBound,
+) -> StatedOrderingPremise {
+    StatedOrderingPremise {
+        fact: arena::Handle::invalid(),
+        relation,
+        left,
+        right,
+    }
+}
+
 /// `value - base` when both bounds sit on one symbol's offset line or both
 /// are integers. Distinct or missing symbols stay unrelated, never negative
 /// evidence.

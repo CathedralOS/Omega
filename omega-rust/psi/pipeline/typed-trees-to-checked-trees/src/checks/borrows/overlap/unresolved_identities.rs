@@ -98,8 +98,14 @@ fn assert_matrix(
                         || (left_access == &BorrowAccessKind::Read
                             && right_access == &BorrowAccessKind::Read),
                 };
-                let direct =
-                    captured_place_compatibility(program, left, left_access, right, right_access);
+                let direct = captured_place_compatibility(
+                    program,
+                    left,
+                    left_access,
+                    right,
+                    right_access,
+                    &[],
+                );
                 assert_eq!(direct, expected, "direct: {left_access:?}/{right_access:?}");
 
                 let captured = captured_place_compatibility_with_selector_snapshot(

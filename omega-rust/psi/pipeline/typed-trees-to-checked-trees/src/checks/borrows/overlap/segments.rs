@@ -1,10 +1,9 @@
 use super::indexes::{
     CompatibilityReplayDrift, EvaluatedIndexExtent, NormalizedBound, SelectorLocation,
     SelectorSessionClosure, SelectorSnapshotEvaluation, bound_equal, bound_is_at_or_before,
-    bound_is_strictly_before, index_expression_extent_with_selectors,
-    index_expression_may_contain_fixed_with_selectors,
-    index_expression_may_overlap_fixed_range_with_selectors,
-    index_expressions_may_overlap_with_selectors,
+    bound_is_strictly_before, fixed_index_extent, fixed_range_extent,
+    index_expression_extent_with_selectors, index_expressions_may_overlap_with_selectors,
+    index_extents_may_overlap,
 };
 use super::premises::StatedOrderingPremise;
 use crate::flow::place_segment_has_unresolved_identity;
@@ -593,40 +592,40 @@ fn place_segment_pair_may_overlap(
         (
             facts::PlaceSegment::FixedRange { start, end },
             facts::PlaceSegment::Index { expression },
-        ) => index_expression_may_overlap_fixed_range_with_selectors(
-            program,
-            expression,
-            right_location,
-            start,
-            end,
+        ) => index_extents_may_overlap(
+            fixed_range_extent(start, end),
+            index_expression_extent_with_selectors(program, expression, right_location, selectors),
             selectors,
         ),
         (
             facts::PlaceSegment::Index { expression },
             facts::PlaceSegment::FixedRange { start, end },
-        ) => index_expression_may_overlap_fixed_range_with_selectors(
-            program,
-            expression,
-            left_location,
-            start,
-            end,
+        ) => index_extents_may_overlap(
+            index_expression_extent_with_selectors(program, expression, left_location, selectors),
+            fixed_range_extent(start, end),
             selectors,
         ),
         (facts::PlaceSegment::FixedIndex { index }, facts::PlaceSegment::Index { expression }) => {
-            index_expression_may_contain_fixed_with_selectors(
-                program,
-                expression,
-                right_location,
-                index,
+            index_extents_may_overlap(
+                fixed_index_extent(index),
+                index_expression_extent_with_selectors(
+                    program,
+                    expression,
+                    right_location,
+                    selectors,
+                ),
                 selectors,
             )
         }
         (facts::PlaceSegment::Index { expression }, facts::PlaceSegment::FixedIndex { index }) => {
-            index_expression_may_contain_fixed_with_selectors(
-                program,
-                expression,
-                left_location,
-                index,
+            index_extents_may_overlap(
+                index_expression_extent_with_selectors(
+                    program,
+                    expression,
+                    left_location,
+                    selectors,
+                ),
+                fixed_index_extent(index),
                 selectors,
             )
         }
