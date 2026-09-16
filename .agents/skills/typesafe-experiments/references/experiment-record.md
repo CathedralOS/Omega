@@ -267,12 +267,59 @@ semantic failure. Grade the rule's actual owner rather than requiring one filena
 Coordinator support review remains unblinded; no coding productivity or generic
 speed advantage has been established.
 
+## Paragraph extraction and citation-support pivot
+
+`build/experiments/context-paragraphs/` preserves eight fresh queries, their frozen
+anchors, extractor self-checks and report. Both extractors found 8/8 required files.
+Whole paragraphs retained 8/8 full evidence anchors versus character windows' 7/8,
+with no lost anchor. Selected text grew from 31,063 to 31,950 characters under the
+same 2,015-character cap per document. The gate required two additional anchors;
+it failed, and no Jev calls were spent on the now-saturated 8/8 lexical baseline.
+Oversize indivisible paragraphs are omitted, not silently truncated. This is a
+small deterministic input improvement, not a model or coding-productivity win.
+
+The next probe targeted semantic citation support, reusing public final-answer and
+quotation fields from observed workers. `build/experiments/citation-support/`
+contains the frozen protocol, `support.py`, request, labels, per-run results and
+`REPLICATION-REPORT.md`. Raw sessions/private reasoning were not sent. The unchanged
+Choice prompt asks whether quotations jointly support the complete claim for the
+entity and scope requested. A secondary guide is allowed if it explicitly describes
+the right subsystem. Wrong-owner support, missing conditions and partial support
+are warning candidates. This does not establish whether an unsupported claim is false.
+
+The initial source-reviewed development subset had 20 cited answers: 16 supported,
+four insufficiently supported. Later recorded queries supplied ten clear positives
+and two debatable command-example cases. Six inverted claims retained their observed
+citations as explicit synthetic negatives. Unknown answers and self-contained
+transformations were routed deterministically, not scored by Jev.
+
+| Run | Observed support issues flagged | False warnings on 26 clear supported outputs | Synthetic inversions rejected | Three-batch seconds |
+| --- | ---: | ---: | ---: | ---: |
+| Initial | 3/4 | 0/26 | 6/6 | 1.106 |
+| Fixed repeat 1 | 4/4 | 0/26 | 6/6 | 0.876 |
+| Fixed repeat 2 | 3/4 | 0/26 | 6/6 | 1.026 |
+
+Stable catches: exit-code/resumption inferred from generic queue text, full
+validation scope inferred from doctest-only support, and a work-claim answer citing
+landing-queue history. The weak liveness justification flipped at P(supported)
+0.61 / 0.48 / 0.61. Both ambiguous cancellation examples were accepted every time.
+The original catch-all gate failed; the favorable middle repeat does not replace it.
+Every run used 13,168 input and 1,209 output tokens for 38 judgments. This is summed
+batch latency, not per-answer service latency. Repeats are not independent cases.
+
+Mechanical quotation matching had passed for the original answers; it is not a
+strong competing semantic verifier. Labels remain unblinded coordinator judgments.
+The later clear recorded cases are positives only, so there is no independent real
+negative holdout. No worker was interrupted, answer automatically changed, or
+publication authorized. This is a candidate cheap warning layer, not a certificate.
+
 ## Next tuning step
 
-The isolated replication is complete; do not repeat it as fresh evidence. The next
-specific hypothesis is paragraph-aware extraction under the same context budget:
-fixed character windows can retain a command example while cutting off its decisive
-restriction. Test that input repair on fresh queries against current centered
-lexical retrieval before spending more worker sessions. Keep Jev optional until it
-shows incremental value over that stronger baseline. The 22 exposed retrieval
-queries are now development data, not a reusable blind holdout.
+The 30 exposed retrieval queries are development data; lexical context extraction
+is a strong baseline and further reranking trials need demonstrated headroom.
+The more promising next experiment is a nonblocking citation-support warning on
+fresh source-backed answers. Freeze the current prompt; inspect flagged AND
+unflagged outputs, retain owner/scope evidence, and measure whether a warning leads
+to a useful correction. No automatic blocks or verifier retries. Calibrate a new
+threshold only as a development hypothesis with fresh evaluation; do not promote
+the favorable repeat or a post-hoc cutoff as established correctness.
