@@ -1,3 +1,4 @@
+use crate::facts::field_domain::declared_result_field_domain_paths;
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_call_boundary_edges;
@@ -16,7 +17,9 @@ use checked_trees::{
     BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
     FlowSemanticContextRef, ProofFacts,
 };
-use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
+use facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+};
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
@@ -78,6 +81,15 @@ pub(super) fn build_call_flow_fact(
         state,
         borrow_call,
         &entry,
+        &mut exit,
+    );
+    append_call_result_field_domain_facts(
+        program,
+        semantic,
+        ctx,
+        machine,
+        state,
+        borrow_call,
         &mut exit,
     );
     let boundary_edges = append_call_boundary_edges(program, ctx, borrow_call);
@@ -259,6 +271,87 @@ fn append_one_to_one_call_carry_facts(
             origin: FactOrigin::CallEnsures,
             evidence,
             payload,
+        });
+        semantic.append_ref(&mut refs, fact);
+    }
+    let context = semantic.append_context(point, refs);
+    common::append_flow_reference(
+        &mut ctx.contexts.semantic_context_refs,
+        &mut exit.contexts,
+        FlowSemanticContextRef { context },
+    );
+    append_constraint_ref(
+        &mut ctx.contexts.constraint_refs,
+        &mut exit.constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
+}
+
+/// Publish the declared field predicates an OWNED nominal call result carries.
+/// The callee's own exit already proved each declared path against the live
+/// returned place (checks/contracts/exits.rs), so the signature-level promise
+/// is evidence, not a type annotation restoring what a write retired. The facts
+/// root at this exact call-expression occurrence: assignment copy transport
+/// rebases them onto the destination local, and a later write to that local's
+/// field retires them like any storage-backed fact. A reference return
+/// (`-> &Row`/`-> &mut Row`) produces no result storage of its own; its fields
+/// stay proven through the borrowed source place and are deliberately absent
+/// here so a later source write still invalidates them.
+fn append_call_result_field_domain_facts(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    borrow_call: &BorrowCallFact,
+    exit: &mut CallFlowContexts,
+) {
+    let Some(return_type) = call_target_return_type(program, borrow_call.target_symbol) else {
+        return;
+    };
+    let paths = declared_result_field_domain_paths(program, return_type);
+    if paths.is_empty() {
+        return;
+    }
+    let Some(crate::semantic_calls::CallSite::Expression { expression, .. }) =
+        crate::semantic_calls::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+        )
+    else {
+        return;
+    };
+    let point = ProgramPoint::CallEnsures {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        statement_index: borrow_call.statement_index,
+        call_ordinal: borrow_call.call_ordinal,
+    };
+    let evidence = QualificationEvidence::from_origin(
+        language_semantics::QualificationEvidenceOrigin::Propagated,
+        state.symbol,
+    );
+    let mut refs = HandleSpan::empty();
+    for (path, domain_symbol) in paths {
+        let place = crate::semantic_places::append_place_with_segments(
+            semantic,
+            facts::PlaceRoot::Expression(expression),
+            &path,
+        );
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point,
+            origin: FactOrigin::CallEnsures,
+            evidence,
+            payload: FactPayload::DomainMembership {
+                value: ExpressionHandle::invalid(),
+                domain: HandleSpan::empty(),
+                domain_symbol,
+                semantic_domain: language_semantics::SemanticDomainId::NULL,
+            },
         });
         semantic.append_ref(&mut refs, fact);
     }

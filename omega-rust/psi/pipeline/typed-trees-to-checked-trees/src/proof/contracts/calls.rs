@@ -165,7 +165,23 @@ pub(crate) fn build_contract_exit_facts(
                 true,
             );
 
-            if ensures.is_empty() {
+            // An owned nominal return type owes its declared field predicates
+            // on the returned value even when no ensures clause is authored.
+            // Record the exit so flow captures the value-returning contexts the
+            // result-field check consumes (checks/contracts/exits).
+            let return_field_obligations =
+                program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| {
+                        !crate::facts::field_domain::declared_result_field_domain_paths(
+                            program,
+                            entry.return_type,
+                        )
+                        .is_empty()
+                    });
+
+            if ensures.is_empty() && !return_field_obligations {
                 continue;
             }
 

@@ -113,6 +113,10 @@ pub(super) fn check_flow_call_contracts(
                 call_frames,
                 &mut diagnostics,
             );
+            // An owned nominal result also owes its declared field predicates
+            // on the returned value itself -- enforced here so a caller may
+            // consume them from the signature (flow/calls.rs).
+            exits::check_result_field_domains(program, facts, exit_flow, &mut diagnostics);
         }
         arrivals::check_self_transition_arrival_requires(
             program,

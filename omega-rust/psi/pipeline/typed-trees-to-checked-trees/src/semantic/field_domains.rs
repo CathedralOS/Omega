@@ -19,6 +19,10 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
+use crate::facts::field_domain::{
+    readable_fixed_array_elements, readable_nominal_definition, readable_type_reference,
+};
+
 pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
     for machine in program.machines() {
         let Some(attached) = machine.attached_data.as_ref() else {
@@ -516,65 +520,6 @@ fn append_state_parameter_data_field_domain_facts(
             }
         }
     }
-}
-
-/// A readable fixed array's element type and literal length, peeling the
-/// `&`/`&mut`/`mut`-access and domain-constraint shells. Non-literal lengths
-/// are lowered before checking; anything unresolved fails closed (`None`).
-fn readable_fixed_array_elements(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, usize)> {
-    use typed_trees::types::TypeReferenceNode;
-    let reference = readable_type_reference(program, reference)?;
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length),
-        } => Some((*element_type, *length)),
-        _ => None,
-    }
-}
-
-/// Peel only readable reference/constraint shells. Array elements and generic
-/// substitutions need their own structural evidence, not a nominal-name guess.
-fn readable_type_reference(
-    program: &TypedTrees,
-    mut reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    use typed_trees::types::TypeReferenceNode;
-    while reference.is_valid() {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } if access.is_readable() => reference = *referee,
-            TypeReferenceNode::Reference { .. } => return None,
-            _ => return Some(reference),
-        }
-    }
-    None
-}
-
-fn readable_nominal_definition(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
-    use typed_trees::types::TypeReferenceNode;
-    let reference = readable_type_reference(program, reference)?;
-    let symbol = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if arguments.is_empty() => *base_symbol,
-        _ => return None,
-    };
-    program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol && data.type_parameters.is_empty())
 }
 
 fn append_state_parameter_domain_fact(
