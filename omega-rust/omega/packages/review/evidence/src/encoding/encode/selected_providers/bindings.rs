@@ -9,12 +9,9 @@ pub(super) fn binding(
     encoder: &mut Encoder,
     binding: &PackagePolicyProviderBinding,
 ) -> Result<(), PackageReviewEncodingError> {
+    // Tag 0 was `string_backed_import_bootstrap`. It is retired, never
+    // reassigned, and recovery rejects it explicitly.
     match binding {
-        PackagePolicyProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-            encoder.tag("string_backed_import_bootstrap", 0);
-            encoder.field("library", |encoder| encoder.string(library))?;
-            encoder.field("symbol", |encoder| encoder.string(symbol))?;
-        }
         PackagePolicyProviderBinding::Syscall { number, evaluated } => {
             encoder.tag("syscall", 1);
             encoder.field("number", |encoder| {
