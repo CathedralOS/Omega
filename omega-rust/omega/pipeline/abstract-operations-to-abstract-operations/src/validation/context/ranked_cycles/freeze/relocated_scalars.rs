@@ -10,7 +10,9 @@
 //! `ByteSequenceSubslice` whose structural view result and bounds obligation
 //! relocate byte-exact inside the moved operation), or
 //! an admissible scalar
-//! computation whose uses are all defined outside the component, name
+//! computation (an obligated variant keeps its verifier-discharged
+//! obligation byte-exact inside the moved operation) whose uses are all
+//! defined outside the component, name
 //! provably invariant
 //! member parameters, or are defined by another node relocated
 //! out of the same component's run, may relocate from one of its component's

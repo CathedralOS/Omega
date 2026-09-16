@@ -3021,6 +3021,332 @@ fn forged_byte_subslice_result_place_is_rejected() {
     );
 }
 
+/// Same two-state component shape, but `step` computes `s - 1` on the
+/// invariant member parameter: `s`'s declared `1..=9` range discharges the
+/// exact subtraction's totality obligation, so the verifier-obligated
+/// computation relocates to the preheader with its `left` operand rebound to
+/// the anchor and its obligation preserved byte-exact. The loop-carried
+/// `pending - 1` decrement on the back-edge block keeps its own obligation
+/// and stays inside — `pending` is advanced by the back edge, and the block
+/// does not dominate every exit.
+const OBLIGATED_MEMBER_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u32 [1..=9], remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 [1..=9], pending: u32 [0..=5])
+        {
+            let shrunk: u32 = s - 1;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(shrunk)
+            }
+        }
+        state finish(r: u32) {}
+    }
+"#;
+
+/// The `s - 1` member computation and the member parameter its `left`
+/// operand names. The carried `pending - 1` lives in a different member
+/// block whose parameters do not include its `left` operand, so the block
+/// check selects the invariant computation.
+fn member_subtraction<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> (
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+    ValueId,
+) {
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::ExactIntegerSubtract { left, .. } = &node.operation
+                && block
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.value == *left)
+            {
+                return (block, node, *left);
+            }
+        }
+    }
+    panic!("the `s - 1` computation lives in a member block")
+}
+
+#[test]
+fn invariant_obligated_computation_relocates_preserving_its_obligation() {
+    let session = lowered_session(OBLIGATED_MEMBER_SOURCE, "obligated member loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (member_block, subtraction, member_parameter) = member_subtraction(function, component);
+    let (subtraction_operation, obligation, right_operand) = match &subtraction.operation {
+        AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            right,
+            ..
+        } => (*psi_operation, *obligation, *right),
+        operation => panic!("the member computation is exact subtraction: {operation:?}"),
+    };
+    let header = function
+        .blocks
+        .iter()
+        .find(|block| block.id == entry.target)
+        .expect("entry target exists");
+    let entry_edge = function
+        .blocks
+        .iter()
+        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+        .find(|edge| edge.psi_edge == entry.edge && edge.target == entry.target)
+        .expect("the preheader terminator owns the entry edge");
+    let anchor = entry_edge
+        .bindings
+        .iter()
+        .find(|binding| binding.parameter == header.parameters[0].value)
+        .expect("entry binds the carried header parameter")
+        .argument;
+    assert_eq!(
+        crate::validation::invariant_member_parameters(function, component).get(&member_parameter),
+        Some(&anchor),
+        "the member parameter resolves transitively to its preheader anchor"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == subtraction_operation)
+        .expect("the obligated member computation is a planned relocation");
+    assert_eq!(
+        relocation.node().operand_rewrites(),
+        &[(member_parameter, anchor)],
+    );
+    assert_eq!(relocation.node().location().block, member_block.id);
+    assert_eq!(relocation.destination().block, entry.source);
+    let member_blocks = component.members.clone();
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::ExactIntegerSubtract {
+            left,
+            right,
+            obligation: moved_obligation,
+            ..
+        } => {
+            assert_eq!(*left, anchor);
+            assert_eq!(*moved_obligation, obligation, "obligation moves byte-exact");
+            assert_eq!(
+                *right, right_operand,
+                "the constant-leaf producer relocates in the same run and the \
+                 `right` operand stays bound to its preserved result"
+            );
+        }
+        operation => panic!("relocated computation keeps its operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    let [record] = applied.ledger().records() else {
+        panic!("one atomic relocation has one ledger record")
+    };
+    let row = record
+        .provenance
+        .iter()
+        .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
+        .expect("the relocated computation has exact ledger custody");
+    assert_eq!(
+        row.disposition,
+        ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
+    );
+    // The loop-carried decrement keeps its obligation inside the member
+    // roster; the moved `s - 1` leaves no further invariant work behind.
+    let remaining_subtractions = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .filter(|block| member_blocks.contains(&block.id))
+        .flat_map(|block| &block.nodes)
+        .filter(|node| {
+            matches!(
+                node.operation,
+                AbstractOperation::ExactIntegerSubtract { .. }
+            )
+        })
+        .count();
+    assert_eq!(
+        remaining_subtractions, 1,
+        "only the loop-carried `pending - 1` remains inside"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 8)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn forged_obligated_computation_obligation_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(OBLIGATED_MEMBER_SOURCE, "obligated member loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, subtraction, _) = member_subtraction(function, component);
+    let subtraction_operation = operation_of(subtraction);
+    let member = component
+        .members
+        .iter()
+        .copied()
+        .find(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+                .any(|node| {
+                    node.provenance.first()
+                        == Some(&PsiProvenance::Operation(subtraction_operation))
+                })
+        })
+        .expect("the subtraction's member block");
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging a different discharged obligation onto the moved subtraction
+    // must fail the byte-exact operation comparison the freeze fence re-derives
+    // from the seed — the obligation is source-owned evidence, not a
+    // coordinate the relocation is free to respell.
+    let forged = find_operation_mut(&mut unit, subtraction_operation);
+    let AbstractOperation::ExactIntegerSubtract { obligation, .. } = &mut forged.operation else {
+        panic!("the relocated node keeps exact subtraction")
+    };
+    *obligation = semantic_vocabulary::ObligationId::new(obligation.get() + 7)
+        .expect("a different obligation id");
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn carried_obligated_computation_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(OBLIGATED_MEMBER_SOURCE, "obligated member loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    // The `pending - 1` decrement: an obligated computation whose operand is
+    // loop-carried. Hand-moving it into the preheader must fail admission —
+    // no invariant substitution exists for a carried member value — not
+    // merely fail a shape check.
+    let (member, operation) = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+                .map(move |node| (*member, node))
+        })
+        .find_map(|(member, node)| {
+            if let AbstractOperation::ExactIntegerSubtract { left, .. } = &node.operation
+                && !crate::validation::invariant_member_parameters(function, component)
+                    .contains_key(left)
+            {
+                return Some((member, operation_of(node)));
+            }
+            None
+        })
+        .expect("the loop-carried decrement lives in a member block");
+    let (input, mut unit) = session.into_parts();
+    let moved = take_operation(&mut unit, operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
 fn lowered_session(source: &str, label: &str) -> VerifiedPsiOptimizationSession {
     lowered_session_entry(source, label, "Root::scan")
 }

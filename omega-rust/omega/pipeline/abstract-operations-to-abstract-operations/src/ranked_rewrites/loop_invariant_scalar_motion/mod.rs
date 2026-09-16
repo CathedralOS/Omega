@@ -37,7 +37,10 @@ pub use model::{
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, invariant place observations, byte observations, and
 /// side-effect-free scalar
-/// computations whose operands are all
+/// computations — including exact, saturating, and
+/// wrapping variants carrying a verifier-discharged obligation, which moves
+/// byte-exact inside the relocated operation —
+/// whose operands are all
 /// defined outside the component, name provably invariant member parameters
 /// (each rebound to the representative every reaching edge agrees on, resolved
 /// transitively across member-to-member edges), or are defined by another node
