@@ -1025,9 +1025,25 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   row-less members observe nothing and no recorded access changes
   order while an interior accounted access keeps its position between
   two memory-inert members — under the same replayed
-  restore-by-content validation (crate `nextest`: 487 pass).
+  restore-by-content validation (crate `nextest`: 487 pass)
+  — and `rewrites/local_relocation` relocates one named body
+  instruction to a named destination's position in its block — the
+  window between them rotates one slot toward the member's vacated
+  index rather than trading two endpoints, so it admits windows the
+  interchange refuses: a row-less member cannot observe memory and
+  crosses any run of roster-carrying positions while every recorded
+  access keeps its relative order, and a roster-carrying member
+  crosses only row-less positions — when no register or
+  condition-state hazard runs between the member and any crossed
+  position in either direction, no call, hosted effect, barrier
+  kind, or call-roster entry sits anywhere in the window, and no
+  boundary settlement falls inside the window's span, under the
+  same replayed restore-by-content validation (crate `nextest`:
+  528 pass).
   Remaining: scheduling past the proven bounded window interchange
-  and compare/test selection past the landed literal folds.
+  and single-member relocation — multi-member schedules and moves
+  across edges — and compare/test selection past the landed
+  literal folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
