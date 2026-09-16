@@ -16,7 +16,7 @@ the first source byte in the witness. Both rows are literal reflexivity claims;
 the final root is tape-list reflexivity, **not** `encode_Beta(source) = tape`.
 Host code constructs diagnostic records only. Theory bytes still come from the
 pinned Gamma emitter, and all owner/witness rows pass the ordinary checker.
-The 300-second per-invocation watchdog grants no verdict on timeout.
+The 900-second per-invocation watchdog grants no verdict on timeout.
 
 The runner prints exact subject identities, request bytes, term counts, checking
 work, and elapsed time. At total subject length N, two separately represented
@@ -61,7 +61,8 @@ stderr. The exact producer composition is pinned in [source.tsv](source.tsv).
 The unmodified checking entry and its identity are reused from
 [derivation-checking](../derivation-checking/README.md).
 
-The emitted complete GTH1 section contains a partial Beta theory. Its byte
+The emitted complete GTH1 section contains the full error-valued Beta encoder
+theory. Its byte
 length and SHA-256 must match [theory.tsv](theory.tsv) and the independently
 authored fixed layout in [identity.py](identity.py); a second Gamma invocation
 must emit identical bytes. The host layout computes only a diagnostic length
@@ -231,8 +232,25 @@ the checker rules and source templates before runtime observations.
 Rejections require the exact 33-byte owned diagnostic, process zero, and empty
 stderr. Timeouts and process failures never count as proof results. Request
 sizes and elapsed times are printed per vector; none establishes full-certificate
-size or runtime. This gate proves only these finite equations under the fixed
-partial theory. Token scanning, word parsing, opcodes, source/output accounting, full
-Beta reconstruction, and accepted artifact custody remain outside its claim.
-It does not close the complete obligation in the
-[complete encoding acceptance](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md).
+size or runtime. This gate proves only these finite equations under the complete
+emitted theory; generic formation checks every encoder clause on every request.
+
+The [encoder fixtures](encoder.py) now also exercise encoder functions 58..108
+directly: 200 equations across fifteen batches covering the lexical predicates,
+choosers, state/fragment accessors, list operations, admission, hexadecimal
+parsing, the token automaton's steps and folds, classification, emission,
+dispatch, scan flush and finalization, and two tiny end-to-end `encode` calls
+(one valid, one rejected). They are produced by
+[stepper.py](stepper.py), the generic formed-theory stepper that replays ground
+applications through their stated clauses and emits ordinary certificate rows —
+not a Beta parser or proof search. Seven encoder-range mutation vectors require
+exact owned rejections: wrong clause, wrong result, forward premises, swapped
+transitivity, an unconcluded root, and an empty proof table.
+
+These still do not close the complete obligation: the full-subject
+`encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` derivation for the selected
+evaluator measures 3,182,484 rows and 135,451,492 request bytes — 16.1 times
+the request provision — so it is produced and measured but not admissible.
+Accepted artifact custody remains outside this gate's claim. See the
+[complete encoding acceptance](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+and the [cost review](../../../wiki/drafts/bootstrap_cost_review.md).

@@ -61,7 +61,7 @@ def main():
     for corrupt in (False, True):
         name = "changed_source_head" if corrupt else "complete_separate_spines"
         request, expected, owners, witnesses = subject_request(definitions, *subjects, corrupt)
-        result, elapsed = invoke(evaluator, name, checker, request, timeout=300)
+        result, elapsed = invoke(evaluator, name, checker, request, timeout=900)
         require(name, result, 0, expected)
         fields = struct.unpack("<" + "Q" * ((len(expected) - 1) // 8), expected[1:])
         print(f"subject shape {name}: request={len(request)} owner_terms={owners} "

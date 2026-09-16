@@ -6,6 +6,7 @@ import roundtrip
 import words
 import counters
 import ordering
+import encoder
 
 
 def cases(definitions):
@@ -15,3 +16,4 @@ def cases(definitions):
     yield from words.cases(definitions)
     yield from counters.cases(definitions)
     yield from ordering.cases(definitions)
+    yield from encoder.cases(definitions)

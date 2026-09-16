@@ -1,0 +1,56 @@
+; Template rows for the encoder section: constructor and function
+; applications of the arities the definitions use. Each emits exactly one
+; template record; row identities stay the caller's arithmetic.
+(def beta_template_ctor2 ((symbol Int) (first Int) (second Int)) Int
+  (let header Int (beta_theory_fields3 5 1 symbol)
+    (beta_theory_fields3 2 first second)))
+
+(def beta_template_ctor6 ((symbol Int) (a Int) (b Int) (c Int) (d Int)
+  (e Int) (f Int)) Int
+  (let header Int (beta_theory_fields3 9 1 symbol)
+    (let arity Int (beta_theory_word 6)
+      (let first Int (beta_theory_fields3 a b c)
+        (beta_theory_fields3 d e f)))))
+
+(def beta_template_ctor8 ((symbol Int) (a Int) (b Int) (c Int) (d Int)
+  (e Int) (f Int) (g Int) (h Int)) Int
+  (let header Int (beta_theory_fields3 11 1 symbol)
+    (let arity Int (beta_theory_word 8)
+      (let first Int (beta_theory_fields3 a b c)
+        (let second Int (beta_theory_fields3 d e f)
+          (let seventh Int (beta_theory_word g)
+            (beta_theory_word h)))))))
+
+(def beta_template_app3 ((function Int) (a Int) (b Int) (c Int)) Int
+  (let header Int (beta_theory_fields3 6 2 function)
+    (let arity Int (beta_theory_word 3)
+      (beta_theory_fields3 a b c))))
+
+(def beta_template_app4 ((function Int) (a Int) (b Int) (c Int) (d Int)) Int
+  (let header Int (beta_theory_fields3 7 2 function)
+    (let arity Int (beta_theory_word 4)
+      (let first Int (beta_theory_fields3 a b c)
+        (beta_theory_word d)))))
+
+(def beta_template_app6 ((function Int) (a Int) (b Int) (c Int) (d Int)
+  (e Int) (f Int)) Int
+  (let header Int (beta_theory_fields3 9 2 function)
+    (let arity Int (beta_theory_word 6)
+      (let first Int (beta_theory_fields3 a b c)
+        (beta_theory_fields3 d e f)))))
+
+(def beta_template_app7 ((function Int) (a Int) (b Int) (c Int) (d Int)
+  (e Int) (f Int) (g Int)) Int
+  (let header Int (beta_theory_fields3 10 2 function)
+    (let arity Int (beta_theory_word 7)
+      (let first Int (beta_theory_fields3 a b c)
+        (let second Int (beta_theory_fields3 d e f)
+          (beta_theory_word g))))))
+
+(def beta_template_app9 ((function Int) (a Int) (b Int) (c Int) (d Int)
+  (e Int) (f Int) (g Int) (h Int) (i Int)) Int
+  (let header Int (beta_theory_fields3 12 2 function)
+    (let arity Int (beta_theory_word 9)
+      (let first Int (beta_theory_fields3 a b c)
+        (let second Int (beta_theory_fields3 d e f)
+          (beta_theory_fields3 g h i))))))

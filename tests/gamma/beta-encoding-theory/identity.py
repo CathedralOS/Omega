@@ -6,7 +6,8 @@ from lexical import BOOLEAN_TABLES, HEX_BYTES
 from wire import clause, function, record, theory
 
 
-def fixed_identity():
+def partial_records():
+    """The accepted 8-sort/284-constructor/57-function theory records."""
     constructors = [record(1, 0)] * 256 + [record(2, 0)] * 2
     constructors += [record(3, 0)] * 16 + [record(4, 0), record(4, 1, 3)]
     constructors += [record(5, 8, *([1] * 8)), record(6, 0), record(6, 2, 1, 6)]
@@ -61,5 +62,26 @@ def fixed_identity():
     functions.append(function((1,) * 8 + (5,), (clause(templates, 277, 31),), mode=1, selected=8, result=8))
     templates = [record(0, slot) for slot in range(2, 10)] + [record(0, 1), record(2, 56, 9, *range(1, 10))]
     functions.append(function((5, 5), (clause(templates, 277, 10),), mode=1, result=8))
-    package = theory(constructors, functions, sorts=8)
+    return constructors, functions
+
+
+def partial_theory():
+    constructors, functions = partial_records()
+    return theory(constructors, functions, sorts=8)
+
+
+def complete_theory():
+    """The 18-sort/361-constructor/108-function error-valued package."""
+    import encoding
+    constructors, functions = partial_records()
+    return encoding.section_bytes(constructors, functions)
+
+
+def complete_identity():
+    package = complete_theory()
+    return len(package), hashlib.sha256(package).hexdigest()
+
+
+def fixed_identity():
+    package = complete_theory()
     return len(package), hashlib.sha256(package).hexdigest()
