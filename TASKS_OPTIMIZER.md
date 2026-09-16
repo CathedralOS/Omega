@@ -1065,8 +1065,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `Structural` slot — which can stage bytes that merely name the
   place, like a call's staged view descriptor — still interferes
   on intersection and never covers (crate `nextest`: 450 pass).
+  Load forwarding also crosses joins: a block whose body shows no
+  interfering access defers to every predecessor block, and it
+  resolves once each predecessor path resolves to the same stored
+  register — a store dominating the join decides all its legs, as
+  does each leg's own last writer of that register — while the
+  entry block, a block no edge reaches, legs whose writers store
+  different registers, and deferred regions that never resolve,
+  self-loops and writerless cycles included, still leave the pair
+  unproven (crate `nextest`: 493 pass).
   Remaining: operation-slot and dynamic-extent writes still cannot
-  cover, and load forwarding still stops at joins.
+  cover — an operation-owned `Structural` slot records no
+  storage-versus-staging role and a dynamic extent proves no fixed
+  containment — and legs whose paths disagree or reach writerless
+  cycles stay unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
