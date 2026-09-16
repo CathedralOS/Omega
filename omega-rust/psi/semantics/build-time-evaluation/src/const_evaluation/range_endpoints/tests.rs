@@ -142,7 +142,7 @@ fn argument_landing_retains_nested_fractional_warnings() {
             &program,
             &admission,
             pending[0].expression,
-            pending[0].machine,
+            super::EndpointCallee::plain(pending[0].machine),
             None,
         )
         .expect("closed integer arguments land");
@@ -309,7 +309,7 @@ fn folded_arguments_still_require_their_original_selection_authority() {
             &program,
             &admission,
             endpoint.expression,
-            endpoint.machine,
+            super::EndpointCallee::plain(endpoint.machine),
             Some(&Selection(true)),
         )
         .expect("admitted constant argument");
@@ -319,7 +319,7 @@ fn folded_arguments_still_require_their_original_selection_authority() {
             &program,
             &admission,
             endpoint.expression,
-            endpoint.machine,
+            super::EndpointCallee::plain(endpoint.machine),
             Some(&Selection(false)),
         )
         .expect_err("the callee cannot grant selection authority to its arguments");
@@ -660,6 +660,101 @@ fn boolean_results_never_become_range_bounds_and_mismatched_arguments_reject() {
     }
 }
 
+#[test]
+fn fully_supplied_static_applications_fold_through_their_specialized_instance() {
+    // Every binder is supplied by a closed const spelling, so the prepared
+    // program's ordinary specialization produces a concrete instance and the
+    // endpoint resolves it there. The instance's substituted signature is
+    // what the argument and result positions read: `bounded<256>(0)` checks
+    // `0` against `u64[0..=256]`, not the template's symbolic `N`.
+    let declarations = "machine identity<const N: u64>() -> u64 { N }
+         machine choose<const N: u64>(flag: bool) -> u64 {
+             transition flag {
+                 true -> N
+                 false -> 0
+             }
+         }
+         machine flag() -> bool { true }
+         machine bounded<const N: u64>(value: u64[0..=N]) -> u64 { N }
+         machine limit() -> u64 { 128 }
+         const RANGE: u64 = 256;";
+    for (endpoint, bound) in [
+        ("identity<256>()", "256"),
+        ("identity<RANGE>()", "256"),
+        ("choose<256>(true)", "256"),
+        ("choose<256>(flag())", "256"),
+        ("choose<256>(false)", "0"),
+        ("bounded<256>(0)", "256"),
+        ("identity<256>() + identity<1>()", "257"),
+    ] {
+        let mut program = typed(&format!(
+            "{declarations}
+             machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        assert!(
+            !pending_endpoints(&program).unwrap().is_empty(),
+            "{endpoint}: static application must be pending"
+        );
+        evaluate_const_range_endpoints(&mut program, None)
+            .unwrap_or_else(|errors| panic!("{endpoint}: {errors:?}"));
+        assert!(
+            pending_endpoints(&program).unwrap().is_empty(),
+            "{endpoint}"
+        );
+        // `keep` is declared last; `bounded`'s own `u64[0..=N]` precedes it.
+        let (_, _, constraints) = *program
+            .type_reference_table
+            .constrained_type_reference_sites()
+            .last()
+            .expect("keep's authored range");
+        let TypeConstraintNode::Range { maximum, .. } =
+            program.type_reference_table.constraints(constraints)[0]
+        else {
+            panic!("{endpoint}: authored range");
+        };
+        assert_eq!(
+            validation::closed_integer_range_bound(&program, maximum)
+                .map(|value| value.to_string())
+                .as_deref(),
+            Some(bound),
+            "{endpoint}"
+        );
+    }
+}
+
+#[test]
+fn inference_needing_and_partial_static_applications_stay_rejected() {
+    // An application with no static arguments needs inference and is not an
+    // endpoint call at all; a partially supplied one is pending so the
+    // missing argument is named instead of silently skipped. An instance's
+    // substituted range still rejects an out-of-range concrete argument.
+    let declarations = "machine identity<const N: u64>() -> u64 { N }
+         machine two<const A: u64, const B: u64>() -> u64 { A + B }
+         machine bounded<const N: u64>(value: u64[0..=N]) -> u64 { N }";
+    let program = typed(&format!(
+        "{declarations}
+         machine keep(value: u64[0..=bounded(0)]) {{}}"
+    ));
+    assert!(
+        pending_endpoints(&program).unwrap().is_empty(),
+        "an inference-needing application is not pending"
+    );
+    for (endpoint, fragment) in [
+        ("two<1>()", "cannot be derived"),
+        ("bounded<256>(300)", "outside declared range `0..=256`"),
+    ] {
+        let mut program = typed(&format!(
+            "{declarations}
+             machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        let errors = evaluate_const_range_endpoints(&mut program, None).expect_err(endpoint);
+        assert!(
+            errors.iter().any(|error| error.message.contains(fragment)),
+            "{endpoint}: {errors:?}"
+        );
+    }
+}
+
 fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -682,8 +777,10 @@ fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
 
 #[test]
 fn generic_record_arguments_still_reject_unclosable_endpoint_calls() {
-    // An endpoint call that cannot resolve, and a callee the shared gate
-    // cannot close, must both stay rejected rather than weakening admission.
+    // An endpoint call that cannot resolve, and a generic callee whose binder
+    // would need inference from an ordinary argument, must both stay rejected
+    // rather than weakening admission. (A fully supplied static application
+    // is closable and folds through its instance.)
     for source in [
         "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
          data RangeValue<T [copy]> [copy] { value: T; }
@@ -694,7 +791,7 @@ fn generic_record_arguments_still_reject_unclosable_endpoint_calls() {
         "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
          data RangeValue<T [copy]> [copy] { value: T; }
          machine keep() -> u64 {
-             let bounded: RangeValue<u64[0..=upper_bound<256>(0)]> = RangeValue { value: 0 };
+             let bounded: RangeValue<u64[0..=upper_bound(0)]> = RangeValue { value: 0 };
              upper_bound(bounded.value)
          }",
     ] {

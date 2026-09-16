@@ -1,0 +1,1 @@
+generic machine `two` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived
