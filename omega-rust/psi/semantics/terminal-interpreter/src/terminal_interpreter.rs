@@ -41,6 +41,7 @@ mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
 mod structural_operations;
 mod structural_scalar_fields;
+mod terminators;
 mod values;
 
 pub use boundary_byte_buffers::TerminalBoundaryByteBuffer;
