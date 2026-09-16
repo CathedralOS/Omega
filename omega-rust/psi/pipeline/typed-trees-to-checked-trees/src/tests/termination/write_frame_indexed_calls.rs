@@ -2493,6 +2493,10 @@ fn stable_alias_index_frame_accepts_a_finite_exact_call_tree() {
             "Main::deep_repeated_call_index_alias_rebind",
             vec!["self.other_matrix"],
         ),
+        (
+            "Main::binding_reborrow_call_index_alias_rebind",
+            vec!["self.cells", "self.other_cells"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -2519,7 +2523,6 @@ fn stable_alias_index_frame_accepts_a_finite_exact_call_tree() {
     }
 
     for name in [
-        "Main::binding_reborrow_call_index_alias_rebind",
         "Main::recursive_call_index_alias_rebind",
         "Main::recursive_helper_slice_view_call_index_alias_rebind",
         "Main::recursive_projected_helper_slice_view_call_index_alias_rebind",

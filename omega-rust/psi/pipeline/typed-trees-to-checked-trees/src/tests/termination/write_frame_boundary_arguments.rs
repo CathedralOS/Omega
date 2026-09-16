@@ -72,7 +72,7 @@ fn indexed_method_receivers_keep_coarse_storage_and_exact_argument_writes() {
             "binding_reborrow",
             "self.cells[rebind_index(&mut audit)]",
             "let audit: &mut u64 = &mut self.index_audit;",
-            None,
+            Some(vec!["self.audit", "self.cells"]),
         ),
     ];
     let mut source = String::from(

@@ -21,7 +21,7 @@ use crate::machine_calls::calls::write_frames::demand::{
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
 use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts_with_origins;
-use crate::machine_calls::calls::write_frames::local_aliases::expression_reborrows_local_alias_binding;
+use crate::machine_calls::calls::write_frames::local_aliases::expression_reborrows_unresolved_reference_binding;
 use crate::machine_calls::calls::write_frames::permuted_cycle_frames::{
     summarize_state_written_paths_with_permuted_cycles, summarize_transition_target_written_paths,
 };
@@ -340,7 +340,14 @@ fn walk_state_write_prefix_inner(
                     &local_alias_origins,
                 )
             } else {
-                expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
+                expression_reborrows_unresolved_reference_binding(
+                    program,
+                    machine,
+                    expression,
+                    parameters,
+                    &isolated_local_roots,
+                    &local_alias_origins,
+                )
             };
             if exposes_reference_binding
                 && declared_local_alias_origin.is_none()
