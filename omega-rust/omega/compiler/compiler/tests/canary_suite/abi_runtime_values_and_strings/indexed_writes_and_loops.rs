@@ -5,7 +5,8 @@ use crate::copy_dir_recursive;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, Stdio, compile,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
-    fs, interpret, pass_canary, repo_root, run_bounded_canary_jobs, sample_project,
+    fixture_declares_ordinary_std, fs, hosted_main_program_entry_build_with_std, interpret,
+    pass_canary, repo_root, run_bounded_canary_jobs, sample_project,
 };
 use compiler::CheckedCompileRequest;
 use std::io::Write;
@@ -231,8 +232,16 @@ fn bounded_carrier_regressions_compile_on_aarch64() {
         fs::create_dir_all(&source).expect("AArch64 carrier scratch source directory");
         fs::copy(canary.join("main.omg"), source.join("main.omg"))
             .expect("copy carrier canary into AArch64 scratch source");
-        fs::write(source.join("build.omg"), application_build())
-            .expect("write AArch64 carrier build source");
+        // Members whose fixture declares the ordinary standard library keep
+        // that dependency in the scratch project; a bare application build
+        // leaves module resolution looking for `omega_language_std/` beside
+        // the copied source instead of the repository package.
+        let build = if fixture_declares_ordinary_std(&canary) {
+            hosted_main_program_entry_build_with_std("linux_arm64")
+        } else {
+            application_build()
+        };
+        fs::write(source.join("build.omg"), build).expect("write AArch64 carrier build source");
         compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(scratch.join("out")),

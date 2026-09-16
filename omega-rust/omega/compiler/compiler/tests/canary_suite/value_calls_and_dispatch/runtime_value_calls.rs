@@ -4,7 +4,8 @@ use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, Stdio, compile_reviewed_repository_fixture,
     compile_rooted_backend_canary_without_output_for_target_and_permission_policy,
     compile_rooted_canary_for_native_host, compile_rooted_canary_for_target,
-    compile_with_auxiliary_artifacts, fs, hosted_main_program_entry_build, interpret, pass_canary,
+    compile_with_auxiliary_artifacts, fs, hosted_main_program_entry_build_for, interpret,
+    pass_canary,
 };
 use compiler::CheckedCompileRequest;
 use std::io::Write;
@@ -670,7 +671,7 @@ fn runtime_exit_code_exit_canary_runs() {
             .expect("copy runtime exit-code canary");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write runtime exit-code cross-build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {

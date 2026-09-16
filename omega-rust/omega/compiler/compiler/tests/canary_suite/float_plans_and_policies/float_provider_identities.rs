@@ -8,7 +8,7 @@ use crate::{
     CompilerOptions, RequestedCompileProduct, compile, compile_canary_without_output,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
     compile_rooted_canary_for_target, executable_name, fail_canary, fs,
-    hosted_main_program_entry_build, interpret, pass_canary,
+    hosted_main_program_entry_build_for, interpret, pass_canary,
     reviewed_repository_fixture_package_inputs,
 };
 use checked_interpreter::InterpretOptions;
@@ -916,7 +916,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
             .expect("copy primitive float canary");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write primitive float build source");
         compile(CanaryCompileSpec {

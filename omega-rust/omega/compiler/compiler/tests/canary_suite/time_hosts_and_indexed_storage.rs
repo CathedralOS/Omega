@@ -3,7 +3,7 @@ use super::{
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
     compile_rooted_canary_for_target, compile_single_file_hosted_main,
     compile_with_auxiliary_artifacts, executable_name, fail_canary, fs,
-    hosted_main_program_entry_build, interpret, pass_canary, repo_root,
+    hosted_main_program_entry_build_for, interpret, pass_canary, repo_root,
 };
 use compiler::CheckedCompileRequest;
 
@@ -142,7 +142,7 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
             .expect("copy integer-result import source");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write integer-result import build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -182,7 +182,7 @@ fn storage_result_imports_compile_on_windows_and_darwin() {
             .expect("copy storage-result import source");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write storage-result import build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -260,7 +260,7 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
             .expect("copy dereferenced-result import source");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write dereferenced-result import build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -306,7 +306,7 @@ fn authored_scalar_imports_compile_on_windows_and_darwin() {
             .expect("copy authored scalar import source");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write authored scalar import build source");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {

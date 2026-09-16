@@ -6,7 +6,7 @@ use super::{
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_reviewed_repository_fixture,
     compile_rooted_canary_for_native_host, compile_rooted_canary_for_target, executable_name,
-    fail_canary, fs, hosted_main_program_entry_build, interpret, pass_canary,
+    fail_canary, fs, hosted_main_program_entry_build_for, interpret, pass_canary,
 };
 use compiler::CheckedCompileRequest;
 
@@ -123,7 +123,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
             .expect("copy directed-add canary");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write directed-add build source");
         compile(CanaryCompileSpec {
@@ -268,7 +268,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
             .expect("copy directed-subtract canary");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write directed-subtract build source");
         compile(CanaryCompileSpec {
@@ -413,7 +413,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
             .expect("copy directed-multiply canary");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write directed-multiply build source");
         compile(CanaryCompileSpec {
@@ -558,7 +558,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
             .expect("copy directed-divide canary");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write directed-divide build source");
         compile(CanaryCompileSpec {
@@ -704,7 +704,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
             .expect("copy directed-square-root canary");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write directed-square-root build source");
         compile(CanaryCompileSpec {
@@ -984,7 +984,7 @@ fn float_policy_adapters_retain_differential_results() {
                     .expect("copy float-policy canary");
                 fs::write(
                     source_dir.join("build.omg"),
-                    hosted_main_program_entry_build(target),
+                    hosted_main_program_entry_build_for(&canary, target),
                 )
                 .expect("write float-policy build source");
                 compile(CanaryCompileSpec {

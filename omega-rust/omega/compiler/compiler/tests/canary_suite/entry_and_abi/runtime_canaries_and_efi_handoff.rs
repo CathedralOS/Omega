@@ -2,7 +2,7 @@ use super::assert_native_exit_code;
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, compile, compile_rooted_canary_for_native_host,
-    compile_with_auxiliary_artifacts, fs, hosted_main_program_entry_build, pass_canary,
+    compile_with_auxiliary_artifacts, fs, hosted_main_program_entry_build_for, pass_canary,
 };
 
 #[test]
@@ -135,7 +135,7 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
             .expect("copy nested wire-policy canary");
         fs::write(
             source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write wire-policy cross-build source");
         compile(CanaryCompileSpec {

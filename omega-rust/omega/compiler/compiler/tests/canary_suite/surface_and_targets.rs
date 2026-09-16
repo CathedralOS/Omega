@@ -364,7 +364,7 @@ boundary trait Console {
 data Main {
     console: Console;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.console.exit_process(0);
 }
 "#;

@@ -53,8 +53,10 @@ pub fn candidate_console_exit_binding(
         .iter()
         .filter(|method| {
             method.name == "exit_process"
-                || (accepts_console_output && method.name == "write_byte")
-                || (accepts_console_input && method.name == "read_byte")
+                || (accepts_console_output
+                    && matches!(method.name.as_str(), "write" | "write_byte" | "write_line"))
+                || (accepts_console_input
+                    && matches!(method.name.as_str(), "read_byte" | "read_line"))
         })
         .map(|method| {
             effects::ServiceTerminalAuthorityPermission::new(
@@ -64,10 +66,10 @@ pub fn candidate_console_exit_binding(
                     "exit_process" => {
                         vec![effects::TerminalAuthorityClass::ProcessTermination]
                     }
-                    "write_byte" => {
+                    "write" | "write_byte" | "write_line" => {
                         vec![effects::TerminalAuthorityClass::ProcessOutput]
                     }
-                    "read_byte" => {
+                    "read_byte" | "read_line" => {
                         vec![effects::TerminalAuthorityClass::ProcessInput]
                     }
                     _ => unreachable!("filtered above"),

@@ -3,7 +3,7 @@ use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, compile_rooted_canary_for_native_host,
     compile_rooted_canary_for_target_with_auxiliary_artifacts, compile_with_auxiliary_artifacts,
-    fs, hosted_main_program_entry_build, pass_canary,
+    fs, hosted_main_program_entry_build, hosted_main_program_entry_build_for, pass_canary,
 };
 
 #[test]
@@ -57,7 +57,7 @@ fn compiler_body_text_literal_append_footprints_reach_artifacts() {
             .expect("copy compiler-body text literal-append canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body text literal-append target");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -134,7 +134,7 @@ fn compiler_body_text_stored_suffix_footprints_reach_artifacts() {
             .expect("copy compiler-body stored-text suffix canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body stored-text suffix target");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -183,7 +183,7 @@ fn compiler_body_place_address_footprints_reach_artifacts() {
             .expect("copy compiler-body place-address canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body place-address target");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -359,7 +359,7 @@ fn compiler_body_wire_scalar_appends_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire scalar-append canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire scalar-append target");
 
@@ -429,7 +429,7 @@ fn compiler_body_wire_text_appends_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire text-append canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire text-append target");
 
@@ -501,7 +501,7 @@ fn compiler_body_wire_scalar_slice_appends_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire scalar-slice canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire scalar-slice target");
 
@@ -575,7 +575,7 @@ fn compiler_body_wire_repeated_scalar_appends_reach_x86_and_aarch64_artifacts() 
             .expect("copy compiler-body wire repeated-scalar canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire repeated-scalar target");
 
@@ -652,7 +652,7 @@ fn compiler_body_wire_byte_slice_reads_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire byte-slice canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire byte-slice target");
 
@@ -728,7 +728,7 @@ fn compiler_body_wire_nested_bounds_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire nested-bounds canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire nested-bounds target");
 
@@ -807,7 +807,7 @@ fn compiler_body_wire_repeated_scalar_reads_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire repeated-scalar-read canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire repeated-scalar-read target");
 
@@ -880,7 +880,7 @@ fn compiler_body_wire_expected_byte_reads_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire expected-byte canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire expected-byte target");
 
@@ -950,7 +950,7 @@ fn compiler_body_wire_ranged_scalar_reads_reach_x86_and_aarch64_artifacts() {
             .expect("copy compiler-body wire ranged-scalar canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body wire ranged-scalar target");
 
@@ -1096,7 +1096,7 @@ fn compiler_body_storage_bit_field_write_footprints_reach_x86_and_aarch64_artifa
             .expect("copy compiler-body storage-bit-field-write canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body storage-bit-field-write target");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -1142,7 +1142,7 @@ fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifact
             .expect("copy compiler-body storage-convert-write canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body storage-convert-write target");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -1188,7 +1188,7 @@ fn compiler_body_machine_indexed_convert_write_footprints_reach_x86_and_aarch64_
             .expect("copy compiler-body machine-indexed convert-write canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body machine-indexed convert-write target");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -1235,7 +1235,7 @@ fn compiler_body_pointee_integer_write_footprints_reach_x86_and_aarch64_artifact
             .expect("copy compiler-body pointee integer-write canary");
         fs::write(
             source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write compiler-body pointee integer-write target");
         compile_with_auxiliary_artifacts(CanaryCompileSpec {
@@ -1287,7 +1287,7 @@ data Main {
     index: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.index = 2;
     let view: &mut [Entry] = self.entries.as_mut_slice();
     view[self.index].value = 7;
@@ -1353,7 +1353,7 @@ data Entry { value: i32; }
 data Room { entries: [Entry; 4]; }
 data Main { console: Console; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let room: Room = Room {
         entries: [
             Entry { value: 0 },
@@ -1464,7 +1464,7 @@ data Main {
     grid: [[i32; 4]; 3];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let i: u64 [0..=2] = 1;
     let j: u64 [0..=3] = 2;
     self.grid[i][j] = 70;

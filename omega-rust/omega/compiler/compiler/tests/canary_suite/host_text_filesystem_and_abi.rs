@@ -2,7 +2,7 @@ use super::{
     AcceptedSemanticBindingRole, CanaryCompileProduct, CanaryCompileSpec, Command,
     FilesystemServiceBinding, InterpretOptions, Path, Stdio, compile,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
-    compile_with_auxiliary_artifacts, executable_name, fs, hosted_main_program_entry_build,
+    compile_with_auxiliary_artifacts, executable_name, fs, hosted_main_program_entry_build_for,
     interpret, interpret_entry, pass_canary, run_canary, unique_no_output_build_dir,
 };
 #[cfg(windows)]
@@ -1484,7 +1484,7 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
             .expect("copy fixed-array canary");
         fs::write(
             src_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
+            hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write fixed-array build source");
         let compile_result = compile_with_auxiliary_artifacts(CanaryCompileSpec {
