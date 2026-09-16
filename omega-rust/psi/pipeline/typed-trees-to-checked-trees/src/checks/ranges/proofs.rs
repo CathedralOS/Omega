@@ -2,7 +2,7 @@ use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
 };
 
-use super::expressions::expression_integer_value;
+use super::expressions::{ensured_call_result_bounds, expression_integer_value};
 use super::facts::RangeFacts;
 
 /// Proves that a range's end bound is within an unknown slice length.
@@ -27,7 +27,13 @@ fn range_end_within_unknown_length_is_proven(
 }
 
 /// Proves an index expression is `< len` for an unknown slice length using the
-/// index vocabulary (`prove_index` / `index_value_is_proven`).
+/// index vocabulary (`prove_index` / `index_value_is_proven`). A call index
+/// adds its callee's ensured literal high: `ensures result <= K` is discharged
+/// at every callee exit, so `K` inclusively bounds THIS occurrence's result
+/// exactly like a declared return range — meeting it against the collection's
+/// `minimum_length` floor or `exact_length` (`K < len`) proves the index the
+/// way a folded constant does. The non-negative half a signed result still
+/// owes stays with the lower-bound lane.
 fn index_is_within_unknown_length_proven(
     program: &typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
@@ -38,6 +44,9 @@ fn index_is_within_unknown_length_proven(
     facts.index_is_proven(collection_label, &index_label)
         || expression_integer_value(program, facts, index)
             .is_some_and(|index| facts.index_value_is_proven(collection_label, index))
+        || ensured_call_result_bounds(program, index)
+            .and_then(|(_, high)| high)
+            .is_some_and(|high| facts.index_value_is_proven(collection_label, high))
 }
 
 pub(super) fn unknown_length_index_is_proven(
@@ -46,11 +55,12 @@ pub(super) fn unknown_length_index_is_proven(
     collection: ExpressionHandle,
     index: ExpressionHandle,
 ) -> bool {
-    let collection_label = program.expression_table.display_name(collection);
-    let index_label = program.expression_table.display_name(index);
-    facts.index_is_proven(&collection_label, &index_label)
-        || expression_integer_value(program, facts, index)
-            .is_some_and(|index| facts.index_value_is_proven(&collection_label, index))
+    index_is_within_unknown_length_proven(
+        program,
+        facts,
+        &program.expression_table.display_name(collection),
+        index,
+    )
 }
 
 pub(super) fn unknown_length_range_is_proven(
