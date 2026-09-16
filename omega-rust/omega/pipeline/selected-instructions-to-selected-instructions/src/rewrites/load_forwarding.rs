@@ -11,13 +11,15 @@
 //! assumption is needed. The loaded register keeps its identity, origin, and
 //! the read's provenance.
 //!
-//! The store and the load need not share a block: when the load's block can
-//! only be reached through one predecessor, that predecessor's own writer
-//! decides on every path to the load, and the walk continues there. Joins,
-//! self-loops, and the function entry each admit a path that never passed a
-//! store, so they end the walk without a pair. Crossed edges are admitted
-//! only when their transports move neither the carried registers nor storage
-//! the forwarded place can reach.
+//! The store and the load need not share a block: when a block's top is
+//! reached without interference, the walk crosses into every predecessor
+//! block, and the block resolves once each predecessor path's last writer
+//! stored the same register — one store dominating the join, or each leg's
+//! own store of that register. The function entry, a block no edge reaches,
+//! and a deferred region that never reaches one register — including a
+//! self-loop or a writerless cycle — each leave the walk without a pair.
+//! Crossed edges are admitted only when their transports move neither the
+//! carried registers nor storage the forwarded place can reach.
 //!
 //! The alias decision is borrow-aware: it comes from the validated
 //! `memory_accesses` roster, not from pointer-register equality. Each access
