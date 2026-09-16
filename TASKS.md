@@ -725,8 +725,15 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   witnessed through `omega audit packages --offline` for sticky `fail`,
   mixed completion, a forged obligation and an explicit retry in
   `omega/tests/package_commands/snapshot_outputs.rs` (macOS ARM64).
-  Remaining: Windows host coverage, the audit report surfacing the
-  captured inventory, and the retained-state measurement. Acceptance: an
+  `omega audit packages` reports the bound snapshot per package at
+  306bf11022 (`build-snapshot captured-entries N captured-file-bytes M`,
+  `settled-outputs N` with each path, sealed entries under `--details`).
+  Retained state after `audit`/`install --offline` on the snapshot route
+  and the generated-source handoff route: 0 B temp residue, 0 B private
+  cache, lock 2837 B against 2843 B, `build/` 4763 B against 6046 B; the
+  separate build-tool-package route the spec keeps as an alternative is
+  not implemented, so no measured comparison against it exists.
+  Remaining: Windows host coverage. Acceptance: an
   ordinary generator reads a template and completes a required file;
   artifact-only and executable-with-companion routes both work. Exercise
   negative lookups, ordering/metadata, symlink and substitution escapes, sealed
