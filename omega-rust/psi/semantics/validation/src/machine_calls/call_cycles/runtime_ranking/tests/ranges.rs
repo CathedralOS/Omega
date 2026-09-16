@@ -114,6 +114,70 @@ fn internal_state_calls_keep_their_entry_roles() {
 }
 
 #[test]
+fn internal_state_calls_read_duplicated_rank_copies() {
+    // `pair(left, right)` holds two copies of the same arrival value; the
+    // discovery kept both claims only because every arrival forwarded a bare
+    // name, so the copies are equal and either may transport the rank.
+    let source = "data Main {}
+        machine Main::count(&mut self, remaining: u32 [0..=9])
+        terminates by remaining in 0..=9;
+        -> u32 {
+            transition remaining > 0 { true -> pair(remaining, remaining) false -> remaining }
+            state pair(left: u32 [0..=9], right: u32 [0..=9]) {
+                transition left > 0 { true -> self.step(right) false -> left }
+            }
+        }
+        machine Main::step(&mut self, n: u32 [0..=9])
+        terminates by n in 0..=9;
+        -> u32 {
+            transition n > 0 { true -> self.count(n - 1) false -> n }
+        }";
+    assert_eq!(admitted(&typed_source(source)).len(), 1);
+    // A copy that actually diverged at the arrival is not kept as a carrier:
+    // the computed claimant demotes and the unproven transported rank rejects.
+    let diverged = source.replace(
+        "pair(remaining, remaining)",
+        "pair(remaining, remaining + 1)",
+    );
+    assert!(admitted(&typed_source(&diverged)).is_empty());
+}
+
+#[test]
+fn mixed_component_conserves_endpoints_through_internal_sites() {
+    // `hold(pending, bound)` carries the ranked input and the authored ceiling;
+    // the unranged member must transport that exact endpoint back.
+    let source = "data Main {}
+        machine Main::outer(&mut self, cap: u64, remaining: u64)
+        requires remaining <= cap;
+        terminates by remaining in 0..=cap;
+        -> u64 {
+            transition remaining > 0 { true -> hold(remaining, cap) false -> remaining }
+            state hold(pending: u64, bound: u64) {
+                transition pending > 0 && pending <= bound {
+                    true -> self.inner(pending, bound)
+                    false -> pending
+                }
+            }
+        }
+        machine Main::inner(&mut self, n: u64, limit: u64)
+        requires n <= limit;
+        terminates by n;
+        -> u64 {
+            transition n > 0 { true -> self.outer(limit, n - 1) false -> n }
+        }";
+    assert_eq!(admitted(&typed_source(source)).len(), 1);
+    // An actual that is not the carried endpoint cannot pin the authored
+    // ceiling, even when it is spelled from the same carrier.
+    let moved = source.replace(
+        "self.inner(pending, bound)",
+        "self.inner(pending, bound + 1)",
+    );
+    assert!(admitted(&typed_source(&moved)).is_empty());
+    let renamed = source.replace("self.inner(pending, bound)", "self.inner(pending, pending)");
+    assert!(admitted(&typed_source(&renamed)).is_empty());
+}
+
+#[test]
 fn ranged_call_uses_each_authored_telescope_and_classifies_weak_edges() {
     let program = typed_source(RANGED);
     assert_eq!(

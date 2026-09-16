@@ -5,10 +5,10 @@ use super::super::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
 };
 use super::{
-    BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
-    PrimitiveType, RankingRangeMeasure, State, TypedTrees, collect_guard, entry_comparisons,
-    exact_integer_parameter, integer_bindings, lengths, meanings, parameter_comparisons,
-    projections, validate_mapping,
+    BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
+    Polynomial, PrimitiveType, RankingRangeMeasure, State, TypedTrees, collect_guard,
+    entry_comparisons, exact_integer_parameter, integer_bindings, lengths, meanings,
+    parameter_comparisons, projections, validate_mapping,
 };
 use symbols::SymbolHandle;
 mod endpoint_pins;
@@ -175,8 +175,8 @@ pub(crate) fn prove_ranking_range_call(
         admit_source(*argument)?;
     }
     let at_entry = source.symbol == entry.symbol;
-    let bindings = if at_entry {
-        integer_bindings(program, source)?
+    let (bindings, mut carrier_equalities) = if at_entry {
+        (integer_bindings(program, source)?, Vec::new())
     } else {
         validate_mapping(
             program,
@@ -202,9 +202,10 @@ pub(crate) fn prove_ranking_range_call(
     if !at_entry {
         // The ranked slice subject stays entry-spelled: alias its entry
         // parameter to the site carrier's length atom.
-        for (symbol, identity) in
-            telescoped_length_bindings(program, source, caller_site.entry_parameters)
-        {
+        let (roles, equalities) =
+            telescoped_length_bindings(program, source, caller_site.entry_parameters);
+        carrier_equalities.extend(equalities);
+        for (symbol, identity) in roles {
             if !length_bindings.iter().any(|(bound, _)| *bound == symbol) {
                 length_bindings.push((symbol, identity));
             }
@@ -246,6 +247,7 @@ pub(crate) fn prove_ranking_range_call(
         // constrained-type facts still hold on every arrival.
         parameter_comparisons(program, caller.machine, source, &mut engine, &bindings)?
     };
+    comparisons.extend(carrier_equalities);
     comparisons.extend(length_bindings.iter().map(|(_, identity)| {
         (
             BinaryOperator::GreaterOrEqual,
@@ -494,15 +496,19 @@ fn rank_coordinate(engine: &mut Engine<'_>, measure: RankingRangeMeasure) -> Opt
 }
 
 /// Site-scoped arithmetic atoms. Every site formal keeps its own binding;
-/// each uniquely carried entry role additionally binds to that carrier's atom,
-/// so entry-spelled expressions normalize to the value the site holds. A
-/// duplicated role has no single carrier and stays unbound.
+/// each carried entry role additionally binds to its first carrier's atom, so
+/// entry-spelled expressions normalize to the value the site holds. A role
+/// with several carriers denotes copies the telescope kept only because every
+/// arrival forwarded a bare name — a contested computed claim demotes before
+/// reaching this judgment — so the extra carriers hold that same value and
+/// contribute an explicit equality hypothesis rather than a second binding.
 fn telescoped_bindings(
     program: &TypedTrees,
     state: &State,
     entry_parameters: &[SymbolHandle],
-) -> Option<Vec<StrictArithmeticSymbolBinding>> {
+) -> Option<(Vec<StrictArithmeticSymbolBinding>, Vec<Comparison>)> {
     let mut bindings = integer_bindings(program, state)?;
+    let mut equalities = Vec::new();
     let formals = program
         .state_parameters(state)
         .iter()
@@ -512,13 +518,7 @@ fn telescoped_bindings(
         return None;
     }
     for (formal, role) in formals.iter().zip(entry_parameters) {
-        if !role.is_valid()
-            || entry_parameters
-                .iter()
-                .filter(|candidate| **candidate == *role)
-                .count()
-                != 1
-        {
+        if !role.is_valid() {
             continue;
         }
         let Some(binding) = bindings
@@ -530,6 +530,22 @@ fn telescoped_bindings(
         let StrictArithmeticBindingValue::Atom { identity, unsigned } = &binding.value else {
             continue;
         };
+        if let Some(existing) = bindings.iter().find(|binding| binding.symbol == *role) {
+            let StrictArithmeticBindingValue::Atom {
+                identity: existing, ..
+            } = &existing.value
+            else {
+                return None;
+            };
+            if *existing != *identity {
+                equalities.push((
+                    BinaryOperator::Equal,
+                    Polynomial::atom(existing.clone()),
+                    Polynomial::atom(identity.clone()),
+                ));
+            }
+            continue;
+        }
         bindings.push(StrictArithmeticSymbolBinding {
             symbol: *role,
             value: StrictArithmeticBindingValue::Atom {
@@ -538,41 +554,48 @@ fn telescoped_bindings(
             },
         });
     }
-    Some(bindings)
+    Some((bindings, equalities))
 }
 
 /// The same role aliasing applied to produced length coordinates: each carried
-/// entry role of a slice-typed site formal binds the site's length atom. Like
-/// the scalar carrier rule, a duplicated role has no single slice to measure
-/// and stays unbound rather than guessing between two arrival copies.
+/// entry role of a slice-typed site formal binds its first carrier's length
+/// atom, and the remaining carriers contribute equalities between their length
+/// coordinates. A copied collection keeps the same produced length; a windowed
+/// or diverging claimant was already demoted by discovery.
 fn telescoped_length_bindings(
     program: &TypedTrees,
     state: &State,
     entry_parameters: &[SymbolHandle],
-) -> Vec<(SymbolHandle, String)> {
+) -> (Vec<(SymbolHandle, String)>, Vec<Comparison>) {
     let bindings = lengths::bindings(program, state, None);
-    program
+    let mut roles: Vec<(SymbolHandle, String)> = Vec::new();
+    let mut equalities = Vec::new();
+    for (formal, role) in program
         .state_parameters(state)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .zip(entry_parameters)
-        .filter_map(|(formal, role)| {
-            if !role.is_valid()
-                || entry_parameters
-                    .iter()
-                    .filter(|candidate| **candidate == *role)
-                    .take(2)
-                    .count()
-                    != 1
-            {
-                return None;
+    {
+        if !role.is_valid() {
+            continue;
+        }
+        let Some((_, identity)) = bindings.iter().find(|(symbol, _)| *symbol == formal.symbol)
+        else {
+            continue;
+        };
+        if let Some((_, existing)) = roles.iter().find(|(symbol, _)| *symbol == *role) {
+            if *existing != *identity {
+                equalities.push((
+                    BinaryOperator::Equal,
+                    Polynomial::atom(existing.clone()),
+                    Polynomial::atom(identity.clone()),
+                ));
             }
-            let (_, identity) = bindings
-                .iter()
-                .find(|(symbol, _)| *symbol == formal.symbol)?;
-            Some((*role, identity.clone()))
-        })
-        .collect()
+            continue;
+        }
+        roles.push((*role, identity.clone()));
+    }
+    (roles, equalities)
 }
 
 fn scalar_entry<'program>(
