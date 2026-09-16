@@ -211,9 +211,6 @@ pub(crate) fn validate(
                 }
             }
             CheckedStructuralValueKind::Call { source_call } => {
-                if selection.is_some() && projected_leaf.is_none() {
-                    return unsupported("selected ownership mixes fresh and existing obligations");
-                }
                 if !checked.facts.flow.control.calls.is_valid(source_call) {
                     return unsupported("record operand call coordinate is stale");
                 }
@@ -234,12 +231,27 @@ pub(crate) fn validate(
                     coordinate,
                     target_state,
                     result: returned,
+                    structural_arguments,
                     discard_result_on_return: false,
                     ..
                 } = retained.operation()
                 else {
                     return unsupported("structural operand is not an ordinary owned result call");
                 };
+                // Under a selection a call arm may only contribute a fresh
+                // product: an owned structural argument would move a source's
+                // custody inside one arm without a transfer the receipt names.
+                // The projection-root lane is exempt because its call supplies
+                // the moved child's once-evaluated root, and its own argument
+                // custody is admitted by the call's independent checks.
+                if selection.is_some()
+                    && projected_leaf.is_none()
+                    && structural_arguments.iter().any(|argument| {
+                        argument.access == checked_trees::CheckedStructuralAccess::Owned
+                    })
+                {
+                    return unsupported("selected ownership mixes fresh and existing obligations");
+                }
                 let exact = crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
                     checked,
                     machine,

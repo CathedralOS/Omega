@@ -263,6 +263,16 @@ fn plain_local_owner_selection(
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             projected_plain_owned_source(program, machine, state, expression)
         }
+        // A call's structural product is a fresh independently-owned arm
+        // value: its declared return type carries the plain-affine custody the
+        // selection join consumes at the destination. Any owned input the
+        // call would move stays rejected by the branch-local transfer check
+        // above and by owned-selection receipt construction.
+        ExpressionNode::Call(_) => declared_value_type(program, machine, state, expression)
+            .is_some_and(|reference| {
+                program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
+                    && crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+            }),
         _ => false,
     }
 }
@@ -417,8 +427,9 @@ fn result_needs_custody_join(
     // A selected constructor establishes its result once at the destination.
     // Plain owned contents exclude loans, linear debt and nominal cleanup; each
     // child still has to supply fresh construction or an unrestricted value.
-    // Thus an affine constructor needs no predecessor-owned input join, while
-    // selecting an existing affine place or an owned call result still does.
+    // Thus an affine constructor needs no predecessor-owned input join, and a
+    // call's structural product is equally fresh at the result boundary, while
+    // selecting an existing affine place still joins predecessor custody.
     match program.expression_table.expression(value) {
         ExpressionNode::Borrow(_) => true,
         ExpressionNode::Match(dispatch) => program
@@ -436,6 +447,11 @@ fn result_needs_custody_join(
             .expression_handles(*elements)
             .iter()
             .any(|element| result_needs_custody_join(program, machine, state, *element)),
+        // A call product is a fresh owned result, never a join of
+        // predecessor custody: any owned input it moves is the call's own
+        // transfer obligation, which the branch-local transfer check still
+        // rejects independently.
+        ExpressionNode::Call(_) => false,
         _ => reference.is_some_and(|reference| {
             program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted
                 && fresh_payloadless_case(program, value, reference).is_none()

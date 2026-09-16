@@ -1,0 +1,53 @@
+// PASS canary: an owned match arm may evaluate a fresh structural call
+// product while a sibling arm moves an existing affine local. The call runs
+// only on its own arm; each selected edge transports the exact owner and
+// discards the displaced source's residuals.
+
+data Payload { left: u64; right: u64; }
+data Pair { first: Payload; second: Payload; }
+
+machine supply(first: u64, second: u64) -> Pair {
+    Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    }
+}
+
+machine choose(selected: bool, first: u64, second: u64) -> u64 {
+    let pair: Pair = Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    };
+    let result: Pair = match selected {
+        true -> supply(first ^ 3, second ^ 5),
+        false -> pair
+    };
+    result.first.left ^ result.second.left
+}
+
+machine pick(selected: bool, first: u64, second: u64) -> u64 {
+    let result: Pair = match selected {
+        true -> supply(first, second),
+        false -> supply(second ^ 7, first ^ 11)
+    };
+    result.first.left ^ result.second.left
+}
+
+machine provide(first: u64, second: u64) -> Payload {
+    Payload { left: first, right: second }
+}
+
+machine gather(selected: bool, first: u64, second: u64) -> u64 {
+    let pair: Pair = Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    };
+    let result: Pair = match selected {
+        true -> Pair {
+            first: provide(first ^ 1, second),
+            second: provide(second ^ 4, first ^ 2)
+        },
+        false -> pair
+    };
+    result.first.left ^ result.second.left
+}

@@ -85,6 +85,26 @@ pub(super) fn is_record_value(
                                 == program.normalized_type_identity(referent)
                         })
                 }) => {}
+            ExpressionNode::Call(call) => {
+                // A call's structural product is a fresh owned arm value: the
+                // builder admits it under the same exact return-type and
+                // plain-custody rule it checks when constructing the node.
+                let Some(returned) =
+                    crate::flow::call_target_return_type(program, call.target_symbol)
+                else {
+                    return false;
+                };
+                if program.normalized_type_identity(returned)
+                    != program.normalized_type_identity(expected)
+                    || !(validation::has_plain_owned_contents_with_numeric_constraints(
+                        program, returned,
+                    ) || validation::reference_result_custody::is_reference_record(
+                        program, returned,
+                    ))
+                {
+                    return false;
+                }
+            }
             ExpressionNode::Match(dispatch) => {
                 let arms = program.expression_table.match_arms(dispatch.arms);
                 if arms.is_empty() {

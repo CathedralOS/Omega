@@ -350,6 +350,14 @@ fn execute(
     source: &str,
     arguments: &[TerminalScalarValue],
 ) -> (TerminalModule, MeasuredTerminalExecution) {
+    execute_machine(source, "choose", arguments)
+}
+
+fn execute_machine(
+    source: &str,
+    machine_name: &str,
+    arguments: &[TerminalScalarValue],
+) -> (TerminalModule, MeasuredTerminalExecution) {
     let checked =
         check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
     for machine in checked.machines() {
@@ -359,7 +367,7 @@ fn execute(
             "dispatch does not manufacture source states"
         );
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine_name)
         .unwrap_or_else(|error| panic!("lowering {source}: {error:#?}"));
     let semantic_bytes =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");

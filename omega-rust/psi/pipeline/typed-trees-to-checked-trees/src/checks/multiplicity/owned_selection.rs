@@ -578,10 +578,35 @@ fn collect_leaves(
         ExpressionNode::StructLiteral(_) if source_arm.is_valid() => {
             fresh_leaf(program, machine, state, expression, type_reference)
         }
+        ExpressionNode::Call(call) if source_arm.is_valid() => {
+            // A call's structural product is a fresh arm value: it carries no
+            // roster leaf and no transfer, but its argument operands obey the
+            // same hidden-ownership rules as fresh construction fields, and a
+            // receiver or non-unrestricted parameter would move custody the
+            // receipt cannot name.
+            if call.receiver.is_valid() || !call_moves_no_ownership(program, call) {
+                return Err(unsupported());
+            }
+            let operands = program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .flat_map(|argument| expression_nodes(program, *argument))
+                .collect::<Vec<_>>();
+            hidden_ownership_operands(
+                program,
+                machine,
+                state,
+                &operands,
+                "owned match call arguments require unrestricted operands without hidden ownership transfers",
+            )
+        }
         ExpressionNode::Match(dispatch) => {
             // Selection predicates cannot introduce ownership effects hidden
             // outside the selected value graph. Scalar calls need their own
-            // captured effect/loan sequence before joining this route.
+            // captured effect/loan sequence before joining this route, so a
+            // predicate call stays rejected even when its arguments move no
+            // ownership.
             let mut operands = expression_nodes(program, dispatch.subject);
             for (_, arm) in reachable_arms(program, dispatch.arms) {
                 if let MatchPattern::Value(pattern) = arm.pattern {
@@ -680,15 +705,55 @@ fn fresh_leaf(
         .into_iter()
         .flat_map(|value| expression_nodes(program, value))
         .collect::<Vec<_>>();
-    if operands.iter().any(|operand| {
-        matches!(
-            program.expression_table.expression(*operand),
-            ExpressionNode::Call(_) | ExpressionNode::Borrow(_) | ExpressionNode::Atomic(_)
+    hidden_ownership_operands(
+        program,
+        machine,
+        state,
+        &operands,
+        "owned match fresh fields require unrestricted operands without hidden ownership transfers",
+    )
+}
+
+/// A call moves no selection custody when it carries no receiver and every
+/// target parameter is unrestricted: its product is then fresh owned storage
+/// and its arguments cannot smuggle an owned leaf the receipt does not name.
+/// An unresolvable target conservatively counts as a transfer.
+fn call_moves_no_ownership(
+    program: &typed_trees::TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> bool {
+    !call.receiver.is_valid()
+        && crate::semantic_calls::call_target_parameters(program, call.target_symbol).is_some_and(
+            |parameters| {
+                parameters.iter().all(|parameter| {
+                    program.type_multiplicity(parameter.type_reference)
+                        == Multiplicity::Unrestricted
+                })
+            },
         )
-    }) {
+}
+
+/// The hidden-ownership operand rule shared by fresh arm constructions and
+/// fresh call arguments. A call operand stays admissible only while it moves
+/// no custody itself; borrows, atomics, custody-moving calls, and named owned
+/// operands all keep their explicit rejections.
+fn hidden_ownership_operands(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    operands: &[ExpressionHandle],
+    message: &str,
+) -> Result<(), Diagnostic> {
+    if operands.iter().any(
+        |operand| match program.expression_table.expression(*operand) {
+            ExpressionNode::Call(call) => !call_moves_no_ownership(program, call),
+            ExpressionNode::Borrow(_) | ExpressionNode::Atomic(_) => true,
+            _ => false,
+        },
+    ) {
         return Err(unsupported());
     }
-    let tag_operands = case_tag_operands(program, machine, state, &operands);
+    let tag_operands = case_tag_operands(program, machine, state, operands);
     if operands.iter().any(|operand| {
         matches!(
             program.expression_table.expression(*operand),
@@ -699,9 +764,7 @@ fn fresh_leaf(
                     program.type_multiplicity(reference) != Multiplicity::Unrestricted
                 })
     }) {
-        return Err(Diagnostic::error(
-            "owned match fresh fields require unrestricted operands without hidden ownership transfers",
-        ));
+        return Err(Diagnostic::error(message));
     }
     Ok(())
 }

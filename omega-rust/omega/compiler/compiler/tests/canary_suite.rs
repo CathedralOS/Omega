@@ -357,6 +357,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "expressions/numeric_operand_destinations",
     "expressions/match_anonymous_result_landing",
     "expressions/match_ordered_duplicate_patterns",
+    "expressions/owned_match_call_values",
     "expressions/owned_match_mixed_values",
     "expressions/owned_match_parameter_values",
     "expressions/owned_match_projected_field",
