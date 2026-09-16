@@ -65,21 +65,14 @@ pub struct ConstInitializerNormalization {
 /// Transitional bootstrap representation for the former magic
 /// `Binding::Case(...)` parser. Durable source uses an ordinary `via`
 /// expression and evaluates the compiler-owned closed `Binding` data sum.
-/// Keeping this enum separate makes every remaining string-backed site
-/// mechanically visible until migration removes it. The parser no longer
-/// produces `DllImport`: the variant is retained only until the downstream
-/// `ExternalBindingIdentity::Import` and `StringBackedImportBootstrap`
-/// carriers are removed, exactly as `VtableSlot` survived its own
-/// authored-spelling retirement.
+/// The string-backed `DllImport` variant is removed entirely: authored
+/// imports evaluate the compiler-owned `Binding::DllImport` value through a
+/// `via` producer machine, while `VtableSlot` still survives its own
+/// authored-spelling retirement for decoded artifacts and snapshots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExternalBinding {
     /// Linux's stable ABI is the number table: `Binding::Syscall(1)`.
     Syscall { number: i64 },
-    /// Retired string carrier for Windows DLL exports, retained for snapshots
-    /// and decoded rows until the downstream `ExternalBindingIdentity::Import`
-    /// carrier is removed. Authored imports now evaluate the compiler-owned
-    /// `Binding::DllImport` value through a `via` producer machine.
-    DllImport { module: String, symbol: String },
     /// Compiler-known target operation. The resolved realization symbol,
     /// normalized signature, and target key the sealed lowering catalog.
     CompilerIntrinsic,

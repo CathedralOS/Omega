@@ -106,11 +106,7 @@ impl<'a> Reviewer<'a> {
                     mechanism,
                 )?;
             }
-            ProviderBinding::StringBackedImportBootstrap { .. } => {
-                return Err(format!(
-                    "selected requirement `{requirement}` retains a string-backed import with no terminal identity"
-                ));
-            }
+            ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
             ProviderBinding::VtableSlot { .. } => {
                 return Err(format!(
                     "selected requirement `{requirement}` uses the unsupported vtable-slot terminal role"
