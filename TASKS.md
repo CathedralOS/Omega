@@ -384,7 +384,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/` and
-  `validation/src/call_cycles/runtime_ranking/`.
+  `validation/src/machine_calls/call_cycles/runtime_ranking.rs`.
   Transfers with diverging copies of rank inputs, and call components with
   internal state arrivals, or slice-length,
   bounded-distance, or custom views need
@@ -462,9 +462,15 @@ do not claim a faster compiler from a smaller helper alone.
   construction, borrow-resource replay, statement borrows, and range
   checking, cutting builds to 18 (~16.6s, ~34s of repeated work removed,
   ~5% of the checked stage). Crash-guard positive/negative outcomes for
-  parameters, locals and fields are preserved. Remaining candidates for a
-  follow-up slice: `CallFrameResolver` is still rebuilt in ~20 check-pass
-  sites (its per-call-site frame caches restart cold each time), and
+  parameters, locals and fields are preserved. Slice landed at
+  `5521383c54`: `CallFrameResolver` is built once per immutable check
+  window (`facts.rs` threads one resolver through flow classification,
+  terminal ranking, termination progress and crash-route refinement;
+  `finalize_execution.rs`/`selected_execution.rs` build a fresh one after
+  the typed-program mutation) instead of ~20 reconstructions; whole-route
+  `omega --check` on `terminal_psi/integer_control_contract` stayed at a
+  4.90s median over 8 debug runs, so that slice removed rebuild work
+  without a measurable route speedup. Remaining candidate:
   `validate_specialized_program`/`build_flow_facts` dominate the stage.
   Acceptance: compare unchanged whole-route inputs with repeated release/debug timings,
   remove material repeated work through existing typed ownership/type facts
@@ -2150,9 +2156,20 @@ Owners include
   replays the declared 10-byte pseudo-descriptor operand against the exact
   established destination before minting; the answer accounts the operand
   read, the `r10` scratch clobber, and the installed descriptor-table
-  register state on a published answer. Remaining acceptance:
-  descriptor-table byte materialization and consumer gate/selector/IST
-  validation, the timer device source, and the QEMU tick/halt surface.
+  register state on a published answer. Landed at b0debb7ae2: each
+  `InterruptTableMemberPlan` carries the consumer's declared gate
+  descriptor (code selector, gate kind, entry privilege, IST slot), the
+  complete ledger derives the checked post-handoff writer that resolves
+  each member's sealed entry target into the gate's three offset fragments
+  over a staged image carrying only declared constant fields, and
+  `InterruptTableLedger::validate_written_descriptor_table` replays the
+  produced bytes against that writer and installed realization, checks
+  selector/IST/attribute/reserved-zero fields and zero fill, joins each IST
+  slot through the installed TSS to its declared critical stack class, and
+  only then mints the established table (macOS ARM64, 202 `external-roots`
+  library tests). Remaining acceptance: the timer device source and the
+  QEMU tick/halt surface, which are Cathedral-owned package code over the
+  installed-root and table custody above, not compiler types.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish unresolved-requirement fences for
   component contracts and the final carrier-owned invocation route. Concrete
