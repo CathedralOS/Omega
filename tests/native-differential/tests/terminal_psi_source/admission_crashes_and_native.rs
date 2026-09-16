@@ -280,7 +280,9 @@ fn interpreted_terminal_source_matches_target_lowering() {
         .expect("verified source-produced terminal Psi should start");
     let mut meter = TerminalFuelMeter::with_allowance(3);
     assert_eq!(
-        execution.resume(&mut meter).unwrap(),
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
@@ -289,7 +291,10 @@ fn interpreted_terminal_source_matches_target_lowering() {
         })
     );
     meter.replenish(1).unwrap();
-    let _interpreted = match execution.resume(&mut meter).unwrap() {
+    let _interpreted = match execution
+        .resume(&mut meter, &mut AcceptTerminalEffects)
+        .unwrap()
+    {
         TerminalExecutionStatus::Complete(value) => value,
         TerminalExecutionStatus::SponsorExhausted(_) => {
             panic!("one replenished unit should complete the source canary")
