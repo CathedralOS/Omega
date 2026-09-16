@@ -6,11 +6,12 @@
 //! representations. It contains no checking pass, target realization, or
 //! backend policy.
 //!
-//! The root re-exports the shared vocabulary. `permissions.rs` names
-//! ownership events, `external_bindings.rs` interns external bindings,
-//! `machine_termination.rs` carries supply modes and termination plans,
-//! `service_reach.rs` the operational interfaces and reach tables,
-//! `semantic_domains.rs` the domain table and roles, and
+//! Start at `semantic_identities.rs`, the interned identities the tables key
+//! on; every other folder holds one vocabulary. `permissions` names
+//! ownership events, `external_bindings` interns external bindings,
+//! `machine_termination` carries supply modes and termination plans,
+//! `service_reach` the operational interfaces and reach tables,
+//! `semantic_domains` the domain table and roles, and
 //! `semantic_identities.rs` the interned identities. The public modules hold
 //! the larger vocabularies: byte predicates, const values, content,
 //! declaration selection, quotient correspondence, type identity, value
