@@ -1,0 +1,37 @@
+// A named range endpoint may call a machine whose parameter and result carry
+// a declared integer domain. The endpoint route proves the concrete
+// argument's membership through the shared domain-fact evaluator before the
+// callee runs, and the returned value's membership before folding, so the
+// callee keeps `u64 in Positive` instead of being stripped to `u64`.
+use omega_language_std::console;
+use omega::language::core::service;
+
+domain u64::Positive
+requires
+    self > 0;
+domain u64::BufferSize
+requires
+    self in Positive;
+    self <= 512;
+
+machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+machine bounded(value: u64 in Positive) -> u64 in Positive { value }
+machine sized(value: u64 in BufferSize) -> u64 { value }
+machine identity(value: u64) -> u64 { value }
+
+machine positive_argument(value: u64[0..=bounded(256)]) -> u64 { upper_bound(value) }
+machine nested_positive(value: u64[0..bounded(identity(257))]) -> u64 { upper_bound(value) }
+machine nested_domain(value: u64[0..=sized(512)]) -> u64 { upper_bound(value) }
+
+data Main { console: Service<Console> in Bound; }
+machine Main::main(&mut self) reaches Console {
+    let positive: u64 = positive_argument(0);
+    let nested: u64 = nested_positive(0);
+    let sized_bound: u64 = nested_domain(0);
+    transition positive == 256 && nested == 256 && sized_bound == 512 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

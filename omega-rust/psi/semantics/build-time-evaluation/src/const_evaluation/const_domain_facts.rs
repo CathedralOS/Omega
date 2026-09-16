@@ -19,6 +19,7 @@ use crate::BuildTimeAdmissionPlan;
 mod fact_expression;
 mod membership;
 
+pub(in crate::const_evaluation) use membership::evaluate_closed_membership;
 use membership::evaluate_membership;
 
 struct PendingMembership {

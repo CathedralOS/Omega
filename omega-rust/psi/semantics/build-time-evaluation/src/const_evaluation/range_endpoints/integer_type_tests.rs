@@ -3,6 +3,7 @@ use super::{
     ExpressionNode, TypeConstraintNode, TypeReferenceHandle, TypedTrees,
     evaluate_const_range_endpoints,
 };
+use crate::BuildTimeAdmissionPlan;
 use numerics::bignum::BigInt;
 use typed_trees::types::TypeReferenceNode;
 
@@ -51,17 +52,20 @@ fn closed_range_positions_keep_full_width_and_empty_boundaries() {
         ),
     ] {
         let program = typed(&format!("machine endpoint(value: {parameter}) {{}}"));
+        let admission = BuildTimeAdmissionPlan::infer(&program, None);
         let position =
             IntegerPosition::prepare(&program, &program, parameter_type(&program, 0), None)
                 .unwrap_or_else(|error| panic!("{parameter}: {error}"));
         for value in accepted {
             position
-                .require_value(&value)
+                .require_value(&program, &admission, &value)
                 .unwrap_or_else(|error| panic!("{parameter} <- {value}: {error}"));
         }
         for value in rejected {
             assert!(
-                position.require_value(&value).is_err(),
+                position
+                    .require_value(&program, &admission, &value)
+                    .is_err(),
                 "{parameter} <- {value}"
             );
         }
@@ -84,16 +88,76 @@ fn every_range_shell_contributes_to_value_admission() {
             base_type: first,
             constraints,
         });
+    let admission = BuildTimeAdmissionPlan::infer(&program, None);
     let position = IntegerPosition::prepare(&program, &program, combined, None).unwrap();
     for value in [3, 5] {
-        position.require_value(&BigInt::from_i64(value)).unwrap();
+        position
+            .require_value(&program, &admission, &BigInt::from_i64(value))
+            .unwrap();
     }
     for value in [0, 2, 6, 7, 10] {
         assert!(
-            position.require_value(&BigInt::from_i64(value)).is_err(),
+            position
+                .require_value(&program, &admission, &BigInt::from_i64(value))
+                .is_err(),
             "{value}"
         );
     }
+}
+
+#[test]
+fn declared_domain_positions_prove_membership_of_the_concrete_value() {
+    // A declared integer domain is a refinement of the same carrier: the
+    // concrete value is proved through the shared domain-fact evaluator, and a
+    // nested membership fact composes the same way. Failure names the domain,
+    // not the stripped carrier.
+    for (parameter, accepted, rejected) in [
+        ("u64 in Positive", vec![1, 8, 9], vec![0]),
+        ("u64 in BufferSize", vec![1, 8], vec![0, 9]),
+    ] {
+        let program = typed(&format!(
+            "domain u64::Positive requires self > 0;
+             domain u64::BufferSize requires self in Positive; self <= 8;
+             machine endpoint(value: {parameter}) {{}}"
+        ));
+        let admission = BuildTimeAdmissionPlan::infer(&program, None);
+        let position =
+            IntegerPosition::prepare(&program, &program, parameter_type(&program, 0), None)
+                .unwrap_or_else(|error| panic!("{parameter}: {error}"));
+        assert!(position.has_domains(), "{parameter}");
+        for value in accepted {
+            position
+                .require_value(&program, &admission, &BigInt::from_i64(value))
+                .unwrap_or_else(|error| panic!("{parameter} <- {value}: {error}"));
+        }
+        for value in rejected {
+            let error = position
+                .require_value(&program, &admission, &BigInt::from_i64(value))
+                .expect_err(parameter);
+            assert!(
+                error.contains("is outside domain `")
+                    && (error.contains("`Positive`") || error.contains("`BufferSize`")),
+                "{parameter} <- {value}: {error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn domain_positions_report_the_evaluator_boundary_instead_of_truncating() {
+    // The domain-fact evaluator stores i64; a wider unsigned value must be
+    // reported as unprovable here, never wrapped into a signed member.
+    let program = typed(
+        "domain u64::Positive requires self > 0;
+         machine endpoint(value: u64 in Positive) {}",
+    );
+    let admission = BuildTimeAdmissionPlan::infer(&program, None);
+    let position =
+        IntegerPosition::prepare(&program, &program, parameter_type(&program, 0), None).unwrap();
+    let error = position
+        .require_value(&program, &admission, &BigInt::from_u64(u64::MAX))
+        .expect_err("value beyond the evaluator's signed boundary");
+    assert!(error.contains("signed integer boundary"), "{error}");
 }
 
 #[test]

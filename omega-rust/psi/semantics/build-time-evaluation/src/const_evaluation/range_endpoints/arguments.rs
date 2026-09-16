@@ -3,8 +3,9 @@
 //! The raw interpreter entry can coerce values; it is not a source type checker.
 //! Keep exact parameter identity and each argument's existing carrier here so
 //! folding an ignored argument cannot hide a bad conversion. Closed range
-//! refinements check every bound against the concrete value before invocation;
-//! nominal and policy qualifications cannot enter by base-type stripping.
+//! refinements and declared integer domains check the concrete value before
+//! invocation through the admission plan's fact evaluator; policy
+//! qualifications cannot enter by base-type stripping.
 //! The shared context-free numeric query rejects owner-dependent
 //! operations rather than evaluating them in the endpoint callee's scope.
 
@@ -16,11 +17,12 @@ use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
 };
 
-use crate::{BuildTimeSelectionAuthority, BuildTimeValue};
+use crate::{BuildTimeAdmissionPlan, BuildTimeSelectionAuthority, BuildTimeValue};
 
 pub(super) fn evaluate(
     program: &TypedTrees,
     original: &TypedTrees,
+    admission: &BuildTimeAdmissionPlan,
     expression: ExpressionHandle,
     machine: SymbolHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
@@ -80,7 +82,11 @@ pub(super) fn evaluate(
         else {
             return Err("range endpoint argument did not produce an integer".to_owned());
         };
-        position.require_value(&numerics::bignum::BigInt::from_i128(value))?;
+        position.require_value(
+            original,
+            admission,
+            &numerics::bignum::BigInt::from_i128(value),
+        )?;
         let bits = if destination.is_signed_integer() {
             i64::try_from(value)
                 .map_err(|_| "range endpoint argument exceeds signed interpreter storage")?

@@ -209,6 +209,23 @@ impl BuildTimeAdmissionPlan {
         closure_validation::closure_has_authored_requires(&self.call_edges, program, machine.symbol)
     }
 
+    /// Whether the only authored `requires` premises in `machine`'s call
+    /// closure are parameter-domain premises on `machine`'s own states. A
+    /// caller that has proved each concrete argument's membership in its
+    /// parameter's declared domain may then use the concrete-premise
+    /// invocation; any other premise keeps the conservative closure fence.
+    pub(crate) fn closure_requires_are_entry_parameter_domains(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+    ) -> bool {
+        closure_validation::closure_requires_are_root_parameter_domains(
+            &self.call_edges,
+            program,
+            machine.symbol,
+        )
+    }
+
     fn require_floor(
         &self,
         program: &TypedTrees,
