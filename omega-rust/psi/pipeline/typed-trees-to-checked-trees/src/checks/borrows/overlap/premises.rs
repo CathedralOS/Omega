@@ -207,7 +207,7 @@ fn premise_orientation_proves(
         // `d1 <= d2 + 1`, and `L + d1 < R + d2` already when `d1 <= d2`.
         (Relation::StrictlyBefore, Relation::LessOrEqual) => right_shift
             .checked_add(1)
-            .map_or(true, |bound| left_shift <= bound),
+            .is_none_or(|bound| left_shift <= bound),
         (Relation::StrictlyBefore, Relation::StrictlyBefore) => left_shift <= right_shift,
         (Relation::StrictlyBefore, Relation::Equal) => false,
         // `L == R` shifts either endpoint by the same constant in every

@@ -111,15 +111,15 @@ pub fn evaluate_const_machine_measured(
     })
 }
 
-/// STRUCTURED build-time evaluation (wiki/spec/language/evaluation.md;
-/// the R2 layouts enabler): invoke the effect-free machine `machine_name`
-/// with compiler-built arguments and read back its terminal value as a
-/// structured tree. As with [`evaluate_const_machine`], the CALLER owns the
-/// legality gate (decision 12's transitive effect surface must be empty and
-/// parameters must be by-value); this entry owns evaluation, positional
-/// argument binding (count-checked), and the evaluator-step ceiling. No keyword
-/// marks build-time machines -- the position makes the evaluation build-time,
-/// and the effect system makes it legal.
+// STRUCTURED build-time evaluation (wiki/spec/language/evaluation.md;
+// the R2 layouts enabler): invoke the effect-free machine `machine_name`
+// with compiler-built arguments and read back its terminal value as a
+// structured tree. As with [`evaluate_const_machine`], the CALLER owns the
+// legality gate (decision 12's transitive effect surface must be empty and
+// parameters must be by-value); this entry owns evaluation, positional
+// argument binding (count-checked), and the evaluator-step ceiling. No keyword
+// marks build-time machines -- the position makes the evaluation build-time,
+// and the effect system makes it legal.
 
 /// Which build-time machine an evaluation runs.
 #[derive(Clone, Copy, Debug)]
