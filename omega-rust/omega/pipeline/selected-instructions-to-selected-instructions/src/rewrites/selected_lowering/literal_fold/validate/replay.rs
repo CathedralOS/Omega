@@ -265,6 +265,22 @@ fn reconstruct_action(
             rows.xor_zero,
             MachineSemanticKind::CopyI64,
         ),
+        // The wrapping-add identity fold: a literal of exactly zero at
+        // either `Use` folds `WrappingAddI64` into a `CopyI64` of the other
+        // `Use` — `x + 0` and `0 + x` are both `x` modulo 2^64 — bound to
+        // the `CopyI64` row the wrapping-add-zero policy's own gate
+        // selected. The surviving `Use` binds the rewritten row's
+        // operand-0 `Use` position. The recorded operand position picks
+        // the grammar.
+        SelectedInstructionKind::WrappingAddI64 => (
+            if future_use.operand == 0 {
+                SourceShape::WrappingAddZeroLeft
+            } else {
+                SourceShape::WrappingAddZero
+            },
+            rows.wrapping_add_zero,
+            MachineSemanticKind::CopyI64,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -339,6 +355,20 @@ fn reconstruct_action(
         // computation the replay must not admit. The recorded immediate
         // is the folded literal itself, unused by the `CopyI64` rebuild.
         SourceShape::XorZero | SourceShape::XorZeroLeft => {
+            if literal_u64 != 0 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
+        }
+        // The wrapping-add fold is the identity only when the folded
+        // literal is exactly zero — zero is the additive identity element
+        // under modulo-2^64 wrap at either `Use` position; any other
+        // literal is a different computation the replay must not admit.
+        // The recorded immediate is the folded literal itself, unused by
+        // the `CopyI64` rebuild.
+        SourceShape::WrappingAddZero | SourceShape::WrappingAddZeroLeft => {
             if literal_u64 != 0 {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
@@ -539,6 +569,45 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
+        // The wrapping-add identity grammar: `[surviving, victim, result]`
+        // folds the operand-1 `Use`; the operand-0 `Use` survives and binds
+        // the `CopyI64` row's `Use` position. The consumer carries exactly
+        // three operands — an operand past the `Def` result has no
+        // droppable role under this grammar.
+        (SourceShape::WrappingAddZero, [left, right, result]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The commuted wrapping-add identity grammar: `[victim, surviving,
+        // result]` folds the operand-0 `Use`; the operand-1 `Use` survives
+        // into the `CopyI64` row's `Use` position because wrapping
+        // addition commutes — `0 + x` is `x + 0` is `x` modulo 2^64.
+        (SourceShape::WrappingAddZeroLeft, [victim, right, result]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || right.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         (SourceShape::UnaryExtension | SourceShape::UnaryCopy, [input, result]) => {
             if input.access != RegisterOperandAccess::Use
                 || input.virtual_register != candidate.victim
@@ -669,16 +738,18 @@ fn reconstruct_action(
     // non-victim `Use` for custody: operand 0 under the right grammars,
     // operand 1 under the left annihilator grammar.
     let surviving = match shape {
-        SourceShape::BinaryLeftImmediate | SourceShape::AndZeroLeft | SourceShape::XorZeroLeft => {
-            consumer.operands[1].virtual_register
-        }
+        SourceShape::BinaryLeftImmediate
+        | SourceShape::AndZeroLeft
+        | SourceShape::XorZeroLeft
+        | SourceShape::WrappingAddZeroLeft => consumer.operands[1].virtual_register,
         SourceShape::BinaryImmediate
         | SourceShape::UnaryExtension
         | SourceShape::UnaryCopy
         | SourceShape::DivideIdentity
         | SourceShape::RemainderIdentity
         | SourceShape::AndZero
-        | SourceShape::XorZero => consumer.operands[0].virtual_register,
+        | SourceShape::XorZero
+        | SourceShape::WrappingAddZero => consumer.operands[0].virtual_register,
     };
 
     Ok(LiteralFoldAction {
@@ -712,7 +783,9 @@ fn reconstruct_action(
 /// bitwise-xor identity forms whose zero literal folds `BitwiseXorI64`
 /// into a copy of the surviving `Use` — at the operand-1 `Use`, or at
 /// the operand-0 `Use` under the commuted left grammar that binds the
-/// operand-1 `Use` instead.
+/// operand-1 `Use` instead — or the wrapping-add identity forms whose
+/// zero literal folds `WrappingAddI64` into a copy of the surviving
+/// `Use` under the same two-position grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
@@ -725,6 +798,8 @@ enum SourceShape {
     AndZeroLeft,
     XorZero,
     XorZeroLeft,
+    WrappingAddZero,
+    WrappingAddZeroLeft,
 }
 
 impl SourceShape {
@@ -734,12 +809,14 @@ impl SourceShape {
             | Self::DivideIdentity
             | Self::RemainderIdentity
             | Self::AndZero
-            | Self::XorZero => 1,
+            | Self::XorZero
+            | Self::WrappingAddZero => 1,
             Self::BinaryLeftImmediate
             | Self::UnaryExtension
             | Self::UnaryCopy
             | Self::AndZeroLeft
-            | Self::XorZeroLeft => 0,
+            | Self::XorZeroLeft
+            | Self::WrappingAddZeroLeft => 0,
         }
     }
 }
@@ -1092,6 +1169,12 @@ fn rebuild_function(
         // the validator rebuilds the consumer as a `CopyI64` bound to the
         // `CopyI64` row the xor-zero policy gate selected.
         SelectedInstructionKind::BitwiseXorI64 => (rows.xor_zero, SelectedInstructionKind::CopyI64),
+        // A wrapping add with a zero literal is the surviving operand:
+        // the validator rebuilds the consumer as a `CopyI64` bound to the
+        // `CopyI64` row the wrapping-add-zero policy gate selected.
+        SelectedInstructionKind::WrappingAddI64 => {
+            (rows.wrapping_add_zero, SelectedInstructionKind::CopyI64)
+        }
         _ => (None, consumer.kind),
     };
     let row = row

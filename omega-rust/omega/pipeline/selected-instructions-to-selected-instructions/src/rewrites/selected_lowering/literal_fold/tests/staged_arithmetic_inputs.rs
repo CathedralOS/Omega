@@ -16,7 +16,7 @@ use crate::{
     RecoveryClassificationValidationReceipt, SpillChoiceValidationReceipt,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiteralFold,
     ValidatedLiveRanges, ValidatedRecoveryClassifications, ValidatedSpillChoices,
-    validated_machine_effect_catalog,
+    machine_semantic_kind, validated_machine_effect_catalog,
 };
 use optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
@@ -2226,7 +2226,7 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
 /// Operands past the operand-2 `Def` result — none on either Linux target's
 /// row — would be scratch `Def` outputs the fold drops dead.
 pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
-    staged_bitwise_zero_inputs(
+    staged_zero_literal_binary_inputs(
         target,
         literal_operand,
         SelectedInstructionKind::BitwiseAndI64,
@@ -2238,7 +2238,7 @@ pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> I
 /// folds `x ^ 0` and `0 ^ x` into a `CopyI64` of the surviving operand
 /// rather than materializing the annihilator constant.
 pub(super) fn staged_xor_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
-    staged_bitwise_zero_inputs(
+    staged_zero_literal_binary_inputs(
         target,
         literal_operand,
         SelectedInstructionKind::BitwiseXorI64,
@@ -2246,14 +2246,27 @@ pub(super) fn staged_xor_inputs(target: NativeTarget, literal_operand: u16) -> I
     )
 }
 
-/// Shared staging for the bitwise zero-literal families: a `MaterializeI64`
+/// The same zero-literal fixture for `WrappingAddI64`: the wrapping-add
+/// family folds `x + 0` and `0 + x` into a `CopyI64` of the surviving
+/// operand — zero is the additive identity under modulo-2^64 wrap.
+pub(super) fn staged_wrapping_add_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
+    staged_zero_literal_binary_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::WrappingAddI64,
+        LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
+    )
+}
+
+/// Shared staging for the zero-literal binary families: a `MaterializeI64`
 /// victim producing `Unsigned(0)` feeds `kind`'s `Use` operand at
 /// `literal_operand`, whose `Def` result is a scalar register, under
-/// `policy`. Both bitwise consumers bind the flag-clobbering subtract
-/// constraint row — x86-64 `and`/`xor` destroy `rflags`, the aarch64 forms
-/// touch no condition state — so the staged consumer row, its implicit
-/// traffic, and its operand layout are identical across the two kinds.
-fn staged_bitwise_zero_inputs(
+/// `policy`. The consumer's constraint row comes from the semantic's own
+/// selected key: the bitwise consumers bind the flag-clobbering subtract
+/// row — x86-64 `and`/`xor` destroy `rflags`, the aarch64 forms touch no
+/// condition state — while the wrapping-add consumer binds the
+/// flag-transparent add row, which clobbers nothing.
+fn staged_zero_literal_binary_inputs(
     target: NativeTarget,
     literal_operand: u16,
     kind: SelectedInstructionKind,
@@ -2264,10 +2277,13 @@ fn staged_bitwise_zero_inputs(
     let machine = MachineId::new(1).unwrap();
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let materialize = environment.constraint(keys.materialize_i64).unwrap();
-    // The bitwise form binds the flag-clobbering subtract constraint row:
+    // The consumer row is the one the semantic's own effect declaration
+    // binds: the flag-clobbering subtract row for the bitwise forms —
     // x86-64 `and`/`xor` destroy `rflags`, aarch64 `and`/`eor` touch no
-    // condition state.
-    let consumer_row = environment.constraint(keys.subtract_i64).unwrap();
+    // condition state — and the flag-transparent add row for the wrapping
+    // add, which clobbers nothing on either target.
+    let consumer_key = keys.for_semantic(machine_semantic_kind(kind)).unwrap();
+    let consumer_row = environment.constraint(consumer_key).unwrap();
     let branch = environment.constraint(keys.conditional_branch).unwrap();
     let terminal = environment.constraint(keys.return_unit).unwrap();
     let gpr = materialize.operands[0].class;

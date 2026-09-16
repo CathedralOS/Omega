@@ -47,6 +47,7 @@ impl LiteralFoldPolicy {
     const WRAPPING_REMAINDER_BIT: u16 = 1 << 8;
     const BITWISE_AND_ZERO_BIT: u16 = 1 << 9;
     const BITWISE_XOR_ZERO_BIT: u16 = 1 << 10;
+    const WRAPPING_ADD_ZERO_BIT: u16 = 1 << 11;
     const KNOWN_BITS: u16 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -57,7 +58,8 @@ impl LiteralFoldPolicy {
         | Self::EXACT_DIVIDE_BIT
         | Self::WRAPPING_REMAINDER_BIT
         | Self::BITWISE_AND_ZERO_BIT
-        | Self::BITWISE_XOR_ZERO_BIT;
+        | Self::BITWISE_XOR_ZERO_BIT
+        | Self::WRAPPING_ADD_ZERO_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -123,6 +125,16 @@ impl LiteralFoldPolicy {
     pub const BITWISE_XOR_ZERO_V1: Self = Self {
         enabled_rules: Self::BITWISE_XOR_ZERO_BIT,
     };
+    /// Wrapping-add identity fold: fold a materialized literal `0` feeding
+    /// its sole `WrappingAddI64` consumer at either `Use` operand into a
+    /// `CopyI64` of the other `Use` — zero is the additive identity under
+    /// modulo-2^64 wrap, so `x + 0` and `0 + x` are both `x` and the
+    /// surviving operand's register moves to the result unchanged. The
+    /// wrapping-add consumer binds the flag-transparent add row, so the
+    /// fold carries no flag clobber to retire.
+    pub const WRAPPING_ADD_ZERO_V1: Self = Self {
+        enabled_rules: Self::WRAPPING_ADD_ZERO_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -180,6 +192,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_bitwise_xor_zero(self) -> bool {
         self.enabled_rules & Self::BITWISE_XOR_ZERO_BIT != 0
+    }
+
+    pub const fn enables_wrapping_add_zero(self) -> bool {
+        self.enabled_rules & Self::WRAPPING_ADD_ZERO_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u16 {
