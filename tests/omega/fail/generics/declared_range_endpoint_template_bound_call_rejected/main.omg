@@ -1,0 +1,14 @@
+// A generic template whose own signature bound carries a named endpoint call
+// cannot be applied explicitly in a named range endpoint: the instance's
+// cloned bound is read from the prepared program, where `limit()` is not yet
+// folded, so the application rejects as an unclosed signature bound instead
+// of folding a wrong value.
+machine limit() -> u64 { 256 }
+machine bounded<const N: u64>(value: u64[0..=limit()]) -> u64 { N }
+
+machine rejected(value: u64[0..=bounded<256>(0)]) -> u64 { value }
+
+data Main {}
+
+machine Main::main(&mut self) {
+}

@@ -1046,3 +1046,38 @@ machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
     typed_trees_to_checked_trees::lower_typed_trees(program)
         .unwrap_or_else(|errors| panic!("the folded endpoint must check: {errors:?}"));
 }
+
+#[test]
+fn template_signature_bounds_with_endpoint_calls_reject_under_explicit_application() {
+    // The template's own bound `u64[0..=limit()]` folds in the working tree,
+    // but the instance's cloned bound lives only in the prepared tree, which
+    // is prepared once before any fold. Positions of a static application
+    // read that tree, so the bound is not closed there and the application
+    // rejects as an unclosed signature bound rather than folding a wrong
+    // value or reading the template's symbolic bound. Closing this needs a
+    // second preparation after the template bound folds; it is not admitted
+    // by reading the working tree, whose handles the clone does not share.
+    for endpoint in [
+        "bounded<256>(0)",
+        "bounded<256>(300)",
+        "result_bounded<256>()",
+    ] {
+        let mut program = typed(&format!(
+            "machine limit() -> u64 {{ 256 }}
+             machine bounded<const N: u64>(value: u64[0..=limit()]) -> u64 {{ N }}
+             machine result_bounded<const N: u64>() -> u64[0..=limit()] {{ N }}
+             machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        let errors = evaluate_const_range_endpoints(&mut program, None).expect_err(endpoint);
+        assert_eq!(errors.len(), 1, "{endpoint}: {errors:?}");
+        assert!(
+            errors[0]
+                .message
+                .contains("range endpoint signature bound is not closed"),
+            "{endpoint}: {}",
+            errors[0].message
+        );
+        // The failed application must not leave a partial fold behind.
+        assert!(folded_maximum(&program).is_none(), "{endpoint}");
+    }
+}
