@@ -443,6 +443,224 @@ fn corrupting_the_source_after_the_copy_keeps_the_copy_coverage() {
 }
 
 #[test]
+fn slice_view_of_field_carries_element_field_coverage() {
+    // `level.rooms.as_slice()` lends the field's element storage to `rooms`:
+    // `rooms[i]` is `level.rooms[i]`, so the declared element predicates
+    // re-anchor below the view local.
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Level {{ rooms: [Row; 2]; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(level: &Level) {{
+            let rooms: &[Row] = level.rooms.as_slice();
+            consume(&rooms[0]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn mutable_slice_view_carries_element_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &mut [Row; 2]) {{
+            let view: &mut [Row] = rows.as_mut_slice();
+            consume(&view[0]);
+            consume(&view[1]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn slice_view_of_local_array_carries_constructed_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let rows: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let view: &[Row] = rows.as_slice();
+            consume(&view[1]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn slice_view_of_machine_field_carries_element_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Main {{ rows: [Row; 2]; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine Main::run(&mut self) {{
+            let view: &[Row] = self.rows.as_slice();
+            consume(&view[0]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn mutable_slice_view_of_machine_field_carries_element_coverage() {
+    // The dungeon's shape: `self.rooms.as_mut_slice()` lends the attached
+    // field's elements; a later indexed read still proves the field contract.
+    let source = format!(
+        r#"{DEFINITIONS}
+        data Main {{ rows: [Row; 2]; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine Main::run(&mut self) {{
+            let view: &mut [Row] = self.rows.as_mut_slice();
+            consume(&view[0]);
+            consume(&view[1]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn slice_view_element_coverage_flows_through_transitions() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine walk(rows: &mut [Row; 2]) {{
+            let view: &[Row] = rows.as_slice();
+            transition {{ _ -> next(&view[0]) }}
+            state next(row: &Row) {{ }}
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn corrupted_element_rejects_its_slice_view() {
+    // The corrupt call retires `rows[0]`'s evidence before the view binds, so
+    // the transported view has nothing for that element.
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &mut [Row; 2]) {{
+            corrupt(&mut rows[0].bytes);
+            let view: &[Row] = rows.as_slice();
+            consume(&view[0]);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
+fn corrupted_sibling_view_preserves_the_other_elements_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &mut [Row; 2]) {{
+            corrupt(&mut rows[0].bytes);
+            let view: &[Row] = rows.as_slice();
+            consume(&view[1]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn write_through_mutable_view_retires_the_views_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &mut [Row; 2]) {{
+            let view: &mut [Row] = rows.as_mut_slice();
+            view[0].bytes[0] = 255;
+            consume(&view[0]);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
+fn write_through_mutable_view_retires_the_source_coverage() {
+    // `view[0]` IS `rows[0]`: the alias-closing write invalidation retires the
+    // receiver-named fact too, so a later read of the source still rejects.
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &mut [Row; 2]) {{
+            let view: &mut [Row] = rows.as_mut_slice();
+            view[0].bytes[0] = 255;
+            consume(&rows[0]);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
+fn reassigned_view_carries_the_new_receivers_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let mut a: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let mut b: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            corrupt(&mut a[0].bytes);
+            let mut view: &[Row] = a.as_slice();
+            view = b.as_slice();
+            consume(&view[0]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+#[test]
+fn reassigned_view_drops_the_first_receivers_coverage() {
+    // Rebinding `view` retires the facts rooted at it; `b`'s corrupted first
+    // element supplies no evidence, so the call must reject rather than keep
+    // `a`'s transported coverage.
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let mut a: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let mut b: [Row; 2] = [Row {{bytes: "okay", tag: 0}}, Row {{bytes: "okay", tag: 1}}];
+            let mut view: &[Row] = a.as_slice();
+            corrupt(&mut b[0].bytes);
+            view = b.as_slice();
+            consume(&view[0]);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
+fn slice_view_runtime_index_still_needs_element_coverage() {
+    // Element evidence lives at literal FixedIndex places; a runtime index is
+    // not yet discharged by the transported facts.
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &mut [Row; 2], index: u64[0..2]) {{
+            let view: &[Row] = rows.as_slice();
+            consume(&view[index]);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+#[test]
 fn element_copy_into_machine_field_carries_field_coverage() {
     let source = format!(
         r#"{DEFINITIONS}
