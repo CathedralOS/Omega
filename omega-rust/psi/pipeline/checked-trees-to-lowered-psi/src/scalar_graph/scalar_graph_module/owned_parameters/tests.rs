@@ -1,9 +1,9 @@
 use super::super::super::{
-    Operation, PlaceId, PrimitiveType, StructuralTypeId, place_id, terminal_scalar_type,
+    Operation, PlaceId, PrimitiveType, StructuralTypeId, SuccessorEdge, place_id,
+    terminal_scalar_type,
 };
 use super::super::{
-    MachineId, OperationResult, StructuralArgument, SuccessorEdge, ValueDeclaration, block_id,
-    edge_id, value_id,
+    MachineId, OperationResult, StructuralArgument, ValueDeclaration, block_id, edge_id, value_id,
 };
 use super::{
     Block, LoweringError, OperationKind, StructuralAccess, StructuralMultiplicity,
