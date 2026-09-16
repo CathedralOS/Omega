@@ -1283,3 +1283,57 @@ fn const_substitution_obeys_current_activation_resolution_strata() {
     assert!(const_targets.contains(&(second_extension_source_id, extension_source_id)));
     assert!(!const_targets.contains(&(base_source_id, extension_source_id)));
 }
+
+#[test]
+fn abs_desugar_subtraction_retains_authored_operator_custody() {
+    // `abs(x)` lowers to `max(x, 0 - x)`: the synthesized subtraction is a
+    // boundary operator application once typed, so it must retain one authored
+    // selection occurrence minted at the authored `abs` token. Otherwise the
+    // package review projection cannot bind the realized `Float::subtract`.
+    let source = r#"
+        data Main { x: f64; }
+        machine Main::main(&mut self) {
+            let magnitude: f64 = abs(self.x);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize abs desugar custody");
+    let syntax = parse_syntax_trees(&tokens).expect("parse abs desugar custody");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve abs desugar custody");
+    let table = &program.tables.bodies.expressions;
+    let subtractions = table
+        .iter_expressions()
+        .filter_map(|(expression, node)| {
+            matches!(
+                node,
+                symbol_resolved_trees::expression::ExpressionNode::Binary(_)
+            )
+            .then_some(expression)
+        })
+        .collect::<Vec<_>>();
+    let [subtraction] = subtractions.as_slice() else {
+        panic!("abs desugar must produce exactly one synthesized subtraction")
+    };
+    let occurrences = table
+        .authored_selection_occurrences(*subtraction)
+        .collect::<Vec<_>>();
+    let [occurrence] = occurrences.as_slice() else {
+        panic!("synthesized subtraction must retain one authored selection")
+    };
+    let selection = program
+        .authored_declaration_selections()
+        .get(*occurrence)
+        .expect("synthesized subtraction occurrence must rejoin its selection");
+    assert_eq!(
+        selection.kind(),
+        symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
+    );
+    assert_eq!(
+        selection.exposure(),
+        symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+    );
+    let abs_offset = source.find("abs(").expect("authored abs token");
+    assert_eq!(selection.source_span().span.start, abs_offset);
+    assert_eq!(selection.source_span().span.end, abs_offset + 3);
+}

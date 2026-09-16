@@ -278,6 +278,22 @@ fn lower_nonbinary_expression_node_into_table(
                 // copy the normalized tree; a zero-span synthetic node would
                 // otherwise force backend shape guessing.
                 expression_table(lowerer).set_source_span(negated, call.target.source_span());
+                // The realized operator is a boundary application, so it owes
+                // the same authored-selection custody as a spelled `-`: mint
+                // its occurrence at the authored `abs` token rather than
+                // leaving the synthesized node outside the authored set.
+                if let Some(exposure) = lowerer.current_authored_expression_exposure {
+                    expression_table(lowerer).set_authored_expression_exposure(negated, exposure);
+                    lowerer.pending_authored_expressions.push(
+                        crate::resolution::lowerer::PendingAuthoredExpression {
+                            expression: negated,
+                            exposure,
+                        },
+                    );
+                }
+                if let Some(partition) = lowerer.current_compiler_selection_partition {
+                    expression_table(lowerer).set_compiler_selection_partition(negated, partition);
+                }
                 let arguments = expression_table(lowerer).reserve_expression_handles(2);
                 expression_table(lowerer).set_expression_handle_at_offset(arguments, 0, x);
                 expression_table(lowerer).set_expression_handle_at_offset(arguments, 1, negated);
