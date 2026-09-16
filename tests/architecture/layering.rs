@@ -5628,8 +5628,8 @@ fn loop_invariant_scalar_motion_is_exact_independent_and_atomic() {
     // then forces the reconstructed unit through `from_transformed`, where the
     // freeze fence independently re-admits every moved node against
     // `admissible_scalar_leaf_relocation` or the re-derived
-    // `invariant_scalar_operand_substitution`, under the unique-entry
-    // preheader.
+    // `invariant_scalar_operand_substitution`, under the component's unique
+    // preheader block.
     for required in [
         "propose::component_plan",
         "apply::realize",
@@ -5756,7 +5756,8 @@ fn ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
         );
     }
     for required in [
-        "component.entries.as_slice()",
+        "component.entries.iter()",
+        "shared_entry_source(component)",
         "component.members.contains",
         "admissible_scalar_leaf_relocation",
         "invariant_scalar_operand_substitution",

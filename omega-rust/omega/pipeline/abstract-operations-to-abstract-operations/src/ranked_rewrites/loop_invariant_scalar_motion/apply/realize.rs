@@ -101,16 +101,16 @@ pub(crate) fn realize(
             Ok(node)
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
-    let Some(&entry) = component.entries.first() else {
+    let Some(preheader_source) = crate::validation::shared_entry_source(component) else {
         return Err(LoopInvariantScalarMotionError::CandidateMismatch);
     };
     let preheader = function
         .blocks
         .iter_mut()
-        .find(|block| block.id == entry.source)
+        .find(|block| block.id == preheader_source)
         .ok_or(LoopInvariantScalarMotionError::MissingNode {
             machine,
-            block: entry.source,
+            block: preheader_source,
             node: 0,
         })?;
     let insertion = preheader
