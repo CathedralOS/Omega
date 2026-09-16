@@ -3,44 +3,33 @@
 //! This module owns operation-result and operation-kind rows plus the exact
 //! terminal control-flow envelope. Shared structural paths, call arguments,
 //! contracts, and declaration primitives remain sibling- or parent-owned.
+//!
+//! `encode_block` and `decode_block` are the entries. Each operation row is
+//! encoded and decoded here, with its kind dispatched by `operation_tags`
+//! to the family that owns the layout (`value_operations`,
+//! `storage_operations`, `call_operations`, `scalar_operations`); the
+//! terminator envelope is `terminator_wire`.
 
-use semantic_vocabulary::{CanonicalStructuralPathSegment, IeeeFloatComparisonOperation};
-use terminal_psi::{
-    Block, ClaimTransfer, CompletionReceipt, CrashCause, NominalAffineCleanup, Operation,
-    OperationKind, OperationResult, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificGuard, StructuralAffineDiscard, StructuralCaseSuccessorEdge,
-    StructuralResultClaimTransfer, Terminator,
-};
+mod call_operations;
+mod operation_tags;
+mod scalar_operations;
+mod storage_operations;
+mod terminator_wire;
+mod value_operations;
 
-use super::contract_wire::{
-    decode_crash_predicate, decode_crash_routes, decode_successor_edge, encode_crash_predicate,
-    encode_crash_routes, encode_successor_edge,
-};
+use semantic_vocabulary::CanonicalStructuralPathSegment;
+use terminal_psi::{Block, Operation, OperationKind, OperationResult};
 
 use super::CodecError;
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
-};
-use super::proof_declaration_wire::{decode_evidence_interface, encode_evidence_interface};
-use super::scalar_wire::{
-    decode_ieee_float_value, decode_integer_value, encode_ieee_float_value, encode_integer_value,
 };
 use super::structural_result_wire::{decode_operation_result, encode_operation_result};
 use super::structural_signature_wire::{
     decode_structural_parameters, encode_structural_parameters,
 };
 use super::wire::{Reader, Writer};
-use crate::sections::semantic_module::structural_place_wire::{
-    decode_affine_cleanup_action, decode_structural_path, encode_affine_cleanup_action,
-    encode_obligation_ids, encode_structural_path,
-};
-use crate::sections::semantic_module::structural_place_wire::{
-    decode_structural_arguments, encode_structural_arguments,
-};
-use crate::sections::semantic_module::wire::{
-    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
-};
+use crate::sections::semantic_module::wire::decode_counted;
 
 fn encode_scalar_field_path(
     writer: &mut Writer,
@@ -76,945 +65,447 @@ pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
     encode_structural_parameters(writer, &block.structural_parameters)?;
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
-        writer.id(operation.id);
-        writer.boolean(operation.static_reach_binding.is_some());
-        if let Some(binder) = operation.static_reach_binding {
-            writer.u32(binder);
+        encode_operation(writer, operation)?;
+    }
+    terminator_wire::encode_terminator(writer, &block.terminator)
+}
+
+/// One operation row: its id, static reach binding and result, then its
+/// kind behind the kind's tag; each kind's layout is owned by its family.
+fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), CodecError> {
+    writer.id(operation.id);
+    writer.boolean(operation.static_reach_binding.is_some());
+    if let Some(binder) = operation.static_reach_binding {
+        writer.u32(binder);
+    }
+    match &operation.result {
+        OperationResult::Unit => writer.u8(0),
+        OperationResult::Scalar(result) => {
+            writer.u8(1);
+            encode_declaration(writer, *result);
         }
-        match &operation.result {
-            OperationResult::Unit => writer.u8(0),
-            OperationResult::Scalar(result) => {
-                writer.u8(1);
-                encode_declaration(writer, *result);
-            }
-            OperationResult::Structural(result) => {
-                writer.u8(2);
-                encode_operation_result(writer, result)?;
-            }
-        }
-        match operation.kind.clone() {
-            OperationKind::EstablishReference { source } => {
-                writer.u8(69);
-                writer.id(source.place);
-                super::structural_signature_wire::encode_structural_access(writer, source.access);
-                encode_structural_path(writer, "reference source path", &source.path)?;
-            }
-            OperationKind::ReleaseReference { source } => {
-                writer.u8(70);
-                writer.id(source);
-            }
-            OperationKind::EstablishPrimitiveLocal { value } => {
-                writer.u8(61);
-                writer.id(value);
-            }
-            OperationKind::PrimitiveScalarRead { source, path } => {
-                if path.is_empty() {
-                    writer.u8(62);
-                    writer.id(source);
-                } else {
-                    writer.u8(73);
-                    super::structural_field_wire::encode_canonical_structural_field(
-                        writer,
-                        source,
-                        &path,
-                        "primitive source path",
-                    )?;
-                }
-            }
-            OperationKind::StructuralCaseMembership { source, path, case } => {
-                writer.u8(66);
-                writer.id(source);
-                encode_structural_path(writer, "case membership path", &path)?;
-                writer.id(case);
-            }
-            OperationKind::ByteSequenceSubslice {
-                source,
-                start,
-                end,
-                length,
-                obligation,
-            } => {
-                writer.u8(57);
-                writer.id(source);
-                writer.id(start);
-                writer.id(end);
-                writer.id(length);
-                writer.id(obligation);
-            }
-            OperationKind::ByteSequenceWrite {
-                destination,
-                index,
-                value,
-                length,
-                obligation,
-            } => {
-                writer.u8(63);
-                writer.id(destination);
-                writer.id(index);
-                writer.id(value);
-                writer.id(length);
-                writer.id(obligation);
-            }
-            OperationKind::ByteSequenceRead {
-                source,
-                index,
-                length,
-                obligation,
-            } => {
-                writer.u8(56);
-                writer.id(source);
-                writer.id(index);
-                writer.id(length);
-                writer.id(obligation);
-            }
-            OperationKind::ByteSequenceLength { source } => {
-                writer.u8(55);
-                writer.id(source);
-            }
-            OperationKind::WriteOnlyPrimitiveStore {
-                destination,
-                value,
-                path,
-            } => {
-                if path.is_empty() {
-                    writer.u8(43);
-                    writer.id(destination);
-                } else {
-                    writer.u8(74);
-                    super::structural_field_wire::encode_canonical_structural_field(
-                        writer,
-                        destination,
-                        &path,
-                        "primitive destination path",
-                    )?;
-                }
-                writer.id(value);
-            }
-            OperationKind::StructuralByteSequenceFieldStore {
-                destination,
-                path,
-                field,
-                source,
-                length,
-                obligation,
-            } => {
-                writer.u8(58);
-                writer.id(destination);
-                encode_structural_path(writer, "structural byte sequence field store path", &path)?;
-                writer.id(field);
-                writer.id(source);
-                writer.id(length);
-                writer.id(obligation);
-            }
-            OperationKind::StructuralByteSequenceFieldLength {
-                source,
-                path,
-                field,
-            } => {
-                writer.u8(59);
-                writer.id(source);
-                encode_structural_path(
-                    writer,
-                    "structural byte sequence field length path",
-                    &path,
-                )?;
-                writer.id(field);
-            }
-            OperationKind::StructuralByteSequenceFieldByteStore {
-                destination,
-                path,
-                field,
-                index,
-                value,
-                length,
-                obligation,
-            } => {
-                writer.u8(60);
-                writer.id(destination);
-                encode_structural_path(
-                    writer,
-                    "structural byte sequence field byte store path",
-                    &path,
-                )?;
-                writer.id(field);
-                writer.id(index);
-                writer.id(value);
-                writer.id(length);
-                writer.id(obligation);
-            }
-            OperationKind::StructuralScalarFieldStore {
-                destination,
-                path,
-                field,
-                value,
-                range_obligation,
-            } => {
-                writer.u8(if range_obligation.is_some() { 75 } else { 46 });
-                writer.id(destination);
-                encode_structural_path(writer, "structural scalar field store path", &path)?;
-                writer.id(field);
-                writer.id(value);
-                if let Some(obligation) = range_obligation {
-                    writer.id(obligation);
-                }
-            }
-            OperationKind::EstablishScalarArray { elements } => {
-                writer.u8(64);
-                writer.len("scalar array elements", elements.len())?;
-                for element in elements {
-                    writer.id(element);
-                }
-            }
-            OperationKind::EstablishScalarCase {
-                result_case,
-                fields,
-            } => {
-                writer.u8(42);
-                writer.id(result_case);
-                writer.len("scalar case fields", fields.len())?;
-                for field in fields {
-                    writer.id(field.field);
-                    writer.id(field.value);
-                    encode_optional_id(writer, field.range_obligation);
-                }
-            }
-            OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
-                writer.u8(40);
-                writer.id(destination);
-                writer.len("byte-sequence literal bytes", bytes.len())?;
-                writer.bytes(&bytes);
-            }
-            OperationKind::EstablishTrivialAffineLocal { destination } => {
-                writer.u8(37);
-                writer.id(destination);
-            }
-            OperationKind::EstablishRecord { fields } => {
-                writer.u8(68);
-                writer.len("record fields", fields.len())?;
-                for field in fields {
-                    writer.id(field.field);
-                    match field.value {
-                        terminal_psi::RecordFieldValue::Scalar {
-                            value,
-                            range_obligation,
-                        } => {
-                            writer.u8(1);
-                            writer.id(value);
-                            encode_optional_id(writer, range_obligation);
-                        }
-                        terminal_psi::RecordFieldValue::Structural(argument) => {
-                            writer.u8(2);
-                            writer.id(argument.place);
-                            super::structural_signature_wire::encode_structural_access(
-                                writer,
-                                argument.access,
-                            );
-                            encode_structural_path(writer, "record child path", &argument.path)?;
-                        }
-                    }
-                }
-            }
-            OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
-                writer.u8(54);
-                writer.u32(descriptor_ordinal);
-            }
-            OperationKind::Call {
-                callee,
-                arguments,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                writer.u8(33);
-                writer.id(callee);
-                writer.len("call arguments", arguments.len())?;
-                for argument in arguments {
-                    writer.id(argument);
-                }
-                writer.len(
-                    "call requirement obligations",
-                    requirement_obligations.len(),
-                )?;
-                for obligation in requirement_obligations {
-                    writer.id(obligation);
-                }
-                encode_crash_routes(writer, &crash_continuations)?;
-            }
-            OperationKind::CallUnit {
-                callee,
-                arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                writer.u8(34);
-                writer.id(callee);
-                writer.len("unit-call scalar arguments", arguments.len())?;
-                for argument in arguments {
-                    writer.id(argument);
-                }
-                encode_structural_arguments(writer, &structural_arguments)?;
-                writer.len("unit-call claim transfers", claim_transfers.len())?;
-                for transfer in claim_transfers {
-                    writer.id(transfer.claim);
-                    writer.u32(transfer.argument_index);
-                }
-                encode_obligation_ids(writer, &requirement_obligations)?;
-                encode_crash_routes(writer, &crash_continuations)?;
-            }
-            OperationKind::CallStructuralScalar {
-                callee,
-                arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                writer.u8(39);
-                writer.id(callee);
-                writer.len("structural-scalar-call scalar arguments", arguments.len())?;
-                for argument in arguments {
-                    writer.id(argument);
-                }
-                encode_structural_arguments(writer, &structural_arguments)?;
-                writer.len(
-                    "structural-scalar-call claim transfers",
-                    claim_transfers.len(),
-                )?;
-                for transfer in claim_transfers {
-                    writer.id(transfer.claim);
-                    writer.u32(transfer.argument_index);
-                }
-                encode_obligation_ids(writer, &requirement_obligations)?;
-                encode_crash_routes(writer, &crash_continuations)?;
-            }
-            OperationKind::CallDynamicScalar {
-                descriptor_ordinal,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                writer.u8(48);
-                writer.u32(descriptor_ordinal);
-                encode_obligation_ids(writer, &requirement_obligations)?;
-                encode_crash_routes(writer, &crash_continuations)?;
-            }
-            OperationKind::CallDynamicParameterScalar {
-                parameter_ordinal,
-                requirement_slot,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                writer.u8(49);
-                writer.u32(parameter_ordinal);
-                writer.u32(requirement_slot);
-                encode_obligation_ids(writer, &requirement_obligations)?;
-                encode_crash_routes(writer, &crash_continuations)?;
-            }
-            OperationKind::CallDynamicUnit {
-                descriptor_ordinal,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                writer.u8(52);
-                writer.u32(descriptor_ordinal);
-                encode_obligation_ids(writer, &requirement_obligations)?;
-                encode_crash_routes(writer, &crash_continuations)?;
-            }
-            OperationKind::CallDynamicParameterUnit {
-                parameter_ordinal,
-                requirement_slot,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                writer.u8(53);
-                writer.u32(parameter_ordinal);
-                writer.u32(requirement_slot);
-                encode_obligation_ids(writer, &requirement_obligations)?;
-                encode_crash_routes(writer, &crash_continuations)?;
-            }
-            OperationKind::CallStructural {
-                callee,
-                structural_arguments,
-                claim_transfers,
-                returned_claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                selected_evidence,
-            } => {
-                writer.u8(41);
-                writer.id(callee);
-                encode_structural_arguments(writer, &structural_arguments)?;
-                writer.len("structural-call claim transfers", claim_transfers.len())?;
-                for transfer in claim_transfers {
-                    writer.id(transfer.claim);
-                    writer.u32(transfer.argument_index);
-                }
-                writer.len(
-                    "structural-call returned claim transfers",
-                    returned_claim_transfers.len(),
-                )?;
-                for transfer in returned_claim_transfers {
-                    writer.id(transfer.callee_claim);
-                    writer.id(transfer.caller_claim);
-                }
-                encode_obligation_ids(writer, &requirement_obligations)?;
-                encode_crash_routes(writer, &crash_continuations)?;
-                writer.len("guarded call selected evidence", selected_evidence.len())?;
-                for binding in selected_evidence {
-                    writer.id(binding.guard.result_type);
-                    writer.id(binding.guard.result_case);
-                    writer.u32(binding.position);
-                    writer.id(binding.callee_obligation);
-                    writer.id(binding.callee_term);
-                    writer.string("guarded call output field", &binding.output_field)?;
-                    writer.id(binding.callee_proposition);
-                    writer.id(binding.instantiated_proposition);
-                    writer.id(binding.output);
-                    match binding.result_substitution {
-                        None => writer.u8(0),
-                        Some(substitution) => {
-                            writer.u8(1);
-                            writer.u32(substitution.argument_position);
-                            writer.id(substitution.callee_result);
-                            writer.id(substitution.caller_result);
-                        }
-                    }
-                    writer.id(binding.validity.result);
-                    writer.len(
-                        "guarded call proposition dependencies",
-                        binding.validity.proposition_dependencies.len(),
-                    )?;
-                    for dependency in &binding.validity.proposition_dependencies {
-                        writer.id(*dependency);
-                    }
-                    encode_evidence_interface(writer, &binding.validity.evidence_interface)?;
-                    writer.len(
-                        "guarded call interface dependencies",
-                        binding.validity.interface_dependencies.len(),
-                    )?;
-                    for dependency in &binding.validity.interface_dependencies {
-                        writer.id(*dependency);
-                    }
-                    writer.u32(binding.expected_use_count);
-                    writer.len("guarded selected evidence uses", binding.uses.len())?;
-                    for use_ in &binding.uses {
-                        writer.id(use_.target);
-                        writer.u32(use_.input_position);
-                        writer.id(use_.target_requirement);
-                        writer.id(use_.target_term);
-                        writer.id(use_.source);
-                        writer.id(use_.instantiated_proposition);
-                        writer.id(use_.target_parameter);
-                        writer.id(use_.caller_result);
-                    }
-                }
-            }
-            OperationKind::CallStructuralWithScalarArguments {
-                callee,
-                arguments,
-                structural_arguments,
-                claim_transfers,
-                returned_claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                writer.u8(50);
-                writer.id(callee);
-                writer.len("mixed structural-call scalar arguments", arguments.len())?;
-                for argument in arguments {
-                    writer.id(argument);
-                }
-                encode_structural_arguments(writer, &structural_arguments)?;
-                writer.len(
-                    "mixed structural-call claim transfers",
-                    claim_transfers.len(),
-                )?;
-                for transfer in claim_transfers {
-                    writer.id(transfer.claim);
-                    writer.u32(transfer.argument_index);
-                }
-                writer.len(
-                    "mixed structural-call returned claim transfers",
-                    returned_claim_transfers.len(),
-                )?;
-                for transfer in returned_claim_transfers {
-                    writer.id(transfer.callee_claim);
-                    writer.id(transfer.caller_claim);
-                }
-                encode_obligation_ids(writer, &requirement_obligations)?;
-                encode_crash_routes(writer, &crash_continuations)?;
-            }
-            OperationKind::BoundaryCall {
-                boundary,
-                arguments,
-                structural_arguments,
-                completion_receipts,
-            } => {
-                writer.u8(35);
-                writer.id(boundary);
-                writer.len("boundary scalar arguments", arguments.len())?;
-                for argument in arguments {
-                    writer.id(argument);
-                }
-                encode_structural_arguments(writer, &structural_arguments)?;
-                writer.len("boundary claim settlements", completion_receipts.len())?;
-                for settlement in completion_receipts {
-                    writer.id(settlement.claim);
-                    writer.u32(settlement.argument_index);
-                }
-            }
-            OperationKind::PortWrite {
-                service,
-                port,
-                value,
-            } => {
-                writer.u8(36);
-                writer.id(service);
-                writer.u16(port);
-                writer.u8(value);
-            }
-            OperationKind::IntegerConstant { value } => {
-                writer.u8(1);
-                encode_integer_value(writer, value);
-            }
-            OperationKind::BooleanConstant { value } => {
-                writer.u8(2);
-                writer.u8(u8::from(value));
-            }
-            OperationKind::IeeeFloatConstant { value } => {
-                writer.u8(44);
-                encode_ieee_float_value(writer, value);
-            }
-            OperationKind::IeeeFloatCompare {
-                comparison,
-                left,
-                right,
-            } => {
-                writer.u8(65);
-                writer.u8(match comparison {
-                    IeeeFloatComparisonOperation::Equal => 0,
-                    IeeeFloatComparisonOperation::NotEqual => 1,
-                    IeeeFloatComparisonOperation::Less => 2,
-                    IeeeFloatComparisonOperation::LessOrEqual => 3,
-                    IeeeFloatComparisonOperation::Greater => 4,
-                    IeeeFloatComparisonOperation::GreaterOrEqual => 5,
-                });
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::NearestIeeeFloatFusedMultiplyAdd {
-                left,
-                right,
-                addend,
-            } => {
-                writer.u8(45);
-                writer.id(left);
-                writer.id(right);
-                writer.id(addend);
-            }
-            OperationKind::BooleanStructuralField {
-                source,
-                ref path,
-                field,
-            } => {
-                writer.u8(38);
-                writer.id(source);
-                encode_scalar_field_path(writer, path)?;
-                writer.id(field);
-            }
-            OperationKind::IntegerStructuralField {
-                source,
-                ref path,
-                field,
-            } => {
-                writer.u8(47);
-                writer.id(source);
-                encode_scalar_field_path(writer, path)?;
-                writer.id(field);
-            }
-            OperationKind::BooleanNot { operand } => {
-                writer.u8(9);
-                writer.id(operand);
-            }
-            OperationKind::BooleanEqual { left, right } => {
-                writer.u8(10);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::IntegerEqual { left, right } => {
-                writer.u8(11);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::IntegerLessThan { left, right } => {
-                writer.u8(12);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::IntegerLessOrEqual { left, right } => {
-                writer.u8(13);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::IntegerBitwiseNot { operand } => {
-                writer.u8(19);
-                writer.id(operand);
-            }
-            OperationKind::IntegerWiden { operand } => {
-                writer.u8(20);
-                writer.id(operand);
-            }
-            OperationKind::IntegerExactCast {
-                operand,
-                obligation,
-            } => {
-                writer.u8(21);
-                writer.id(operand);
-                writer.id(obligation);
-            }
-            OperationKind::IntegerBitwiseAnd { left, right } => {
-                writer.u8(14);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::IntegerBitwiseOr { left, right } => {
-                writer.u8(15);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::IntegerBitwiseXor { left, right } => {
-                writer.u8(16);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::WrappingIntegerShiftLeft { value, count } => {
-                writer.u8(17);
-                writer.id(value);
-                writer.id(count);
-            }
-            OperationKind::WrappingIntegerShiftRight { value, count } => {
-                writer.u8(18);
-                writer.id(value);
-                writer.id(count);
-            }
-            OperationKind::ExactIntegerShiftLeft {
-                value,
-                count,
-                obligation,
-            } => {
-                writer.u8(23);
-                writer.id(value);
-                writer.id(count);
-                writer.id(obligation);
-            }
-            OperationKind::ExactIntegerShiftRight {
-                value,
-                count,
-                obligation,
-            } => {
-                writer.u8(22);
-                writer.id(value);
-                writer.id(count);
-                writer.id(obligation);
-            }
-            OperationKind::ExactIntegerAdd {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(24);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::ExactIntegerSubtract {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(25);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::ExactIntegerMultiply {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(26);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::ExactIntegerDivide {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(27);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::ExactIntegerRemainder {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(28);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::WrappingIntegerDivide {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(29);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::WrappingIntegerRemainder {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(30);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::SaturatingIntegerDivide {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(31);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::SaturatingIntegerRemainder {
-                left,
-                right,
-                obligation,
-            } => {
-                writer.u8(32);
-                writer.id(left);
-                writer.id(right);
-                writer.id(obligation);
-            }
-            OperationKind::WrappingIntegerAdd { left, right } => {
-                writer.u8(3);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::SaturatingIntegerAdd { left, right } => {
-                writer.u8(4);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::WrappingIntegerSubtract { left, right } => {
-                writer.u8(5);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::SaturatingIntegerSubtract { left, right } => {
-                writer.u8(6);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::WrappingIntegerMultiply { left, right } => {
-                writer.u8(7);
-                writer.id(left);
-                writer.id(right);
-            }
-            OperationKind::SaturatingIntegerMultiply { left, right } => {
-                writer.u8(8);
-                writer.id(left);
-                writer.id(right);
-            }
+        OperationResult::Structural(result) => {
+            writer.u8(2);
+            encode_operation_result(writer, result)?;
         }
     }
-    match &block.terminator {
-        Terminator::Jump {
-            edge,
-            target,
+    match operation.kind.clone() {
+        OperationKind::EstablishReference { source } => {
+            storage_operations::encode_establish_reference(writer, source)?
+        }
+        OperationKind::ReleaseReference { source } => {
+            storage_operations::encode_release_reference(writer, source)?
+        }
+        OperationKind::EstablishPrimitiveLocal { value } => {
+            value_operations::encode_establish_primitive_local(writer, value)?
+        }
+        OperationKind::PrimitiveScalarRead { source, path } => {
+            storage_operations::encode_primitive_scalar_read(writer, source, path)?
+        }
+        OperationKind::StructuralCaseMembership { source, path, case } => {
+            storage_operations::encode_structural_case_membership(writer, source, path, case)?
+        }
+        OperationKind::ByteSequenceSubslice {
+            source,
+            start,
+            end,
+            length,
+            obligation,
+        } => storage_operations::encode_byte_sequence_subslice(
+            writer, source, start, end, length, obligation,
+        )?,
+        OperationKind::ByteSequenceWrite {
+            destination,
+            index,
+            value,
+            length,
+            obligation,
+        } => storage_operations::encode_byte_sequence_write(
+            writer,
+            destination,
+            index,
+            value,
+            length,
+            obligation,
+        )?,
+        OperationKind::ByteSequenceRead {
+            source,
+            index,
+            length,
+            obligation,
+        } => storage_operations::encode_byte_sequence_read(
+            writer, source, index, length, obligation,
+        )?,
+        OperationKind::ByteSequenceLength { source } => {
+            storage_operations::encode_byte_sequence_length(writer, source)?
+        }
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination,
+            value,
+            path,
+        } => {
+            storage_operations::encode_write_only_primitive_store(writer, destination, value, path)?
+        }
+        OperationKind::StructuralByteSequenceFieldStore {
+            destination,
+            path,
+            field,
+            source,
+            length,
+            obligation,
+        } => storage_operations::encode_structural_byte_sequence_field_store(
+            writer,
+            destination,
+            path,
+            field,
+            source,
+            length,
+            obligation,
+        )?,
+        OperationKind::StructuralByteSequenceFieldLength {
+            source,
+            path,
+            field,
+        } => storage_operations::encode_structural_byte_sequence_field_length(
+            writer, source, path, field,
+        )?,
+        OperationKind::StructuralByteSequenceFieldByteStore {
+            destination,
+            path,
+            field,
+            index,
+            value,
+            length,
+            obligation,
+        } => storage_operations::encode_structural_byte_sequence_field_byte_store(
+            writer,
+            destination,
+            path,
+            field,
+            index,
+            value,
+            length,
+            obligation,
+        )?,
+        OperationKind::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            value,
+            range_obligation,
+        } => storage_operations::encode_structural_scalar_field_store(
+            writer,
+            destination,
+            path,
+            field,
+            value,
+            range_obligation,
+        )?,
+        OperationKind::EstablishScalarArray { elements } => {
+            value_operations::encode_establish_scalar_array(writer, elements)?
+        }
+        OperationKind::EstablishScalarCase {
+            result_case,
+            fields,
+        } => value_operations::encode_establish_scalar_case(writer, result_case, fields)?,
+        OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
+            value_operations::encode_establish_byte_sequence_literal(writer, destination, bytes)?
+        }
+        OperationKind::EstablishTrivialAffineLocal { destination } => {
+            value_operations::encode_establish_trivial_affine_local(writer, destination)?
+        }
+        OperationKind::EstablishRecord { fields } => {
+            value_operations::encode_establish_record(writer, fields)?
+        }
+        OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
+            storage_operations::encode_store_dynamic_descriptor(writer, descriptor_ordinal)?
+        }
+        OperationKind::Call {
+            callee,
+            arguments,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call(
+            writer,
+            callee,
+            arguments,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        OperationKind::CallUnit {
+            callee,
             arguments,
             structural_arguments,
-            trivial_affine_discards,
-            residual_affine_discards,
-        } => {
-            // Preserve the established root-only encoding byte for byte.
-            writer.u8(if residual_affine_discards.is_empty() {
-                1
-            } else {
-                10
-            });
-            writer.id(*edge);
-            writer.id(*target);
-            writer.len("jump arguments", arguments.len())?;
-            for argument in arguments {
-                writer.id(*argument);
-            }
-            encode_structural_arguments(writer, structural_arguments)?;
-            writer.len(
-                "jump trivial affine discards",
-                trivial_affine_discards.len(),
-            )?;
-            for place in trivial_affine_discards {
-                writer.id(*place);
-            }
-            if !residual_affine_discards.is_empty() {
-                writer.len(
-                    "jump residual affine discards",
-                    residual_affine_discards.len(),
-                )?;
-                for discard in residual_affine_discards {
-                    writer.id(discard.place);
-                    encode_structural_path(writer, "partial affine discard path", &discard.path)?;
-                    writer.id(discard.structural_type);
-                }
-            }
-        }
-        Terminator::Return {
-            edge,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call_unit(
+            writer,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        OperationKind::CallStructuralScalar {
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call_structural_scalar(
+            writer,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        OperationKind::CallDynamicScalar {
+            descriptor_ordinal,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call_dynamic_scalar(
+            writer,
+            descriptor_ordinal,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        OperationKind::CallDynamicParameterScalar {
+            parameter_ordinal,
+            requirement_slot,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call_dynamic_parameter_scalar(
+            writer,
+            parameter_ordinal,
+            requirement_slot,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        OperationKind::CallDynamicUnit {
+            descriptor_ordinal,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call_dynamic_unit(
+            writer,
+            descriptor_ordinal,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        OperationKind::CallDynamicParameterUnit {
+            parameter_ordinal,
+            requirement_slot,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call_dynamic_parameter_unit(
+            writer,
+            parameter_ordinal,
+            requirement_slot,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        OperationKind::CallStructural {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            selected_evidence,
+        } => call_operations::encode_call_structural(
+            writer,
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            selected_evidence,
+        )?,
+        OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call_structural_with_scalar_arguments(
+            writer,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        OperationKind::BoundaryCall {
+            boundary,
+            arguments,
+            structural_arguments,
+            completion_receipts,
+        } => call_operations::encode_boundary_call(
+            writer,
+            boundary,
+            arguments,
+            structural_arguments,
+            completion_receipts,
+        )?,
+        OperationKind::PortWrite {
+            service,
+            port,
             value,
-            cleanup_actions,
-        } => {
-            writer.u8(2);
-            writer.id(*edge);
-            writer.id(*value);
-            writer.len("scalar return cleanup actions", cleanup_actions.len())?;
-            for action in cleanup_actions {
-                encode_affine_cleanup_action(writer, action)?;
-            }
+        } => call_operations::encode_port_write(writer, service, port, value)?,
+        OperationKind::IntegerConstant { value } => {
+            value_operations::encode_integer_constant(writer, value)?
         }
-        Terminator::ReturnUnit {
-            edge,
-            trivial_affine_discards,
-        } => {
-            writer.u8(5);
-            writer.id(*edge);
-            writer.len(
-                "return Unit trivial affine discards",
-                trivial_affine_discards.len(),
-            )?;
-            for place in trivial_affine_discards {
-                writer.id(*place);
-            }
+        OperationKind::BooleanConstant { value } => {
+            value_operations::encode_boolean_constant(writer, value)?
         }
-        Terminator::ReturnUnitPartialAffine {
-            edge,
-            trivial_affine_discards,
-            residual_affine_discards,
-        } => {
-            writer.u8(7);
-            writer.id(*edge);
-            writer.len(
-                "partial Unit return trivial affine discards",
-                trivial_affine_discards.len(),
-            )?;
-            for place in trivial_affine_discards {
-                writer.id(*place);
-            }
-            writer.len(
-                "partial Unit return residual affine discards",
-                residual_affine_discards.len(),
-            )?;
-            for discard in residual_affine_discards {
-                writer.id(discard.place);
-                encode_structural_path(writer, "partial affine discard path", &discard.path)?;
-                writer.id(discard.structural_type);
-            }
+        OperationKind::IeeeFloatConstant { value } => {
+            value_operations::encode_ieee_float_constant(writer, value)?
         }
-        Terminator::ReturnUnitNominalAffine { edge, cleanups } => {
-            writer.u8(8);
-            writer.id(*edge);
-            writer.len("nominal affine cleanups", cleanups.len())?;
-            for cleanup in cleanups {
-                writer.id(cleanup.place);
-                writer.id(cleanup.structural_type);
-                writer.id(cleanup.cleanup_machine);
-                encode_optional_id(writer, cleanup.cleanup_receiver);
-                encode_obligation_ids(writer, &cleanup.requirement_obligations)?;
-            }
-        }
-        Terminator::ReturnStructural {
-            edge,
+        OperationKind::IeeeFloatCompare {
+            comparison,
+            left,
+            right,
+        } => scalar_operations::encode_ieee_float_compare(writer, comparison, left, right)?,
+        OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+            left,
+            right,
+            addend,
+        } => scalar_operations::encode_nearest_ieee_float_fused_multiply_add(
+            writer, left, right, addend,
+        )?,
+        OperationKind::BooleanStructuralField {
             source,
-            returned_claims,
-            trivial_affine_discards,
-        } => {
-            writer.u8(6);
-            writer.id(*edge);
-            writer.id(*source);
-            writer.len("structural return claims", returned_claims.len())?;
-            for claim in returned_claims {
-                writer.id(*claim);
-            }
-            writer.len(
-                "structural return trivial affine discards",
-                trivial_affine_discards.len(),
-            )?;
-            for place in trivial_affine_discards {
-                writer.id(*place);
-            }
+            ref path,
+            field,
+        } => storage_operations::encode_boolean_structural_field(writer, source, path, field)?,
+        OperationKind::IntegerStructuralField {
+            source,
+            ref path,
+            field,
+        } => storage_operations::encode_integer_structural_field(writer, source, path, field)?,
+        OperationKind::BooleanNot { operand } => {
+            scalar_operations::encode_boolean_not(writer, operand)?
         }
-        Terminator::Conditional {
-            condition,
-            when_true,
-            when_false,
-        } => {
-            writer.u8(3);
-            writer.id(*condition);
-            encode_successor_edge(writer, when_true)?;
-            encode_successor_edge(writer, when_false)?;
+        OperationKind::BooleanEqual { left, right } => {
+            scalar_operations::encode_boolean_equal(writer, left, right)?
         }
-        Terminator::StructuralCase { source, cases } => {
-            writer.u8(9);
-            writer.id(*source);
-            writer.len("structural case successors", cases.len())?;
-            for case in cases {
-                writer.id(case.edge);
-                writer.id(case.target);
-                writer.id(case.case);
-                writer.len("structural case payload fields", case.payload_fields.len())?;
-                for field in &case.payload_fields {
-                    writer.id(*field);
-                }
-                writer.len(
-                    "structural case trivial affine discards",
-                    case.trivial_affine_discards.len(),
-                )?;
-                for place in &case.trivial_affine_discards {
-                    writer.id(*place);
-                }
-            }
+        OperationKind::IntegerEqual { left, right } => {
+            scalar_operations::encode_integer_equal(writer, left, right)?
         }
-        Terminator::Crash {
-            edge,
-            cause,
-            site_guard,
-            frontier_lower_bound,
+        OperationKind::IntegerLessThan { left, right } => {
+            scalar_operations::encode_integer_less_than(writer, left, right)?
+        }
+        OperationKind::IntegerLessOrEqual { left, right } => {
+            scalar_operations::encode_integer_less_or_equal(writer, left, right)?
+        }
+        OperationKind::IntegerBitwiseNot { operand } => {
+            scalar_operations::encode_integer_bitwise_not(writer, operand)?
+        }
+        OperationKind::IntegerWiden { operand } => {
+            scalar_operations::encode_integer_widen(writer, operand)?
+        }
+        OperationKind::IntegerExactCast {
+            operand,
+            obligation,
+        } => scalar_operations::encode_integer_exact_cast(writer, operand, obligation)?,
+        OperationKind::IntegerBitwiseAnd { left, right } => {
+            scalar_operations::encode_integer_bitwise_and(writer, left, right)?
+        }
+        OperationKind::IntegerBitwiseOr { left, right } => {
+            scalar_operations::encode_integer_bitwise_or(writer, left, right)?
+        }
+        OperationKind::IntegerBitwiseXor { left, right } => {
+            scalar_operations::encode_integer_bitwise_xor(writer, left, right)?
+        }
+        OperationKind::WrappingIntegerShiftLeft { value, count } => {
+            scalar_operations::encode_wrapping_integer_shift_left(writer, value, count)?
+        }
+        OperationKind::WrappingIntegerShiftRight { value, count } => {
+            scalar_operations::encode_wrapping_integer_shift_right(writer, value, count)?
+        }
+        OperationKind::ExactIntegerShiftLeft {
+            value,
+            count,
+            obligation,
+        } => scalar_operations::encode_exact_integer_shift_left(writer, value, count, obligation)?,
+        OperationKind::ExactIntegerShiftRight {
+            value,
+            count,
+            obligation,
+        } => scalar_operations::encode_exact_integer_shift_right(writer, value, count, obligation)?,
+        OperationKind::ExactIntegerAdd {
+            left,
+            right,
+            obligation,
+        } => scalar_operations::encode_exact_integer_add(writer, left, right, obligation)?,
+        OperationKind::ExactIntegerSubtract {
+            left,
+            right,
+            obligation,
+        } => scalar_operations::encode_exact_integer_subtract(writer, left, right, obligation)?,
+        OperationKind::ExactIntegerMultiply {
+            left,
+            right,
+            obligation,
+        } => scalar_operations::encode_exact_integer_multiply(writer, left, right, obligation)?,
+        OperationKind::ExactIntegerDivide {
+            left,
+            right,
+            obligation,
+        } => scalar_operations::encode_exact_integer_divide(writer, left, right, obligation)?,
+        OperationKind::ExactIntegerRemainder {
+            left,
+            right,
+            obligation,
+        } => scalar_operations::encode_exact_integer_remainder(writer, left, right, obligation)?,
+        OperationKind::WrappingIntegerDivide {
+            left,
+            right,
+            obligation,
+        } => scalar_operations::encode_wrapping_integer_divide(writer, left, right, obligation)?,
+        OperationKind::WrappingIntegerRemainder {
+            left,
+            right,
+            obligation,
+        } => scalar_operations::encode_wrapping_integer_remainder(writer, left, right, obligation)?,
+        OperationKind::SaturatingIntegerDivide {
+            left,
+            right,
+            obligation,
+        } => scalar_operations::encode_saturating_integer_divide(writer, left, right, obligation)?,
+        OperationKind::SaturatingIntegerRemainder {
+            left,
+            right,
+            obligation,
         } => {
-            writer.u8(4);
-            writer.id(*edge);
-            writer.u8(match cause {
-                CrashCause::Trap => 1,
-                CrashCause::Abort => 2,
-            });
-            writer.len("crash site guard", site_guard.len())?;
-            for predicate in site_guard {
-                encode_crash_predicate(writer, predicate)?;
-            }
-            writer.len("crash frontier lower bound", frontier_lower_bound.len())?;
-            for claim in frontier_lower_bound {
-                writer.id(*claim);
-            }
+            scalar_operations::encode_saturating_integer_remainder(writer, left, right, obligation)?
+        }
+        OperationKind::WrappingIntegerAdd { left, right } => {
+            scalar_operations::encode_wrapping_integer_add(writer, left, right)?
+        }
+        OperationKind::SaturatingIntegerAdd { left, right } => {
+            scalar_operations::encode_saturating_integer_add(writer, left, right)?
+        }
+        OperationKind::WrappingIntegerSubtract { left, right } => {
+            scalar_operations::encode_wrapping_integer_subtract(writer, left, right)?
+        }
+        OperationKind::SaturatingIntegerSubtract { left, right } => {
+            scalar_operations::encode_saturating_integer_subtract(writer, left, right)?
+        }
+        OperationKind::WrappingIntegerMultiply { left, right } => {
+            scalar_operations::encode_wrapping_integer_multiply(writer, left, right)?
+        }
+        OperationKind::SaturatingIntegerMultiply { left, right } => {
+            scalar_operations::encode_saturating_integer_multiply(writer, left, right)?
         }
     }
     Ok(())
@@ -1027,644 +518,214 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
     let operation_count = reader.count()?;
     let mut operations = Vec::new();
     for _ in 0..operation_count {
-        let operation_id = reader.id("OperationId")?;
-        let static_reach_binding = if reader.boolean()? {
-            Some(reader.u32()?)
-        } else {
-            None
-        };
-        let result = match reader.u8()? {
-            0 => OperationResult::Unit,
-            1 => OperationResult::Scalar(decode_declaration(reader)?),
-            2 => OperationResult::Structural(decode_operation_result(reader)?),
-            tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
-        };
-        let kind = match reader.u8()? {
-            57 => OperationKind::ByteSequenceSubslice {
-                source: reader.id("PlaceId")?,
-                start: reader.id("ValueId")?,
-                end: reader.id("ValueId")?,
-                length: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            63 => OperationKind::ByteSequenceWrite {
-                destination: reader.id("PlaceId")?,
-                index: reader.id("ValueId")?,
-                value: reader.id("ValueId")?,
-                length: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            56 => OperationKind::ByteSequenceRead {
-                source: reader.id("PlaceId")?,
-                index: reader.id("ValueId")?,
-                length: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            55 => OperationKind::ByteSequenceLength {
-                source: reader.id("PlaceId")?,
-            },
-            61 => OperationKind::EstablishPrimitiveLocal {
-                value: reader.id("ValueId")?,
-            },
-            69 => OperationKind::EstablishReference {
-                source: terminal_psi::StructuralArgument {
-                    place: reader.id("PlaceId")?,
-                    access: super::structural_signature_wire::decode_structural_access(reader)?,
-                    path: decode_structural_path(reader)?,
-                },
-            },
-            70 => OperationKind::ReleaseReference {
-                source: reader.id("PlaceId")?,
-            },
-            62 => OperationKind::PrimitiveScalarRead {
-                path: Vec::new(),
-                source: reader.id("PlaceId")?,
-            },
-            73 => {
-                let (source, path) =
-                    super::structural_field_wire::decode_canonical_structural_field(reader)?;
-                if path.is_empty() {
-                    return Err(CodecError::MalformedStructuralFoundation(
-                        "empty projected primitive path",
-                    ));
-                }
-                OperationKind::PrimitiveScalarRead { source, path }
-            }
-            74 => {
-                let (destination, path) =
-                    super::structural_field_wire::decode_canonical_structural_field(reader)?;
-                if path.is_empty() {
-                    return Err(CodecError::MalformedStructuralFoundation(
-                        "empty projected primitive path",
-                    ));
-                }
-                OperationKind::WriteOnlyPrimitiveStore {
-                    destination,
-                    path,
-                    value: reader.id("ValueId")?,
-                }
-            }
-            66 => OperationKind::StructuralCaseMembership {
-                source: reader.id("PlaceId")?,
-                path: decode_structural_path(reader)?,
-                case: reader.id("StructuralCaseId")?,
-            },
-            43 => OperationKind::WriteOnlyPrimitiveStore {
-                path: Vec::new(),
-                destination: reader.id("PlaceId")?,
-                value: reader.id("ValueId")?,
-            },
-            58 => OperationKind::StructuralByteSequenceFieldStore {
-                destination: reader.id("PlaceId")?,
-                path: decode_structural_path(reader)?,
-                field: reader.id("StructuralFieldId")?,
-                source: reader.id("PlaceId")?,
-                length: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            59 => OperationKind::StructuralByteSequenceFieldLength {
-                source: reader.id("PlaceId")?,
-                path: decode_structural_path(reader)?,
-                field: reader.id("StructuralFieldId")?,
-            },
-            60 => OperationKind::StructuralByteSequenceFieldByteStore {
-                destination: reader.id("PlaceId")?,
-                path: decode_structural_path(reader)?,
-                field: reader.id("StructuralFieldId")?,
-                index: reader.id("ValueId")?,
-                value: reader.id("ValueId")?,
-                length: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            46 => OperationKind::StructuralScalarFieldStore {
-                destination: reader.id("PlaceId")?,
-                path: decode_structural_path(reader)?,
-                field: reader.id("StructuralFieldId")?,
-                value: reader.id("ValueId")?,
-                range_obligation: None,
-            },
-            75 => OperationKind::StructuralScalarFieldStore {
-                destination: reader.id("PlaceId")?,
-                path: decode_structural_path(reader)?,
-                field: reader.id("StructuralFieldId")?,
-                value: reader.id("ValueId")?,
-                range_obligation: Some(reader.id("ObligationId")?),
-            },
-            64 => OperationKind::EstablishScalarArray {
-                elements: decode_counted(reader, |reader| reader.id("ValueId"))?,
-            },
-            42 => OperationKind::EstablishScalarCase {
-                result_case: reader.id("StructuralCaseId")?,
-                fields: decode_counted(reader, |reader| {
-                    Ok(terminal_psi::ScalarCaseField {
-                        field: reader.id("StructuralFieldId")?,
-                        value: reader.id("ValueId")?,
-                        range_obligation: decode_optional_id(reader, "ObligationId")?,
-                    })
-                })?,
-            },
-            40 => OperationKind::EstablishByteSequenceLiteral {
-                destination: reader.id("PlaceId")?,
-                bytes: {
-                    let len =
-                        usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
-                    reader.take(len)?.to_vec()
-                },
-            },
-            1 => OperationKind::IntegerConstant {
-                value: decode_integer_value(reader)?,
-            },
-            2 => OperationKind::BooleanConstant {
-                value: reader.boolean()?,
-            },
-            44 => OperationKind::IeeeFloatConstant {
-                value: decode_ieee_float_value(reader)?,
-            },
-            65 => OperationKind::IeeeFloatCompare {
-                comparison: match reader.u8()? {
-                    0 => IeeeFloatComparisonOperation::Equal,
-                    1 => IeeeFloatComparisonOperation::NotEqual,
-                    2 => IeeeFloatComparisonOperation::Less,
-                    3 => IeeeFloatComparisonOperation::LessOrEqual,
-                    4 => IeeeFloatComparisonOperation::Greater,
-                    5 => IeeeFloatComparisonOperation::GreaterOrEqual,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatComparisonOperation", tag)),
-                },
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            45 => OperationKind::NearestIeeeFloatFusedMultiplyAdd {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                addend: reader.id("ValueId")?,
-            },
-            38 => OperationKind::BooleanStructuralField {
-                source: reader.id("PlaceId")?,
-                path: decode_scalar_field_path(reader)?,
-                field: reader.id("StructuralFieldId")?,
-            },
-            47 => OperationKind::IntegerStructuralField {
-                source: reader.id("PlaceId")?,
-                path: decode_scalar_field_path(reader)?,
-                field: reader.id("StructuralFieldId")?,
-            },
-            3 => OperationKind::WrappingIntegerAdd {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            4 => OperationKind::SaturatingIntegerAdd {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            5 => OperationKind::WrappingIntegerSubtract {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            6 => OperationKind::SaturatingIntegerSubtract {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            7 => OperationKind::WrappingIntegerMultiply {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            8 => OperationKind::SaturatingIntegerMultiply {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            9 => OperationKind::BooleanNot {
-                operand: reader.id("ValueId")?,
-            },
-            10 => OperationKind::BooleanEqual {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            11 => OperationKind::IntegerEqual {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            12 => OperationKind::IntegerLessThan {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            13 => OperationKind::IntegerLessOrEqual {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            14 => OperationKind::IntegerBitwiseAnd {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            15 => OperationKind::IntegerBitwiseOr {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            16 => OperationKind::IntegerBitwiseXor {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-            },
-            17 => OperationKind::WrappingIntegerShiftLeft {
-                value: reader.id("ValueId")?,
-                count: reader.id("ValueId")?,
-            },
-            18 => OperationKind::WrappingIntegerShiftRight {
-                value: reader.id("ValueId")?,
-                count: reader.id("ValueId")?,
-            },
-            19 => OperationKind::IntegerBitwiseNot {
-                operand: reader.id("ValueId")?,
-            },
-            20 => OperationKind::IntegerWiden {
-                operand: reader.id("ValueId")?,
-            },
-            21 => OperationKind::IntegerExactCast {
-                operand: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            22 => OperationKind::ExactIntegerShiftRight {
-                value: reader.id("ValueId")?,
-                count: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            23 => OperationKind::ExactIntegerShiftLeft {
-                value: reader.id("ValueId")?,
-                count: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            24 => OperationKind::ExactIntegerAdd {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            25 => OperationKind::ExactIntegerSubtract {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            26 => OperationKind::ExactIntegerMultiply {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            27 => OperationKind::ExactIntegerDivide {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            28 => OperationKind::ExactIntegerRemainder {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            29 => OperationKind::WrappingIntegerDivide {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            30 => OperationKind::WrappingIntegerRemainder {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            31 => OperationKind::SaturatingIntegerDivide {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            32 => OperationKind::SaturatingIntegerRemainder {
-                left: reader.id("ValueId")?,
-                right: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            },
-            33 => {
-                let callee = reader.id("MachineId")?;
-                let argument_count = reader.count()?;
-                let mut arguments = Vec::with_capacity(
-                    usize::try_from(argument_count).expect("u32 count fits usize"),
-                );
-                for _ in 0..argument_count {
-                    arguments.push(reader.id("ValueId")?);
-                }
-                let requirement_count = reader.count()?;
-                let mut requirement_obligations = Vec::with_capacity(
-                    usize::try_from(requirement_count).expect("u32 count fits usize"),
-                );
-                for _ in 0..requirement_count {
-                    requirement_obligations.push(reader.id("ObligationId")?);
-                }
-                let crash_continuations = decode_crash_routes(reader)?;
-                OperationKind::Call {
-                    callee,
-                    arguments,
-                    requirement_obligations,
-                    crash_continuations,
-                }
-            }
-            34 => OperationKind::CallUnit {
-                callee: reader.id("MachineId")?,
-                arguments: decode_ids(reader, "ValueId")?,
-                structural_arguments: decode_structural_arguments(reader)?,
-                claim_transfers: decode_counted(reader, |reader| {
-                    Ok(ClaimTransfer {
-                        claim: reader.id("ClaimId")?,
-                        argument_index: reader.u32()?,
-                    })
-                })?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
-                crash_continuations: decode_crash_routes(reader)?,
-            },
-            35 => OperationKind::BoundaryCall {
-                boundary: reader.id("BoundaryMachineId")?,
-                arguments: decode_ids(reader, "ValueId")?,
-                structural_arguments: decode_structural_arguments(reader)?,
-                completion_receipts: decode_counted(reader, |reader| {
-                    Ok(CompletionReceipt {
-                        claim: reader.id("ClaimId")?,
-                        argument_index: reader.u32()?,
-                    })
-                })?,
-            },
-            36 => OperationKind::PortWrite {
-                service: reader.id("ServiceId")?,
-                port: reader.u16()?,
-                value: reader.u8()?,
-            },
-            37 => OperationKind::EstablishTrivialAffineLocal {
-                destination: reader.id("PlaceId")?,
-            },
-            68 => OperationKind::EstablishRecord {
-                fields: decode_counted(reader, |reader| {
-                    let field = reader.id("StructuralFieldId")?;
-                    let value = match reader.u8()? {
-                        1 => terminal_psi::RecordFieldValue::Scalar {
-                            value: reader.id("ValueId")?,
-                            range_obligation: decode_optional_id(reader, "ObligationId")?,
-                        },
-                        2 => terminal_psi::RecordFieldValue::Structural(
-                            terminal_psi::StructuralArgument {
-                                place: reader.id("PlaceId")?,
-                                access: super::structural_signature_wire::decode_structural_access(
-                                    reader,
-                                )?,
-                                path: decode_structural_path(reader)?,
-                            },
-                        ),
-                        tag => return Err(CodecError::InvalidTag("RecordFieldValue", tag)),
-                    };
-                    Ok(terminal_psi::RecordFieldInitializer { field, value })
-                })?,
-            },
-            39 => OperationKind::CallStructuralScalar {
-                callee: reader.id("MachineId")?,
-                arguments: decode_ids(reader, "ValueId")?,
-                structural_arguments: decode_structural_arguments(reader)?,
-                claim_transfers: decode_counted(reader, |reader| {
-                    Ok(ClaimTransfer {
-                        claim: reader.id("ClaimId")?,
-                        argument_index: reader.u32()?,
-                    })
-                })?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
-                crash_continuations: decode_crash_routes(reader)?,
-            },
-            48 => OperationKind::CallDynamicScalar {
-                descriptor_ordinal: reader.u32()?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
-                crash_continuations: decode_crash_routes(reader)?,
-            },
-            49 => OperationKind::CallDynamicParameterScalar {
-                parameter_ordinal: reader.u32()?,
-                requirement_slot: reader.u32()?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
-                crash_continuations: decode_crash_routes(reader)?,
-            },
-            52 => OperationKind::CallDynamicUnit {
-                descriptor_ordinal: reader.u32()?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
-                crash_continuations: decode_crash_routes(reader)?,
-            },
-            53 => OperationKind::CallDynamicParameterUnit {
-                parameter_ordinal: reader.u32()?,
-                requirement_slot: reader.u32()?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
-                crash_continuations: decode_crash_routes(reader)?,
-            },
-            54 => OperationKind::StoreDynamicDescriptor {
-                descriptor_ordinal: reader.u32()?,
-            },
-            41 => OperationKind::CallStructural {
-                callee: reader.id("MachineId")?,
-                structural_arguments: decode_structural_arguments(reader)?,
-                claim_transfers: decode_counted(reader, |reader| {
-                    Ok(ClaimTransfer {
-                        claim: reader.id("ClaimId")?,
-                        argument_index: reader.u32()?,
-                    })
-                })?,
-                returned_claim_transfers: decode_counted(reader, |reader| {
-                    Ok(StructuralResultClaimTransfer {
-                        callee_claim: reader.id("ClaimId")?,
-                        caller_claim: reader.id("ClaimId")?,
-                    })
-                })?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
-                crash_continuations: decode_crash_routes(reader)?,
-                selected_evidence: decode_counted(reader, |reader| {
-                    Ok(OutcomeSpecificCallEvidence {
-                        guard: OutcomeSpecificGuard {
-                            result_type: reader.id("StructuralTypeId")?,
-                            result_case: reader.id("StructuralCaseId")?,
-                        },
-                        position: reader.u32()?,
-                        callee_obligation: reader.id("ObligationId")?,
-                        callee_term: reader.id("EvidenceTermId")?,
-                        output_field: reader.string("guarded call output field")?,
-                        callee_proposition: reader.id("PropositionId")?,
-                        instantiated_proposition: reader.id("PropositionId")?,
-                        output: reader.id("EvidenceTermId")?,
-                        result_substitution: match reader.u8()? {
-                            0 => None,
-                            1 => Some(OutcomeSpecificCallResultSubstitution {
-                                argument_position: reader.u32()?,
-                                callee_result: reader.id("PlaceId")?,
-                                caller_result: reader.id("PlaceId")?,
-                            }),
-                            tag => {
-                                return Err(CodecError::InvalidTag(
-                                    "OutcomeSpecificCallResultSubstitution",
-                                    tag,
-                                ));
-                            }
-                        },
-                        validity: OutcomeSpecificCallEvidenceValidity {
-                            result: reader.id("PlaceId")?,
-                            proposition_dependencies: decode_ids(reader, "PlaceId")?,
-                            evidence_interface: decode_evidence_interface(reader)?,
-                            interface_dependencies: decode_ids(reader, "PlaceId")?,
-                        },
-                        expected_use_count: reader.u32()?,
-                        uses: decode_counted(reader, |reader| {
-                            Ok(terminal_psi::OutcomeSpecificEvidenceUse {
-                                target: reader.id("MachineId")?,
-                                input_position: reader.u32()?,
-                                target_requirement: reader.id("PropositionId")?,
-                                target_term: reader.id("EvidenceTermId")?,
-                                source: reader.id("EvidenceTermId")?,
-                                instantiated_proposition: reader.id("PropositionId")?,
-                                target_parameter: reader.id("PlaceId")?,
-                                caller_result: reader.id("PlaceId")?,
-                            })
-                        })?,
-                    })
-                })?,
-            },
-            50 => OperationKind::CallStructuralWithScalarArguments {
-                callee: reader.id("MachineId")?,
-                arguments: decode_ids(reader, "ValueId")?,
-                structural_arguments: decode_structural_arguments(reader)?,
-                claim_transfers: decode_counted(reader, |reader| {
-                    Ok(ClaimTransfer {
-                        claim: reader.id("ClaimId")?,
-                        argument_index: reader.u32()?,
-                    })
-                })?,
-                returned_claim_transfers: decode_counted(reader, |reader| {
-                    Ok(StructuralResultClaimTransfer {
-                        callee_claim: reader.id("ClaimId")?,
-                        caller_claim: reader.id("ClaimId")?,
-                    })
-                })?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
-                crash_continuations: decode_crash_routes(reader)?,
-            },
-            tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
-        };
-        operations.push(Operation {
-            static_reach_binding,
-            id: operation_id,
-            result,
-            kind,
-        });
+        operations.push(decode_operation(reader)?);
     }
-    let terminator = match reader.u8()? {
-        tag @ (1 | 10) => {
-            let edge = reader.id("EdgeId")?;
-            let target = reader.id("BlockId")?;
-            let argument_count = reader.count()?;
-            let mut arguments = Vec::new();
-            for _ in 0..argument_count {
-                arguments.push(reader.id("ValueId")?);
-            }
-            Terminator::Jump {
-                edge,
-                target,
-                arguments,
-                structural_arguments: decode_structural_arguments(reader)?,
-                trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
-                residual_affine_discards: if tag == 10 {
-                    let residuals = decode_counted(reader, |reader| {
-                        Ok(StructuralAffineDiscard {
-                            place: reader.id("PlaceId")?,
-                            path: decode_structural_path(reader)?,
-                            structural_type: reader.id("StructuralTypeId")?,
-                        })
-                    })?;
-                    if residuals.is_empty() {
-                        return Err(CodecError::NonCanonicalEncoding);
-                    }
-                    residuals
-                } else {
-                    Vec::new()
-                },
-            }
-        }
-        2 => Terminator::Return {
-            edge: reader.id("EdgeId")?,
-            value: reader.id("ValueId")?,
-            cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
-        },
-        3 => Terminator::Conditional {
-            condition: reader.id("ValueId")?,
-            when_true: decode_successor_edge(reader)?,
-            when_false: decode_successor_edge(reader)?,
-        },
-        4 => {
-            let edge = reader.id("EdgeId")?;
-            let cause = match reader.u8()? {
-                1 => CrashCause::Trap,
-                2 => CrashCause::Abort,
-                tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
-            };
-            let guard_count = reader.count()?;
-            let mut site_guard = Vec::with_capacity(guard_count as usize);
-            for _ in 0..guard_count {
-                site_guard.push(decode_crash_predicate(reader)?);
-            }
-            let claim_count = reader.count()?;
-            let mut frontier_lower_bound = Vec::with_capacity(claim_count as usize);
-            for _ in 0..claim_count {
-                frontier_lower_bound.push(reader.id("ClaimId")?);
-            }
-            Terminator::Crash {
-                edge,
-                cause,
-                site_guard,
-                frontier_lower_bound,
-            }
-        }
-        5 => Terminator::ReturnUnit {
-            edge: reader.id("EdgeId")?,
-            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
-        },
-        6 => Terminator::ReturnStructural {
-            edge: reader.id("EdgeId")?,
-            source: reader.id("PlaceId")?,
-            returned_claims: decode_counted(reader, |reader| reader.id("ClaimId"))?,
-            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
-        },
-        7 => Terminator::ReturnUnitPartialAffine {
-            edge: reader.id("EdgeId")?,
-            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
-            residual_affine_discards: decode_counted(reader, |reader| {
-                Ok(StructuralAffineDiscard {
-                    place: reader.id("PlaceId")?,
-                    path: decode_structural_path(reader)?,
-                    structural_type: reader.id("StructuralTypeId")?,
-                })
-            })?,
-        },
-        8 => Terminator::ReturnUnitNominalAffine {
-            edge: reader.id("EdgeId")?,
-            cleanups: decode_counted(reader, |reader| {
-                Ok(NominalAffineCleanup {
-                    place: reader.id("PlaceId")?,
-                    structural_type: reader.id("StructuralTypeId")?,
-                    cleanup_machine: reader.id("MachineId")?,
-                    cleanup_receiver: decode_optional_id(reader, "PlaceId")?,
-                    requirement_obligations: decode_ids(reader, "ObligationId")?,
-                })
-            })?,
-        },
-        9 => Terminator::StructuralCase {
-            source: reader.id("PlaceId")?,
-            cases: decode_counted(reader, |reader| {
-                Ok(StructuralCaseSuccessorEdge {
-                    edge: reader.id("EdgeId")?,
-                    target: reader.id("BlockId")?,
-                    case: reader.id("StructuralCaseId")?,
-                    payload_fields: decode_ids(reader, "StructuralFieldId")?,
-                    trivial_affine_discards: decode_ids(reader, "PlaceId")?,
-                })
-            })?,
-        },
-        tag => return Err(CodecError::InvalidTag("Terminator", tag)),
-    };
+    let terminator = terminator_wire::decode_terminator(reader)?;
     Ok(Block {
         id,
         parameters,
         structural_parameters,
         operations,
         terminator,
+    })
+}
+
+/// One operation row: its id, static reach binding and result, then the
+/// kind its tag names.
+fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
+    let operation_id = reader.id("OperationId")?;
+    let static_reach_binding = if reader.boolean()? {
+        Some(reader.u32()?)
+    } else {
+        None
+    };
+    let result = match reader.u8()? {
+        0 => OperationResult::Unit,
+        1 => OperationResult::Scalar(decode_declaration(reader)?),
+        2 => OperationResult::Structural(decode_operation_result(reader)?),
+        tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
+    };
+    let kind = match reader.u8()? {
+        operation_tags::BYTE_SEQUENCE_SUBSLICE => {
+            storage_operations::decode_byte_sequence_subslice(reader)?
+        }
+        operation_tags::BYTE_SEQUENCE_WRITE => {
+            storage_operations::decode_byte_sequence_write(reader)?
+        }
+        operation_tags::BYTE_SEQUENCE_READ => {
+            storage_operations::decode_byte_sequence_read(reader)?
+        }
+        operation_tags::BYTE_SEQUENCE_LENGTH => {
+            storage_operations::decode_byte_sequence_length(reader)?
+        }
+        operation_tags::ESTABLISH_PRIMITIVE_LOCAL => {
+            value_operations::decode_establish_primitive_local(reader)?
+        }
+        operation_tags::ESTABLISH_REFERENCE => {
+            storage_operations::decode_establish_reference(reader)?
+        }
+        operation_tags::RELEASE_REFERENCE => storage_operations::decode_release_reference(reader)?,
+        operation_tags::PRIMITIVE_SCALAR_READ => {
+            storage_operations::decode_primitive_scalar_read(reader)?
+        }
+        operation_tags::PROJECTED_PRIMITIVE_SCALAR_READ => {
+            storage_operations::decode_projected_primitive_scalar_read(reader)?
+        }
+        operation_tags::PROJECTED_WRITE_ONLY_PRIMITIVE_STORE => {
+            storage_operations::decode_projected_write_only_primitive_store(reader)?
+        }
+        operation_tags::STRUCTURAL_CASE_MEMBERSHIP => {
+            storage_operations::decode_structural_case_membership(reader)?
+        }
+        operation_tags::WRITE_ONLY_PRIMITIVE_STORE => {
+            storage_operations::decode_write_only_primitive_store(reader)?
+        }
+        operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE => {
+            storage_operations::decode_structural_byte_sequence_field_store(reader)?
+        }
+        operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH => {
+            storage_operations::decode_structural_byte_sequence_field_length(reader)?
+        }
+        operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE => {
+            storage_operations::decode_structural_byte_sequence_field_byte_store(reader)?
+        }
+        operation_tags::STRUCTURAL_SCALAR_FIELD_STORE => {
+            storage_operations::decode_structural_scalar_field_store(reader)?
+        }
+        operation_tags::RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE => {
+            storage_operations::decode_range_checked_structural_scalar_field_store(reader)?
+        }
+        operation_tags::ESTABLISH_SCALAR_ARRAY => {
+            value_operations::decode_establish_scalar_array(reader)?
+        }
+        operation_tags::ESTABLISH_SCALAR_CASE => {
+            value_operations::decode_establish_scalar_case(reader)?
+        }
+        operation_tags::ESTABLISH_BYTE_SEQUENCE_LITERAL => {
+            value_operations::decode_establish_byte_sequence_literal(reader)?
+        }
+        operation_tags::INTEGER_CONSTANT => value_operations::decode_integer_constant(reader)?,
+        operation_tags::BOOLEAN_CONSTANT => value_operations::decode_boolean_constant(reader)?,
+        operation_tags::IEEE_FLOAT_CONSTANT => {
+            value_operations::decode_ieee_float_constant(reader)?
+        }
+        operation_tags::IEEE_FLOAT_COMPARE => scalar_operations::decode_ieee_float_compare(reader)?,
+        operation_tags::NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD => {
+            scalar_operations::decode_nearest_ieee_float_fused_multiply_add(reader)?
+        }
+        operation_tags::BOOLEAN_STRUCTURAL_FIELD => {
+            storage_operations::decode_boolean_structural_field(reader)?
+        }
+        operation_tags::INTEGER_STRUCTURAL_FIELD => {
+            storage_operations::decode_integer_structural_field(reader)?
+        }
+        operation_tags::WRAPPING_INTEGER_ADD => {
+            scalar_operations::decode_wrapping_integer_add(reader)?
+        }
+        operation_tags::SATURATING_INTEGER_ADD => {
+            scalar_operations::decode_saturating_integer_add(reader)?
+        }
+        operation_tags::WRAPPING_INTEGER_SUBTRACT => {
+            scalar_operations::decode_wrapping_integer_subtract(reader)?
+        }
+        operation_tags::SATURATING_INTEGER_SUBTRACT => {
+            scalar_operations::decode_saturating_integer_subtract(reader)?
+        }
+        operation_tags::WRAPPING_INTEGER_MULTIPLY => {
+            scalar_operations::decode_wrapping_integer_multiply(reader)?
+        }
+        operation_tags::SATURATING_INTEGER_MULTIPLY => {
+            scalar_operations::decode_saturating_integer_multiply(reader)?
+        }
+        operation_tags::BOOLEAN_NOT => scalar_operations::decode_boolean_not(reader)?,
+        operation_tags::BOOLEAN_EQUAL => scalar_operations::decode_boolean_equal(reader)?,
+        operation_tags::INTEGER_EQUAL => scalar_operations::decode_integer_equal(reader)?,
+        operation_tags::INTEGER_LESS_THAN => scalar_operations::decode_integer_less_than(reader)?,
+        operation_tags::INTEGER_LESS_OR_EQUAL => {
+            scalar_operations::decode_integer_less_or_equal(reader)?
+        }
+        operation_tags::INTEGER_BITWISE_AND => {
+            scalar_operations::decode_integer_bitwise_and(reader)?
+        }
+        operation_tags::INTEGER_BITWISE_OR => scalar_operations::decode_integer_bitwise_or(reader)?,
+        operation_tags::INTEGER_BITWISE_XOR => {
+            scalar_operations::decode_integer_bitwise_xor(reader)?
+        }
+        operation_tags::WRAPPING_INTEGER_SHIFT_LEFT => {
+            scalar_operations::decode_wrapping_integer_shift_left(reader)?
+        }
+        operation_tags::WRAPPING_INTEGER_SHIFT_RIGHT => {
+            scalar_operations::decode_wrapping_integer_shift_right(reader)?
+        }
+        operation_tags::INTEGER_BITWISE_NOT => {
+            scalar_operations::decode_integer_bitwise_not(reader)?
+        }
+        operation_tags::INTEGER_WIDEN => scalar_operations::decode_integer_widen(reader)?,
+        operation_tags::INTEGER_EXACT_CAST => scalar_operations::decode_integer_exact_cast(reader)?,
+        operation_tags::EXACT_INTEGER_SHIFT_RIGHT => {
+            scalar_operations::decode_exact_integer_shift_right(reader)?
+        }
+        operation_tags::EXACT_INTEGER_SHIFT_LEFT => {
+            scalar_operations::decode_exact_integer_shift_left(reader)?
+        }
+        operation_tags::EXACT_INTEGER_ADD => scalar_operations::decode_exact_integer_add(reader)?,
+        operation_tags::EXACT_INTEGER_SUBTRACT => {
+            scalar_operations::decode_exact_integer_subtract(reader)?
+        }
+        operation_tags::EXACT_INTEGER_MULTIPLY => {
+            scalar_operations::decode_exact_integer_multiply(reader)?
+        }
+        operation_tags::EXACT_INTEGER_DIVIDE => {
+            scalar_operations::decode_exact_integer_divide(reader)?
+        }
+        operation_tags::EXACT_INTEGER_REMAINDER => {
+            scalar_operations::decode_exact_integer_remainder(reader)?
+        }
+        operation_tags::WRAPPING_INTEGER_DIVIDE => {
+            scalar_operations::decode_wrapping_integer_divide(reader)?
+        }
+        operation_tags::WRAPPING_INTEGER_REMAINDER => {
+            scalar_operations::decode_wrapping_integer_remainder(reader)?
+        }
+        operation_tags::SATURATING_INTEGER_DIVIDE => {
+            scalar_operations::decode_saturating_integer_divide(reader)?
+        }
+        operation_tags::SATURATING_INTEGER_REMAINDER => {
+            scalar_operations::decode_saturating_integer_remainder(reader)?
+        }
+        operation_tags::CALL => call_operations::decode_call(reader)?,
+        operation_tags::CALL_UNIT => call_operations::decode_call_unit(reader)?,
+        operation_tags::BOUNDARY_CALL => call_operations::decode_boundary_call(reader)?,
+        operation_tags::PORT_WRITE => call_operations::decode_port_write(reader)?,
+        operation_tags::ESTABLISH_TRIVIAL_AFFINE_LOCAL => {
+            value_operations::decode_establish_trivial_affine_local(reader)?
+        }
+        operation_tags::ESTABLISH_RECORD => value_operations::decode_establish_record(reader)?,
+        operation_tags::CALL_STRUCTURAL_SCALAR => {
+            call_operations::decode_call_structural_scalar(reader)?
+        }
+        operation_tags::CALL_DYNAMIC_SCALAR => call_operations::decode_call_dynamic_scalar(reader)?,
+        operation_tags::CALL_DYNAMIC_PARAMETER_SCALAR => {
+            call_operations::decode_call_dynamic_parameter_scalar(reader)?
+        }
+        operation_tags::CALL_DYNAMIC_UNIT => call_operations::decode_call_dynamic_unit(reader)?,
+        operation_tags::CALL_DYNAMIC_PARAMETER_UNIT => {
+            call_operations::decode_call_dynamic_parameter_unit(reader)?
+        }
+        operation_tags::STORE_DYNAMIC_DESCRIPTOR => {
+            storage_operations::decode_store_dynamic_descriptor(reader)?
+        }
+        operation_tags::CALL_STRUCTURAL => call_operations::decode_call_structural(reader)?,
+        operation_tags::CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS => {
+            call_operations::decode_call_structural_with_scalar_arguments(reader)?
+        }
+        tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
+    };
+    Ok(Operation {
+        static_reach_binding,
+        id: operation_id,
+        result,
+        kind,
     })
 }
 
