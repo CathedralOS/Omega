@@ -341,7 +341,30 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   bytes, and contribution alignment — is independently representable and
   rejected by replay; a provider-plan identity outside the selected
   closure is rejected at encoding as non-canonical, and a dropped row is
-  rejected by replay.
+  rejected by replay. Landed: canonical component descriptions
+  (`component-candidate/src/component_verification/tests.rs`,
+  `component_description_rejects_every_one_field_substitution`,
+  `component_description_declared_fields_stay_identity_bound`) — the
+  schema, frontier, and embedded artifact substitution, every
+  module-derived roster field (import requirement and contract identity,
+  export identity, entry kind/identity/evidence, outgoing-authority class,
+  identity, and evidence on both sealed and unsealed requirement rows,
+  custody kind/identity/evidence, provider plan digest and requirement
+  roster, a zeroed provider-closure digest, and obligation kind and
+  identity), plus dropped or forged rows are independently representable
+  and rejected by replay; declared evidence-only fields (import slot
+  index, provider report identity, obligation detail, a nonzero
+  closure-digest substitution, the optional realization identity,
+  assumption-bound evidence weakening, declared-row kind/identity/drop,
+  and over-declared import and obligation rows) stay identity-bound
+  rather than replay-bound, while a rebound declared-row digest and a
+  renamed roster digest reject by replay; duplicated rows, an
+  over-bound identity, a truncated embedded artifact, and raw wire
+  substitutions of the magic, frontier, entry-kind, and entry-evidence
+  tags, an over-bound roster count, trailing bytes, and truncation are
+  rejected at canonical decoding, and a pure roster reorder canonicalizes
+  to the identical encoding.
+>>>>>>> f138b3b7e4 (component-candidate: canonical component descriptions take one-field substitution coverage)
 
 ## Psi optimization and loops
 
