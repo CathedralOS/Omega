@@ -51,11 +51,15 @@ pub fn spill_selected_runtime_value(
     let admitted = admission::admit(source, function_index, register, environment, budget)?;
     let mut transformed = source.selected_plan().clone();
     let function = &mut transformed.functions[function_index];
-    function.local_storage_slots.push(SelectedLocalStorageSlot {
-        id: admitted.slot,
-        byte_size: 8,
-        alignment: 8,
-    });
+    // A reused slot is already declared, so its bytes stay charged exactly
+    // once in the function's frame demand; only a private slot is appended.
+    if admitted.fresh_slot {
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: admitted.slot,
+            byte_size: 8,
+            alignment: 8,
+        });
+    }
     let mut next_instruction = admitted.first_instruction;
     let mut next_register = admitted.first_register;
     for (block_index, block) in admitted.function.blocks.iter().enumerate() {
