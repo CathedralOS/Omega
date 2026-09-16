@@ -3,10 +3,10 @@ use build_time_evaluation::compute_layout_plan;
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use layout::build_layout_plan;
 use layout_plans::{
-    ByteOrder, ConsumptionInstant, DataSymbolId, EntryStubId, LayoutPlacementReport,
-    MaterializationAction, MaterializationContext, RelocationTarget, SymbolicFieldInnerLayout,
-    SymbolicFieldPathSegment, SymbolicFieldValue, derive_symbolic_materialization,
-    derive_symbolic_materialization_with_inner_layouts,
+    ByteOrder, ConsumptionInstant, ConventionalRecursiveRecordSumPathsLayoutReport, DataSymbolId,
+    EntryStubId, LayoutPlacementReport, MaterializationAction, MaterializationContext,
+    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
+    derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
 };
 use target::NativeTarget;
 
@@ -960,6 +960,208 @@ machine Main::main(&mut self) { }
             0x1122_3344_5566_7788
         } else {
             assert_eq!(resolved, data_target);
+            0x99aa_bbcc_ddee_ff00
+        }
+    });
+}
+
+#[test]
+fn recursive_sum_symbolic_materialization_realizes_on_both_linux_isas() {
+    // Recursive shapes under the general rule, end to end:
+    // `middle.inner.choice.Run.callback` crosses two record boundaries before
+    // spelling the selected case and its payload field. The recursive
+    // projection retains every boundary's exact interior as report data; the
+    // `SymbolicFieldInnerLayout` fold turns that report into the carriers
+    // derivation binds, and the same bounded hop traversal composes every
+    // offset — no depth-specific case enters either side. Numbered members
+    // join the whole path on stable identity.
+    let main_path = write_program(
+        "recursive-sum-symbolic-field",
+        r#"
+data Choice [copy] {
+    case #1 Empty;
+    case #2 Run(#3 callback: u64, #4 clock: u64);
+}
+data Inner [copy] {
+    #1 choice: Choice;
+    #2 pad: u64;
+}
+data Middle [copy] {
+    #1 inner: Inner;
+    #2 tag: u64;
+}
+data Outer [copy] {
+    #1 header: u64;
+    #2 middle: Middle;
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("a recursive record/sum record should check");
+    let plan = build_layout_plan(&checked, NativeTarget::linux_x64(), &[])
+        .expect("the recursive record should lay out");
+    let arm_plan = build_layout_plan(&checked, NativeTarget::linux_arm64(), &[])
+        .expect("the recursive record should lay out for linux_arm64");
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Outer")
+        .expect("the outer record");
+    let paths =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            owner.symbol,
+        )
+        .expect("a record reaching sums through nested records should project");
+    let arm_paths =
+        layout::project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &arm_plan,
+            owner.symbol,
+        )
+        .expect("the same recursive projection closes on linux_arm64");
+    assert_eq!(
+        paths, arm_paths,
+        "both Linux ISAs retain the same recursive path geometry"
+    );
+    assert_eq!(
+        paths
+            .outer_layout()
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("header", LayoutPlacementReport::At { offset: 0 }),
+            ("middle", LayoutPlacementReport::At { offset: 8 }),
+        ]
+    );
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(root) = &paths else {
+        panic!("the outer record projects as a recursive branch");
+    };
+    assert_eq!(root.paths.len(), 1);
+    assert_eq!(root.paths[0].outer_field, "middle");
+    assert_eq!(root.paths[0].outer_member_identity, Some(2));
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(middle) = &root.paths[0].inner
+    else {
+        panic!("the middle record projects as a recursive branch");
+    };
+    assert_eq!(middle.paths.len(), 1);
+    assert_eq!(middle.paths[0].outer_field, "inner");
+    assert_eq!(middle.paths[0].outer_member_identity, Some(1));
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_layouts, ..
+    } = &middle.paths[0].inner
+    else {
+        panic!("the innermost record is the direct-sum leaf");
+    };
+    assert_eq!(child_sum_layouts.len(), 1);
+    assert_eq!(child_sum_layouts[0].field, "choice");
+    assert_eq!(child_sum_layouts[0].member_identity, Some(1));
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&paths)
+        .expect("the recursive report folds into inner layout carriers");
+
+    let header_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x5a5a).expect("normalized data identity"),
+    );
+    let entry_target = RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("normalized entry identity"),
+    );
+    let clock_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0xbeef).expect("normalized data identity"),
+    );
+    let pad_target = RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x0bad).expect("normalized data identity"),
+    );
+    let symbolic = [
+        SymbolicFieldValue::new_numbered("header", 1, 64, header_target)
+            .expect("numbered scalar field"),
+        SymbolicFieldValue::new_numbered("middle", 2, 64, entry_target)
+            .expect("numbered outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("inner", 1).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("choice", 1).with_inner_segment(
+                        SymbolicFieldPathSegment::new_numbered("Run", 2).with_inner_segment(
+                            SymbolicFieldPathSegment::new_numbered("callback", 3),
+                        ),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new_numbered("middle", 2, 64, clock_target)
+            .expect("numbered outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("inner", 1).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("choice", 1).with_inner_segment(
+                        SymbolicFieldPathSegment::new_numbered("Run", 2)
+                            .with_inner_segment(SymbolicFieldPathSegment::new_numbered("clock", 4)),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new_numbered("middle", 2, 64, pad_target)
+            .expect("numbered outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("inner", 1)
+                    .with_inner_segment(SymbolicFieldPathSegment::new_numbered("pad", 2)),
+            ),
+    ];
+    let materialization = derive_symbolic_materialization_with_inner_layouts(
+        paths.outer_layout(),
+        &carriers,
+        &symbolic,
+        MaterializationContext {
+            consumption: ConsumptionInstant::AfterOmegaHandoff,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: layout_plans::PlacementConstraints::unconstrained(
+                layout_plans::PlacementPhase::PostHandoff,
+            ),
+        },
+        |_| None,
+    )
+    .expect("recursive record/sum paths compose every crossed boundary");
+    let writes = materialization
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("unresolved recursive paths derive writers, found {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    // `middle` spans 8..48; inside it `inner` sits at 0 holding `choice` at 0
+    // and `pad` at 24, so `Run.callback` lands at 16, `Run.clock` at 24, and
+    // the `inner.pad` member leaf at 32.
+    assert_eq!(
+        writes,
+        [
+            ("header", 0),
+            ("middle.inner.choice.Run.callback", 16),
+            ("middle.inner.choice.Run.clock", 24),
+            ("middle.inner.pad", 32),
+        ]
+    );
+
+    let writer = materialization
+        .derive_post_handoff_writer()
+        .expect("the recursive boundary writes derive a writer");
+    let mut expected = vec![0xa5_u8; 48];
+    expected[0..8].copy_from_slice(&0x99aa_bbcc_ddee_ff00_u64.to_le_bytes());
+    expected[16..24].copy_from_slice(&0x1122_3344_5566_7788_u64.to_le_bytes());
+    expected[24..32].copy_from_slice(&0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    expected[32..40].copy_from_slice(&0x55aa_bb00_00dd_ee11_u64.to_le_bytes());
+    lower_writer_on_both_linux_isas(&writer, 0xa5, &expected, |resolved| {
+        if resolved == entry_target {
+            0x1122_3344_5566_7788
+        } else if resolved == clock_target {
+            0xdead_beef_cafe_f00d
+        } else if resolved == pad_target {
+            0x55aa_bb00_00dd_ee11
+        } else {
+            assert_eq!(resolved, header_target);
             0x99aa_bbcc_ddee_ff00
         }
     });
