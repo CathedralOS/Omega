@@ -49,6 +49,23 @@ pub enum ModuleError {
         reason: &'static str,
     },
     InvalidScalarQualification(&'static str),
+    /// A retained authored floating range row is malformed: unknown machine
+    /// or parameter, non-float or format-mismatched carrier, or endpoints
+    /// that do not IEEE-order.
+    InvalidScalarFloatRange {
+        machine: MachineId,
+        parameter: ValueId,
+        reason: &'static str,
+    },
+    /// A call delivers a value the callee parameter's retained floating
+    /// range cannot admit: the argument is neither a constant inside the
+    /// authored range nor a caller parameter whose own range is subsumed.
+    ScalarFloatRangeDelivery {
+        caller: MachineId,
+        operation: OperationId,
+        callee: MachineId,
+        parameter: ValueId,
+    },
     NonCanonicalScalarBlockInvariants,
     InvalidScalarBlockInvariant {
         machine: MachineId,

@@ -3,8 +3,9 @@
 //! their execution schedules differ; normal guarantees still use the declared
 //! result pseudo-value and require independently reconstructed return proofs.
 use super::{
-    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
-    LoweringError, Proposition, ScalarTerm, ValueDeclaration, unsupported,
+    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, IntegerValue, LoweringError, Proposition, ScalarTerm,
+    ValueDeclaration, unsupported,
 };
 #[cfg(test)]
 use crate::proofs::contract_predicates::canonical_equality;
@@ -15,6 +16,38 @@ mod result_range;
 mod source;
 pub(crate) use result_range::with_result_range;
 pub(crate) use source::validate_guarantees;
+
+/// The requires clauses that still discharge as propositions. Floating entry
+/// ranges keep an explicit `None` placeholder in the requires tail because the
+/// closed scalar predicate language cannot spell IEEE membership; those rows
+/// are delivered through the retained roster instead of `clauses`.
+/// `validate_graph_parameter_ranges` rejoins every authored range against the
+/// roster row-for-row; what remains here is the roster/tail correspondence
+/// itself. The roster must be present and cover every placeholder exactly, so
+/// an authored clause that lost its predicate can never hide behind a
+/// floating range: placeholder count and roster length disagree the moment
+/// either side carries an extra row.
+pub(crate) fn covered_requires(
+    plan: &ClosedScalarValueContractPlan,
+) -> Result<Vec<Option<ClosedScalarContractValue>>, LoweringError> {
+    let placeholders = plan
+        .requires()
+        .iter()
+        .filter(|clause| clause.is_none())
+        .count();
+    if plan
+        .float_entry_ranges()
+        .map_or(placeholders != 0, |ranges| ranges.len() != placeholders)
+    {
+        return unsupported("scalar contract contains an unsupported clause");
+    }
+    Ok(plan
+        .requires()
+        .iter()
+        .filter(|clause| clause.is_some())
+        .cloned()
+        .collect())
+}
 
 pub(crate) fn clauses(
     clauses: &[Option<ClosedScalarContractValue>],

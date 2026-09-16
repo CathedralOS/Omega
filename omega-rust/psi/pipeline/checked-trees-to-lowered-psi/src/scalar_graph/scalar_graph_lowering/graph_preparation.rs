@@ -454,11 +454,18 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         evaluate_known_scalar_graph(&lowered_states)
     };
     let plan = closed_scalar_contract_plan(checked, machine)?;
-    let has_predicates = plan
-        .requires()
+    // Rejoin every authored range against its retained evidence before any
+    // contract shape is selected. Requires-tail placeholders are discharged
+    // by the floating entry roster, never by the proposition tail.
+    crate::unit::runtime_requirements::validate_graph_parameter_ranges(checked, machine, plan)?;
+    let requires = crate::scalar_graph::scalar_contracts::covered_requires(plan)?;
+    let has_predicates = requires
         .iter()
         .chain(plan.ensures())
         .any(|clause| matches!(clause, Some(ClosedScalarContractValue::Predicate(_))));
+    let has_entry_ranges = plan
+        .float_entry_ranges()
+        .is_some_and(|ranges| !ranges.is_empty());
     // A helper remains a real callee when embedded in another execution plan.
     // Its checked call identity does not discharge requirements or establish
     // guarantees. Retain the same contract regardless of closure-root position.
@@ -478,14 +485,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             )
         {
             PreparedScalarContract::Empty
-        } else if has_predicates {
-            if plan.has_outcome_specific_clauses()
-                || plan
-                    .requires()
-                    .iter()
-                    .chain(plan.ensures())
-                    .any(Option::is_none)
-            {
+        } else if has_predicates || has_entry_ranges {
+            // Requires placeholders are the validated floating range rows;
+            // only ensures has no separate evidence channel.
+            if plan.has_outcome_specific_clauses() || plan.ensures().iter().any(Option::is_none) {
                 return unsupported("scalar contract contains an unsupported clause");
             }
             PreparedScalarContract::Predicates(plan.clone())
@@ -502,13 +505,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             )?)
         }
     } else {
-        if plan.has_outcome_specific_clauses()
-            || plan
-                .requires()
-                .iter()
-                .chain(plan.ensures())
-                .any(Option::is_none)
-        {
+        if plan.has_outcome_specific_clauses() || plan.ensures().iter().any(Option::is_none) {
             return unsupported("all-crash scalar contract contains an unsupported clause");
         }
         if plan.requires().is_empty() && plan.ensures().is_empty() {
@@ -520,11 +517,6 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             PreparedScalarContract::Predicates(plan.clone())
         }
     };
-    crate::unit::runtime_requirements::validate_graph_parameter_ranges(
-        checked,
-        machine,
-        plan.requires(),
-    )?;
     Ok(PreparedScalarMachine {
         source_machine: machine,
         scalar_qualifications: qualifications.catalog().clone(),

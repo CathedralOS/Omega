@@ -1,9 +1,9 @@
 use super::{
-    CodecError, Reader, ScalarDomainDeclaration, ScalarQualificationCatalog,
+    CodecError, Reader, ScalarDomainDeclaration, ScalarFloatRange, ScalarQualificationCatalog,
     ScalarQualificationCoercion, ScalarQualificationSet, ScalarQualificationSetId, Writer, decode,
     encode, validate,
 };
-use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, ScalarType};
+use semantic_vocabulary::{DomainSemanticId, IeeeFloatValue, ScalarDomainId, ScalarType};
 
 fn catalog() -> ScalarQualificationCatalog {
     ScalarQualificationCatalog {
@@ -18,6 +18,7 @@ fn catalog() -> ScalarQualificationCatalog {
             domains: vec![ScalarDomainId::new(1).unwrap()],
         }],
         coercions: Vec::new(),
+        float_entry_ranges: Vec::new(),
     }
 }
 
@@ -100,4 +101,54 @@ fn scalar_qualification_catalog_rejects_duplicate_and_reversed_coercions() {
     let mut writer = Writer::default();
     encode(&mut writer, &catalog).unwrap();
     assert_eq!(decode(&mut Reader::new(&writer.finish())), Ok(catalog));
+}
+
+#[test]
+fn scalar_float_entry_ranges_round_trip_and_reject_noncanonical_rows() {
+    use semantic_vocabulary::{MachineId, ValueId};
+    let mut catalog = catalog();
+    let range = ScalarFloatRange {
+        machine: MachineId::new(1).unwrap(),
+        parameter: ValueId::new(7).unwrap(),
+        minimum: IeeeFloatValue::Binary64(0.0f64.to_bits()),
+        maximum: IeeeFloatValue::Binary64(1.5f64.to_bits()),
+        maximum_inclusive: false,
+    };
+    catalog.float_entry_ranges = vec![range];
+    assert_eq!(validate(&catalog), Ok(()));
+    let mut writer = Writer::default();
+    encode(&mut writer, &catalog).unwrap();
+    assert_eq!(
+        decode(&mut Reader::new(&writer.finish())),
+        Ok(catalog.clone())
+    );
+
+    // Duplicate and reversed (machine, parameter) keys are noncanonical.
+    catalog.float_entry_ranges = vec![range, range];
+    assert_eq!(
+        validate(&catalog),
+        Err(CodecError::NonCanonicalOrder("scalar float entry ranges"))
+    );
+    catalog.float_entry_ranges[1].parameter = ValueId::new(9).unwrap();
+    catalog.float_entry_ranges.reverse();
+    assert_eq!(
+        validate(&catalog),
+        Err(CodecError::NonCanonicalOrder("scalar float entry ranges"))
+    );
+
+    // Endpoints must retain one declared format.
+    catalog.float_entry_ranges.reverse();
+    catalog.float_entry_ranges[1].maximum = IeeeFloatValue::Binary32(1.5f32.to_bits());
+    assert_eq!(validate(&catalog), Err(CodecError::NonCanonicalEncoding));
+
+    // A truncated or hostile payload fails at the wire, not the caller.
+    catalog.float_entry_ranges.clear();
+    let mut writer = Writer::default();
+    encode(&mut writer, &catalog).unwrap();
+    let mut bytes = writer.finish();
+    bytes.truncate(bytes.len() - 2);
+    assert_eq!(
+        decode(&mut Reader::new(&bytes)),
+        Err(CodecError::UnexpectedEnd)
+    );
 }

@@ -14,15 +14,15 @@ use super::{
     CheckedUnitEffectOperationPlan, ClaimTransfer, CompletionReceipt, LoweredPsi, LoweringError,
     MachineContract, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter, ScalarType, SemanticDomainId,
-    ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    StructuralTypeShape, TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker, allocate_dense, boundary_machine_id, content_conservation, contract_id,
-    dense_identity, direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
-    finalize_operation_proofs, lookup_claim_id, lookup_domain_id, lookup_machine_id,
-    lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
+    ProviderSignature, ProviderSignatureParameter, ScalarQualificationCatalog, ScalarType,
+    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, boundary_machine_id,
+    content_conservation, contract_id, dense_identity, direct_expression_contains_short_circuit,
+    edge_id, emit_direct_expression, finalize_operation_proofs, lookup_claim_id, lookup_domain_id,
+    lookup_machine_id, lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
     lower_boundary_crash_routes, lower_checked_crash_route_buckets,
     lower_checked_scalar_expression, lower_placed_view_input, lower_structural_crash_route_buckets,
     machine_id, obligation_id, place_id, terminal_scalar_type, unsupported,
@@ -741,6 +741,10 @@ fn assemble_unit_closure(
     }
 
     let mut scalar_evidence = Vec::new();
+    // Floating entry ranges are machine-local rows keyed by each emitted
+    // helper's own identities; they merge into the assembled catalog without
+    // sharing the qualification namespace this path keeps empty.
+    let mut float_entry_ranges = Vec::new();
     for (index, machine) in prepared_scalar_machines.into_iter().enumerate() {
         let terminal_machine = lookup_machine_id(&machine_ids, machine.source_machine())?;
         let machine_index = closure
@@ -885,6 +889,12 @@ fn assemble_unit_closure(
         terminal_machine.declared_service_reach =
             lower_declared_service_reach(checked, machine.source_machine, &service_ids)?;
         machines.push(terminal_machine.clone());
+        float_entry_ranges.append(
+            &mut lowered
+                .semantic_module
+                .scalar_qualifications
+                .float_entry_ranges,
+        );
         scalar_evidence.append(&mut lowered.proof_bundle.evidence);
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
         selected_ieee_float_fma_occurrences
@@ -1001,9 +1011,13 @@ fn assemble_unit_closure(
     });
 
     call_evidence.append(&mut scalar_evidence);
+    float_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
-            scalar_qualifications: Default::default(),
+            scalar_qualifications: ScalarQualificationCatalog {
+                float_entry_ranges,
+                ..Default::default()
+            },
             scalar_block_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             // Operation bodies are emitted first; a scalar entry may follow

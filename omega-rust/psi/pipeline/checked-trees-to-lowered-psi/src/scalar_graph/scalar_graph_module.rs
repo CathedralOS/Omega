@@ -7,12 +7,12 @@ use super::{
     BTreeMap, Block, ContentPartitionComposition, ContractClause, EvidenceRoute, KnownDirectScalar,
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions, LoweredPsi,
     LoweringError, MachineContract, MachineId, ObligationEvidence, OperationKind, OperationResult,
-    PrimitiveJudgment, ProofBundle, Proposition, QualifiedScalarType, ScalarTerm, ScalarType,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    PrimitiveJudgment, ProofBundle, Proposition, QualifiedScalarType, ScalarFloatRange, ScalarTerm,
+    ScalarType, StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralPlaceKind, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker, block_id, contract_id, edge_id,
     lower_checked_crash_route_buckets, merge_content_place_declaration, obligation_id,
-    scalar_source_block, unsupported, value_id,
+    scalar_source_block, terminal_scalar_type, unsupported, value_id,
 };
 use crate::emission::boolean_control::PendingNestedBlockGroup;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -376,9 +376,42 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         }
         (_, PreparedScalarContract::Empty) => (Vec::new(), Vec::new(), Vec::new()),
         (_, PreparedScalarContract::Predicates(plan)) => {
-            let requires = scalar_contracts::clauses(plan.requires(), &parameters)?
-                .into_iter()
-                .collect();
+            let requires = scalar_contracts::clauses(
+                &scalar_contracts::covered_requires(&plan)?,
+                &parameters,
+            )?
+            .into_iter()
+            .collect();
+            // Retained authored floating ranges are not propositions: publish
+            // the exact IEEE endpoints against the dense entry parameter
+            // identities so independently replayed call deliveries are
+            // checked at every call edge. The exclusive maximum stays
+            // authored; no predecessor arithmetic rewrites it.
+            for range in plan.float_entry_ranges().unwrap_or_default() {
+                let parameter =
+                    parameters
+                        .get(range.position)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar float entry range lost its dense entry parameter",
+                        ))?;
+                let declared = terminal_scalar_type(range.primitive_type)?;
+                let row = ScalarFloatRange {
+                    machine: terminal_machine,
+                    parameter: parameter.id,
+                    minimum: range.minimum,
+                    maximum: range.maximum,
+                    maximum_inclusive: range.maximum_inclusive,
+                };
+                if parameter.scalar_type != declared
+                    || declared != ScalarType::IeeeFloat(row.format())
+                    || !row.ordered()
+                {
+                    return unsupported(
+                        "scalar float entry range disagrees with its declared carrier",
+                    );
+                }
+                scalar_qualifications.float_entry_ranges.push(row);
+            }
             let mut namespace = parameters.clone();
             namespace.push(result);
             let ensures = scalar_contracts::clauses(plan.ensures(), &namespace)?
@@ -505,6 +538,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     scalar_qualifications
         .coercions
         .sort_by_key(|coercion| (coercion.machine, coercion.edge, coercion.argument_ordinal));
+    scalar_qualifications
+        .float_entry_ranges
+        .sort_by_key(|range| (range.machine, range.parameter));
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications,
