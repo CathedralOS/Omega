@@ -123,10 +123,28 @@ fn empty_normal_contract_keeps_a_published_crash_route() {
 
 #[test]
 fn empty_checked_contract_cannot_erase_authored_normal_clauses() {
-    for (clauses, requires, ensures) in [
-        ("requires input <= 11u64", 1, 0),
-        ("ensures result == input", 0, 1),
-        ("requires input <= 11u64\nensures result == input", 1, 1),
+    // Erased requires rows are caught by the parameter-range rejoin's authored
+    // count before contract selection; an ensures-only erasure still reaches
+    // the empty-contract source check.
+    for (clauses, requires, ensures, erased_message) in [
+        (
+            "requires input <= 11u64",
+            1,
+            0,
+            "scalar contract lost authored requirements",
+        ),
+        (
+            "ensures result == input",
+            0,
+            1,
+            "empty scalar contract would erase an authored normal clause",
+        ),
+        (
+            "requires input <= 11u64\nensures result == input",
+            1,
+            1,
+            "scalar contract lost authored requirements",
+        ),
     ] {
         let source = format!("machine enter(input: u64) -> u64\n{clauses}\n{{ input }}");
         let original = checked(&source);
@@ -135,11 +153,7 @@ fn empty_checked_contract_cannot_erase_authored_normal_clauses() {
         assert_eq!(module.machines[0].contract.requires.len(), requires);
         assert_eq!(module.machines[0].contract.ensures.len(), ensures);
         execute_identity(&artifact);
-        reject_erased_contract(
-            &original,
-            "enter",
-            "empty scalar contract would erase an authored normal clause",
-        );
+        reject_erased_contract(&original, "enter", erased_message);
     }
 }
 
@@ -198,10 +212,12 @@ fn empty_checked_contract_cannot_erase_implicit_parameter_ranges() {
         ));
         assert!(contract.ensures.is_empty());
         execute_identity(&artifact);
+        // An erased range tail is caught by the rejoin's bound-pair walk
+        // before contract selection can inspect the empty plan.
         reject_erased_contract(
             &original,
             "enter",
-            "empty scalar contract would erase an authored parameter range",
+            "scalar entry range lost its two ordered bounds",
         );
     }
 }

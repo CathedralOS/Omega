@@ -86,7 +86,11 @@ pub(crate) fn checked_requirements(
         return unsupported("boundary scalar contract lost its exact parameter range roster");
     }
     for clause in clauses {
-        if clause.is_none() {
+        // Only integer range predicates discharge as boundary requirements.
+        // A floating entry range is a `FloatRange` clause delivered through
+        // the scalar qualification catalog, which this wrapper shape cannot
+        // emit for its own parameters, so it must still fail closed here.
+        if !matches!(clause, Some(ClosedScalarContractValue::Predicate(_))) {
             return unsupported("boundary scalar parameter range has no checked predicate");
         }
         requirements.push(clause.clone());

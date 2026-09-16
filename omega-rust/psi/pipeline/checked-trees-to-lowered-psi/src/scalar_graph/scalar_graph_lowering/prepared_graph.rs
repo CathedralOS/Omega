@@ -12,7 +12,9 @@ use crate::proofs::content_conservation::LoweredContentIdentityReshuffles;
 use crate::proofs::content_conservation::LoweredContentPartitionCompositions;
 use crate::scalar_graph::scalar_computations;
 use crate::scalar_graph::scalar_graph_lowering;
-use checked_trees::{CheckedBooleanExpression, ClosedScalarValueContractPlan};
+use checked_trees::{
+    CheckedBooleanExpression, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+};
 use semantic_vocabulary::{
     ClaimId, PlaceId, QualifiedScalarType, ScalarType, StructuralFieldId, StructuralTypeId,
 };
@@ -123,10 +125,21 @@ impl PreparedScalarContract {
             Self::Empty => 0,
             Self::ClosedLiteral(_) => 1,
             // The predicate plan's source clauses are published as one
-            // canonical conjunction, including implicit parameter ranges.
-            // Floating entry range placeholders publish no proposition: they
-            // discharge through the retained catalog rows at call delivery.
-            Self::Predicates(plan) => usize::from(plan.requires().iter().any(Option::is_some)),
+            // canonical conjunction, including implicit integer parameter
+            // ranges. Floating entry range clauses publish no proposition:
+            // they discharge through the retained catalog rows at call
+            // delivery, so a range-only requires tail contributes no
+            // obligation.
+            Self::Predicates(plan) => usize::from(plan.requires().iter().any(|clause| {
+                matches!(
+                    clause,
+                    Some(
+                        ClosedScalarContractValue::Predicate(_)
+                            | ClosedScalarContractValue::Boolean(_)
+                            | ClosedScalarContractValue::Integer(_)
+                    )
+                )
+            })),
         }
     }
 }

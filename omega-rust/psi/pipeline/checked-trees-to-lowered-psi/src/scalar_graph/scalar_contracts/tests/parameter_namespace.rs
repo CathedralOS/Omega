@@ -350,3 +350,66 @@ fn absent_clauses_and_unsupported_clauses_remain_distinct() {
         .is_err()
     );
 }
+
+#[test]
+fn covered_requires_delivers_float_range_clauses_only_through_the_roster() {
+    use super::super::covered_requires;
+    use checked_trees::{ClosedFloatRangeRequirement, ClosedScalarValueContractPlan};
+    use semantic_vocabulary::IeeeFloatValue;
+
+    let range = ClosedFloatRangeRequirement {
+        position: 0,
+        primitive_type: PrimitiveType::F32,
+        minimum: IeeeFloatValue::Binary32(0.5f32.to_bits()),
+        maximum: IeeeFloatValue::Binary32(2.25f32.to_bits()),
+        maximum_inclusive: false,
+    };
+    let plan = |requires: Vec<Option<ClosedScalarContractValue>>,
+                roster: Option<Vec<ClosedFloatRangeRequirement>>| {
+        ClosedScalarValueContractPlan::new(requires, Vec::new(), false, false)
+            .with_float_entry_ranges(roster)
+    };
+    // A `FloatRange` clause is covered by its identical retained row; the
+    // clause never enters the proposition tail.
+    assert!(
+        covered_requires(&plan(
+            vec![Some(ClosedScalarContractValue::FloatRange(range))],
+            Some(vec![range]),
+        ))
+        .unwrap()
+        .is_empty()
+    );
+    // Drifted evidence, a missing roster, an empty roster, a leftover roster
+    // row, and a clause that lost its payload all fail closed.
+    let mut drifted = range;
+    drifted.maximum = IeeeFloatValue::Binary32(2.5f32.to_bits());
+    for (requires, roster) in [
+        (
+            vec![Some(ClosedScalarContractValue::FloatRange(range))],
+            Some(vec![drifted]),
+        ),
+        (
+            vec![Some(ClosedScalarContractValue::FloatRange(range))],
+            None,
+        ),
+        (
+            vec![Some(ClosedScalarContractValue::FloatRange(range))],
+            Some(Vec::new()),
+        ),
+        (Vec::new(), Some(vec![range])),
+        (vec![None], Some(vec![range])),
+    ] {
+        assert!(
+            covered_requires(&plan(requires, roster)).is_err(),
+            "roster and requires tail must carry the same rows"
+        );
+    }
+    // The clause still cannot become a proposition.
+    assert!(
+        clauses(
+            &[Some(ClosedScalarContractValue::FloatRange(range))],
+            &namespace()
+        )
+        .is_err()
+    );
+}

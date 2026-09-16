@@ -27,6 +27,13 @@ pub enum ClosedScalarContractValue {
     /// position immediately after the last parameter. Source locals and
     /// mutable post-state values do not inhabit this namespace.
     Predicate(crate::CheckedBooleanExpression),
+    /// One authored floating entry range in that same entry-parameter
+    /// namespace. The clause keeps IEEE bit-exact endpoints and the authored
+    /// boundary kind verbatim — an exclusive maximum stays authored, never an
+    /// integer predecessor. It discharges through the retained floating range
+    /// roster and its terminal catalog rows, not through `Predicate`
+    /// propositions, so it may only appear in the requires tail.
+    FloatRange(ClosedFloatRangeRequirement),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -39,9 +46,10 @@ pub struct ClosedScalarValueContractPlan {
     /// range constraint in dense scalar-parameter order. `None` records an
     /// incomplete roster (an authored floating range whose endpoints could
     /// not be retained exactly); consumers must fail closed on `None` and
-    /// never read an empty roster as "no ranges". The `requires` tail keeps
-    /// an explicit unsupported row per floating range until the lowered
-    /// scalar predicate vocabulary can carry IEEE comparisons.
+    /// never read an empty roster as "no ranges". Each retained row also
+    /// occupies its requires-tail position as a `FloatRange` clause, so the
+    /// closed scalar vocabulary itself carries the authored IEEE window and
+    /// no requires row is left unsupported by a range.
     float_entry_ranges: Option<Vec<ClosedFloatRangeRequirement>>,
 }
 

@@ -455,8 +455,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     };
     let plan = closed_scalar_contract_plan(checked, machine)?;
     // Rejoin every authored range against its retained evidence before any
-    // contract shape is selected. Requires-tail placeholders are discharged
-    // by the floating entry roster, never by the proposition tail.
+    // contract shape is selected. Requires-tail `FloatRange` clauses are
+    // discharged by the floating entry roster, never by the proposition tail.
     crate::unit::runtime_requirements::validate_graph_parameter_ranges(checked, machine, plan)?;
     let requires = crate::scalar_graph::scalar_contracts::covered_requires(plan)?;
     let has_predicates = requires
@@ -486,8 +486,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         {
             PreparedScalarContract::Empty
         } else if has_predicates || has_entry_ranges {
-            // Requires placeholders are the validated floating range rows;
-            // only ensures has no separate evidence channel.
+            // Requires `FloatRange` rows are the validated floating range
+            // clauses; only ensures has no separate evidence channel.
             if plan.has_outcome_specific_clauses() || plan.ensures().iter().any(Option::is_none) {
                 return unsupported("scalar contract contains an unsupported clause");
             }

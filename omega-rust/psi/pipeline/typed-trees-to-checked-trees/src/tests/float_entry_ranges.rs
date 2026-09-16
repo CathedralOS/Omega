@@ -1,7 +1,7 @@
 //! Floating entry ranges retain their authored IEEE endpoints on the closed
-//! scalar contract roster. The requires tail keeps an explicit unsupported
-//! row per range until the lowered scalar predicate vocabulary carries IEEE
-//! comparisons.
+//! scalar contract roster. The requires tail carries each range as a
+//! `FloatRange` clause in the same constraint order so the closed scalar
+//! vocabulary itself spells the authored IEEE window.
 use super::{
     Lexer, ResolutionRequest, SymbolHandle, TypeReferenceNode, lower_symbol_resolved_trees,
     parse_syntax_trees, resolve,
@@ -73,9 +73,15 @@ fn exclusive_f64_entry_range_retains_authored_endpoint() {
         requirement.maximum,
         IeeeFloatValue::Binary64(1.5f64.to_bits() - 1)
     );
-    // The requires tail keeps the explicit unsupported row so closed scalar
-    // consumers still fail closed on the range.
-    assert_eq!(plan.closed_scalar_values.requires(), &[None]);
+    // The requires tail keeps the authored range as a supported clause row:
+    // the closed scalar vocabulary carries the exact retained requirement
+    // rather than an unsupported placeholder.
+    assert_eq!(
+        plan.closed_scalar_values.requires(),
+        &[Some(checked_trees::ClosedScalarContractValue::FloatRange(
+            *requirement,
+        ))]
+    );
 }
 
 #[test]
@@ -220,9 +226,15 @@ fn corrupted_range_endpoint_loses_the_complete_roster() {
         panic!("one authored range")
     };
     *maximum = arena::Handle::invalid();
+    let ranges =
+        crate::values::lower_scalar_parameter_range_requirements(&checked.typed, &typed_machine);
     assert_eq!(
-        crate::values::lower_float_parameter_range_requirements(&checked.typed, &typed_machine),
-        None,
+        ranges.float_entry_ranges, None,
         "an endpoint that cannot be retained exactly fails the whole roster"
+    );
+    assert_eq!(
+        ranges.scalar_clauses,
+        vec![None],
+        "an unretained floating range keeps an explicit rejecting requires row"
     );
 }
