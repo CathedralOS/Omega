@@ -1,0 +1,48 @@
+# Evidence-only repair
+
+Use when an existing factual claim lacks adequate citations and the relevant source
+material is available. First ask whether finding evidence can replace rewriting
+the answer. Do not assume the claim is true: absence or contradiction must leave
+it unresolved, not encourage searching until something seems to agree.
+
+## Smallest useful path
+
+1. Retain the exact claim, question, source revision and permitted source paths.
+2. Group only identical claim/question/source-set/revision requests. Different
+   owners or snapshots are not duplicates just because their words match.
+3. Retrieve whole source paragraphs with the existing lexical ranker. Keep the
+   deterministic top-one result as a baseline. Do not use expected labels or
+   handpicked answer anchors to select candidates.
+4. Ask whether each candidate independently supports the complete claim for the
+   requested owner and conditions. Batch independent judgments within a budget;
+   isolate different experimental arms to avoid giving one a hint from the other.
+5. Copy a sufficiently supported candidate verbatim; keep the claim unchanged.
+   Verify source path, revision and literal membership before retaining the patch.
+   No suitable candidate means unresolved and eligible for normal review.
+
+The current local prototype uses six candidates, a 2,400-character paragraph cap,
+and P(supported)>=.90. These are development settings, not universal confidence
+guarantees. Oversized paragraphs and multi-passage claims can fall outside this
+prototype. A single paragraph must establish the whole claim; partial matches do
+not accumulate into proof. Missing/invalid API results are errors, not acceptance.
+
+Save citation replacements separately from the original answers so a reviewer can
+see what changed. A source-support judgment is neither source truth nor compiler
+correctness. This recipe does not authorize publication, suppress checks, or turn
+an unreviewed response into a trusted answer. Do not append unchecked prose.
+
+## Measure the advantage honestly
+
+Compare against lexical selection, ordinary review and safe abstention. Include
+wrong-owner, absent, contradictory and conditional evidence alongside positives;
+report authored controls separately from naturally observed defects. Measure
+successful repairs and unsafe replacements, not merely fewer reviewer inputs.
+Count retrieval, API and fallback work, and label stage timing separately from
+end-to-end timing. Provider probabilities are not calibrated guarantees.
+
+The recorded four-defect replay was repaired by both lexical selection and Jev.
+Removing regeneration was the demonstrated opportunity; unique Jev benefit was
+not established. See [the result ledger](experiment-record.md) for subsequent
+controls. Local replay entrypoint: `build/experiments/citation-cascade/repair.py`;
+its ignored dependencies are experiments, not an installed production service.
+Reuse them when available rather than creating another orchestration framework.

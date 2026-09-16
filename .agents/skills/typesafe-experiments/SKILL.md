@@ -75,6 +75,14 @@ Claim granularity is instructed, not guaranteed by the JSON shape. Keep this a
 nonblocking experiment, not a publication gate. For an A/B, isolate competing
 states: putting an explicit decomposition beside a whole answer may cue its judge.
 
+## Repair evidence before regenerating answers
+
+When the defect is citation support, try selecting existing source text while
+preserving the claim. Read [evidence-only repair](references/evidence-repair.md)
+for the retained recipe, abstention boundary and comparison requirements. The
+speed opportunity is removing generation; lexical success must not be attributed
+to Jev. False claims and missing evidence remain unresolved, not automatically fixed.
+
 ## Keep knowledge portable
 
 Maintain this project skill only in `.agents/skills/`. Put dated measurements in

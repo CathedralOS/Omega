@@ -346,10 +346,11 @@ single failure and relabel it generalization.
 
 The 30 exposed retrieval queries are development data; lexical context extraction
 is a strong baseline and further reranking trials need demonstrated headroom.
-After the review-cascade trial below, test nongenerative evidence repair on fresh
-tasks with no-match, wrong-owner and contradictory sources. Compare against lexical
-selection, not only expensive answer rewriting. Inspect flagged AND unflagged
-outputs and retain owner/scope evidence.
+After the authored abstention controls below, test nongenerative evidence repair
+on real claim/citation failures from another repository area. Separately explore
+explicit owner context for the high-scoring wrong-owner failure. Compare against
+lexical selection, not only expensive answer rewriting. Inspect flagged AND
+unflagged outputs and retain owner/scope evidence.
 No automatic blocks or verifier retries. Calibrate a new
 threshold only as a development hypothesis with fresh evaluation; do not promote
 the favorable repeat or a post-hoc cutoff as established correctness.
@@ -427,3 +428,35 @@ win here. Retain nongenerative repair as the promising workflow direction, not
 evidence of Jev superiority. Exposed positive-repair tasks contain no absent/false
 claims; safe abstention and fresh transfer remain untested. Single-paragraph
 support is the prototype ceiling. No automatic publication or production approval.
+
+## Evidence-repair abstention controls and reusable recipe
+
+The skill now links `references/evidence-repair.md`: preserve claims, retrieve
+whole paragraphs, judge full support, copy source exactly, and abstain or escalate
+when evidence is absent. Grouping includes revision and permitted source identity.
+It retains the lexical baseline and distinguishes removed generation cost from
+unique model benefit. Model thresholds remain development settings, not guarantees.
+
+`build/experiments/evidence-abstention/` contains eight authored controls and frozen
+labels: four supported and four unsupported (wrong owner, numeric contradiction,
+invented limit, partial support). Same six candidates, paragraph cap and .90
+cutoff; one isolated request per case. Jev policy selected correct evidence for
+4/4 positives and abstained on 4/4 negatives. Lexical top-one also supported 4/4
+positives but attached irrelevant/contradictory evidence on all four negatives;
+always-abstain answered none. Manual source review confirms chosen positive
+passages, not just expected presence. This is a semantic-policy signal on authored
+controls, not fresh naturally occurring errors or general safe automation.
+
+Wrong-owner warning: landing-lease text received .79 support for a work-claim
+assignment deadline. Two fixed isolated repeats yielded .72/.79. The .90 cutoff
+prevented attachment in all three runs, but the raw Choice winner was wrong.
+Do not describe this as perfect semantic accuracy or calibrated confidence.
+Four positive controls share three passages; repeats add no independent examples.
+
+Eight initial calls: 2.632s, 17,352 input / 1,512 output tokens. Two boundary calls:
+.318/.263s, each 2,269 input / 189 output. Total 3.214s and 21,890 / 1,890 tokens,
+not end-to-end workflow latency. No generation calls. Protocols preserve the failed
+live documentation read and cached-source fallback. Windows source-substring,
+case-cardinality, Python compilation, skill validation, links and diff checks pass;
+macOS runtime not exercised. Next: real cross-domain failures and explicit source
+owner context, not more threshold tuning on these exposed controls.
