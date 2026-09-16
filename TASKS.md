@@ -184,12 +184,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Still open: the procedural GUI cohort (`window_app`, `window_demo`,
   `windowed_calculator`) end-to-end on macOS aarch64 —
   `native_filesystem_canaries` execs the produced aarch64 Mach-O and needs
-  an aarch64 host; `sample_window_demo_runs_natively_exits_0` currently
-  fails in test staging (`omega_language_std/console.omg` missing from the
-  staged temp package) before sample compilation; and the `window_app`
-  [outer command](samples/gui/window_app/README.md) passes ordinary package
-  review but still stops at `InvalidUnitMachinePlan` for `Main::main`
-  (**GENERAL-CYCLIC-EXECUTION**), upstream of publication. The requested
+  an aarch64 host. Its staged sample tests now supply the std package graph
+  and test-owned acceptance themselves (`staged_std_package_inputs`), so at
+  4707fde28b on macOS ARM64 all six staged samples (`window_demo`,
+  `window_app`, `windowed_calculator`, `image_viewer`, `file_journal`,
+  `note_vault`) clear staging and stop at `InvalidUnitMachinePlan` for
+  `Main::main` ("attached Unit closure is missing a checked transitive
+  machine plan"), the same **GENERAL-CYCLIC-EXECUTION** gap the `window_app`
+  [outer command](samples/gui/window_app/README.md) reaches after ordinary
+  package review; `windowed_calculator` spends 795 s in checking before
+  reaching it. The target's other 83 fixtures fail on undeclared service
+  reach and decision-17 exact-arithmetic obligations (**CANARY-CORPUS**). The requested
   native `.proof` sidecar inside the package waits on native PCC
   (**PCC-PRODUCT-PUBLICATION**; `pcc.native` publication is `Incomplete`).
 
