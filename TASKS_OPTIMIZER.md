@@ -359,8 +359,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   provenance, effect, and fuel evidence. The dedicated countdown zero/one
   relocation is not general LICM authority. The unique-entry preheader
   boundary relocates scalar constant leaves, side-effect-free scalar
-  computations, place observations whose storage root rebinds to its
-  invariant representative, and `ByteSequenceRead` reads whose `index`
+  computations — including exact, wrapping-divide/remainder, and
+  saturating-divide/remainder variants whose verifier-discharged totality
+  obligation moves byte-exact inside the relocated operation — place
+  observations whose storage root rebinds to its invariant
+  representative, and `ByteSequenceRead` reads whose `index`
   operand substitutes through the same scalar rule, whose bounds
   obligation stays byte-exact, and whose `length` operand relocates with
   its `ByteSequenceLength` producer measuring the same rebound root in the
@@ -369,7 +372,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   representative every reaching edge agrees on, rebinding moved operands
   and observed roots to the preheader-visible anchor. Remaining: other
   non-scalar families, profitability, and motion beyond the unique-entry
-  preheader.
+  preheader. Structural establishments (`EstablishScalarArray`,
+  `EstablishRecord`, `EstablishStructuralValue`) currently have no source
+  route into a cyclic member block — scalar-graph arrays only emit as
+  call arguments, cyclic scalar machines cannot contain calls, and a
+  structural `let` inside a Unit state removes the machine's ranked
+  cycle evidence — so the next non-scalar family needs an admitted
+  source shape before admission work can begin.
 
 ## Lowering and instruction selection
 
