@@ -25,7 +25,7 @@ fn inspection_unit() -> PsiOptimizationUnit {
             machine exit_process(code: i32) reaches Console;
         }
         data Main {}
-        machine Main::main() {
+        machine Main::main() reaches Console {
             let result: ByteRead = Console::read_byte();
             transition result {
                 ByteRead::Byte { value } -> byte(value)
@@ -384,6 +384,28 @@ fn case_edge_replays_owned_result_discard_against_retained_frontiers() {
                     site,
                     snapshot,
                 ));
+        }
+        // Each arm reaches its state through a trampoline block whose jump
+        // edge replays against retained frontiers too; the result discarded
+        // on the case edge is absent on both sides of that jump.
+        let arm = function
+            .blocks
+            .iter()
+            .find(|block| block.id == case.target)
+            .unwrap();
+        for jump in arm.nodes.iter().flat_map(|node| &node.successors) {
+            for site in [
+                OwnershipFrontierSite::EdgeEntry(jump.psi_edge),
+                OwnershipFrontierSite::EdgeExit(jump.psi_edge),
+            ] {
+                unit.ownership_frontier_facts
+                    .push(OwnershipFrontierFact::new(
+                        unit.psi,
+                        function.machine,
+                        site,
+                        exit.clone(),
+                    ));
+            }
         }
     }
     unit.ownership_frontier_facts
