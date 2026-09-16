@@ -1084,11 +1084,31 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   can reach — a roster-carrying run crosses only row-less
   positions while a row-less run crosses any accounted mix —
   under the same replayed restore-by-content validation (crate
-  `nextest`: 571 pass).
+  `nextest`: 571 pass) — and `rewrites/edge_relocation`
+  relocates one named body instruction across its block's unique
+  semantic `Jump` edge onto a named position in the edge's
+  sole-predecessor target — the member leaves its block's body,
+  every crossed position keeps its order, and it lands on the
+  destination's index while both terminators, the edge's
+  transports, and every roster stay untouched — when no register
+  or condition-state hazard runs between the member and any
+  crossed position in either direction, the `Jump` terminator's
+  own operand and implicit surface included, when no register
+  transport would hand a binding a stale or overwritten value,
+  when no call, hosted effect, barrier kind, or call-roster
+  entry sits anywhere in the window, when the validated memory
+  roster accounts for every access a memory-capable member can
+  reach — a roster-carrying member crosses only row-less
+  positions, the terminator and the edge's own access rows
+  counting as accounted positions — and when no boundary
+  settlement in either block would observe the member inside a
+  changed executed prefix, under the same replayed
+  restore-by-content validation (crate `nextest`: 592 pass).
   Remaining: scheduling past the proven bounded window
-  interchange, single-member relocation, and multi-member run
-  relocation — moves across edges — and compare/test selection
-  past the landed literal folds.
+  interchange, single-member relocation, multi-member run
+  relocation, and the single-edge move — relocation through
+  converging or branching control flow — and compare/test
+  selection past the landed literal folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
