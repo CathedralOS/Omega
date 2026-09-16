@@ -267,14 +267,22 @@ pub fn validate_runtime_spill(
             .instructions
             .clone_from(&source_block.instructions);
     }
-    if values.next().is_some()
-        || restored_function.local_storage_slots.pop()
+    if values.next().is_some() {
+        return Err(RuntimeSpillError::ReplayMismatch);
+    }
+    // A fresh private slot must be the appended tail entry; a shared slot
+    // declared nothing, so the storage list must equal the source exactly.
+    if admitted.fresh_slot {
+        if restored_function.local_storage_slots.pop()
             != Some(SelectedLocalStorageSlot {
                 id: admitted.slot,
                 byte_size: 8,
                 alignment: 8,
             })
-    {
+        {
+            return Err(RuntimeSpillError::ReplayMismatch);
+        }
+    } else if restored_function.local_storage_slots != admitted.function.local_storage_slots {
         return Err(RuntimeSpillError::ReplayMismatch);
     }
     restored_function

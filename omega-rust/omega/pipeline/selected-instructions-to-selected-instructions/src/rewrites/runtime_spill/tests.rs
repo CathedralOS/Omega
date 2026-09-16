@@ -9,9 +9,10 @@ use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionPlan, SelectedLocalStorageSlot, SelectedTerminator,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedLocalStorageSlot, SelectedTerminator, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
@@ -764,7 +765,9 @@ fn spill_is_deterministic_and_the_published_plan_re_admits() {
     // A fresh victim on the published plan still admits: the shared reload
     // register is an ordinary instruction result defined before its uses,
     // and its spill is a second independently validated rewrite whose
-    // receipt binds the first artifact's identity as its source.
+    // receipt binds the first artifact's identity as its source. Its storage
+    // windows open only where the incumbent's have closed, so the last-writer
+    // replay shares the declared slot and no second entry is appended.
     let shared_reload = first.transformed().functions[0]
         .virtual_registers
         .iter()
@@ -787,7 +790,7 @@ fn spill_is_deterministic_and_the_published_plan_re_admits() {
         respilled.transformed().functions[0]
             .local_storage_slots
             .len(),
-        2
+        1
     );
     validate_runtime_spill(
         &first,
@@ -1093,4 +1096,231 @@ fn no_surviving_view_keeps_every_flexible_use_on_a_private_pair() {
             RuntimeSpillError::ReplayMismatch
         );
     }
+}
+
+/// Physical slot reuse: the shared reload register re-admits as a victim, and
+/// its storage windows open only after the incumbent's have closed — it is
+/// defined by the incumbent's own load — so the last-writer replay shares the
+/// declared `Spill` slot. No second `local_storage_slots` entry appears, the
+/// frame keeps one eight-byte charge, and every emitted frame access names the
+/// incumbent's slot. Replay recomputes the identical decision, so a forged
+/// extra slot or an access retargeted to a private slot rejects.
+#[test]
+fn disjoint_windows_share_the_declared_spill_slot() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    let first =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let slot = first.transformed().functions[0].local_storage_slots[0].id;
+    let reload = first.transformed().functions[0]
+        .virtual_registers
+        .iter()
+        .find(|register| {
+            matches!(
+                register.origin,
+                VirtualRegisterOrigin::InstructionResult { instruction, .. }
+                    if instruction.0 > 5
+            )
+        })
+        .expect("the shared reload is the inserted load's result")
+        .id;
+    let second = spill_selected_runtime_value(&first, 0, reload, &environment, budget()).unwrap();
+    let function = &second.transformed().functions[0];
+    // The slot stayed singular: no second storage entry was appended, so the
+    // frame's declared demand is unchanged by the second victim.
+    assert_eq!(function.local_storage_slots.len(), 1);
+    assert_eq!(function.local_storage_slots[0].id, slot);
+    // Every frame access in the block — the incumbent's and the second
+    // victim's alike — names that one slot.
+    let stores = function.blocks[0]
+        .instructions
+        .iter()
+        .filter(|instruction| {
+            matches!(
+                instruction.kind,
+                SelectedInstructionKind::Store64 { slot: named, .. }
+                    | SelectedInstructionKind::FrameAddress { slot: named, .. }
+                    if named == FrameStorageSlotId::Local(slot))
+        })
+        .count();
+    assert_eq!(
+        stores,
+        function.blocks[0]
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::Store64 { .. }
+                        | SelectedInstructionKind::FrameAddress { .. }
+                )
+            })
+            .count()
+    );
+    assert!(stores >= 4);
+    validate_runtime_spill(
+        &first,
+        0,
+        reload,
+        &environment,
+        budget(),
+        second.transformed().clone(),
+    )
+    .unwrap();
+    // Replay rejects a storage list the rewrite did not produce: the shared
+    // slot appends nothing, so a forged second entry cannot validate.
+    let mut forged = second.transformed().clone();
+    forged.functions[0]
+        .local_storage_slots
+        .push(SelectedLocalStorageSlot {
+            id: LocalStorageSlotId::Spill { register: reload },
+            byte_size: 8,
+            alignment: 8,
+        });
+    assert_eq!(
+        validate_runtime_spill(&first, 0, reload, &environment, budget(), forged).unwrap_err(),
+        RuntimeSpillError::ReplayMismatch
+    );
+    // A generated access retargeted to a private slot replay never chose —
+    // here the second victim's own store — rejects the same way.
+    let mut retargeted = second.transformed().clone();
+    let position = retargeted.functions[0].blocks[0]
+        .instructions
+        .iter()
+        .rposition(|instruction| {
+            matches!(instruction.kind, SelectedInstructionKind::Store64 { .. })
+        })
+        .expect("the second victim's store is present");
+    retargeted.functions[0].blocks[0].instructions[position].kind =
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill { register: reload }),
+            byte_offset: 0,
+        };
+    assert_eq!(
+        validate_runtime_spill(&first, 0, reload, &environment, budget(), retargeted).unwrap_err(),
+        RuntimeSpillError::ReplayMismatch
+    );
+}
+
+/// The destructive interleave the last-writer replay refuses: an incumbent
+/// store between the new victim's own store and a reload could leave the
+/// incumbent's bytes where the reload expects the victim's, so admission keeps
+/// the victim on a fresh private slot even though the function already
+/// declares a candidate.
+#[test]
+fn an_interleaved_incumbent_store_keeps_the_victim_private() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let store = environment
+        .constraint(environment.selected_keys().store64.unwrap())
+        .unwrap();
+    let mut source = fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        let incumbent = LocalStorageSlotId::Spill {
+            register: VirtualRegisterId(9),
+        };
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: incumbent,
+            byte_size: 8,
+            alignment: 8,
+        });
+        // The incumbent writes its slot strictly between the victim's
+        // definition and first use — inside the window a reused slot would
+        // have to keep stable for the reload.
+        function.blocks[0].instructions.insert(
+            1,
+            admission::instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(incumbent),
+                    byte_offset: 0,
+                },
+                store,
+                &[VirtualRegisterId(0)],
+            ),
+        );
+    }
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    let result =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let function = &result.transformed().functions[0];
+    // The candidate stayed private to its first victim; this victim appended
+    // its own slot, so frame demand charges both bytes.
+    assert_eq!(
+        function.local_storage_slots.as_slice(),
+        [
+            SelectedLocalStorageSlot {
+                id: LocalStorageSlotId::Spill {
+                    register: VirtualRegisterId(9),
+                },
+                byte_size: 8,
+                alignment: 8,
+            },
+            SelectedLocalStorageSlot {
+                id: LocalStorageSlotId::Spill {
+                    register: VirtualRegisterId(1),
+                },
+                byte_size: 8,
+                alignment: 8,
+            },
+        ]
+    );
+    // The incumbent's original store kept its slot while every generated
+    // access names the fresh private slot.
+    let mut incumbent_stores = 0usize;
+    for instruction in &function.blocks[0].instructions {
+        match instruction.kind {
+            SelectedInstructionKind::Store64 { slot, .. }
+            | SelectedInstructionKind::FrameAddress { slot, .. } => {
+                if slot
+                    == FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                        register: VirtualRegisterId(9),
+                    })
+                {
+                    incumbent_stores += 1;
+                    assert_eq!(instruction.id, SelectedInstructionId(6));
+                } else {
+                    assert_eq!(
+                        slot,
+                        FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                            register: VirtualRegisterId(1),
+                        })
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(incumbent_stores, 1);
+    validate_runtime_spill(
+        &source,
+        0,
+        VirtualRegisterId(1),
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // And the dropped second declaration is a replay mismatch: admission
+    // chose a fresh slot, so it must be the appended tail entry.
+    let mut dropped = result.transformed().clone();
+    dropped.functions[0].local_storage_slots.pop();
+    assert_eq!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            dropped
+        )
+        .unwrap_err(),
+        RuntimeSpillError::ReplayMismatch
+    );
 }

@@ -42,9 +42,20 @@
 //! Each retained rewrite shares unchanged selected functions. Replay still
 //! restores and compares the complete source by content, so separately allocated
 //! equivalent inputs work and corruption of an unrelated function rejects.
+//!
+//! A victim also shares an already-declared spill slot when the candidate's
+//! every access follows this rewrite's own idiom — a zero-offset `Store64`, or
+//! a zero-offset `FrameAddress` feeding only zero-offset `Load64`s — and a
+//! last-writer replay over the function proves the incumbent's windows and the
+//! new victim's cannot interleave: no incumbent load may observe a new store,
+//! and every new reload must be reached by new stores alone. Sharing appends
+//! no `local_storage_slots` entry, so the eight bytes stay charged to the frame
+//! exactly once; any other naming of the candidate, an escaped address, or an
+//! interleaved window falls back to a private slot.
 
 mod admission;
 mod rewrite;
+mod slot;
 mod validation;
 
 use std::sync::Arc;

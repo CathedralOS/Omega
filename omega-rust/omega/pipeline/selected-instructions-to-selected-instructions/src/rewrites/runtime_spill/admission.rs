@@ -14,6 +14,7 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 
 use super::RuntimeSpillError;
+use super::slot;
 use crate::ValidatedSelectedAnalysis;
 
 pub(super) struct Admission<'source> {
@@ -27,7 +28,15 @@ pub(super) struct Admission<'source> {
     pub source_value: ValueId,
     pub address_scalar_type: ScalarType,
     pub definitions: Vec<StorageDefinition>,
+    /// The physical slot the rewrite addresses. When `fresh_slot` is false this
+    /// is an already-declared `Spill` slot whose storage windows the last-writer
+    /// replay proved disjoint from this victim's; no storage entry is appended.
     pub slot: LocalStorageSlotId,
+    /// `true` when `slot` is the victim's own private slot and the rewrite must
+    /// append its `local_storage_slots` declaration. `false` means the slot was
+    /// already declared by an earlier victim — frame demand is unchanged and
+    /// the byte must not be counted a second time.
+    pub fresh_slot: bool,
     pub first_instruction: u32,
     pub first_register: u32,
     pub address: &'source RegisterInstructionConstraint,
@@ -126,11 +135,11 @@ pub(super) fn admit<'source>(
     {
         return Err(RuntimeSpillError::UnsupportedValue);
     }
-    let slot = LocalStorageSlotId::Spill { register };
+    let private_slot = LocalStorageSlotId::Spill { register };
     if function
         .local_storage_slots
         .iter()
-        .any(|storage| storage.id == slot)
+        .any(|storage| storage.id == private_slot)
     {
         return Err(RuntimeSpillError::UnsupportedUse);
     }
@@ -151,6 +160,13 @@ pub(super) fn admit<'source>(
     // edge-transport argument. ABI-pinned (fixed-view) uses keep a private
     // reload pinned for their own point instead.
     let mut flexible_uses = vec![false; function.blocks.len()];
+    // Exact positions of admitted uses, for the physical slot-reuse check:
+    // its last-writer replay must see the same load points the rewrite emits.
+    let mut use_positions: Vec<slot::BlockUsePositions> = function
+        .blocks
+        .iter()
+        .map(|_| slot::BlockUsePositions::default())
+        .collect();
     for (current_block_index, block) in function.blocks.iter().enumerate() {
         let previous_uses = uses;
         let (terminal, successors) = super::control(&block.terminator);
@@ -183,6 +199,7 @@ pub(super) fn admit<'source>(
                     if operand.fixed_view.is_none() {
                         flexible_uses[current_block_index] = true;
                     }
+                    use_positions[current_block_index].end_of_block = true;
                     uses = uses
                         .checked_add(1)
                         .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -221,6 +238,7 @@ pub(super) fn admit<'source>(
                     return Err(RuntimeSpillError::UnsupportedUse);
                 }
                 flexible_uses[current_block_index] = true;
+                use_positions[current_block_index].end_of_block = true;
                 uses = uses
                     .checked_add(1)
                     .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -258,6 +276,7 @@ pub(super) fn admit<'source>(
                                 return Err(RuntimeSpillError::UnsupportedUse);
                             }
                             flexible_uses[current_block_index] = true;
+                            use_positions[current_block_index].end_of_block = true;
                             uses = uses
                                 .checked_add(1)
                                 .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -272,7 +291,7 @@ pub(super) fn admit<'source>(
                 }
             }
         }
-        for instruction in &block.instructions {
+        for (instruction_index, instruction) in block.instructions.iter().enumerate() {
             for operand in &instruction.operands {
                 if operand.virtual_register != register {
                     continue;
@@ -316,6 +335,15 @@ pub(super) fn admit<'source>(
                         }
                         if operand.fixed_view.is_none() {
                             flexible_uses[current_block_index] = true;
+                            let positions = &mut use_positions[current_block_index].unpinned;
+                            if positions.last() != Some(&instruction_index) {
+                                positions.push(instruction_index);
+                            }
+                        } else {
+                            let positions = &mut use_positions[current_block_index].pinned;
+                            if positions.last() != Some(&instruction_index) {
+                                positions.push(instruction_index);
+                            }
                         }
                         uses = uses
                             .checked_add(1)
@@ -332,6 +360,15 @@ pub(super) fn admit<'source>(
     if !defined || uses == 0 {
         return Err(RuntimeSpillError::UnsupportedValue);
     }
+    // The reuse check scans this function once per declared local slot.
+    let slot_scan = function
+        .blocks
+        .iter()
+        .try_fold(0usize, |total, block| {
+            total.checked_add(block.instructions.len())?.checked_add(1)
+        })
+        .and_then(|span| function.local_storage_slots.len().checked_mul(span))
+        .ok_or(RuntimeSpillError::IdentityOverflow)?;
     let steps = plan
         .functions
         .iter()
@@ -343,6 +380,7 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(uses.checked_mul(4)?))
         .and_then(|total| total.checked_add(definitions.len()))
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
+        .and_then(|total| total.checked_add(slot_scan))
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow)?
         > budget.validation_steps()
@@ -461,7 +499,7 @@ pub(super) fn admit<'source>(
         })
         .copied()
         .collect::<std::collections::BTreeSet<_>>();
-    let shared_reload = function
+    let shared_reload: Vec<bool> = function
         .blocks
         .iter()
         .enumerate()
@@ -476,6 +514,20 @@ pub(super) fn admit<'source>(
                 )
         })
         .collect();
+    // Prefer reusing an already-declared spill slot when the last-writer
+    // replay proves the incumbent's and this victim's storage windows never
+    // interleave. Reuse declares nothing, so the shared slot is charged to the
+    // frame once; otherwise the victim gets its private slot as before.
+    let (slot, fresh_slot) = match slot::shared_slot(
+        function,
+        register,
+        &definitions,
+        &use_positions,
+        &shared_reload,
+    ) {
+        Some(shared) => (shared, false),
+        None => (private_slot, true),
+    };
     Ok(Admission {
         function,
         use_blocks,
@@ -485,6 +537,7 @@ pub(super) fn admit<'source>(
         address_scalar_type: ScalarType::Integer(unsigned),
         definitions,
         slot,
+        fresh_slot,
         first_instruction,
         first_register,
         address,
