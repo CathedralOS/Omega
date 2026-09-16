@@ -104,29 +104,41 @@ pub(super) fn check_component(
         }
     }
     let frames = crate::machine_calls::calls::CallFrameResolver::new(program);
+    // Internal arrivals are owned by the member's own ranking judgment,
+    // which the checked stage applies to every member whose local state
+    // graph can still cycle. A call issued from a subordinate state still
+    // answers to this shared hypothesis. The member's discovered
+    // telescope names the entry role each site formal carries, so
+    // authored subjects and endpoints normalize to the atom the site
+    // actually holds. Discovery keeps a contested claim only for a bare
+    // forward, so every slot sharing one role is an equal copy of the
+    // same arrival value; a computed claimant stays role-less rather than
+    // borrowing equality evidence the member's own edge judgment may never
+    // have run for an admitted component.
+    let member_mappings = component
+        .iter()
+        .enumerate()
+        .map(|(position, index)| {
+            discover_state_entry_mappings(
+                program,
+                &program.machines()[*index],
+                ranks[position].parameter,
+                &[],
+            )
+        })
+        .collect::<Option<Vec<_>>>();
+    let Some(member_mappings) = member_mappings else {
+        return Err("the ranking needs entry-to-state arrival evidence");
+    };
     let mut range_edges = Vec::new();
     let mut weak_edges = vec![Vec::new(); component.len()];
     for (position, index) in component.iter().copied().enumerate() {
         let machine = &program.machines()[index];
         let states = program.machine_states(machine);
-        let Some(entry) = states.first() else {
+        if states.is_empty() {
             return Err("a member has no checked entry state");
-        };
-        // Internal arrivals are owned by the member's own ranking judgment,
-        // which the checked stage applies to every member whose local state
-        // graph can still cycle. A call issued from a subordinate state still
-        // answers to this shared hypothesis. The member's discovered
-        // telescope names the entry role each site formal carries, so
-        // authored subjects and endpoints normalize to the atom the site
-        // actually holds. The call judgment binds only a uniquely carried
-        // role, so discovery may resolve every contested claim to its bare
-        // forward — the member's own edge judgment owns the per-premises
-        // required set whose copies it proves equal.
-        let Some(mappings) =
-            discover_state_entry_mappings(program, machine, ranks[position].parameter, &[])
-        else {
-            return Err("the ranking needs entry-to-state arrival evidence");
-        };
+        }
+        let mappings = &member_mappings[position];
         let mut observed = Vec::new();
         for (state_position, state) in states.iter().enumerate() {
             let mut guards = Vec::new();
@@ -300,17 +312,14 @@ pub(super) fn check_component(
                             }
                         }
                         if mixed_ranges {
-                            if state.symbol != entry.symbol {
-                                // Pinned-endpoint conservation is proved on the
-                                // caller's entry binding; a subordinate site has
-                                // no entry alias for its authored endpoint.
-                                return Err(
-                                    "a mixed-range component conserves endpoints only at entry call sites",
-                                );
-                            }
+                            // Conservation reads the caller's entry values
+                            // through this exact site's telescope, including
+                            // endpoints whose carrier is a subordinate formal.
                             range_edges.push(RankingRangeCallEdge {
                                 source: position,
                                 destination: callee_position,
+                                site_state: state,
+                                entry_parameters: &member_mappings[position][state_position],
                                 arguments,
                                 guards: site_guards,
                             });

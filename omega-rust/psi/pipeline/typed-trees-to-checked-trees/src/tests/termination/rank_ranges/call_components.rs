@@ -431,6 +431,85 @@ fn component_members_keep_internal_cycles_under_the_local_ranking_rule() {
     reject(&unranged.replace("hold(pending - 1)", "hold(pending)"));
 }
 
+const DUPLICATED: &str = r#"
+data Main {}
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining > 0 { true -> pair(remaining, remaining) false -> remaining }
+    state pair(left: u32 [0..=9], right: u32 [0..=9]) {
+        transition left > 0 { true -> self.step(right) false -> left }
+    }
+}
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 { true -> self.count(n - 1) false -> n }
+}
+"#;
+
+#[test]
+fn component_calls_carry_rank_through_duplicated_arrival_copies() {
+    // `pair(left, right)` holds two copies of `remaining`; discovery kept both
+    // claims because every arrival forwarded a bare name, so the copies are
+    // equal and the call may read either carrier.
+    prove(DUPLICATED);
+    // A copy that diverged at the arrival demotes: `right` is then a role-less
+    // payload and the transported rank cannot prove nonincrease.
+    reject(&DUPLICATED.replace(
+        "pair(remaining, remaining)",
+        "pair(remaining, remaining + 1)",
+    ));
+    reject(&DUPLICATED.replace("self.step(right)", "self.step(right + 1)"));
+    // An intervening write to a carrier invalidates the copied premise.
+    reject(
+        &DUPLICATED
+            .replace("right: u32 [0..=9]", "mut right: u32 [0..=9]")
+            .replace(
+                "        transition left > 0 { true -> self.step(right)",
+                "        right = 0; transition left > 0 { true -> self.step(right)",
+            ),
+    );
+}
+
+#[test]
+fn mixed_component_conserves_endpoints_through_internal_state_calls() {
+    // `hold(pending, bound)` carries the ranked input and the authored ceiling;
+    // the unranged member must transport that exact endpoint back.
+    let source = r#"
+data Main {}
+machine Main::outer(&mut self, cap: u64, remaining: u64)
+requires remaining <= cap;
+terminates by remaining in 0..=cap;
+-> u64 {
+    transition remaining > 0 { true -> hold(remaining, cap) false -> remaining }
+    state hold(pending: u64, bound: u64) {
+        transition pending > 0 && pending <= bound {
+            true -> self.inner(pending, bound)
+            false -> pending
+        }
+    }
+}
+machine Main::inner(&mut self, n: u64, limit: u64)
+requires n <= limit;
+terminates by n;
+-> u64 {
+    transition n > 0 { true -> self.outer(limit, n - 1) false -> n }
+}
+"#;
+    prove(source);
+    // An actual that is not the carried endpoint cannot pin the authored
+    // ceiling, even when it is spelled from the same carrier.
+    reject(&source.replace(
+        "self.inner(pending, bound)",
+        "self.inner(pending, bound + 1)",
+    ));
+    reject(&source.replace("self.inner(pending, bound)", "self.inner(pending, pending)"));
+    // Without the site's own membership evidence the authored ceiling is not
+    // re-established past an internal arrival.
+    reject(&source.replace("pending > 0 && pending <= bound", "pending > 0"));
+}
+
 #[test]
 fn mixed_endpoint_arithmetic_equality_uses_only_live_caller_premises() {
     let source = PAIR

@@ -5,12 +5,18 @@ use super::super::super::SymbolHandle;
 use super::super::{StrictArithmeticBindingValue, comparison_proven};
 use super::{
     BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Polynomial, RankingRangeCallMember,
-    TypedTrees, collect_guard, entry_comparisons, exact_integer_parameter, integer_bindings,
-    meanings, scalar_entry,
+    State, TypedTrees, collect_guard, entry_comparisons, exact_integer_parameter, integer_bindings,
+    meanings, parameter_comparisons, scalar_entry, telescoped_bindings, validate_mapping,
 };
 pub(crate) struct RankingRangeCallEdge<'program> {
     pub source: usize,
     pub destination: usize,
+    /// The exact transition site inside the caller: its state and discovered
+    /// telescope. Conservation reads caller entry values through that site's
+    /// carriers, so an endpoint pinned at a subordinate arrival still names
+    /// the same transported input.
+    pub site_state: &'program State,
+    pub entry_parameters: &'program [SymbolHandle],
     pub arguments: &'program [ExpressionHandle],
     pub guards: Vec<(ExpressionHandle, bool)>,
 }
@@ -117,6 +123,11 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
 /// Each destination slot retains every caller input proved equal to its actual.
 /// No destination requirement or candidate correspondence is an arithmetic
 /// premise. The component owner independently preserves the caller's prefix.
+/// At a subordinate site the caller's entry values normalize through that
+/// state's telescope: each entry role names the atom of the formal carrying it,
+/// and kept duplicated carriers share one value under their bare-forward
+/// equality. Requires clauses stay entry-site evidence; the site's own
+/// constrained-type facts hold on every arrival.
 fn argument_sources(
     program: &TypedTrees,
     members: &[RankingRangeCallMember<'_>],
@@ -124,8 +135,9 @@ fn argument_sources(
 ) -> Option<Vec<Vec<usize>>> {
     let caller = members.get(edge.source)?;
     let callee = members.get(edge.destination)?;
-    let (source, _) = scalar_entry(program, caller)?;
+    let (entry, _) = scalar_entry(program, caller)?;
     let (destination, _) = scalar_entry(program, callee)?;
+    let site = edge.site_state;
     let parameters = program
         .state_parameters(destination)
         .iter()
@@ -133,22 +145,32 @@ fn argument_sources(
     if parameters.clone().count() != edge.arguments.len() {
         return None;
     }
-    let bindings = integer_bindings(program, source)?;
+    let at_entry = site.symbol == entry.symbol;
+    let (bindings, carrier_equalities) = if at_entry {
+        (integer_bindings(program, site)?, Vec::new())
+    } else {
+        validate_mapping(program, caller.machine, site, edge.entry_parameters)?;
+        telescoped_bindings(program, site, edge.entry_parameters)?
+    };
     let mut engine = Engine::strict_with_symbol_bindings(program, caller.machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }
-    let mut comparisons =
-        entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?;
+    let mut comparisons = if at_entry {
+        entry_comparisons(program, caller.machine, site, &mut engine, &bindings)?
+    } else {
+        parameter_comparisons(program, caller.machine, site, &mut engine, &bindings)?
+    };
+    comparisons.extend(carrier_equalities);
     for &(guard, holds) in &edge.guards {
-        meanings::builtin(program, caller.machine, source, guard, 0)?;
+        meanings::builtin(program, caller.machine, site, guard, 0)?;
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
     let source_values = program
-        .state_parameters(source)
+        .state_parameters(entry)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .map(|parameter| {
@@ -166,7 +188,7 @@ fn argument_sources(
     parameters
         .zip(edge.arguments)
         .map(|(parameter, argument)| {
-            meanings::builtin(program, caller.machine, source, *argument, 0)?;
+            meanings::builtin(program, caller.machine, site, *argument, 0)?;
             if exact_integer_parameter(program, parameter.type_reference).is_none() {
                 return Some(Vec::new());
             }

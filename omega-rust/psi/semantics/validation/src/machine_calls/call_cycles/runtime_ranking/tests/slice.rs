@@ -217,6 +217,40 @@ terminates by items -> Slice::Length;
 }
 
 #[test]
+fn slice_component_reads_duplicated_collection_copies() {
+    // `pair(first, second)` holds two copies of the same collection: every
+    // arrival forwarded a bare name, so the produced length coordinate is one
+    // shared value and either copy may carry it into the next call.
+    let source = "data Main {}
+        machine Main::scan(&mut self, items: &[u64], capacity: u64)
+        requires items.len <= capacity;
+        terminates by items -> Slice::Length in 0..=capacity;
+        -> u64 {
+            transition items.len > 0 { true -> pair(items, items, capacity) false -> 0 }
+            state pair(first: &[u64], second: &[u64], bound: u64) {
+                transition first.len > 0 && first.len <= bound {
+                    true -> self.step(second, bound)
+                    false -> 0
+                }
+            }
+        }
+        machine Main::step(&mut self, rest: &[u64], capacity: u64)
+        requires rest.len <= capacity;
+        terminates by rest -> Slice::Length in 0..=capacity;
+        -> u64 {
+            transition rest.len > 0 { true -> self.scan(rest[1..], capacity) false -> 0 }
+        }";
+    assert_eq!(admitted(&typed_source(source)).len(), 1);
+    // A windowed second copy is not the same produced length; the computed
+    // claimant demotes and the transported rank cannot prove nonincrease.
+    let diverged = source.replace(
+        "pair(items, items, capacity)",
+        "pair(items, items[1..], capacity)",
+    );
+    assert!(admitted(&typed_source(&diverged)).is_empty());
+}
+
+#[test]
 fn a_member_ranked_by_another_view_cannot_join_the_slice_order() {
     let mismatched = "data Main {}
 machine Main::scan_a(&mut self, items: &[u64], capacity: u64)
