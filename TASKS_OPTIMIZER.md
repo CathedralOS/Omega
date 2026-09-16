@@ -763,7 +763,30 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   rejection under the exact copy grammar, decision-field substitution,
   and wrong-policy negatives; the replay restates both grammars through
   its own `WrappingAddZero`/`WrappingAddZeroLeft` source shapes and
-  never consults the pair descriptor). Remaining: further
+  never consults the pair descriptor).
+  `BITWISE_AND_ONES_COPIES` declares one pair per `Use` position,
+  folding `MaterializeI64(u64::MAX)` feeding `BitwiseAndI64` at either
+  operand into a `CopyI64` of the surviving `Use` at the result
+  register under `LiteralFoldPolicy::BITWISE_AND_ONES_V1` — `x & MAX`
+  and `MAX & x` are both `x` — with the left pair declaring
+  `BinaryLeftLiteral` and both grammars rewriting through the
+  `CopyI64` row under an isolated unit and machine-effect surface. The
+  family shares its consumer kind and operand positions with the
+  and-zero annihilator rules, so pair admission now keys on the
+  consumer kind, the victim operand position, and the literal's value:
+  `AdmittedPairs::for_consumer` requires exactly one enabled pair to
+  admit the recorded immediate and refuses an overlapping catalog
+  outright, and admission reports a literal outside every enabled
+  bound as `UnsupportedImmediate`, distinct from an unadmitted kind or
+  position (446 crate tests pass, including firing on both Linux
+  targets at either operand position, exact-all-ones versus zero, one,
+  and near-bound literals, both-families-enabled value dispatch in each
+  direction, wrong-position claims, forbidden operand bindings,
+  scratch-`Def` rejection under the exact copy grammar, decision-field
+  substitution, and wrong-policy negatives; the replay restates both
+  grammars through its own `AndOnes`/`AndOnesLeft` source shapes,
+  selects the family on the literal's value alone, and never consults
+  the pair descriptor). Remaining: further
   unit roles and the other non-isolated relationships — trap-, stack-,
   and control-flow-carrying forms still have no descriptor variant.
 
