@@ -875,9 +875,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   substitution, and wrong-policy negatives; the replay restates both
   grammars through its own `AndOnes`/`AndOnesLeft` source shapes,
   selects the family on the literal's value alone, and never consults
-  the pair descriptor). Remaining: further
-  unit roles and the other non-isolated relationships — trap-, stack-,
-  and control-flow-carrying forms still have no descriptor variant.
+  the pair descriptor). Remaining: further unit roles, stack- and
+  control-flow-carrying relationships, and trap relationships beyond the
+  existing `FaultDischargedByLiteral` and `FaultDischargedByObligation`
+  descriptors. Those fault-discharge variants do not admit arbitrary trap
+  preservation or hosted-trap effects.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
   removal, address folding, compare/test selection, and scheduling only where
