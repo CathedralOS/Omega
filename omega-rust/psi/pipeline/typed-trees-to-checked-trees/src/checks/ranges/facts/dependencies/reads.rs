@@ -3,6 +3,7 @@ use crate::checks::ranges::facts::RangeCallContext;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::semantic_calls::CallSite;
+use checked_trees::{CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin};
 use symbols::SymbolHandle;
 
 pub(super) fn collect_reads(
@@ -12,6 +13,7 @@ pub(super) fn collect_reads(
     statement_index: usize,
     expression: ExpressionHandle,
     calls: Option<&RangeCallContext<'_>>,
+    operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
 ) -> bool {
@@ -28,6 +30,7 @@ pub(super) fn collect_reads(
                 statement_index,
                 binary.left,
                 calls,
+                operators,
                 reads,
                 depth + 1,
             ) && collect_reads(
@@ -37,6 +40,7 @@ pub(super) fn collect_reads(
                 statement_index,
                 binary.right,
                 calls,
+                operators,
                 reads,
                 depth + 1,
             )
@@ -48,6 +52,7 @@ pub(super) fn collect_reads(
             statement_index,
             unary.operand,
             calls,
+            operators,
             reads,
             depth + 1,
         ),
@@ -58,6 +63,7 @@ pub(super) fn collect_reads(
             statement_index,
             cast.value,
             calls,
+            operators,
             reads,
             depth + 1,
         ),
@@ -72,6 +78,7 @@ pub(super) fn collect_reads(
             statement_index,
             inner.target,
             calls,
+            operators,
             reads,
             depth + 1,
         ),
@@ -113,6 +120,7 @@ pub(super) fn collect_reads(
                     statement_index,
                     call.receiver,
                     Some(calls),
+                    operators,
                     reads,
                     depth + 1,
                 )
@@ -127,6 +135,7 @@ pub(super) fn collect_reads(
                     statement_index,
                     *argument,
                     Some(calls),
+                    operators,
                     reads,
                     depth + 1,
                 ) {
@@ -183,56 +192,51 @@ pub(super) fn collect_reads(
             }
             true
         }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            if !collect_selector_reads(
-                program,
-                machine,
-                state,
-                statement_index,
-                expression,
-                calls,
-                reads,
-                depth + 1,
-            ) {
-                return false;
-            }
-            let Some(mut place) = canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                expression,
-            ) else {
-                return false;
-            };
-            let Some(root) =
-                validate_place_read(program, machine, state, statement_index, &mut place)
-            else {
-                return false;
-            };
-            // Immutable integer copies read the same frozen value, not their
-            // initializer's current storage. Preserve that existing identity
-            // through copy chains without giving references snapshot semantics.
-            if place.segments.is_empty()
-                && let ExpressionNode::Name(path) = program.expression_table.expression(expression)
-                && path.symbol == root
-                && path.head_symbol == root
-                && super::captures::is_integer_value(program, machine, state, expression)
-                && let Some(value) =
-                    super::captures::integer_value_identity(program, state, expression)
-                && root_is_current(
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => collect_place_read(
+            program,
+            machine,
+            state,
+            statement_index,
+            expression,
+            calls,
+            operators,
+            reads,
+            depth,
+        ),
+        // Builtin `items[i]`/`items[a..b]` syntax projects element or window
+        // storage and keeps the ordinary place footprint. Once an authored
+        // `[]`/`[..]` declaration governs the occurrence the application is
+        // call-shaped instead: its complete footprint is the operand reads
+        // authenticated by the exact checked use row, so a missing or
+        // unstable selection stays incomplete rather than pretending to be
+        // element storage.
+        ExpressionNode::Indexed(indexed) => {
+            if has_builtin_index_meaning(program, machine, state, expression, indexed) {
+                collect_place_read(
                     program,
                     machine,
                     state,
                     statement_index,
-                    facts::PlaceRoot::Symbol(value),
+                    expression,
+                    calls,
+                    operators,
+                    reads,
+                    depth,
                 )
-            {
-                place.root = facts::PlaceRoot::Symbol(value);
+            } else {
+                collect_selected_index_reads(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    expression,
+                    indexed,
+                    calls,
+                    operators,
+                    reads,
+                    depth,
+                )
             }
-            if !reads.contains(&place) {
-                reads.push(place);
-            }
-            true
         }
         // `place.load(ordering)` is the one atomic observation whose complete
         // footprint is exactly its resident place: the desugar keeps that
@@ -257,6 +261,7 @@ pub(super) fn collect_reads(
                     statement_index,
                     atomic.value,
                     calls,
+                    operators,
                     reads,
                     depth + 1,
                 )
@@ -321,6 +326,160 @@ pub(super) fn root_is_current(
         })
 }
 
+/// A name, member, or builtin-indexed expression contributes its own storage
+/// place plus the selector reads needed to address it.
+fn collect_place_read(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    calls: Option<&RangeCallContext<'_>>,
+    operators: Option<&CheckedOperatorFacts>,
+    reads: &mut Vec<CanonicalPlace>,
+    depth: usize,
+) -> bool {
+    if !collect_selector_reads(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        calls,
+        operators,
+        reads,
+        depth + 1,
+    ) {
+        return false;
+    }
+    let Some(mut place) = canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    ) else {
+        return false;
+    };
+    let Some(root) = validate_place_read(program, machine, state, statement_index, &mut place)
+    else {
+        return false;
+    };
+    // Immutable integer copies read the same frozen value, not their
+    // initializer's current storage. Preserve that existing identity
+    // through copy chains without giving references snapshot semantics.
+    if place.segments.is_empty()
+        && let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+        && path.symbol == root
+        && path.head_symbol == root
+        && super::captures::is_integer_value(program, machine, state, expression)
+        && let Some(value) = super::captures::integer_value_identity(program, state, expression)
+        && root_is_current(
+            program,
+            machine,
+            state,
+            statement_index,
+            facts::PlaceRoot::Symbol(value),
+        )
+    {
+        place.root = facts::PlaceRoot::Symbol(value);
+    }
+    if !reads.contains(&place) {
+        reads.push(place);
+    }
+    true
+}
+
+/// A selected `[]`/`[..]` application is a checked occurrence, not a place:
+/// the exact `CheckedOperatorUseFact` at this statement authenticates which
+/// declaration the occurrence resolved to, and the operand expressions
+/// recovered from that row enumerate the caller storage the callee can
+/// observe. Missing, ambiguous, or inconsistent selection custody leaves the
+/// read set incomplete — the same evidence floor the checked-call join
+/// applies. Each operand recurses through the ordinary read scan, so a
+/// nested call or a selected nested indexing still has to prove its own
+/// complete footprint.
+fn collect_selected_index_reads(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    indexed: &typed_trees::expression::TableIndexedExpression,
+    calls: Option<&RangeCallContext<'_>>,
+    operators: Option<&CheckedOperatorFacts>,
+    reads: &mut Vec<CanonicalPlace>,
+    depth: usize,
+) -> bool {
+    use language_core::OperatorSpelling;
+
+    let Some(operators) = operators else {
+        return false;
+    };
+    // Use rows carry the enclosing statement's origin even for nested
+    // operands, so this join covers selector and subexpression positions.
+    // Custody must agree across every recorded row for this occurrence.
+    let mut uses = operators.uses.iter().filter_map(|(_, selected)| {
+        (selected.expression == expression
+            && matches!(
+                selected.origin,
+                CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index: index,
+                    ..
+                } if machine_symbol == machine.symbol
+                    && state_symbol == state.symbol
+                    && index == statement_index
+            ))
+        .then_some(selected)
+    });
+    let Some(selected) = uses.next() else {
+        return false;
+    };
+    let spelling = if matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Range(_)
+    ) {
+        OperatorSpelling::Range
+    } else {
+        OperatorSpelling::Index
+    };
+    if selected.spelling != spelling
+        || selected.status != CheckedOperatorResolutionStatus::Resolved
+        || !selected.selected_operator_symbol.is_valid()
+        || selected.candidate_count != operators.candidates(selected).len()
+        || uses.any(|other| other != selected)
+    {
+        return false;
+    }
+    let Some(candidate) = operators.selected_candidate(selected) else {
+        return false;
+    };
+    // The operand expressions recovered from the checked row are the only
+    // caller storage the selected declaration can observe. Their count still
+    // has to match the retained signature so a drifted row cannot rename
+    // storage the operand scan never saw.
+    let Some(operands) = selected.operands(program) else {
+        return false;
+    };
+    if candidate.parameter_count != operands.len() {
+        return false;
+    }
+    operands.iter().all(|operand| {
+        collect_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            *operand,
+            calls,
+            Some(operators),
+            reads,
+            depth + 1,
+        )
+    })
+}
+
 /// Check typed identities before contextual spelling recovery, and collect the
 /// storage read to select this place. Do not read the whole collection merely
 /// to address one element: parent replacement overlaps its child path already.
@@ -331,6 +490,7 @@ fn collect_selector_reads(
     statement_index: usize,
     expression: ExpressionHandle,
     calls: Option<&RangeCallContext<'_>>,
+    operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
 ) -> bool {
@@ -356,6 +516,7 @@ fn collect_selector_reads(
                     statement_index,
                     member.receiver,
                     calls,
+                    operators,
                     reads,
                     depth + 1,
                 )
@@ -378,6 +539,7 @@ fn collect_selector_reads(
                     statement_index,
                     indexed.collection,
                     calls,
+                    operators,
                     reads,
                     depth + 1,
                 )
@@ -388,6 +550,7 @@ fn collect_selector_reads(
                     statement_index,
                     indexed.index,
                     calls,
+                    operators,
                     reads,
                     depth + 1,
                 )
