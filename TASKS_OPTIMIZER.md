@@ -735,12 +735,23 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   candidate or coexisting-home rosters, a shrunken interval, and root or
   usage mismatches
   (`tests/native-differential/.../fixtures/call_spanning_reload.rs`,
-  `.../register_allocation/reload_value_homes.rs`). Remaining: the
-  executable runtime-spill rewrite still realizes each use as a private
-  reload, so no produced interval needs to survive an intervening call
-  (`selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs`
-  excludes them), and the sequenced allocation route does not yet reach the
-  bounded lane's call-crossing capability.
+  `.../register_allocation/reload_value_homes.rs`). The executable
+  runtime-spill rewrite now realizes a block's flexible victim uses through
+  one shared reload register when admission proves some physical view of the
+  victim's class survives everything the block touches — clobbers, implicit
+  accesses, function-wide pinned views, and inserted frame rows — so the
+  produced reload interval can cross an intervening call and land on a
+  callee-saved home; ABI-pinned uses keep a private pair so the pin covers
+  only the load-to-use window, and independent replay reconstructs the same
+  grouping
+  (`selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs`,
+  `.../runtime_spill/rewrite.rs`, `.../runtime_spill/validation.rs`). The
+  sequenced native fixture homes the call-spanning reload on the surviving
+  callee-saved view on linux-x64 and linux-arm64
+  (`tests/native-differential/.../register_allocation/runtime_spill_call_spanning.rs`).
+  Remaining: the call-spanning witness runs only on the two Linux targets —
+  Windows x64, UEFI x64, Darwin AArch64, and Windows AArch64 legs are
+  unwitnessed.
 
 ## Machine optimization
 
