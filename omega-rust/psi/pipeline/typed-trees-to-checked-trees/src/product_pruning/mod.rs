@@ -578,17 +578,19 @@ mod tests {
         // Synthesize a boundary-declaration machine without source support:
         // pruning must keep it regardless of reachability.
         let boundary_symbol = {
-            let mut boundary = Machine::default();
-            boundary.symbol = program
-                .typed
-                .machines()
-                .iter()
-                .map(|machine| machine.symbol.arena_index())
-                .max()
-                .map(|index| SymbolHandle::from_arena_index(index + 1))
-                .expect("a machine symbol must exist");
-            boundary.supply_mode = language_semantics::MachineSupplyMode::Boundary;
-            boundary.body_is_present = false;
+            let boundary = Machine {
+                symbol: program
+                    .typed
+                    .machines()
+                    .iter()
+                    .map(|machine| machine.symbol.arena_index())
+                    .max()
+                    .map(|index| SymbolHandle::from_arena_index(index + 1))
+                    .expect("a machine symbol must exist"),
+                supply_mode: language_semantics::MachineSupplyMode::Boundary,
+                body_is_present: false,
+                ..Machine::default()
+            };
             let symbol = boundary.symbol;
             program.typed.push_machine(boundary);
             symbol
