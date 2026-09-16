@@ -160,8 +160,9 @@ fn bounded_owned_fields_keep_range_identity_without_storage_or_write_authority()
                 ScalarType::Integer(integer),
                 &contract.structural_types,
             ),
-            None,
-            "layout eligibility does not discharge restricted-field writes",
+            Some((0, 8)),
+            "a bounded field's store geometry follows its integer carrier; write \
+             authority is the current-IR range obligation, not layout eligibility",
         );
         assert_eq!(
             crate::structural_inputs::structural_reference_input::store(
