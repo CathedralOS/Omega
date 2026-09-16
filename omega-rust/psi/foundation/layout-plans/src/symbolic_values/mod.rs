@@ -6,6 +6,7 @@
 
 use crate::layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecursiveRecordSumPathsLayoutReport,
+    ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport,
     ConventionalSumLayoutReport, LayoutPlanReport,
 };
 use crate::materialization::MaterializationDiagnostic;
@@ -414,7 +415,9 @@ impl SymbolicFieldInnerLayout {
     /// depth-specific constructors: a `Branch` occurrence binds a `Record`
     /// carrier retaining the child's complete outer layout, with the child
     /// report's own carriers nested under it through [`Self::with_inner_layout`];
-    /// a `Leaf` binds one `Sum` carrier per direct sum field. The top-level
+    /// a `Leaf` binds one `Sum` carrier per direct sum field and one
+    /// `SumArray` carrier per direct fixed array of conventional sums. The
+    /// top-level
     /// call supplies the carriers for the report's `outer_layout`, which is
     /// the flat plan passed to
     /// [`derive_symbolic_materialization_with_inner_layouts`]. Carrier
@@ -439,42 +442,63 @@ impl SymbolicFieldInnerLayout {
         report: &ConventionalRecursiveRecordSumPathsLayoutReport,
         depth: usize,
     ) -> Result<Vec<Self>, MaterializationDiagnostic> {
-        match report {
-            ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-                child_sum_layouts, ..
-            } => Ok(child_sum_layouts
-                .iter()
+        // One level's direct children fold first: each direct sum binds a
+        // `Sum` carrier and each direct sum array binds a `SumArray` carrier,
+        // so an indexed path segment spells `field[i]` against the repeated
+        // interior exactly as the standalone sum-array rung's carriers do.
+        let fold_direct_children = |sums: &[ConventionalSumFieldLayoutReport],
+                                    arrays: &[ConventionalSumArrayFieldLayoutReport]|
+         -> Vec<Self> {
+            sums.iter()
                 .map(|child| match child.member_identity {
                     Some(identity) => {
                         Self::new_sum_numbered(child.field.clone(), identity, child.layout.clone())
                     }
                     None => Self::new_sum(child.field.clone(), child.layout.clone()),
                 })
-                .collect()),
+                .chain(arrays.iter().map(|child| match child.member_identity {
+                    Some(identity) => Self::new_sum_array_numbered(
+                        child.field.clone(),
+                        identity,
+                        child.element_layout.clone(),
+                        child.element_count,
+                        child.element_stride,
+                    ),
+                    None => Self::new_sum_array(
+                        child.field.clone(),
+                        child.element_layout.clone(),
+                        child.element_count,
+                        child.element_stride,
+                    ),
+                }))
+                .collect()
+        };
+        match report {
+            ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+                child_sum_layouts,
+                child_sum_array_layouts,
+                ..
+            } => Ok(fold_direct_children(
+                child_sum_layouts,
+                child_sum_array_layouts,
+            )),
             ConventionalRecursiveRecordSumPathsLayoutReport::Branch(report) => {
                 if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
                     return Err(MaterializationDiagnostic(format!(
                         "recursive record/sum path report nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
                     )));
                 }
-                // One record level can hold both kinds of children: the
-                // level's own direct sums bind `Sum` carriers exactly as a
-                // `Leaf` level's do, and each deeper record path binds a
-                // `Record` carrier with its own folded interiors. The
-                // carriers join the same field-keyed namespace the level's
-                // enclosing plan spells, so a symbolic path resolves each
-                // boundary independently of its sibling kinds.
-                let child_sums = report.child_sum_layouts.iter().map(|child| {
-                    Ok(match child.member_identity {
-                        Some(identity) => Self::new_sum_numbered(
-                            child.field.clone(),
-                            identity,
-                            child.layout.clone(),
-                        ),
-                        None => Self::new_sum(child.field.clone(), child.layout.clone()),
-                    })
-                });
-                child_sums
+                // One record level can hold all three child kinds: the
+                // level's own direct sums and sum arrays bind `Sum` and
+                // `SumArray` carriers exactly as a `Leaf` level's do, and
+                // each deeper record path binds a `Record` carrier with its
+                // own folded interiors. The carriers join the same
+                // field-keyed namespace the level's enclosing plan spells,
+                // so a symbolic path resolves each boundary independently of
+                // its sibling kinds.
+                fold_direct_children(&report.child_sum_layouts, &report.child_sum_array_layouts)
+                    .into_iter()
+                    .map(Ok)
                     .chain(report.paths.iter().map(|path| {
                         let mut carrier = match path.outer_member_identity {
                             Some(identity) => Self::new_numbered(

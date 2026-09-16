@@ -36,51 +36,109 @@ pub fn project_conventional_record_with_sum_materialization_layout(
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<(LayoutPlanReport, Vec<ConventionalSumFieldLayoutReport>), Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "nested-sum record")?;
-    if definition.supply_mode != DataSupplyMode::CheckedShape
-        || definition.properties.multiplicity != Multiplicity::Unrestricted
-        || !definition.type_parameters.is_empty()
-        || !definition.lifetime_parameters.is_empty()
-        || definition.generic_instance.is_some()
-        || definition.quotient.is_some()
-        || DataDefinition::shape_kind_from_members(program.data_members(definition))
-            != DataShapeKind::Record
-    {
+    let mut reachability = SumReachability::new(program);
+    let level = project_record_level_children(
+        program,
+        plan,
+        data_symbol,
+        "nested-sum record",
+        &mut reachability,
+    )?;
+    if let Some(candidate) = level.record_paths.first() {
         return Err(Diagnostic::error(format!(
-            "nested-sum materialization owner `{}` must be one closed non-generic `[copy]` record",
-            definition.name
+            "nested-sum materialization does not lift the nested record path through `{}`; the recursive record/sum owner carries it",
+            candidate.declared.name
         )));
     }
+    if let Some(array) = level.child_sum_array_layouts.first() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum materialization does not lift the direct sum array `{}`; the recursive record/sum owner carries it",
+            array.field
+        )));
+    }
+    if level.child_sum_layouts.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-sum layout projection requires at least one direct runtime-relevant pure-sum field",
+        ));
+    }
+    Ok((level.outer_layout, level.child_sum_layouts))
+}
 
+/// One runtime-relevant record field whose exact closed `[copy]` record type
+/// still reaches sums below its level — the deeper record-path candidates one
+/// level projects, in authored order.
+struct RecordPathCandidate<'a> {
+    declared: &'a typed_trees::data::DataField,
+    laid: &'a crate::FieldLayout,
+    named: &'a DataDefinition,
+}
+
+/// The direct children one record level retains under the general recursive
+/// rule, beside the level's flat outer plan.
+struct RecordLevelChildren<'a> {
+    outer_layout: LayoutPlanReport,
+    /// Direct conventional pure-sum fields, in authored order.
+    child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
+    /// Direct nonzero literal fixed arrays of conventional pure sums, in
+    /// authored order.
+    child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
+    /// Record fields whose exact type still reaches sums below this level, in
+    /// authored order.
+    record_paths: Vec<RecordPathCandidate<'a>>,
+}
+
+/// Project one record level's direct conventional-sum children from the exact
+/// target runtime layout. Every runtime-relevant field classifies under the
+/// same rule at every depth: a direct pure sum emits one
+/// `ConventionalSumFieldLayoutReport`; a nonzero literal `[S; N]` field whose
+/// element resolves to a conventional pure sum emits one compact
+/// `ConventionalSumArrayFieldLayoutReport`; a record field still reaching
+/// sums enters `record_paths` for the caller's own depth rule; anything else
+/// is an ordinary whole-field `At` entry. Arrays reaching sums through more
+/// than one literal element hop — nested arrays, record elements, mixed
+/// elements, or non-literal lengths — remain fenced.
+fn project_record_level_children<'a>(
+    program: &'a CheckedTrees,
+    plan: &'a LayoutPlan,
+    data_symbol: SymbolHandle,
+    owner: &str,
+    reachability: &mut SumReachability<'_>,
+) -> Result<RecordLevelChildren<'a>, Diagnostic> {
+    let definition = unique_data_definition(program, data_symbol, owner)?;
+    validate_closed_copy_record(program, definition, owner)?;
     let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
     let DataShape::Record {
         fields: laid_fields,
     } = data_layout.shape
     else {
         return Err(Diagnostic::error(format!(
-            "target runtime layout row for nested-sum owner `{}` is not a record",
-            definition.name
+            "target runtime layout row for {owner} `{name}` is not a record",
+            name = definition.name
         )));
     };
-    let declared_fields = program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-            DataMember::Field(_) | DataMember::Variant(_) => None,
-        })
-        .collect::<Vec<_>>();
+    let declared_fields = relevant_record_fields(program, definition);
     let laid_fields = plan.fields.span_or_empty(laid_fields);
     if declared_fields.len() != laid_fields.len() {
         return Err(Diagnostic::error(format!(
-            "target runtime layout for nested-sum owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
+            "target runtime layout for {owner} `{name}` has {} fields; checked schema has {} relevant fields",
             laid_fields.len(),
-            declared_fields.len()
+            declared_fields.len(),
+            name = definition.name,
         )));
     }
 
-    let mut nested_sums = Vec::new();
+    let mut child_sum_layouts = Vec::new();
+    let mut child_sum_array_layouts = Vec::new();
+    let mut record_paths = Vec::new();
+    child_sum_layouts
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
+    child_sum_array_layouts
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
+    record_paths
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
     let mut entries = Vec::with_capacity(declared_fields.len());
     let mut offsets = Vec::with_capacity(declared_fields.len());
     for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
@@ -95,58 +153,120 @@ pub fn project_conventional_record_with_sum_materialization_layout(
             || plan.repeated_field(declared.symbol).is_some()
         {
             return Err(Diagnostic::error(format!(
-                "nested-sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
+                "{owner} outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
                 declared.name
             )));
         }
-        if let Some(named) = exact_named_data(program, declared.type_reference)? {
-            match DataDefinition::shape_kind_from_members(program.data_members(named)) {
-                DataShapeKind::Enum => {
-                    let TypeLayoutDescriptor::Named {
-                        symbol: laid_symbol,
-                        name: laid_name,
-                    } = &laid.type_descriptor
-                    else {
+        if reachability.type_contains_sum(declared.type_reference)? {
+            match program
+                .type_reference_table
+                .type_reference(declared.type_reference)
+            {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                } => {
+                    let Some(named) = exact_named_data(program, *element_type)? else {
                         return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` is not the exact declared nested sum",
+                            "{owner} outer field `{}` reaches a sum through an array deeper than one literal element hop",
                             declared.name
                         )));
                     };
-                    if laid.type_symbol != named.symbol
-                        || *laid_symbol != named.symbol
-                        || laid_name.as_str() != named.name.as_str()
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` substitutes its nested sum type",
-                            declared.name
-                        )));
+                    match DataDefinition::shape_kind_from_members(program.data_members(named)) {
+                        DataShapeKind::Enum => {
+                            child_sum_array_layouts.push(project_sum_array_row(
+                                program, plan, declared, laid, named, *length, owner,
+                            )?);
+                        }
+                        DataShapeKind::Mixed => {
+                            return Err(Diagnostic::error(format!(
+                                "{owner} outer field `{}` uses mixed common-field/case elements",
+                                declared.name
+                            )));
+                        }
+                        DataShapeKind::Record | DataShapeKind::Empty => {
+                            return Err(Diagnostic::error(format!(
+                                "{owner} outer field `{}` reaches a sum through an array deeper than one literal element hop",
+                                declared.name
+                            )));
+                        }
                     }
-                    let nested_layout = project_conventional_sum_materialization_layout(
-                        program,
-                        plan,
-                        named.symbol,
-                    )?;
-                    if laid.layout.size as u64 != nested_layout.size
-                        || laid.layout.alignment as u64 != nested_layout.align
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` does not retain the exact conventional sum extent/alignment",
-                            declared.name
-                        )));
-                    }
-                    nested_sums.push(ConventionalSumFieldLayoutReport {
-                        field: declared.name.to_string(),
-                        member_identity: declared.identity,
-                        layout: nested_layout,
-                    });
                 }
-                DataShapeKind::Mixed => {
+                TypeReferenceNode::FixedArray { .. } => {
                     return Err(Diagnostic::error(format!(
-                        "nested-sum layout field `{}` uses a mixed common-field/case shape",
+                        "{owner} outer field `{}` reaches a sum through a non-literal-length array",
                         declared.name
                     )));
                 }
-                DataShapeKind::Empty | DataShapeKind::Record => {}
+                _ => {
+                    let named =
+                        exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
+                            Diagnostic::error(format!(
+                                "{owner} outer field `{}` lacks one exact record identity",
+                                declared.name
+                            ))
+                        })?;
+                    match DataDefinition::shape_kind_from_members(program.data_members(named)) {
+                        DataShapeKind::Enum => {
+                            let TypeLayoutDescriptor::Named {
+                                symbol: laid_symbol,
+                                name: laid_name,
+                            } = &laid.type_descriptor
+                            else {
+                                return Err(Diagnostic::error(format!(
+                                    "target runtime layout field `{}` is not the exact declared nested sum",
+                                    declared.name
+                                )));
+                            };
+                            if laid.type_symbol != named.symbol
+                                || *laid_symbol != named.symbol
+                                || laid_name.as_str() != named.name.as_str()
+                            {
+                                return Err(Diagnostic::error(format!(
+                                    "target runtime layout field `{}` substitutes its nested sum type",
+                                    declared.name
+                                )));
+                            }
+                            let child_layout = project_conventional_sum_materialization_layout(
+                                program,
+                                plan,
+                                named.symbol,
+                            )?;
+                            if laid.layout.size as u64 != child_layout.size
+                                || laid.layout.alignment as u64 != child_layout.align
+                            {
+                                return Err(Diagnostic::error(format!(
+                                    "target runtime layout field `{}` does not retain the exact conventional sum extent/alignment",
+                                    declared.name
+                                )));
+                            }
+                            child_sum_layouts.push(ConventionalSumFieldLayoutReport {
+                                field: declared.name.to_string(),
+                                member_identity: declared.identity,
+                                layout: child_layout,
+                            });
+                        }
+                        DataShapeKind::Mixed => {
+                            return Err(Diagnostic::error(format!(
+                                "{owner} outer field `{}` uses a mixed common-field/case shape",
+                                declared.name
+                            )));
+                        }
+                        DataShapeKind::Record => {
+                            record_paths.push(RecordPathCandidate {
+                                declared,
+                                laid,
+                                named,
+                            });
+                        }
+                        DataShapeKind::Empty => {
+                            return Err(Diagnostic::error(format!(
+                                "{owner} outer field `{}` does not name the required inner record",
+                                declared.name
+                            )));
+                        }
+                    }
+                }
             }
         }
         let offset = laid.offset as u64;
@@ -157,14 +277,9 @@ pub fn project_conventional_record_with_sum_materialization_layout(
         });
         offsets.push(offset);
     }
-    if nested_sums.is_empty() {
-        return Err(Diagnostic::error(
-            "nested-sum layout projection requires at least one direct runtime-relevant pure-sum field",
-        ));
-    }
 
-    Ok((
-        LayoutPlanReport {
+    Ok(RecordLevelChildren {
+        outer_layout: LayoutPlanReport {
             schema_report_fingerprint: typed_trees::identity::normalized_schema_report_fingerprint(
                 program, definition,
             ),
@@ -173,8 +288,93 @@ pub fn project_conventional_record_with_sum_materialization_layout(
             size: Some(data_layout.layout.size as u64),
             align: data_layout.layout.alignment as u64,
         },
-        nested_sums,
-    ))
+        child_sum_layouts,
+        child_sum_array_layouts,
+        record_paths,
+    })
+}
+
+/// Project the compact report row for one direct `[S; N]` field whose element
+/// resolves to `element_named`, a conventional pure sum, with nonzero literal
+/// `length`. The complete all-case element layout is retained once with the
+/// exact count and stride.
+fn project_sum_array_row(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    declared: &typed_trees::data::DataField,
+    laid: &crate::FieldLayout,
+    element_named: &DataDefinition,
+    length: usize,
+    owner: &str,
+) -> Result<ConventionalSumArrayFieldLayoutReport, Diagnostic> {
+    if length == 0 {
+        return Err(Diagnostic::error(format!(
+            "{owner} field `{}` must have nonzero literal length",
+            declared.name
+        )));
+    }
+    let element_layout =
+        project_conventional_sum_materialization_layout(program, plan, element_named.symbol)?;
+    let TypeLayoutDescriptor::FixedArray {
+        element_type: laid_element,
+        length: laid_length,
+    } = &laid.type_descriptor
+    else {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` is not the exact declared fixed array",
+            declared.name
+        )));
+    };
+    let TypeLayoutDescriptor::Named {
+        symbol: laid_symbol,
+        name: laid_name,
+    } = laid_element.as_ref()
+    else {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` substitutes its sum-array element type",
+            declared.name
+        )));
+    };
+    if *laid_length != length
+        || *laid_symbol != element_named.symbol
+        || laid.type_symbol != element_named.symbol
+        || laid_name.as_str() != element_named.name.as_str()
+    {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` substitutes its sum-array element/count",
+            declared.name
+        )));
+    }
+    let element_count = u64::try_from(length).map_err(|_| {
+        Diagnostic::error(format!(
+            "{owner} field `{}` count exceeds canonical report width",
+            declared.name
+        ))
+    })?;
+    let expected_size = element_layout
+        .size
+        .checked_mul(element_count)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "{owner} field `{}` extent exceeds the compiler host",
+                declared.name
+            ))
+        })?;
+    if laid.layout.size as u64 != expected_size
+        || laid.layout.alignment as u64 != element_layout.align
+    {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout field `{}` does not retain the exact repeated conventional sum extent/alignment",
+            declared.name
+        )));
+    }
+    Ok(ConventionalSumArrayFieldLayoutReport {
+        field: declared.name.to_string(),
+        member_identity: declared.identity,
+        element_count,
+        element_stride: element_layout.size,
+        element_layout,
+    })
 }
 
 /// Project the bounded one-record path to direct conventional sum fields.
@@ -440,15 +640,30 @@ fn project_recursive_paths(
         project_record_sum_branches(program, plan, data_symbol, reachability, depth)
             .map(ConventionalRecursiveRecordSumPathsLayoutReport::Branch)
     } else {
-        let (outer_layout, child_sum_layouts) =
-            project_conventional_record_with_sum_materialization_layout(
-                program,
-                plan,
-                data_symbol,
-            )?;
+        let level = project_record_level_children(
+            program,
+            plan,
+            data_symbol,
+            "recursive sum owner",
+            reachability,
+        )?;
+        // `!profile.deeper` means no field reaches a sum through a nested
+        // record, so the level cannot hold record-path candidates.
+        if let Some(candidate) = level.record_paths.first() {
+            return Err(Diagnostic::error(format!(
+                "recursive sum outer field `{}` reaches a sum through a nested record its leaf level cannot carry",
+                candidate.declared.name
+            )));
+        }
+        if level.child_sum_layouts.is_empty() && level.child_sum_array_layouts.is_empty() {
+            return Err(Diagnostic::error(
+                "plural recursive sum projection requires at least one direct runtime-relevant pure-sum or sum-array field",
+            ));
+        }
         Ok(ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-            outer_layout,
-            child_sum_layouts,
+            outer_layout: level.outer_layout,
+            child_sum_layouts: level.child_sum_layouts,
+            child_sum_array_layouts: level.child_sum_array_layouts,
         })
     }
 }
@@ -461,224 +676,88 @@ fn project_record_sum_branches(
     depth: usize,
 ) -> Result<ConventionalRecordSumPathsLayoutReport, Diagnostic> {
     let owner = "plural recursive sum owner";
-    let definition = unique_data_definition(program, data_symbol, owner)?;
-    validate_closed_copy_record(program, definition, owner)?;
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for {owner} `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = relevant_record_fields(program, definition);
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for {owner} `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
+    // The same level rule the leaf applies classifies every runtime-relevant
+    // field here: direct sums and direct sum arrays are retained as compact
+    // rows beside the flat outer plan, while record fields still reaching
+    // sums are the level's authored-order deeper paths.
+    let level = project_record_level_children(program, plan, data_symbol, owner, reachability)?;
+    let mut total_leaf_paths = level
+        .child_sum_layouts
+        .len()
+        .checked_add(level.child_sum_array_layouts.len())
+        .ok_or_else(|| {
+            Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+        })?;
+    if total_leaf_paths > SumReachability::MAX_EDGES {
+        return Err(Diagnostic::error(
+            "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
+        ));
     }
-
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
-    let mut offsets = Vec::new();
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error(format!("{owner} offsets exceed compiler resources")))?;
     let mut paths = Vec::new();
     paths
-        .try_reserve_exact(declared_fields.len())
+        .try_reserve_exact(level.record_paths.len())
         .map_err(|_| {
             Diagnostic::error(format!("{owner} path report exceeds compiler resources"))
         })?;
-    let mut child_sum_layouts = Vec::new();
-    child_sum_layouts
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error(format!(
-                "{owner} direct-sum report set exceeds compiler resources"
-            ))
-        })?;
-    let mut total_leaf_paths = 0usize;
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
+    for candidate in level.record_paths {
+        let inner = project_recursive_paths(
+            program,
+            plan,
+            candidate.named.symbol,
+            reachability,
+            depth + 1,
+        )?;
+        let TypeLayoutDescriptor::Named {
+            symbol: laid_symbol,
+            name: laid_name,
+        } = &candidate.laid.type_descriptor
+        else {
             return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
+                "target runtime layout field `{}` is not the exact declared inner record",
+                candidate.declared.name
             )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
+        };
+        if candidate.laid.type_symbol != candidate.named.symbol
+            || *laid_symbol != candidate.named.symbol
+            || laid_name.as_str() != candidate.named.name.as_str()
         {
             return Err(Diagnostic::error(format!(
-                "plural recursive sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
+                "target runtime layout field `{}` substitutes its inner record type",
+                candidate.declared.name
             )));
         }
-
-        if reachability.type_contains_sum(declared.type_reference)? {
-            if matches!(
-                program
-                    .type_reference_table
-                    .type_reference(declared.type_reference),
-                TypeReferenceNode::FixedArray { .. }
-            ) {
-                return Err(Diagnostic::error(format!(
-                    "plural recursive sum outer field `{}` reaches a sum through an array",
-                    declared.name
-                )));
-            }
-            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "plural recursive sum outer field `{}` lacks one exact record identity",
-                    declared.name
-                ))
-            })?;
-            match DataDefinition::shape_kind_from_members(program.data_members(named)) {
-                // The record level's own direct sum field coexists with its
-                // deeper record paths: the row retains the same complete
-                // conventional-sum overlay the leaf-level projection emits.
-                DataShapeKind::Enum => {
-                    let TypeLayoutDescriptor::Named {
-                        symbol: laid_symbol,
-                        name: laid_name,
-                    } = &laid.type_descriptor
-                    else {
-                        return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` is not the exact declared nested sum",
-                            declared.name
-                        )));
-                    };
-                    if laid.type_symbol != named.symbol
-                        || *laid_symbol != named.symbol
-                        || laid_name.as_str() != named.name.as_str()
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` substitutes its nested sum type",
-                            declared.name
-                        )));
-                    }
-                    let child_layout = project_conventional_sum_materialization_layout(
-                        program,
-                        plan,
-                        named.symbol,
-                    )?;
-                    if laid.layout.size as u64 != child_layout.size
-                        || laid.layout.alignment as u64 != child_layout.align
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` does not retain the exact conventional sum extent/alignment",
-                            declared.name
-                        )));
-                    }
-                    child_sum_layouts.push(ConventionalSumFieldLayoutReport {
-                        field: declared.name.to_string(),
-                        member_identity: declared.identity,
-                        layout: child_layout,
-                    });
-                    total_leaf_paths = total_leaf_paths.checked_add(1).ok_or_else(|| {
-                        Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
-                    })?;
-                    if total_leaf_paths > SumReachability::MAX_EDGES {
-                        return Err(Diagnostic::error(
-                            "plural recursive paths exceed bounded total leaf occurrences"
-                                .to_owned(),
-                        ));
-                    }
-                }
-                DataShapeKind::Record => {
-                    let inner = project_recursive_paths(
-                        program,
-                        plan,
-                        named.symbol,
-                        reachability,
-                        depth + 1,
-                    )?;
-                    let TypeLayoutDescriptor::Named {
-                        symbol: laid_symbol,
-                        name: laid_name,
-                    } = &laid.type_descriptor
-                    else {
-                        return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` is not the exact declared inner record",
-                            declared.name
-                        )));
-                    };
-                    if laid.type_symbol != named.symbol
-                        || *laid_symbol != named.symbol
-                        || laid_name.as_str() != named.name.as_str()
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` substitutes its inner record type",
-                            declared.name
-                        )));
-                    }
-                    if usize_to_u64(laid.layout.size, "recursive inner-record extent")?
-                        != inner
-                            .outer_layout()
-                            .size
-                            .expect("recursive inner projection has fixed extent")
-                        || usize_to_u64(laid.layout.alignment, "recursive inner-record alignment")?
-                            != inner.outer_layout().align
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "target runtime layout field `{}` does not retain the exact inner-record extent/alignment from child",
-                            declared.name
-                        )));
-                    }
-                    total_leaf_paths = total_leaf_paths
-                        .checked_add(inner.leaf_occurrence_count().ok_or_else(|| {
-                            Diagnostic::error(
-                                "plural recursive leaf-path count overflows".to_owned(),
-                            )
-                        })?)
-                        .ok_or_else(|| {
-                            Diagnostic::error(
-                                "plural recursive leaf-path count overflows".to_owned(),
-                            )
-                        })?;
-                    if total_leaf_paths > SumReachability::MAX_EDGES {
-                        return Err(Diagnostic::error(
-                            "plural recursive paths exceed bounded total leaf occurrences"
-                                .to_owned(),
-                        ));
-                    }
-                    paths.push(layout_plans::ConventionalRecordSumOccurrenceLayoutReport {
-                        outer_field: declared.name.to_string(),
-                        outer_member_identity: declared.identity,
-                        inner,
-                    });
-                }
-                DataShapeKind::Mixed => {
-                    return Err(Diagnostic::error(format!(
-                        "plural recursive sum outer field `{}` uses a mixed common-field/case shape",
-                        declared.name
-                    )));
-                }
-                DataShapeKind::Empty => {
-                    return Err(Diagnostic::error(format!(
-                        "plural recursive sum outer field `{}` does not name the required inner record",
-                        declared.name
-                    )));
-                }
-            }
+        if usize_to_u64(candidate.laid.layout.size, "recursive inner-record extent")?
+            != inner
+                .outer_layout()
+                .size
+                .expect("recursive inner projection has fixed extent")
+            || usize_to_u64(
+                candidate.laid.layout.alignment,
+                "recursive inner-record alignment",
+            )? != inner.outer_layout().align
+        {
+            return Err(Diagnostic::error(format!(
+                "target runtime layout field `{}` does not retain the exact inner-record extent/alignment from child",
+                candidate.declared.name
+            )));
         }
-
-        let offset = usize_to_u64(laid.offset, "plural recursive outer field offset")?;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
+        total_leaf_paths = total_leaf_paths
+            .checked_add(inner.leaf_occurrence_count().ok_or_else(|| {
+                Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+            })?)
+            .ok_or_else(|| {
+                Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+            })?;
+        if total_leaf_paths > SumReachability::MAX_EDGES {
+            return Err(Diagnostic::error(
+                "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
+            ));
+        }
+        paths.push(layout_plans::ConventionalRecordSumOccurrenceLayoutReport {
+            outer_field: candidate.declared.name.to_string(),
+            outer_member_identity: candidate.declared.identity,
+            inner,
         });
-        offsets.push(offset);
     }
     if paths.is_empty() {
         return Err(Diagnostic::error(
@@ -687,23 +766,10 @@ fn project_record_sum_branches(
         ));
     }
     Ok(ConventionalRecordSumPathsLayoutReport {
-        outer_layout: LayoutPlanReport {
-            schema_report_fingerprint: typed_trees::identity::normalized_schema_report_fingerprint(
-                program, definition,
-            ),
-            entries,
-            offsets: Some(offsets),
-            size: Some(usize_to_u64(
-                data_layout.layout.size,
-                "plural recursive outer record extent",
-            )?),
-            align: usize_to_u64(
-                data_layout.layout.alignment,
-                "plural recursive outer record alignment",
-            )?,
-        },
+        outer_layout: level.outer_layout,
         paths,
-        child_sum_layouts,
+        child_sum_layouts: level.child_sum_layouts,
+        child_sum_array_layouts: level.child_sum_array_layouts,
     })
 }
 
@@ -1018,224 +1084,31 @@ pub fn project_conventional_record_with_sum_arrays_materialization_layout(
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<(LayoutPlanReport, Vec<ConventionalSumArrayFieldLayoutReport>), Diagnostic> {
-    let definition = unique_data_definition(program, data_symbol, "nested-sum array record")?;
-    if definition.supply_mode != DataSupplyMode::CheckedShape
-        || definition.properties.multiplicity != Multiplicity::Unrestricted
-        || !definition.type_parameters.is_empty()
-        || !definition.lifetime_parameters.is_empty()
-        || definition.generic_instance.is_some()
-        || definition.quotient.is_some()
-        || DataDefinition::shape_kind_from_members(program.data_members(definition))
-            != DataShapeKind::Record
-    {
-        return Err(Diagnostic::error(format!(
-            "nested-sum array materialization owner `{}` must be one closed non-generic `[copy]` record",
-            definition.name
-        )));
-    }
-
-    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
-    let DataShape::Record {
-        fields: laid_fields,
-    } = data_layout.shape
-    else {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout row for nested-sum array owner `{}` is not a record",
-            definition.name
-        )));
-    };
-    let declared_fields = program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-            DataMember::Field(_) | DataMember::Variant(_) => None,
-        })
-        .collect::<Vec<_>>();
-    let laid_fields = plan.fields.span_or_empty(laid_fields);
-    if declared_fields.len() != laid_fields.len() {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout for nested-sum array owner `{}` has {} fields; checked schema has {} relevant fields",
-            definition.name,
-            laid_fields.len(),
-            declared_fields.len()
-        )));
-    }
-
-    let mut array_reports = Vec::new();
-    let mut entries = Vec::new();
-    let mut offsets = Vec::new();
-    array_reports
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error("nested-sum array report set exceeds compiler resources"))?;
-    entries
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("nested-sum array outer entries exceed compiler resources")
-        })?;
-    offsets
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| {
-            Diagnostic::error("nested-sum array outer offsets exceed compiler resources")
-        })?;
     let mut reachability = SumReachability::new(program);
-    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
-        if declared.symbol != laid.symbol || declared.name != laid.name {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field identity/order drifted at `{}`",
-                declared.name
-            )));
-        }
-        if plan.bit_field(declared.symbol).is_some()
-            || plan.stored_integer(declared.symbol).is_some()
-            || plan.repeated_field(declared.symbol).is_some()
-        {
-            return Err(Diagnostic::error(format!(
-                "nested-sum array outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
-                declared.name
-            )));
-        }
-        let mut selected_direct_array = false;
-        match program
-            .type_reference_table
-            .type_reference(declared.type_reference)
-        {
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length: FixedArrayLength::Literal(length),
-            } => {
-                if let Some(named) = exact_named_data(program, *element_type)? {
-                    match DataDefinition::shape_kind_from_members(program.data_members(named)) {
-                        DataShapeKind::Enum => {
-                            if *length == 0 {
-                                return Err(Diagnostic::error(format!(
-                                    "nested-sum array field `{}` must have nonzero literal length",
-                                    declared.name
-                                )));
-                            }
-                            let element_layout = project_conventional_sum_materialization_layout(
-                                program,
-                                plan,
-                                named.symbol,
-                            )?;
-                            let TypeLayoutDescriptor::FixedArray {
-                                element_type: laid_element,
-                                length: laid_length,
-                            } = &laid.type_descriptor
-                            else {
-                                return Err(Diagnostic::error(format!(
-                                    "target runtime layout field `{}` is not the exact declared fixed array",
-                                    declared.name
-                                )));
-                            };
-                            let TypeLayoutDescriptor::Named {
-                                symbol: laid_symbol,
-                                name: laid_name,
-                            } = laid_element.as_ref()
-                            else {
-                                return Err(Diagnostic::error(format!(
-                                    "target runtime layout field `{}` substitutes its sum-array element type",
-                                    declared.name
-                                )));
-                            };
-                            if *laid_length != *length
-                                || *laid_symbol != named.symbol
-                                || laid.type_symbol != named.symbol
-                                || laid_name.as_str() != named.name.as_str()
-                            {
-                                return Err(Diagnostic::error(format!(
-                                    "target runtime layout field `{}` substitutes its sum-array element/count",
-                                    declared.name
-                                )));
-                            }
-                            let stride = usize::try_from(element_layout.size).map_err(|_| {
-                                Diagnostic::error(format!(
-                                    "nested-sum array field `{}` element stride exceeds the compiler host",
-                                    declared.name
-                                ))
-                            })?;
-                            let element_count = u64::try_from(*length).map_err(|_| {
-                                Diagnostic::error(format!(
-                                    "nested-sum array field `{}` count exceeds canonical report width",
-                                    declared.name
-                                ))
-                            })?;
-                            let expected_size = stride.checked_mul(*length).ok_or_else(|| {
-                                Diagnostic::error(format!(
-                                    "nested-sum array field `{}` extent exceeds the compiler host",
-                                    declared.name
-                                ))
-                            })?;
-                            if laid.layout.size != expected_size
-                                || laid.layout.alignment as u64 != element_layout.align
-                            {
-                                return Err(Diagnostic::error(format!(
-                                    "target runtime layout field `{}` does not retain the exact repeated conventional sum extent/alignment",
-                                    declared.name
-                                )));
-                            }
-                            array_reports.push(ConventionalSumArrayFieldLayoutReport {
-                                field: declared.name.to_string(),
-                                member_identity: declared.identity,
-                                element_count,
-                                element_stride: element_layout.size,
-                                element_layout,
-                            });
-                            selected_direct_array = true;
-                        }
-                        DataShapeKind::Mixed => {
-                            return Err(Diagnostic::error(format!(
-                                "nested-sum array field `{}` uses mixed common-field/case elements",
-                                declared.name
-                            )));
-                        }
-                        DataShapeKind::Empty | DataShapeKind::Record => {}
-                    }
-                }
-            }
-            _ => {
-                if let Some(named) = exact_named_data(program, declared.type_reference)?
-                    && DataDefinition::shape_kind_from_members(program.data_members(named))
-                        == DataShapeKind::Enum
-                {
-                    return Err(Diagnostic::error(
-                        "nested-sum array materialization does not combine direct sum fields with the array occurrence",
-                    ));
-                }
-            }
-        }
-        if !selected_direct_array && reachability.type_contains_sum(declared.type_reference)? {
-            return Err(Diagnostic::error(format!(
-                "nested-sum array outer field `{}` reaches a sum through a nested array or record",
-                declared.name
-            )));
-        }
-        let offset = laid.offset as u64;
-        entries.push(LayoutFieldEntryReport {
-            field: declared.name.to_string(),
-            member_identity: declared.identity,
-            placement: LayoutPlacementReport::At { offset },
-        });
-        offsets.push(offset);
+    let level = project_record_level_children(
+        program,
+        plan,
+        data_symbol,
+        "nested-sum array record",
+        &mut reachability,
+    )?;
+    if let Some(candidate) = level.record_paths.first() {
+        return Err(Diagnostic::error(format!(
+            "nested-sum array outer field `{}` reaches a sum through a nested record, outside the direct sum-array rung",
+            candidate.declared.name
+        )));
     }
-    if array_reports.is_empty() {
+    if !level.child_sum_layouts.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-sum array materialization does not combine direct sum fields with the array occurrence",
+        ));
+    }
+    if level.child_sum_array_layouts.is_empty() {
         return Err(Diagnostic::error(
             "nested-sum array layout projection requires a nonempty direct nonzero literal fixed-array-of-sums field set",
         ));
     }
-
-    Ok((
-        LayoutPlanReport {
-            schema_report_fingerprint: typed_trees::identity::normalized_schema_report_fingerprint(
-                program, definition,
-            ),
-            entries,
-            offsets: Some(offsets),
-            size: Some(data_layout.layout.size as u64),
-            align: data_layout.layout.alignment as u64,
-        },
-        array_reports,
-    ))
+    Ok((level.outer_layout, level.child_sum_array_layouts))
 }
 
 fn unique_data_definition<'a>(

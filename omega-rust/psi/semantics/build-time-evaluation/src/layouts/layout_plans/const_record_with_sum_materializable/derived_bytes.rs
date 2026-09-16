@@ -44,14 +44,147 @@ pub(crate) struct DerivedRecordWithSumArraysMaterialization {
     pub(crate) bytes: Vec<u8>,
 }
 
-struct PreparedSumArrayField {
-    field: String,
-    field_identity: Option<u64>,
-    elements: Vec<ValidatedConstRecordSumArrayElementSelection>,
-    bytes: Vec<u8>,
-    size: u64,
-    align: u64,
-    repeated: RepeatedFieldInfo,
+pub(crate) struct PreparedSumArrayField {
+    pub(crate) field: String,
+    pub(crate) field_identity: Option<u64>,
+    pub(crate) elements: Vec<ValidatedConstRecordSumArrayElementSelection>,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) size: u64,
+    pub(crate) align: u64,
+    pub(crate) repeated: RepeatedFieldInfo,
+}
+
+/// Validate one direct `[S; N]` field's compact row and every literal
+/// element's selected case against the retained element layout, staging the
+/// field's complete repeated bytes once. The same preparation runs wherever
+/// the field sits — the standalone sum-array rung or a record level inside
+/// the recursive record/sum report.
+pub(crate) fn prepare_sum_array_field(
+    typed: &TypedTrees,
+    array_field: &typed_trees::data::DataField,
+    sum_data: &DataDefinition,
+    element_count: usize,
+    array_layout: &ConventionalSumArrayFieldLayoutReport,
+    array_value: &BuildTimeValue,
+    byte_order: ByteOrder,
+) -> Result<PreparedSumArrayField, MaterializationDiagnostic> {
+    if !field_occurrence_matches(
+        &array_layout.field,
+        array_layout.member_identity,
+        array_field.name.as_str(),
+        array_field.identity,
+    ) {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable compact sum-array row for `{}` is missing, duplicated, or out of authored field order",
+            array_field.name
+        )));
+    }
+    let element_count_u64 = u64::try_from(element_count).map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable sum-array count exceeds canonical report width".into(),
+        )
+    })?;
+    if array_layout.element_count != element_count_u64
+        || array_layout.element_stride != array_layout.element_layout.size
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable compact sum-array count/stride drifted for `{}`",
+            array_field.name
+        )));
+    }
+    let BuildTimeValue::Array(element_values) = array_value else {
+        return Err(MaterializationDiagnostic(format!(
+            "value.{} is not a fixed array",
+            array_field.name
+        )));
+    };
+    if element_values.len() != element_count {
+        return Err(MaterializationDiagnostic(format!(
+            "value.{} has {} elements, expected {element_count}",
+            array_field.name,
+            element_values.len()
+        )));
+    }
+    let mut elements = Vec::new();
+    elements.try_reserve_exact(element_count).map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable sum-array element custody exceeds compiler resources".into(),
+        )
+    })?;
+    let total_size = array_layout
+        .element_stride
+        .checked_mul(array_layout.element_count)
+        .ok_or_else(|| {
+            MaterializationDiagnostic(
+                "ConstMaterializable sum-array physical extent overflows".into(),
+            )
+        })?;
+    let total_size_usize = usize::try_from(total_size).map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable sum-array physical extent exceeds compiler host".into(),
+        )
+    })?;
+    let mut array_bytes = Vec::new();
+    array_bytes
+        .try_reserve_exact(total_size_usize)
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable sum-array staged bytes exceed compiler resources".into(),
+            )
+        })?;
+    for (index, element_value) in element_values.iter().enumerate() {
+        let nested_sum = validate_const_materializable_conventional_sum(
+            typed,
+            sum_data.name.as_str(),
+            &array_layout.element_layout,
+            element_value,
+            byte_order,
+        )?;
+        array_bytes.extend_from_slice(nested_sum.bytes());
+        let (
+            non_authoritative_schema_report_fingerprint,
+            value,
+            non_authoritative_layout_report_fingerprint,
+            selected_case_identity,
+            selected_case_ordinal,
+            bytes,
+            non_authoritative_materialization_report_fingerprint,
+        ) = nested_sum.into_compact_selection();
+        elements.push(ValidatedConstRecordSumArrayElementSelection {
+            literal_index: u64::try_from(index).map_err(|_| {
+                MaterializationDiagnostic(
+                    "ConstMaterializable sum-array index exceeds canonical width".into(),
+                )
+            })?,
+            non_authoritative_schema_report_fingerprint,
+            value,
+            non_authoritative_layout_report_fingerprint,
+            selected_case_identity,
+            selected_case_ordinal,
+            bytes,
+            non_authoritative_materialization_report_fingerprint,
+        });
+    }
+    if array_bytes.len() != total_size_usize {
+        return Err(MaterializationDiagnostic(format!(
+            "value.{} encoded to {} bytes, expected {total_size}",
+            array_field.name,
+            array_bytes.len()
+        )));
+    }
+    Ok(PreparedSumArrayField {
+        field: array_field.name.to_string(),
+        field_identity: array_field.identity,
+        elements,
+        bytes: array_bytes,
+        size: total_size,
+        align: array_layout.element_layout.align,
+        repeated: RepeatedFieldInfo {
+            element_size: array_layout.element_stride,
+            element_align: array_layout.element_layout.align,
+            element_count: array_layout.element_count,
+        },
+    })
 }
 
 pub(crate) struct EncodedOuterField {
@@ -538,126 +671,18 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
     for ((array_field, sum_data, element_count), array_layout) in
         selected_arrays.into_iter().zip(array_layouts)
     {
-        if !field_occurrence_matches(
-            &array_layout.field,
-            array_layout.member_identity,
-            array_field.name.as_str(),
-            array_field.identity,
-        ) {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable compact sum-array row for `{}` is missing, duplicated, or out of authored field order",
-                array_field.name
-            )));
-        }
-        let element_count_u64 = u64::try_from(element_count).map_err(|_| {
-            MaterializationDiagnostic(
-                "ConstMaterializable sum-array count exceeds canonical report width".into(),
-            )
-        })?;
-        if array_layout.element_count != element_count_u64
-            || array_layout.element_stride != array_layout.element_layout.size
-        {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable compact sum-array count/stride drifted for `{}`",
-                array_field.name
-            )));
-        }
         let array_value = supplied
             .get(array_field.name.as_str())
             .expect("complete record value checked above");
-        let BuildTimeValue::Array(element_values) = array_value else {
-            return Err(MaterializationDiagnostic(format!(
-                "value.{} is not a fixed array",
-                array_field.name
-            )));
-        };
-        if element_values.len() != element_count {
-            return Err(MaterializationDiagnostic(format!(
-                "value.{} has {} elements, expected {element_count}",
-                array_field.name,
-                element_values.len()
-            )));
-        }
-        let mut elements = Vec::new();
-        elements.try_reserve_exact(element_count).map_err(|_| {
-            MaterializationDiagnostic(
-                "ConstMaterializable sum-array element custody exceeds compiler resources".into(),
-            )
-        })?;
-        let total_size = array_layout
-            .element_stride
-            .checked_mul(array_layout.element_count)
-            .ok_or_else(|| {
-                MaterializationDiagnostic(
-                    "ConstMaterializable sum-array physical extent overflows".into(),
-                )
-            })?;
-        let total_size_usize = usize::try_from(total_size).map_err(|_| {
-            MaterializationDiagnostic(
-                "ConstMaterializable sum-array physical extent exceeds compiler host".into(),
-            )
-        })?;
-        let mut array_bytes = Vec::new();
-        array_bytes
-            .try_reserve_exact(total_size_usize)
-            .map_err(|_| {
-                MaterializationDiagnostic(
-                    "ConstMaterializable sum-array staged bytes exceed compiler resources".into(),
-                )
-            })?;
-        for (index, element_value) in element_values.iter().enumerate() {
-            let nested_sum = validate_const_materializable_conventional_sum(
-                typed,
-                sum_data.name.as_str(),
-                &array_layout.element_layout,
-                element_value,
-                byte_order,
-            )?;
-            array_bytes.extend_from_slice(nested_sum.bytes());
-            let (
-                non_authoritative_schema_report_fingerprint,
-                value,
-                non_authoritative_layout_report_fingerprint,
-                selected_case_identity,
-                selected_case_ordinal,
-                bytes,
-                non_authoritative_materialization_report_fingerprint,
-            ) = nested_sum.into_compact_selection();
-            elements.push(ValidatedConstRecordSumArrayElementSelection {
-                literal_index: u64::try_from(index).map_err(|_| {
-                    MaterializationDiagnostic(
-                        "ConstMaterializable sum-array index exceeds canonical width".into(),
-                    )
-                })?,
-                non_authoritative_schema_report_fingerprint,
-                value,
-                non_authoritative_layout_report_fingerprint,
-                selected_case_identity,
-                selected_case_ordinal,
-                bytes,
-                non_authoritative_materialization_report_fingerprint,
-            });
-        }
-        if array_bytes.len() != total_size_usize {
-            return Err(MaterializationDiagnostic(format!(
-                "value.{} encoded to {} bytes, expected {total_size}",
-                array_field.name,
-                array_bytes.len()
-            )));
-        }
-        prepared_arrays.push(PreparedSumArrayField {
-            field: array_field.name.to_string(),
-            field_identity: array_field.identity,
-            elements,
-            bytes: array_bytes,
-            size: total_size,
-            align: array_layout.element_layout.align,
-            repeated: RepeatedFieldInfo {
-                element_size: array_layout.element_stride,
-                element_align: array_layout.element_layout.align,
-                element_count: array_layout.element_count,
-            },
-        });
+        prepared_arrays.push(prepare_sum_array_field(
+            typed,
+            array_field,
+            sum_data,
+            element_count,
+            array_layout,
+            array_value,
+            byte_order,
+        )?);
     }
 
     let mut encoded_fields = Vec::new();

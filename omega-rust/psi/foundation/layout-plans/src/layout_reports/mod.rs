@@ -184,9 +184,11 @@ pub struct ConventionalRecordSumOccurrenceLayoutReport {
 ///
 /// The child report retains exact geometry and semantic occurrence identity.
 /// `child_sum_layouts` retains the record level's own direct conventional
-/// pure-sum fields beside its deeper record paths: a record that both
-/// contains a direct sum and reaches sums through a record field spells one
-/// `Branch` carrying both, rather than rejecting the direct sums the `Leaf`
+/// pure-sum fields beside its deeper record paths, and
+/// `child_sum_array_layouts` retains the level's direct fixed arrays of
+/// conventional pure sums: a record that contains a direct sum, a direct
+/// sum array, and reaches sums through a record field spells one `Branch`
+/// carrying all three, rather than rejecting the direct children the `Leaf`
 /// level already retains.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConventionalRecordSumPathsLayoutReport {
@@ -196,6 +198,11 @@ pub struct ConventionalRecordSumPathsLayoutReport {
     /// in authored order — the same channel `Leaf` carries, retained beside
     /// the deeper record paths so the two child kinds coexist at one level.
     pub child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
+    /// The enclosing record level's own direct fixed arrays of conventional
+    /// pure sums, in authored order — one compact row per occurrence, kept
+    /// beside `child_sum_layouts` and the deeper record paths under the same
+    /// general recursive rule rather than fenced to a top-level-only rung.
+    pub child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
 }
 
 /// Recursive record-path geometry. Each occurrence retains its own exact record
@@ -206,6 +213,10 @@ pub enum ConventionalRecursiveRecordSumPathsLayoutReport {
     Leaf {
         outer_layout: LayoutPlanReport,
         child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
+        /// The leaf level's direct fixed arrays of conventional pure sums, in
+        /// authored order — a level that ends the record recursion still
+        /// carries both direct child kinds.
+        child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
     },
     Branch(ConventionalRecordSumPathsLayoutReport),
 }
@@ -223,19 +234,24 @@ impl ConventionalRecursiveRecordSumPathsLayoutReport {
     }
 
     /// The total conventional-sum leaf occurrences the report reaches: a
-    /// `Leaf` level's own direct sums, or a `Branch` level's direct sums
-    /// plus the leaf occurrences of every deeper record path.
+    /// `Leaf` level's own direct sums and sum arrays, or a `Branch` level's
+    /// direct children plus the leaf occurrences of every deeper record path.
     pub fn leaf_occurrence_count(&self) -> Option<usize> {
         match self {
             Self::Leaf {
-                child_sum_layouts, ..
-            } => Some(child_sum_layouts.len()),
-            Self::Branch(report) => report
-                .paths
-                .iter()
-                .try_fold(report.child_sum_layouts.len(), |total, path| {
-                    total.checked_add(path.inner.leaf_occurrence_count()?)
-                }),
+                child_sum_layouts,
+                child_sum_array_layouts,
+                ..
+            } => child_sum_layouts
+                .len()
+                .checked_add(child_sum_array_layouts.len()),
+            Self::Branch(report) => report.paths.iter().try_fold(
+                report
+                    .child_sum_layouts
+                    .len()
+                    .checked_add(report.child_sum_array_layouts.len())?,
+                |total, path| total.checked_add(path.inner.leaf_occurrence_count()?),
+            ),
         }
     }
 }

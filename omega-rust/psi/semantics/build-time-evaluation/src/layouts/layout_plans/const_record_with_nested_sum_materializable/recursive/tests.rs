@@ -82,6 +82,7 @@ fn fixture() -> (
                 member_identity: None,
                 layout: sum.clone(),
             }],
+            child_sum_array_layouts: Vec::new(),
             paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                 outer_field: "inner".into(),
                 outer_member_identity: None,
@@ -92,6 +93,7 @@ fn fixture() -> (
                         member_identity: None,
                         layout: sum,
                     }],
+                    child_sum_array_layouts: Vec::new(),
                 },
             }],
         },
@@ -175,6 +177,7 @@ fn recursive_resource_bounds_reject_before_typed_derivation() {
                     inner: report,
                 }],
                 child_sum_layouts: Vec::new(),
+                child_sum_array_layouts: Vec::new(),
             },
         );
     }

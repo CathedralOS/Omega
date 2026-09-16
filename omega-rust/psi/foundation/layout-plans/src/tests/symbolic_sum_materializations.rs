@@ -1,6 +1,7 @@
 use super::{
     data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
-    recursive_sum_report, sum_array_layout, sum_field_layout, sum_layout,
+    recursive_sum_array_report, recursive_sum_report, sum_array_layout, sum_field_layout,
+    sum_layout,
 };
 use crate::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumOccurrenceLayoutReport,
@@ -942,6 +943,7 @@ fn symbolic_recursive_sum_materialization_joins_boundaries_by_identity() {
     let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
         outer_layout,
         child_sum_layouts,
+        ..
     } = &mut inner.inner
     else {
         panic!("the innermost report is the direct-sum leaf");
@@ -1035,6 +1037,7 @@ fn symbolic_recursive_sum_fold_bounds_report_depth() {
             align: 1,
         },
         child_sum_layouts: Vec::new(),
+        child_sum_array_layouts: Vec::new(),
     };
     let wrap = |inner| {
         ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
@@ -1056,6 +1059,7 @@ fn symbolic_recursive_sum_fold_bounds_report_depth() {
                     inner,
                 }],
                 child_sum_layouts: Vec::new(),
+                child_sum_array_layouts: Vec::new(),
             },
         )
     };
@@ -1079,4 +1083,160 @@ fn symbolic_recursive_sum_fold_bounds_report_depth() {
         "{}",
         error.0
     );
+}
+
+#[test]
+fn symbolic_recursive_sum_array_materialization_composes_indexed_boundaries() {
+    // Nested sum arrays under the general recursive rule: the `middle` branch
+    // level carries its own `route` sum and `batches` sum array beside the
+    // deeper `inner` record path, and the `inner` leaf level carries `choice`
+    // beside `choices`. Every folded carrier joins the same field-keyed
+    // namespace, so `middle.inner.choices[i].Run.<payload>` composes
+    // `field At + index * element stride + payload offset` two record
+    // boundaries down exactly as the standalone rung spells it at the top.
+    let report = recursive_sum_array_report();
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&report)
+        .expect("the recursive sum-array report folds into inner layout carriers");
+    assert_eq!(carriers.len(), 1);
+    let middle = &carriers[0];
+    assert_eq!(middle.field, "middle");
+    let inner_carriers = middle.inner_layouts();
+    assert_eq!(inner_carriers.len(), 3);
+    assert_eq!(inner_carriers[0].field, "route");
+    assert_eq!(inner_carriers[1].field, "batches");
+    assert_eq!(inner_carriers[2].field, "inner");
+    let leaf_carriers = inner_carriers[2].inner_layouts();
+    assert_eq!(leaf_carriers.len(), 2);
+    assert_eq!(leaf_carriers[0].field, "choice");
+    assert_eq!(leaf_carriers[1].field, "choices");
+
+    let symbolic = [
+        SymbolicFieldValue::new("header", 64, data()).expect("scalar field"),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner").with_inner_segment(
+                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, entry())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner").with_inner_segment(
+                    SymbolicFieldPathSegment::new_indexed("choices", 0).with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner").with_inner_segment(
+                    SymbolicFieldPathSegment::new_indexed("choices", 1).with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner")
+                    .with_inner_segment(SymbolicFieldPathSegment::new("pad")),
+            ),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("route").with_inner_segment(
+                    SymbolicFieldPathSegment::new("Run")
+                        .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, entry())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed("batches", 0).with_inner_segment(
+                    SymbolicFieldPathSegment::new("Run")
+                        .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed("batches", 1).with_inner_segment(
+                    SymbolicFieldPathSegment::new("Run")
+                        .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                ),
+            ),
+    ];
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        report.outer_layout(),
+        &carriers,
+        &symbolic,
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("recursive record/sum-array paths compose every crossed boundary");
+
+    let writes = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            _ => panic!("an unresolved symbolic derives a runtime writer"),
+        })
+        .collect::<Vec<_>>();
+    // `middle` spans 8..168; inside it `inner` sits at 0 holding `choice` at
+    // 0, `choices` at 24 (24-byte stride), and `pad` at 72 — while the level's
+    // own `route` sum sits at 88 and `batches` repeats at 112.
+    assert_eq!(
+        writes,
+        vec![
+            ("header", 0),
+            ("middle.inner.choice.Run.callback", 16),
+            ("middle.inner.choices[0].Run.callback", 40),
+            ("middle.inner.choices[1].Run.clock", 72),
+            ("middle.inner.pad", 80),
+            ("middle.route.Run.callback", 104),
+            ("middle.batches[0].Run.clock", 136),
+            ("middle.batches[1].Run.callback", 152),
+        ]
+    );
+
+    let writer = plan.derive_post_handoff_writer().expect("writer");
+    let mut bytes = [0xa5_u8; 168];
+    writer
+        .execute(
+            &mut bytes,
+            PlacementSite {
+                base_address: 0,
+                phase: PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |target| {
+                if target == entry() {
+                    Some(0x1122_3344_5566_7788)
+                } else {
+                    assert_eq!(target, data());
+                    Some(0xdead_beef_cafe_f00d)
+                }
+            },
+        )
+        .expect("the recursive sum-array writer resolves each exact slot");
+
+    assert_eq!(&bytes[0..8], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[16..24], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[40..48], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert_eq!(&bytes[72..80], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[80..88], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[104..112], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[136..144], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert_eq!(&bytes[152..160], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
 }

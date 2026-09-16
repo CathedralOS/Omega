@@ -3,9 +3,10 @@
 use super::{
     BuildTimeValue, ByteOrder, ConventionalRecursiveRecordSumPathsLayoutReport,
     MaterializationDiagnostic, SumReachability, TypedTrees,
-    ValidatedConstRecordWithSumMaterialization, ValidatedConstRecursiveNestedSumsMaterialization,
+    ValidatedConstRecordLevelSumChildrenMaterialization,
+    ValidatedConstRecursiveNestedSumsMaterialization,
     replay_recursive_nested_sums_with_reachability,
-    validate_const_materializable_record_with_conventional_sums,
+    validate_record_level_sum_children_with_reachability,
     validate_recursive_nested_sums_with_reachability,
 };
 #[cfg(test)]
@@ -14,7 +15,7 @@ mod tests;
 /// Complete value-sensitive custody, with nesting represented by occurrences.
 #[derive(Debug)]
 pub enum ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
-    Leaf(ValidatedConstRecordWithSumMaterialization),
+    Leaf(ValidatedConstRecordLevelSumChildrenMaterialization),
     Branch(ValidatedConstRecursiveNestedSumsMaterialization),
 }
 
@@ -83,14 +84,17 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
                 ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
                     outer_layout,
                     child_sum_layouts,
+                    child_sum_array_layouts,
                 },
-            ) => custody.replay_against_sum_fields(
+            ) => custody.replay_against_with_reachability(
                 typed,
                 schema_name,
                 outer_layout,
                 child_sum_layouts,
+                child_sum_array_layouts,
                 value,
                 byte_order,
+                reachability,
             ),
             (
                 Self::Branch(custody),
@@ -176,13 +180,16 @@ pub(super) fn validate_with_reachability(
         ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
             outer_layout,
             child_sum_layouts,
-        } => validate_const_materializable_record_with_conventional_sums(
+            child_sum_array_layouts,
+        } => validate_record_level_sum_children_with_reachability(
             typed,
             schema_name,
             outer_layout,
             child_sum_layouts,
+            child_sum_array_layouts,
             value,
             byte_order,
+            reachability,
         )
         .map(ValidatedConstRecordWithRecursiveNestedSumsMaterialization::Leaf),
         ConventionalRecursiveRecordSumPathsLayoutReport::Branch(report) => {
@@ -210,8 +217,17 @@ fn validate_report_resources(
         }
         let count = match report {
             ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-                child_sum_layouts, ..
-            } => child_sum_layouts.len(),
+                child_sum_layouts,
+                child_sum_array_layouts,
+                ..
+            } => child_sum_layouts
+                .len()
+                .checked_add(child_sum_array_layouts.len())
+                .ok_or_else(|| {
+                    MaterializationDiagnostic(
+                        "ConstMaterializable recursive occurrence count overflows".into(),
+                    )
+                })?,
             ConventionalRecursiveRecordSumPathsLayoutReport::Branch(report) => {
                 pending.try_reserve(report.paths.len()).map_err(|_| {
                     MaterializationDiagnostic(
@@ -223,6 +239,7 @@ fn validate_report_resources(
                     .paths
                     .len()
                     .checked_add(report.child_sum_layouts.len())
+                    .and_then(|count| count.checked_add(report.child_sum_array_layouts.len()))
                     .ok_or_else(|| {
                         MaterializationDiagnostic(
                             "ConstMaterializable recursive occurrence count overflows".into(),
