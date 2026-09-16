@@ -397,6 +397,30 @@ fn ieee_raw_bit_spills_retain_type_and_reject_fp_register_residence() {
                 )
                 .is_err()
             );
+            // With the consumers' use operands in the same foreign class the
+            // victim reaches the target-row check: the frame/load/store rows
+            // cannot carry its class, which is a candidate-local limit
+            // (`UnsupportedValue`), so recovery skips it and tries the next
+            // candidate instead of aborting on a constraint mismatch.
+            let mut foreign_class = source.clone();
+            {
+                let function = &mut Arc::make_mut(&mut foreign_class.transformed).functions[0];
+                function.virtual_registers[1].class = float_class;
+                for instruction in &mut function.blocks[0].instructions[1..] {
+                    instruction.operands[0].class = float_class;
+                }
+            }
+            assert_eq!(
+                spill_selected_runtime_value(
+                    &foreign_class,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget()
+                )
+                .unwrap_err(),
+                RuntimeSpillError::UnsupportedValue
+            );
         }
     }
 }
@@ -803,14 +827,15 @@ fn spill_is_deterministic_and_the_published_plan_re_admits() {
     .unwrap();
 }
 
-/// The shared reload interval reaches across an intervening call: a flexible
-/// use before and after a `CallUnit` name the same still-open reload
-/// register, because a view of the victim's class survives everything the
-/// block touches — the call's caller-saved clobbers leave a callee-saved
-/// home for the interval. Replay independently reconstructs that shape, so
-/// a dropped pair, a forged second pair, or a rebound use each reject.
+/// An instruction that can destroy register content closes the shared
+/// reload: a flexible use before and after a `CallUnit` — whose caller-saved
+/// clobbers could write the unit hosting the open reload — each open their
+/// own pair, so no produced interval ever demands a cross-call home recovery
+/// may not have. Replay independently reconstructs that shape, so a dropped
+/// pair, a use still naming the pre-call register, or a rebound use each
+/// reject.
 #[test]
-fn a_surviving_view_shares_one_reload_across_an_intervening_call() {
+fn a_call_closes_the_shared_reload_for_later_flexible_uses() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -849,27 +874,10 @@ fn a_surviving_view_shares_one_reload_across_an_intervening_call() {
             spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
                 .unwrap();
         let block = &result.transformed().functions[0].blocks[0];
-        // The four originals plus one definition store and a single shared
-        // pair: [copy, store, address, load, copy, call, copy].
-        assert_eq!(block.instructions.len(), 7);
-        let load_position = block
-            .instructions
-            .iter()
-            .position(|instruction| {
-                matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
-            })
-            .expect("the shared reload loads once");
-        assert_eq!(
-            block
-                .instructions
-                .iter()
-                .filter(|instruction| {
-                    matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
-                })
-                .count(),
-            1
-        );
-        let reload = block.instructions[load_position].operands[1].virtual_register;
+        // The four originals plus one definition store and a reload pair on
+        // each side of the call: [copy, store, address, load, copy, call,
+        // address, load, copy].
+        assert_eq!(block.instructions.len(), 9);
         let call_position = block
             .instructions
             .iter()
@@ -877,18 +885,43 @@ fn a_surviving_view_shares_one_reload_across_an_intervening_call() {
                 matches!(instruction.kind, SelectedInstructionKind::CallUnit { .. })
             })
             .unwrap();
-        // Both flexible uses name the shared reload and the call sits inside
-        // its interval: between the load and the post-call consumer.
-        for original_id in [2u32, 4] {
-            let rewritten = block
-                .instructions
-                .iter()
-                .find(|instruction| instruction.id == SelectedInstructionId(original_id))
-                .unwrap();
-            assert_eq!(rewritten.operands[0].virtual_register, reload);
-        }
-        assert!(load_position < call_position);
-        assert!(call_position < block.instructions.len() - 1);
+        let loads: Vec<usize> = block
+            .instructions
+            .iter()
+            .enumerate()
+            .filter_map(|(position, instruction)| {
+                matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                    .then_some(position)
+            })
+            .collect();
+        assert_eq!(loads.len(), 2);
+        assert!(loads[0] < call_position);
+        assert!(call_position < loads[1]);
+        // Each flexible use names the pair opened inside its own span: the
+        // pre-call and post-call reload registers are distinct.
+        let pre_call = block
+            .instructions
+            .iter()
+            .find(|instruction| instruction.id == SelectedInstructionId(2))
+            .unwrap()
+            .operands[0]
+            .virtual_register;
+        let post_call = block
+            .instructions
+            .iter()
+            .find(|instruction| instruction.id == SelectedInstructionId(4))
+            .unwrap()
+            .operands[0]
+            .virtual_register;
+        assert_eq!(
+            pre_call,
+            block.instructions[loads[0]].operands[1].virtual_register
+        );
+        assert_eq!(
+            post_call,
+            block.instructions[loads[1]].operands[1].virtual_register
+        );
+        assert_ne!(pre_call, post_call);
         assert!(
             validate_runtime_spill(
                 &source,
@@ -904,25 +937,24 @@ fn a_surviving_view_shares_one_reload_across_an_intervening_call() {
             let mut proposed = result.transformed().clone();
             let function = &mut proposed.functions[0];
             match mutation {
-                // Dropping the shared load leaves the uses' register without
-                // its pair.
+                // Dropping the post-call load leaves that use's register
+                // without its pair.
                 0 => {
-                    function.blocks[0].instructions.remove(load_position);
+                    function.blocks[0].instructions.remove(loads[1]);
                 }
-                // A second private pair before the post-call use breaks the
-                // one-pair-per-block shape replay reconstructs.
+                // A use still naming the pre-call reload across the call
+                // boundary is exactly the shape replay refuses.
                 1 => {
-                    let address = function.blocks[0].instructions[load_position - 1].clone();
-                    let load = function.blocks[0].instructions[load_position].clone();
                     function.blocks[0]
                         .instructions
-                        .insert(call_position, address);
-                    function.blocks[0]
-                        .instructions
-                        .insert(call_position + 1, load);
+                        .iter_mut()
+                        .find(|instruction| instruction.id == SelectedInstructionId(4))
+                        .unwrap()
+                        .operands[0]
+                        .virtual_register = pre_call;
                 }
                 // Rebinding the post-call use back to the victim leaves the
-                // shared pair without its second consumer.
+                // second pair without its consumer.
                 2 => {
                     function.blocks[0]
                         .instructions
@@ -969,11 +1001,12 @@ fn a_surviving_view_shares_one_reload_across_an_intervening_call() {
 }
 
 /// The shared/private boundary: when every view of the victim's class meets
-/// something the block touches — here an intervening call whose clobber
-/// list covers every unit — no home survives the interval and each flexible
-/// use keeps its own private reload pair, exactly the per-use shape the
-/// rewrite produced before block-local sharing existed. Replay requires
-/// that shape too: two uses may not share a register.
+/// a unit that can never host an interval — here an intervening call whose
+/// implicit uses cover every unit, so each one may be live through every
+/// interior point — no home survives and each flexible use keeps its own
+/// private reload pair, exactly the per-use shape the rewrite produced
+/// before block-local sharing existed. Replay requires that shape too: two
+/// uses may not share a register.
 #[test]
 fn no_surviving_view_keeps_every_flexible_use_on_a_private_pair() {
     for target in [
@@ -1006,21 +1039,22 @@ fn no_surviving_view_keeps_every_flexible_use_on_a_private_pair() {
                 &[],
             );
             // Extend the call's effects so every unit the victim's class
-            // offers is touched inside this block: no view can host an
-            // interval spanning it.
+            // offers is implicitly used somewhere in the function: each one
+            // may be live through every interior point, so no view can host
+            // even a call-free shared interval.
             for class in &model.classes {
                 if class.id != victim_class {
                     continue;
                 }
                 for view_id in &class.views {
                     if let Some(view) = model.views.get(usize::from(view_id.0)) {
-                        call.clobbers
+                        call.implicit_uses
                             .extend(view.units.iter().chain(&view.write_units).copied());
                     }
                 }
             }
-            call.clobbers.sort_unstable();
-            call.clobbers.dedup();
+            call.implicit_uses.sort_unstable();
+            call.implicit_uses.dedup();
             function.blocks[0].instructions.insert(2, call);
         }
         let identity = selected_instruction_plan_identity(source.transformed());

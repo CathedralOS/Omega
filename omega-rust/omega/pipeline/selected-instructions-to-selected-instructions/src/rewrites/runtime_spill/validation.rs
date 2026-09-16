@@ -60,9 +60,10 @@ pub fn validate_runtime_spill(
         let mut consumed = 0u32;
         // Replay reconstructs the same block-local decision independently:
         // when admission proved a surviving view, the first unpinned
-        // instruction-operand use emits the pair and every later unpinned use
-        // names that still-open reload register with no further pair. A pinned
-        // operand or an unadmitted block consumes a fresh pair at every use.
+        // instruction-operand use emits the pair and each later unpinned use
+        // names that still-open reload register until an instruction that can
+        // destroy register content closes it. A pinned operand or an
+        // unadmitted block consumes a fresh pair at every use.
         let shared = admitted.shared_reload[block_index];
         let mut open_reload: Option<VirtualRegisterId> = None;
         for original in &source_block.instructions {
@@ -109,6 +110,12 @@ pub fn validate_runtime_spill(
             consumed = consumed
                 .checked_add(1)
                 .ok_or(RuntimeSpillError::IdentityOverflow)?;
+            // The same unit-writing instruction that closed the proposal's
+            // open reload closes it here, so the next unpinned use must name
+            // a fresh pair rather than the pre-boundary register.
+            if !restored.clobbers.is_empty() || !restored.implicit_defs.is_empty() {
+                open_reload = None;
+            }
             for definition in admitted.definitions.iter().filter(|definition| {
                 definition.block_index == block_index && original.id == definition.instruction
             }) {
