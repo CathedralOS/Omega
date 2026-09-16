@@ -1,5 +1,6 @@
 use super::{TempTree, compile_provider_mode_fixture, host_target_name, identity};
 use crate::fixtures;
+use build_declarations::DependencyPurpose;
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
     compile_to_checked,
@@ -1349,5 +1350,349 @@ fn native_package_product_retains_one_canonical_production_manifest() {
             .require_package_native_physical_evidence()
             .expect_err("standalone production cannot issue package final evidence"),
         compiler::FinalRealizationEvidenceError::PackageProductionManifestRequired,
+    );
+}
+
+#[test]
+fn build_entry_imports_resolve_through_build_scope_aliases() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let host = tree.package("host-tool");
+
+    TempTree::write(root.join("main.omg"), "const RESULT: u32 = 42;\n");
+    TempTree::write(
+        root.join("build.omg"),
+        r#"use dep::values;
+const KEPT: u32 = VALUES;
+machine build(builder: &mut Build) {
+    builder.package("root");
+}
+"#,
+    );
+    TempTree::write(host.join("values.omg"), "pub const VALUES: u32 = 7;\n");
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "host-tool", host),
+        ],
+        vec![PackageDependencyBinding::for_purpose(
+            identity(1),
+            "dep",
+            identity(2),
+            DependencyPurpose::Build,
+        )],
+    )
+    .expect("a root build edge keeps its target reachable");
+
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("the selected build entry resolves build-scope aliases");
+}
+
+#[test]
+fn product_imports_cannot_name_build_scope_aliases() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let host = tree.package("host-tool");
+
+    TempTree::write(root.join("main.omg"), "use dep::values;\n");
+    TempTree::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) {\n    builder.package(\"root\");\n}\n",
+    );
+    TempTree::write(host.join("values.omg"), "pub const VALUES: u32 = 7;\n");
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "host-tool", host),
+        ],
+        vec![PackageDependencyBinding::for_purpose(
+            identity(1),
+            "dep",
+            identity(2),
+            DependencyPurpose::Build,
+        )],
+    )
+    .expect("root build-edge graph should validate");
+
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a product import must not select a build-scope alias");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("names build dependency `dep`")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("product import may only select product dependencies")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn build_imports_cannot_name_product_scope_aliases() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+
+    TempTree::write(root.join("main.omg"), "const RESULT: u32 = 42;\n");
+    TempTree::write(
+        root.join("build.omg"),
+        r#"use dep::values;
+machine build(builder: &mut Build) {
+    builder.package("root");
+}
+"#,
+    );
+    TempTree::write(
+        dependency.join("values.omg"),
+        "pub const VALUES: u32 = 7;\n",
+    );
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("product-edge graph should validate");
+
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a build import must not select a product-scope alias");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("names product dependency `dep`")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("build import may only select build dependencies")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn one_alias_answers_product_and_build_scopes_independently() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let product = tree.package("product-dep");
+    let host = tree.package("host-tool");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use shared::pv;\nconst RESULT: u32 = PV;\n",
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        r#"use shared::hv;
+const KEPT: u32 = HV;
+machine build(builder: &mut Build) {
+    builder.package("root");
+}
+"#,
+    );
+    TempTree::write(product.join("pv.omg"), "pub const PV: u32 = 1;\n");
+    TempTree::write(host.join("hv.omg"), "pub const HV: u32 = 7;\n");
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "product-dep", product),
+            PackageSourceBinding::new(identity(3), "host-tool", host),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "shared", identity(2)),
+            PackageDependencyBinding::for_purpose(
+                identity(1),
+                "shared",
+                identity(3),
+                DependencyPurpose::Build,
+            ),
+        ],
+    )
+    .expect("one alias may bind different packages in independent scopes");
+
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("each scope resolves its own `shared` target");
+}
+
+#[test]
+fn one_root_source_cannot_join_both_dependency_scopes() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use common;\nconst RESULT: u32 = SHARED;\n",
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        r#"use common;
+machine build(builder: &mut Build) {
+    builder.package("root");
+}
+"#,
+    );
+    TempTree::write(root.join("common.omg"), "pub const SHARED: u32 = 5;\n");
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("one physical root source must not serve both scopes");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("exactly one dependency scope")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn build_scope_extends_through_root_local_helper_imports() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let host = tree.package("host-tool");
+
+    TempTree::write(root.join("main.omg"), "const RESULT: u32 = 42;\n");
+    TempTree::write(
+        root.join("build.omg"),
+        r#"use plan;
+const KEPT: u32 = STEPS;
+machine build(builder: &mut Build) {
+    builder.package("root");
+}
+"#,
+    );
+    TempTree::write(
+        root.join("plan.omg"),
+        "use dep::values;\npub const STEPS: u32 = VALUES;\n",
+    );
+    TempTree::write(host.join("values.omg"), "pub const VALUES: u32 = 7;\n");
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "host-tool", host),
+        ],
+        vec![PackageDependencyBinding::for_purpose(
+            identity(1),
+            "dep",
+            identity(2),
+            DependencyPurpose::Build,
+        )],
+    )
+    .expect("root build-edge graph should validate");
+
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a root-local helper imported by the build entry inherits build scope");
+}
+
+#[test]
+fn build_scope_imports_reject_missing_dependency_edges() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+
+    TempTree::write(root.join("main.omg"), "const RESULT: u32 = 42;\n");
+    TempTree::write(
+        root.join("build.omg"),
+        r#"use ghost::values;
+machine build(builder: &mut Build) {
+    builder.package("root");
+}
+"#,
+    );
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("an undeclared build-scope import must not resolve");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("ghost")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn non_root_packages_cannot_hold_build_dependencies() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(root.join("main.omg"), "use dep::values;\n");
+    TempTree::write(middle.join("values.omg"), "pub const VALUES: u32 = 7;\n");
+    TempTree::write(leaf.join("values.omg"), "pub const VALUES: u32 = 9;\n");
+
+    let errors = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "dep", identity(2)),
+            PackageDependencyBinding::for_purpose(
+                identity(2),
+                "host",
+                identity(3),
+                DependencyPurpose::Build,
+            ),
+        ],
+    )
+    .expect_err("a dependency package must not carry build-scope edges");
+    assert!(
+        errors.iter().any(|error| matches!(
+            error,
+            package_compilation::PackageCompilationInputError::NonRootBuildDependency { .. }
+        )),
+        "unexpected errors: {errors:#?}"
     );
 }

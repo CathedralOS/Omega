@@ -47,6 +47,17 @@ pub(crate) struct PendingPackageImport {
 }
 
 impl PendingPackageImport {
+    /// The importing source's canonical path, for dependency-scope
+    /// propagation when this request resolves under an exact target.
+    pub(crate) fn requesting_source(&self) -> &Path {
+        &self.request.requesting_source
+    }
+
+    /// The package the resolved import target belongs to.
+    pub(crate) fn target_package(&self) -> semantic_vocabulary::PackageKeyIdentity {
+        self.request.package
+    }
+
     pub(crate) fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
         self.request.physical_source()
     }

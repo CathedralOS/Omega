@@ -90,23 +90,30 @@ impl<'closure> PackageCompilationScope<'closure> {
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| vec![error])?;
-        // Only product edges authorize product imports. Build-purpose edges
-        // select host build inputs; they never become import bindings here.
+        // Product edges authorize product imports for every package in scope.
+        // Build edges authorize imports only from the compilation root's build
+        // entry: a dependency's own build context resolves in its own
+        // compilation, where that package is the root, so its build edges are
+        // never projected into a consumer's inputs.
         let dependencies = closure
             .graph()
             .packages()
             .iter()
             .filter(|package| reachable.contains(package.source().key()))
             .flat_map(|package| {
+                let requester = package.source().key().identity();
                 package
                     .dependencies()
                     .iter()
-                    .filter(|dependency| dependency.purpose().is_product())
-                    .map(|dependency| {
-                        PackageDependencyBinding::new(
-                            package.source().key().identity(),
+                    .filter(move |dependency| {
+                        dependency.purpose().is_product() || requester == root.identity()
+                    })
+                    .map(move |dependency| {
+                        PackageDependencyBinding::for_purpose(
+                            requester,
                             dependency.alias().as_str(),
                             dependency.target().identity(),
+                            dependency.purpose(),
                         )
                     })
             })
@@ -156,12 +163,14 @@ fn revalidate_package_source_selection(
     })
 }
 
-/// The product compilation closure: reachability follows product edges only.
+/// The compilation closure of one package root.
 ///
-/// A package selected only through the root's build-purpose edges is acquired
-/// and locked, but it is not a product compilation input: host build outputs
-/// are a separate context, and source custody never substitutes for target
-/// evidence.
+/// Product edges reach from every package. The root's build-purpose edges also
+/// reach: its build entry may import build-scope snapshots, so those packages —
+/// and their own product closures — are compilation inputs. A non-root
+/// package's build edges never reach into a consumer's closure: dependency
+/// build files do not join the compiled program, and the dependency's own
+/// build context resolves when it is the root of its own compilation.
 fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
     root: &crate::declarations::PackageKey,
@@ -175,11 +184,12 @@ fn reachable_package_keys(
         let Some(node) = closure.graph().package(&package) else {
             continue;
         };
+        let is_root = &package == root;
         pending.extend(
             node.dependencies()
                 .iter()
                 .rev()
-                .filter(|dependency| dependency.purpose().is_product())
+                .filter(|dependency| dependency.purpose().is_product() || is_root)
                 .map(|dependency| dependency.target().clone()),
         );
     }
@@ -583,10 +593,12 @@ mod tests {
 
         let inputs = package_compilation_inputs(&closure).expect("compiler handoff validates");
 
-        // Source custody acquired the host package, but product compilation
-        // sees only the product closure: no binding, no package membership.
-        assert_eq!(inputs.packages().count(), 2);
-        assert!(inputs.package_root(host_key.identity()).is_none());
+        // Source custody acquired the host package and the root's build entry
+        // may import it, so the host snapshot is a compilation input. It
+        // still holds no product binding: a product-scope alias lookup misses
+        // and the durable product closure never contains it.
+        assert_eq!(inputs.packages().count(), 3);
+        assert!(inputs.package_root(host_key.identity()).is_some());
         assert_eq!(
             inputs.dependency_target(root_key.identity(), "product_lib"),
             Some(product.key().identity())
@@ -594,6 +606,27 @@ mod tests {
         assert_eq!(
             inputs.dependency_target(root_key.identity(), "host_tool"),
             None
+        );
+        assert_eq!(
+            inputs.dependency_target_for_purpose(
+                root_key.identity(),
+                crate::declarations::DependencyPurpose::Build,
+                "host_tool",
+            ),
+            Some(host_key.identity())
+        );
+        assert_eq!(
+            inputs.dependency_target_for_purpose(
+                root_key.identity(),
+                crate::declarations::DependencyPurpose::Build,
+                "product_lib",
+            ),
+            None,
+            "a product edge never answers a build-scope lookup"
+        );
+        assert_eq!(
+            inputs.build_dependencies().collect::<Vec<_>>(),
+            vec![(root_key.identity(), "host_tool", host_key.identity())]
         );
         let dependency_closure = inputs.dependency_closure();
         assert_eq!(dependency_closure.packages().len(), 2);

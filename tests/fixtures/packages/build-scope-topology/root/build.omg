@@ -1,0 +1,9 @@
+// package-manager fixture: the root's build entry imports through a
+// build-scope dependency alias. Product sources may never select it.
+use topology::policies;
+
+machine build(builder: &mut Build) {
+    builder.package("topology-root");
+    builder.build_depend_as("topology", Source::Path { location: "../topology" });
+    builder.log.write_line(policies::banner());
+}

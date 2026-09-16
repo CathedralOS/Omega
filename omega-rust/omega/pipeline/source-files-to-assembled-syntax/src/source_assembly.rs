@@ -5,9 +5,10 @@ use crate::frontend::{
 use crate::source::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
+use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
@@ -221,6 +222,7 @@ fn append_dependency_generated_sources_to_storage(
     imports: &mut ImportQueue,
     target_name: Option<&str>,
     package_inputs: &PackageCompilationInputs,
+    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
     timings: &mut CompileTimings,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     let selected_target = target_name
@@ -294,6 +296,7 @@ fn append_dependency_generated_sources_to_storage(
             Some(package),
             &mut source_storage.resolved_imports,
             &contract_custody,
+            import_scopes,
         )?;
         imports.enqueue(discovered)?;
         extend_source_storage(source_storage, parsed)?;
@@ -353,6 +356,7 @@ fn load_pending_imports(
     imports: &mut ImportQueue,
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
+    import_scopes: &mut BTreeMap<PathBuf, DependencyPurpose>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
     while imports.has_pending() {
@@ -380,6 +384,7 @@ fn load_pending_imports(
                 None,
                 &mut source_storage.resolved_imports,
                 &contract_custody,
+                import_scopes,
             )?,
             None => discover_imports(
                 &parsed,

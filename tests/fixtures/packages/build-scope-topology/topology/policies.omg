@@ -1,0 +1,5 @@
+module policies;
+
+pub machine banner() -> &[u8] {
+    "topology policy"
+}

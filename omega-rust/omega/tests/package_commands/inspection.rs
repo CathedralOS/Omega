@@ -6,6 +6,28 @@ fn text(output: &Output) -> String {
     String::from_utf8(output.stdout.clone()).unwrap()
 }
 
+const BUILD_SCOPE_ROOT_BUILD: &str =
+    include_str!("../../../../tests/fixtures/packages/build-scope-topology/root/build.omg");
+const BUILD_SCOPE_ROOT_MAIN: &str =
+    include_str!("../../../../tests/fixtures/packages/build-scope-topology/root/main.omg");
+const BUILD_SCOPE_TOPOLOGY_BUILD: &str =
+    include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/build.omg");
+const BUILD_SCOPE_TOPOLOGY_POLICIES: &str =
+    include_str!("../../../../tests/fixtures/packages/build-scope-topology/topology/policies.omg");
+
+/// The root declares `topology` only in the build scope; the topology
+/// package sits beside the root exactly as the authored `../topology` edge
+/// locates it.
+fn build_scope_fixture() -> Fixture {
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.path("topology")).unwrap();
+    fixture.write("root/build.omg", BUILD_SCOPE_ROOT_BUILD);
+    fixture.write("root/main.omg", BUILD_SCOPE_ROOT_MAIN);
+    fixture.write("topology/build.omg", BUILD_SCOPE_TOPOLOGY_BUILD);
+    fixture.write("topology/policies.omg", BUILD_SCOPE_TOPOLOGY_POLICIES);
+    fixture
+}
+
 fn declare_dependency(fixture: &Fixture) {
     fixture.write("root/build.omg", "machine build(builder: &mut Build) {\n    builder.package(\"cli-project\");\n    builder.depend(Source::Path { location: \"../dependency\" });\n}\n");
 }
@@ -242,6 +264,36 @@ fn audit_preserves_pending_proposal_and_refuses_publication_recovery() {
     assert_eq!(
         fixture.read("root/build/package-manager/pending"),
         "unprocessed commit intent\n"
+    );
+}
+
+#[test]
+fn audit_resolves_build_scope_dependency_imports() {
+    let fixture = build_scope_fixture();
+    let output = fixture.omega(&["audit", "packages", "--target", "linux_x86_64", "--offline"]);
+    assert_status(&output, 0);
+    let report = text(&output);
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+    // The build machine ran the build-scope import: its log line reached
+    // stdout before the policy report.
+    assert!(report.contains("topology policy"), "{report}");
+    assert!(report.contains("build dependency"), "{report}");
+}
+
+#[test]
+fn product_imports_cannot_select_build_scope_aliases() {
+    let fixture = build_scope_fixture();
+    fixture.write(
+        "root/main.omg",
+        "use topology::policies;\nmachine main() {}\n",
+    );
+    let output = fixture.omega(&["audit", "packages", "--target", "linux_x86_64", "--offline"]);
+    assert_status(&output, 1);
+    let report = text(&output);
+    assert!(report.contains("fresh-analysis unavailable"), "{report}");
+    assert!(
+        report.contains("names build dependency `topology`"),
+        "{report}"
     );
 }
 
