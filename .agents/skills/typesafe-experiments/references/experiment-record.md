@@ -903,3 +903,44 @@ worker repair at local checkpoint `a6b0c2a615` on `codex/typesafe-real-audit`, o
 the test-only experiment seed. No push or main integration. The next fair trial
 must use bypass for all arms and a task where semantic evidence discovery is an
 actual bottleneck; do not tune this exposed one-line error-path defect into a win.
+
+## Direct source selection: controlled Jev-specific stage win
+
+`build/experiments/direct-evidence/` freezes eight new coordinator-authored claims
+about pinned `omega-rust/pipeline.md`: four supported paraphrases, three contradicted
+propositions, one absent two-signature publication requirement. Controlled development
+probe, NOT naturally observed errors or a blind production sample. Official Choice
+docs refreshed; existing paragraph/ranking/API/worker helpers reused.
+
+Fourteen whole paragraphs; deterministic top-six candidates per claim. Gold anchors
+frozen before inference, never model inputs or ranking features. Candidate coverage
+checked before calls, no gold-based insertion. One Choice per claim selects ID or
+none; no confidence cutoff tuning. Code copies source text/path/revision directly
+to `evidence-packet.json`, retaining none as a gap. No second generator after Jev.
+
+| Approach | Correct / 8 | Useful positives / 4 | Unsupported bindings / 4 |
+| --- | ---: | ---: | ---: |
+| Lexical top-one | 4 | 4 | 4 |
+| Always abstain | 4 | 0 | 0 |
+| Jev | 8 | 4 | 0 |
+| SWE-2 Max | 8 | 4 | 0 |
+
+Initial Jev path 1.4585s: source loading/extraction/ranking/request prep 1.1176s,
+API .3402s, packet assembly .0007s. Fresh SWE CLI (dangerous mode, zero tools)
+33.2995s: 22.8x selection-stage advantage. Python import/process startup, common
+SWE prompt preparation and coordinator review excluded; SWE includes CLI startup.
+NOT a warm-resident comparison or coding productivity. SWE ran once; two unchanged
+Jev repeats retained 8/8 at .300/.243s API. Three requests total 12,978 input / 1,743
+output tokens. No correctness retries. Frozen quality and at-least-5x gate passed.
+
+Unlike the four-citation replay, this test needs support/no-support discrimination.
+Lexical top-one finds related paragraphs for contradictions as well as truths;
+interpreting retrieval as entailment would be the caller's error. Always abstain
+is safe but completes no positive request. Not superiority to every possible rule.
+
+Retain an experimental plan-claim evidence selector, not an approval/check-skipping
+gate. Gain comes from replacing generation with semantic selection and direct copying,
+not making the coding model itself faster. Next validate fresh natural plan claims
+and a warm/continuing consumer before recurring-planner savings claims. Literal
+provenance, valid choices, unchanged claims, frozen identity, zero worker tools and
+Python syntax checked on Windows; macOS not run. Raw exports remain ignored.
