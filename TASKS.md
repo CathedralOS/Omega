@@ -464,8 +464,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `checks/termination/order.rs` now imports
   (`pass/termination/identity_measure_call_component`,
   `fail/termination/identity_measure_call_component_{domain,mixed_view}`);
-  non-identity scalar views still need `measure_body_shape` extended there
-  with formation proofs.
+  Declared scalar views beyond identity (`+`/`*` bodies over the single
+  parameter) produce their rank from the body at 89444750cc/ec28993d1c
+  under one strict-monotonicity admission shared by validation and the
+  checked stage (`declared_scalar_view`, `RankingOrder::CustomScalarView`,
+  `RankingRangeMeasure::Computed`): membership, descent and carrier
+  formation are proved on the produced polynomial, never assumed
+  (`pass/termination/computed_measure_rank_range` and four fail canaries).
+  Nonlinear bodies reject because the engine's linear reasoning cannot
+  bound their monomials, and computed views in runtime call components
+  still reject.
   Still open on this item: diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
   premises, borrowed and nested
