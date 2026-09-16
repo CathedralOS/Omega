@@ -2066,9 +2066,10 @@ Owners include
   establish disjointness/containment but cannot extend lifetime, duplicate a
   loan, or replace ownership accounting.
 
-  Extend range-premise read dependencies to selected calls/indexing operators
-  and atomic reads when their complete footprints and operation stability are
-  established. Explicit arguments alone do not establish all callee reads;
+  Extend range-premise read dependencies beyond the supported selected-call,
+  selected-index, and atomic-load cases only when complete footprints and
+  operation stability are established. Explicit arguments alone do not
+  establish all callee reads;
   preserved numeric captures must remain independent of subsequent source writes.
 
   First slice landed at e47adbb9eb: `slice_tail_strictly_decreases`
@@ -2123,10 +2124,11 @@ Owners include
   or to `self`. Fifth slice landed at 126bdce303 (Linux x86-64):
   range-premise read dependencies now cover selected calls — an exact
   checked-call join authenticates the occurrence, and operand/receiver
-  places materialize as footprints. Next slice: the same coverage for
-  indexing operators; unvalidated work-in-progress toward it sits on
-  `swarm/linw1-borrow-proof-convergence-2` (reads.rs +176, new
-  `facts/dependencies/tests/indexes.rs`).
+  places materialize as footprints. Selected indexing already uses
+  `collect_selected_index_reads` with exact checked statement-use custody
+  and recursive operand footprints. Preserve incomplete read sets for open
+  ranges and requires-scope operators without statement-use custody; further
+  admission needs complete footprints, not a second indexing collector.
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
   `where machine Selected satisfies Trait::requirement` binder is pinned by
@@ -2565,11 +2567,12 @@ Owners include
   `runtime_value_tests`), 469 symbol-resolution/typed-lowering tests,
   `tests/omega/pass/generics/value_generic_runtime_argument` plus the
   `const_generic_runtime_argument` and
-  `value_generic_runtime_static_bound` rejections. Next acceptance:
-  interpreter/native replay retaining the same captured subject through
-  lowered Psi and Terminal production (reassigned sources,
-  equality-guarded proofs, indexed scalar fields), then module-owned
-  forms.
+  `value_generic_runtime_static_bound` rejections. Reuse the Terminal
+  artifact replay coverage in `compiler/tests/runtime_value_generics.rs`
+  for captured subjects, reassigned sources, guarded proofs, indexed scalar
+  fields, and shared structural-subject bodies. Next acceptance: native
+  execution retaining the same subjects and proofs, then module-owned forms;
+  interpreter replay alone does not close that native requirement.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
@@ -2877,9 +2880,10 @@ Owners include
   captures, generic or dispatched callees, and unresolved result routes stay
   unproven. A mutated aggregate
   cannot use root correspondence as evidence for its previous field values;
-  a may-write frame cannot identify a replacement value. Extend per-field
-  arrivals through opaque reference and unresolved generic
-  leaves when exact provenance is available. Acceptance: those finite
+  a may-write frame cannot identify a replacement value. Reuse
+  `lineage/places.rs` partition replay for per-field arrivals through reference
+  and unresolved generic leaves with exact declared-field provenance; retain
+  opaque prefixes where that provenance is absent. Acceptance: those finite
   projected arrivals and checked helper correspondences derive the replacement
   input's exact premise, while unknown writes and reference aliases without
   exact provenance retain no checked guarantee. Slice landed at da11319b0e on
