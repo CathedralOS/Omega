@@ -31,9 +31,24 @@ fn assert_readonly_carrier_has_no_subject(operation: &str) {
 }
 
 #[test]
-fn replacing_a_readonly_carrier_or_reference_leaf_retires_its_frozen_origin() {
+fn replacing_a_readonly_carrier_with_a_proven_record_exports_the_new_subject() {
+    // The whole-binding replacement installs the replacement's exact origins;
+    // only the new subject can satisfy the tail requirement.
+    let program = fixture_with_body(
+        "let mut carrier: Carrier = Carrier { context: &context };
+         carrier = Carrier { context: &replacement };
+         let borrowed: &Context = carrier.context;
+         transition { _ -> wait_context(borrowed) }",
+        true,
+        false,
+        "data Carrier { context: &Context; }",
+    );
+    assert_subjects(&program, &["replacement"]);
+}
+
+#[test]
+fn replacing_a_readonly_reference_leaf_retires_its_frozen_origin() {
     for operation in [
-        "carrier = Carrier { context: &replacement };",
         "carrier.context = &replacement;",
         "carrier.context = identity(replacement);",
     ] {

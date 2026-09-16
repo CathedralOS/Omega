@@ -66,6 +66,7 @@ mod tests {
             references: Vec::new(),
             cases: vec![vec![PlaceSegment::Case { variant }]],
             moves: Vec::new(),
+            symbolic: false,
         }
     }
 
@@ -95,6 +96,7 @@ mod tests {
             references: Vec::new(),
             cases: Vec::new(),
             moves: Vec::new(),
+            symbolic: false,
         });
         assert_eq!(inference.local_cases(symbol), Some([].as_slice()));
         assert_eq!(inference.local_cases(SymbolHandle::from_parts(1, 2)), None);

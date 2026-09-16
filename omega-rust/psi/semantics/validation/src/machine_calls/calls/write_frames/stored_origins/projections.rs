@@ -159,7 +159,12 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
     if !super::super::isolation::aggregate_storage_types_match(program, actual, expected) {
         return None;
     }
-    let declared_origins = if parameter.is_some() || stored.is_none() {
+    // A transferred record supersedes the declared frontier: an assigned or
+    // initialized binding already named its source selectors. Seeds and
+    // frontier-only rows stay symbolic so a selected element can still
+    // specialize an unknown index.
+    let tracked = stored.and_then(|stored| stored.iter().find(|local| local.local_symbol == root));
+    let declared_origins = if tracked.is_none() && (parameter.is_some() || stored.is_none()) {
         let mut origins = super::type_origins::declared_origins_for_query(
             program,
             root,
@@ -179,9 +184,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
     } else {
         None
     };
-    let established = declared_origins.as_ref().or_else(|| {
-        stored.and_then(|stored| stored.iter().find(|local| local.local_symbol == root))
-    });
+    let established = tracked.or(declared_origins.as_ref());
     let Some(established) = established else {
         return (super::super::type_is_caller_isolated_local(program, source_reference)
             && !segments
@@ -190,7 +193,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
         .then(AggregateOrigins::default);
     };
     let mut projected =
-        project_stored_origins(program, established, segments, declared_origins.is_some())?;
+        project_stored_origins(program, established, segments, established.symbolic)?;
     let source = super::super::FrameSourcePlace::from_expression(program, expression);
     for leaf in &mut projected.references {
         leaf.origin.source.builtin_coordinates &= source.builtin_coordinates;
@@ -497,6 +500,7 @@ mod tests {
             }],
             cases,
             moves: Vec::new(),
+            symbolic: true,
         }
     }
 

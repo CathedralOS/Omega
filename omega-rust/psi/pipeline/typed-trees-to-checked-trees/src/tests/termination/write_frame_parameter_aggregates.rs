@@ -190,10 +190,12 @@ fn parameter_aggregate_moves_preserve_caller_reference_origins() {
             None,
         ),
         (
+            // The carrier write claims the replaced parameter's footprint;
+            // the leaf write through `first` still spells under `input`.
             "whole_parameter_replacement",
             "View",
             "input = View { body: audit }; let first: View = input; write_view(first);",
-            None,
+            Some("input.body"),
         ),
         (
             "negative_index",
@@ -248,7 +250,13 @@ fn parameter_aggregate_moves_preserve_caller_reference_origins() {
                 paths.dedup();
                 paths
             });
-            let expected = expected.map(|path| vec![path.to_owned()]);
+            let expected = expected.map(|path| {
+                if name == "whole_parameter_replacement" && query == "state" {
+                    vec!["input".to_owned()]
+                } else {
+                    vec![path.to_owned()]
+                }
+            });
             if actual != expected {
                 failures.push(format!(
                     "{name} {query}: expected {expected:?}, got {actual:?}"

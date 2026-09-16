@@ -198,10 +198,12 @@ fn aggregate_helper_results_transport_complete_reference_origins() {
             None,
         ),
         (
+            // The consumed result carries only the replacement's origins;
+            // the state frame additionally claims the overwritten leaf.
             "whole_carrier_replacement",
             "let local: View = replace_carrier(&mut self.value, &mut self.other); write_view(local);",
             "machine replace_carrier(value: &mut u64, other: &mut u64) -> View { let mut local: View = View { body: value }; local = View { body: other }; local }",
-            None,
+            Some(vec!["self.other"]),
         ),
         (
             "wrong_result_nominal",
@@ -270,9 +272,14 @@ fn aggregate_helper_results_transport_complete_reference_origins() {
                 paths.dedup();
                 paths
             });
-            let expected = expected
-                .as_ref()
-                .map(|paths| paths.iter().map(|path| (*path).to_owned()).collect());
+            let expected = expected.as_ref().map(|paths| {
+                let mut paths: Vec<String> = paths.iter().map(|path| (*path).to_owned()).collect();
+                if name == "whole_carrier_replacement" && query == "state" {
+                    paths.push("self.value".to_owned());
+                    paths.sort();
+                }
+                paths
+            });
             if actual != expected {
                 failures.push(format!(
                     "{name} {query}: expected {expected:?}, got {actual:?}"

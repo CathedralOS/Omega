@@ -52,10 +52,26 @@ fn replacing_an_incoming_shared_slot_cannot_export_its_original_subject() {
 }
 
 #[test]
-fn replacing_an_incoming_shared_record_cannot_export_its_original_subject() {
-    assert_incoming_carrier_has_no_subject(
-        "input = Carrier { context: input.other, other: input.other };",
+fn replacing_an_incoming_shared_record_exports_only_the_replacement_subject() {
+    // The replacement is built from the other stored leaf, so the result can
+    // only claim that leaf's subject — never the overwritten original.
+    let program = fixture_with_body(
+        "let original: Carrier = Carrier { context: &context, other: &replacement };
+         let returned: Carrier = forward(original);
+         let borrowed: &Context = returned.context;
+         transition { _ -> wait_context(borrowed) }",
+        true,
+        false,
+        "data Carrier<'source> {
+             context: &'source Context;
+             other: &'source Context;
+         }
+         machine forward<'source>(mut input: Carrier<'source>) -> Carrier<'source> {
+             input = Carrier { context: input.other, other: input.other };
+             input
+         }",
     );
+    assert_subjects(&program, &["replacement"]);
 }
 
 #[test]

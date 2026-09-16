@@ -87,9 +87,11 @@ fn stored_aggregate_reference_leaves_reach_caller_frames() {
             None,
         ),
         (
+            // The replacing write still expands through the overwritten leaf,
+            // while the later payload write follows the replacement's origin.
             "whole_carrier_replacement",
             "let mut view: View = View { body: &mut self.value, tag: 0 }; view = View { body: &mut self.other, tag: 0 }; view.body = 1;",
-            None,
+            Some(vec!["self.other", "self.value"]),
         ),
         (
             "stored_reference_slot_reborrow",
@@ -194,6 +196,11 @@ fn stored_aggregate_storage_projection_keeps_leaf_selectors() {
             "owned_sibling",
             "let mut view: View = View { body: &mut self.value, tag: 0 }; view.tag = 1;",
             vec!["view.tag"],
+        ),
+        (
+            "replaced_whole_carrier",
+            "let mut view: View = View { body: &mut self.value, tag: 0 }; view = View { body: &mut self.other, tag: 0 }; view.body = 1;",
+            vec!["self.other", "view.body"],
         ),
         (
             "reference_suffix",
@@ -382,7 +389,6 @@ fn unproven_stored_aggregate_origins_never_become_private_storage() {
         "let mut view: View = View { tag: 0 }; view.body = 1;",
         "let mut view: View = View { body: unknown(&mut self.value), tag: 0 }; view.body = 1;",
         "let mut view: View = View { body: &mut self.value, tag: 0 }; view.body = &mut self.other; view.body = 1;",
-        "let mut view: View = View { body: &mut self.value, tag: 0 }; view = View { body: &mut self.other, tag: 0 }; view.body = 1;",
         "let first: View = View { body: &mut self.value, tag: 0 }; let mut second: View = View { body: &mut first.body, tag: 0 }; second.body = 1;",
         "let first: View = View { body: &mut self.value, tag: 0 }; let mut second: View = View { body: identity(&mut first.body), tag: 0 }; second.body = 1;",
     ] {
