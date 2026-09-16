@@ -52,5 +52,9 @@ pub(crate) fn with_result_range(
         ensures,
         plan.has_crash_clauses(),
         plan.has_outcome_specific_clauses(),
-    ))
+    )
+    // A result refinement cannot reconstruct the retained floating entry
+    // roster; it rides back through unchanged so requires-tail `FloatRange`
+    // clauses keep their delivery evidence.
+    .with_float_entry_ranges(plan.float_entry_ranges().map(<[_]>::to_vec)))
 }

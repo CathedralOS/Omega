@@ -482,18 +482,16 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
             SignatureContractKind::Crashes { .. } => has_crash_clauses = true,
         }
     }
-    requires.extend(
-        crate::values::lower_integer_parameter_range_requirements(program, machine)
-            .into_iter()
-            .map(|predicate| predicate.map(checked_trees::ClosedScalarContractValue::Predicate)),
-    );
+    // One constraint walk produces the requires tail and the floating roster
+    // together so a `FloatRange` clause and its retained evidence can never
+    // disagree about which authored range they describe.
+    let ranges = crate::values::lower_scalar_parameter_range_requirements(program, machine);
+    requires.extend(ranges.scalar_clauses);
     checked_trees::ClosedScalarValueContractPlan::new(
         requires,
         ensures,
         has_crash_clauses,
         has_outcome_specific_clauses,
     )
-    .with_float_entry_ranges(crate::values::lower_float_parameter_range_requirements(
-        program, machine,
-    ))
+    .with_float_entry_ranges(ranges.float_entry_ranges)
 }

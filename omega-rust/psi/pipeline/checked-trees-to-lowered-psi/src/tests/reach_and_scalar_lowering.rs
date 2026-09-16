@@ -270,10 +270,13 @@ fn direct_float_result_proof_only_contract_rejects_additional_value_clauses() {
             { value }
         "#,
     );
+    // A float-meaning clause is not a closed scalar contract clause: it keeps
+    // an explicit `None` requires row, which `covered_requires` rejects before
+    // the closed-literal contract shape is ever selected.
     assert!(matches!(
         lower_machine(&checked, "result"),
         Err(LoweringError::Unsupported(
-            "machine must have exactly one requires and one ensures clause"
+            "scalar contract contains an unsupported clause"
         ))
     ));
 }

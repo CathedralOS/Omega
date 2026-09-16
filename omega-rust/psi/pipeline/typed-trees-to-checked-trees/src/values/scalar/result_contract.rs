@@ -311,18 +311,48 @@ pub(super) fn lower_integer_contract_comparison(
     construct_integer_comparison(binary.operator, left, right)
 }
 
+/// One authored parameter range constraint observed by the scalar contract
+/// family. The three projections share a single constraint walk so a
+/// requires-tail clause row and its retained roster evidence can never
+/// disagree about which source range they describe.
+pub(crate) struct ParameterRangeRequirements {
+    /// Integer bounds as closed comparison predicates, one slot per authored
+    /// range. The crash requirement capsule and the boundary rejoin read this
+    /// projection; floating ranges keep an explicit `None` here because they
+    /// are not integer predicates.
+    pub(crate) integer_predicates: Vec<Option<CheckedBooleanExpression>>,
+    /// Requires-tail rows in authored constraint order: supported integer
+    /// ranges as `Predicate` clauses and retained floating ranges as
+    /// `FloatRange` clauses carrying their IEEE endpoints verbatim. `None`
+    /// marks a present range that could not be retained at all.
+    pub(crate) scalar_clauses: Vec<Option<checked_trees::ClosedScalarContractValue>>,
+    /// The retained floating roster in dense scalar-parameter order. `None`
+    /// records an incomplete roster — an authored floating range whose
+    /// endpoints could not be retained exactly — so consumers fail closed
+    /// rather than read a partial roster as complete.
+    pub(crate) float_entry_ranges: Option<Vec<checked_trees::ClosedFloatRangeRequirement>>,
+}
+
 /// Bracket constraints are native numeric requires sugar. Keep every present
-/// range, including an explicit unsupported row when its endpoints cannot be
-/// represented in the bounded scalar contract language.
-pub(crate) fn lower_integer_parameter_range_requirements(
+/// range: integer intervals land as closed `<=` conjunctions while floating
+/// windows retain their authored IEEE endpoints and boundary kind verbatim —
+/// the exclusive end stays authored, never an integer predecessor.
+pub(crate) fn lower_scalar_parameter_range_requirements(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
-) -> Vec<Option<CheckedBooleanExpression>> {
+) -> ParameterRangeRequirements {
+    let mut ranges = ParameterRangeRequirements {
+        integer_predicates: Vec::new(),
+        scalar_clauses: Vec::new(),
+        float_entry_ranges: Some(Vec::new()),
+    };
     let Some(entry) = program.machine_states(machine).first() else {
-        return Vec::new();
+        // No entry state means no constraints at all; the roster stays
+        // `None` rather than claiming an empty-but-complete floating roster.
+        ranges.float_entry_ranges = None;
+        return ranges;
     };
     let parameters = program.state_parameters(entry);
-    let mut requirements = Vec::new();
     let mut scalar_position = 0;
     for parameter in parameters {
         let primitive_type = program.primitive_type_reference(parameter.type_reference);
@@ -401,59 +431,6 @@ pub(crate) fn lower_integer_parameter_range_requirements(
                                 )?),
                             })
                         };
-                        requirements.push(predicate());
-                    }
-                    type_reference = *base_type;
-                }
-                _ => break,
-            }
-        }
-    }
-    requirements
-}
-
-/// Floating range constraints are entry requirements the closed scalar
-/// predicate language cannot yet spell. Retain each authored window with
-/// its exact IEEE endpoints and authored boundary kind; the exclusive end
-/// stays authored, never an integer predecessor. `None` records an
-/// incomplete roster so consumers fail closed rather than guess.
-pub(crate) fn lower_float_parameter_range_requirements(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Option<Vec<checked_trees::ClosedFloatRangeRequirement>> {
-    let entry = program.machine_states(machine).first()?;
-    let parameters = program.state_parameters(entry);
-    let mut requirements = Vec::new();
-    let mut scalar_position = 0;
-    for parameter in parameters {
-        let primitive_type = program.primitive_type_reference(parameter.type_reference);
-        let position = scalar_position;
-        if primitive_type.is_some() {
-            scalar_position += 1;
-        }
-        let mut type_reference = parameter.type_reference;
-        loop {
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    for constraint in program.type_reference_table.constraints(*constraints) {
-                        let typed_trees::types::TypeConstraintNode::Range {
-                            minimum,
-                            maximum,
-                            end_inclusive,
-                        } = constraint
-                        else {
-                            continue;
-                        };
-                        let Some(primitive_type) = primitive_type else {
-                            continue;
-                        };
-                        if !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
-                            continue;
-                        }
                         let requirement = || {
                             // Existing source validation rejects range constraints
                             // outside Exact: those domains do not enforce stores.
@@ -465,6 +442,7 @@ pub(crate) fn lower_float_parameter_range_requirements(
                             {
                                 return None;
                             }
+                            let primitive_type = primitive_type?;
                             let minimum = validation::closed_float_range_endpoint(
                                 program,
                                 *minimum,
@@ -488,7 +466,39 @@ pub(crate) fn lower_float_parameter_range_requirements(
                                 maximum_inclusive: *end_inclusive,
                             })
                         };
-                        requirements.push(requirement()?);
+                        let predicate = predicate();
+                        if matches!(
+                            primitive_type,
+                            Some(PrimitiveType::F32 | PrimitiveType::F64)
+                        ) {
+                            // A floating range is a `FloatRange` clause in the
+                            // requires tail; its retained evidence rides the
+                            // roster. One failed endpoint voids the whole
+                            // roster so no consumer reads a partial one.
+                            match requirement() {
+                                Some(requirement) => {
+                                    if let Some(roster) = &mut ranges.float_entry_ranges {
+                                        roster.push(requirement);
+                                    }
+                                    ranges.scalar_clauses.push(Some(
+                                        checked_trees::ClosedScalarContractValue::FloatRange(
+                                            requirement,
+                                        ),
+                                    ));
+                                }
+                                None => {
+                                    ranges.float_entry_ranges = None;
+                                    ranges.scalar_clauses.push(None);
+                                }
+                            }
+                        } else {
+                            ranges.scalar_clauses.push(
+                                predicate
+                                    .clone()
+                                    .map(checked_trees::ClosedScalarContractValue::Predicate),
+                            );
+                        }
+                        ranges.integer_predicates.push(predicate);
                     }
                     type_reference = *base_type;
                 }
@@ -496,5 +506,14 @@ pub(crate) fn lower_float_parameter_range_requirements(
             }
         }
     }
-    Some(requirements)
+    ranges
+}
+
+/// The integer projection of the authored parameter ranges; floating windows
+/// keep an explicit unsupported slot because they are not integer predicates.
+pub(crate) fn lower_integer_parameter_range_requirements(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Vec<Option<CheckedBooleanExpression>> {
+    lower_scalar_parameter_range_requirements(program, machine).integer_predicates
 }

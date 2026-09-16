@@ -75,14 +75,27 @@ pub(crate) fn validate_scalar_source(
     // Ordered bodies keep no floating range roster: the structural runtime
     // requirement capsule already fails closed when an authored range cannot
     // be retained, so no authored floating range can reach this call.
-    validate_parameter_ranges(checked, state, retained.map(Some), None)
+    validate_parameter_ranges(
+        checked,
+        state,
+        retained.map(|predicate| Some(RetainedClause::Predicate(predicate))),
+        None,
+    )
+}
+
+/// One requires-tail row during the range rejoin. Integer bounds are checked
+/// comparison predicates; a floating entry range carries its retained IEEE
+/// endpoints directly on the `FloatRange` clause.
+enum RetainedClause<'clause> {
+    Predicate(&'clause CheckedBooleanExpression),
+    FloatRange(&'clause checked_trees::ClosedFloatRangeRequirement),
 }
 
 /// Scalar graphs retain authored clauses separately from their appended range
-/// predicates. Check those exact retained rows, not a different contract
-/// capsule. Floating ranges keep an explicit placeholder row in the requires
-/// tail while their exact IEEE endpoints ride the retained entry roster;
-/// rejoin both against the authored source constraints.
+/// clauses. Check those exact retained rows, not a different contract
+/// capsule. A floating range keeps its IEEE endpoints on the requires-tail
+/// `FloatRange` row; rejoin that row against the authored source constraint
+/// and require the retained entry roster to carry it verbatim.
 pub(crate) fn validate_graph_parameter_ranges(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -118,17 +131,22 @@ pub(crate) fn validate_graph_parameter_ranges(
         checked,
         state,
         ranges.iter().map(|clause| match clause {
-            Some(ClosedScalarContractValue::Predicate(predicate)) => Some(predicate),
+            Some(ClosedScalarContractValue::Predicate(predicate)) => {
+                Some(RetainedClause::Predicate(predicate))
+            }
+            Some(ClosedScalarContractValue::FloatRange(range)) => {
+                Some(RetainedClause::FloatRange(range))
+            }
             _ => None,
         }),
         plan.float_entry_ranges().map(<[_]>::iter),
     )
 }
 
-fn validate_parameter_ranges<'predicate>(
+fn validate_parameter_ranges<'clause>(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
-    mut retained: impl Iterator<Item = Option<&'predicate CheckedBooleanExpression>>,
+    mut retained: impl Iterator<Item = Option<RetainedClause<'clause>>>,
     mut float_ranges: Option<std::slice::Iter<'_, checked_trees::ClosedFloatRangeRequirement>>,
 ) -> Result<(), LoweringError> {
     let mut scalar_position = 0;
@@ -167,18 +185,18 @@ fn validate_parameter_ranges<'predicate>(
                             );
                         }
                         if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
-                            // The closed scalar predicate language cannot
-                            // spell IEEE membership, so a floating range keeps
-                            // an explicit placeholder requires row while its
-                            // evidence rides the retained roster. Consume that
-                            // row, then rejoin the roster entry bit-for-bit:
-                            // authored endpoints at the declared carrier, IEEE
-                            // order, and the authored boundary kind verbatim.
-                            if !matches!(retained.next(), Some(None)) {
+                            // A floating range is a `FloatRange` clause in
+                            // the requires tail: consume that row, then
+                            // rejoin it bit-for-bit against the authored
+                            // source bounds — endpoints at the declared
+                            // carrier, IEEE order, and the authored boundary
+                            // kind verbatim.
+                            let Some(RetainedClause::FloatRange(range)) = retained.next().flatten()
+                            else {
                                 return unsupported(
-                                    "scalar float entry range lost its explicit requires row",
+                                    "scalar float entry range lost its requires clause",
                                 );
-                            }
+                            };
                             let (minimum_value, maximum_value) = validation::closed_float_range_endpoint(
                                     &checked.typed,
                                     *minimum,
@@ -195,17 +213,24 @@ fn validate_parameter_ranges<'predicate>(
                                 .ok_or(LoweringError::Unsupported(
                                     "scalar float entry range has unavailable or unordered source bounds",
                                 ))?;
-                            let range = float_ranges.as_mut().and_then(Iterator::next).ok_or(
-                                LoweringError::Unsupported(
-                                    "scalar float entry range lost its retained endpoint evidence",
-                                ),
-                            )?;
                             if range.position != position
                                 || range.primitive_type != primitive
                                 || range.minimum != minimum_value
                                 || range.maximum != maximum_value
                                 || range.maximum_inclusive != *end_inclusive
                             {
+                                return unsupported(
+                                    "scalar float entry range differs from its authored bounds",
+                                );
+                            }
+                            // The retained roster delivers this exact clause;
+                            // an absent or drifted evidence row fails closed.
+                            let evidence = float_ranges.as_mut().and_then(Iterator::next).ok_or(
+                                LoweringError::Unsupported(
+                                    "scalar float entry range lost its retained endpoint evidence",
+                                ),
+                            )?;
+                            if evidence != range {
                                 return unsupported(
                                     "scalar float entry range differs from its retained evidence",
                                 );
@@ -224,8 +249,10 @@ fn validate_parameter_ranges<'predicate>(
                                     "scalar entry range has unavailable or empty source bounds",
                                 ))?;
                         integer_scalar_type(primitive)?;
-                        let Some(CheckedBooleanExpression::And { left, right }) =
-                            retained.next().flatten()
+                        let Some(RetainedClause::Predicate(CheckedBooleanExpression::And {
+                            left,
+                            right,
+                        })) = retained.next().flatten()
                         else {
                             return unsupported("scalar entry range lost its two ordered bounds");
                         };
