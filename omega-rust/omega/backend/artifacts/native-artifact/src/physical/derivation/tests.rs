@@ -634,3 +634,483 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         );
     }
 }
+
+/// The bounded structural lane admits only source-rooted borrowed
+/// flat-record projections and rejects every missing, duplicate,
+/// substituted, or role-swapped expected/observed row.
+#[test]
+fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
+    use calling_conventions::{MachineRegister, ValueLocation, ValuePlacement, ValueShape};
+    use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
+    };
+
+    use crate::physical::derivation::children::normalized_foreign_structural_parameter_shapes;
+
+    let pointer = ValueShape::integer(8, 8);
+    let parameter =
+        |place: u64, position: u32, access: StructuralAccess| StructuralParameterDeclaration {
+            place: PlaceId::new(place).unwrap(),
+            position,
+            is_self: false,
+            structural_type: StructuralTypeId::new(40 + place).unwrap(),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+    let argument = |place: u64, field: &str, access: StructuralAccess| StructuralArgument {
+        place: PlaceId::new(place).unwrap(),
+        path: vec![StructuralPathSegment::Field(field.to_owned())],
+        access,
+    };
+    let caller_parameters = vec![
+        parameter(101, 0, StructuralAccess::SharedBorrow),
+        parameter(102, 1, StructuralAccess::MutableBorrow),
+    ];
+    let parameters = vec![
+        parameter(201, 0, StructuralAccess::SharedBorrow),
+        parameter(202, 1, StructuralAccess::MutableBorrow),
+    ];
+    let arguments = vec![
+        argument(101, "header", StructuralAccess::SharedBorrow),
+        argument(102, "payload", StructuralAccess::MutableBorrow),
+    ];
+    let placement = |register: MachineRegister| ValuePlacement {
+        shape: pointer,
+        locations: vec![ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }],
+    };
+    let placements = vec![
+        placement(MachineRegister::X86Rdi),
+        placement(MachineRegister::X86Rsi),
+    ];
+
+    let signature = |arguments: &[StructuralArgument],
+                     parameters: &[StructuralParameterDeclaration],
+                     placements: &[ValuePlacement]| {
+        normalized_foreign_structural_parameter_shapes(
+            arguments,
+            parameters,
+            &caller_parameters,
+            true,
+            false,
+            placements,
+            pointer,
+        )
+    };
+
+    // The exact admitted lane: two source-rooted borrowed flat-record
+    // projections, each placed as one pointer-width word in the observed plan.
+    assert_eq!(
+        signature(&arguments, &parameters, &placements),
+        Ok(Some(vec![pointer, pointer]))
+    );
+    // An empty structural signature contributes no parameters.
+    assert_eq!(signature(&[], &[], &[]), Ok(Some(Vec::new())));
+
+    // Missing rows reject: a dropped argument cannot cover its declared
+    // formal, and a dropped observed placement cannot realize it.
+    assert_eq!(
+        signature(&arguments[..1], &parameters, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    assert_eq!(
+        signature(&[], &parameters, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    assert_eq!(
+        signature(&arguments, &parameters, &placements[..1]),
+        Err("normalized foreign D41 child changed its structural call custody")
+    );
+
+    // Duplicate rows reject: a duplicated formal position and an extra
+    // observed parameter row both break the positional bijection.
+    let mut duplicated = parameters.clone();
+    duplicated[1].position = 0;
+    assert_eq!(
+        signature(&arguments, &duplicated, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    let mut padded = placements.clone();
+    padded.push(placement(MachineRegister::X86Rdx));
+    assert_eq!(
+        signature(&arguments, &parameters, &padded),
+        Err("normalized foreign D41 child changed its structural call custody")
+    );
+
+    // Substituted rows reject: a changed argument access no longer matches
+    // its formal, and a non-pointer-word observed placement no longer
+    // realizes it.
+    let mut substituted = arguments.clone();
+    substituted[0].access = StructuralAccess::MutableBorrow;
+    assert_eq!(
+        signature(&substituted, &parameters, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    let mut narrow = placements.clone();
+    narrow[0] = ValuePlacement {
+        shape: ValueShape::integer(4, 4),
+        locations: vec![ValueLocation::Register {
+            register: MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: 4,
+        }],
+    };
+    assert_eq!(
+        signature(&arguments, &parameters, &narrow),
+        Err("normalized foreign D41 child changed its structural call custody")
+    );
+    let mut indirect = placements.clone();
+    indirect[0].locations = vec![ValueLocation::Indirect {
+        pointer: calling_conventions::IndirectPointerLocation::Register(MachineRegister::X86Rdi),
+        copy_stack_byte_offset: None,
+        byte_size: 8,
+        alignment: 8,
+    }];
+    assert_eq!(
+        signature(&arguments, &parameters, &indirect),
+        Err("normalized foreign D41 child changed its structural call custody")
+    );
+
+    // Role-swapped rows reject: formal positions or argument order that no
+    // longer line up with the declared signature cannot replay.
+    let mut swapped_positions = parameters.clone();
+    swapped_positions[0].position = 1;
+    swapped_positions[1].position = 0;
+    assert_eq!(
+        signature(&arguments, &swapped_positions, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    let mut swapped_arguments = arguments.clone();
+    swapped_arguments.swap(0, 1);
+    assert_eq!(
+        signature(&swapped_arguments, &parameters, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+
+    // Valid but uncovered signature shapes retain no complete evidence: a
+    // scalar lane or callback beside the structural formals, an owned
+    // formal, a qualified or non-unrestricted formal, a non-field or empty
+    // projection path, and an argument not rooted at a caller structural
+    // parameter.
+    assert_eq!(
+        normalized_foreign_structural_parameter_shapes(
+            &arguments,
+            &parameters,
+            &caller_parameters,
+            false,
+            false,
+            &placements,
+            pointer,
+        ),
+        Ok(None)
+    );
+    assert_eq!(
+        normalized_foreign_structural_parameter_shapes(
+            &arguments,
+            &parameters,
+            &caller_parameters,
+            true,
+            true,
+            &placements,
+            pointer,
+        ),
+        Ok(None)
+    );
+    let owned_parameters = vec![
+        parameter(201, 0, StructuralAccess::Owned),
+        parameter(202, 1, StructuralAccess::Owned),
+    ];
+    let owned_arguments = vec![
+        argument(101, "header", StructuralAccess::Owned),
+        argument(102, "payload", StructuralAccess::Owned),
+    ];
+    assert_eq!(
+        signature(&owned_arguments, &owned_parameters, &placements),
+        Ok(None)
+    );
+    let mut affine = parameters.clone();
+    affine[0].multiplicity = StructuralMultiplicity::Affine;
+    assert_eq!(signature(&arguments, &affine, &placements), Ok(None));
+    let mut qualified = parameters.clone();
+    qualified[0]
+        .qualifications
+        .push(StructuralDomainId::new(3).unwrap());
+    assert_eq!(signature(&arguments, &qualified, &placements), Ok(None));
+    let mut projected_qualified = parameters.clone();
+    projected_qualified[0]
+        .projected_qualifications
+        .push(StructuralPathQualification {
+            path: vec![StructuralPathSegment::Field("leaf".into())],
+            domain: StructuralDomainId::new(5).unwrap(),
+        });
+    assert_eq!(
+        signature(&arguments, &projected_qualified, &placements),
+        Ok(None)
+    );
+    let mut indexed = arguments.clone();
+    indexed[0].path.push(StructuralPathSegment::FixedIndex(0));
+    assert_eq!(signature(&indexed, &parameters, &placements), Ok(None));
+    let mut root_path = arguments.clone();
+    root_path[0].path.clear();
+    assert_eq!(signature(&root_path, &parameters, &placements), Ok(None));
+    let mut foreign_root = arguments.clone();
+    foreign_root[0].place = PlaceId::new(999).unwrap();
+    assert_eq!(signature(&foreign_root, &parameters, &placements), Ok(None));
+}
+
+/// The admitted-provider parent identity of a normalized foreign call binds
+/// the complete expected structural custody — every authored argument row and
+/// every declared formal row — so a missing, duplicate, substituted, or
+/// role-swapped row cannot replay as the same child.
+#[test]
+fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
+    use semantic_vocabulary::{OperationId, PlaceId, StructuralDomainId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
+    };
+
+    use crate::physical::derivation::settlement_identity::admitted_provider_boundary_trait_settlement_identity;
+
+    let projection = physical_projection();
+    let occurrence = &projection.boundary_occurrences()[0];
+    let execution = target_operations::ProviderExecutionBinding::from_execution_record(
+        target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+        11,
+        13,
+        17,
+        19,
+    )
+    .unwrap();
+    let locator = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"ReadFile".to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    )
+    .expect("valid normalized Windows import");
+    let parameter =
+        |place: u64, position: u32, access: StructuralAccess| StructuralParameterDeclaration {
+            place: PlaceId::new(place).unwrap(),
+            position,
+            is_self: false,
+            structural_type: StructuralTypeId::new(40 + place).unwrap(),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+    let structural_parameters = vec![
+        parameter(201, 0, StructuralAccess::SharedBorrow),
+        parameter(202, 1, StructuralAccess::MutableBorrow),
+    ];
+    let structural_arguments = vec![
+        StructuralArgument {
+            place: PlaceId::new(101).unwrap(),
+            path: vec![StructuralPathSegment::Field("header".into())],
+            access: StructuralAccess::SharedBorrow,
+        },
+        StructuralArgument {
+            place: PlaceId::new(102).unwrap(),
+            path: vec![StructuralPathSegment::Field("payload".into())],
+            access: StructuralAccess::MutableBorrow,
+        },
+    ];
+    let identity = |arguments: &[StructuralArgument],
+                    parameters: &[StructuralParameterDeclaration]| {
+        admitted_provider_boundary_trait_settlement_identity(
+            occurrence,
+            "Input::read",
+            NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            NativeTarget::linux_x64(),
+            execution,
+            [9; 32],
+            &locator,
+            [11; 32],
+            arguments,
+            parameters,
+        )
+    };
+    let expected = identity(&structural_arguments, &structural_parameters);
+    // Empty structural custody is a distinct parent identity.
+    assert_ne!(expected, identity(&[], &[]));
+
+    for mutation in 0..6 {
+        let mut changed = structural_arguments.clone();
+        match mutation {
+            0 => changed[0].place = PlaceId::new(103).unwrap(),
+            1 => changed[0].path = vec![StructuralPathSegment::Field("other".into())],
+            2 => changed[0].access = StructuralAccess::Owned,
+            3 => changed[0].path.push(StructuralPathSegment::FixedIndex(0)),
+            4 => changed.swap(0, 1),
+            _ => {
+                changed.pop();
+            }
+        }
+        assert_ne!(
+            identity(&changed, &structural_parameters),
+            expected,
+            "structural argument mutation {mutation}"
+        );
+    }
+
+    for mutation in 0..8 {
+        let mut changed = structural_parameters.clone();
+        match mutation {
+            0 => changed[0].position = 7,
+            1 => changed[0].is_self = true,
+            2 => changed[0].structural_type = StructuralTypeId::new(91).unwrap(),
+            3 => changed[0].multiplicity = StructuralMultiplicity::Affine,
+            4 => changed[0].access = StructuralAccess::Owned,
+            5 => changed[0]
+                .qualifications
+                .push(StructuralDomainId::new(3).unwrap()),
+            6 => changed[0]
+                .projected_qualifications
+                .push(StructuralPathQualification {
+                    path: vec![StructuralPathSegment::Field("leaf".into())],
+                    domain: StructuralDomainId::new(5).unwrap(),
+                }),
+            _ => changed[0].place = PlaceId::new(203).unwrap(),
+        }
+        assert_ne!(
+            identity(&structural_arguments, &changed),
+            expected,
+            "structural parameter mutation {mutation}"
+        );
+    }
+
+    // The same structural rows beneath a different occurrence, requirement,
+    // plan, target, execution, plan commitment, locator, or same-stack
+    // custody still produce a distinct parent identity.
+    for mutation in 0..8 {
+        let changed = match mutation {
+            0 => admitted_provider_boundary_trait_settlement_identity(
+                &optimized_boundary_occurrence(
+                    occurrence.terminal(),
+                    occurrence.machine(),
+                    OperationId::new(9).unwrap(),
+                    occurrence.boundary(),
+                    occurrence.operation_ordinal(),
+                    OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"other occurrence"),
+                ),
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                [9; 32],
+                &locator,
+                [11; 32],
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            1 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::other",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                [9; 32],
+                &locator,
+                [11; 32],
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            2 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([8; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                [9; 32],
+                &locator,
+                [11; 32],
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            3 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::windows_x64(),
+                execution,
+                [9; 32],
+                &locator,
+                [11; 32],
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            4 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                target_operations::ProviderExecutionBinding::from_execution_record(
+                    target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+                    11,
+                    13,
+                    17,
+                    29,
+                )
+                .unwrap(),
+                [9; 32],
+                &locator,
+                [11; 32],
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            5 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                [10; 32],
+                &locator,
+                [11; 32],
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            6 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                [9; 32],
+                &locator,
+                [12; 32],
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            _ => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                [9; 32],
+                &target::normalize_foreign_locator(
+                    target::ForeignLocatorCandidate::PeByName {
+                        library: b"kernel32.dll".to_vec(),
+                        export: b"WriteFile".to_vec(),
+                    },
+                    target::TargetProfile::WindowsX64,
+                )
+                .expect("valid normalized Windows import"),
+                [11; 32],
+                &structural_arguments,
+                &structural_parameters,
+            ),
+        };
+        assert_ne!(changed, expected, "binding input mutation {mutation}");
+    }
+}

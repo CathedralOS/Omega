@@ -405,7 +405,10 @@ fn hash_value_shape(digest: &mut Sha256, shape: calling_conventions::ValueShape)
     digest.update(shape.alignment.to_le_bytes());
 }
 
-fn hash_structural_argument(digest: &mut Sha256, argument: &terminal_psi::StructuralArgument) {
+pub(crate) fn hash_structural_argument(
+    digest: &mut Sha256,
+    argument: &terminal_psi::StructuralArgument,
+) {
     digest.update(argument.place.get().to_le_bytes());
     digest.update([match argument.access {
         terminal_psi::StructuralAccess::Owned => 1,
@@ -414,6 +417,39 @@ fn hash_structural_argument(digest: &mut Sha256, argument: &terminal_psi::Struct
         terminal_psi::StructuralAccess::WriteOnlyBorrow => 4,
     }]);
     hash_structural_path(digest, &argument.path);
+}
+
+/// Hash one declared structural formal: its declared position, place,
+/// self-ness, structural type, multiplicity, access, and exact qualification
+/// rows. No declared field can drift underneath a retained argument binding.
+pub(crate) fn hash_structural_parameter_declaration(
+    digest: &mut Sha256,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+) {
+    digest.update(parameter.place.get().to_le_bytes());
+    digest.update(parameter.position.to_le_bytes());
+    digest.update([u8::from(parameter.is_self)]);
+    digest.update(parameter.structural_type.get().to_le_bytes());
+    digest.update([match parameter.multiplicity {
+        terminal_psi::StructuralMultiplicity::Unrestricted => 1,
+        terminal_psi::StructuralMultiplicity::Affine => 2,
+        terminal_psi::StructuralMultiplicity::Linear => 3,
+    }]);
+    digest.update([match parameter.access {
+        terminal_psi::StructuralAccess::Owned => 1,
+        terminal_psi::StructuralAccess::SharedBorrow => 2,
+        terminal_psi::StructuralAccess::MutableBorrow => 3,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow => 4,
+    }]);
+    digest.update(canonical_usize(parameter.qualifications.len()));
+    for domain in &parameter.qualifications {
+        digest.update(domain.get().to_le_bytes());
+    }
+    digest.update(canonical_usize(parameter.projected_qualifications.len()));
+    for qualification in &parameter.projected_qualifications {
+        hash_structural_path(digest, &qualification.path);
+        digest.update(qualification.domain.get().to_le_bytes());
+    }
 }
 
 fn hash_claim_source(digest: &mut Sha256, source: &CompletionClaimSource) {

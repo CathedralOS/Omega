@@ -4,7 +4,8 @@
 use crate::NativeSelectedProviderPlanDigest;
 pub(crate) use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::hashing::{
-    hash_boundary_settlement_record, hash_bytes, hash_port_effect_record, hash_structural_path,
+    canonical_usize, hash_boundary_settlement_record, hash_bytes, hash_port_effect_record,
+    hash_structural_argument, hash_structural_parameter_declaration, hash_structural_path,
     hash_sum_layout, hash_target,
 };
 use machine_code::PortEffectRecord;
@@ -186,6 +187,14 @@ pub(crate) fn builtin_structural_boundary_trait_settlement_identity(
     Ok(digest.finalize().into())
 }
 
+/// Strong identity for one exact normalized foreign call. Besides the
+/// observed execution, locator, evaluated boundary-plan commitment, and
+/// same-stack custody, the identity binds the call's expected structural
+/// custody: every authored structural argument row (place, access, path) and
+/// every declared structural formal row (position, place, self-ness, type,
+/// multiplicity, access, qualifications). The observed plan commitment alone
+/// cannot carry those semantic coordinates — no field can be substituted
+/// underneath this parent identity.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     occurrence: &OptimizedBoundaryOccurrence,
@@ -196,9 +205,11 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     boundary_plan_identity: [u8; 32],
     locator: &target::NormalizedForeignLocator,
     same_stack_identity: [u8; 32],
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v1\0");
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v2\0");
     digest.update(occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.update(selected_plan_digest.as_bytes());
@@ -225,6 +236,14 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     digest.update(locator.identity_digest().as_bytes());
     digest.update(boundary_plan_identity);
     digest.update(same_stack_identity);
+    digest.update(canonical_usize(structural_arguments.len()));
+    for argument in structural_arguments {
+        hash_structural_argument(&mut digest, argument);
+    }
+    digest.update(canonical_usize(structural_parameters.len()));
+    for parameter in structural_parameters {
+        hash_structural_parameter_declaration(&mut digest, parameter);
+    }
     digest.finalize().into()
 }
 
