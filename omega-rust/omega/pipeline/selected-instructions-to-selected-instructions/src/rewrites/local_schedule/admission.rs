@@ -1,9 +1,10 @@
-//! Shared admission for adjacent-pair interchange: locate the named earlier
-//! instruction inside one block's body, confirm the named later instruction
-//! is exactly its successor, and prove the pair independent — no register or
-//! condition-state hazard in either direction, at most one roster-carrying
-//! memory actor, no call, hosted-effect, or terminator barrier on either
-//! member, and no boundary settlement at the interior position.
+//! Shared admission for in-block interchange: locate the named earlier
+//! instruction inside one block's body, locate the named later instruction
+//! after it in the same block, and prove the window they bound independent —
+//! no register or condition-state hazard between either member and the
+//! instructions between them, at most one roster-carrying memory actor among
+//! the crossed positions, no call, hosted-effect, or terminator barrier
+//! anywhere in the window, and no boundary settlement inside its span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
@@ -18,9 +19,12 @@ use crate::ValidatedSelectedAnalysis;
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
     pub block_index: usize,
-    /// The earlier member's index in the block body; the later member sits
-    /// at `earlier_index + 1`.
+    /// The earlier member's index in the block body.
     pub earlier_index: usize,
+    /// The later member's index: the window the interchange crosses is
+    /// `earlier_index..=later_index`, a single position when the pair is
+    /// adjacent.
+    pub later_index: usize,
 }
 
 /// Register locations an operand reads or writes. `UseDef` participates in
@@ -73,8 +77,8 @@ fn writes_meet_reads(writer: &SelectedInstruction, reader: &SelectedInstruction)
             .any(|unit| reader.implicit_uses.contains(unit))
 }
 
-/// Whether the adjacent pair can exchange places. The three hazards cover
-/// both members and every later observer: `earlier` defining a location
+/// Whether two instructions can exchange order. The three hazards cover the
+/// named members and every crossed position: `earlier` defining a location
 /// `later` reads (RAW) would starve the consumer, `earlier` reading a
 /// location `later` writes (WAR) would hand it the new value, and a shared
 /// written location (WAW) would change which definition later positions
@@ -191,23 +195,24 @@ fn has_call_contract(function: &SelectedFunction, instruction: SelectedInstructi
         .any(|call| call.instruction == instruction)
 }
 
-/// A boundary settlement at `position` sits before that body ordinal: the
-/// interior index between the pair would observe the later instruction
-/// running first, while positions at or outside the pair's span see the
-/// same executed set on either order.
+/// A boundary settlement at `position` sits before that body ordinal: any
+/// position after the earlier member through the later member's own index
+/// observes a different executed set once the pair trades places, while
+/// positions at or outside the window's span see the same executed set on
+/// either order.
 fn interior_settlement(
     function: &SelectedFunction,
     block: SelectedBlockId,
-    position: usize,
+    window: std::ops::RangeInclusive<usize>,
 ) -> bool {
     function.boundary_settlements.iter().any(|settlement| {
-        settlement.block == block && settlement.instruction_index as usize == position
+        settlement.block == block && window.contains(&(settlement.instruction_index as usize))
     })
 }
 
-/// Whether one member may interleave with an adjacent instruction at all:
-/// not a barrier kind, not named by the call roster, and either roster-
-/// accounted or unable to reach storage the roster covers.
+/// Whether one instruction may trade order with a crossed instruction at
+/// all: not a barrier kind, not named by the call roster, and either
+/// roster-accounted or unable to reach storage the roster covers.
 fn schedulable(
     function: &SelectedFunction,
     instruction: &SelectedInstruction,
@@ -251,33 +256,53 @@ pub(super) fn admit<'source>(
         })
         .ok_or(LocalScheduleError::SourceMismatch)?;
     let block = &function.blocks[block_index];
-    // The pair is the named instruction and its immediate successor; naming
-    // both fixes the interchange the proposal must reproduce.
-    let earlier_instruction = &block.instructions[earlier_index];
-    let later_instruction = block
+    // The pair is the two named instructions in the named order inside this
+    // block; every instruction between them belongs to the window the
+    // interchange crosses.
+    let later_index = block
         .instructions
-        .get(earlier_index + 1)
+        .iter()
+        .position(|instruction| instruction.id == later)
+        .filter(|position| *position > earlier_index)
         .ok_or(LocalScheduleError::UnsupportedPair)?;
-    if later_instruction.id != later {
-        return Err(LocalScheduleError::UnsupportedPair);
-    }
+    let earlier_instruction = &block.instructions[earlier_index];
+    let later_instruction = &block.instructions[later_index];
     let earlier_accounted = schedulable(function, earlier_instruction)?;
     let later_accounted = schedulable(function, later_instruction)?;
-    // Two roster-carrying accesses would need a place-alias decision this
-    // step does not take; a single accounted actor exchanges with a member
-    // that cannot observe memory, leaving every recorded access order.
+    // A roster-carrying access may only cross instructions that cannot
+    // observe memory: a second accounted actor anywhere in the window would
+    // need a place-alias decision this step does not take.
     if earlier_accounted && later_accounted {
         return Err(LocalScheduleError::UnsupportedPair);
     }
-    if interior_settlement(function, block.id, earlier_index + 1) {
+    let member_accounted = earlier_accounted || later_accounted;
+    let window = &block.instructions[earlier_index..=later_index];
+    for interior in &window[1..window.len() - 1] {
+        // Every crossed instruction meets the same schedulable bar as the
+        // named members: no barrier kind, no call contract, and no
+        // unaccounted memory reach. Its roster rows may stay only while
+        // neither member carries any — the interior's recorded accesses
+        // then keep their position while two memory-inert instructions
+        // trade places around them.
+        let interior_accounted = schedulable(function, interior)?;
+        if interior_accounted && member_accounted {
+            return Err(LocalScheduleError::UnsupportedPair);
+        }
+        // The interior keeps its position but trades order with both
+        // members, so each direction of every hazard applies against each.
+        if coupled(earlier_instruction, interior) || coupled(later_instruction, interior) {
+            return Err(LocalScheduleError::UnsupportedPair);
+        }
+    }
+    if interior_settlement(function, block.id, earlier_index + 1..=later_index) {
         return Err(LocalScheduleError::UnsupportedPair);
     }
     if coupled(earlier_instruction, later_instruction) {
         return Err(LocalScheduleError::UnsupportedPair);
     }
     // The search scans the plan's body and terminator instructions once;
-    // the pair audit walks the member operand and unit lists plus the
-    // function's three rosters.
+    // the window audit walks every crossed member's operand and unit lists
+    // plus the function's three rosters.
     let steps = plan
         .functions
         .iter()
@@ -287,15 +312,13 @@ pub(super) fn admit<'source>(
             })
         })
         .and_then(|total| {
-            [earlier_instruction, later_instruction]
-                .iter()
-                .try_fold(total, |total, instruction| {
-                    total
-                        .checked_add(instruction.operands.len())?
-                        .checked_add(instruction.implicit_uses.len())?
-                        .checked_add(instruction.implicit_defs.len())?
-                        .checked_add(instruction.clobbers.len())
-                })
+            window.iter().try_fold(total, |total, instruction| {
+                total
+                    .checked_add(instruction.operands.len())?
+                    .checked_add(instruction.implicit_uses.len())?
+                    .checked_add(instruction.implicit_defs.len())?
+                    .checked_add(instruction.clobbers.len())
+            })
         })
         .and_then(|total| {
             total
@@ -313,5 +336,6 @@ pub(super) fn admit<'source>(
         function,
         block_index,
         earlier_index,
+        later_index,
     })
 }

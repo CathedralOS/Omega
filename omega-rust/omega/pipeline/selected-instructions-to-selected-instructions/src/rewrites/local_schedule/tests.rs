@@ -1235,3 +1235,531 @@ fn replay_rejects_drift_outside_the_interchanged_block() {
         LocalScheduleError::ReplayMismatch
     );
 }
+
+const MAT_C: SelectedInstructionId = SelectedInstructionId(8);
+const MAT_D: SelectedInstructionId = SelectedInstructionId(9);
+const THIRD: VirtualRegisterId = VirtualRegisterId(5);
+const FOURTH: VirtualRegisterId = VirtualRegisterId(6);
+
+/// The fixture with `middle` independent materializations inserted between
+/// the two named members: the pair sits at positions 0 and `middle + 1` and
+/// every interior instruction is pure register work observing neither of
+/// the members' registers.
+fn windowed(target: NativeTarget, middle: usize) -> ValidatedLocalSchedule {
+    mutated(target, |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        let class = function.virtual_registers[1].class;
+        for (offset, (id, member_register)) in [(MAT_C, THIRD), (MAT_D, FOURTH)]
+            .iter()
+            .take(middle)
+            .enumerate()
+        {
+            function.virtual_registers.push(register(
+                *member_register,
+                class,
+                VirtualRegisterOrigin::InstructionResult {
+                    instruction: *id,
+                    source_value: ValueId::new(6 + offset as u64).unwrap(),
+                },
+            ));
+            function.blocks[0].instructions.insert(
+                1 + offset,
+                instruction(
+                    *id,
+                    SelectedInstructionKind::MaterializeI64 {
+                        value: IntegerValue::Unsigned(13 + offset as u128),
+                    },
+                    &materialize,
+                    &[*member_register],
+                ),
+            );
+        }
+    })
+}
+
+/// Two members with independent instructions between them exchange places
+/// on every target: each crossed instruction keeps its own position,
+/// identity, kind, operands, and provenance while the named pair trades the
+/// window's endpoints.
+#[test]
+fn windowed_pair_interchanges_across_inert_interior() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for middle in 1..=2usize {
+            let source = windowed(target, middle);
+            let result = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+            let original = &source.transformed().functions[0].blocks[0].instructions;
+            let body = &result.transformed().functions[0].blocks[0].instructions;
+            assert_eq!(body.len(), original.len());
+            assert_eq!(body[0].id, MAT_B);
+            assert_eq!(body[middle + 1].id, MAT_A);
+            for position in 1..=middle {
+                assert_eq!(body[position], original[position]);
+            }
+            validate_local_schedule(
+                &source,
+                0,
+                MAT_A,
+                MAT_B,
+                &environment,
+                budget(),
+                result.transformed().clone(),
+            )
+            .unwrap();
+        }
+    }
+}
+
+/// An interior instruction participates in the hazard audit in both
+/// directions: a member cannot cross an interior instruction reading the
+/// register it defines, an interior reader cannot jump its publisher, and
+/// the named members' own hazards apply unchanged at any distance.
+#[test]
+fn windowed_hazards_keep_order() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The earlier member's write feeds an interior read: MAT_B defines
+    // SECOND and the sum between it and the compare reads it.
+    let source = fixture(target);
+    assert_eq!(
+        schedule(&source, &environment, MAT_B, COMPARE).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // The later member's read observes the earlier member's write across
+    // the same interior: the compare reads FIRST which MAT_A defines.
+    assert_eq!(
+        schedule(&source, &environment, MAT_A, COMPARE).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // Interior readers bind identically: the compare and the sum inside
+    // this window read registers MAT_B defines, so MAT_B cannot trade
+    // places with the boolean materialization across them.
+    let interior_reader = mutated(target, |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        let class = function.virtual_registers[1].class;
+        function.virtual_registers.push(register(
+            THIRD,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: MAT_C,
+                source_value: ValueId::new(6).unwrap(),
+            },
+        ));
+        function.blocks[0].instructions.insert(
+            3,
+            instruction(
+                MAT_C,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(13),
+                },
+                &materialize,
+                &[THIRD],
+            ),
+        );
+    });
+    assert_eq!(
+        schedule(&interior_reader, &environment, MAT_B, BOOLEAN).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // The members' own hazard applies at distance: an inert materialization
+    // between the compare and the boolean reader does not weaken the flag
+    // hazard between the named pair.
+    let flag_window = mutated(target, |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        let class = function.virtual_registers[1].class;
+        function.virtual_registers.push(register(
+            THIRD,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: MAT_C,
+                source_value: ValueId::new(6).unwrap(),
+            },
+        ));
+        function.blocks[0].instructions.insert(
+            4,
+            instruction(
+                MAT_C,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(13),
+                },
+                &materialize,
+                &[THIRD],
+            ),
+        );
+    });
+    assert_eq!(
+        schedule(&flag_window, &environment, COMPARE, BOOLEAN).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // The named later instruction behind the earlier one names no
+    // in-block window in that order.
+    assert_eq!(
+        schedule(&flag_window, &environment, MAT_B, MAT_A).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    let other_block = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let jump_row = environment.constraint(keys.jump).unwrap().clone();
+        let return_row = environment.constraint(keys.return_unit).unwrap().clone();
+        let moved = function.blocks[0].instructions.remove(1);
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(21),
+                SelectedInstructionKind::Jump,
+                &jump_row,
+                &[],
+            ),
+            successor: successor(SelectedBlockId(1), BlockId::new(2).unwrap(), 2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![moved],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(22),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    assert_eq!(
+        schedule(&other_block, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+}
+
+/// A `windowed` source with the settlement at `position` added: the fixture
+/// helper's `mutated` wrapper cannot push settlements after building the
+/// window, so this adds the row and refreshes the plan identity directly.
+fn windowed_settled(target: NativeTarget, middle: usize, position: u32) -> ValidatedLocalSchedule {
+    let mut source = windowed(target, middle);
+    std::sync::Arc::make_mut(&mut source.transformed).functions[0]
+        .boundary_settlements
+        .push(settlement(position, 41));
+    let identity = selected_instruction_plan_identity(&source.transformed);
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    source
+}
+
+/// Every boundary settlement inside the window's span — between the earlier
+/// member and any crossed position or before the later member itself —
+/// observes a different executed set once the pair trades places, while
+/// settlements at or outside the span admit.
+#[test]
+fn windowed_settlements_bound_the_span() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for position in [1, 2] {
+        assert_eq!(
+            schedule(
+                &windowed_settled(target, 1, position),
+                &environment,
+                MAT_A,
+                MAT_B
+            )
+            .unwrap_err(),
+            LocalScheduleError::UnsupportedPair,
+            "settlement at {position}"
+        );
+    }
+    for position in [0, 3] {
+        schedule(
+            &windowed_settled(target, 1, position),
+            &environment,
+            MAT_A,
+            MAT_B,
+        )
+        .unwrap();
+    }
+}
+
+/// The window's schedulable bar binds the interior too: a call, hosted
+/// effect, or call-roster row between the members refuses, a roster-
+/// carrying interior refuses once a member carries rows, and an interior
+/// access stays accounted while two memory-inert members trade places
+/// around it.
+#[test]
+fn windowed_barriers_and_memory_actors_bound_the_span() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A barrier kind inside the window refuses outright.
+    let interior_call = mutated(target, |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        let class = function.virtual_registers[1].class;
+        function.virtual_registers.push(register(
+            THIRD,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: MAT_C,
+                source_value: ValueId::new(6).unwrap(),
+            },
+        ));
+        let mut interior = instruction(
+            MAT_C,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(13),
+            },
+            &materialize,
+            &[THIRD],
+        );
+        interior.kind = SelectedInstructionKind::CallUnit {
+            callee: MachineId::new(9).unwrap(),
+        };
+        function.blocks[0].instructions.insert(1, interior);
+    });
+    assert_eq!(
+        schedule(&interior_call, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedInstruction
+    );
+    // A roster-carrying member cannot cross a roster-carrying interior:
+    // the earlier load's recorded access would trade order with the
+    // interior load's.
+    let two_actors = mutated(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap()
+            .clone();
+        let class = function.virtual_registers[1].class;
+        function.virtual_registers.push(register(
+            THIRD,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: MAT_C,
+                source_value: ValueId::new(6).unwrap(),
+            },
+        ));
+        function.blocks[0].instructions[0] = instruction(
+            MAT_A,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            &load,
+            &[POINTER, FIRST],
+        );
+        function.blocks[0].instructions.insert(
+            1,
+            instruction(
+                MAT_C,
+                SelectedInstructionKind::Load8 { byte_offset: 8 },
+                &load,
+                &[POINTER, THIRD],
+            ),
+        );
+        function.memory_accesses.push(access(
+            MAT_A,
+            PlaceId::new(1).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+        function.memory_accesses.push(access(
+            MAT_C,
+            PlaceId::new(2).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+    });
+    assert_eq!(
+        schedule(&two_actors, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // Two memory-inert members may trade places around an interior access
+    // that keeps its position and roster rows.
+    let interior_actor = mutated(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap()
+            .clone();
+        let class = function.virtual_registers[1].class;
+        function.virtual_registers.push(register(
+            THIRD,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: MAT_C,
+                source_value: ValueId::new(6).unwrap(),
+            },
+        ));
+        function.blocks[0].instructions.insert(
+            1,
+            instruction(
+                MAT_C,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, THIRD],
+            ),
+        );
+        function.memory_accesses.push(access(
+            MAT_C,
+            PlaceId::new(1).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+    });
+    let result = schedule(&interior_actor, &environment, MAT_A, MAT_B).unwrap();
+    let body = &result.transformed().functions[0].blocks[0].instructions;
+    assert_eq!(body[0].id, MAT_B);
+    assert_eq!(body[1].id, MAT_C);
+    assert_eq!(body[2].id, MAT_A);
+    assert_eq!(
+        result.transformed().functions[0].memory_accesses,
+        interior_actor.transformed().functions[0].memory_accesses
+    );
+    validate_local_schedule(
+        &interior_actor,
+        0,
+        MAT_A,
+        MAT_B,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// Two runs over the identical windowed source produce the identical
+/// validated result, and the published plan is a legal second input: naming
+/// the stale order refuses, the flipped order interchanges back through the
+/// same admission and replay to restore the source bit-identically, and a
+/// different independent pair still admits on the transformed plan.
+#[test]
+fn windowed_interchange_is_deterministic_and_an_involution() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = windowed(target, 2);
+    let first = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    let second = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    assert_eq!(first, second);
+    // The window's endpoints traded places: the stale order names no
+    // in-block window in the published plan.
+    assert_eq!(
+        schedule_selected_pair(&first, 0, MAT_A, MAT_B, &environment, budget()).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // The flipped order interchanges back, restoring the source
+    // bit-identically and replaying through independent validation.
+    let restored = schedule_selected_pair(&first, 0, MAT_B, MAT_A, &environment, budget()).unwrap();
+    assert_eq!(restored.transformed(), source.transformed());
+    assert_eq!(
+        restored.receipt().transformed_selected(),
+        source.selected_identity()
+    );
+    validate_local_schedule(
+        &first,
+        0,
+        MAT_B,
+        MAT_A,
+        &environment,
+        budget(),
+        restored.transformed().clone(),
+    )
+    .unwrap();
+    // A different pair still admits on the second input: the interior
+    // materializations remained in place and independent.
+    let composed = schedule_selected_pair(&first, 0, MAT_C, MAT_D, &environment, budget()).unwrap();
+    let body = &composed.transformed().functions[0].blocks[0].instructions;
+    assert_eq!(body[1].id, MAT_D);
+    assert_eq!(body[2].id, MAT_C);
+}
+
+/// Replay binds the whole window, not only its endpoints: a proposal that
+/// swaps the named pair but reorders, edits, or drops an interior
+/// instruction fails the restore-by-content check.
+#[test]
+fn windowed_replay_rejects_interior_drift() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = windowed(target, 2);
+    let result = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    // The endpoints are exactly the admitted interchange, but the interior
+    // materializations traded places — not the proven proposal.
+    let mut permuted = result.transformed().clone();
+    permuted.functions[0].blocks[0].instructions.swap(1, 2);
+    assert_eq!(
+        validate_local_schedule(&source, 0, MAT_A, MAT_B, &environment, budget(), permuted)
+            .unwrap_err(),
+        LocalScheduleError::ReplayMismatch
+    );
+    // A drifted literal on an interior member rejects identically.
+    let mut edited = result.transformed().clone();
+    edited.functions[0].blocks[0].instructions[1].kind = SelectedInstructionKind::MaterializeI64 {
+        value: IntegerValue::Unsigned(99),
+    };
+    assert_eq!(
+        validate_local_schedule(&source, 0, MAT_A, MAT_B, &environment, budget(), edited)
+            .unwrap_err(),
+        LocalScheduleError::ReplayMismatch
+    );
+    // An interior member removed outright rejects.
+    let mut dropped = result.transformed().clone();
+    dropped.functions[0].blocks[0].instructions.remove(1);
+    assert_eq!(
+        validate_local_schedule(&source, 0, MAT_A, MAT_B, &environment, budget(), dropped)
+            .unwrap_err(),
+        LocalScheduleError::ReplayMismatch
+    );
+}
+
+/// The measured validation-step boundary charges the whole window's member
+/// surfaces, not just the named pair: the plan scan plus one step per
+/// operand, implicit use, implicit definition, and clobber row on every
+/// crossed instruction, then the function's roster lengths — so the exact
+/// count admits the interchange on both the proposal and the independent
+/// replay path while one step below rejects both, at two window sizes.
+#[test]
+fn windowed_measured_validation_step_boundary_admits_and_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for (source, exact_steps) in [
+        // (1 block + 6 instructions) + (3 window materializations) = 10.
+        (windowed(target, 1), 10u64),
+        // (1 block + 7 instructions) + (4 window materializations) = 12.
+        (windowed(target, 2), 12u64),
+    ] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result = schedule_selected_pair(&source, 0, MAT_A, MAT_B, &environment, exact).unwrap();
+        validate_local_schedule(
+            &source,
+            0,
+            MAT_A,
+            MAT_B,
+            &environment,
+            exact,
+            result.transformed().clone(),
+        )
+        .unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            schedule_selected_pair(&source, 0, MAT_A, MAT_B, &environment, starved).unwrap_err(),
+            LocalScheduleError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_local_schedule(
+                &source,
+                0,
+                MAT_A,
+                MAT_B,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            LocalScheduleError::WorkBudgetExceeded
+        );
+    }
+}
