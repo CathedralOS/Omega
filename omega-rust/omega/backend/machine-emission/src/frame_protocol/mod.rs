@@ -6,6 +6,7 @@
 //! arena. Per-function spans point into that arena; no tiny byte vectors are
 //! retained. The protocol still excludes the selected return instruction.
 
+mod codec;
 mod compute;
 mod error;
 mod model;

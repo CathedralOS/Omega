@@ -2,8 +2,9 @@
 pub enum TargetFrameProtocolEncodingError {
     RootMismatch,
     UnsupportedPolicy,
-    /// The (architecture, object-format) pair declares no unwind row, so no
-    /// continuation mechanism can admit any recorded custody.
+    /// The (architecture, object-format) pair declares no codec or unwind
+    /// row, so no codec can be selected and no continuation mechanism can
+    /// admit any recorded custody.
     UnsupportedTarget,
     FunctionRosterMismatch,
     ByteArenaOverflow,
