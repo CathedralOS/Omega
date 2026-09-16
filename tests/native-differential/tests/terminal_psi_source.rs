@@ -2,6 +2,7 @@
 //! trees are dropped before canonical decoding, verification, interpretation,
 //! and Omega lowering.
 
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 #[path = "../fixture_rosters/terminal_sources.rs"]
 mod fixture_roster;
 

@@ -1,7 +1,6 @@
-use super::{
-    LocalSourceLimits, SourceResolveError, make_tree_owner_writable, resolve_local_source,
-    resolve_local_source_snapshot_at_path, resolve_materialized_source, temp_root,
-};
+use super::{LocalSourceLimits, make_tree_owner_writable, resolve_local_source, resolve_local_source_snapshot_at_path, resolve_materialized_source, temp_root};
+#[cfg(unix)]
+use super::{SourceResolveError};
 #[test]
 fn local_admissions_updates_leave_source_identity_and_snapshot_unchanged() {
     let root = temp_root("local-admissions-control-file");

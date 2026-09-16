@@ -1,5 +1,12 @@
 //! Provider-free ordered edge values remain observable on macOS as well as Linux.
 
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
 use super::super::super::native_function;
 use super::super::{calls, fixtures};
 use super::{

@@ -5,6 +5,7 @@
 //! struct and returning a plan-like struct -- the exact call shape the Layout
 //! machinery makes (wiki/spec/layouts/plans.md).
 
+use checked_interpreter::{BuildTimeOperationEvaluation, InterpretOptions};
 use checked_interpreter::{
     BuildMachineEvaluationRequest, BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE,
     CURRENT_EVALUATION_USAGE_SCHEMA, evaluate_build_time_machine, interpret_entry,

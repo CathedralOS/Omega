@@ -1,7 +1,6 @@
-use super::{
-    LocalSourceLimits, PathBuf, SourceResolveError, SystemTime, UNIX_EPOCH, raw_os_bytes,
-    resolve_local_source, temp_root,
-};
+use super::{LocalSourceLimits, resolve_local_source, temp_root};
+#[cfg(unix)]
+use super::{PathBuf, SourceResolveError, SystemTime, UNIX_EPOCH, raw_os_bytes};
 #[test]
 fn local_source_identity_includes_empty_directory_paths() {
     let root = temp_root("empty-directory-identity");

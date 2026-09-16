@@ -1,3 +1,4 @@
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
@@ -332,7 +333,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
     .expect("limited execution starts at the artifact boundary");
     let mut limited = TerminalFuelMeter::with_allowance(2);
     assert_eq!(
-        limited_execution.resume(&mut limited).unwrap(),
+        limited_execution.resume(&mut limited, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
@@ -362,12 +363,12 @@ fn verified_integer_control_contract_slice_executes_directly() {
         remaining_units: 0,
     };
     assert_eq!(
-        execution.resume(&mut resumable_meter).unwrap(),
+        execution.resume(&mut resumable_meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(exhaustion)
     );
     resumable_meter.replenish(1).unwrap();
     assert_eq!(
-        execution.resume(&mut resumable_meter).unwrap(),
+        execution.resume(&mut resumable_meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(expected))
     );
     assert_eq!(resumable_meter.usage().total_units(), 3);
@@ -382,7 +383,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
     );
     let completed_usage = resumable_meter.usage().clone();
     assert_eq!(
-        execution.resume(&mut resumable_meter).unwrap(),
+        execution.resume(&mut resumable_meter, &mut AcceptTerminalEffects).unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(expected))
     );
     assert_eq!(resumable_meter.usage(), &completed_usage);
@@ -496,7 +497,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
     .expect("crash execution starts from its artifact");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
-        execution.resume(&mut meter).expect("crash is an outcome"),
+        execution.resume(&mut meter, &mut AcceptTerminalEffects).expect("crash is an outcome"),
         TerminalExecutionStatus::Crashed(expected.clone())
     );
     assert_eq!(meter.usage().total_units(), 1);

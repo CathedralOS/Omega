@@ -5,6 +5,7 @@
 //! operation results are ordinary root locals; no synthesized receiver carries
 //! build authority or scratch state.
 
+use checked_interpreter::{BuildMachineEvaluationFailure, MeasuredBuildMachineEvaluation};
 use super::{grant_root, omg_path};
 use checked_interpreter::{
     BuildMachineEvaluationRequest, BuildTimeValue, EvaluationObservations, FilesystemAccess,

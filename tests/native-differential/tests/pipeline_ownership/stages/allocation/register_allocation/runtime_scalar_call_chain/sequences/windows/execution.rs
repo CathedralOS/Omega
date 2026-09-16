@@ -1,6 +1,12 @@
 //! Runs unchanged validated code, then an explicitly non-artifact ABI stress copy.
 
 use super::physical;
+use crate::tests::{
+    Optimization, OptimizationSelections, SCALAR_CALL_UNIT_CALLEE_BASE,
+    stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
+    stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
+    validate_optimized_relocation_free_object_container,
+};
 
 use super::super::super::native_execution as memory;
 mod stress;

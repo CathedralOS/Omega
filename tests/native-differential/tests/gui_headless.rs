@@ -9,6 +9,7 @@
 //! runaway default -- OMEGA_INTERP_STEP_BUDGET raises it for this process
 //! (a dedicated test binary, so the env write races nothing).
 
+use checked_interpreter::{InterpretOptions};
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::path::PathBuf;

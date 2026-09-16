@@ -1,5 +1,13 @@
 //! Source-authored natural slice ranking reaches the ordinary native pipeline.
-use super::{AdmissionProfile, NativeTarget, OperationKind, calls, native_function};
+use super::{AdmissionProfile, NativeTarget, OperationKind, calls};
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 #[path = "natural_writer/optimization.rs"]
 mod optimization;
 use abstract_operations_to_target_operations::{

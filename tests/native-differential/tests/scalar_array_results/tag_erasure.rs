@@ -1,9 +1,14 @@
 //! Explicit qualification erasure preserves the selected call result's payload.
 
-use super::{
-    AdmissionProfile, NativeTarget, ReplayExpectation, native_function, produce,
-    publish_target_with_replay_expectation, target_artifact,
-};
+use super::{AdmissionProfile, NativeTarget, ReplayExpectation, produce, publish_target_with_replay_expectation, target_artifact};
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 #[test]
 fn native_boolean_equality_predicates_preserve_runtime_and_literal_truth_tables() {
     for pattern in ["right", "true", "false"] {

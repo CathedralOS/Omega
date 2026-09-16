@@ -1,6 +1,5 @@
 //! Command execution regression tests grouped by resolver behavior.
 
-#[cfg(unix)]
 use super::{capture::*, policy::*, reconciliation::*};
 use crate::error::SourceResolveError;
 #[cfg(unix)]

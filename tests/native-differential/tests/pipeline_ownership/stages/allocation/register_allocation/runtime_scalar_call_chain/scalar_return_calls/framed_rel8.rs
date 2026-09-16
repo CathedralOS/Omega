@@ -1,5 +1,6 @@
 //! Frame expansion must preserve a source-admitted short branch and both call arms.
 
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use super::super::super::super::super::super::{
     StagedFunctionFragmentFrameApplication, validate_function_fragment_frame_application,
 };
