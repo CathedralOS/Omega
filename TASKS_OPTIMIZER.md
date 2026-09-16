@@ -1073,47 +1073,5 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   the same matrix for the selected-instructions phase's `runtime_spill`
   exact rule, then the other phases' exact rules.
 
-- **TARGET-MATRICES.** Complete supported target/OS allocator, encoding,
-  unwind, object, and callable matrices. Existing selected-lowering and
-  post-allocation matrices do not claim physical spill insertion, final frame
-  layout, or unwind completion. The callable leg now declares its second
-  boundary mechanism: `CallingPolicy::native_syscall_for_target` maps the
-  Linux x86-64 and arm64 pairs to their direct-syscall policies, answers
-  none for the Windows, UEFI, and Darwin C-called boundaries, and fails
-  closed on undeclared pairs; provider-planning's syscall binding arm now
-  selects from this matrix rather than a private (format, architecture)
-  match (calling-conventions `nextest`: 66 pass on Linux x86-64, including
-  per-target row pinning, undeclared-pair, and wrong-architecture drift
-  negatives). The encoding leg is now declared on both ISAs: isa-aarch64
-  `selected_keys` resolves one `Aarch64SelectedAbi` per supported
-  (architecture, object-format) pair — (Aarch64, Elf) AAPCS64 and (Aarch64,
-  MachO) Darwin — so call, aggregate, and float-return rosters follow the
-  declared family rather than a non-ELF fallback, and undeclared (Aarch64,
-  Coff) fails closed with `UnsupportedTargetAbi` before any row is selected
-  (`cargo test -p isa-aarch64`: 102 pass on Linux x86-64, including declared
-  pair pinning, the undeclared-Coff arm, and exact-target hosted rows). The
-  object leg is now declared in object-file `target_matrix`:
-  `object_target_policy` maps each supported (architecture, object-format)
-  pair — (Aarch64, Elf), (Aarch64, MachO), (X86_64, Elf), and (X86_64, Coff)
-  — to its entry-symbol spelling, per-kind section names, and canonical text
-  alignment, so `entry_symbol_name`, `section_name`, and
-  `symbol_section_name` resolve through the matrix and fail closed on
-  undeclared pairs rather than inheriting a format arm's spelling, and the
-  relocation-free validator and object construction reject undeclared pairs
-  as `NonCanonicalTarget` through the same resolution (`cargo test -p
-  object-file`: 24 pass on Linux x86-64, including per-pair row pinning,
-  undeclared-pair rejection, and wrong-architecture drift negatives).
-  The allocator leg is now declared in `machine-emission::frame_layout`'s
-  stack-commit matrix: `stack_commit_granule_bytes` resolves one row per
-  supported (architecture, object-format) pair — 4 KiB for x86-64 ELF/COFF
-  and AArch64 ELF, 16 KiB for (Aarch64, Mach-O) — and layout compute plus
-  independent replay both fail closed with `UnsupportedTarget` on undeclared
-  pairs instead of silently inheriting a 4 KiB granule through a wildcard
-  (`mbx nextest run -p machine-emission`: 26 pass on macOS arm64, including
-  per-pair row pinning and undeclared-pair rejection; the
-  `native-realization` probe-roster publication replay passes on the same
-  host). Remaining: the unwind leg.
-  Windows runs were unavailable on this host.
-
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target.
