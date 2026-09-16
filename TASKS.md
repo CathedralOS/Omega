@@ -475,8 +475,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   formation are proved on the produced polynomial, never assumed
   (`pass/termination/computed_measure_rank_range` and four fail canaries).
   Nonlinear bodies reject because the engine's linear reasoning cannot
-  bound their monomials, and computed views in runtime call components
-  still reject.
+  bound their monomials. Runtime call components admit the same computed
+  views at 233922f8ee (`RankOrder::DeclaredComputation`; formation proved
+  for the source and destination rank at every call and for the initial
+  rank at entry; `pass/termination/computed_measure_call_component` plus
+  three fail canaries), and every termination-lane fixture from these
+  slices is registered in the canary rosters. A ranged slice member
+  calling from a subordinate state still rejects ("rank range membership,
+  pinned endpoints, or nonincrease is unproven at a call site") because
+  the call judgment does not consume the member's own proven range
+  invariant at internal arrivals; the checked stage's state-edge judgment
+  already re-establishes membership there, so consuming it is the next
+  slice once `src/tests` (which pins the conservative rule in
+  `mixed_component_conserves_endpoints_through_internal_state_calls`) is
+  free to update.
   Still open on this item: diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
   premises, borrowed and nested
