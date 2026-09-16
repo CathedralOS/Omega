@@ -46,6 +46,7 @@ use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 mod budget_and_invalidation;
 mod cycle_component_custody;
+mod evidence_matrix;
 mod execution;
 mod fixtures;
 mod replay;
