@@ -1,6 +1,26 @@
 use crate::support::*;
 use compiler::CheckedCompileRequest;
 
+/// Normal-return contract exits of one package machine. The checked program
+/// also carries the hosted entry contract and its `core` imports, whose
+/// machines contribute their own exits, so whole-program counts do not
+/// describe the fixture.
+fn contract_exit_count(checked: &ReviewFixture, machine_name: &str) -> usize {
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+        .expect("fixture machine");
+    checked
+        .facts
+        .proof
+        .contract_exits
+        .iter()
+        .filter(|(_, exit)| exit.machine_symbol == machine.symbol)
+        .count()
+}
+
 #[test]
 fn public_contract_call_projection_requires_one_exact_checked_certificate() {
     let package = TempPackage::new();
@@ -129,7 +149,7 @@ ensures
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("ordinary checking should retain the out-of-language stand-down");
-    assert_eq!(checked.facts.proof.contract_exits.len(), 1);
+    assert_eq!(contract_exit_count(&checked, "unchecked_claim"), 1);
     let [stand_down] = checked.custody.contract_entailment_stand_downs() else {
         panic!("one exact contract-entailment stand-down")
     };
@@ -641,7 +661,7 @@ ensures
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
         })
         .expect("duplicate open-goal fixture should check");
-        assert_eq!(checked.facts.proof.contract_exits.len(), 1);
+        assert_eq!(contract_exit_count(&checked, "unchecked_claim"), 1);
         project_checked_package_review(&checked)
             .expect("duplicate equal goals retain exact coordinates")
     };
