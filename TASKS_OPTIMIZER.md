@@ -572,12 +572,28 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   validated roster reject, and the artifact still reaches ordinary
   callable publication on all four targets
   (`unwind_roster::unwind_restore_roster_replays_through_ordinary_callable_entry`).
+  The call-site stack contract is landed: a calling frame records the
+  selected preservation convention's declared stack alignment as both
+  its pre-call boundary and its ABI restatement, and commits an extent
+  carrying the (architecture, convention) pair's call-entry residue —
+  eight bytes of call-pushed return address on x86-64, zero on AArch64
+  — so the post-prologue stack pointer meets the declared boundary
+  before any call site runs rather than a literal the frame allocator
+  happened to know. An undeclared pair answers no contract instead of
+  borrowing another row's constants. A caller keeping values live
+  across three scalar calls replays the emitted prologue's exact
+  commit and the epilogue's matching release against the recorded
+  fields through ordinary callable publication on all five admitted
+  targets; a row recording a borrowed alignment or a residue-breaking
+  extent fails closed under independent replay
+  (`call_site_alignment::call_site_stack_contract_replays_through_ordinary_callable_entry`).
   Acceptance: every admitted frame policy
   replays its exact physical accesses through callable publication;
   requirements artifacts remain non-authoritative until that replay
   succeeds. Remaining: dynamic-allocation constraints; general
-  calls still need target-owned frame, callee-save, link-register, and
-  call-site alignment plans beyond the landed callee-save frames.
+  calls still need target-owned frame, callee-save, and link-register
+  plan legs beyond the landed callee-save frames and call-site stack
+  contract.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
