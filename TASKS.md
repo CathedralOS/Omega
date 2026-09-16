@@ -800,8 +800,27 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   `checked-compilation-to-terminal-artifact::terminal_artifact::behavior_exclusions`,
   which re-lowers each selected entry unoptimized before the artifact is
   admitted and checks callback thunk bodies at their own production site. Unit
-  coverage: `cargo nextest run -p build-evaluation behavior_exclusions`. Next:
-  the compiled-corpus acceptance with optimizations on and off.
+  coverage: `cargo nextest run -p build-evaluation behavior_exclusions`.
+  The compiled corpus landed at c5e9124522:
+  `tests/fixtures/packages/behavior-exclusions/` composes one `assert-kit`
+  library (`Assert::check` under a public Trap ceiling, `CheckingAssert`
+  and `NoOpAssert` providers) into `checking-app` and `no-op-app` under
+  `exclude_crash(CrashCause::Trap)`; through `omega install --offline` and
+  `omega --target linux_x86_64` the no-op composition passes exclusion
+  admission with `ControlFlowCleanup` enabled and rolled back while the
+  checking composition rejects as prohibited in both states, and the
+  diagnostic now attributes the crash site through the provider
+  (`reached through machine \`CheckingAssert::check\`` plus a
+  "declared here" row from `MachineProvenance` in
+  `terminal_artifact/behavior_exclusions.rs`;
+  `compiler/tests/behavior_exclusions.rs`, macOS ARM64). Open: a Unit
+  machine whose own state crashes has no checked Unit plan
+  (`InvalidUnitMachinePlan`, so the corpus routes the verdict through a
+  scalar helper), boundary requirements carrying a crash contract are
+  refused by native lowering (`UnsupportedBoundaryCrashContract` blocks the
+  passing composition's native product), and the Console rows have no
+  service-exclusion authoring surface (`Build::exclude_crash` only), so
+  they remain covered by build-evaluation unit tests alone.
 
 - **BUILD-EXCLUSION-REALIZATION.** Extend the existing receiving-policy and native
   admission route in `omega-rust/omega/build/`, `omega-rust/omega/semantics/` and
