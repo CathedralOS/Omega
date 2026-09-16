@@ -243,12 +243,19 @@ impl TerminalExecution {
         Ok(())
     }
 
+    /// Enter one scalar-result callee after the operation-specific argument
+    /// checks have succeeded. Ordinary and dynamic calls prepare their
+    /// arguments against the callee signature directly; admitted provider
+    /// dispatch passes the boundary-prepared arguments converted by
+    /// `BoundaryArguments::into_call_arguments`, the same custody conversion
+    /// the Unit and structural provider results use.
     pub(super) fn begin_structural_scalar_call(
         &mut self,
         callee_id: MachineId,
         result: terminal_psi::ValueDeclaration,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[StructuralArgument],
+        prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
         dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     ) -> Result<(), TerminalInterpretError> {
@@ -260,8 +267,6 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
         let mut structural_values = prepared_arguments.values;
         self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
         let byte_sequence_values = prepared_arguments.byte_sequences;

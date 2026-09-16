@@ -89,11 +89,14 @@ impl TerminalExecution {
                     .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let prepared_arguments =
+            self.prepare_structural_call_arguments(callee, structural_arguments)?;
         self.begin_structural_scalar_call(
             callee,
             result,
             &scalar_arguments,
             structural_arguments,
+            prepared_arguments,
             claim_transfers,
             dynamic_parameters,
         )?;
@@ -119,7 +122,18 @@ impl TerminalExecution {
             .get(&(self.current_machine, descriptor_ordinal))
             .cloned()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        self.begin_structural_scalar_call(callee, result, &[], &[source], &[], BTreeMap::new())?;
+        let structural_arguments = std::slice::from_ref(&source);
+        let prepared_arguments =
+            self.prepare_structural_call_arguments(callee, structural_arguments)?;
+        self.begin_structural_scalar_call(
+            callee,
+            result,
+            &[],
+            structural_arguments,
+            prepared_arguments,
+            &[],
+            BTreeMap::new(),
+        )?;
         Ok(OperationFlow::Redispatch)
     }
 
@@ -330,15 +344,20 @@ impl TerminalExecution {
                 &boundary_arguments.values,
             )?;
             validate_boundary_requirements(boundary_declaration, &boundary_arguments.values)?;
+            // One installed provider call shares the exact frame each result
+            // form already uses for an ordinary callee. Scalar results carry
+            // no structural custody to restrict: the callee's declared scalar
+            // result type is checked against the operation result at entry.
             let supported_result = match &operation.result {
-                terminal_psi::OperationResult::Unit => true,
+                terminal_psi::OperationResult::Unit | terminal_psi::OperationResult::Scalar(_) => {
+                    true
+                }
                 terminal_psi::OperationResult::Structural(result) => {
                     result.multiplicity == StructuralMultiplicity::Affine
                         && result.qualifications.is_empty()
                         && result.projected_qualifications.is_empty()
                         && result.claims.is_empty()
                 }
-                terminal_psi::OperationResult::Scalar(_) => false,
             };
             if !supported_result {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -382,8 +401,16 @@ impl TerminalExecution {
                         Vec::new(),
                     )?;
                 }
-                terminal_psi::OperationResult::Scalar(_) => {
-                    unreachable!("scalar provider results were rejected above")
+                terminal_psi::OperationResult::Scalar(result) => {
+                    self.begin_structural_scalar_call(
+                        callee_id,
+                        *result,
+                        &scalar_arguments,
+                        structural_arguments,
+                        prepared_arguments,
+                        &claim_transfers,
+                        BTreeMap::new(),
+                    )?;
                 }
             }
             return Ok(OperationFlow::Redispatch);
