@@ -8,7 +8,8 @@ use crate::machine_calls::calls::write_frames::parameter_aliases::{
     ParameterRelativeFrameOrigin, expression_reborrows_transparent_alias_binding,
 };
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, split_place_root,
+    FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, same_place_origin,
+    split_place_root,
 };
 use crate::machine_calls::calls::write_frames::reference_origins;
 use crate::machine_calls::calls::write_frames::transparent_effects::{
@@ -162,6 +163,33 @@ pub(crate) fn parameter_relative_place_origin(
                 symbols,
                 inference,
             )
+        }
+        ExpressionNode::Match(dispatch) => {
+            // A conditional result contributes one origin only when every
+            // producing arm resolves to that same place; divergent routes
+            // stay opaque rather than selecting one arm of the case
+            // analysis. Arm pattern and subject effects are not result
+            // routes and remain with the body walk.
+            let mut selected = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let origin = parameter_relative_place_origin(
+                    program,
+                    current_machine,
+                    arm.value,
+                    parameters,
+                    aliases,
+                    symbols,
+                    inference,
+                )?;
+                match &selected {
+                    None => selected = Some(origin),
+                    Some(existing)
+                        if existing.parameter_symbol == origin.parameter_symbol
+                            && same_place_origin(&existing.place, &origin.place) => {}
+                    Some(_) => return None,
+                }
+            }
+            selected
         }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
