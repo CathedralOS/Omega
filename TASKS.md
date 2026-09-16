@@ -219,10 +219,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `array_index_from_call` i64-widened operands, `math_proofs` `embed()`
   ensures arithmetic, `uefi_hello` `&mut self` receiver, and
   `dungeon_crawler_cli`'s `==`/`!=` guard pair rewritten as a boolean
-  transition. The last full `all_samples_reach_checked_trees` run reported
-  19/140 failing, attributed below; scoped rechecks are not a new full baseline.
-  Samples still failing earlier phases may hide additional undeclared
-  reaches; their owners should rerun and read the printed sets.
+  transition. A full `all_samples_reach_checked_trees` rerun at
+  `69fca41bda` (2026-09-16 UTC, macOS ARM64) reported 12/140 failing —
+  `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
+  `dice_histogram`, `calendar`, `dungeon_render`, `mandelbrot`,
+  `mandelbrot_zoom`, `wire_protocol`, `dungeon_crawler_cli`, `math_proofs` —
+  down from the earlier 19/140 and all inside the attribution families
+  below; scoped rechecks are not a new full baseline. Samples still failing
+  earlier phases may hide additional undeclared reaches; their owners should
+  rerun and read the printed sets.
 
   Remaining checked-stage dependencies from that run: text/field proofs —
   `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
@@ -292,9 +297,23 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `checked-trees-to-lowered-psi` structural storage and **GENERAL-CYCLIC-EXECUTION**;
   acceptance remains the unchanged sample's native exit 70.
 
+  `cli/basics` documented-exit cohort at `69fca41bda` (2026-09-16 UTC, macOS
+  ARM64), `OMEGA_SAMPLE_RUNTIME_FILTER=cli__basics` with the
+  `samples_with_documented_exit_run_correctly` selector: 2 of 11 samples
+  execute correctly (`cli_mvp`, `generic_counters`). Six reach
+  `InvalidUnitMachinePlan` for `Main::main` — `brightness_control`,
+  `nested_diagnostics`, `print_number`, `temperature_convert`,
+  `text_greeting`, `unit_converter` — the same missing checked transitive
+  machine plan family as `recursive_sum`, `dutch_flag`, and `window_app`
+  above (**GENERAL-CYCLIC-EXECUTION**). `number_guess` reaches
+  `Selection(Legalization(SourceCustodyMismatch))` in native physical
+  staging, a category not previously recorded on this board.
+  `multiplication_table` still fails checked-stage `Utf8` field proofs and
+  `print_squares` still stops at `OperationProofUnavailable(ObligationId(25))`.
+
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
-  | `cli_mvp` ordinary CLI and hosted matrix | Finish real project package review with explicit owner acceptance, then run the documented CLI command. The macOS ARM64 compiler-library test already publishes and executes the unchanged source with exact two-line output, EOF and Enter, and exit 0. Establish the same customer behavior on the remaining hosted targets; cross-lowering alone is not runtime evidence. Linux x86-64 resume (`5c450f11ff`): the runtime probe passes checked semantics and Terminal publication, then native realization rejects the retained `&mut self` entry — no root-backed bridge provisions receiver storage (`native-realization/src/native_realization.rs` admits only macOS; `source/library/std/targets/` has no `linux_x86_64/entry.omg`). **ENTRY-CONTENT-ROOTS** owns the remaining hosted-receiver bridges ("realize retained receivers on both Linux targets"); the harness's test-owned entry binding is likewise macOS-only (`tests/support/macos_entry_acceptance.rs`). |
+  | `cli_mvp` ordinary CLI and hosted matrix | Finish real project package review with explicit owner acceptance, then run the documented CLI command. macOS ARM64 at `69fca41bda` (2026-09-16 UTC): `omega update --project samples/cli/basics/cli_mvp --target macos_arm64` renders three audit-recommended decision rows — the std external-realization `callable`, the Console `external_supply`, and the `FilesystemHost` `dangerous_capability` — and accepting them via `omega update --resume --project samples/cli/basics/cli_mvp` publishes `omega.lock`. The documented command then passes package acceptance and stops inside native production with `receiving terminal-authority permission policy has no exact row for Console::exit_process` (exit 1): `operations/compile_project.rs` defaults to the empty deny-by-absence receiving policy and no CLI input supplies consumer permission rows. That independently supplied receiving axis is **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** scope; do not mirror accepted package rows into it ([acceptance spec](wiki/spec/packages/acceptance.md) keeps it distinct). The macOS ARM64 compiler-library test already publishes and executes the unchanged source with exact two-line output, EOF and Enter, and exit 0. Establish the same customer behavior on the remaining hosted targets; cross-lowering alone is not runtime evidence. Linux x86-64 resume (`5c450f11ff`): the runtime probe passes checked semantics and Terminal publication, then native realization rejects the retained `&mut self` entry — no root-backed bridge provisions receiver storage (`native-realization/src/native_realization.rs` admits only macOS; `source/library/std/targets/` has no `linux_x86_64/entry.omg`). **ENTRY-CONTENT-ROOTS** owns the remaining hosted-receiver bridges ("realize retained receivers on both Linux targets"); the harness's test-owned entry binding is likewise macOS-only (`tests/support/macos_entry_acceptance.rs`). |
   | `print_squares` closure | Checked transitive Unit plans, byte-field presentation and storage-observation invariant scope are available. The probe still stops at `OperationProofUnavailable` for guarded-exit field obligations requiring a stronger counter/divisor invariant, and indexed bounds/increment overflow. Integer contradictions and saved field facts already have checked routes; do not invent another contradiction primitive or rebuild snapshot handling. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. Linux x86-64 resume (`5c450f11ff`): checked semantics pass and Terminal production stops at `OperationProofUnavailable(ObligationId(25))` — the nonzero-divisor obligation `1 <= self.place` on `digit_div`'s `self.sq / self.place`, the guarded-exit lockstep gap named above. |
   | Fixed-range Console input/output | Compose the selected source provider and real byte leaves with original receiver storage, exact returned cases/prefix, once-only effects, and cleanup. Use the ordinary graph and provider replay, not the deleted Unit/boundary planner. Windows byte I/O still needs imported-call/fixup/frame custody; Linux runtime evidence requires matching hosts. |
   | Receiver and aggregate operations | Finish shared/indexed projections, owned/local roots, scalar-result receiver calls, nested sum results and whole replacements, including mixed foreign-result assignments. Extend the shared statement sequencer; **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, and **CML4** own the corresponding joins. |
