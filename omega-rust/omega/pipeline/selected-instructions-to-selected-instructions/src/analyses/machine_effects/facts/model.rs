@@ -95,6 +95,7 @@ pub enum MachineEffectError {
     AmbiguousDeclaration { instruction: SelectedInstructionId },
     ConstraintEffectMismatch { instruction: SelectedInstructionId },
     ConstraintOperandMismatch { instruction: SelectedInstructionId },
+    FuelProvenanceMismatch { instruction: SelectedInstructionId },
     NonCanonicalFunction,
     NonCanonicalBlock,
     InstructionMismatch { instruction: SelectedInstructionId },

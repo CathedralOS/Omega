@@ -330,13 +330,17 @@ pub fn decode_provenance(
             units: cursor.u64()?,
         });
     }
-    Ok(SelectedInstructionProvenance {
+    let provenance = SelectedInstructionProvenance {
         operations,
         values,
         edges,
         obligations,
         fuel,
-    })
+    };
+    if !provenance.fuel_settles_only_claimed_sites() {
+        return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+    }
+    Ok(provenance)
 }
 
 pub fn decode_alternative(

@@ -137,6 +137,14 @@ fn validate_instruction(
             instruction: source.id,
         });
     }
+    // Retained provenance is source custody, not free text: every logical-fuel
+    // settlement must name an operation or edge the instruction claims, settle
+    // it at most once, and charge a nonzero unit count.
+    if !source.provenance.fuel_settles_only_claimed_sites() {
+        return Err(MachineEffectError::FuelProvenanceMismatch {
+            instruction: source.id,
+        });
+    }
     let constraint = constraints
         .catalog()
         .constraints

@@ -5,6 +5,7 @@
 //! constraint row after selection and rewrites. These witnesses corrupt one
 //! operand-contract field at a time against real target constraint rows.
 
+use optimization_unit::{FuelSettlement, PsiProvenance};
 use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
@@ -19,7 +20,9 @@ use selected_instructions::{
     SelectedTerminator, ValidatedMachineEffectCatalog, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{BlockId, EdgeId, IntegerSign, IntegerType, MachineId, ScalarType};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
+};
 use target::NativeTarget;
 
 use super::{MachineEffectError, validate_function, validate_instruction};
@@ -298,6 +301,76 @@ fn operand_registers_must_resolve_in_the_function_register_table() {
     let mut shuffled = function.clone();
     shuffled.virtual_registers[0].id = VirtualRegisterId(1);
     assert_operand_mismatch(&shuffled, &instruction, &expected, &environment, &catalog);
+}
+
+#[test]
+fn fuel_settlements_replay_against_claimed_provenance_sites() {
+    let environment = environment();
+    let catalog = catalog(&environment);
+    let row = compare_row(&environment);
+    let (function, mut instruction, mut expected) =
+        fixture(SelectedInstructionKind::CompareI64, &row, &catalog);
+    let operation = OperationId::new(2).expect("operation id");
+    let edge = EdgeId::new(3).expect("edge id");
+    instruction.provenance = SelectedInstructionProvenance {
+        operations: vec![operation],
+        edges: vec![edge],
+        fuel: vec![
+            FuelSettlement {
+                site: PsiProvenance::Operation(operation),
+                units: 7,
+            },
+            FuelSettlement {
+                site: PsiProvenance::Edge(edge),
+                units: 11,
+            },
+        ],
+        ..Default::default()
+    };
+    expected.provenance = instruction.provenance.clone();
+    assert_eq!(
+        validate(
+            &function,
+            &instruction,
+            &expected,
+            environment.constraints(),
+            &catalog,
+        ),
+        Ok(())
+    );
+
+    for corruption in 0..4 {
+        let mut forged = instruction.clone();
+        match corruption {
+            // Fuel settled against an operation the instruction never claims.
+            0 => forged.provenance.fuel.push(FuelSettlement {
+                site: PsiProvenance::Operation(OperationId::new(41).expect("operation id")),
+                units: 1,
+            }),
+            // Fuel settled against an edge the instruction never claims.
+            1 => forged.provenance.fuel.push(FuelSettlement {
+                site: PsiProvenance::Edge(EdgeId::new(43).expect("edge id")),
+                units: 1,
+            }),
+            // A claimed site may not settle twice.
+            2 => forged.provenance.fuel.push(forged.provenance.fuel[0]),
+            // A claimed site still owes a nonzero charge.
+            _ => forged.provenance.fuel[1].units = 0,
+        }
+        assert!(
+            matches!(
+                validate(
+                    &function,
+                    &forged,
+                    &expected,
+                    environment.constraints(),
+                    &catalog,
+                ),
+                Err(MachineEffectError::FuelProvenanceMismatch { .. })
+            ),
+            "corruption {corruption} must be rejected"
+        );
+    }
 }
 
 #[test]
