@@ -21,12 +21,6 @@ module. Sampled members (`erased_record_equality…`,
 `accepts_static_persistent_copy_across…`) reproduce identically with the diff
 stashed. Independently verified twice on this revision.
 
-## checked-trees-to-lowered-psi
-
-`mbx nextest run -p checked-trees-to-lowered-psi --lib` — 598/599 pass;
-`byte_write_loop::byte_input_exact_narrowing_rejects_a_state_annotation_without_field_bounds`
-fails with stale expected diagnostic text.
-
 ## compiler build-target activation
 
 `mbx nextest run -p compiler --test build_target_activation` — 16/22 pass; 6
@@ -36,13 +30,6 @@ fail in FMA demand and service-reach fixtures (`admitted_x86_fma_demand…`,
 `terminal_product_retains_exact_fma…`). Fixtures lack service-reach
 declarations; x86 FMA provider transport is unimplemented on this host.
 
-## native-realization
-
-`mbx nextest run -p native-realization --lib` — 79/83 pass;
-`source_ordered_calls_reach_executable_publication`,
-`source_common_return_conditionals_use_the_shared_native_pipeline`, and two
-`function_reporting` tests fail with
-`Selection(Legalization(SourceCustodyMismatch))` before the physical gate.
 
 ## Host note (macOS)
 
