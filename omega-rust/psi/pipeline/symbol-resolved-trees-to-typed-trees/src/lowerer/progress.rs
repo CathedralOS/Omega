@@ -279,28 +279,34 @@ fn resolve_subject_member_symbol(
     let parameter = parameters
         .iter()
         .find(|parameter| parameter.symbol == subject.root)?;
-    let mut type_symbol = if parameter.is_self {
-        self_data_symbol.or_else(|| type_reference_symbol(program, parameter.type_reference))
+    // The demanded path's position is a declared type plus the arguments the
+    // reaching generic application bound to that declaration's type
+    // parameters. `self` starts at the attached data declaration, which binds
+    // no arguments. An opaque leaf (a machine type parameter, an unevaluated
+    // const type, a dynamic trait) binds nothing either: the projections that
+    // follow it verify by their own exact field identity rather than by
+    // member lookup, as the checker's partition replay does.
+    let mut position = if let Some(symbol) = self_data_symbol.filter(|_| parameter.is_self) {
+        SubjectPosition::AttachedData(symbol)
     } else {
-        type_reference_symbol(program, parameter.type_reference)
-    }?;
-
+        SubjectPosition::Reference(parameter.type_reference)
+    };
+    let mut substitution = Vec::new();
     for projection in &subject.projections {
-        let field = program.data_definitions().iter().find_map(|data| {
-            program.data_members(data).iter().find_map(|member| {
-                let typed::data::DataMember::Field(field) = member else {
-                    return None;
-                };
-                (field.symbol == *projection).then_some(field)
-            })
-        })?;
-        type_symbol = type_reference_symbol(program, field.type_reference)?;
+        let field = match replay_subject_position(program, position, &substitution) {
+            Some((data, bound)) => {
+                substitution = bound;
+                declared_field_with_symbol(program, data, *projection)?
+            }
+            None => {
+                substitution = Vec::new();
+                exact_declared_field(program, *projection)?
+            }
+        };
+        position = SubjectPosition::Reference(field.type_reference);
     }
 
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == type_symbol)?;
+    let (data, _) = replay_subject_position(program, position, &substitution)?;
     program.data_members(data).iter().find_map(|member| {
         let typed::data::DataMember::Field(field) = member else {
             return None;
@@ -309,24 +315,134 @@ fn resolve_subject_member_symbol(
     })
 }
 
-fn type_reference_symbol(
-    program: &typed::TypedTrees,
-    type_reference: typed::types::TypeReferenceHandle,
-) -> Option<symbols::SymbolHandle> {
-    match program.type_reference_table.type_reference(type_reference) {
-        typed::types::TypeReferenceNode::Reference { referee, .. }
-        | typed::types::TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => type_reference_symbol(program, *referee),
-        typed::types::TypeReferenceNode::Generic { base_symbol, .. }
-        | typed::types::TypeReferenceNode::DynamicTrait {
-            symbol: base_symbol,
-            ..
+/// Where a demanded subject path currently points: a stored type reference,
+/// or the attached `self` datum reached without one.
+#[derive(Clone, Copy)]
+enum SubjectPosition {
+    Reference(typed::types::TypeReferenceHandle),
+    AttachedData(symbols::SymbolHandle),
+}
+
+/// The declaration a subject position may still replay, plus the bindings the
+/// reaching generic application supplies for that declaration's type
+/// parameters. A `Box<Context>` leaf names `Box`'s own declaration — its
+/// members verify only this projection's identity — while its `T` argument
+/// rebinds `item`'s declared type so the next segment resumes at `Context`.
+/// Any other leaf stays opaque and the caller falls back to exact field
+/// identity, mirroring `checks/termination/progress/lineage/places.rs`.
+fn replay_subject_position<'program>(
+    program: &'program typed::TypedTrees,
+    position: SubjectPosition,
+    substitution: &[(symbols::SymbolHandle, typed::types::TypeReferenceHandle)],
+) -> Option<(
+    &'program typed::data::DataDefinition,
+    Vec<(symbols::SymbolHandle, typed::types::TypeReferenceHandle)>,
+)> {
+    use typed::types::TypeReferenceNode;
+    let mut reference = match position {
+        SubjectPosition::AttachedData(symbol) => {
+            return program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == symbol)
+                .map(|data| (data, Vec::new()));
         }
-        | typed::types::TypeReferenceNode::Named {
-            symbol: base_symbol,
-            ..
-        } if base_symbol.is_valid() => Some(*base_symbol),
-        _ => None,
+        SubjectPosition::Reference(reference) => reference,
+    };
+    let mut substituted = Vec::new();
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if base_symbol.is_valid() => {
+                let data = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == *base_symbol)?;
+                let bound = program
+                    .data_type_parameters(data)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .zip(
+                        program
+                            .type_reference_table
+                            .type_reference_handles(*arguments)
+                            .iter()
+                            .copied(),
+                    )
+                    .collect();
+                return Some((data, bound));
+            }
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. }
+                if symbol.is_valid() =>
+            {
+                // A bound type parameter resumes at the argument the
+                // application supplied; the `substituted` guard keeps a
+                // self-referential binding finite.
+                if !substituted.contains(symbol)
+                    && let Some(argument) = substitution
+                        .iter()
+                        .find(|(parameter, _)| parameter == symbol)
+                        .map(|(_, argument)| *argument)
+                {
+                    substituted.push(*symbol);
+                    reference = argument;
+                    continue;
+                }
+                let data = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == *symbol)?;
+                return Some((data, Vec::new()));
+            }
+            _ => return None,
+        }
     }
+}
+
+/// The member of one replayed declaration a resolved projection names.
+fn declared_field_with_symbol<'program>(
+    program: &'program typed::TypedTrees,
+    data: &'program typed::data::DataDefinition,
+    symbol: symbols::SymbolHandle,
+) -> Option<&'program typed::data::DataField> {
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            typed::data::DataMember::Field(field) => (field.symbol == symbol).then_some(field),
+            typed::data::DataMember::Variant(variant) => program
+                .data_payload_fields(variant)
+                .iter()
+                .find(|field| field.symbol == symbol),
+        })
+}
+
+/// The declaration a field symbol already identifies. A projection is
+/// produced by exact member resolution or not at all; when the demanded path
+/// stands on an opaque leaf the symbol is the only provenance available, and
+/// its own declared field type resumes the bounded replay.
+fn exact_declared_field(
+    program: &typed::TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<&typed::data::DataField> {
+    if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Field {
+        return None;
+    }
+    program
+        .data_definitions()
+        .iter()
+        .flat_map(|data| program.data_members(data))
+        .flat_map(|member| match member {
+            typed::data::DataMember::Field(field) => std::slice::from_ref(field),
+            typed::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
+        })
+        .find(|field| field.symbol == symbol)
 }
