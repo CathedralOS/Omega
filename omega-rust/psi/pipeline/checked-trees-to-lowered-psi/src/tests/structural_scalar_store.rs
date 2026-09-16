@@ -415,8 +415,8 @@ fn lowers_direct_and_nested_write_only_record_field_stores() {
 fn lowers_borrowed_fixed_array_element_field_stores() {
     // A bare borrowed fixed-array root begins its carrier path with the
     // literal element index. The shared path resolver admits that hop against
-    // the declared array shape; the bounded store-path grammar then decides
-    // whether the finished module may carry it.
+    // the declared array shape, and the bounded store-path grammar carries the
+    // leading index through module validation.
     let checked = checked_source(&format!(
         "{SOURCE}
          machine store_mut(records: &mut [Cell; 3]) {{ records[1].value = 13; }}
@@ -476,15 +476,24 @@ fn lowers_borrowed_fixed_array_element_field_stores() {
             )
             .unwrap_or_else(|error| panic!("{machine_name} element store path lowers: {error:?}"));
         assert_eq!(lowered.path, [StructuralPathSegment::FixedIndex(1)]);
-        // Module publication still requires the bounded scalar-store path
-        // grammar to admit a leading element index; until that representation
-        // rule relaxes, the finished module rejects this carrier shape.
-        assert!(matches!(
-            lower_machine(&checked, machine_name),
-            Err(LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::InvalidStructuralScalarFieldStore { .. }
-            ))
-        ));
+        // The finished module validates with the leading literal index, so the
+        // store reaches terminal publication through the ordinary route.
+        let module = lower_machine(&checked, machine_name)
+            .unwrap_or_else(|error| panic!("{machine_name} element store verifies: {error:?}"))
+            .semantic_module;
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(
+                    &operation.kind,
+                    OperationKind::StructuralScalarFieldStore { path, .. }
+                        if path.as_slice() == [StructuralPathSegment::FixedIndex(1)]
+                )),
+            "{machine_name} retains the literal element-index store path"
+        );
     }
 }
 

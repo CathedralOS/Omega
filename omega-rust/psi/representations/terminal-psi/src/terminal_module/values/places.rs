@@ -11,7 +11,10 @@ pub enum StructuralPathSegment {
 
 /// Whether a scalar-store carrier path is within the currently executable
 /// bounded projection grammar: record fields, optionally followed by one
-/// literal fixed-array index. Indexed stores must retain a record-field owner.
+/// literal fixed-array index. A bare fixed-array root has no record-field
+/// owner, so its carrier path is the literal element index alone. Dynamic
+/// indexes are not representable here and stay rejected upstream; resolution
+/// still requires each literal index below its declared extent.
 pub fn is_bounded_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
     let first_index = path
         .iter()
@@ -23,7 +26,7 @@ pub fn is_bounded_structural_scalar_store_path(path: &[StructuralPathSegment]) -
     ) && path[first_index..]
         .iter()
         .all(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-        && (index_count == 0 || (first_index > 0 && index_count == 1))
+        && index_count <= 1
 }
 
 impl From<String> for StructuralPathSegment {

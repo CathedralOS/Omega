@@ -428,16 +428,44 @@ fn rejects_indexed_scalar_stores_outside_array_bounds() {
 }
 
 #[test]
+fn admits_leading_index_scalar_store_on_a_bare_array_root() {
+    // A bare borrowed fixed-array root has no record-field owner: its carrier
+    // path is the literal element index alone. The store then selects the
+    // element record's scalar field exactly as after a field-carried hop.
+    for index in [0, 2] {
+        for access in [
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let mut module = indexed_scalar_field_store_module(index);
+            module.machines[0].attachment = Some(id::<StructuralTypeId>(3));
+            module.machines[0].structural_parameters[0].structural_type = id::<StructuralTypeId>(3);
+            module.machines[0].structural_parameters[0].access = access;
+            scalar_store_path(&mut module).remove(0);
+            validate_module(&module).expect("leading-index scalar store verifies");
+        }
+    }
+
+    // A leading literal index outside the declared extent still rejects, as
+    // does a read-only authority with the same carrier shape.
+    for (index, access) in [
+        (3, StructuralAccess::WriteOnlyBorrow),
+        (0, StructuralAccess::SharedBorrow),
+    ] {
+        let mut module = indexed_scalar_field_store_module(index);
+        module.machines[0].attachment = Some(id::<StructuralTypeId>(3));
+        module.machines[0].structural_parameters[0].structural_type = id::<StructuralTypeId>(3);
+        module.machines[0].structural_parameters[0].access = access;
+        scalar_store_path(&mut module).remove(0);
+        assert_invalid_scalar_store(&module);
+    }
+}
+
+#[test]
 fn rejects_indexed_scalar_stores_with_malformed_carrier_paths() {
     let mut empty_field = indexed_scalar_field_store_module(0);
     scalar_store_path(&mut empty_field)[0] = StructuralPathSegment::Field(String::new());
     assert_invalid_scalar_store(&empty_field);
-
-    let mut root_index = indexed_scalar_field_store_module(0);
-    root_index.machines[0].attachment = Some(id::<StructuralTypeId>(3));
-    root_index.machines[0].structural_parameters[0].structural_type = id::<StructuralTypeId>(3);
-    scalar_store_path(&mut root_index).remove(0);
-    assert_invalid_scalar_store(&root_index);
 
     // These paths are well typed and in bounds; only the bounded store grammar
     // excludes a second array index or a field after the first index.
