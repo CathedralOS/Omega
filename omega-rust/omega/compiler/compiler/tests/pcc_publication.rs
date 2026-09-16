@@ -11,10 +11,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use compilation_report::{verify_native_proof_sidecar, verify_published_proof_pair};
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileOutcomes, CompileRequest,
-    RequestedCompileProduct, compile,
-};
+use compiler::{CompileOptions, CompileOutcomes, CompileRequest, RequestedCompileProduct, compile};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{
     PccIncompleteness, PccProductKind, PccProofSidecar, PccReceiverPolicy, PccVerificationOutcome,
@@ -191,7 +188,6 @@ fn compile_request_for(
         build_dir: None,
     })
     .with_requested_product(product)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
 }
 
 fn compile_native(dir: &Path) -> compiler::CompileReport {

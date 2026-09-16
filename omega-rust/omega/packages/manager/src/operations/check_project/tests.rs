@@ -1,5 +1,5 @@
 use super::{
-    ArtifactEmissionPolicy, CheckPreparedLocalProjectError, CompileOutputKind, CompileReport,
+    CheckPreparedLocalProjectError, CompileOutputKind, CompileReport,
     CompileResolvedPackageReviewsError, PathBuf, PreparedLocalProject,
     PreparedLocalProjectCheckRequest, TargetProfile, check_prepared_local_project,
 };
@@ -44,7 +44,6 @@ impl Project {
 
     fn request(&self, entry: &str, output: &str) -> PreparedLocalProjectCheckRequest {
         PreparedLocalProjectCheckRequest::new(self.prepare(entry), self.0.join(output), TARGET)
-            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
     }
 }
 
@@ -77,10 +76,11 @@ fn requested_entry_is_checked_and_reported_instead_of_main() {
     project.write("source/main.omg", "this is deliberately invalid Omega\n");
     project.write("source/entry.omg", "pub machine value() -> u64 { 7 }\n");
     let prepared = project.prepare("source/entry.omg");
-    let report = check_prepared_local_project(
-        PreparedLocalProjectCheckRequest::new(prepared, project.0.join("output"), TARGET)
-            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-    )
+    let report = check_prepared_local_project(PreparedLocalProjectCheckRequest::new(
+        prepared,
+        project.0.join("output"),
+        TARGET,
+    ))
     .expect("only the requested root source is checked");
     assert_check_only(&report);
     assert_eq!(report.root_path().file_name().unwrap(), "entry.omg");

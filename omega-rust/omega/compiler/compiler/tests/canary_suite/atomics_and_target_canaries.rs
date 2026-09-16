@@ -1,9 +1,8 @@
 use super::{
     CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, check_canary, compile,
     compile_canary_without_output, compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_target, compile_single_file_hosted_main,
-    compile_with_auxiliary_artifacts, executable_name, fail_canary, fs, native_hosted_target,
-    pass_canary, unique_no_output_build_dir,
+    compile_rooted_canary_for_target, compile_single_file_hosted_main, executable_name,
+    fail_canary, fs, native_hosted_target, pass_canary, unique_no_output_build_dir,
 };
 #[path = "../fixture_rosters/atomics_and_target_canaries.rs"]
 pub(super) mod fixture_roster;
@@ -518,7 +517,7 @@ fn efi_two_table_function_leaves_cross_compile() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-two-table-leaves-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x86_64".to_owned()),
@@ -547,7 +546,7 @@ fn efi_out_param_call_marshals_addresses_and_stack_args() {
     let canary = pass_canary(fixture_roster::EFI_OUT_PARAM_CALL);
     let build_dir = std::env::temp_dir().join(format!("omega-out-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x86_64".to_owned()),

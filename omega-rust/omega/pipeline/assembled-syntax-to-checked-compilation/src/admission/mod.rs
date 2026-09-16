@@ -2,39 +2,19 @@
 //!
 //! `admit_checked_compilation` reconstructs the trust obligations of one sealed
 //! checked compilation and settles them against the owner's explicit
-//! admissions. `observations` writes the optional reports afterwards under
-//! the caller's `policy`; `snapshots` owns the checked-Psi snapshot files.
-
-mod observations;
-mod policy;
-mod snapshots;
-
-pub use policy::ArtifactEmissionPolicy;
+//! admissions without writing debug dumps.
 
 use crate::CheckedCompilation;
-use artifacts::TrustReport;
 use diagnostics::Diagnostic;
 use trust_model::{TrustAdmission, TrustAdmissionSettlement};
 
-/// Validated trust evidence tied to the exact checked program it describes.
-/// Borrowing the program prevents observation from pairing this evidence with
-/// another compilation or mutating its subject before use.
-pub struct CheckedAdmission<'checked> {
-    checked: &'checked CheckedCompilation,
-    trust_report: TrustReport,
+/// Validated trust settlement for one checked compilation.
+pub struct CheckedAdmission {
     settlement: TrustAdmissionSettlement,
 }
 
-impl CheckedAdmission<'_> {
-    pub(super) fn checked(&self) -> &CheckedCompilation {
-        self.checked
-    }
-
-    pub(super) fn trust_report(&self) -> &TrustReport {
-        &self.trust_report
-    }
-
-    /// Retain the admission outcome after consuming any requested observations.
+impl CheckedAdmission {
+    /// Retain the validated admission outcome.
     pub fn into_settlement(self) -> TrustAdmissionSettlement {
         self.settlement
     }
@@ -42,10 +22,10 @@ impl CheckedAdmission<'_> {
 
 /// Reconstruct and validate trust against explicit owner admissions. This step
 /// runs independently of report-file policy and grants no package-review authority.
-pub fn admit_checked_compilation<'checked>(
-    checked: &'checked CheckedCompilation,
+pub fn admit_checked_compilation(
+    checked: &CheckedCompilation,
     accepted: &[TrustAdmission],
-) -> Result<CheckedAdmission<'checked>, Vec<Diagnostic>> {
+) -> Result<CheckedAdmission, Vec<Diagnostic>> {
     let obligations = trust_model::reconstruct_trust_obligations(
         &checked.typed,
         checked,
@@ -67,9 +47,5 @@ pub fn admit_checked_compilation<'checked>(
     trust_report
         .validate()
         .map_err(|diagnostic| vec![diagnostic])?;
-    Ok(CheckedAdmission {
-        checked,
-        trust_report,
-        settlement,
-    })
+    Ok(CheckedAdmission { settlement })
 }

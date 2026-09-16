@@ -11,9 +11,7 @@ use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ReviewOnlyCapabilityConflictLimits, compile_resolved_package_candidate_for_production,
 };
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileReport, OptimizationRollback, TrustAdmission,
-};
+use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
 use diagnostics::Diagnostic;
 use native_realization::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
@@ -32,7 +30,7 @@ pub struct PreparedLocalProjectNativeRequest {
     prepared: PreparedLocalProject,
     build_dir: PathBuf,
     target_profile: target::TargetProfile,
-    artifact_policy: ArtifactEmissionPolicy,
+
     accepted_trust_admissions: Vec<TrustAdmission>,
     optimization_rollback: OptimizationRollback,
     terminal_authority_policy: TerminalAuthorityPolicy,
@@ -49,18 +47,13 @@ impl PreparedLocalProjectNativeRequest {
             prepared,
             build_dir: build_dir.into(),
             target_profile,
-            artifact_policy: ArtifactEmissionPolicy::Full,
+
             accepted_trust_admissions: Vec::new(),
             optimization_rollback: OptimizationRollback::default(),
             terminal_authority_policy: current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy:
                 current_terminal_authority_permission_policy(),
         }
-    }
-
-    pub fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
-        self.artifact_policy = artifact_policy;
-        self
     }
 
     pub fn with_accepted_trust_admissions(mut self, admissions: Vec<TrustAdmission>) -> Self {
@@ -96,7 +89,6 @@ pub enum CompilePreparedLocalProjectNativeError {
     Review(CompileResolvedPackageReviewsError),
     Evidence(AcceptedOrdinaryEvidenceError),
     TrustAdmission(Vec<Diagnostic>),
-    ObservationOutput(Vec<Diagnostic>),
     Native(Vec<Diagnostic>),
 }
 
@@ -110,12 +102,6 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
                 write!(
                     formatter,
                     "cannot accept fresh package review evidence: {error}"
-                )
-            }
-            Self::ObservationOutput(diagnostics) => {
-                write!(
-                    formatter,
-                    "cannot write checked observations: {diagnostics:?}"
                 )
             }
             Self::TrustAdmission(diagnostics) => {
@@ -159,13 +145,13 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
         prepared,
         build_dir,
         target_profile,
-        artifact_policy,
+
         accepted_trust_admissions,
         optimization_rollback,
         terminal_authority_policy,
         receiving_terminal_authority_permission_policy,
     } = request;
-    let (entry_path, source_closure, accepted_target) = prepared.into_review_parts();
+    let (_, source_closure, accepted_target) = prepared.into_review_parts();
     let target_closure = source_closure.for_exact_target(target_profile);
     let candidate = compile_resolved_package_candidate_for_production(
         &target_closure,
@@ -181,17 +167,9 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
         accepted_target.as_ref(),
     )
     .map_err(CompilePreparedLocalProjectNativeError::Evidence)?;
-    let options = CompileOptions {
-        root_path: entry_path,
-        build_dir: Some(build_dir),
-        target_name: Some(target_profile.target_name().to_owned()),
-    };
     let admission =
         compiler::admit_checked_compilation(candidate.checked_root(), &accepted_trust_admissions)
             .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
-    admission
-        .write_observations(&options.build_dir(), artifact_policy)
-        .map_err(CompilePreparedLocalProjectNativeError::ObservationOutput)?;
     let trust_settlement = admission.into_settlement();
     let observation = observe(candidate.checked_root());
     realize_accepted_native_report(

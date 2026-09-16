@@ -404,12 +404,6 @@ fn closed_indexed_domain_canaries() {
             "vacuous-use evidence must retain the exact indexed instance"
         );
     }
-    let evidence = visualizations::qualification_evidence_manifest_json(
-        &checked,
-        checked.selected_provider_plans(),
-    );
-    assert!(evidence.contains("\"semantic_domain_id\":"));
-    assert!(evidence.contains("\"semantic_domain\":"));
     let retag = checked
         .machines()
         .iter()
@@ -434,9 +428,6 @@ fn closed_indexed_domain_canaries() {
         specializations[0].report_fingerprint,
         specializations[1].report_fingerprint
     );
-    let contracts = visualizations::machine_contract_manifest_json(&checked);
-    assert!(contracts.contains("\"const_arguments\":"));
-
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
@@ -617,10 +608,6 @@ fn open_computed_quantity_result_canary_runs() {
         "computed result flow should retain its licensed-normalization verification condition: {:#?}",
         checked.facts.index_compatibility.conditions
     );
-    let compatibility = visualizations::index_compatibility_manifest_json(&checked);
-    assert!(compatibility.contains("\"name\": \"index-equality:"));
-    assert!(compatibility.contains("\"discharge\": \"licensed_normalization\""));
-    assert!(compatibility.contains("\"operation_count\": "));
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
@@ -702,9 +689,6 @@ fn open_index_exact_local_fact_canary_runs() {
         fact.point,
         facts::ProgramPoint::CallEnsures { .. } | facts::ProgramPoint::Global
     )));
-    let compatibility = visualizations::index_compatibility_manifest_json(&checked);
-    assert!(compatibility.contains("\"discharge\": \"established_local_fact\""));
-    assert!(compatibility.contains("\"evidence_facts\": ["));
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);

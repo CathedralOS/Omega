@@ -148,10 +148,7 @@ fn authorized_route_establishment_canaries() {
         product: CanaryCompileProduct::Check,
     })
     .expect("a carrier-owner checked machine should establish its bodyless result");
-    let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
-        .expect("qualification-evidence artifact");
-    assert!(evidence.contains("\"origin\": \"authorized_route_establishment\""));
-    assert!(evidence.contains("\"program_point\": \"call_ensures\""));
+    assert!(!build_dir.exists(), "checking does not write debug dumps");
     let _ = fs::remove_dir_all(&build_dir);
 
     for &name in fixture_roster::UNAUTHORIZED_ESTABLISHMENT_FAIL_CANARIES {
@@ -268,32 +265,12 @@ fn extent_root_provider_adapter_compiles() {
         "a checked adapter selected through the owner-authored Extent provider \
          requirement should originate and forward one admitted Granted root",
     );
-    let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
-        .expect("Extent qualification-evidence artifact");
-    assert!(evidence.contains("\"origin\": \"admitted_receipt\""));
-    assert!(evidence.contains("\"source\": \"ExtentRootProvider\""));
-    assert!(evidence.contains("\"requirement\": \"ExtentRootProvider::grant\""));
-    assert!(
-        evidence.contains("\"receipt_identity\": \"0x"),
-        "the build grant must attach the selected provider-plan receipt:\n{evidence}"
-    );
-    let outcomes = fs::read_to_string(build_dir.join("05_claim_outcomes.json"))
-        .expect("Extent claim-outcome and content-projection artifact");
-    assert!(outcomes.contains("\"content_projections\""));
-    assert!(outcomes.contains("\"domain\": \"Extent::Granted\""));
-    assert!(outcomes.contains("\"kind\": \"interval_set\""));
-    assert!(outcomes.contains("\"members\": ["));
-    assert!(outcomes.contains("\"coordinate_space\": \"named(name(Nat))\""));
-    assert!(outcomes.contains("\"kind\": \"runtime_scalar_embedding\""));
-    assert!(outcomes.contains("\"path\": [\"base\"]"));
-    assert!(outcomes.contains("\"path\": [\"length\"]"));
-    assert!(outcomes.contains("\"operator\": \"add\""));
-    assert!(outcomes.contains("\"report_fingerprint\": \"0x"));
+    assert!(!build_dir.exists(), "checking does not write debug dumps");
     let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]
-fn content_conservation_contract_is_normalized_and_reported() {
+fn content_conservation_contract_is_normalized() {
     let canary = pass_canary(fixture_roster::CONTENT_CONSERVATION_CONTRACT);
     let source = fs::read_to_string(canary.join("main.omg")).expect("content canary source");
     assert!(source.contains("old(&whole)"));
@@ -344,20 +321,13 @@ fn content_conservation_contract_is_normalized_and_reported() {
         target_name: None,
         product: CanaryCompileProduct::Check,
     })
-    .expect("the normalized conservation contract should emit its proof/debug artifact");
-    let outcomes = fs::read_to_string(build_dir.join("05_claim_outcomes.json"))
-        .expect("content-conservation artifact");
-    assert!(outcomes.contains("\"content_conservation\""));
-    assert!(outcomes.contains("\"owner_kind\": \"trait_requirement\""));
-    assert!(outcomes.contains("\"version\": \"entry\""));
-    assert!(outcomes.contains("\"kind\": \"separate\""));
-    assert!(outcomes.contains("\"kind\": \"result\""));
-    assert!(outcomes.contains("\"report_fingerprint\": \"0x"));
+    .expect("the normalized conservation contract should compile");
+    assert!(!build_dir.exists(), "checking does not write debug dumps");
     let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]
-fn carry_permission_provider_adapter_compiles_with_exact_artifacts() {
+fn carry_permission_provider_adapter_compiles() {
     let canary = pass_canary(fixture_roster::CARRY_PERMISSION_PROVIDER_ADAPTER);
     let build_dir = std::env::temp_dir().join(format!("omega-carry-claim-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -372,25 +342,7 @@ fn carry_permission_provider_adapter_compiles_with_exact_artifacts() {
          permission and allow that claim to cross suspension",
     );
 
-    let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
-        .expect("carry qualification-evidence artifact");
-    assert!(evidence.contains("\"domain\": \"Carry::AcrossSuspend\""));
-    assert!(evidence.contains("\"origin\": \"admitted_receipt\""));
-    assert!(evidence.contains("\"source\": \"ClaimProvider\""));
-    assert!(evidence.contains("\"requirement\": \"ClaimProvider::grant\""));
-    assert!(
-        evidence.contains("\"receipt_identity\": \"0x"),
-        "the carry permission must retain its admitted provider receipt:\n{evidence}"
-    );
-
-    let carry = fs::read_to_string(build_dir.join("05_carry_manifest.json"))
-        .expect("carry policy artifact");
-    assert!(carry.contains("\"machine\": \"Harness::forward\""));
-    assert!(carry.contains("\"storage\": \"local\""));
-    assert!(carry.contains(
-        "\"effective\": {\"suspension\": \"allowed\", \"cpu\": \"same\", \
-         \"thread\": \"same\", \"address\": \"stable\"}"
-    ));
+    assert!(!build_dir.exists(), "checking does not write debug dumps");
     let _ = fs::remove_dir_all(&build_dir);
 }
 
@@ -406,15 +358,6 @@ fn empty_domain_explicit_as_qualifies_vacuously() {
     assert_eq!(uses.len(), 3, "every explicit `as` use must be retained");
     assert_eq!(uses[0].domain, uses[1].domain);
     assert_ne!(uses[1].domain, uses[2].domain);
-    let evidence = visualizations::qualification_evidence_manifest_json(
-        &checked,
-        checked.selected_provider_plans(),
-    );
-    assert!(evidence.contains("\"vacuous_qualification_uses\": ["));
-    assert!(evidence.contains("\"origin\": \"vacuous_qualification\""));
-    assert!(evidence.contains("\"domain\": \"i64::Km\""));
-    assert!(evidence.contains("\"domain\": \"i64::Distance\""));
-    assert!(!evidence.contains("\"satisfier\""));
 }
 
 #[test]
@@ -440,12 +383,7 @@ fn boundary_qualification_evidence_names_exact_requirement() {
     })
     .expect("an exact boundary-result qualification should compile");
 
-    let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
-        .expect("qualification-evidence artifact");
-    assert!(evidence.contains("\"origin\": \"admitted_receipt\""));
-    assert!(evidence.contains("\"source\": \"Filesystem\""));
-    assert!(evidence.contains("\"requirement\": \"Filesystem::open\""));
-    assert!(evidence.contains("\"requirement_identity\": \"named-callable(path(Filesystem::open)"));
+    assert!(!build_dir.exists(), "checking does not write debug dumps");
     let _ = fs::remove_dir_all(&build_dir);
 }
 

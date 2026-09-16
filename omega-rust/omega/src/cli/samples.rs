@@ -1,6 +1,4 @@
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
-};
+use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use omega::compilation::publication;
 use std::path::{Path, PathBuf};
 
@@ -63,8 +61,7 @@ pub(crate) fn refresh(samples_root: &Path) -> ! {
                     };
                     let request = CompileRequest::new(options)
                         .with_package_inputs(package_inputs)
-                        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-                        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+                        .with_requested_product(RequestedCompileProduct::NativeArtifact);
                     let result = match compile(request)
                         .and_then(compiler::CompileOutcomes::into_single_report)
                     {

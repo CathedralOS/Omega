@@ -118,7 +118,6 @@ members = [
     "omega-rust/omega/packages/topology",
     "omega-rust/omega/packages/review/advisory",
     "tests/native-differential",
-    "omega-rust/omega/tooling/visualizations",
     "tests/architecture",
 ]
 resolver = "3"

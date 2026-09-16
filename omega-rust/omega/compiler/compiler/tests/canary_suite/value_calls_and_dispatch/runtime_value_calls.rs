@@ -1,11 +1,11 @@
 use super::assert_native_exit_code;
 use super::fixture_roster;
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, Stdio, compile_reviewed_repository_fixture,
+    CanaryCompileProduct, CanaryCompileSpec, Command, Stdio, compile,
+    compile_reviewed_repository_fixture,
     compile_rooted_backend_canary_without_output_for_target_and_permission_policy,
-    compile_rooted_canary_for_native_host, compile_rooted_canary_for_target,
-    compile_with_auxiliary_artifacts, fs, hosted_main_program_entry_build_for, interpret,
-    pass_canary,
+    compile_rooted_canary_for_native_host, compile_rooted_canary_for_target, fs,
+    hosted_main_program_entry_build_for, interpret, pass_canary,
 };
 use compiler::CheckedCompileRequest;
 use std::io::Write;
@@ -674,7 +674,7 @@ fn runtime_exit_code_exit_canary_runs() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write runtime exit-code cross-build source");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(output_dir.clone()),
             target_name: Some(target.to_owned()),

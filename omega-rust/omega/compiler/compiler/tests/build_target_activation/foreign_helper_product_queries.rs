@@ -1,7 +1,7 @@
 use super::{TempProject, application_build, foreign_helper_inputs};
 use compiler::{
-    ArtifactEmissionPolicy, CheckedCompileRequest, CompileOptions, CompileRequest,
-    RequestedCompileProduct, compile, compile_to_checked,
+    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+    compile_to_checked,
 };
 use std::fs;
 
@@ -137,7 +137,6 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
             target_name: Some("windows_x86_64".into()),
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
         .with_package_inputs(foreign_helper_inputs(&project, &helper)),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)

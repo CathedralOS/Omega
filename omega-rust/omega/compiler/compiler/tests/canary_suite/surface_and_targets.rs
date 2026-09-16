@@ -1,8 +1,7 @@
 use super::{
     CanaryCompileProduct, CanaryCompileSpec, Command, Path, compile,
-    compile_canary_without_output_for_target,
-    compile_rooted_canary_for_target_with_auxiliary_artifacts, compile_single_file_hosted_main,
-    compile_with_auxiliary_artifacts, fail_canary, fs, pass_canary, repo_root, sample_project,
+    compile_canary_without_output_for_target, compile_rooted_canary_for_target,
+    compile_single_file_hosted_main, fail_canary, fs, pass_canary, repo_root, sample_project,
 };
 #[cfg(windows)]
 use std::io::Write as _;
@@ -704,12 +703,8 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let scratch = std::env::temp_dir().join(format!("omega-via-syscall-{}", std::process::id()));
     let build_dir = scratch.join("out");
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_target_with_auxiliary_artifacts(
-        &canary,
-        build_dir.clone(),
-        "linux_x86_64",
-    )
-    .expect("qualified Binding::Syscall leaf should cross-compile for linux_x64");
+    compile_rooted_canary_for_target(&canary, build_dir.clone(), "linux_x86_64")
+        .expect("qualified Binding::Syscall leaf should cross-compile for linux_x64");
 
     let trust = fs::read_to_string(build_dir.join("trust_report.md"))
         .expect("external-leaf syscall trust report should be emitted");
@@ -748,12 +743,8 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
         std::env::temp_dir().join(format!("omega-via-syscall-arm-{}", std::process::id()));
     let arm_out = arm_scratch.join("out");
     let _ = fs::remove_dir_all(&arm_scratch);
-    compile_rooted_canary_for_target_with_auxiliary_artifacts(
-        &canary,
-        arm_out.clone(),
-        "linux_arm64",
-    )
-    .expect("qualified Binding::Syscall leaf should cross-compile for linux_arm64");
+    compile_rooted_canary_for_target(&canary, arm_out.clone(), "linux_arm64")
+        .expect("qualified Binding::Syscall leaf should cross-compile for linux_arm64");
     let arm_elf =
         fs::read(arm_out.join("omega-program")).expect("external-leaf arm syscall ELF emitted");
     let arm_footprints = fs::read_to_string(arm_out.join("08_boundary_footprints.json"))
@@ -795,7 +786,7 @@ fn atomics_cross_platform_emits_real_atomics() {
     // --- windows_x64: compile + run ---
     let win_dir = std::env::temp_dir().join(format!("omega-atomics-win-{}", std::process::id()));
     let _ = fs::remove_dir_all(&win_dir);
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(win_dir.clone()),
         target_name: Some("windows_x86_64".to_owned()),
@@ -842,7 +833,7 @@ fn atomics_cross_platform_emits_real_atomics() {
     // --- linux_arm64: cross-emit + disassemble-by-bytes ---
     let arm_dir = std::env::temp_dir().join(format!("omega-atomics-arm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&arm_dir);
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(arm_dir.clone()),
         target_name: Some("linux_arm64".to_owned()),

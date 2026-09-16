@@ -5,7 +5,7 @@
 mod compilation;
 mod temporary_output;
 
-use compiler::{ArtifactEmissionPolicy, CompileOptions, CompileReport, TrustAdmissionSettlement};
+use compiler::{CompileOptions, CompileReport, TrustAdmissionSettlement};
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -98,11 +98,6 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             root_path: request.root_path,
             build_dir: Some(build_dir.clone()),
             target_name: request.target_name.clone(),
-        },
-        if request.keep_artifacts {
-            ArtifactEmissionPolicy::Full
-        } else {
-            ArtifactEmissionPolicy::OutputOnly
         },
         request.compare_interpreter && request.target_name.is_none(),
     )

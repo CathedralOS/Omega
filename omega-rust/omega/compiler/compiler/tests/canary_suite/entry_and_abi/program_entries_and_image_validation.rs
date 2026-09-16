@@ -1,8 +1,8 @@
 use super::fixture_roster;
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, compile_reviewed_repository_fixture,
-    compile_with_auxiliary_artifacts, entry_free_fixture_build, fail_canary, fs, pass_canary,
-    production_compile, unique_no_output_build_dir,
+    CanaryCompileProduct, CanaryCompileSpec, compile, compile_reviewed_repository_fixture,
+    entry_free_fixture_build, fail_canary, fs, pass_canary, production_compile,
+    unique_no_output_build_dir,
 };
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
@@ -16,7 +16,7 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x86_64".into()),
@@ -446,7 +446,7 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
         std::env::temp_dir().join(format!("omega-final-asm-evidence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x86_64".into()),
@@ -478,7 +478,7 @@ fn immediate_port_io_is_bound_in_final_image_validation() {
         std::env::temp_dir().join(format!("omega-final-port-evidence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x86_64".into()),
@@ -511,7 +511,7 @@ fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some("linux_x86_64".into()),

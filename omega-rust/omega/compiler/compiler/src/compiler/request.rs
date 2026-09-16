@@ -1,6 +1,6 @@
 //! One invocation owns shared input and independently configured target products.
 
-use crate::{ArtifactEmissionPolicy, CompileOptions, OptimizationRollback};
+use crate::{CompileOptions, OptimizationRollback};
 use diagnostics::Diagnostic;
 use package_compilation::{
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
@@ -26,7 +26,7 @@ pub enum RequestedCompileProduct {
 pub(super) struct SharedCompileInputs {
     pub(super) root_path: PathBuf,
     pub(super) requested_product: RequestedCompileProduct,
-    pub(super) artifact_policy: ArtifactEmissionPolicy,
+
     pub(super) package_sources: Option<Arc<PackageCompilationSourceInputs>>,
 }
 
@@ -123,7 +123,7 @@ impl CompileRequest {
             shared: SharedCompileInputs {
                 root_path: options.root_path,
                 requested_product: RequestedCompileProduct::Check,
-                artifact_policy: ArtifactEmissionPolicy::Full,
+
                 package_sources: None,
             },
             configurations: vec![TargetCompileConfiguration::from_options(
@@ -147,10 +147,7 @@ impl CompileRequest {
         self.shared.requested_product = product;
         self
     }
-    pub fn with_artifact_policy(mut self, policy: ArtifactEmissionPolicy) -> Self {
-        self.shared.artifact_policy = policy;
-        self
-    }
+
     pub fn with_package_sources(mut self, sources: Arc<PackageCompilationSourceInputs>) -> Self {
         self.shared.package_sources = Some(sources);
         self
@@ -314,7 +311,6 @@ impl CompileRequest {
                 }
             };
             targets.push(ValidatedTargetCompilation {
-                shared: shared.clone(),
                 options,
                 configuration,
                 package_inputs,
@@ -344,7 +340,6 @@ pub(super) struct ValidatedCompileRequest {
 /// One admitted execution of the shared invocation, not another public request.
 #[derive(Debug)]
 pub(super) struct ValidatedTargetCompilation {
-    shared: Arc<SharedCompileInputs>,
     pub(super) options: CompileOptions,
     pub(super) configuration: TargetCompileConfiguration,
     package_inputs: Option<PackageCompilationInputs>,
@@ -354,9 +349,6 @@ pub(super) struct ValidatedTargetCompilation {
 impl ValidatedTargetCompilation {
     pub(super) fn options(&self) -> &CompileOptions {
         &self.options
-    }
-    pub(super) fn artifact_policy(&self) -> ArtifactEmissionPolicy {
-        self.shared.artifact_policy
     }
     pub(super) fn accepted_trust_admissions(&self) -> &[trust_model::TrustAdmission] {
         &self.configuration.accepted_trust_admissions

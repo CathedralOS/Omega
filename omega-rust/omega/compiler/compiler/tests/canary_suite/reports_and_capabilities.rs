@@ -1,12 +1,10 @@
 use super::{
-    ACTIVE_FAIL_CANARIES, ACTIVE_PASS_CANARIES, ArtifactEmissionPolicy, CHECKED_ONLY_FAIL_CANARIES,
+    ACTIVE_FAIL_CANARIES, ACTIVE_PASS_CANARIES, CHECKED_ONLY_FAIL_CANARIES,
     CHECKED_ONLY_PASS_CANARIES, CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport,
-    CompileRequest, CompilerOptions, Path, RequestedCompileProduct, check_canary, compile,
+    CompileRequest, CompilerOptions, RequestedCompileProduct, check_canary, compile,
     compile_canary_without_output, compile_reviewed_repository_fixture,
-    compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts,
-    compile_with_auxiliary_artifacts, executable_name, fail_canary, fs,
-    hosted_main_program_entry_build_for, pass_canary, unique_no_output_build_dir,
+    compile_rooted_canary_for_native_host, executable_name, fail_canary, fs, pass_canary,
+    unique_no_output_build_dir,
 };
 use compiler::CheckedCompileRequest;
 
@@ -57,15 +55,12 @@ fn assert_toolchain_build_source_drops(report: &str) {
 #[test]
 fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     let success_build_dir = unique_no_output_build_dir();
-    let success = compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path: pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE)
-                .join("main.omg"),
-            build_dir: Some(success_build_dir.clone()),
-            target_name: None,
-        })
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-    )
+    let success = compiler::compile(CompileRequest::new(CompilerOptions {
+        root_path: pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE)
+            .join("main.omg"),
+        build_dir: Some(success_build_dir.clone()),
+        target_name: None,
+    }))
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("output-only frontend check should succeed");
     assert!(!success.wrote_output());
@@ -75,15 +70,12 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     );
 
     let failure_build_dir = unique_no_output_build_dir();
-    let diagnostics = compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path: fail_canary(fixture_roster::WIRE_COMPATIBILITY_PRESERVATION_UNMET)
-                .join("main.omg"),
-            build_dir: Some(failure_build_dir.clone()),
-            target_name: None,
-        })
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-    )
+    let diagnostics = compiler::compile(CompileRequest::new(CompilerOptions {
+        root_path: fail_canary(fixture_roster::WIRE_COMPATIBILITY_PRESERVATION_UNMET)
+            .join("main.omg"),
+        build_dir: Some(failure_build_dir.clone()),
+        target_name: None,
+    }))
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("output-only mode must retain wire compatibility validation");
     assert!(
@@ -99,53 +91,19 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
 }
 
 #[test]
-fn full_checked_observation_emits_ordered_timings_with_checked_snapshots() {
+fn default_checked_compilation_does_not_emit_debug_dumps() {
     let build_dir = unique_no_output_build_dir();
-    let report = compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path: pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE)
-                .join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: None,
-        })
-        .with_artifact_policy(ArtifactEmissionPolicy::Full),
-    )
+    let report = compiler::compile(CompileRequest::new(CompilerOptions {
+        root_path: pass_canary(fixture_roster::BOUNDARY_EQUALITY_RECAST_WITNESS_COMPILE)
+            .join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+    }))
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("full frontend check should emit one checked observation bundle");
     assert!(!report.wrote_output());
 
-    for file_name in [
-        "trust_report.md",
-        "05_capability_manifest.json",
-        "00_timings.txt",
-    ] {
-        assert!(
-            build_dir.join(file_name).is_file(),
-            "full checked observation should emit {file_name}"
-        );
-    }
-    assert!(fs::read_dir(&build_dir).unwrap().all(|entry| {
-        entry
-            .unwrap()
-            .path()
-            .extension()
-            .is_none_or(|extension| extension != "html")
-    }));
-    let timings = fs::read_to_string(build_dir.join("00_timings.txt"))
-        .expect("read checked timing observation");
-    let mut prior = None;
-    for stage in ["Stage 01", "Stage 02", "Stage 03", "Stage 04", "Stage 05"] {
-        let position = timings
-            .rfind(stage)
-            .unwrap_or_else(|| panic!("timing report omitted {stage}\n{timings}"));
-        if let Some(prior) = prior {
-            assert!(
-                prior < position,
-                "timing report reordered {stage}\n{timings}"
-            );
-        }
-        prior = Some(position);
-    }
+    assert!(!build_dir.exists(), "checking must not create debug dumps");
 
     let _ = fs::remove_dir_all(build_dir);
 }
@@ -173,8 +131,7 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
             build_dir: Some(build_dir.clone()),
             target_name: Some("linux_x86_64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("output-only backend compile should still certify its image")
@@ -209,8 +166,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
             build_dir: Some(check_dir.clone()),
             target_name: Some("windows_x86_64".into()),
         })
-        .with_requested_product(compiler::RequestedCompileProduct::Check)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(compiler::RequestedCompileProduct::Check),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("the explicit Check product must stop before native realization");
@@ -225,8 +181,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
             build_dir: Some(native_dir.clone()),
             target_name: Some("linux_x86_64".into()),
         })
-        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("the retained native product should stop after validated native emission");
@@ -262,8 +217,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
             build_dir: Some(terminal_dir.clone()),
             target_name: Some("linux_x86_64".into()),
         })
-        .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("terminal product should stop at the canonical Psi-owned artifact");
@@ -344,8 +298,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
             build_dir: Some(unsupported_native_dir.clone()),
             target_name: Some("windows_x86_64".into()),
         })
-        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("unsupported Terminal constructs must not fall back for NativeArtifact");
@@ -390,150 +343,6 @@ fn disposable_native_canary_helper_emits_only_the_primary_image() {
     let _ = fs::remove_dir_all(build_dir);
 }
 
-fn artifact_file_footprint(directory: &Path) -> (usize, u64) {
-    fs::read_dir(directory)
-        .expect("read artifact footprint directory")
-        .map(|entry| entry.expect("read artifact footprint entry"))
-        .fold((0, 0), |(count, bytes), entry| {
-            let metadata = entry.metadata().expect("read artifact footprint metadata");
-            if metadata.is_dir() {
-                let (child_count, child_bytes) = artifact_file_footprint(&entry.path());
-                (count + child_count, bytes + child_bytes)
-            } else {
-                (count + 1, bytes + metadata.len())
-            }
-        })
-}
-
-#[test]
-fn rooted_native_helpers_separate_disposable_and_auxiliary_artifacts() {
-    let canary = pass_canary(fixture_roster::LINEAR_TRANSFER_AND_CONSUME);
-    let scratch = unique_no_output_build_dir();
-    let output_only = scratch.join("output-only");
-    let full = scratch.join("full");
-
-    let output_only_report = compile_rooted_canary_for_native_host(&canary, output_only.clone())
-        .expect("ordinary rooted native helper should compile");
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, full.clone())
-        .expect("explicit rooted report helper should compile");
-
-    assert_native_exit_code(
-        &output_only_report,
-        0,
-        "output-only rooted linear transfer and consume canary",
-    );
-
-    assert!(output_only.join(executable_name()).is_file());
-    assert_native_exit_code(&output_only_report, 0, "output-only rooted helper canary");
-    assert!(!output_only.join("backend_report.txt").exists());
-    assert!(full.join(executable_name()).is_file());
-    assert!(full.join("backend_report.txt").is_file());
-    let output_only_footprint = artifact_file_footprint(&output_only);
-    let full_footprint = artifact_file_footprint(&full);
-    assert_eq!(
-        output_only_footprint.0, 1,
-        "ordinary rooted native builds must retain only the primary image"
-    );
-    assert!(full_footprint.0 > output_only_footprint.0);
-    assert!(full_footprint.1 > output_only_footprint.1);
-    eprintln!(
-        "rooted native artifact footprint: full={} files/{} bytes output-only={} files/{} bytes",
-        full_footprint.0, full_footprint.1, output_only_footprint.0, output_only_footprint.1,
-    );
-
-    let _ = fs::remove_dir_all(scratch);
-}
-
-#[test]
-fn boundary_trait_canary_reports_capability_use() {
-    let canary = pass_canary(fixture_roster::BOUNDARY_TRAIT_EFFECTS_HOST_CALL);
-    let main_path = canary.join("main.omg");
-    let scratch = std::env::temp_dir().join(format!(
-        "omega-capability-manifest-canary-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&scratch);
-    let checked_dir = scratch.join("checked");
-
-    let checked_compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
-        root_path: main_path.clone(),
-        build_dir: Some(checked_dir.clone()),
-        target_name: None,
-        product: CanaryCompileProduct::Check,
-    })
-    .expect("boundary trait canary should compile with checked capability artifacts");
-    assert!(!checked_compilation.wrote_output());
-
-    let checked_manifest = fs::read_to_string(checked_dir.join("05_capability_manifest.json"))
-        .expect("capability manifest should be written");
-    let carry_manifest = fs::read_to_string(checked_dir.join("05_carry_manifest.json"))
-        .expect("carry manifest should be written");
-    let task_manifest = fs::read_to_string(checked_dir.join("05_task_activations.json"))
-        .expect("task activation manifest should be written");
-
-    let source_dir = scratch.join("source");
-    fs::create_dir_all(&source_dir).expect("create exact-entry capability source directory");
-    fs::copy(&main_path, source_dir.join("main.omg"))
-        .expect("copy boundary-trait capability canary");
-    fs::write(
-        source_dir.join("build.omg"),
-        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
-    )
-    .expect("write exact macOS AArch64 ProgramEntry binding");
-    let lowered_dir = scratch.join("lowered");
-    let lowered_compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
-        root_path: source_dir.join("main.omg"),
-        build_dir: Some(lowered_dir.clone()),
-        target_name: Some("macos_arm64".into()),
-        product: CanaryCompileProduct::Check,
-    })
-    .expect("exact-root boundary trait canary should reach lowering reports");
-    assert!(!lowered_compilation.wrote_output());
-
-    let entry_manifest = fs::read_to_string(lowered_dir.join("05_capability_manifest.json"))
-        .expect("exact-root capability manifest should be written");
-    assert!(
-        checked_manifest.contains("\"capability_flows\": {\"uses\": 2"),
-        "capability manifest should report both boundary capability uses\n{}",
-        checked_manifest
-    );
-    assert!(
-        checked_manifest.contains("\"entry_machine\": \"<missing>\"")
-            && checked_manifest.contains("\"service_reach\": []"),
-        "entry-agnostic capability checking must not invent an entry reach\n{checked_manifest}"
-    );
-    assert!(
-        entry_manifest.contains("\"service_reach\": [\"Console\"]")
-            && entry_manifest.contains("\"may_suspend\": false")
-            && entry_manifest.contains("\"may_block\": false"),
-        "capability manifest should report canonical service reach and independent operational axes\n{}",
-        entry_manifest
-    );
-    for manifest in [&checked_manifest, &entry_manifest] {
-        assert!(
-            !manifest.contains("\"effect_bits\"") && !manifest.contains("\"effects\""),
-            "capability manifest must not expose the retired compatibility effect set\n{}",
-            manifest
-        );
-    }
-    assert!(
-        carry_manifest.contains("\"effective\":")
-            && carry_manifest.contains("\"suspension\":")
-            && carry_manifest.contains("\"address\":")
-            && carry_manifest.contains("\"activation_wide_carry\": [")
-            && carry_manifest.contains("\"analysis_complete\":"),
-        "carry manifest should expose structured checked policies\n{}",
-        carry_manifest
-    );
-    assert!(
-        task_manifest.contains("\"activations\": ["),
-        "task activation artifact should always expose its normalized root\n{}",
-        task_manifest
-    );
-
-    let _ = fs::remove_dir_all(&scratch);
-}
-
 #[test]
 fn opaque_boundary_data_reaches_checked_facts_without_a_layout_claim() {
     let canary = pass_canary(fixture_roster::BOUNDARY_DATA_OPAQUE_CONTRACT);
@@ -573,7 +382,7 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    let compilation = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -768,9 +577,8 @@ fn backend_report_renders_ownership_summary_events() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation =
-        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-            .expect("linear transfer and consume canary should compile from its authored root");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("linear transfer and consume canary should compile from its authored root");
     assert_native_exit_code(&compilation, 0, "linear transfer and consume canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
@@ -848,9 +656,8 @@ fn backend_report_renders_transparent_record_claim_paths() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation =
-        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-            .expect("transparent record frontier canary should compile from its authored root");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("transparent record frontier canary should compile from its authored root");
     assert_native_exit_code(&compilation, 0, "transparent record frontier canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
@@ -909,9 +716,8 @@ fn backend_report_realizes_state_call_entry_at_call_site() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation =
-        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-            .expect("linear state-call handoff canary should compile from its authored root");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("linear state-call handoff canary should compile from its authored root");
     assert_native_exit_code(&compilation, 0, "linear state-call handoff canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
@@ -953,11 +759,9 @@ fn backend_report_separates_transition_and_nested_call_ordinals() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_rooted_canary_for_native_host_with_auxiliary_artifacts(
-        &canary,
-        build_dir.clone(),
-    )
-    .expect("linear nested-call transition handoff canary should compile from its authored root");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "linear nested-call transition handoff canary should compile from its authored root",
+    );
     assert_native_exit_code(
         &compilation,
         0,
@@ -1018,11 +822,9 @@ fn backend_report_separates_repeated_transition_call_ordinals() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_rooted_canary_for_native_host_with_auxiliary_artifacts(
-        &canary,
-        build_dir.clone(),
-    )
-    .expect("repeated-target linear transition-call canary should compile from its authored root");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "repeated-target linear transition-call canary should compile from its authored root",
+    );
     assert_native_exit_code(
         &compilation,
         0,
@@ -1091,7 +893,7 @@ fn backend_report_realizes_linear_boundary_entry_from_prologue() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1155,9 +957,8 @@ fn linear_obligation_survives_dispatched_call_continuation() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation =
-        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-            .expect("linear call-continuation canary should compile");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("linear call-continuation canary should compile");
     assert_native_exit_code(&compilation, 7, "linear call-continuation canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
@@ -1219,9 +1020,8 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation =
-        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-            .expect("fresh linear state-call result canary should compile from its authored root");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("fresh linear state-call result canary should compile from its authored root");
     assert_native_exit_code(&compilation, 0, "fresh linear state-call result canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
@@ -1263,11 +1063,9 @@ fn backend_report_preserves_path_aligned_multi_claim_state_result() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_rooted_canary_for_native_host_with_auxiliary_artifacts(
-        &canary,
-        build_dir.clone(),
-    )
-    .expect("path-aligned multi-claim state result canary should compile from its authored root");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "path-aligned multi-claim state result canary should compile from its authored root",
+    );
     assert_native_exit_code(
         &compilation,
         0,
@@ -1307,9 +1105,8 @@ fn backend_report_preserves_direct_aggregate_state_result_mapping() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation =
-        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-            .expect("direct aggregate state result canary should compile from its authored root");
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("direct aggregate state result canary should compile from its authored root");
     assert_native_exit_code(&compilation, 0, "direct aggregate state result canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
@@ -1411,7 +1208,7 @@ fn float_meaning_core_surface_compiles_in_isolation() {
 }
 
 #[test]
-fn capability_manifest_reports_authority_flow_verbs() {
+fn capability_authority_flow_verbs_compile_without_dumps() {
     for &(canary_name, verb) in fixture_roster::CAPABILITY_VERB_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         let build_dir = std::env::temp_dir().join(format!(
@@ -1421,7 +1218,7 @@ fn capability_manifest_reports_authority_flow_verbs() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        let compilation = compile(CanaryCompileSpec {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
@@ -1439,31 +1236,7 @@ fn capability_manifest_reports_authority_flow_verbs() {
         });
         assert!(!compilation.wrote_output());
 
-        let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
-            .expect("capability manifest should be written");
-        assert!(
-            !manifest.contains(&format!("\"{verb}\": 0"))
-                && manifest.contains(&format!("\"{verb}\":")),
-            "manifest for {canary_name} should report a non-zero {verb} verb\n{manifest}"
-        );
-
-        let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))
-            .expect("boundary report should be written");
-        assert!(
-            boundary.contains("Capability Blast Radius")
-                && boundary.contains("approved provider")
-                && boundary.contains("authority is the capability value"),
-            "boundary report for {canary_name} should surface capability-valued authority without a service-name projection\n{boundary}"
-        );
-        assert!(
-            !boundary.contains("authority {filesystem_io")
-                && !boundary.contains("authority {host_boundary"),
-            "boundary report for {canary_name} must not render service names as authority\n{boundary}"
-        );
-        assert!(
-            !boundary.contains("Boundary Providers") && !boundary.contains("boundary providers:"),
-            "boundary report for {canary_name} must not resurrect the retired primitive-provider registry\n{boundary}"
-        );
+        assert!(!build_dir.exists());
 
         let _ = fs::remove_dir_all(&build_dir);
     }
@@ -1484,7 +1257,7 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        let compilation = compile(CanaryCompileSpec {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,

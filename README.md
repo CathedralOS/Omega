@@ -215,12 +215,13 @@ The checked-in toolchain file selects the required Rust version.
 Start with a small precondition-checking case:
 
 ```sh
-cargo run -p omega -- --check --output-only tests/omega/pass/constraints/scalar_requires_satisfied_by_literal/main.omg
+cargo run -p omega -- --check tests/omega/pass/constraints/scalar_requires_satisfied_by_literal/main.omg
 ```
 
 It should finish successfully: its call supplies `5` to a machine requiring
 a positive value. This checks source; it does not emit or run a native program.
-`--output-only` omits auxiliary reports.
+No debug dumps are generated. Add `--timings` for command-stage durations and
+total elapsed time on stderr; no timing file is written.
 
 For a full application, start with the [CLI example](samples/cli/basics/cli_mvp/README.md).
 Its instructions distinguish the intended result from the current compiler

@@ -1,8 +1,7 @@
 use super::CompileOutcomes;
 use crate::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, CompileTargetOutcome,
-    ExplicitTargetSet, RequestedCompileProduct, TargetCompileConfiguration,
-    admit_checked_compilation, compile,
+    CompileOptions, CompileRequest, CompileTargetOutcome, ExplicitTargetSet,
+    RequestedCompileProduct, TargetCompileConfiguration, admit_checked_compilation, compile,
 };
 use std::fs;
 use std::path::Path;
@@ -25,8 +24,7 @@ fn native_input_reuse_key_distinguishes_two_nonempty_optimization_suites() {
             target_name: Some("linux_x86_64".to_owned()),
             build_dir: None,
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(CompileOutcomes::into_single_report)
     .expect("produce an exact Terminal identity");
@@ -97,49 +95,22 @@ impl Drop for MultiTargetFixture {
 }
 
 #[test]
-fn checked_admission_is_independent_of_observation_writing() {
+fn checked_admission_and_compilation_do_not_write_debug_dumps() {
     let fixture = MultiTargetFixture::new(
         "machine main() { }",
-        "machine build(builder: &mut Build) { builder.application(\"checked-observations\"); }",
+        r#"machine build(builder: &mut Build) { builder.application("no-dumps"); }"#,
     );
-    let checked = crate::compile_to_checked(crate::CheckedCompileRequest::new(&fixture.main, None))
-        .expect("check the fixture");
-    let output = fixture.root.join("observations");
+    let checked =
+        crate::compile_to_checked(crate::CheckedCompileRequest::new(&fixture.main, None)).unwrap();
+    assert!(checked.timings().phases().is_empty());
     let expected = admit_checked_compilation(&checked, &[])
-        .expect("admit without filesystem output")
+        .unwrap()
         .into_settlement();
-    assert!(!output.exists());
-    let admission = admit_checked_compilation(&checked, &[]).expect("repeat admission");
-    admission
-        .write_observations(&output, ArtifactEmissionPolicy::OutputOnly)
-        .expect("output-only does not create reports");
-    assert!(!output.exists());
-    fs::write(&output, "not a directory").expect("block the writer destination");
-    assert!(
-        admission
-            .write_observations(&output, ArtifactEmissionPolicy::Full)
-            .is_err()
-    );
-    assert_eq!(
-        admission.into_settlement(),
-        expected,
-        "failed observation output cannot alter the admission outcome"
-    );
-    fs::remove_file(&output).expect("remove the blocked destination");
-    let admission = admit_checked_compilation(&checked, &[]).expect("admit for full observations");
-    admission
-        .write_observations(&output, ArtifactEmissionPolicy::Full)
-        .expect("write already-admitted observations");
-    assert!(output.join("trust_report.md").is_file());
-    assert!(output.join("00_timings.txt").is_file());
-    assert!(fs::read_dir(&output).unwrap().all(|entry| {
-        entry
-            .unwrap()
-            .path()
-            .extension()
-            .is_none_or(|extension| extension != "html")
-    }));
-    assert_eq!(admission.into_settlement(), expected);
+    let report = compile(fixture.request())
+        .and_then(CompileOutcomes::into_single_report)
+        .unwrap();
+    assert_eq!(report.trust_admission_settlement(), &expected);
+    assert!(!fixture.root.join("build").exists());
 }
 
 #[test]
@@ -166,8 +137,7 @@ fn exact_target_invocation_needs_no_authored_target_declaration() {
             ))),
             target_name: Some(target.to_owned()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+        .with_requested_product(RequestedCompileProduct::NativeArtifact);
         let report = compile(request)
             .and_then(crate::CompileOutcomes::into_single_report)
             .unwrap_or_else(|diagnostics| panic!("{target}: {diagnostics:#?}"));
@@ -220,8 +190,7 @@ fn native_batch_reuses_exact_terminal_input_before_distinct_target_lowering() {
             })
             .collect(),
     )
-    .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    .with_requested_product(RequestedCompileProduct::NativeArtifact);
 
     let outcomes = compile(batch).expect("native batch request should admit");
     assert_eq!(outcomes.prepared_terminal_native_input_count(), 1);
@@ -262,8 +231,7 @@ fn native_batch_reuses_exact_terminal_input_before_distinct_target_lowering() {
                 ))),
                 target_name: Some(profile.target_name().to_owned()),
             })
-            .with_requested_product(RequestedCompileProduct::NativeArtifact)
-            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+            .with_requested_product(RequestedCompileProduct::NativeArtifact),
         )
         .and_then(crate::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| panic!("{profile:?}: {diagnostics:#?}"));
@@ -308,8 +276,7 @@ machine ArmMain::main(&mut self) { }
                 .map(|&profile| fixture.target_configuration(profile))
                 .collect(),
         )
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+        .with_requested_product(RequestedCompileProduct::NativeArtifact);
 
     let outcomes = compile(batch).expect("native batch request should admit");
     let terminal_identities = outcomes

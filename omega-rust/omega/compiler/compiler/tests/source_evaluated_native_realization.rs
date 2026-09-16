@@ -17,9 +17,8 @@ mod console_acceptance;
 mod linux_entry_acceptance;
 
 use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
-    RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement, compile,
-    realize_retained_native_artifact,
+    CompileOptions, CompileRequest, RequestedCompileProduct, RetainedNativeRealizationRequest,
+    SourceEvaluatedImportSettlement, compile, realize_retained_native_artifact,
 };
 use effects::provider_plan::ProviderBinding;
 use installation_evidence::ProviderExecutionEvidence;
@@ -447,8 +446,7 @@ machine Main::main(&mut self) reaches Process {
             build_dir: Some(self.root.join("build")),
             target_name: Some(self.target.clone()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact);
         if let Some(inputs) = &self.package_inputs {
             // Package acceptance declares terminal authority; the receiving
             // permission policy mirrors the exact accepted rows, as the

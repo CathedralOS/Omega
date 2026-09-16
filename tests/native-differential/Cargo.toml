@@ -34,7 +34,7 @@ terminal-fixed-fuel = { path = "../../omega-rust/psi/semantics/terminal-fixed-fu
 terminal-verifier = { path = "../../omega-rust/psi/semantics/terminal-verifier" }
 proof-admission = { path = "../../omega-rust/psi/semantics/proof-admission" }
 checked-trees-to-lowered-psi = { path = "../../omega-rust/psi/pipeline/checked-trees-to-lowered-psi" }
-artifacts = { path = "../../omega-rust/omega/tooling/artifacts", features = ["external-root-report"] }
+artifacts = { path = "../../omega-rust/omega/tooling/artifacts" }
 component-publication = { path = "../../omega-rust/omega/backend/runtime/component-publication" }
 provider-planning = { path = "../../omega-rust/omega/build/provider-planning", features = ["installed-writer"] }
 external-roots = { path = "../../omega-rust/omega/backend/runtime/external-roots" }

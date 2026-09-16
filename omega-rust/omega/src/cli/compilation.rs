@@ -1,12 +1,13 @@
 //! Console adapter for the project compilation operation.
 
 use super::{admissions::report_unsettled_admissions, arguments::CompileArguments};
-use compiler::{ArtifactEmissionPolicy, CompileOptions};
+use compiler::CompileOptions;
 use omega::compilation::{
     CompileProjectError, CompileProjectRequest, ProjectProduct, compile_project,
 };
 
 pub(crate) fn compile_project_command(arguments: CompileArguments) {
+    let started = arguments.timings.then(std::time::Instant::now);
     let request = CompileProjectRequest {
         options: CompileOptions {
             build_dir: arguments.build_dir,
@@ -18,16 +19,28 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         } else {
             ProjectProduct::NativeArtifact
         },
-        artifact_policy: if arguments.output_only {
-            ArtifactEmissionPolicy::OutputOnly
-        } else {
-            ArtifactEmissionPolicy::Full
-        },
+        timings: arguments.timings,
         offline: arguments.offline,
         accept_admissions: arguments.accept_admissions,
         optimization_rollback: arguments.optimization_rollback,
     };
-    let outcome = match compile_project(request) {
+    let result = compile_project(request);
+    if let Some(started) = started {
+        if let Ok(outcome) = &result {
+            for timing in outcome.timings.phases() {
+                eprintln!(
+                    "{:>10.3} ms  {}",
+                    timing.microseconds as f64 / 1_000.0,
+                    timing.phase
+                );
+            }
+        }
+        eprintln!(
+            "{:>10.3} ms  total elapsed",
+            started.elapsed().as_secs_f64() * 1_000.0
+        );
+    }
+    let outcome = match result {
         Ok(outcome) => outcome,
         Err(CompileProjectError::UnsettledAdmissions(settlement)) => {
             report_unsettled_admissions(&settlement);

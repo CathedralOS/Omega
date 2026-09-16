@@ -1,12 +1,8 @@
 mod cli;
 
 use arguments::Invocation;
-use artifacts::allocations::CountingAllocator;
 use cli::{arguments, compilation, execution, inspection, packages};
 use std::process::ExitCode;
-
-#[global_allocator]
-static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
 
 // Some recursive compiler paths still overflow the Windows main-thread stack.
 // This is stack provision, not parallel execution. Keep it until those paths

@@ -1,9 +1,5 @@
 use super::fixture_roster;
-use crate::{
-    Command, compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts, executable_name, fs,
-    pass_canary,
-};
+use crate::{Command, compile_rooted_canary_for_native_host, executable_name, fs, pass_canary};
 
 #[test]
 fn runtime_nat_structural_recursion_exit_canary_runs() {
@@ -63,7 +59,7 @@ fn accepted_axiom_cited_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-accepted-axiom-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("accepted-axiom canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()

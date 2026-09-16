@@ -482,8 +482,7 @@ fn exact_checked_report_native_status(compact: &str) -> Option<i32> {
         }
         expected = Some(status);
         let ordinary = format!("let{local}=compile_rooted_canary_for_native_host(");
-        let full =
-            format!("let{local}=compile_rooted_canary_for_native_host_with_auxiliary_artifacts(");
+        let full = format!("let{local}=compile_rooted_canary_for_native_host(");
         if !compact.contains(&ordinary) && !compact.contains(&full) {
             return None;
         }
@@ -508,7 +507,7 @@ fn exact_target_coverage(
     for function in [
         "compile_canary_without_output_for_target",
         "compile",
-        "compile_with_auxiliary_artifacts",
+        "compile",
     ] {
         for call in exact_successful_calls(&compact, function) {
             let target = if function == "compile_canary_without_output_for_target" {
@@ -535,7 +534,7 @@ fn exact_target_coverage(
 
     for function in [
         "compile_rooted_canary_for_target",
-        "compile_rooted_canary_for_target_with_auxiliary_artifacts",
+        "compile_rooted_canary_for_target",
     ] {
         for call in exact_successful_calls(&compact, function) {
             let arguments = top_level_arguments(call.arguments);
@@ -820,10 +819,7 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         "root_path: canary.join(\"main.omg\")",
         "root_path: other.join(\"main.omg\")",
     );
-    let auxiliary = direct.replace(
-        "compile(CanaryCompileSpec",
-        "compile_with_auxiliary_artifacts(CanaryCompileSpec",
-    );
+    let auxiliary = direct.replace("compile(CanaryCompileSpec", "compile(CanaryCompileSpec");
     let multiple_canaries = direct.replace(
         "let canary =",
         "let other = pass_canary(\"demo/other\"); let canary =",
@@ -903,7 +899,7 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
         fn rooted() {
             let canary = pass_canary("demo/rooted-target");
             compile_rooted_canary_for_target(&canary, x64_build, "linux_x86_64").unwrap();
-            compile_rooted_canary_for_target_with_auxiliary_artifacts(
+            compile_rooted_canary_for_target(
                 &canary,
                 arm_build,
                 "linux_arm64",

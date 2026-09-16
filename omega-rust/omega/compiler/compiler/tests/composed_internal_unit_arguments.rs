@@ -1,6 +1,4 @@
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
-};
+use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use std::{
     fs,
     path::PathBuf,
@@ -114,8 +112,7 @@ machine build(builder: &mut Build) {
         build_dir: Some(fixture.0.join("build")),
         target_name: Some("windows_x86_64".to_owned()),
     })
-    .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    .with_requested_product(RequestedCompileProduct::TerminalArtifact);
     let report = compile(request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| {

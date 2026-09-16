@@ -1,7 +1,7 @@
 use super::fixture_roster;
 use crate::{
-    ArtifactEmissionPolicy, CanaryCompileProduct, CanaryCompileSpec, Command, CompileRequest,
-    CompilerOptions, RequestedCompileProduct, compile, compile_reviewed_repository_fixture,
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileRequest, CompilerOptions,
+    RequestedCompileProduct, compile, compile_reviewed_repository_fixture,
     compile_rooted_canary_for_native_host, executable_name, fs, interpret, pass_canary,
 };
 use compiler::CheckedCompileRequest;
@@ -747,8 +747,7 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
                 build_dir: Some(cross_dir.clone()),
                 target_name: Some(target.into()),
             })
-            .with_requested_product(RequestedCompileProduct::NativeArtifact)
-            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+            .with_requested_product(RequestedCompileProduct::NativeArtifact),
         )
         .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|error| {

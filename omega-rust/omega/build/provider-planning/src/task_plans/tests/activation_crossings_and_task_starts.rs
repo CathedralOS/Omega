@@ -408,21 +408,6 @@ fn concrete_task_start_specialization_elaborates_a_validated_plan() {
             .contains("TaskRuntime")
     );
 
-    let manifest = visualizations::task_activation_manifest_json(&checked, &task_activations);
-    assert!(manifest.contains("\"operation\": \"start\""));
-    assert!(manifest.contains("\"operation\": \"try_start\""));
-    assert!(manifest.contains("\"target_machine\": \"Worker::run\""));
-    assert!(manifest.contains("\"selected_runtime\": {"));
-    assert!(manifest.contains("\"provider_plan\": \"LocalTaskRuntime::satisfies::TaskRuntime\""));
-    assert!(manifest.contains("\"stack_plan\": {\"bytes\": 16, \"alignment\": 8"));
-    assert!(manifest.contains("\"canonical_suspension_crossings\": ["));
-    assert!(manifest.contains(
-        "\"cpu_thread_preservation\": {\"preserve_cpu\": false, \"preserve_host_thread\": false}"
-    ));
-    assert!(manifest.contains("\"cancellation_required\": true"));
-    assert!(manifest.contains("\"activation_plan_id\": \"0x"));
-    assert!(!manifest.contains("\"runtime_admission\""));
-
     let mut missing_suspension = checked.clone();
     missing_suspension
         .facts

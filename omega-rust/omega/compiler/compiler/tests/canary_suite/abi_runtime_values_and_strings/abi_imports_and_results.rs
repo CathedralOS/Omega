@@ -1,8 +1,8 @@
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_reviewed_repository_fixture,
-    compile_rooted_canary_for_native_host, compile_with_auxiliary_artifacts, fs,
-    hosted_main_program_entry_build_for, interpret, pass_canary, production_compile,
+    compile_rooted_canary_for_native_host, fs, hosted_main_program_entry_build_for, interpret,
+    pass_canary, production_compile,
 };
 #[cfg(windows)]
 use crate::{compile_rooted_canary_for_target, executable_name};
@@ -26,7 +26,7 @@ fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
     )
     .expect("write macos_arm64 build source");
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
@@ -72,7 +72,7 @@ fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
     )
     .expect("write macos_arm64 build source");
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
@@ -340,7 +340,7 @@ fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
     )
     .expect("write macos_arm64 build source");
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
@@ -379,7 +379,7 @@ fn cross_win64_large_aggregate_import_uses_an_aligned_caller_copy() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("windows_x86_64".to_owned()),
@@ -466,7 +466,7 @@ fn cross_win64_direct_aggregate_result_spills_rax_by_value() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("windows_x86_64".to_owned()),
@@ -537,7 +537,7 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
         std::env::temp_dir().join(format!("omega-win64-scalar-float-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("windows_x86_64".to_owned()),

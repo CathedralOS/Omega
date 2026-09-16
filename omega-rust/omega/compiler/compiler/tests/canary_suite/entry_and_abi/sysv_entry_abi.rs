@@ -1,8 +1,5 @@
 use super::fixture_roster;
-use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, compile, compile_with_auxiliary_artifacts, fs,
-    pass_canary,
-};
+use crate::{CanaryCompileProduct, CanaryCompileSpec, compile, fs, pass_canary};
 
 #[test]
 fn sysv_small_aggregate_entry_spreads_consecutive_gprs() {
@@ -246,7 +243,7 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CanaryCompileSpec {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x86_64".into()),

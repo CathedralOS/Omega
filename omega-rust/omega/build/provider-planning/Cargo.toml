@@ -29,7 +29,6 @@ representation-planning = { path = "../representation-planning" }
 target = { path = "../../representations/target" }
 task-plans = { path = "../../representations/task-plans" }
 trust-model = { path = "../trust-model" }
-visualizations = { path = "../../tooling/visualizations" }
 arena = { path = "../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }

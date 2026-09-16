@@ -5,19 +5,15 @@ text/byte publication, and stale-file removal. Text and binary output use the
 same temporary-file write followed by rename. This is a per-file publication
 operation, not a transaction over a complete report directory.
 
-The compiler decides which observations to request under its
-[product and observation contract](../../compiler/compiler/README.md#product-boundaries-and-observations).
-The report owners are:
+The compiler emits no debug report files. The retained owners are:
 
-- [Timing](src/reports/timing_report.rs): phase measurements and allocation deltas
-	written as plain text in `00_timings.txt`.
-- [Trust](src/trust_report.rs): retained evidence, target consistency checks, and presentation.
-- [Wire](src/wire_report.rs): schema/compatibility records assembled by the compiler.
+- [Timings](src/compile_timings/mod.rs): disabled-by-default measurement storage.
+	The CLI opts in for command-stage timings and prints them on stderr.
+- [Trust](src/reports/trust_report/mod.rs): retained evidence and mandatory
+	target consistency checks, without a Markdown writer.
+- [Wire](src/reports/wire_report.rs): schema/compatibility records used by checking.
 
-There is no HTML renderer or graph-viewer navigation. JSON manifests and text
-reports remain independent of any browser presentation.
-
-Suppression of output does not waive semantic or trust validation. These
-observations grant no admission or executable-publication authority. The
-`external-root-report` feature adds optional external-root rendering; executable
-container packaging remains a test-only adapter.
+JSON/HTML renderers and the external-root report feature are removed. The normal
+CLI uses the standard allocator, not the allocation-counting wrapper. Required
+product bytes still use the atomic writer; executable-container packaging
+remains a test-only adapter. These utilities do not grant publication authority.

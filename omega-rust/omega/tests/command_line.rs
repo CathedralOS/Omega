@@ -39,6 +39,42 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn timings_are_opt_in_stderr_output_without_debug_files() {
+    let project = temp_path("timings");
+    std::fs::create_dir(&project).unwrap();
+    std::fs::write(project.join("main.omg"), "machine main() {}\n").unwrap();
+    for enabled in [false, true] {
+        let mut arguments = vec!["--check", "--build-dir", "observations", "main.omg"];
+        if enabled {
+            arguments.push("--timings");
+        }
+        let output = omega_in(&project, &arguments);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "{stderr}");
+        assert_eq!(stderr.contains("total elapsed"), enabled);
+        assert_eq!(
+            stderr.contains("prepare: project -> prepared sources"),
+            enabled
+        );
+        assert_eq!(
+            stderr.contains("compile: sources -> requested product"),
+            enabled
+        );
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("total elapsed"));
+        assert!(!project.join("observations").exists());
+    }
+    let failed = omega_in(&project, &["--check", "--timings", "missing.omg"]);
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("total elapsed"));
+    let obsolete = omega_in(&project, &["--check", "--output-only", "main.omg"]);
+    assert_eq!(obsolete.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&obsolete.stderr).contains("unrecognized option `--output-only`")
+    );
+    std::fs::remove_dir_all(project).unwrap();
+}
+
+#[test]
 fn routed_production_entry_roots_pass_real_package_resolution() {
     for (label, relative) in [
         ("omega-product", "source/omega/main.omg"),
@@ -215,7 +251,6 @@ fn package_native_cli_directs_missing_or_empty_lock_to_update() {
         let output = omega_in(
             &project,
             &[
-                "--output-only",
                 "--target",
                 "linux_x86_64",
                 "--build-dir",
@@ -337,7 +372,6 @@ fn assert_package_native_publication(target: &str) {
     let native = omega_in(
         &project,
         &[
-            "--output-only",
             "--offline",
             "--target",
             target,

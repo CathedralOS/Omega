@@ -1,9 +1,8 @@
 use super::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, compile_canary_without_output,
+    CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_canary_without_output,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
-    compile_rooted_canary_for_target, compile_single_file_hosted_main,
-    compile_with_auxiliary_artifacts, executable_name, fail_canary, fs,
-    hosted_main_program_entry_build_for, interpret, pass_canary, repo_root,
+    compile_rooted_canary_for_target, compile_single_file_hosted_main, executable_name,
+    fail_canary, fs, hosted_main_program_entry_build_for, interpret, pass_canary, repo_root,
 };
 use compiler::CheckedCompileRequest;
 
@@ -145,7 +144,7 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write integer-result import build source");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
@@ -185,7 +184,7 @@ fn storage_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write storage-result import build source");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
@@ -263,7 +262,7 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write dereferenced-result import build source");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
@@ -309,7 +308,7 @@ fn authored_scalar_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build_for(&canary, target),
         )
         .expect("write authored scalar import build source");
-        compile_with_auxiliary_artifacts(CanaryCompileSpec {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),

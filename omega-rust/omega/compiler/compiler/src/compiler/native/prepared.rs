@@ -142,7 +142,7 @@ mod tests {
                 build_dir: None,
             })
             .with_requested_product(crate::RequestedCompileProduct::NativeArtifact)
-            .with_artifact_policy(crate::ArtifactEmissionPolicy::OutputOnly),
+            ,
         )
         .and_then(crate::CompileOutcomes::into_single_report)
         .expect("produce an exact Terminal identity");

@@ -2,9 +2,10 @@
 
 pub mod publication;
 
+use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileReport, CompileRequest, OptimizationRollback,
-    RequestedCompileProduct, TrustAdmissionSettlement, compile,
+    CompileOptions, CompileReport, CompileRequest, OptimizationRollback, RequestedCompileProduct,
+    TrustAdmissionSettlement, compile,
 };
 use diagnostics::Diagnostic;
 use package_manager::operations as packages;
@@ -20,7 +21,8 @@ pub enum ProjectProduct {
 pub struct CompileProjectRequest {
     pub options: CompileOptions,
     pub product: ProjectProduct,
-    pub artifact_policy: ArtifactEmissionPolicy,
+
+    pub timings: bool,
     pub offline: bool,
     pub accept_admissions: bool,
     pub optimization_rollback: OptimizationRollback,
@@ -31,7 +33,8 @@ impl CompileProjectRequest {
         Self {
             options,
             product: ProjectProduct::NativeArtifact,
-            artifact_policy: ArtifactEmissionPolicy::Full,
+
+            timings: false,
             offline: false,
             accept_admissions: false,
             optimization_rollback: OptimizationRollback::default(),
@@ -41,6 +44,7 @@ impl CompileProjectRequest {
 
 pub struct CompileProjectOutcome {
     pub report: CompileReport,
+    pub timings: CompileTimings,
     /// Present only after native publication succeeds.
     pub executable_path: Option<PathBuf>,
 }
@@ -86,69 +90,96 @@ pub fn compile_project(
     let CompileProjectRequest {
         mut options,
         product,
-        artifact_policy,
+        timings: collect_timings,
         offline,
         accept_admissions,
         optimization_rollback,
     } = request;
+    let mut timings = if collect_timings {
+        CompileTimings::enabled()
+    } else {
+        CompileTimings::default()
+    };
     // Placement and policy belong to the authored project, not its resolver snapshot.
     let build_dir = options.retain_build_dir();
     let policy_root_path = options.root_path.clone();
     let target = target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
         .map_err(|diagnostic| CompileProjectError::Diagnostics(vec![diagnostic]))?;
-    let prepared = packages::prepare_local_project_with_options(
-        &options.root_path,
-        packages::LocalProjectPreparationOptions { target, offline },
-    )
-    .map_err(CompileProjectError::Preparation)?;
+    let prepared = timings
+        .record_result(
+            StageMeta::new(
+                "prepare",
+                "project",
+                "prepared sources",
+                TimingCategory::Pipeline,
+            ),
+            || {
+                packages::prepare_local_project_with_options(
+                    &options.root_path,
+                    packages::LocalProjectPreparationOptions { target, offline },
+                )
+            },
+        )
+        .map_err(CompileProjectError::Preparation)?;
     let admissions = trust_ledger::read_trust_admissions(&policy_root_path)
         .map_err(CompileProjectError::Diagnostics)?;
-    let report = match (prepared, product) {
-        (Some(prepared), ProjectProduct::NativeArtifact) => {
-            let request =
-                packages::PreparedLocalProjectNativeRequest::new(prepared, &build_dir, target)
-                    .with_artifact_policy(artifact_policy)
+    let report = timings.record_result(
+        StageMeta::new(
+            "compile",
+            "sources",
+            "requested product",
+            TimingCategory::Pipeline,
+        ),
+        || {
+            Ok(match (prepared, product) {
+                (Some(prepared), ProjectProduct::NativeArtifact) => {
+                    let request = packages::PreparedLocalProjectNativeRequest::new(
+                        prepared, &build_dir, target,
+                    )
                     .with_accepted_trust_admissions(admissions)
                     .with_optimization_rollback(optimization_rollback);
-            packages::compile_prepared_local_project_for_native(request)
-                .map_err(CompileProjectError::PackageNative)?
-        }
-        (Some(prepared), ProjectProduct::Check) => {
-            if !optimization_rollback.is_empty() {
-                let names = optimization_rollback
-                    .requested_disabled()
-                    .as_slice()
-                    .iter()
-                    .map(|optimization| format!("`{}`", optimization.build_case_name()))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                return Err(CompileProjectError::Diagnostics(vec![Diagnostic::error(
-                    format!("optimization rollback {names} names stages not executed by Check"),
-                )]));
-            }
-            let request =
-                packages::PreparedLocalProjectCheckRequest::new(prepared, &build_dir, target)
-                    .with_artifact_policy(artifact_policy)
+                    packages::compile_prepared_local_project_for_native(request)
+                        .map_err(CompileProjectError::PackageNative)?
+                }
+                (Some(prepared), ProjectProduct::Check) => {
+                    if !optimization_rollback.is_empty() {
+                        let names = optimization_rollback
+                            .requested_disabled()
+                            .as_slice()
+                            .iter()
+                            .map(|optimization| format!("`{}`", optimization.build_case_name()))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        return Err(CompileProjectError::Diagnostics(vec![Diagnostic::error(
+                            format!(
+                                "optimization rollback {names} names stages not executed by Check"
+                            ),
+                        )]));
+                    }
+                    let request = packages::PreparedLocalProjectCheckRequest::new(
+                        prepared, &build_dir, target,
+                    )
                     .with_accepted_trust_admissions(admissions);
-            packages::check_prepared_local_project(request)
-                .map_err(CompileProjectError::PackageCheck)?
-        }
-        (None, product) => {
-            let product = match product {
-                ProjectProduct::Check => RequestedCompileProduct::Check,
-                ProjectProduct::NativeArtifact => RequestedCompileProduct::NativeArtifact,
-            };
-            compile(
-                CompileRequest::new(options)
-                    .with_requested_product(product)
-                    .with_artifact_policy(artifact_policy)
-                    .with_optimization_rollback(optimization_rollback)
-                    .with_accepted_trust_admissions(admissions),
-            )
-            .and_then(compiler::CompileOutcomes::into_single_report)
-            .map_err(CompileProjectError::Diagnostics)?
-        }
-    };
+                    packages::check_prepared_local_project(request)
+                        .map_err(CompileProjectError::PackageCheck)?
+                }
+                (None, product) => {
+                    let product = match product {
+                        ProjectProduct::Check => RequestedCompileProduct::Check,
+                        ProjectProduct::NativeArtifact => RequestedCompileProduct::NativeArtifact,
+                    };
+                    compile(
+                        CompileRequest::new(options)
+                            .with_requested_product(product)
+                            .with_optimization_rollback(optimization_rollback)
+                            .with_accepted_trust_admissions(admissions),
+                    )
+                    .and_then(compiler::CompileOutcomes::into_single_report)
+                    .map_err(CompileProjectError::Diagnostics)?
+                }
+            })
+        },
+    )?;
     let settlement = report.trust_admission_settlement();
     if accept_admissions {
         trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
@@ -159,13 +190,24 @@ pub fn compile_project(
     match product {
         ProjectProduct::Check => Ok(CompileProjectOutcome {
             report,
+            timings,
             executable_path: None,
         }),
         ProjectProduct::NativeArtifact => {
-            let (report, path) = publication::publish_native_artifact(report, &build_dir)
+            let (report, path) = timings
+                .record_result(
+                    StageMeta::new(
+                        "publish",
+                        "native artifact",
+                        "executable",
+                        TimingCategory::Pipeline,
+                    ),
+                    || publication::publish_native_artifact(report, &build_dir),
+                )
                 .map_err(CompileProjectError::Publication)?;
             Ok(CompileProjectOutcome {
                 report,
+                timings,
                 executable_path: Some(path),
             })
         }

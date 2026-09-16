@@ -4,9 +4,7 @@ use super::PreparedLocalProject;
 use crate::review::{
     CompileResolvedPackageReviewsError, compile_resolved_package_candidate_for_check,
 };
-use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileOutputKind, CompileReport, TrustAdmission,
-};
+use compiler::{CompileOptions, CompileOutputKind, CompileReport, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::fmt;
 use std::path::PathBuf;
@@ -19,7 +17,7 @@ pub struct PreparedLocalProjectCheckRequest {
     prepared: PreparedLocalProject,
     build_dir: PathBuf,
     target_profile: TargetProfile,
-    artifact_policy: ArtifactEmissionPolicy,
+
     accepted_trust_admissions: Vec<TrustAdmission>,
 }
 
@@ -33,14 +31,9 @@ impl PreparedLocalProjectCheckRequest {
             prepared,
             build_dir: build_dir.into(),
             target_profile,
-            artifact_policy: ArtifactEmissionPolicy::Full,
+
             accepted_trust_admissions: Vec::new(),
         }
-    }
-
-    pub fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
-        self.artifact_policy = artifact_policy;
-        self
     }
 
     pub fn with_accepted_trust_admissions(mut self, admissions: Vec<TrustAdmission>) -> Self {
@@ -53,7 +46,6 @@ impl PreparedLocalProjectCheckRequest {
 pub enum CheckPreparedLocalProjectError {
     Review(CompileResolvedPackageReviewsError),
     TrustAdmission(Vec<Diagnostic>),
-    ObservationOutput(Vec<Diagnostic>),
     Report(&'static str),
 }
 
@@ -61,12 +53,6 @@ impl fmt::Display for CheckPreparedLocalProjectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Review(error) => write!(formatter, "cannot check prepared project: {error}"),
-            Self::ObservationOutput(diagnostics) => {
-                write!(
-                    formatter,
-                    "cannot write checked observations: {diagnostics:?}"
-                )
-            }
             Self::TrustAdmission(diagnostics) => {
                 write!(formatter, "cannot admit package trust: {diagnostics:?}")
             }
@@ -87,7 +73,7 @@ pub fn check_prepared_local_project(
         prepared,
         build_dir,
         target_profile,
-        artifact_policy,
+
         accepted_trust_admissions,
     } = request;
     let (entry_path, source_closure, _) = prepared.into_review_parts();
@@ -104,9 +90,6 @@ pub fn check_prepared_local_project(
     };
     let admission = compiler::admit_checked_compilation(&checked, &accepted_trust_admissions)
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
-    admission
-        .write_observations(&options.build_dir(), artifact_policy)
-        .map_err(CheckPreparedLocalProjectError::ObservationOutput)?;
     let settlement = admission.into_settlement();
     CompileReport::checked(
         options.root_path,
