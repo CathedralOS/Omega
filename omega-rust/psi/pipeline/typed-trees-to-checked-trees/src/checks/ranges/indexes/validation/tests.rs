@@ -37,6 +37,30 @@ fn fixture(
     (program, expression, indexed)
 }
 
+/// Lowers a whole source through the checked-tree pass so range proofs see
+/// the same facts the real pipeline seeds (requires floors, guard bounds,
+/// alias transfers). `Ok` means every bounds obligation was discharged.
+fn check_source(source: &str) -> Result<(), Vec<String>> {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    crate::lower_typed_trees(program)
+        .map(|_| ())
+        .map_err(|diagnostics| {
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect()
+        })
+}
+
 fn result(collection_type: &str, access: &str, prove_index: bool) -> BoundsCheckResult {
     let (program, expression, indexed) = fixture(collection_type, access);
     let machine = &program.machines()[0];
@@ -508,6 +532,223 @@ fn call_index_on_unknown_slice_meets_ensured_bounds_against_length_facts() {
     ] {
         let source = format!("{callee} machine write(output: &mut [u8]) {contract} {{ {body} }}");
         match (check(&source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove")),
+                "{callee} | {body}: {messages:?}"
+            ),
+            (result, _) => panic!("{callee} | {body}: {result:?}"),
+        }
+    }
+}
+
+/// A label-keyed exclusive upper bound — seeded by a `let` alias of an ensured
+/// call (`i < 4` from `ensures result <= 3`) — meets an unknown slice's
+/// `minimum_length`/`exact_length` floor exactly like a folded literal:
+/// `i < u` and `u <= floor` give `i < len`. The same bound at `u - 1 <= floor`
+/// discharges an exclusive range end. A bound past the floor and a missing
+/// floor keep the ordinary rejection; rebinding the name retires it.
+#[test]
+fn unknown_slice_index_meets_label_upper_bounds_against_length_facts() {
+    for (callee, contract, body, accepted) in [
+        // The ensured inclusive high seeds `i < 4`, which meets the
+        // `requires`-seeded `minimum_length` floor.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "let i: u64 = idx(); output[i] = 65;",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result < 4 { 1 }",
+            "requires output.len >= 4",
+            "let i: u64 = idx(); output[i] = 65;",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result == 1 { 1 }",
+            "requires output.len >= 4",
+            "let i: u64 = idx(); output[i] = 65;",
+            true,
+        ),
+        // A signed alias owes its lower half to the ensured `>= 0` conjunct
+        // the alias seeding already publishes as a non-negative fact.
+        (
+            "machine idx() -> i64 ensures result >= 0 && result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "let i: i64 = idx(); output[i] = 65;",
+            true,
+        ),
+        (
+            "machine idx() -> i64 ensures result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "let i: i64 = idx(); output[i] = 65;",
+            false,
+        ),
+        // `i < 5` against a floor of 4 is still out of range.
+        (
+            "machine idx() -> u64 ensures result <= 4 { 1 }",
+            "requires output.len >= 4",
+            "let i: u64 = idx(); output[i] = 65;",
+            false,
+        ),
+        // No length floor: the bound alone cannot prove `i < len`.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "",
+            "let i: u64 = idx(); output[i] = 65;",
+            false,
+        ),
+        // A chained copy inherits the seeded bound through alias_index.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "let i: u64 = idx(); let j: u64 = i; output[j] = 65;",
+            true,
+        ),
+        // Rebinding the name retires the stale bound: an unbounded call must
+        // not keep the initializer's contract.
+        (
+            "machine raw() -> u64 { 7 } machine idx() -> u64 ensures result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "let mut i: u64 = idx(); i = raw(); output[i] = 65;",
+            false,
+        ),
+        // A constant-window `exact_length` meets the bound the same way.
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "let tail: &[u8] = output[0..4]; let i: u64 = idx(); let picked: u8 = tail[i];",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result <= 4 { 1 }",
+            "requires output.len >= 4",
+            "let tail: &[u8] = output[0..4]; let i: u64 = idx(); let picked: u8 = tail[i];",
+            false,
+        ),
+        // The exclusive range end discharges `i <= len` at `u - 1 <= floor`:
+        // `i < 5` gives `i <= 4`, exactly the floor.
+        (
+            "machine idx() -> u64 ensures result <= 4 { 1 }",
+            "requires output.len >= 4",
+            "let i: u64 = idx(); let window: &[u8] = output[..i];",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result <= 5 { 1 }",
+            "requires output.len >= 4",
+            "let i: u64 = idx(); let window: &[u8] = output[..i];",
+            false,
+        ),
+    ] {
+        let source = format!("{callee} machine write(output: &mut [u8]) {contract} {{ {body} }}");
+        match (check_source(&source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove")),
+                "{callee} | {body}: {messages:?}"
+            ),
+            (result, _) => panic!("{callee} | {body}: {result:?}"),
+        }
+    }
+}
+
+/// The `i < K` guard seeds the same label-keyed bound: a guarded transition
+/// arm meets it against the collection's floor, an `i <= pivot` ordering chain
+/// reaches the pivot's bound one hop out, and a signed index still owes its
+/// `>= 0` half. The value-target `items[i]` is checked under the guard's facts.
+#[test]
+fn unknown_slice_index_meets_guard_seeded_upper_bounds_against_length_facts() {
+    for (parameters, contract, guard, accepted) in [
+        ("", "requires items.len >= 4", "i < 4", true),
+        ("", "requires items.len >= 4", "i <= 3", true),
+        // `i < 5` against a floor of 4 is still out of range.
+        ("", "requires items.len >= 4", "i < 5", false),
+        // No length floor: the guard bound alone cannot prove `i < len`.
+        ("", "", "i < 4", false),
+        // `i <= pivot` plus the pivot's `j < 4` bound chains one hop.
+        (
+            ", j: u64",
+            "requires items.len >= 4",
+            "i <= j && j < 4",
+            true,
+        ),
+        (
+            ", j: u64",
+            "requires items.len >= 4",
+            "i <= j && j < 5",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "machine read(items: &[u8], i: u64{parameters}) -> u8 {contract} {{
+                transition {guard} {{ true -> (items[i]) false -> (0) }}
+            }}"
+        );
+        match (check_source(&source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove")),
+                "{parameters} | {guard}: {messages:?}"
+            ),
+            (result, _) => panic!("{parameters} | {guard}: {result:?}"),
+        }
+    }
+    // The signed lane needs its own parameter spelling.
+    for (guard, accepted) in [("i >= 0 && i < 4", true), ("i < 4", false)] {
+        let source = format!(
+            "machine read(items: &[u8], i: i64) -> u8 requires items.len >= 4 {{
+                transition {guard} {{ true -> (items[i]) false -> (0) }}
+            }}"
+        );
+        let result = check_source(&source);
+        assert_eq!(result.is_ok(), accepted, "{guard}: {result:?}");
+    }
+}
+
+/// A `len - offset` subtrahend under an exclusive range end reads the offset's
+/// ensured call bounds too: the ensured `>= 0` conjunct supplies the
+/// non-negativity a signed offset still owes, and the ensured inclusive high
+/// met against the floor supplies `offset <= len`.
+#[test]
+fn length_difference_offset_reads_ensured_result_bounds() {
+    for (callee, contract, body, accepted) in [
+        (
+            "machine idx() -> u64 ensures result <= 3 { 1 }",
+            "requires output.len >= 4",
+            "let window: &[u8] = output[..output.len - idx()];",
+            true,
+        ),
+        // `result <= 4` still fits: the offset can equal the length floor.
+        (
+            "machine idx() -> u64 ensures result <= 4 { 1 }",
+            "requires output.len >= 4",
+            "let window: &[u8] = output[..output.len - idx()];",
+            true,
+        ),
+        (
+            "machine idx() -> u64 ensures result <= 5 { 1 }",
+            "requires output.len >= 4",
+            "let window: &[u8] = output[..output.len - idx()];",
+            false,
+        ),
+        // No contract bound keeps the ordinary rejection.
+        (
+            "machine idx() -> u64 { 1 }",
+            "requires output.len >= 4",
+            "let window: &[u8] = output[..output.len - idx()];",
+            false,
+        ),
+    ] {
+        let source = format!("{callee} machine write(output: &mut [u8]) {contract} {{ {body} }}");
+        match (check_source(&source), accepted) {
             (Ok(()), true) => {}
             (Err(messages), false) => assert!(
                 messages

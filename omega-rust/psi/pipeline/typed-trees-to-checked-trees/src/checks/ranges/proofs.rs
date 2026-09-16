@@ -32,8 +32,12 @@ fn range_end_within_unknown_length_is_proven(
 /// at every callee exit, so `K` inclusively bounds THIS occurrence's result
 /// exactly like a declared return range — meeting it against the collection's
 /// `minimum_length` floor or `exact_length` (`K < len`) proves the index the
-/// way a folded constant does. The non-negative half a signed result still
-/// owes stays with the lower-bound lane.
+/// way a folded constant does. A label-keyed exclusive upper bound — seeded by
+/// a `let` alias of an ensured call, an `i < K` guard, or a transition's
+/// argument transport — meets the same floor: `i < u` and `u <= floor` give
+/// `i < len`, and an `i <= pivot` ordering chain reaches the pivot's bound one
+/// hop out. The non-negative half a signed result still owes stays with the
+/// lower-bound lane.
 fn index_is_within_unknown_length_proven(
     program: &typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
@@ -47,6 +51,8 @@ fn index_is_within_unknown_length_proven(
         || ensured_call_result_bounds(program, index)
             .and_then(|(_, high)| high)
             .is_some_and(|high| facts.index_value_is_proven(collection_label, high))
+        || facts.index_upper_bound_within_length_floor(&index_label, collection_label)
+        || facts.index_upper_bound_within_length_floor_via_ordering(&index_label, collection_label)
 }
 
 pub(super) fn unknown_length_index_is_proven(
@@ -170,6 +176,13 @@ pub(in crate::checks::ranges) fn length_difference_is_within_collection(
                 binary.right,
             )
             .is_some_and(|(minimum, _)| minimum >= 0)
+            // A call offset's ensured `result >= K` conjunct is discharged at
+            // every callee exit, so a non-negative `K` supplies the
+            // non-negativity a signed result still owes — the same contract
+            // the index and lower-bound lanes already read.
+            || ensured_call_result_bounds(program, binary.right)
+                .and_then(|(low, _)| low)
+                .is_some_and(|low| low >= 0)
             || facts.non_negative_is_proven(&offset_label)
             || facts.non_negative_is_proven_via_ordering(&offset_label)
     };
@@ -215,6 +228,14 @@ pub(super) fn is_exact_collection_length(
             .expressions_structurally_equal(collection, receiver)
 }
 
+/// Proves an exclusive range bound is `<= len` for an unknown slice length
+/// using the range-bound vocabulary (`prove_range_bound` /
+/// `range_bound_value_is_proven`). A label-keyed exclusive upper bound `u`
+/// (`bound < u`, so `bound <= u - 1`) meets the collection's
+/// `minimum_length`/`exact_length` floor at `u - 1 <= floor <= len`, and a
+/// call bound's ensured inclusive high `result <= K` meets it at
+/// `K <= floor <= len` — the same contract the index lane reads, one step
+/// weaker because the exclusive end may equal the length.
 fn range_bound_is_proven(
     program: &typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
@@ -225,4 +246,10 @@ fn range_bound_is_proven(
     facts.range_bound_is_proven(collection_label, &bound_label)
         || expression_integer_value(program, facts, bound)
             .is_some_and(|bound| facts.range_bound_value_is_proven(collection_label, bound))
+        || facts
+            .proven_index_upper_bound(&bound_label)
+            .is_some_and(|upper| facts.range_bound_value_is_proven(collection_label, upper - 1))
+        || ensured_call_result_bounds(program, bound)
+            .and_then(|(_, high)| high)
+            .is_some_and(|high| facts.range_bound_value_is_proven(collection_label, high))
 }
