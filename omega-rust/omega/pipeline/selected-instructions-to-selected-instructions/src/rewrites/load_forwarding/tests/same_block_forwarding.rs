@@ -10,8 +10,8 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, VirtualRegisterId,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind,
+    SelectedLocalStorageSlot, SelectedMemoryAccess, SelectedMemoryAccessRole, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
 use target::NativeTarget;
@@ -353,7 +353,7 @@ fn harmless_accesses_and_private_slots_still_forward() {
         function.blocks[0].instructions[2] = instruction(
             BETWEEN,
             SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
                     register: VirtualRegisterId(9),
                 }),
                 byte_offset: 0,
@@ -363,6 +363,491 @@ fn harmless_accesses_and_private_slots_still_forward() {
         );
     });
     forward(&spill, &environment).unwrap();
+}
+
+/// A write into the forwarded place's own local storage sources the forward
+/// exactly like a referent-pointer store: a parameter home or
+/// block-parameter slot is the place's storage under the same byte
+/// coordinates. The covering `Store64` names the slot directly; a place
+/// `Store` through the slot's materialized address carries the same
+/// `WriteLocal` row.
+#[test]
+fn place_storage_local_writes_forward() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // A direct `Store64` into the place's parameter home forwards its
+        // single use operand.
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        let direct = mutated(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.blocks[0].instructions[1] = instruction(
+                STORE,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[VALUE],
+            );
+            function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+        });
+        let source_load = direct.transformed().functions[0].blocks[0].instructions[3].clone();
+        let result = forward(&direct, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        let rewritten = &function.blocks[0].instructions[3];
+        assert_eq!(rewritten.id, LOAD);
+        assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+        assert_eq!(rewritten.operands.len(), 2);
+        assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+        assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+        assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Def);
+        assert_eq!(rewritten.provenance, source_load.provenance);
+        // The roster drops the read row and keeps the `WriteLocal` row.
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| access.role)
+                .collect::<Vec<_>>(),
+            vec![SelectedMemoryAccessRole::WriteLocal { slot }]
+        );
+        validate_stored_load_forwarding(
+            &direct,
+            0,
+            LOAD,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A block-parameter slot is the place's storage the same way.
+        let block_slot = LocalStorageSlotId::StructuralBlockParameter {
+            block: semantic_vocabulary::BlockId::new(2).unwrap(),
+            place: place(),
+        };
+        let parameter = mutated(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: block_slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.blocks[0].instructions[1] = instruction(
+                STORE,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(block_slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[VALUE],
+            );
+            function.memory_accesses[0].role =
+                SelectedMemoryAccessRole::WriteLocal { slot: block_slot };
+        });
+        let result = forward(&parameter, &environment).unwrap();
+        assert_eq!(
+            result.transformed().functions[0].blocks[0].instructions[3].kind,
+            SelectedInstructionKind::CopyI64
+        );
+        // A place `Store` through the parameter slot's materialized address
+        // carries the same `WriteLocal` row and sources the same register.
+        let addressed = mutated(target, |function, _| {
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+        });
+        let result = forward(&addressed, &environment).unwrap();
+        let rewritten = &result.transformed().functions[0].blocks[0].instructions[3];
+        assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+        assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+        validate_stored_load_forwarding(
+            &addressed,
+            0,
+            LOAD,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
+/// A `WriteLocal` row decides by range intersection like a `WritePlace` row:
+/// a disjoint local write walks past whether its slot is the place's storage
+/// or only stages bytes naming the place, and a `WriteLocal` row on another
+/// place's slot is a different place root entirely.
+#[test]
+fn local_slot_writes_walk_past_disjoint_ranges() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A disjoint `Store64` into the place's own parameter slot cannot touch
+    // the forwarded bytes: the slot is the place's storage and the row names
+    // bytes outside the read's range.
+    let disjoint = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 8,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                8,
+                SelectedMemoryAccessRole::WriteLocal { slot },
+            ),
+        );
+    });
+    forward(&disjoint, &environment).unwrap();
+    // The same disjoint write on a `Structural` staging slot stays harmless:
+    // its bytes merely name the place and still sit outside the read's range.
+    let disjoint_staging = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::Structural {
+            operation: OperationId::new(9).unwrap(),
+            place: place(),
+        };
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 8,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                8,
+                SelectedMemoryAccessRole::WriteLocal { slot },
+            ),
+        );
+    });
+    forward(&disjoint_staging, &environment).unwrap();
+    // A `WriteLocal` row on another place's parameter slot is a different
+    // place root entirely.
+    let other_place = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter {
+            place: PlaceId::new(2).unwrap(),
+        };
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                PlaceId::new(2).unwrap(),
+                0,
+                SelectedMemoryAccessRole::WriteLocal { slot },
+            ),
+        );
+    });
+    forward(&other_place, &environment).unwrap();
+}
+
+/// The local-slot writer must be the read's exact writer: a shifted
+/// `Store64`, a `WriteLocal` row disagreeing with the instruction's slot or
+/// route, a `Structural` staging slot, the wrong constraint, or a sub-word
+/// read each leave the pair unproven.
+#[test]
+fn local_slot_sources_stay_exact() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A `Store64` overlapping the read's tail is a shifted writer, not the
+    // exact one: the head bytes still come from elsewhere.
+    let shifted = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 4,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].byte_offset = 4;
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+    });
+    assert_eq!(
+        forward(&shifted, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // The sourcing `Store64` must name the same slot its row claims.
+    let wrong_slot = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let claimed = LocalStorageSlotId::StructuralParameter { place: place() };
+        let written = LocalStorageSlotId::StructuralParameter {
+            place: PlaceId::new(2).unwrap(),
+        };
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(written),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot: claimed };
+    });
+    assert_eq!(
+        forward(&wrong_slot, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A `WritePlace` row on the direct slot store is not the role the
+    // instruction's route produces.
+    let wrong_role = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+    });
+    assert_eq!(
+        forward(&wrong_role, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A `Store64` on the wrong constraint is not the target's slot store.
+    let wrong_constraint = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store,
+            &[POINTER, VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+    });
+    assert_eq!(
+        forward(&wrong_constraint, &environment).unwrap_err(),
+        StoredLoadForwardingError::ConstraintMismatch
+    );
+    // An operation-owned `Structural` slot can stage bytes that merely name
+    // the place, so even an exact-range `Store64` into it cannot source.
+    let staging = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::Structural {
+            operation: OperationId::new(9).unwrap(),
+            place: place(),
+        };
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+    });
+    assert_eq!(
+        forward(&staging, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A place `Store` through a staging slot's materialized address carries
+    // the same non-storage `WriteLocal` row and cannot source either.
+    let staged_store = mutated(target, |function, _| {
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(9).unwrap(),
+                place: place(),
+            },
+        };
+    });
+    assert_eq!(
+        forward(&staged_store, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // The eight-byte slot store cannot produce a sub-word read's bytes.
+    let subword = {
+        let mut source = narrowed(target, 4);
+        let inner = std::sync::Arc::make_mut(&mut source.transformed);
+        let function = &mut inner.functions[0];
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+        let identity = selected_instruction_plan_identity(&source.transformed);
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        source
+    };
+    assert_eq!(
+        forward(&subword, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+}
+
+/// Replay of a local-slot-sourced forwarding holds the same exact contract:
+/// the `WriteLocal` row kept, the load rewritten to the slot store's use
+/// operand, and the surviving `Store64` untouched.
+#[test]
+fn local_source_replay_rejects_mutated_proposals() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+    let source = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+    });
+    let result = forward(&source, &environment).unwrap();
+    for mutation in 0..4 {
+        let mut proposed = result.transformed().clone();
+        let function = &mut proposed.functions[0];
+        match mutation {
+            // Forwarded from the wrong register.
+            0 => {
+                function.blocks[0].instructions[3].operands[0].virtual_register = POINTER;
+            }
+            // The sourcing row's `WriteLocal` identity must survive intact.
+            1 => {
+                function.memory_accesses[0].role = SelectedMemoryAccessRole::WritePlace;
+            }
+            // Dropped the writer's row as well as the read's.
+            2 => {
+                function.memory_accesses.remove(0);
+            }
+            // The surviving `Store64` must remain the same slot store.
+            3 => {
+                function.blocks[0].instructions[1].kind = SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                        register: VirtualRegisterId(9),
+                    }),
+                    byte_offset: 0,
+                };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_stored_load_forwarding(&source, 0, LOAD, &environment, budget(), proposed)
+                .is_err(),
+            "mutation {mutation}"
+        );
+    }
 }
 
 #[test]

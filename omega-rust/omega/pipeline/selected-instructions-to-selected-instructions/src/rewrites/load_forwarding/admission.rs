@@ -1,24 +1,33 @@
 //! Shared admission for store-to-load forwarding: locate the named load,
 //! walk back through its block and across its predecessor edges to the
-//! exact same-width `Store` that last wrote its place range on every path,
+//! exact same-width write that last wrote its place range on every path,
 //! and prove no intervening instruction or crossed edge can disturb it.
 //!
-//! `Load64` pairs with an eight-byte `Store` and forwards to `CopyI64`.
-//! `Load32`/`Load16`/`Load8` pair with a `Store` of exactly the load's width
-//! at the identical byte offset and forward to `ZeroExtendU32`/`ZeroExtendU16`/
-//! `ZeroExtendU8`: a same-width store then load round-trips the stored
-//! register's low bits through the target's own byte order, so the rewrite
-//! needs no endianness assumption. A wider or shifted store covering only
-//! part of the read rejects — no selected extract can slice a register's
-//! middle bytes.
+//! `Load64` pairs with an eight-byte write of the place's storage and
+//! forwards to `CopyI64`; `Load32`/`Load16`/`Load8` pair with a `Store` of
+//! exactly the load's width at the identical byte offset and forward to
+//! `ZeroExtendU32`/`ZeroExtendU16`/`ZeroExtendU8`: a same-width write then
+//! load round-trips the stored register's low bits through the target's own
+//! byte order, so the rewrite needs no endianness assumption. The writer's
+//! route to the place's storage can be the referent-pointer `Store`
+//! carrying `WritePlace`, or a write into the place's own local storage —
+//! its `StructuralParameter` or `StructuralBlockParameter` slot — carrying
+//! `WriteLocal`: a `Store` through the slot's materialized address, or a
+//! `Store64` into the slot directly, which is always eight bytes and so
+//! pairs only with `Load64`. A wider or shifted writer covering only part
+//! of the read rejects — no selected extract can slice a register's middle
+//! bytes.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! forwarded place blocks on any overlapping or dynamic-extent write and on
-//! any materialized local address for that place; rows for other places and
-//! every read role are safe under place exclusivity. Instructions without a
-//! row are admitted only when their kind cannot write semantic storage:
-//! loads, address formation, private-slot frame accesses, and pure register
-//! work. Calls, hosted effects, and unaccounted writers reject.
+//! any materialized local address for that place; a `WriteLocal` row names
+//! an exact range, so a disjoint local write — place storage or staging —
+//! walks past the same way a disjoint `WritePlace` does. Rows for other
+//! places and every read role are safe under place exclusivity.
+//! Instructions without a row are admitted only when their kind cannot
+//! write semantic storage: loads, address formation, private-slot frame
+//! accesses, and pure register work. Calls, hosted effects, and unaccounted
+//! writers reject.
 //!
 //! The walk is not confined to one block: reaching a block's top without
 //! interference continues through every predecessor block, and the deferred
@@ -219,8 +228,9 @@ pub(super) fn admit<'source>(
     }
     // Walk back to the last writer of the forwarded range on every path to
     // the load. Within a block the first potentially interfering access
-    // scanning back decides: an exact same-width referent store resolves the
-    // block to the register that store wrote; anything else rejects. A block
+    // scanning back decides: an exact same-width write of the place's
+    // storage resolves the block to the register that write carried;
+    // anything else rejects. A block
     // whose body shows no interference defers to its predecessors — the walk
     // crosses every edge into it and each predecessor's terminator rows
     // decide first. A deferred block then resolves when every predecessor
@@ -295,8 +305,8 @@ pub(super) fn admit<'source>(
             }
             // The terminator instruction sits between the predecessor's
             // body and the crossed edge, so an interfering row on it decides
-            // first. It never has the exact referent `Store` kind, so it
-            // rejects the pair.
+            // first. It never has a place-storage writer kind, so it rejects
+            // the pair.
             let terminator = terminator_instruction(&predecessor.terminator);
             if function
                 .memory_accesses
@@ -463,8 +473,12 @@ fn single_def(
 
 /// Whether one roster row can disturb the forwarded bytes. Writes must target
 /// the same place root to overlap; dynamic extents and escaped place-backed
-/// addresses always block. Local-slot and outgoing-area storage never aliases
-/// a referent place.
+/// addresses always block. A `WriteLocal` row names an exact range: whether
+/// its slot is the forwarded place's storage or only stages bytes naming the
+/// place, a disjoint row cannot touch the forwarded bytes — so range
+/// intersection decides, and an intersecting row still has to be the exact
+/// writer. Local-slot storage for a different place and outgoing-area storage
+/// never alias a referent place.
 fn interferes(forwarded: &Forwarded, access: &SelectedMemoryAccess) -> bool {
     match access.role {
         SelectedMemoryAccessRole::WritePlace => {
@@ -472,8 +486,10 @@ fn interferes(forwarded: &Forwarded, access: &SelectedMemoryAccess) -> bool {
         }
         SelectedMemoryAccessRole::WriteByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. } => access.place == forwarded.place,
-        SelectedMemoryAccessRole::WriteLocal { slot }
-        | SelectedMemoryAccessRole::AddressLocal { slot } => {
+        SelectedMemoryAccessRole::WriteLocal { slot } => {
+            slot.structural_place() == Some(forwarded.place) && forwarded.intersects(access)
+        }
+        SelectedMemoryAccessRole::AddressLocal { slot } => {
             slot.structural_place() == Some(forwarded.place)
         }
         SelectedMemoryAccessRole::ReadPlace
@@ -484,12 +500,39 @@ fn interferes(forwarded: &Forwarded, access: &SelectedMemoryAccess) -> bool {
     }
 }
 
-/// The found writer must be a `Store` of the read's exact width at the
-/// identical row: one `WritePlace` access, matching byte offset and byte
-/// count, and a clean `[pointer, value]` operand shape on the target's own
-/// constraint row. A wider, narrower, or shifted writer cannot produce the
-/// read's bytes from one register without an extract the selected vocabulary
-/// does not carry.
+/// Whether `slot` is `place`'s own storage, so a write into it moves the
+/// place's bytes in the place's byte coordinates and can source a forward:
+/// a parameter home or a block parameter. An operation-owned `Structural`
+/// slot can instead stage bytes that merely name the place — a call's
+/// staged view descriptor — so it is not the place's storage here.
+fn local_slot_is_place_storage(slot: LocalStorageSlotId, place: PlaceId) -> bool {
+    match slot {
+        LocalStorageSlotId::StructuralParameter { place: slot_place }
+        | LocalStorageSlotId::StructuralBlockParameter {
+            place: slot_place, ..
+        } => slot_place == place,
+        LocalStorageSlotId::Spill { .. }
+        | LocalStorageSlotId::Structural { .. }
+        | LocalStorageSlotId::Boundary { .. } => false,
+    }
+}
+
+/// The found writer must produce the read's exact bytes from one register:
+/// one roster row on the forwarded place naming the identical byte offset
+/// and byte count, on the target's own operand surface. Two routes to the
+/// place's storage qualify:
+/// - a `Store` of the read's exact width carrying `WritePlace` — through the
+///   referent pointer — or `WriteLocal` on the place's own parameter
+///   storage, through that slot's materialized address;
+/// - a `Store64` into `Local(slot)` carrying `WriteLocal` on that same
+///   slot — directly into the place's own parameter storage. The slot store
+///   is always eight bytes, so only `Load64` pairs with it.
+///
+/// A wider, narrower, or shifted writer cannot produce the read's bytes from
+/// one register without an extract the selected vocabulary does not carry. A
+/// `WriteLocal` on an operation-owned `Structural` slot never sources: the
+/// slot can stage bytes that merely name the place without being its
+/// storage.
 fn forwarding_source(
     instruction: &SelectedInstruction,
     forwarded: &Forwarded,
@@ -497,16 +540,8 @@ fn forwarding_source(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<VirtualRegisterId, StoredLoadForwardingError> {
     let reject = || StoredLoadForwardingError::AliasingWrite;
-    let SelectedInstructionKind::Store {
-        byte_offset,
-        byte_size,
-    } = instruction.kind
-    else {
-        return Err(reject());
-    };
-    if byte_offset != forwarded.byte_offset || u32::from(byte_size) != forwarded.byte_count {
-        return Err(reject());
-    }
+    // The writer's semantic identity: exactly one roster row on the
+    // forwarded place naming the read's exact byte range.
     let mut rows = function
         .memory_accesses
         .iter()
@@ -515,34 +550,87 @@ fn forwarding_source(
         return Err(reject());
     };
     if rows.next().is_some()
-        || row.role != SelectedMemoryAccessRole::WritePlace
         || row.place != forwarded.place
         || row.byte_offset != forwarded.byte_offset
         || row.byte_count != forwarded.byte_count
     {
         return Err(reject());
     }
-    let row_constraint = environment
-        .constraint(instruction.constraint)
-        .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
-    if row_constraint.operands.len() != 2
-        || row_constraint.operands[0].operand != 0
-        || row_constraint.operands[0].access != RegisterOperandAccess::Use
-        || row_constraint.operands[1].operand != 1
-        || row_constraint.operands[1].access != RegisterOperandAccess::Use
-    {
-        return Err(StoredLoadForwardingError::ConstraintMismatch);
+    match instruction.kind {
+        SelectedInstructionKind::Store {
+            byte_offset,
+            byte_size,
+        } => {
+            if byte_offset != forwarded.byte_offset || u32::from(byte_size) != forwarded.byte_count
+            {
+                return Err(reject());
+            }
+            match row.role {
+                SelectedMemoryAccessRole::WritePlace => {}
+                SelectedMemoryAccessRole::WriteLocal { slot }
+                    if local_slot_is_place_storage(slot, forwarded.place) => {}
+                _ => return Err(reject()),
+            }
+            let row_constraint = environment
+                .constraint(instruction.constraint)
+                .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
+            if row_constraint.operands.len() != 2
+                || row_constraint.operands[0].operand != 0
+                || row_constraint.operands[0].access != RegisterOperandAccess::Use
+                || row_constraint.operands[1].operand != 1
+                || row_constraint.operands[1].access != RegisterOperandAccess::Use
+            {
+                return Err(StoredLoadForwardingError::ConstraintMismatch);
+            }
+            let mut uses = instruction
+                .operands
+                .iter()
+                .filter(|operand| operand.access == RegisterOperandAccess::Use);
+            let pointer = uses.next().ok_or_else(reject)?;
+            let value = uses.next().ok_or_else(reject)?;
+            if uses.next().is_some() || pointer.operand != 0 || value.operand != 1 {
+                return Err(reject());
+            }
+            Ok(value.virtual_register)
+        }
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset,
+        } => {
+            if byte_offset != forwarded.byte_offset || forwarded.byte_count != 8 {
+                return Err(reject());
+            }
+            // The roster row must name the same slot the instruction writes,
+            // and that slot must be the forwarded place's own storage.
+            if row.role != (SelectedMemoryAccessRole::WriteLocal { slot })
+                || !local_slot_is_place_storage(slot, forwarded.place)
+            {
+                return Err(reject());
+            }
+            if environment.selected_keys().store64 != Some(instruction.constraint) {
+                return Err(StoredLoadForwardingError::ConstraintMismatch);
+            }
+            let row_constraint = environment
+                .constraint(instruction.constraint)
+                .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
+            if row_constraint.operands.len() != 1
+                || row_constraint.operands[0].operand != 0
+                || row_constraint.operands[0].access != RegisterOperandAccess::Use
+            {
+                return Err(StoredLoadForwardingError::ConstraintMismatch);
+            }
+            let mut uses = instruction
+                .operands
+                .iter()
+                .filter(|operand| operand.access == RegisterOperandAccess::Use);
+            let value = uses.next().ok_or_else(reject)?;
+            if uses.next().is_some() || value.operand != 0 {
+                return Err(reject());
+            }
+            Ok(value.virtual_register)
+        }
+        _ => Err(reject()),
     }
-    let mut uses = instruction
-        .operands
-        .iter()
-        .filter(|operand| operand.access == RegisterOperandAccess::Use);
-    let pointer = uses.next().ok_or_else(reject)?;
-    let value = uses.next().ok_or_else(reject)?;
-    if uses.next().is_some() || pointer.operand != 0 || value.operand != 1 {
-        return Err(reject());
-    }
-    Ok(value.virtual_register)
 }
 
 /// The successor edges a terminator can take: a jump's single edge or a

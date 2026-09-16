@@ -9,11 +9,12 @@ use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedInstructionId,
-    SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
-    SelectedStructuralBinding, SelectedStructuralCaseEdge, SelectedStructuralTransport,
-    SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
+    SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
+    SelectedMemoryAccessRole, SelectedStructuralBinding, SelectedStructuralCaseEdge,
+    SelectedStructuralTransport, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+    VirtualRegisterId,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
@@ -62,6 +63,61 @@ fn cross_block_store_forwards_through_a_unique_predecessor() {
         )
         .unwrap();
     }
+}
+
+/// A local-storage writer in the predecessor block sources the forward
+/// across the edge the same way a referent-pointer store does: the
+/// `Store64` into the place's own parameter slot carries `WriteLocal`, and
+/// the crossed edge transports neither the stored register nor the load's
+/// result.
+#[test]
+fn cross_block_local_slot_writer_forwards_across_the_edge() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+    let source = mutated_chained(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+    });
+    let result = forward(&source, &environment).unwrap();
+    let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+    assert_eq!(rewritten.id, LOAD);
+    assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+    assert_eq!(
+        result.transformed().functions[0]
+            .memory_accesses
+            .iter()
+            .map(|access| access.role)
+            .collect::<Vec<_>>(),
+        vec![SelectedMemoryAccessRole::WriteLocal { slot }]
+    );
+    validate_stored_load_forwarding(
+        &source,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
 }
 
 #[test]

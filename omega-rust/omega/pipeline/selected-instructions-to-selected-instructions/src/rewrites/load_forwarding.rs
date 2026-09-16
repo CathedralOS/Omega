@@ -1,7 +1,11 @@
 //! Borrow-aware store-to-load forwarding on the selected CFG.
 //!
 //! A `Store { byte_offset, byte_size }` writes the low exact-width bits of
-//! its value operand through the referent pointer. A later `Load64`/`Load32`/
+//! its value operand through the referent pointer — or, carrying a
+//! `WriteLocal` row, through the materialized address of the place's own
+//! `StructuralParameter`/`StructuralBlockParameter` slot, which is the
+//! place's storage under the same byte coordinates. A `Store64` into that
+//! slot writes the same bytes directly. A later `Load64`/`Load32`/
 //! `Load16`/`Load8` of the same width at the same byte offset observes
 //! exactly those bytes when no intervening instruction can write or expose
 //! the same storage. The rewrite replaces the load with a
@@ -29,9 +33,12 @@
 //! one referent under different place identities — exclusivity rejects
 //! overlapping exclusive custody before selection — so a write row or a
 //! place-backed local slot for a different `PlaceId` cannot disturb the
-//! forwarded bytes. Intervening reads of the same place cannot either; only a
-//! potentially overlapping write, a dynamic-extent access, an escaped
-//! place-backed address, or a call/host effect blocks the pair.
+//! forwarded bytes. Intervening reads of the same place cannot either, and
+//! a `WriteLocal` row names an exact range, so a local write disjoint from
+//! the read's range walks past whether its slot is the place's storage or
+//! only stages bytes naming the place; only a potentially overlapping
+//! write, a dynamic-extent access, an escaped place-backed address, or a
+//! call/host effect blocks the pair.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they
