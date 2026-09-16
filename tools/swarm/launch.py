@@ -150,6 +150,16 @@ def validate_manifest(manifest, repository):
                              f"got {session['host']!r}.")
         if not isinstance(session["owning_paths"], list) or not session["owning_paths"]:
             raise SwarmError(f"{session['name']}: owning_paths must be a non-empty list.")
+        normalized_paths = []
+        for path in session["owning_paths"]:
+            if not isinstance(path, str):
+                raise SwarmError(f"{session['name']}: owning_paths entries must "
+                                 f"be strings, got {path!r}.")
+            try:
+                normalized_paths.append(claims.normalize_path(path))
+            except claims.ClaimsError as error:
+                raise SwarmError(f"{session['name']}: {error}") from error
+        session["owning_paths"] = normalized_paths
         if "host_gates" in session:
             gates = session["host_gates"]
             if (not isinstance(gates, list) or not gates

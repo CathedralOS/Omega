@@ -626,7 +626,7 @@ class SwarmTests(unittest.TestCase):
         self.assertEqual(hints, {})
 
 
-class ReusePathTests(unittest.TestCase):
+class OwnershipPathTests(unittest.TestCase):
     def setUp(self):
         self.module = load_launch()
         self.temporary = tempfile.TemporaryDirectory()
