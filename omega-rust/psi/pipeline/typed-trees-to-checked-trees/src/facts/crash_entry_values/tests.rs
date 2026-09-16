@@ -35,10 +35,11 @@ fn named_state(
     (machine.symbol, state.symbol)
 }
 
-fn first_call_argument(
+fn call_argument(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
+    argument_index: usize,
 ) -> (usize, ExpressionHandle) {
     let machine = program
         .machines()
@@ -60,14 +61,14 @@ fn first_call_argument(
             StatementNode::Call(call) => program
                 .statement_table
                 .expression_handles(call.arguments)
-                .first()
+                .get(argument_index)
                 .copied(),
             StatementNode::LocalData(local) => {
                 match program.expression_table.expression(local.initial_value) {
                     ExpressionNode::Call(call) => program
                         .expression_table
                         .expression_handles(call.arguments)
-                        .first()
+                        .get(argument_index)
                         .copied(),
                     _ => None,
                 }
@@ -77,7 +78,7 @@ fn first_call_argument(
                     ExpressionNode::Call(call) => program
                         .expression_table
                         .expression_handles(call.arguments)
-                        .first()
+                        .get(argument_index)
                         .copied(),
                     _ => None,
                 }
@@ -91,14 +92,14 @@ fn first_call_argument(
                         TransitionTargetNode::Named { arguments, .. } => program
                             .statement_table
                             .expression_handles(*arguments)
-                            .first()
+                            .get(argument_index)
                             .copied(),
                         TransitionTargetNode::Value(value) => {
                             match program.expression_table.expression(*value) {
                                 ExpressionNode::Call(call) => program
                                     .expression_table
                                     .expression_handles(call.arguments)
-                                    .first()
+                                    .get(argument_index)
                                     .copied(),
                                 _ => None,
                             }
@@ -113,6 +114,14 @@ fn first_call_argument(
         }
     }
     panic!("expected a call carrying an argument");
+}
+
+fn first_call_argument(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> (usize, ExpressionHandle) {
+    call_argument(program, machine_symbol, state_symbol, 0)
 }
 
 #[test]
@@ -169,20 +178,98 @@ fn divergent_state_arrivals_keep_provenance_unknown() {
 }
 
 #[test]
-fn unreachable_and_mutable_state_parameters_keep_provenance_unknown() {
-    for source in [
-        // `next` is never targeted, so its parameter has no arrival at all.
+fn unreachable_state_parameters_keep_provenance_unknown() {
+    // `next` is never targeted, so its parameter has no arrival at all.
+    let program = typed_program(
         "machine sink(input: bool) -> bool { input }
          machine value() -> bool {
              transition { _ -> false }
              state next(input: bool) -> bool { sink(input); input }
          }",
-        // A mutable parameter can be rebound after arrival; the binding
-        // statement is not the saved actual.
+    );
+    let (machine, next) = named_state(&program, "value", "next");
+    let (call_index, argument) = first_call_argument(&program, machine, next);
+    assert_eq!(
+        entry_operand(&program, machine, next, call_index, argument),
+        None
+    );
+}
+
+#[test]
+fn mutable_state_parameters_transport_their_bound_snapshot() {
+    // `input` arrives only as `false` and its storage is never touched, so
+    // the read at the call sees the bound snapshot across the state join.
+    let program = typed_program(
         "machine sink(input: bool) -> bool { input }
          machine value() -> bool {
              transition true { true -> next(false) false -> false }
              state next(mut input: bool) -> bool { sink(input); input }
+         }",
+    );
+    let (machine, next) = named_state(&program, "value", "next");
+    let (call_index, argument) = first_call_argument(&program, machine, next);
+    assert_eq!(
+        entry_operand(&program, machine, next, call_index, argument),
+        Some(CrashPredicateExpression::Boolean(false)),
+    );
+}
+
+#[test]
+fn mutable_entry_parameters_transport_the_invocation_actual() {
+    let program = typed_program(
+        "machine sink(input: bool) -> bool { input }
+         machine value(mut flag: bool) -> bool { sink(flag); flag }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, argument) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, argument),
+        Some(CrashPredicateExpression::Parameter(0)),
+    );
+}
+
+#[test]
+fn mutable_snapshots_end_at_writes_and_exclusive_borrows() {
+    for source in [
+        // A write before the read replaces the bound snapshot.
+        "machine sink(input: bool) -> bool { input }
+         machine value() -> bool {
+             transition true { true -> next(false) false -> false }
+             state next(mut input: bool) -> bool { input = true; sink(input); input }
+         }",
+        // An exclusive borrow can overwrite the storage before the read.
+        "machine corrupt(value: &mut bool) { value = true; }
+         machine sink(input: bool) -> bool { input }
+         machine value() -> bool {
+             transition true { true -> next(false) false -> false }
+             state next(mut input: bool) -> bool { corrupt(&mut input); sink(input); input }
+         }",
+        // A same-state edge forwarding the parameter after a write binds the
+        // written value, not the arrival's bound snapshot.
+        "machine sink(input: bool) -> bool { input }
+         machine value() -> bool {
+             transition true { true -> next(false) false -> false }
+             state next(mut input: bool) -> bool {
+                 sink(input);
+                 input = true;
+                 transition true { true -> next(input) false -> false }
+             }
+         }",
+        // `-> self` after a write carries the written storage into the next
+        // arrival, so no single bound snapshot exists.
+        "machine sink(input: bool) -> bool { input }
+         machine value() -> bool {
+             transition true { true -> next(false) false -> false }
+             state next(mut input: bool) -> bool {
+                 sink(input);
+                 input = true;
+                 transition input { true -> self false -> false }
+             }
          }",
     ] {
         let program = typed_program(source);
@@ -194,6 +281,132 @@ fn unreachable_and_mutable_state_parameters_keep_provenance_unknown() {
             "{source}"
         );
     }
+
+    // An earlier operand of the same call already ran the borrow: the second
+    // argument reads the overwritten storage, not the bound snapshot.
+    let program = typed_program(
+        "machine touch(slot: &mut bool) -> bool { slot = true; slot }
+         machine pair(first: bool, second: bool) -> bool { second }
+         machine value() -> bool {
+             transition true { true -> next(false) false -> false }
+             state next(mut input: bool) -> bool { pair(touch(&mut input), input); input }
+         }",
+    );
+    let (machine, next) = named_state(&program, "value", "next");
+    let (call_index, argument) = call_argument(&program, machine, next, 1);
+    assert_eq!(
+        entry_operand(&program, machine, next, call_index, argument),
+        None,
+        "`touch(&mut input)` runs before `input` is read as the second argument"
+    );
+}
+
+#[test]
+fn a_pristine_self_edge_still_transports_the_bound_snapshot() {
+    // The `-> self` edge sees no writes, so it forwards the bound snapshot
+    // itself and `input` stays `flag` on every iteration.
+    let program = typed_program(
+        "machine sink(input: bool) -> bool { input }
+         machine value(flag: bool) -> bool {
+             transition flag { true -> next(flag) false -> false }
+             state next(mut input: bool) -> bool {
+                 sink(input);
+                 transition input { true -> self false -> false }
+             }
+         }",
+    );
+    let (machine, next) = named_state(&program, "value", "next");
+    let (call_index, argument) = first_call_argument(&program, machine, next);
+    assert_eq!(
+        entry_operand(&program, machine, next, call_index, argument),
+        Some(CrashPredicateExpression::Parameter(0)),
+    );
+}
+
+#[test]
+fn mutable_stable_carrier_parameters_transport_field_snapshots() {
+    // A `mut` record parameter with stable contents keeps its bound snapshot:
+    // `rec.value` is the arrival's field while `rec`'s storage is pristine.
+    let program = typed_program(
+        "data Holder { value: bool; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             transition true { true -> next(h) false -> false }
+             state next(mut rec: Holder) -> bool { sink(rec.value); rec.value }
+         }",
+    );
+    let (machine, next) = named_state(&program, "value", "next");
+    let (call_index, argument) = first_call_argument(&program, machine, next);
+    assert_eq!(
+        entry_operand(&program, machine, next, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "value".to_owned(),
+        }),
+    );
+
+    // A field write before the read dirties the whole binding's snapshot.
+    let program = typed_program(
+        "data Holder { value: bool; }
+         machine sink(input: bool) -> bool { input }
+         machine value(h: Holder) -> bool {
+             transition true { true -> next(h) false -> false }
+             state next(mut rec: Holder) -> bool { rec.value = true; sink(rec.value); rec.value }
+         }",
+    );
+    let (machine, next) = named_state(&program, "value", "next");
+    let (call_index, argument) = first_call_argument(&program, machine, next);
+    assert_eq!(
+        entry_operand(&program, machine, next, call_index, argument),
+        None,
+    );
+}
+
+#[test]
+fn mutable_locals_transport_their_initializer_until_written() {
+    let program = typed_program(
+        "machine sink(input: bool) -> bool { input }
+         machine value(flag: bool) -> bool {
+             let mut kept: bool = flag;
+             sink(kept);
+             kept = !kept;
+             kept
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, argument) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, argument),
+        Some(CrashPredicateExpression::Parameter(0)),
+        "the read precedes the later write, so `kept` still holds `flag`"
+    );
+
+    let program = typed_program(
+        "machine sink(input: bool) -> bool { input }
+         machine value(flag: bool) -> bool {
+             let mut kept: bool = flag;
+             kept = !kept;
+             sink(kept);
+             kept
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, argument) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, argument),
+        None,
+        "the write precedes the read, so the initializer is not the actual"
+    );
 }
 
 #[test]
@@ -300,6 +513,58 @@ fn a_state_arrival_actual_retains_the_exact_entry_origin() {
 }
 
 #[test]
+fn mutable_state_arrivals_refine_the_selected_crash_route() {
+    // The mutable parameter's bound snapshot is the saved actual, so the
+    // surviving Trap route refines to the arrival's entry-relative value.
+    for (declaration, expect_ok) in [("", true), ("crashes Trap false", true)] {
+        let program = typed_program(&format!(
+            "{TRIGGER}
+             pub machine value() -> bool
+             {declaration}
+             {{
+                 transition true {{ true -> next(false) false -> false }}
+                 state next(mut input: bool) -> bool {{ let r: bool = trigger(input); r }}
+             }}"
+        ));
+        match crate::lower_typed_trees(program) {
+            Ok(_) => assert!(expect_ok, "{declaration} must not check"),
+            Err(diagnostics) => {
+                assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
+            }
+        }
+    }
+    // Bound from the caller's own parameter: the surviving route is exactly
+    // `flag`, covered only by a same-cause published ceiling.
+    for (declaration, expect_ok) in [
+        ("crashes Trap flag", true),
+        ("crashes Trap !flag", false),
+        ("", false),
+    ] {
+        let program = typed_program(&format!(
+            "{TRIGGER}
+             pub machine value(flag: bool) -> bool
+             {declaration}
+             {{
+                 transition true {{ true -> next(flag) false -> false }}
+                 state next(mut input: bool) -> bool {{ let r: bool = trigger(input); r }}
+             }}"
+        ));
+        match crate::lower_typed_trees(program) {
+            Ok(_) => assert!(expect_ok, "{declaration} must not check"),
+            Err(diagnostics) => {
+                assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
+                assert!(
+                    diagnostics.iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("uncovered Trap crash route")),
+                    "{declaration}: {diagnostics:#?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn divergent_or_mutable_state_arrivals_still_reject_at_checking() {
     for source in [
         // Arrivals disagree: `input` is not one invocation value.
@@ -309,12 +574,17 @@ fn divergent_or_mutable_state_arrivals_still_reject_at_checking() {
              transition take { true -> next(false) false -> next(true) }
              state next(input: bool) -> bool { let r: bool = trigger(input); r }
          }",
-        // A mutable state parameter's binding is not a saved actual.
+        // A mutable parameter written before the call no longer holds its
+        // bound snapshot, so the actual stays unproven.
         "pub machine value(still: bool) -> bool
          crashes Trap still
          {
              transition true { true -> next(false) false -> false }
-             state next(mut input: bool) -> bool { let r: bool = trigger(input); r }
+             state next(mut input: bool) -> bool {
+                 input = true;
+                 let r: bool = trigger(input);
+                 r
+             }
          }",
     ] {
         let program = typed_program(&format!(
