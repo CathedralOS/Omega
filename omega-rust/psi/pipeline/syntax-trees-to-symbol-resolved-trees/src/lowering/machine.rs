@@ -627,12 +627,6 @@ fn external_binding_identity(
         syntax::item::ExternalBinding::Syscall { number } => {
             ExternalBindingIdentity::Syscall { number: *number }
         }
-        syntax::item::ExternalBinding::DllImport { module, symbol } => {
-            ExternalBindingIdentity::Import {
-                library: module.clone(),
-                symbol: symbol.clone(),
-            }
-        }
         syntax::item::ExternalBinding::CompilerIntrinsic => {
             ExternalBindingIdentity::CompilerIntrinsic
         }

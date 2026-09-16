@@ -191,7 +191,6 @@ pub struct GenericConformanceBoundSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ExternalBindingSnapshot {
     Syscall { number: i64 },
-    DllImport { module: String, symbol: String },
     CompilerIntrinsic,
     VtableSlot { index: i64 },
     VtableField { field: IdentifierSnapshot },
@@ -1091,10 +1090,6 @@ fn snapshot_generic_conformance_bound(
 fn snapshot_external_binding(binding: &ExternalBinding) -> ExternalBindingSnapshot {
     match binding {
         ExternalBinding::Syscall { number } => ExternalBindingSnapshot::Syscall { number: *number },
-        ExternalBinding::DllImport { module, symbol } => ExternalBindingSnapshot::DllImport {
-            module: module.clone(),
-            symbol: symbol.clone(),
-        },
         ExternalBinding::CompilerIntrinsic => ExternalBindingSnapshot::CompilerIntrinsic,
         ExternalBinding::VtableSlot { index } => {
             ExternalBindingSnapshot::VtableSlot { index: *index }

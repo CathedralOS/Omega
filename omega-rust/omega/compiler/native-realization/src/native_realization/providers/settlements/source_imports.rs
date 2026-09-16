@@ -50,11 +50,6 @@ pub(super) fn validate_source_evaluated_import_coverage(
             ))]);
         }
         match &row.binding {
-            ProviderBinding::StringBackedImportBootstrap { .. } => {
-                return Err(vec![Diagnostic::error(format!(
-                    "demanded import `{requirement}` retains a legacy string-backed binding with no normalized terminal-mechanism identity"
-                ))]);
-            }
             ProviderBinding::Syscall { number } => {
                 let number = *number;
                 let target_profile =
@@ -300,9 +295,7 @@ fn join_import_coverage_rows<'input>(
                 rows.selected_count += 1;
                 if matches!(
                     row.binding,
-                    ProviderBinding::Import { .. }
-                        | ProviderBinding::Syscall { .. }
-                        | ProviderBinding::StringBackedImportBootstrap { .. }
+                    ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. }
                 ) {
                     rows.selected_external = Some((provider_plan, row));
                     has_external_demand = true;
