@@ -445,9 +445,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   cross-borrowing, foreign-semantic, trap-understatement, and
   catch-all-evasion negatives; 234 isa-x86_64, isa-aarch64, and
   register-environment lib tests confirm every real catalog row still
-  validates on Linux x86-64). Remaining: provenance, cleanup, and
-  logical-fuel dimensions, and deeper per-rule operand/clobber coverage;
-  Windows and macOS runs were unavailable on this host.
+  validates on Linux x86-64). Each encoded catalog row's operand custody
+  now also restates its register-constraint row exactly — external writes
+  equal the row's Def and UseDef operands and external reads equal its Use
+  and UseDef operands — with named exceptions only for returns, whose
+  result homes are placed for the caller, and the all-aliased x - x
+  subtract realization, which depends on neither input home (crate
+  `nextest`: 42 pass; the register-environment forgery sweeps moved the
+  newly structural rejections from canonical-replay mismatch to
+  `InvalidEncodedEffects`). Remaining: provenance, cleanup, and
+  logical-fuel dimensions; Windows and macOS runs were unavailable on
+  this host.
 
 ## Register allocation and frames
 
