@@ -71,11 +71,9 @@ pub use machine_execution::build_machines::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
-    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor, PreparedBuildMachineEntry,
-    PreparedBuildMachineProgram, evaluate_build_machine_arguments_measured,
-    evaluate_build_machine_arguments_measured_with_sponsor,
-    evaluate_build_machine_entry_arguments_measured,
-    evaluate_build_machine_entry_arguments_measured_with_sponsor,
+    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor, BuildMachineInvocation,
+    PreparedBuildMachine, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
+    evaluate_build_machine_measured,
 };
 pub use machine_execution::reflection::{
     CaseDescription, DeclarationDescription, FieldDescription, FieldInfo, MemberKind,

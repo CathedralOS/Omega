@@ -1,3 +1,4 @@
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -12,7 +13,7 @@ fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
     let typed = lower_symbol_resolved_trees(&resolved).expect("array types");
     let checked =
         lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    interpret_entry(&checked, "main", &[])
+    interpret_entry(&checked, "main", &[], InterpretOptions::default())
 }
 
 fn assert_seven(source: &str) {

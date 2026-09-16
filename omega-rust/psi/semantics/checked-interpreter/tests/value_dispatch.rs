@@ -1,3 +1,4 @@
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 
 fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
@@ -13,7 +14,7 @@ fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
         .expect("dispatch types");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    interpret_entry(&checked, "main", &[])
+    interpret_entry(&checked, "main", &[], InterpretOptions::default())
 }
 
 #[test]

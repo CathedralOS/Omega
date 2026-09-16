@@ -1,11 +1,10 @@
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
-    PreparedBuildMachineProgram, evaluate_build_machine_arguments_measured,
-    evaluate_build_machine_arguments_measured_with_sponsor,
-    evaluate_build_machine_entry_arguments_measured, evaluate_const_array_lengths,
+    PreparedBuildMachineProgram, evaluate_build_machine_measured, evaluate_const_array_lengths,
     evaluate_zero_argument_machine,
 };
+use build_time_evaluation::{BuildMachineInvocation, PreparedBuildMachine};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -94,18 +93,24 @@ fn prepared_entries_select_exact_scoped_machines_with_the_same_short_name() {
         prepared.entry(symbol).expect("bind exact prepared entry")
     };
 
-    let first = evaluate_build_machine_entry_arguments_measured(
+    let first = evaluate_build_machine_measured(
         &prepared,
-        &entry("First::build"),
-        vec![empty_build_selection()],
-        BuildMachineExecutionMode::Pure,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Entry(&entry("First::build")),
+            arguments: vec![empty_build_selection()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: None,
+        },
     )
     .expect("evaluate First's exact build entry");
-    let second = evaluate_build_machine_entry_arguments_measured(
+    let second = evaluate_build_machine_measured(
         &prepared,
-        &entry("Second::build"),
-        vec![empty_build_selection()],
-        BuildMachineExecutionMode::Pure,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Entry(&entry("Second::build")),
+            arguments: vec![empty_build_selection()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: None,
+        },
     )
     .expect("evaluate Second's exact build entry");
 
@@ -155,11 +160,14 @@ fn prepared_entry_from_another_program_rejects_even_a_colliding_raw_symbol() {
     );
     let foreign_entry = first.entry(first_symbol).expect("bind first entry");
 
-    let error = evaluate_build_machine_entry_arguments_measured(
+    let error = evaluate_build_machine_measured(
         &second,
-        &foreign_entry,
-        vec![empty_build_selection()],
-        BuildMachineExecutionMode::Pure,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Entry(&foreign_entry),
+            arguments: vec![empty_build_selection()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: None,
+        },
     )
     .expect_err("a numerically colliding symbol must not cross prepared-program custody");
 
@@ -519,19 +527,25 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
         fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
     };
 
-    let pure = evaluate_build_machine_arguments_measured(
+    let pure = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![argument.clone()],
-        BuildMachineExecutionMode::Pure,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![argument.clone()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: None,
+        },
     )
     .expect("the pure build-machine service should evaluate");
 
-    let pure_error = evaluate_build_machine_arguments_measured(
+    let pure_error = evaluate_build_machine_measured(
         &prepared,
-        "Stager::build",
-        vec![argument.clone()],
-        BuildMachineExecutionMode::Pure,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("Stager::build"),
+            arguments: vec![argument.clone()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: None,
+        },
     )
     .expect_err("the pure mode must not silently grant a filesystem boundary");
     assert!(
@@ -541,13 +555,16 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
         "{pure_error}"
     );
 
-    let granted_error = evaluate_build_machine_arguments_measured(
+    let granted_error = evaluate_build_machine_measured(
         &prepared,
-        "Stager::build",
-        vec![argument],
-        BuildMachineExecutionMode::Granted {
-            filesystem: BuildMachineFilesystemAccess::Virtual,
-            filesystem_metadata_layout: Default::default(),
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("Stager::build"),
+            arguments: vec![argument],
+            mode: BuildMachineExecutionMode::Granted {
+                filesystem: BuildMachineFilesystemAccess::Virtual,
+                filesystem_metadata_layout: Default::default(),
+            },
+            sponsor: None,
         },
     )
     .expect_err("a grant cannot turn a package-authored lookalike into a host operation");
@@ -559,16 +576,19 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
             .to_string()
             .contains("unknown value-call target `create`")
     );
-    let statement_error = evaluate_build_machine_arguments_measured(
+    let statement_error = evaluate_build_machine_measured(
         &prepared,
-        "StatementStager::build",
-        vec![BuildTimeValue::Struct {
-            type_name: "Build".to_owned(),
-            fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
-        }],
-        BuildMachineExecutionMode::Granted {
-            filesystem: BuildMachineFilesystemAccess::Virtual,
-            filesystem_metadata_layout: Default::default(),
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("StatementStager::build"),
+            arguments: vec![BuildTimeValue::Struct {
+                type_name: "Build".to_owned(),
+                fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
+            }],
+            mode: BuildMachineExecutionMode::Granted {
+                filesystem: BuildMachineFilesystemAccess::Virtual,
+                filesystem_metadata_layout: Default::default(),
+            },
+            sponsor: None,
         },
     )
     .expect_err("statement dispatch must reject the same package-authored lookalike");
@@ -596,11 +616,14 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
         fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
     };
 
-    let baseline = evaluate_build_machine_arguments_measured(
+    let baseline = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![argument()],
-        BuildMachineExecutionMode::Pure,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![argument()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: None,
+        },
     )
     .expect("baseline pure build");
     let fuel_per_evaluation = baseline.usage().fuel_units();
@@ -629,20 +652,24 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
     assert_eq!(sponsor.limits().maximum_fuel_units(), aggregate_ceiling);
     let sponsor_clone = sponsor.clone();
 
-    let first = evaluate_build_machine_arguments_measured_with_sponsor(
+    let first = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![argument()],
-        BuildMachineExecutionMode::Pure,
-        &sponsor,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![argument()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: Some(&sponsor),
+        },
     )
     .expect("first sponsored evaluation");
-    let second = evaluate_build_machine_arguments_measured_with_sponsor(
+    let second = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![argument()],
-        BuildMachineExecutionMode::Pure,
-        &sponsor_clone,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![argument()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: Some(&sponsor_clone),
+        },
     )
     .expect("second sponsored evaluation");
 
@@ -667,12 +694,14 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
         first.usage().result_text_bytes() + second.usage().result_text_bytes()
     );
 
-    let error = evaluate_build_machine_arguments_measured_with_sponsor(
+    let error = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![argument()],
-        BuildMachineExecutionMode::Pure,
-        &sponsor,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![argument()],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: Some(&sponsor),
+        },
     )
     .expect_err("the exactly consumed account must reject another tick");
     assert_eq!(
@@ -692,15 +721,17 @@ fn sponsored_build_rejects_cell_allocation_before_exceeding_the_live_ceiling() {
         BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64, 1, 1024, 1024, 1024)
             .expect("nonzero limits"),
     );
-    let error = evaluate_build_machine_arguments_measured_with_sponsor(
+    let error = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![BuildTimeValue::Struct {
-            type_name: "Build".to_owned(),
-            fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
-        }],
-        BuildMachineExecutionMode::Pure,
-        &sponsor,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![BuildTimeValue::Struct {
+                type_name: "Build".to_owned(),
+                fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
+            }],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: Some(&sponsor),
+        },
     )
     .expect_err("one live cell cannot materialize the build argument and machine");
     assert_eq!(
@@ -719,15 +750,17 @@ fn sponsored_build_rejects_text_materialization_above_the_live_byte_ceiling() {
         BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64, 1024, 1, 1024, 1024)
             .expect("nonzero limits"),
     );
-    let error = evaluate_build_machine_arguments_measured_with_sponsor(
+    let error = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![BuildTimeValue::Struct {
-            type_name: "Build".to_owned(),
-            fields: vec![("freestanding".to_owned(), BuildTimeValue::Text(vec![1, 2]))],
-        }],
-        BuildMachineExecutionMode::Pure,
-        &sponsor,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![BuildTimeValue::Struct {
+                type_name: "Build".to_owned(),
+                fields: vec![("freestanding".to_owned(), BuildTimeValue::Text(vec![1, 2]))],
+            }],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: Some(&sponsor),
+        },
     )
     .expect_err("two live Text bytes exceed the one-byte closure ceiling");
     assert_eq!(
@@ -755,12 +788,14 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
             .expect("nonzero limits"),
     );
 
-    let evaluated = evaluate_build_machine_arguments_measured_with_sponsor(
+    let evaluated = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![argument()],
-        mode(),
-        &sponsor,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![argument()],
+            mode: mode(),
+            sponsor: Some(&sponsor),
+        },
     )
     .expect("granted entry may execute a pure build");
     assert_eq!(evaluated.usage().fuel_ceiling(), 10_000_000);
@@ -773,12 +808,14 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
         BuildEvaluationSponsorLimits::new(1, 1024, 1024, 64, 1024, 1024, 1024, 1024)
             .expect("nonzero limits"),
     );
-    let error = evaluate_build_machine_arguments_measured_with_sponsor(
+    let error = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![argument()],
-        mode(),
-        &exhausted,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![argument()],
+            mode: mode(),
+            sponsor: Some(&exhausted),
+        },
     )
     .expect_err("one fuel unit is insufficient");
     let BuildMachineEvaluationError::Granted(failure) = error else {
@@ -804,15 +841,17 @@ fn sponsored_build_rejects_result_custody_above_the_shared_ceiling() {
         BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64, 1024, 1024, 1, 1024)
             .expect("nonzero limits"),
     );
-    let error = evaluate_build_machine_arguments_measured_with_sponsor(
+    let error = evaluate_build_machine_measured(
         &prepared,
-        "pure_build",
-        vec![BuildTimeValue::Struct {
-            type_name: "Build".to_owned(),
-            fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
-        }],
-        BuildMachineExecutionMode::Pure,
-        &sponsor,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("pure_build"),
+            arguments: vec![BuildTimeValue::Struct {
+                type_name: "Build".to_owned(),
+                fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
+            }],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: Some(&sponsor),
+        },
     )
     .expect_err("the returned record exceeds one result cell");
     assert_eq!(
@@ -845,14 +884,17 @@ fn prepared_build_program_specializes_static_machine_helpers() {
     );
     let prepared = PreparedBuildMachineProgram::prepare(&typed)
         .expect("Psi should prepare static build-machine selections");
-    let evaluated = evaluate_build_machine_arguments_measured(
+    let evaluated = evaluate_build_machine_measured(
         &prepared,
-        "build",
-        vec![BuildTimeValue::Struct {
-            type_name: "Build".to_owned(),
-            fields: vec![("selected".to_owned(), BuildTimeValue::Int(0))],
-        }],
-        BuildMachineExecutionMode::Pure,
+        BuildMachineInvocation {
+            machine: PreparedBuildMachine::Name("build"),
+            arguments: vec![BuildTimeValue::Struct {
+                type_name: "Build".to_owned(),
+                fields: vec![("selected".to_owned(), BuildTimeValue::Int(0))],
+            }],
+            mode: BuildMachineExecutionMode::Pure,
+            sponsor: None,
+        },
     )
     .expect("the prepared generic build helper should evaluate");
 

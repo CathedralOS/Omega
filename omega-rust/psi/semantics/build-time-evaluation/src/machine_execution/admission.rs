@@ -11,6 +11,7 @@
 //! until the pre-check invocation supplies a checked proof context. Escaping
 //! mutation is excluded by the evaluator's fresh-value/snapshot boundary.
 
+use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -332,7 +333,11 @@ impl BuildTimeAdmissionPlan {
             .find(|machine| machine.name.as_str() == machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor(program, machine)?;
-        checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)
+        checked_interpreter::evaluate_build_time_machine(
+            program,
+            BuildMachineEvaluationRequest::named(machine_name, arguments),
+        )
+        .map(BuildTimeOperationEvaluation::into_value)
     }
 
     pub fn evaluate_machine_for_invocation(
@@ -348,7 +353,11 @@ impl BuildTimeAdmissionPlan {
             .find(|machine| machine.name.as_str() == machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
-        checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)
+        checked_interpreter::evaluate_build_time_machine(
+            program,
+            BuildMachineEvaluationRequest::named(machine_name, arguments),
+        )
+        .map(BuildTimeOperationEvaluation::into_value)
     }
 
     /// Admit and evaluate the exact result-bearing machine selected by a
@@ -372,11 +381,11 @@ impl BuildTimeAdmissionPlan {
                 )
             })?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
-        checked_interpreter::evaluate_build_time_machine_symbol_measured(
+        checked_interpreter::evaluate_build_time_machine(
             program,
-            machine_symbol,
-            arguments,
+            BuildMachineEvaluationRequest::symbol(machine_symbol, arguments),
         )
+        .map(BuildTimeOperationEvaluation::into_measured)
     }
 
     /// Return the exact checked-machine closure admitted for one compiler
@@ -448,15 +457,16 @@ impl BuildTimeAdmissionPlan {
             .find(|machine| machine.name.as_str() == machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor(program, machine)?;
-        let value =
-            checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
-                program,
-                machine.symbol,
-                arguments,
-                &self.selected_operators,
-            )?
-            .into_parts()
-            .0;
+        let value = checked_interpreter::evaluate_build_time_machine(
+            program,
+            BuildMachineEvaluationRequest {
+                operators: &self.selected_operators,
+                ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
+            },
+        )
+        .map(BuildTimeOperationEvaluation::into_measured)?
+        .into_parts()
+        .0;
         require_const_evaluable_result(program, machine, &value)?;
         Ok(value)
     }
@@ -474,15 +484,16 @@ impl BuildTimeAdmissionPlan {
             .find(|machine| machine.name.as_str() == machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
-        let value =
-            checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
-                program,
-                machine.symbol,
-                arguments,
-                &self.selected_operators,
-            )?
-            .into_parts()
-            .0;
+        let value = checked_interpreter::evaluate_build_time_machine(
+            program,
+            BuildMachineEvaluationRequest {
+                operators: &self.selected_operators,
+                ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
+            },
+        )
+        .map(BuildTimeOperationEvaluation::into_measured)?
+        .into_parts()
+        .0;
         require_const_evaluable_result(program, machine, &value)?;
         Ok(value)
     }
@@ -567,13 +578,14 @@ impl BuildTimeAdmissionPlan {
         } else {
             self.require_common_floor_for_invocation(program, machine, custody)?;
         }
-        let measured =
-            checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
-                program,
-                machine_symbol,
-                arguments,
-                &self.selected_operators,
-            )?;
+        let measured = checked_interpreter::evaluate_build_time_machine(
+            program,
+            BuildMachineEvaluationRequest {
+                operators: &self.selected_operators,
+                ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
+            },
+        )
+        .map(BuildTimeOperationEvaluation::into_measured)?;
         require_const_evaluable_result(program, machine, measured.value())?;
         Ok(measured)
     }

@@ -74,13 +74,9 @@ fn assert_runtime_canary(canary_name: &str, tag: &str) {
         Some(host.target_name()),
     ))
     .expect("gapped outer-array canary should reach checked trees");
-    let interpreted = interpret_entry(
-        &checked,
-        checked
+    let interpreted = interpret_entry(&checked, checked
             .selected_program_entry_machine()
-            .expect("gapped outer-array canary selects an exact ProgramEntry"),
-        &[],
-    );
+            .expect("gapped outer-array canary selects an exact ProgramEntry"), &[], InterpretOptions::default());
     assert_eq!(
         interpreted.exit_code, 70,
         "interpreter must preserve the validated element stride: {interpreted:?}"

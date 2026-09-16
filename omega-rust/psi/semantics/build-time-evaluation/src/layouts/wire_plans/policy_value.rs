@@ -1,4 +1,5 @@
 use checked_interpreter::BuildTimeValue;
+use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
 use typed_trees::TypedTrees;
 use typed_trees::wire::WirePlacement;
 
@@ -23,9 +24,9 @@ pub(super) fn evaluate_wire_policy(
     let schema_value = build_wire_schema_value(fields);
     let plan = checked_interpreter::evaluate_build_time_machine(
         typed,
-        WIRE_GRAMMAR_POLICY,
-        vec![schema_value],
+        BuildMachineEvaluationRequest::named(WIRE_GRAMMAR_POLICY, vec![schema_value]),
     )
+    .map(BuildTimeOperationEvaluation::into_value)
     .map_err(|reason| {
         format!(
             "build-time evaluation of `{WIRE_GRAMMAR_POLICY}` failed for `{schema_name}`: \

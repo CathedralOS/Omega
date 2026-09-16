@@ -1,3 +1,4 @@
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::evaluate_const_machine;
 
 fn typed_program(source: &str) -> typed_trees::TypedTrees {
@@ -124,7 +125,12 @@ fn checked_stored_reference_argument_mutates_the_original_referent() {
         );
         let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source))
             .unwrap_or_else(|diagnostics| panic!("{argument}: {diagnostics:#?}"));
-        let outcome = checked_interpreter::interpret_entry(&checked, "main", &[]);
+        let outcome = checked_interpreter::interpret_entry(
+            &checked,
+            "main",
+            &[],
+            InterpretOptions::default(),
+        );
         assert_eq!(outcome.error, None, "{argument}");
         assert_eq!(outcome.exit_code, 29, "{argument}");
     }
@@ -159,7 +165,12 @@ fn checked_stored_reference_argument_requires_builtin_indexing() {
         if admitted {
             let checked =
                 result.unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:#?}"));
-            let outcome = checked_interpreter::interpret_entry(&checked, "main", &[]);
+            let outcome = checked_interpreter::interpret_entry(
+                &checked,
+                "main",
+                &[],
+                InterpretOptions::default(),
+            );
             assert_eq!(outcome.error, None, "{declaration}");
             assert_eq!(outcome.exit_code, 29, "{declaration}");
         } else {
@@ -187,7 +198,8 @@ fn checked_stored_reference_argument_composes_with_a_value_call() {
         }";
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    let outcome = checked_interpreter::interpret_entry(&checked, "main", &[]);
+    let outcome =
+        checked_interpreter::interpret_entry(&checked, "main", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 29);
 }
@@ -343,7 +355,8 @@ fn checked_projected_argument_evaluates_its_selector_once() {
                   }";
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_program(source))
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-    let outcome = checked_interpreter::interpret_entry(&checked, "main", &[]);
+    let outcome =
+        checked_interpreter::interpret_entry(&checked, "main", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }

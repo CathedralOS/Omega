@@ -656,6 +656,15 @@ impl<T> BuildTimeOperationEvaluation<T> {
         let (value, usage) = self.measured.into_parts();
         (value, usage, self.private_layout_placements)
     }
+
+    /// The value and its usage, dropping the placement receipts.
+    pub fn into_measured(self) -> MeasuredEvaluation<T> {
+        self.measured
+    }
+
+    pub fn into_value(self) -> T {
+        self.measured.into_value()
+    }
 }
 
 /// A granted build-machine result keeps host observations beside, but
@@ -714,6 +723,11 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
 
     pub fn into_value(self) -> T {
         self.measured.into_value()
+    }
+
+    /// The value and its usage, dropping the observations and root bindings.
+    pub fn into_measured(self) -> MeasuredEvaluation<T> {
+        self.measured
     }
 
     pub fn into_parts(

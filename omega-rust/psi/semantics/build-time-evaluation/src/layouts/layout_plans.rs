@@ -7,6 +7,7 @@
 //! field.
 
 pub use checked_interpreter::BuildTimeValue;
+use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
 use layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, MaterializationDiagnostic,
     materialize_aggregate_layout_into,
@@ -168,10 +169,9 @@ fn compute_native_layout_plan_with_optional_authority(
         None => admission.require_common_floor(typed, machine)?,
     }
 
-    let evaluation = checked_interpreter::evaluate_build_time_machine_with_operation_receipts(
+    let evaluation = checked_interpreter::evaluate_build_time_machine(
         typed,
-        policy_machine,
-        vec![schema_value],
+        BuildMachineEvaluationRequest::named(policy_machine, vec![schema_value]),
     )
     .map_err(|reason| format!("build-time evaluation of `{policy_machine}` failed: {reason}"))?;
 
@@ -534,12 +534,16 @@ pub fn evaluate_and_materialize_typed_owned_layout_into(
     BuildTimeAdmissionPlan::infer(typed)
         .require_common_floor(typed, machine)
         .map_err(MaterializationDiagnostic)?;
-    let value = checked_interpreter::evaluate_build_time_machine(typed, value_machine, vec![])
-        .map_err(|reason| {
-            MaterializationDiagnostic(format!(
-                "build-time evaluation of typed owned value `{value_machine}` failed: {reason}"
-            ))
-        })?;
+    let value = checked_interpreter::evaluate_build_time_machine(
+        typed,
+        BuildMachineEvaluationRequest::named(value_machine, vec![]),
+    )
+    .map(BuildTimeOperationEvaluation::into_value)
+    .map_err(|reason| {
+        MaterializationDiagnostic(format!(
+            "build-time evaluation of typed owned value `{value_machine}` failed: {reason}"
+        ))
+    })?;
     materialize_typed_owned_layout_into(typed, schema_data, layout, &value, byte_order, destination)
 }
 

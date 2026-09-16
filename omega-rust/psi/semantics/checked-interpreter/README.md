@@ -13,7 +13,7 @@ not replace those admission checks.
 
 The lifecycle keeps distinct result and authority paths:
 
-- `interpret_entry_with_options` executes a checked entry and returns process
+- `interpret_entry` executes a checked entry and returns process
   output, an exit or error, and measured work.
 - Constant and structured-return evaluation retain the machine's returned value;
   selected operators and private-layout receipts remain explicit inputs/outputs.

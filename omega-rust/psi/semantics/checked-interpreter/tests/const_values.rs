@@ -1,3 +1,4 @@
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -16,7 +17,7 @@ fn assert_seven(source: &str) {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("const value symbols");
     let typed = lower_symbol_resolved_trees(&resolved).expect("const value types");
     let checked = lower_typed_trees(typed).expect("checked const values");
-    let outcome = interpret_entry(&checked, "main", &[]);
+    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None, "{source}");
     assert_eq!(outcome.exit_code, 7, "{source}");
 }

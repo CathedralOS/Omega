@@ -20,7 +20,7 @@ fn product_semantics_observe_source_custody_fixture() {
         |diagnostics| panic!("product frontend rejected fixture: {diagnostics:#?}"),
     );
 
-    let outcome = interpret_entry(&checked, "Probe::run", &[]);
+    let outcome = interpret_entry(&checked, "Probe::run", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None, "product interpreter rejected fixture");
     assert_eq!(outcome.exit_code, 70, "fixture result changed");
     assert!(outcome.stdout.is_empty(), "fixture wrote unexpected stdout");

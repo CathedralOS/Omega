@@ -51,13 +51,9 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
         selected.calling_plans().is_none(),
         "hosted ProgramEntry has no two-surface storage calling plan"
     );
-    let outcome = checked_interpreter::interpret_entry(
-        &checked,
-        checked
+    let outcome = checked_interpreter::interpret_entry(&checked, checked
             .selected_program_entry_machine()
-            .expect("target build selected an exact entry"),
-        &[],
-    );
+            .expect("target build selected an exact entry"), &[], InterpretOptions::default());
     assert_eq!(outcome.error, None);
 }
 
@@ -336,7 +332,7 @@ fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
     .expect("direct Main entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), None);
-    let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
+    let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);
 }

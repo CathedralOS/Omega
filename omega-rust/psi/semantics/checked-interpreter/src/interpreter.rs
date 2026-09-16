@@ -1,6 +1,6 @@
 //! Checked execution lifecycle: choose authority, run a scoped worker, retain outcomes.
 //!
-//! Full-program execution starts at `interpret_entry_with_options`. Pure returned
+//! Full-program execution starts at `interpret_entry`. Pure returned
 //! values, observed final arguments, and filesystem-granted arguments keep separate
 //! execution paths because their authority and failure evidence differ.
 
@@ -23,20 +23,7 @@ use typed_trees::TypedTrees;
 /// Build/target selection owns this identity. The interpreter neither discovers
 /// an entry from source spelling nor retries alternate names. `stdin` provides
 /// the bytes a `read_line` host call would consume.
-pub fn interpret_entry(
-    checked: &CheckedTrees,
-    entry_machine_name: &str,
-    stdin: &[u8],
-) -> InterpretOutcome {
-    interpret_entry_with_options(
-        checked,
-        entry_machine_name,
-        stdin,
-        InterpretOptions::default(),
-    )
-}
-
-/// Options for [`interpret_entry_with_options`]. `Default` selects the hermetic
+/// Options for [`interpret_entry`]. `Default` selects the hermetic
 /// virtual filesystem and the compiler host's checked standard metadata
 /// carrier. Cross-target and package-build callers supply the selected checked
 /// metadata layout explicitly.
@@ -56,7 +43,8 @@ impl InterpretOptions {
 }
 
 /// [`interpret_entry`] with explicit [`InterpretOptions`].
-pub fn interpret_entry_with_options(
+
+pub fn interpret_entry(
     checked: &CheckedTrees,
     entry_machine_name: &str,
     stdin: &[u8],
@@ -133,301 +121,88 @@ pub fn evaluate_const_machine_measured(
 /// argument binding (count-checked), and the evaluator-step ceiling. No keyword
 /// marks build-time machines -- the position makes the evaluation build-time,
 /// and the effect system makes it legal.
-pub fn evaluate_build_time_machine(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-) -> Result<BuildTimeValue, String> {
-    evaluate_build_time_machine_measured(program, machine_name, arguments)
-        .map(MeasuredEvaluation::into_value)
-}
 
-/// [`evaluate_build_time_machine`] with its deterministic evaluator usage.
-pub fn evaluate_build_time_machine_measured(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
-    evaluate_structured_return(
-        program,
-        BuildMachineEntry::Name(machine_name),
-        arguments,
-        &[],
-    )
-    .map(|evaluation| {
-        let (value, usage, _) = evaluation.into_parts();
-        MeasuredEvaluation::new(value, usage)
-    })
-}
-
-/// Exact-symbol form of [`evaluate_build_time_machine_measured`]. The
-/// selected declaration must exist under this identity; evaluation never
-/// retries by declaration spelling.
-pub fn evaluate_build_time_machine_symbol_measured(
-    program: &typed_trees::TypedTrees,
-    machine_symbol: symbols::SymbolHandle,
-    arguments: Vec<BuildTimeValue>,
-) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
-    evaluate_structured_return(
-        program,
-        BuildMachineEntry::Symbol(machine_symbol),
-        arguments,
-        &[],
-    )
-    .map(|evaluation| {
-        let (value, usage, _) = evaluation.into_parts();
-        MeasuredEvaluation::new(value, usage)
-    })
-}
-
-/// Execute using exact caller-validated selected binary semantics.
-pub fn evaluate_build_time_machine_symbol_with_selected_operators(
-    program: &typed_trees::TypedTrees,
-    machine: symbols::SymbolHandle,
-    arguments: Vec<BuildTimeValue>,
-    operators: &[SelectedBuildTimeBinaryOperator],
-) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
-    evaluate_structured_return(
-        program,
-        BuildMachineEntry::Symbol(machine),
-        arguments,
-        operators,
-    )
-    .map(|evaluation| {
-        let (value, usage, _) = evaluation.into_parts();
-        MeasuredEvaluation::new(value, usage)
-    })
-}
-
-/// Evaluate one build-time machine while retaining compiler-known operation
-/// receipts beside the ordinary result. This is the authoritative entry for
-/// native layout policies containing `Plan::place_private`; callers that do
-/// not consume such receipts may continue using [`evaluate_build_time_machine`].
-pub fn evaluate_build_time_machine_with_operation_receipts(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
-    evaluate_structured_return(
-        program,
-        BuildMachineEntry::Name(machine_name),
-        arguments,
-        &[],
-    )
-}
-
-/// Build execution entry (wiki/spec/build/execution.md): run
-/// the effect-free machine and read back the FINAL argument values -- the
-/// `machine build(b: &mut Build)` shape, where the machine's output IS its
-/// augmented arguments. A unit terminal is accepted. The caller owns the
-/// legality gate, exactly as for [`evaluate_build_time_machine`].
-pub fn evaluate_build_time_machine_arguments(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-) -> Result<Vec<BuildTimeValue>, String> {
-    evaluate_build_time_machine_arguments_measured(program, machine_name, arguments)
-        .map(MeasuredEvaluation::into_value)
-}
-
-/// [`evaluate_build_time_machine_arguments`] with deterministic evaluator
-/// usage.
-pub fn evaluate_build_time_machine_arguments_measured(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
-    evaluate_observed_arguments(
-        program,
-        BuildMachineEntry::Name(machine_name),
-        arguments,
-        None,
-    )
-    .map(|measured| {
-        let (value, usage, _, _) = measured.into_parts();
-        MeasuredEvaluation::new(value, usage)
-    })
-}
-
-/// Sponsored form of [`evaluate_build_time_machine_arguments_measured`]. The
-/// sponsor is compiler-only and shared across every evaluation using one of
-/// its clones.
-pub fn evaluate_build_time_machine_arguments_measured_with_sponsor(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-    sponsor: &BuildEvaluationSponsor,
-) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
-    evaluate_observed_arguments(
-        program,
-        BuildMachineEntry::Name(machine_name),
-        arguments,
-        Some(sponsor.clone()),
-    )
-    .map(|measured| {
-        let (value, usage, _, _) = measured.into_parts();
-        MeasuredEvaluation::new(value, usage)
-    })
-}
-
-/// Evaluate an effect-free augmenting build machine while retaining output
-/// from the compiler-owned `Build.log` facet as a distinct observation.
-pub fn evaluate_observed_build_time_machine_arguments_measured(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
-    evaluate_observed_arguments(
-        program,
-        BuildMachineEntry::Name(machine_name),
-        arguments,
-        None,
-    )
-}
-
-/// Sponsored form of
-/// [`evaluate_observed_build_time_machine_arguments_measured`].
-pub fn evaluate_observed_build_time_machine_arguments_measured_with_sponsor(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-    sponsor: &BuildEvaluationSponsor,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
-    evaluate_observed_arguments(
-        program,
-        BuildMachineEntry::Name(machine_name),
-        arguments,
-        Some(sponsor.clone()),
-    )
-}
-
-/// Exact-symbol form of
-/// [`evaluate_observed_build_time_machine_arguments_measured`]. The selected
-/// machine must be present under this exact identity; this entry never retries
-/// lookup by declaration spelling.
-pub fn evaluate_observed_build_time_machine_symbol_arguments_measured(
-    program: &typed_trees::TypedTrees,
-    machine_symbol: symbols::SymbolHandle,
-    arguments: Vec<BuildTimeValue>,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
-    evaluate_observed_arguments(
-        program,
-        BuildMachineEntry::Symbol(machine_symbol),
-        arguments,
-        None,
-    )
-}
-
-/// Sponsored form of
-/// [`evaluate_observed_build_time_machine_symbol_arguments_measured`].
-pub fn evaluate_observed_build_time_machine_symbol_arguments_measured_with_sponsor(
-    program: &typed_trees::TypedTrees,
-    machine_symbol: symbols::SymbolHandle,
-    arguments: Vec<BuildTimeValue>,
-    sponsor: &BuildEvaluationSponsor,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
-    evaluate_observed_arguments(
-        program,
-        BuildMachineEntry::Symbol(machine_symbol),
-        arguments,
-        Some(sponsor.clone()),
-    )
-}
-
-/// The GRANTED build entry (open-work #3's settled design, rung 4): run the
-/// augmenting `build(b: &mut Build)` machine WITH a `Filesystem` capability
-/// and read back the augmented arguments. The capability grant IS the audit
-/// surface -- filesystem ops are allowed and served per `options` (hermetic
-/// virtual by default; real scoped/unscoped for actual builds), while every
-/// OTHER host boundary (console, clock, gui) still rejects dynamically.
-/// Unlike [`evaluate_build_time_machine_arguments`], the caller does NOT
-/// require an empty transitive effect surface for the filesystem effect --
-/// but should still gate the rest.
-pub fn evaluate_build_machine_with_filesystem(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-    options: InterpretOptions,
-) -> Result<Vec<BuildTimeValue>, String> {
-    evaluate_build_machine_with_filesystem_measured(program, machine_name, arguments, options)
-        .map(MeasuredBuildMachineEvaluation::into_value)
-        .map_err(BuildMachineEvaluationFailure::into_diagnostic)
-}
-
-/// [`evaluate_build_machine_with_filesystem`] with deterministic evaluator
-/// usage and distinct host observations.
-pub fn evaluate_build_machine_with_filesystem_measured(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-    options: InterpretOptions,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
-    evaluate_granted_arguments(
-        program,
-        BuildMachineEntry::Name(machine_name),
-        arguments,
-        options,
-        None,
-    )
-}
-
-/// Sponsored form of [`evaluate_build_machine_with_filesystem_measured`].
-pub fn evaluate_build_machine_with_filesystem_measured_with_sponsor(
-    program: &typed_trees::TypedTrees,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-    options: InterpretOptions,
-    sponsor: &BuildEvaluationSponsor,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
-    evaluate_granted_arguments(
-        program,
-        BuildMachineEntry::Name(machine_name),
-        arguments,
-        options,
-        Some(sponsor.clone()),
-    )
-}
-
-/// Exact-symbol form of [`evaluate_build_machine_with_filesystem_measured`].
-/// The interpreter does not rediscover the entry by name when the symbol is
-/// absent.
-pub fn evaluate_build_machine_symbol_with_filesystem_measured(
-    program: &typed_trees::TypedTrees,
-    machine_symbol: symbols::SymbolHandle,
-    arguments: Vec<BuildTimeValue>,
-    options: InterpretOptions,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
-    evaluate_granted_arguments(
-        program,
-        BuildMachineEntry::Symbol(machine_symbol),
-        arguments,
-        options,
-        None,
-    )
-}
-
-/// Sponsored form of
-/// [`evaluate_build_machine_symbol_with_filesystem_measured`].
-pub fn evaluate_build_machine_symbol_with_filesystem_measured_with_sponsor(
-    program: &typed_trees::TypedTrees,
-    machine_symbol: symbols::SymbolHandle,
-    arguments: Vec<BuildTimeValue>,
-    options: InterpretOptions,
-    sponsor: &BuildEvaluationSponsor,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
-    evaluate_granted_arguments(
-        program,
-        BuildMachineEntry::Symbol(machine_symbol),
-        arguments,
-        options,
-        Some(sponsor.clone()),
-    )
-}
-
-#[derive(Clone, Copy)]
-enum BuildMachineEntry<'name> {
-    Name(&'name str),
+/// Which build-time machine an evaluation runs.
+#[derive(Clone, Copy, Debug)]
+pub enum BuildMachineEntry<'a> {
+    /// The machine with this authored name.
+    Name(&'a str),
+    /// The machine behind this resolved symbol.
     Symbol(SymbolHandle),
+}
+
+/// One build-time machine evaluation: the machine, its arguments, the selected
+/// build-time operators a structured evaluation may call, and the sponsor an
+/// argument evaluation charges for its result custody.
+pub struct BuildMachineEvaluationRequest<'a> {
+    pub entry: BuildMachineEntry<'a>,
+    pub arguments: Vec<BuildTimeValue>,
+    pub operators: &'a [SelectedBuildTimeBinaryOperator],
+    pub sponsor: Option<&'a BuildEvaluationSponsor>,
+}
+
+impl<'a> BuildMachineEvaluationRequest<'a> {
+    /// Evaluate the machine with this authored name, unsponsored, with no
+    /// selected operators.
+    pub fn named(machine_name: &'a str, arguments: Vec<BuildTimeValue>) -> Self {
+        Self {
+            entry: BuildMachineEntry::Name(machine_name),
+            arguments,
+            operators: &[],
+            sponsor: None,
+        }
+    }
+
+    /// Evaluate the machine behind this symbol, unsponsored, with no selected
+    /// operators.
+    pub fn symbol(machine_symbol: SymbolHandle, arguments: Vec<BuildTimeValue>) -> Self {
+        Self {
+            entry: BuildMachineEntry::Symbol(machine_symbol),
+            arguments,
+            operators: &[],
+            sponsor: None,
+        }
+    }
+}
+
+/// Evaluate one build-time machine for its structured return value and the
+/// private layout placements it issued. Selected operators are honored; the
+/// evaluation is pure and unsponsored.
+pub fn evaluate_build_time_machine(
+    program: &TypedTrees,
+    request: BuildMachineEvaluationRequest<'_>,
+) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+    evaluate_structured_return(program, request.entry, request.arguments, request.operators)
+}
+
+/// Evaluate one build-time machine for its observed argument values without
+/// a filesystem grant, charging the sponsor when one is given.
+pub fn evaluate_build_machine_arguments(
+    program: &TypedTrees,
+    request: BuildMachineEvaluationRequest<'_>,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
+    evaluate_observed_arguments(
+        program,
+        request.entry,
+        request.arguments,
+        request.sponsor.cloned(),
+    )
+}
+
+/// Evaluate one build-time machine for its observed argument values under
+/// the filesystem grant in `options`, charging the sponsor when one is given.
+pub fn evaluate_granted_build_machine_arguments(
+    program: &TypedTrees,
+    request: BuildMachineEvaluationRequest<'_>,
+    options: InterpretOptions,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
+    evaluate_granted_arguments(
+        program,
+        request.entry,
+        request.arguments,
+        options,
+        request.sponsor.cloned(),
+    )
 }
 
 fn evaluate_const_on_current_thread(

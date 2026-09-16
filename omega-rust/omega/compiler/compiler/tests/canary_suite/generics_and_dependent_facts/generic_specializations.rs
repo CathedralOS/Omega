@@ -167,7 +167,7 @@ fn runtime_generic_enum_payload_exit_canary_runs() {
         None,
     ))
     .expect("generic enum payload canary should reach checked semantics");
-    let interpreted = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
+    let interpreted = checked_interpreter::interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 

@@ -535,7 +535,7 @@ pub(crate) struct Evaluator<'program> {
     /// touched the host: a dynamic backstop behind decision 12's static gate.
     host_boundary_touched: bool,
     /// Like `host_boundary_touched` but EXCLUDING the filesystem family: the
-    /// GRANTED build entry (`evaluate_build_machine_with_filesystem`) allows
+    /// GRANTED build entry (`evaluate_granted_build_machine_arguments`) allows
     /// fs ops (the grant is the audit surface, open-work #3's settled design)
     /// while still rejecting every OTHER host boundary (console, clock, gui)
     /// as its dynamic backstop.

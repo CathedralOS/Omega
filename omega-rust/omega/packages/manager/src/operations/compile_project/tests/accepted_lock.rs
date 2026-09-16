@@ -10,6 +10,7 @@ use crate::review::{
     FreshPackageRootPolicyError, PackagePolicyDecision, PackagePolicyDecisionSubject,
     resolve_package_policy_decisions,
 };
+use checked_interpreter::InterpretOptions;
 
 fn accept_project(project: &TemporaryProject, target: target::TargetProfile) -> PackageLock {
     let prepared = prepare_local_project_for_target(&project.entry(), target)
@@ -134,11 +135,21 @@ machine build(builder: &mut Build) {
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         |checked| {
             observations += 1;
-            let generated = checked_interpreter::interpret_entry(checked, "observed_value", &[]);
+            let generated = checked_interpreter::interpret_entry(
+                checked,
+                "observed_value",
+                &[],
+                InterpretOptions::default(),
+            );
             assert!(generated.error.is_none(), "{:?}", generated.error);
             assert_eq!(generated.exit_code, 3);
             let entry = checked.selected_program_entry_machine().unwrap();
-            let outcome = checked_interpreter::interpret_entry(checked, entry, &[]);
+            let outcome = checked_interpreter::interpret_entry(
+                checked,
+                entry,
+                &[],
+                InterpretOptions::default(),
+            );
             assert!(outcome.error.is_none(), "{:?}", outcome.error);
             assert_eq!(outcome.exit_code, 0);
             // Realization consumes the checked snapshot, not another live build.

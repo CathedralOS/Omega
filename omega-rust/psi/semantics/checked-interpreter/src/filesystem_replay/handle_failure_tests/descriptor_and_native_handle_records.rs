@@ -25,8 +25,7 @@ use crate::{
     FilesystemLogicalHandleKind, FilesystemLogicalHandleOutput,
     FilesystemLogicalHandleOutputSource, FilesystemObservationProvider, FilesystemOperationAttempt,
     FilesystemOperationAttemptOutcome, FilesystemOperationResult, FilesystemReplay,
-    FilesystemScalarOperand, FilesystemScalarOperandValue, InterpretOptions,
-    interpret_entry_with_options,
+    FilesystemScalarOperand, FilesystemScalarOperandValue, InterpretOptions, interpret_entry,
 };
 
 #[test]
@@ -248,7 +247,7 @@ fn unknown_descriptor_get_osfhandle_executes_exact_replay_provider_free() {
         GetOsfHandleRecord::new(None),
     )
     .unwrap();
-    let outcome = interpret_entry_with_options(
+    let outcome = interpret_entry(
         &checked_unknown_descriptor_get_osfhandle(),
         "Main::get_unknown",
         &[],
@@ -394,7 +393,7 @@ fn unknown_native_handle_close_handle_executes_exact_replay_provider_free() {
         CloseHandleRecord::new(None),
     )
     .unwrap();
-    let outcome = interpret_entry_with_options(
+    let outcome = interpret_entry(
         &checked_unknown_native_handle_close_handle(),
         "Main::close_unknown",
         &[],
@@ -578,7 +577,7 @@ fn unknown_native_handle_final_path_executes_exact_replay_provider_free() {
             FinalPathRecord::new(None, vec![0; 4], 4, 0).unwrap(),
         )
         .unwrap();
-    let outcome = interpret_entry_with_options(
+    let outcome = interpret_entry(
         &checked_unknown_native_handle_final_path_name_by_handle(),
         "Main::query_unknown",
         &[],

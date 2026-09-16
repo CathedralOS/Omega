@@ -196,18 +196,7 @@ pub(crate) use filesystem_replay::{
     validate_source_input_attempts,
 };
 pub use interpreter::{
-    InterpretOptions, evaluate_build_machine_symbol_with_filesystem_measured,
-    evaluate_build_machine_symbol_with_filesystem_measured_with_sponsor,
-    evaluate_build_machine_with_filesystem, evaluate_build_machine_with_filesystem_measured,
-    evaluate_build_machine_with_filesystem_measured_with_sponsor, evaluate_build_time_machine,
-    evaluate_build_time_machine_arguments, evaluate_build_time_machine_arguments_measured,
-    evaluate_build_time_machine_arguments_measured_with_sponsor,
-    evaluate_build_time_machine_measured, evaluate_build_time_machine_symbol_measured,
-    evaluate_build_time_machine_symbol_with_selected_operators,
-    evaluate_build_time_machine_with_operation_receipts, evaluate_const_machine,
-    evaluate_const_machine_measured, evaluate_observed_build_time_machine_arguments_measured,
-    evaluate_observed_build_time_machine_arguments_measured_with_sponsor,
-    evaluate_observed_build_time_machine_symbol_arguments_measured,
-    evaluate_observed_build_time_machine_symbol_arguments_measured_with_sponsor, interpret_entry,
-    interpret_entry_with_options,
+    BuildMachineEntry, BuildMachineEvaluationRequest, InterpretOptions,
+    evaluate_build_machine_arguments, evaluate_build_time_machine, evaluate_const_machine,
+    evaluate_const_machine_measured, evaluate_granted_build_machine_arguments, interpret_entry,
 };
