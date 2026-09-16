@@ -346,11 +346,12 @@ single failure and relabel it generalization.
 
 The 30 exposed retrieval queries are development data; lexical context extraction
 is a strong baseline and further reranking trials need demonstrated headroom.
-After the authored abstention controls below, test nongenerative evidence repair
-on real claim/citation failures from another repository area. Separately explore
-explicit owner context for the high-scoring wrong-owner failure. Compare against
-lexical selection, not only expensive answer rewriting. Inspect flagged AND
-unflagged outputs and retain owner/scope evidence.
+After compiler-domain transfer below, compare original short quotations with
+unique containing-paragraph context on fresh cases, counting false warnings and
+preserving false-claim/wrong-owner controls. Separately explore explicit owner
+context for the high-scoring wrong-owner failure. Compare against deterministic
+expansion and lexical selection, not only expensive answer rewriting. Inspect
+flagged AND unflagged outputs and retain owner/scope evidence.
 No automatic blocks or verifier retries. Calibrate a new
 threshold only as a development hypothesis with fresh evaluation; do not promote
 the favorable repeat or a post-hoc cutoff as established correctness.
@@ -460,3 +461,38 @@ live documentation read and cached-source fallback. Windows source-substring,
 case-cardinality, Python compilation, skill validation, links and diff checks pass;
 macOS runtime not exercised. Next: real cross-domain failures and explicit source
 owner context, not more threshold tuning on these exposed controls.
+
+## Fresh compiler-domain output and deterministic quote expansion
+
+`build/experiments/compiler-evidence/` records four new compiler-architecture
+questions, full pinned pipeline.md, one fresh SWE-2 Max session and 15 observed
+claims. No injected failures or truncated context. Worker 58.970s; all quotes
+literal, zero tools, four complete answers. Before Jev, source review found one
+citation gap: a claim named runtime-ABI carriers/calling-conventions but quoted
+only "those owners", omitting their antecedent sentence. Full source supported
+all 15 facts; isolated quotations supported 14. Documentation support, not runtime
+compiler validation; manual unblinded labels.
+
+Existing .90 cutoff flagged the gap at .89 and two supported claims at .82/.62:
+one natural support gap detected, 2/14 false warnings. Raw Choice still favored
+supported for the gap. Initial API .410533s, 4,732 input / 498 output tokens.
+Six candidates per flag produced three supported whole-paragraph selections,
+all identical to lexical top-one. The ABI paragraph restores the missing owner
+names. Repair API .376138s, 7,090 input / 561 output, preparation .009052s; combined
+stages .795723s. All claim strings unchanged; no regeneration or new support defect.
+
+A frozen follow-up used unique containing-paragraph expansion of original quotes,
+same source revision/path and size cap. Three of three results matched selected
+paragraphs byte-for-byte in .000383s local computation. This avoids the SECOND
+7,090-input/561-output model call for this class of repair; initial semantic
+screening remains. Initial API plus expansion .410916s, excluding file reads,
+process startup and manual review. No generalized end-to-end speed claim.
+
+Recipe upgraded to attempt unique literal-quote expansion before search, preserving
+all quote text and refusing ambiguous/missing matches. Containment never means
+semantic acceptance; false claims can occur inside relevant paragraphs. The
+incremental Jev benefit remains unsettled because deterministic methods also
+repair this gap, and two false warnings remain. Windows quote/ID/tool/claim/parity,
+Python compilation, metadata/link and diff checks passed; no macOS runtime or
+production integration. Next: fresh short-quote versus expanded-input comparison
+including negative controls, rather than repeated tuning on exposed examples.
