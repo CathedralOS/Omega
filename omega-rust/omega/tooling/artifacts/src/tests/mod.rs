@@ -41,7 +41,7 @@ use layout_plans::{
 };
 use target::Architecture;
 
-use super::external_root_report::external_root_records_manifest_json;
+use super::reports::external_root_report::external_root_records_manifest_json;
 use super::{ArtifactWriter, value_placement_json};
 
 #[test]

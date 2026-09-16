@@ -11,7 +11,7 @@ use calling_conventions::{
 };
 
 #[cfg(any(test, feature = "external-root-report"))]
-pub(super) fn push_boundary_plan_json(output: &mut String, plan: &BoundaryEntryPlan) {
+pub(crate) fn push_boundary_plan_json(output: &mut String, plan: &BoundaryEntryPlan) {
     output.push_str("{\"call\": {\"policy\": \"");
     output.push_str(calling_policy_name(plan.call.policy));
     output.push_str("\", \"parameters\": [");
@@ -182,7 +182,7 @@ fn push_indirect_pointer_json(output: &mut String, pointer: IndirectPointerLocat
 }
 
 #[cfg(any(test, feature = "external-root-report"))]
-pub(super) fn push_register_set_json(output: &mut String, registers: &RegisterSet) {
+pub(crate) fn push_register_set_json(output: &mut String, registers: &RegisterSet) {
     output.push('[');
     for (index, register) in registers.as_slice().iter().enumerate() {
         if index != 0 {
@@ -250,7 +250,7 @@ fn push_machine_regime_json(output: &mut String, regime: MachineRegime) {
 }
 
 #[cfg(any(test, feature = "external-root-report"))]
-pub(super) fn push_entry_stack_json(output: &mut String, stack: EntryStack) {
+pub(crate) fn push_entry_stack_json(output: &mut String, stack: EntryStack) {
     match stack {
         EntryStack::Interrupted => output.push_str("\"interrupted\""),
         EntryStack::Dedicated { class } => {

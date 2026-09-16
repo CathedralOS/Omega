@@ -1,6 +1,6 @@
 //! HTML framing, escaping, and navigation for compiler observation pages.
 
-pub(super) fn render(title: &str, contents: &str) -> String {
+pub(crate) fn render(title: &str, contents: &str) -> String {
     let mut html = String::new();
     html.push_str("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n");
     html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");

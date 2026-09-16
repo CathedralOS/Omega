@@ -2,10 +2,11 @@
 
 use external_roots::{InstalledRootLedger, InstalledRootRecord};
 
-use super::calling_plan_json::push_hex_u16;
+use crate::reports::calling_plan_json::push_hex_u16;
 use diagnostics::Diagnostic;
 
-use super::{ArtifactWriter, calling_plan_json};
+use crate::ArtifactWriter;
+use crate::reports::calling_plan_json;
 
 impl ArtifactWriter {
     /// Write the provider/runtime-owned external-root manifest.
