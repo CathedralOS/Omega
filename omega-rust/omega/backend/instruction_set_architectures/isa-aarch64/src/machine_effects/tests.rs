@@ -25,62 +25,137 @@ fn constraints() -> ValidatedRegisterConstraintCatalog {
 }
 
 #[test]
-fn signed_saturating_i32_catalog_binds_scratch_write_size_and_flags() {
+fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
+    use selected_instructions::{SaturatingCarrier, SaturatingOperation};
     let constraints = constraints();
+    let nzcv = crate::aarch64_physical_register_model()
+        .view_named("nzcv")
+        .unwrap()
+        .units
+        .clone();
     for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
         let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
-        for (semantic, key, size) in [
-            (
-                MachineSemanticKind::SaturatingAddI32,
-                crate::register_model::AARCH64_SATURATING_ADD_I32,
-                28,
-            ),
-            (
-                MachineSemanticKind::SaturatingSubtractI32,
-                crate::register_model::AARCH64_SATURATING_SUBTRACT_I32,
-                28,
-            ),
-            (
-                MachineSemanticKind::SaturatingDivideI32,
-                crate::register_model::AARCH64_SATURATING_DIVIDE_I32,
-                16,
-            ),
-        ] {
-            let declaration = catalog
-                .declarations
-                .iter()
-                .find(|row| row.semantic == semantic)
-                .unwrap();
-            assert_eq!(declaration.constraint, key);
-            assert_eq!(declaration.alternatives.len(), 1);
-            let alternative = &declaration.alternatives[0];
-            assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(size));
-            assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
-            assert_eq!(alternative.encoded.external_operand_writes, [2, 3]);
-            assert_eq!(
-                alternative.encoded.implicit_unit_defs,
-                crate::aarch64_physical_register_model()
-                    .view_named("nzcv")
-                    .unwrap()
-                    .units
-            );
-            for corruption in 0..3 {
-                let mut changed = catalog.clone();
-                let alternative = &mut changed
-                    .declarations
-                    .iter_mut()
-                    .find(|row| row.semantic == semantic)
-                    .unwrap()
-                    .alternatives[0];
-                match corruption {
-                    0 => alternative.encoded.external_operand_writes.truncate(1),
-                    1 => alternative.size = MachineSizeKnowledge::ExactBytes(8),
-                    _ => alternative.key.family = MachineSemanticKind::SaturatingAddU64.into(),
+        for carrier in SaturatingCarrier::ALL {
+            let signed = carrier.is_signed();
+            let narrow = carrier.is_narrow();
+            for (operation, semantic) in [
+                (
+                    SaturatingOperation::Add,
+                    MachineSemanticKind::SaturatingAdd(carrier),
+                ),
+                (
+                    SaturatingOperation::Subtract,
+                    MachineSemanticKind::SaturatingSubtract(carrier),
+                ),
+                (
+                    SaturatingOperation::Divide,
+                    MachineSemanticKind::SaturatingDivide(carrier),
+                ),
+            ] {
+                // Operand shape selects the constraint row and the word count.
+                let (key, size, writes): (_, u16, &[u16]) = match operation {
+                    SaturatingOperation::Add if carrier == SaturatingCarrier::U64 => {
+                        (crate::register_model::AARCH64_SATURATING_ADD_U64, 8, &[2])
+                    }
+                    SaturatingOperation::Add => (
+                        crate::register_model::AARCH64_SATURATING_ADD_CLAMPED,
+                        if !narrow {
+                            16
+                        } else if signed {
+                            28
+                        } else {
+                            16
+                        },
+                        &[2, 3],
+                    ),
+                    SaturatingOperation::Subtract if !signed => (
+                        crate::register_model::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
+                        8,
+                        &[2],
+                    ),
+                    SaturatingOperation::Subtract => (
+                        crate::register_model::AARCH64_SATURATING_SUBTRACT_CLAMPED,
+                        if narrow { 28 } else { 16 },
+                        &[2, 3],
+                    ),
+                    SaturatingOperation::Divide if !signed => {
+                        (crate::register_model::AARCH64_DIVIDE_U64, 4, &[2])
+                    }
+                    SaturatingOperation::Divide => (
+                        crate::register_model::AARCH64_SATURATING_DIVIDE_SIGNED,
+                        if narrow { 16 } else { 24 },
+                        &[2, 3],
+                    ),
                 };
-                assert!(
-                    validate_aarch64_machine_effect_catalog(target, &constraints, changed).is_err(),
-                    "{semantic:?} corruption {corruption}"
+                let declaration = catalog
+                    .declarations
+                    .iter()
+                    .find(|row| row.semantic == semantic)
+                    .unwrap_or_else(|| panic!("{semantic:?} declared"));
+                assert_eq!(declaration.constraint, key, "{semantic:?}");
+                assert_eq!(declaration.alternatives.len(), 1);
+                let alternative = &declaration.alternatives[0];
+                assert_eq!(
+                    alternative.size,
+                    MachineSizeKnowledge::ExactBytes(size),
+                    "{semantic:?}"
                 );
+                assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
+                assert_eq!(alternative.encoded.external_operand_writes, writes);
+                let defines_nzcv = !(operation == SaturatingOperation::Divide && !signed);
+                assert_eq!(
+                    alternative.encoded.implicit_unit_defs,
+                    if defines_nzcv {
+                        nzcv.clone()
+                    } else {
+                        Vec::new()
+                    },
+                    "{semantic:?}"
+                );
+                for corruption in 0..3 {
+                    let mut changed = catalog.clone();
+                    let alternative = &mut changed
+                        .declarations
+                        .iter_mut()
+                        .find(|row| row.semantic == semantic)
+                        .unwrap()
+                        .alternatives[0];
+                    match corruption {
+                        0 => alternative.encoded.external_operand_writes.clear(),
+                        1 => alternative.size = MachineSizeKnowledge::ExactBytes(size + 4),
+                        _ => {
+                            // The sibling width with the other sign has its own
+                            // family; the swapped key must be rejected.
+                            let sibling = match carrier {
+                                SaturatingCarrier::I8 => SaturatingCarrier::U8,
+                                SaturatingCarrier::I16 => SaturatingCarrier::U16,
+                                SaturatingCarrier::I32 => SaturatingCarrier::U32,
+                                SaturatingCarrier::I64 => SaturatingCarrier::U64,
+                                SaturatingCarrier::U8 => SaturatingCarrier::I8,
+                                SaturatingCarrier::U16 => SaturatingCarrier::I16,
+                                SaturatingCarrier::U32 => SaturatingCarrier::I32,
+                                SaturatingCarrier::U64 => SaturatingCarrier::I64,
+                            };
+                            alternative.key.family = match operation {
+                                SaturatingOperation::Add => {
+                                    MachineSemanticKind::SaturatingAdd(sibling)
+                                }
+                                SaturatingOperation::Subtract => {
+                                    MachineSemanticKind::SaturatingSubtract(sibling)
+                                }
+                                SaturatingOperation::Divide => {
+                                    MachineSemanticKind::SaturatingDivide(sibling)
+                                }
+                            }
+                            .into();
+                        }
+                    };
+                    assert!(
+                        validate_aarch64_machine_effect_catalog(target, &constraints, changed)
+                            .is_err(),
+                        "{semantic:?} corruption {corruption}"
+                    );
+                }
             }
         }
     }

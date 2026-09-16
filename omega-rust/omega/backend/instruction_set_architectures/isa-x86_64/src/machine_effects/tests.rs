@@ -16,6 +16,7 @@ use crate::{
     x86_64_physical_register_model, x86_64_register_constraint_catalog,
 };
 use register_model::validate_physical_register_model;
+use selected_instructions::{SaturatingCarrier, SaturatingOperation};
 
 fn constraints() -> ValidatedRegisterConstraintCatalog {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
@@ -27,76 +28,146 @@ fn constraints() -> ValidatedRegisterConstraintCatalog {
 }
 
 #[test]
-fn signed_saturating_i32_catalog_defines_scratch_and_clobbers_flags() {
+fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
+    use SaturatingCarrier::{I64, U64};
+    use SaturatingOperation::{Add, Divide, Subtract};
     let constraints = constraints();
+    let physical = x86_64_physical_register_model();
+    let rflags = physical.view_named("rflags").unwrap().units.clone();
+    let rdx = physical.view_named("rdx").unwrap().units.clone();
     for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
-        for (semantic, key, size, faulting) in [
-            (
-                MachineSemanticKind::SaturatingAddI32,
-                crate::register_model::X86_64_SATURATING_ADD_I32,
-                40,
-                false,
-            ),
-            (
-                MachineSemanticKind::SaturatingSubtractI32,
-                crate::register_model::X86_64_SATURATING_SUBTRACT_I32,
-                40,
-                false,
-            ),
-            (
-                MachineSemanticKind::SaturatingDivideI32,
-                crate::register_model::X86_64_SATURATING_DIVIDE_I32,
-                22,
-                true,
-            ),
-        ] {
-            let declaration = catalog
-                .declarations
-                .iter()
-                .find(|row| row.semantic == semantic)
-                .unwrap();
-            assert_eq!(declaration.constraint, key);
-            assert_eq!(declaration.alternatives.len(), 1);
-            let alternative = &declaration.alternatives[0];
-            assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(size));
-            let physical = x86_64_physical_register_model();
-            let mut clobbers = physical.view_named("rflags").unwrap().units.clone();
-            if faulting {
-                // Division redefines RDX through CQO and reuses it for the clamp.
-                assert_eq!(alternative.encoded.external_operand_reads, [0, 1, 3]);
-                assert_eq!(alternative.encoded.external_operand_writes, [2]);
-                clobbers.extend(physical.view_named("rdx").unwrap().units.clone());
-                clobbers.sort_unstable();
-                clobbers.dedup();
-            } else {
-                assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
-                assert_eq!(alternative.encoded.external_operand_writes, [2, 3]);
-            }
-            assert_eq!(alternative.encoded.implicit_unit_clobbers, clobbers);
-            assert_eq!(
-                alternative.encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                faulting
-            );
-            for corruption in 0..3 {
-                let mut changed = catalog.clone();
-                let alternative = &mut changed
+        for operation in [Add, Subtract, Divide] {
+            for carrier in SaturatingCarrier::ALL {
+                let semantic = match operation {
+                    Add => MachineSemanticKind::SaturatingAdd(carrier),
+                    Subtract => MachineSemanticKind::SaturatingSubtract(carrier),
+                    Divide => MachineSemanticKind::SaturatingDivide(carrier),
+                };
+                // The constraint row follows the operand shape and the size
+                // follows the realization: u64 add 19, unsigned subtract 13,
+                // unsigned divide 3, signed narrow clamps 40 (add/subtract)
+                // and 22 (divide), unsigned narrow add 23, i64 overflow
+                // select 25 and guarded divide 26.
+                let (key, size) = match (operation, carrier.is_signed(), carrier) {
+                    (Add, _, U64) => (crate::register_model::X86_64_SATURATING_ADD_U64, 19),
+                    (Add, true, I64) => (crate::register_model::X86_64_SATURATING_ADD_CLAMPED, 25),
+                    (Add, true, _) => (crate::register_model::X86_64_SATURATING_ADD_CLAMPED, 40),
+                    (Add, false, _) => (crate::register_model::X86_64_SATURATING_ADD_CLAMPED, 23),
+                    (Subtract, false, _) => (
+                        crate::register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED,
+                        13,
+                    ),
+                    (Subtract, true, I64) => (
+                        crate::register_model::X86_64_SATURATING_SUBTRACT_CLAMPED,
+                        25,
+                    ),
+                    (Subtract, true, _) => (
+                        crate::register_model::X86_64_SATURATING_SUBTRACT_CLAMPED,
+                        40,
+                    ),
+                    (Divide, false, _) => (crate::register_model::X86_64_DIVIDE_U64, 3),
+                    (Divide, true, I64) => {
+                        (crate::register_model::X86_64_SATURATING_DIVIDE_SIGNED, 26)
+                    }
+                    (Divide, true, _) => {
+                        (crate::register_model::X86_64_SATURATING_DIVIDE_SIGNED, 22)
+                    }
+                };
+                let division = operation == Divide;
+                let three_operand = (operation, carrier) == (Add, U64)
+                    || (operation == Subtract && !carrier.is_signed());
+                let (reads, writes): (Vec<u16>, Vec<u16>) = if division {
+                    (vec![0, 1, 3], vec![2])
+                } else if three_operand {
+                    (vec![0, 1], vec![2])
+                } else {
+                    (vec![0, 1], vec![2, 3])
+                };
+                let declaration = catalog
                     .declarations
-                    .iter_mut()
+                    .iter()
                     .find(|row| row.semantic == semantic)
-                    .unwrap()
-                    .alternatives[0];
-                match corruption {
-                    // Drop the RDX read of division or the scratch write of add/subtract.
-                    0 if faulting => alternative.encoded.external_operand_reads.truncate(2),
-                    0 => alternative.encoded.external_operand_writes.truncate(1),
-                    1 => alternative.encoded.implicit_unit_clobbers.clear(),
-                    _ => alternative.size = MachineSizeKnowledge::ExactBytes(19),
-                }
-                assert!(
-                    validate_x86_64_machine_effect_catalog(target, &constraints, changed).is_err(),
-                    "{semantic:?} corruption {corruption}"
+                    .unwrap_or_else(|| panic!("{semantic:?} declared"));
+                assert_eq!(declaration.constraint, key, "{semantic:?}");
+                assert_eq!(declaration.alternatives.len(), 1);
+                let alternative = &declaration.alternatives[0];
+                assert_eq!(
+                    alternative.key.family,
+                    selected_instructions::MachineAlternativeFamily::from(semantic)
                 );
+                assert_eq!(
+                    alternative.size,
+                    MachineSizeKnowledge::ExactBytes(size),
+                    "{semantic:?}"
+                );
+                assert_eq!(
+                    alternative.applicability,
+                    MachineAlternativeApplicability::Always
+                );
+                assert_eq!(
+                    alternative.encoded.external_operand_reads, reads,
+                    "{semantic:?}"
+                );
+                assert_eq!(
+                    alternative.encoded.external_operand_writes, writes,
+                    "{semantic:?}"
+                );
+                let mut clobbers = rflags.clone();
+                if division {
+                    // Division redefines RDX through CQO (or the unsigned
+                    // zero convention) and reuses it for the clamp or guard.
+                    clobbers.extend(rdx.iter().copied());
+                    clobbers.sort_unstable();
+                    clobbers.dedup();
+                }
+                assert_eq!(alternative.encoded.implicit_unit_clobbers, clobbers);
+                assert_eq!(
+                    alternative.encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    division,
+                    "{semantic:?}"
+                );
+                // The saturating rows do not depend on the target, so the
+                // rebuild-and-compare corruptions run under one target only.
+                if target != NativeTarget::linux_x64() {
+                    continue;
+                }
+                for corruption in 0..4 {
+                    let mut changed = catalog.clone();
+                    let alternative = &mut changed
+                        .declarations
+                        .iter_mut()
+                        .find(|row| row.semantic == semantic)
+                        .unwrap()
+                        .alternatives[0];
+                    match corruption {
+                        // Drop the RDX read of division, the scratch write of
+                        // a clamped form, or the right input of a three-operand form.
+                        0 if division => alternative.encoded.external_operand_reads.truncate(2),
+                        0 if three_operand => {
+                            alternative.encoded.external_operand_reads.truncate(1);
+                        }
+                        0 => alternative.encoded.external_operand_writes.truncate(1),
+                        1 => alternative.encoded.implicit_unit_clobbers.clear(),
+                        2 => alternative.size = MachineSizeKnowledge::ExactBytes(size + 1),
+                        // A sibling carrier's family on this semantic's row.
+                        _ => {
+                            let sibling = SaturatingCarrier::ALL[(usize::from(carrier.ordinal())
+                                + 1)
+                                % SaturatingCarrier::ALL.len()];
+                            alternative.key.family = match operation {
+                                Add => selected_instructions::MachineAlternativeFamily::SaturatingAdd(sibling),
+                                Subtract => selected_instructions::MachineAlternativeFamily::SaturatingSubtract(sibling),
+                                Divide => selected_instructions::MachineAlternativeFamily::SaturatingDivide(sibling),
+                            };
+                        }
+                    }
+                    assert!(
+                        validate_x86_64_machine_effect_catalog(target, &constraints, changed)
+                            .is_err(),
+                        "{semantic:?} corruption {corruption}"
+                    );
+                }
             }
         }
     }
