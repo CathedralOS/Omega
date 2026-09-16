@@ -7,7 +7,9 @@ mod symbolic_sum_materializations;
 mod writer_fragments;
 
 use crate::{
-    ByteOrder, ConsumptionInstant, ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
+    ByteOrder, ConsumptionInstant, ConventionalRecordSumOccurrenceLayoutReport,
+    ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
+    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, DataSymbolId, EntryStubId, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MaterializationContext, PlacementConstraints,
     PlacementPhase, RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInteriorLayout,
@@ -315,6 +317,58 @@ fn sum_field_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
             align: 8,
         },
         SymbolicFieldInnerLayout::new_sum("choice", sum_layout()),
+    )
+}
+
+/// A recursive record/sum path report carrying record depth as data: the
+/// outer plan places `header` at 0 and `middle` at 8 (a 40-byte record);
+/// `middle`'s interior places `inner` at 0 and `tag` at 32; `inner`'s
+/// interior places the direct sum `choice` at 0 and `pad` at 24. Two `Branch`
+/// levels end in the `Leaf` holding `choice`'s complete sum overlay — the
+/// shape the recursive projection emits for `Outer { middle: Middle }` where
+/// `Middle` reaches its sum through `inner`.
+fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
+    fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
+        LayoutPlanReport {
+            schema_report_fingerprint: fingerprint,
+            entries: fields
+                .iter()
+                .map(|&(field, offset)| LayoutFieldEntryReport {
+                    field: field.into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset },
+                })
+                .collect(),
+            offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
+            size: Some(size),
+            align: 8,
+        }
+    }
+    ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
+        ConventionalRecordSumPathsLayoutReport {
+            outer_layout: record(1, &[("header", 0), ("middle", 8)], 48),
+            paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
+                outer_field: "middle".into(),
+                outer_member_identity: None,
+                inner: ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
+                    ConventionalRecordSumPathsLayoutReport {
+                        outer_layout: record(2, &[("inner", 0), ("tag", 32)], 40),
+                        paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
+                            outer_field: "inner".into(),
+                            outer_member_identity: None,
+                            inner: ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+                                outer_layout: record(3, &[("choice", 0), ("pad", 24)], 32),
+                                child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
+                                    field: "choice".into(),
+                                    member_identity: None,
+                                    layout: sum_layout(),
+                                }],
+                            },
+                        }],
+                    },
+                ),
+            }],
+        },
     )
 }
 

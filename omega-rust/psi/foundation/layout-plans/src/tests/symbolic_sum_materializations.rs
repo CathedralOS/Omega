@@ -1,12 +1,14 @@
 use super::{
     data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
-    sum_array_layout, sum_field_layout, sum_layout,
+    recursive_sum_report, sum_array_layout, sum_field_layout, sum_layout,
 };
 use crate::{
-    CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalSumLayoutReport, LayoutFieldEntryReport,
-    LayoutPlacementReport, LayoutPlanReport, MaterializationAction, PlacementPhase, PlacementSite,
-    SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
-    derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
+    CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumOccurrenceLayoutReport,
+    ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
+    ConventionalSumLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    MaterializationAction, PlacementPhase, PlacementSite, SymbolicFieldInnerLayout,
+    SymbolicFieldPathSegment, SymbolicFieldValue, derive_symbolic_materialization,
+    derive_symbolic_materialization_with_inner_layouts,
 };
 
 #[test]
@@ -747,6 +749,274 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
         error.0.contains(
             "repeated interior for `sums[1]` exceeds the enclosing 40-byte record extent"
         ),
+        "{}",
+        error.0
+    );
+}
+
+#[test]
+fn symbolic_recursive_sum_materialization_composes_every_crossed_boundary() {
+    // A recursive record/sum report folds into the carrier tree the bounded
+    // traversal already walks: `middle.inner.choice.Run.callback` crosses two
+    // record boundaries then spells the selected case and its payload field
+    // inside the retained sum interior, while `middle.inner.pad` stays an
+    // ordinary nested member leaf. Each boundary's `At` placement composes
+    // with the interior offsets, and the exact case and member stay symbolic
+    // until the write offset is assigned.
+    let report = recursive_sum_report();
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&report)
+        .expect("the recursive report folds into inner layout carriers");
+    assert_eq!(carriers.len(), 1);
+    let middle = &carriers[0];
+    assert_eq!(middle.field, "middle");
+    let inner_carriers = middle.inner_layouts();
+    assert_eq!(inner_carriers.len(), 1);
+    assert_eq!(inner_carriers[0].field, "inner");
+    let sum_carriers = inner_carriers[0].inner_layouts();
+    assert_eq!(sum_carriers.len(), 1);
+    assert_eq!(sum_carriers[0].field, "choice");
+
+    let symbolic = [
+        SymbolicFieldValue::new("header", 64, data()).expect("scalar field"),
+        SymbolicFieldValue::new("middle", 64, entry())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner").with_inner_segment(
+                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner").with_inner_segment(
+                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner")
+                    .with_inner_segment(SymbolicFieldPathSegment::new("pad")),
+            ),
+    ];
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        report.outer_layout(),
+        &carriers,
+        &symbolic,
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("a recursive record/sum path composes every crossed boundary");
+
+    let writes = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            _ => panic!("an unresolved symbolic derives a runtime writer"),
+        })
+        .collect::<Vec<_>>();
+    // `middle` spans 8..48; inside it `inner` sits at 0 holding `choice` at 0
+    // and `pad` at 24, so the `Run` payload slots land at 16 and 24 and the
+    // inner `pad` member at 32.
+    assert_eq!(
+        writes,
+        vec![
+            ("header", 0),
+            ("middle.inner.choice.Run.callback", 16),
+            ("middle.inner.choice.Run.clock", 24),
+            ("middle.inner.pad", 32),
+        ]
+    );
+
+    let writer = plan.derive_post_handoff_writer().expect("writer");
+    let mut bytes = [0xa5_u8; 48];
+    writer
+        .execute(
+            &mut bytes,
+            PlacementSite {
+                base_address: 0,
+                phase: PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |target| {
+                if target == entry() {
+                    Some(0x1122_3344_5566_7788)
+                } else {
+                    assert_eq!(target, data());
+                    Some(0xdead_beef_cafe_f00d)
+                }
+            },
+        )
+        .expect("the recursive sum writer resolves each exact slot");
+
+    assert_eq!(&bytes[0..8], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[16..24], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert_eq!(&bytes[24..32], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[32..40], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    // The crossed boundaries' other members — the sum tag, inactive payload
+    // bytes, `inner`'s tail, and `middle`'s `tag` — stay staged content.
+    assert!(
+        bytes[8..16]
+            .iter()
+            .chain(&bytes[40..])
+            .all(|byte| *byte == 0xa5),
+        "the recursive sum writer leaves unaddressed bytes untouched"
+    );
+}
+
+#[test]
+fn symbolic_recursive_sum_materialization_joins_boundaries_by_identity() {
+    // A numbered schema joins every folded carrier on stable member identity,
+    // so the spelled path may use names the schema later renamed — including
+    // the selected case and its payload field inside the sum interior.
+    let mut report = recursive_sum_report();
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(root) = &mut report else {
+        panic!("the recursive report opens as a branch");
+    };
+    for entry in &mut root.outer_layout.entries {
+        entry.member_identity = Some(match entry.field.as_str() {
+            "header" => 4,
+            "middle" => 5,
+            _ => unreachable!("outer report fields"),
+        });
+    }
+    let middle = &mut root.paths[0];
+    middle.outer_member_identity = Some(5);
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(mid) = &mut middle.inner else {
+        panic!("the middle report is a branch");
+    };
+    for entry in &mut mid.outer_layout.entries {
+        entry.member_identity = Some(match entry.field.as_str() {
+            "inner" => 6,
+            "tag" => 7,
+            _ => unreachable!("middle report fields"),
+        });
+    }
+    let inner = &mut mid.paths[0];
+    inner.outer_member_identity = Some(6);
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        outer_layout,
+        child_sum_layouts,
+    } = &mut inner.inner
+    else {
+        panic!("the innermost report is the direct-sum leaf");
+    };
+    for entry in &mut outer_layout.entries {
+        entry.member_identity = Some(match entry.field.as_str() {
+            "choice" => 8,
+            "pad" => 9,
+            _ => unreachable!("inner report fields"),
+        });
+    }
+    let choice = &mut child_sum_layouts[0];
+    choice.member_identity = Some(8);
+    choice.layout.cases[1].member_identity = Some(11);
+    choice.layout.cases[1].payload_fields[0].member_identity = Some(21);
+
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&report)
+        .expect("the numbered recursive report folds into carriers");
+    assert_eq!(carriers[0].member_identity, Some(5));
+    let inner_carriers = carriers[0].inner_layouts();
+    assert_eq!(inner_carriers[0].member_identity, Some(6));
+    assert_eq!(
+        inner_carriers[0].inner_layouts()[0].member_identity,
+        Some(8)
+    );
+
+    let symbolic = SymbolicFieldValue::new_numbered("middle", 5, 64, entry())
+        .expect("numbered outer record field")
+        .with_inner_segment(
+            SymbolicFieldPathSegment::new_numbered("inner", 6).with_inner_segment(
+                SymbolicFieldPathSegment::new_numbered("choice", 8).with_inner_segment(
+                    SymbolicFieldPathSegment::new_numbered("RenamedCase", 11).with_inner_segment(
+                        SymbolicFieldPathSegment::new_numbered("RenamedPayload", 21),
+                    ),
+                ),
+            ),
+        );
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        report.outer_layout(),
+        &carriers,
+        std::slice::from_ref(&symbolic),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("numbered recursive boundaries join on stable identities");
+    let MaterializationAction::RuntimeWriter(write) = &plan.actions[0] else {
+        panic!("an unresolved symbolic derives a runtime writer");
+    };
+    assert_eq!(
+        write.field,
+        "middle.inner.choice.RenamedCase.RenamedPayload"
+    );
+    assert_eq!(write.container_byte_offset, 16);
+}
+
+#[test]
+fn symbolic_recursive_sum_fold_bounds_report_depth() {
+    // The fold walks the report's own recursion under the same
+    // 64-segment resource bound carrier preparation enforces: a report
+    // nesting past the deepest admissible carrier rejects during the fold
+    // rather than overflowing it. A report at the boundary still folds.
+    let leaf = || ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        outer_layout: LayoutPlanReport {
+            schema_report_fingerprint: 9,
+            entries: Vec::new(),
+            offsets: Some(Vec::new()),
+            size: Some(0),
+            align: 1,
+        },
+        child_sum_layouts: Vec::new(),
+    };
+    let wrap = |inner| {
+        ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
+            ConventionalRecordSumPathsLayoutReport {
+                outer_layout: LayoutPlanReport {
+                    schema_report_fingerprint: 9,
+                    entries: vec![LayoutFieldEntryReport {
+                        field: "sub".into(),
+                        member_identity: None,
+                        placement: LayoutPlacementReport::At { offset: 0 },
+                    }],
+                    offsets: Some(vec![0]),
+                    size: Some(8),
+                    align: 8,
+                },
+                paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
+                    outer_field: "sub".into(),
+                    outer_member_identity: None,
+                    inner,
+                }],
+            },
+        )
+    };
+    let mut at_bound = leaf();
+    for _ in 1..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT - 1 {
+        at_bound = wrap(at_bound);
+    }
+    SymbolicFieldInnerLayout::from_recursive_sum_paths(&at_bound)
+        .expect("a report at the record path bound still folds");
+
+    let mut over_bound = leaf();
+    for _ in 0..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
+        over_bound = wrap(over_bound);
+    }
+    let error = SymbolicFieldInnerLayout::from_recursive_sum_paths(&over_bound)
+        .expect_err("a report nesting past the carrier bound must reject");
+    assert!(
+        error
+            .0
+            .contains("nests beyond the compiler's 64-segment record path bound"),
         "{}",
         error.0
     );

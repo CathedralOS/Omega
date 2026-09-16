@@ -65,10 +65,13 @@ pub fn derive_symbolic_materialization(
 /// payload slot. Each record carrier's own `inner_layouts` binds the next
 /// boundary's interior, so record depth is data the traversal walks rather
 /// than a family of depth-specific implementations; the walk is bounded by
-/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`]. Supplying an inner layout no
-/// symbolic path traverses is rejected: a carrier that outlives the semantic
-/// path it describes would let a stale interior join a renamed or reshaped
-/// schema.
+/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`].
+/// [`SymbolicFieldInnerLayout::from_recursive_sum_paths`] folds the recursive
+/// record/sum projection report into the carrier tree directly, so a path
+/// like `outer.middle.choice.Run.payload` resolves through the same bounded
+/// walk with no depth-specific case. Supplying an inner layout no symbolic
+/// path traverses is rejected: a carrier that outlives the semantic path it
+/// describes would let a stale interior join a renamed or reshaped schema.
 pub fn derive_symbolic_materialization_with_inner_layouts(
     layout: &LayoutPlanReport,
     inner_layouts: &[SymbolicFieldInnerLayout],

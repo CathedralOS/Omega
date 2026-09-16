@@ -4,7 +4,10 @@
 //! Numeric identities are never callable addresses and never reach source
 //! programs.
 
-use crate::layout_reports::{ConventionalSumLayoutReport, LayoutPlanReport};
+use crate::layout_reports::{
+    CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecursiveRecordSumPathsLayoutReport,
+    ConventionalSumLayoutReport, LayoutPlanReport,
+};
 use crate::materialization::MaterializationDiagnostic;
 
 /// Compiler-issued identity of an inbound entry stub. The numeric identity is
@@ -295,9 +298,11 @@ pub enum SymbolicFieldInteriorLayout {
 /// binds each nested record's interior under this carrier, so the carrier tree
 /// mirrors the record boundaries a path crosses. Depth is data in the tree
 /// rather than a family of depth-specific carriers; derivation bounds it by
-/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`]. Every supplied carrier must be
-/// traversed by some symbolic path: a carrier that outlives the semantic path
-/// it describes would let a stale interior join a renamed or reshaped schema.
+/// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`]. [`Self::from_recursive_sum_paths`]
+/// folds the recursive record/sum projection report into this tree directly.
+/// Every supplied carrier must be traversed by some symbolic path: a carrier
+/// that outlives the semantic path it describes would let a stale interior
+/// join a renamed or reshaped schema.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolicFieldInnerLayout {
     /// Outer field name. Report/diagnostic presentation; the member identity
@@ -398,6 +403,82 @@ impl SymbolicFieldInnerLayout {
         Self {
             member_identity: Some(member_identity),
             ..Self::new_sum_array(field, element_layout, element_count, element_stride)
+        }
+    }
+
+    /// Folds one record-boundary level of a recursive conventional record/sum
+    /// path report into the carriers symbolic derivation binds there.
+    ///
+    /// The projection report already carries record depth as data, so this
+    /// fold is one structural recursion over it rather than a family of
+    /// depth-specific constructors: a `Branch` occurrence binds a `Record`
+    /// carrier retaining the child's complete outer layout, with the child
+    /// report's own carriers nested under it through [`Self::with_inner_layout`];
+    /// a `Leaf` binds one `Sum` carrier per direct sum field. The top-level
+    /// call supplies the carriers for the report's `outer_layout`, which is
+    /// the flat plan passed to
+    /// [`derive_symbolic_materialization_with_inner_layouts`]. Carrier
+    /// binding, interior bounds, and the path depth limit stay with
+    /// derivation — a folded carrier naming a field the enclosing plan never
+    /// placed still rejects there, so this fold adds no admission rule of its
+    /// own.
+    ///
+    /// [`derive_symbolic_materialization_with_inner_layouts`]: crate::derive_symbolic_materialization_with_inner_layouts
+    ///
+    /// The fold walks the report's own recursion under the same
+    /// [`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`] resource bound carrier
+    /// preparation enforces, so a report nesting past the deepest admissible
+    /// carrier rejects here instead of overflowing the fold.
+    pub fn from_recursive_sum_paths(
+        report: &ConventionalRecursiveRecordSumPathsLayoutReport,
+    ) -> Result<Vec<Self>, MaterializationDiagnostic> {
+        Self::fold_recursive_sum_paths(report, 0)
+    }
+
+    fn fold_recursive_sum_paths(
+        report: &ConventionalRecursiveRecordSumPathsLayoutReport,
+        depth: usize,
+    ) -> Result<Vec<Self>, MaterializationDiagnostic> {
+        match report {
+            ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+                child_sum_layouts, ..
+            } => Ok(child_sum_layouts
+                .iter()
+                .map(|child| match child.member_identity {
+                    Some(identity) => {
+                        Self::new_sum_numbered(child.field.clone(), identity, child.layout.clone())
+                    }
+                    None => Self::new_sum(child.field.clone(), child.layout.clone()),
+                })
+                .collect()),
+            ConventionalRecursiveRecordSumPathsLayoutReport::Branch(report) => {
+                if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
+                    return Err(MaterializationDiagnostic(format!(
+                        "recursive record/sum path report nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
+                    )));
+                }
+                report
+                    .paths
+                    .iter()
+                    .map(|path| {
+                        let mut carrier = match path.outer_member_identity {
+                            Some(identity) => Self::new_numbered(
+                                path.outer_field.clone(),
+                                identity,
+                                path.inner.outer_layout().clone(),
+                            ),
+                            None => Self::new(
+                                path.outer_field.clone(),
+                                path.inner.outer_layout().clone(),
+                            ),
+                        };
+                        for nested in Self::fold_recursive_sum_paths(&path.inner, depth + 1)? {
+                            carrier = carrier.with_inner_layout(nested);
+                        }
+                        Ok(carrier)
+                    })
+                    .collect()
+            }
         }
     }
 
