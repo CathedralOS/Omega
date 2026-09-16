@@ -8,19 +8,24 @@ use super::{
 };
 use crate::component_description::{
     COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescription, ComponentDescriptionFacts,
-    ComponentEntry, ComponentEntryKind, DescriptionDecodeRejection, DescriptionFrontier,
-    EntryEvidence, ObligationKind, OutgoingAuthorityClass, OutgoingEvidence,
-    decode_component_description, encode_component_description,
+    ComponentEntry, ComponentEntryKind, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
+    DescriptionFrontier, EntryEvidence, ImportSlot, InstallationObligation, MAX_IDENTITY_BYTES,
+    ObligationKind, OutgoingAuthorityClass, OutgoingEvidence, component_description_identity,
+    decode_component_description, encode_component_description, requirement_contract_identity,
 };
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
-use semantic_vocabulary::{BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId};
+use language_semantics::CarryPolicy;
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, SuspensionCrossingId,
+};
 use terminal_psi::ProofBundle;
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, MachineContract, Operation,
     OperationKind, OperationResult, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
     Terminator, VocabularyMarker,
 };
 
@@ -451,4 +456,959 @@ fn codec_round_trips_and_rejects_noncanonical_order() {
     let decoded = decode_component_description(&bytes).expect("canonical decode");
     assert_eq!(decoded, description);
     assert_eq!(encode_component_description(&decoded), bytes);
+}
+
+// ---------------------------------------------------------------------------
+// One-field substitution coverage
+// ---------------------------------------------------------------------------
+
+/// A module whose entry performs two bare `BoundaryCall`s — one sealed by the
+/// retained selected provider, one left unsealed as an installation import —
+/// and records one suspension call site, so every component-description
+/// roster is populated for one-field substitution coverage.
+fn described_module() -> TerminalModule {
+    let mut module = boundary_module();
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: BoundaryMachineId::new(2).expect("boundary identity"),
+        identity: "Unsealed::requirement".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        crash_routes: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        published_service_ceiling: Vec::new(),
+    });
+    module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        id: OperationId::new(2).expect("operation identity"),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: BoundaryMachineId::new(2).expect("boundary identity"),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    });
+    // A suspension call site contributes a resumption entry row and a custody
+    // row. The verifier requires every site to pair with an exact plan: same
+    // operation, crossing, and target, plus the plan's replayed frontier
+    // commitment.
+    let plan = TerminalSuspensionCallPlan {
+        operation: OperationId::new(1).expect("operation identity"),
+        crossing: SuspensionCrossingId::new(1).expect("crossing identity"),
+        target: TerminalSuspensionCallTarget::Boundary(
+            BoundaryMachineId::new(1).expect("boundary identity"),
+        ),
+        effective: CarryPolicy::PERMISSIVE,
+        live_value_count: 0,
+        live_values: Vec::new(),
+    };
+    module
+        .suspension_call_sites
+        .push(TerminalSuspensionCallSite {
+            operation: plan.operation,
+            crossing: plan.crossing,
+            target: plan.target,
+            frontier_commitment: terminal_psi::suspension_frontier_commitment(&plan),
+        });
+    module.suspension_call_plan_count = 1;
+    module.suspension_call_plans.push(plan);
+    module
+}
+
+/// Replay-side assertion for a substitution that stays independently
+/// representable: the codec must preserve the mutated description exactly
+/// (mutators keep every roster in canonical order), the honestly recomputed
+/// description identity must differ from the authentic identity, and
+/// independent replay must reject with the expected category.
+fn assert_substitution_rejected_by_replay(
+    field: &str,
+    description: &ComponentDescription,
+    request: &ComponentVerificationRequest,
+    mutate: impl Fn(&mut ComponentDescription),
+    expected: impl Fn(&ComponentVerificationRejection) -> bool,
+) {
+    verify(description, request).unwrap_or_else(|rejection| {
+        panic!("{field}: authentic description verifies: {rejection:?}")
+    });
+    let mut changed = description.clone();
+    mutate(&mut changed);
+    assert_ne!(
+        changed, *description,
+        "{field}: substitution changes the description"
+    );
+    let bytes = encode_component_description(&changed);
+    let replayed = decode_component_description(&bytes).unwrap_or_else(|rejection| {
+        panic!("{field}: substituted description decodes: {rejection:?}")
+    });
+    assert_eq!(
+        replayed, changed,
+        "{field}: codec preserves the substituted description"
+    );
+    assert_ne!(
+        component_description_identity(&bytes),
+        component_description_identity(&encode_component_description(description)),
+        "{field}: recomputed identity differs from the authentic description"
+    );
+    match verify_component(&bytes, request) {
+        Err(rejection) => assert!(
+            expected(&rejection),
+            "{field}: independent replay rejects as expected, got {rejection:?}"
+        ),
+        Ok(_) => panic!("{field}: independent replay accepted the substitution"),
+    }
+}
+
+/// Decode-side assertion for a substitution that is not independently
+/// representable: the canonical codec rejects the mutated bytes before any
+/// identity or replay could admit them.
+fn assert_substitution_rejected_at_decoding(
+    field: &str,
+    description: &ComponentDescription,
+    mutate: impl Fn(&mut ComponentDescription),
+    expected: DescriptionDecodeRejection,
+) {
+    let mut changed = description.clone();
+    mutate(&mut changed);
+    assert_ne!(
+        changed, *description,
+        "{field}: substitution changes the description"
+    );
+    assert_eq!(
+        decode_component_description(&encode_component_description(&changed)),
+        Err(expected),
+        "{field}: canonical decoding rejects the substitution"
+    );
+}
+
+/// Wire-level assertion: raw byte substitutions that no encoder-produced
+/// description can express are rejected at canonical decoding.
+fn assert_wire_rejected_at_decoding(
+    field: &str,
+    description: &ComponentDescription,
+    mutate: impl Fn(&mut Vec<u8>),
+    expected: DescriptionDecodeRejection,
+) {
+    let mut bytes = encode_component_description(description);
+    mutate(&mut bytes);
+    assert_eq!(
+        decode_component_description(&bytes),
+        Err(expected),
+        "{field}: canonical decoding rejects the substitution"
+    );
+}
+
+/// Identity-only assertion for declared, non-authoritative fields: the
+/// substitution still encodes and still changes the recomputed description
+/// identity, but independent replay admits it because the field is declared
+/// evidence rather than replayable fact. These cases pin down exactly which
+/// fields the description itself does not authenticate — binding slots,
+/// report coordinates, human-readable detail, the upstream-bound closure
+/// digest, the optional realization identity, and assumption-bound declared
+/// rows — so no declared field silently acquires replay authority.
+fn assert_substitution_bound_only_by_identity(
+    field: &str,
+    description: &ComponentDescription,
+    request: &ComponentVerificationRequest,
+    mutate: impl Fn(&mut ComponentDescription),
+) {
+    verify(description, request).unwrap_or_else(|rejection| {
+        panic!("{field}: authentic description verifies: {rejection:?}")
+    });
+    let mut changed = description.clone();
+    mutate(&mut changed);
+    assert_ne!(
+        changed, *description,
+        "{field}: substitution changes the description"
+    );
+    let bytes = encode_component_description(&changed);
+    let replayed = decode_component_description(&bytes).unwrap_or_else(|rejection| {
+        panic!("{field}: substituted description decodes: {rejection:?}")
+    });
+    assert_eq!(
+        replayed, changed,
+        "{field}: codec preserves the substituted description"
+    );
+    assert_ne!(
+        component_description_identity(&bytes),
+        component_description_identity(&encode_component_description(description)),
+        "{field}: recomputed identity differs from the authentic description"
+    );
+    verify_component(&bytes, request).unwrap_or_else(|rejection| {
+        panic!("{field}: replay rejected a declared evidence-only field: {rejection:?}")
+    });
+}
+
+/// Byte offset of the import roster's count inside the canonical encoding,
+/// recomputed from the description's own fields: magic (8), schema (4),
+/// frontier tag (1), then the length-framed embedded artifact.
+fn imports_count_offset(description: &ComponentDescription) -> usize {
+    8 + 4 + 1 + 4 + description.artifact_bytes.len()
+}
+
+/// Byte offset of the entry roster's count inside the canonical encoding:
+/// after the length-framed import and export rosters.
+fn entries_count_offset(description: &ComponentDescription) -> usize {
+    let mut offset = imports_count_offset(description) + 4;
+    for slot in &description.imports {
+        offset += 4 + 4 + slot.requirement_identity.len() + 32;
+    }
+    offset += 4;
+    for export in &description.exports {
+        offset += 4 + export.identity.len();
+    }
+    offset
+}
+
+/// Every representable field of a canonical component description is
+/// authenticated: a one-field substitution either stays independently
+/// representable and is rejected by independent replay, or violates canonical
+/// form and is rejected at decoding before identity or replay could admit it.
+#[test]
+fn component_description_rejects_every_one_field_substitution() {
+    let module = described_module();
+    let selected = SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan()])
+        .expect("selected closure");
+    let description = describe(&module, &selected);
+    let request = request_for(&module, BTreeSet::new());
+    verify(&description, &request).expect("authentic description verifies");
+
+    // The fixture populates every roster: one sealed requirement, one
+    // unsealed import, canonical plus suspension-resumption entries, one
+    // custody row, one retained provider, and both obligation kinds.
+    assert_eq!(description.imports.len(), 1);
+    assert_eq!(description.exports.len(), 1);
+    assert_eq!(description.entries.len(), 2);
+    assert_eq!(description.outgoing.len(), 2);
+    assert_eq!(description.custody.len(), 1);
+    assert_eq!(description.providers.len(), 1);
+    assert_eq!(description.obligations.len(), 2);
+    let sealed_digest = description.providers[0].plan_digest;
+    let other_artifact = artifact_for(&minimal_module()).to_bytes();
+
+    let replay_rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut ComponentDescription)>,
+        fn(&ComponentVerificationRejection) -> bool,
+    )> = vec![
+        // Scalar envelope fields.
+        (
+            "schema",
+            Box::new(|d| d.schema = COMPONENT_DESCRIPTION_SCHEMA_V1 + 1),
+            |r| matches!(r, ComponentVerificationRejection::IncompatibleSchema { .. }),
+        ),
+        (
+            "frontier",
+            Box::new(|d| d.frontier = DescriptionFrontier::SelectedPlan),
+            |r| matches!(r, ComponentVerificationRejection::EarlyFrontier(_)),
+        ),
+        (
+            "artifact_bytes",
+            Box::new(move |d| d.artifact_bytes = other_artifact.clone()),
+            |r| matches!(r, ComponentVerificationRejection::WrongSubject { .. }),
+        ),
+        // Import-slot fields. Renaming the requirement leaves the real
+        // unsealed requirement unbound, which rejects first; the smuggled
+        // name would reject too.
+        (
+            "imports[0].requirement_identity",
+            Box::new(|d| {
+                d.imports[0].requirement_identity = "Smuggled::requirement".into();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnboundRequirement(_)),
+        ),
+        (
+            "imports[0].contract_identity",
+            Box::new(|d| d.imports[0].contract_identity = [9u8; 32]),
+            |r| matches!(r, ComponentVerificationRejection::ImportContractMismatch(_)),
+        ),
+        ("imports::drop", Box::new(|d| d.imports.clear()), |r| {
+            matches!(r, ComponentVerificationRejection::UnboundRequirement(_))
+        }),
+        // Export-surface fields.
+        (
+            "exports[0].identity",
+            Box::new(|d| d.exports[0].identity = "export:canonical:99".into()),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::UnexpectedDerivedExport(_)
+                )
+            },
+        ),
+        ("exports::drop", Box::new(|d| d.exports.clear()), |r| {
+            matches!(r, ComponentVerificationRejection::MissingExport(_))
+        }),
+        // Entry-roster fields on the module-derived rows.
+        (
+            "entries[canonical].identity",
+            Box::new(|d| {
+                d.entries
+                    .iter_mut()
+                    .find(|entry| entry.kind == ComponentEntryKind::Canonical)
+                    .expect("canonical entry")
+                    .identity = "canonical-entry:99".into();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnexpectedDerivedEntry(_)),
+        ),
+        (
+            "entries[canonical].kind",
+            Box::new(|d| {
+                let entry = d
+                    .entries
+                    .iter_mut()
+                    .find(|entry| entry.kind == ComponentEntryKind::Canonical)
+                    .expect("canonical entry");
+                entry.kind = ComponentEntryKind::Timer;
+                d.entries.sort();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnexpectedDerivedEntry(_)),
+        ),
+        (
+            "entries[canonical].evidence",
+            Box::new(|d| {
+                d.entries
+                    .iter_mut()
+                    .find(|entry| entry.kind == ComponentEntryKind::Canonical)
+                    .expect("canonical entry")
+                    .evidence = EntryEvidence::AssumptionBound([9u8; 32]);
+            }),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::UnboundAssumptionReference(_)
+                )
+            },
+        ),
+        (
+            "entries[suspension].kind",
+            Box::new(|d| {
+                let entry = d
+                    .entries
+                    .iter_mut()
+                    .find(|entry| entry.kind == ComponentEntryKind::SuspensionResumption)
+                    .expect("resumption entry");
+                entry.kind = ComponentEntryKind::Canonical;
+                d.entries.sort();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnexpectedDerivedEntry(_)),
+        ),
+        (
+            "entries::drop-canonical",
+            Box::new(|d| {
+                d.entries
+                    .retain(|entry| entry.kind != ComponentEntryKind::Canonical);
+            }),
+            |r| matches!(r, ComponentVerificationRejection::MissingComponentEntry(_)),
+        ),
+        (
+            "entries::insert-forged",
+            Box::new(|d| {
+                d.entries.push(ComponentEntry {
+                    kind: ComponentEntryKind::RegisteredCallback,
+                    identity: "callback:forged".into(),
+                    evidence: EntryEvidence::ModuleDerived,
+                });
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnexpectedDerivedEntry(_)),
+        ),
+        // Outgoing-authority fields on the sealed and unsealed rows.
+        (
+            "outgoing[sealed].evidence::unknown-digest",
+            Box::new(|d| {
+                d.outgoing
+                    .iter_mut()
+                    .find(|row| row.identity == "IndexedRequirement::apply")
+                    .expect("sealed row")
+                    .evidence = OutgoingEvidence::ProviderSealed([9u8; 32]);
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnsealedProvider(_)),
+        ),
+        (
+            "outgoing[sealed].evidence::module-derived",
+            Box::new(|d| {
+                let row = d
+                    .outgoing
+                    .iter_mut()
+                    .find(|row| row.identity == "IndexedRequirement::apply")
+                    .expect("sealed row");
+                row.evidence = OutgoingEvidence::ModuleDerived;
+                d.outgoing.sort();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnboundRequirement(_)),
+        ),
+        (
+            "outgoing[sealed].identity",
+            Box::new(|d| {
+                let row = d
+                    .outgoing
+                    .iter_mut()
+                    .find(|row| row.identity == "IndexedRequirement::apply")
+                    .expect("sealed row");
+                row.identity = "Sealed::renamed".into();
+                d.outgoing.sort();
+            }),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::UnexpectedDerivedAuthority(_)
+                )
+            },
+        ),
+        (
+            "outgoing[sealed].class",
+            Box::new(|d| {
+                let row = d
+                    .outgoing
+                    .iter_mut()
+                    .find(|row| row.identity == "IndexedRequirement::apply")
+                    .expect("sealed row");
+                row.class = OutgoingAuthorityClass::PortSpaceWrite;
+                d.outgoing.sort();
+            }),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::UnexpectedDerivedAuthority(_)
+                )
+            },
+        ),
+        (
+            "outgoing[unsealed].evidence::provider-sealed",
+            Box::new(move |d| {
+                let row = d
+                    .outgoing
+                    .iter_mut()
+                    .find(|row| row.identity == "Unsealed::requirement")
+                    .expect("unsealed row");
+                row.evidence = OutgoingEvidence::ProviderSealed(sealed_digest);
+                d.outgoing.sort();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnsealedProvider(_)),
+        ),
+        (
+            "outgoing::drop-sealed",
+            Box::new(|d| {
+                d.outgoing
+                    .retain(|row| row.identity != "IndexedRequirement::apply");
+            }),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::MissingOutgoingAuthority(_)
+                )
+            },
+        ),
+        // Custody-roster fields.
+        (
+            "custody[0].kind",
+            Box::new(|d| d.custody[0].kind = CustodyKind::PlacedViewInput),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::UnexpectedDerivedCustody(_)
+                )
+            },
+        ),
+        (
+            "custody[0].identity",
+            Box::new(|d| d.custody[0].identity = "forged:custody".into()),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::UnexpectedDerivedCustody(_)
+                )
+            },
+        ),
+        (
+            "custody[0].evidence::unbound-assumption",
+            Box::new(|d| {
+                d.custody[0].evidence = CustodyEvidence::AssumptionBound([9u8; 32]);
+            }),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::UnboundAssumptionReference(_)
+                )
+            },
+        ),
+        ("custody::drop", Box::new(|d| d.custody.clear()), |r| {
+            matches!(
+                r,
+                ComponentVerificationRejection::MissingCustodyConstraint(_)
+            )
+        }),
+        // Retained-provider roster fields.
+        (
+            "providers[0].plan_digest",
+            Box::new(|d| d.providers[0].plan_digest = [9u8; 32]),
+            |r| matches!(r, ComponentVerificationRejection::UnsealedProvider(_)),
+        ),
+        (
+            // Retargeting the provider's claim unseals the real sealed row
+            // during outgoing-authority replay, which rejects first.
+            "providers[0].requirement_identities[0]",
+            Box::new(|d| {
+                d.providers[0].requirement_identities[0] = "Unsealed::requirement".into();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::UnsealedProvider(_)),
+        ),
+        (
+            "providers[0].requirement_identities::drop",
+            Box::new(|d| d.providers[0].requirement_identities.clear()),
+            |r| matches!(r, ComponentVerificationRejection::UnsealedProvider(_)),
+        ),
+        ("providers::drop", Box::new(|d| d.providers.clear()), |r| {
+            matches!(r, ComponentVerificationRejection::UnsealedProvider(_))
+        }),
+        // Closure digest and obligation rows.
+        (
+            "provider_closure_digest::zero",
+            Box::new(|d| d.provider_closure_digest = [0u8; 32]),
+            |r| {
+                matches!(
+                    r,
+                    ComponentVerificationRejection::InconsistentProviderClosure(_)
+                )
+            },
+        ),
+        (
+            "obligations[import-binding].identity",
+            Box::new(|d| {
+                let row = d
+                    .obligations
+                    .iter_mut()
+                    .find(|o| o.kind == ObligationKind::ImportBinding)
+                    .expect("import obligation");
+                row.identity = "Other::requirement".into();
+                d.obligations.sort();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::MissingObligation(_)),
+        ),
+        (
+            "obligations[import-binding].kind",
+            Box::new(|d| {
+                let row = d
+                    .obligations
+                    .iter_mut()
+                    .find(|o| o.kind == ObligationKind::ImportBinding)
+                    .expect("import obligation");
+                row.kind = ObligationKind::ProgressDemand;
+                d.obligations.sort();
+            }),
+            |r| matches!(r, ComponentVerificationRejection::MissingObligation(_)),
+        ),
+        (
+            "obligations::drop-import-binding",
+            Box::new(|d| {
+                d.obligations
+                    .retain(|o| o.kind != ObligationKind::ImportBinding);
+            }),
+            |r| matches!(r, ComponentVerificationRejection::MissingObligation(_)),
+        ),
+        (
+            "obligations::drop-provider-occurrence",
+            Box::new(|d| {
+                d.obligations
+                    .retain(|o| o.kind != ObligationKind::ProviderOccurrence);
+            }),
+            |r| matches!(r, ComponentVerificationRejection::MissingObligation(_)),
+        ),
+    ];
+    for (field, mutate, expected) in replay_rejected {
+        assert_substitution_rejected_by_replay(field, &description, &request, mutate, expected);
+    }
+
+    // A derived row cannot hide behind declared evidence: its key stays in
+    // the derived set, so an `AssumptionBound` substitution is rejected as
+    // forbidden evidence rather than admitted as a declaration. Binding the
+    // digest into the roster (and the request) stages the row so the class
+    // check is the rejection under test.
+    let assumption = [7u8; 32];
+    let accepted = request_for(&module, BTreeSet::from([assumption]));
+    assert_substitution_rejected_by_replay(
+        "outgoing[unsealed].evidence::assumption-bound",
+        &description,
+        &accepted,
+        move |d| {
+            d.assumptions.push(assumption);
+            let row = d
+                .outgoing
+                .iter_mut()
+                .find(|row| row.identity == "Unsealed::requirement")
+                .expect("unsealed row");
+            row.evidence = OutgoingEvidence::AssumptionBound(assumption);
+            d.outgoing.sort();
+        },
+        |r| {
+            matches!(
+                r,
+                ComponentVerificationRejection::InvalidAuthorityEvidence(_)
+            )
+        },
+    );
+
+    // Substitutions that are not independently representable: the canonical
+    // codec rejects duplicated rows and out-of-bound identities before any
+    // identity or replay could admit them.
+    let decode_rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut ComponentDescription)>,
+        DescriptionDecodeRejection,
+    )> = vec![
+        (
+            "artifact_bytes::truncate",
+            Box::new(|d| {
+                d.artifact_bytes.truncate(d.artifact_bytes.len() / 2);
+            }),
+            DescriptionDecodeRejection::Corrupt("embedded artifact did not decode"),
+        ),
+        (
+            "imports::duplicate",
+            Box::new(|d| {
+                let row = d.imports[0].clone();
+                d.imports.push(row);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("import"),
+        ),
+        (
+            "exports::duplicate",
+            Box::new(|d| {
+                let row = d.exports[0].clone();
+                d.exports.push(row);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("export"),
+        ),
+        (
+            "entries::duplicate",
+            Box::new(|d| {
+                let row = d.entries[0].clone();
+                d.entries.push(row);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("entry"),
+        ),
+        (
+            "outgoing::duplicate",
+            Box::new(|d| {
+                let row = d.outgoing[0].clone();
+                d.outgoing.push(row);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("outgoing authority"),
+        ),
+        (
+            "custody::duplicate",
+            Box::new(|d| {
+                let row = d.custody[0].clone();
+                d.custody.push(row);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("custody"),
+        ),
+        (
+            "providers::duplicate",
+            Box::new(|d| {
+                let row = d.providers[0].clone();
+                d.providers.push(row);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("provider"),
+        ),
+        (
+            "providers[0].requirement_identities::duplicate",
+            Box::new(|d| {
+                let requirement = d.providers[0].requirement_identities[0].clone();
+                d.providers[0].requirement_identities.push(requirement);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("provider requirement"),
+        ),
+        (
+            "obligations::duplicate",
+            Box::new(|d| {
+                let row = d.obligations[0].clone();
+                d.obligations.push(row);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("obligation"),
+        ),
+        (
+            "assumptions::duplicate",
+            Box::new(|d| {
+                d.assumptions.push([7u8; 32]);
+                d.assumptions.push([7u8; 32]);
+            }),
+            DescriptionDecodeRejection::NonCanonicalOrder("assumption"),
+        ),
+        (
+            "exports[0].identity::over-bound",
+            Box::new(|d| {
+                d.exports[0].identity = "x".repeat(MAX_IDENTITY_BYTES + 1);
+            }),
+            DescriptionDecodeRejection::IdentityInvalid("too long"),
+        ),
+    ];
+    for (field, mutate, expected) in decode_rejected {
+        assert_substitution_rejected_at_decoding(field, &description, mutate, expected);
+    }
+
+    // Roster order is presentation-only in this family: the encoder
+    // canonicalizes it, so a pure reorder is not a substitution at all.
+    let mut reordered = description.clone();
+    reordered.obligations.swap(0, 1);
+    assert_ne!(reordered, description);
+    assert_eq!(
+        encode_component_description(&reordered),
+        encode_component_description(&description),
+        "a pure roster reorder is the same canonical description"
+    );
+
+    // Raw wire substitutions no encoder-produced description can express are
+    // rejected at canonical decoding.
+    let imports_at = imports_count_offset(&description);
+    let entries_at = entries_count_offset(&description);
+    let first_entry_identity_len = description
+        .entries
+        .iter()
+        .min()
+        .expect("canonical entry")
+        .identity
+        .len();
+    let wire_rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut Vec<u8>)>,
+        DescriptionDecodeRejection,
+    )> = vec![
+        (
+            "wire::magic",
+            Box::new(|bytes| bytes[0] = b'X'),
+            DescriptionDecodeRejection::InvalidMagic,
+        ),
+        (
+            "wire::frontier-tag",
+            Box::new(|bytes| bytes[12] = 9),
+            DescriptionDecodeRejection::UnsupportedTag("frontier tag"),
+        ),
+        (
+            "wire::entry-kind-tag",
+            Box::new(move |bytes| bytes[entries_at + 4] = 9),
+            DescriptionDecodeRejection::UnsupportedTag("entry kind"),
+        ),
+        (
+            "wire::entry-evidence-tag",
+            Box::new(move |bytes| {
+                bytes[entries_at + 4 + 1 + 4 + first_entry_identity_len] = 9;
+            }),
+            DescriptionDecodeRejection::UnsupportedTag("entry evidence"),
+        ),
+        (
+            "wire::import-roster-bound",
+            Box::new(move |bytes| {
+                bytes[imports_at..imports_at + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+            }),
+            DescriptionDecodeRejection::RosterBoundExceeded("import"),
+        ),
+        (
+            "wire::trailing",
+            Box::new(|bytes| bytes.push(0)),
+            DescriptionDecodeRejection::Corrupt("trailing bytes"),
+        ),
+        (
+            "wire::truncated",
+            Box::new(|bytes| {
+                bytes.pop();
+            }),
+            DescriptionDecodeRejection::Corrupt("truncated input"),
+        ),
+    ];
+    for (field, mutate, expected) in wire_rejected {
+        assert_wire_rejected_at_decoding(field, &description, mutate, expected);
+    }
+}
+
+/// Declared and evidence-only fields are deliberately not replayable: the
+/// verifier cannot re-derive a binding-slot index, a report coordinate, an
+/// obligation's human-readable detail, the upstream-bound closure digest, the
+/// optional realization identity, or the content of assumption-bound declared
+/// rows. Each substitution still changes the canonical bytes and therefore
+/// the recomputed description identity — these cases pin down exactly which
+/// fields the identity alone authenticates, so no declared field silently
+/// acquires replay authority. Fields that *are* replay-bound still reject.
+#[test]
+fn component_description_declared_fields_stay_identity_bound() {
+    let module = described_module();
+    let selected = SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan()])
+        .expect("selected closure");
+    let description = describe(&module, &selected);
+    let request = request_for(&module, BTreeSet::new());
+
+    let identity_bound: Vec<(&'static str, Box<dyn Fn(&mut ComponentDescription)>)> = vec![
+        ("imports[0].slot", Box::new(|d| d.imports[0].slot = 7)),
+        (
+            "providers[0].report_identity",
+            Box::new(|d| d.providers[0].report_identity += 1),
+        ),
+        (
+            "obligations[0].detail",
+            Box::new(|d| d.obligations[0].detail = "different detail".into()),
+        ),
+        (
+            "provider_closure_digest::nonzero",
+            Box::new(|d| d.provider_closure_digest = [9u8; 32]),
+        ),
+        (
+            "realization_identity",
+            Box::new(|d| d.realization_identity = Some([9u8; 32])),
+        ),
+        (
+            "imports::insert-second-slot",
+            Box::new(|d| {
+                d.imports.push(ImportSlot {
+                    slot: 1,
+                    requirement_identity: "Unsealed::requirement".into(),
+                    contract_identity: requirement_contract_identity("Unsealed::requirement"),
+                });
+            }),
+        ),
+        (
+            "obligations::insert-declared",
+            Box::new(|d| {
+                d.obligations.insert(
+                    0,
+                    InstallationObligation {
+                        kind: ObligationKind::StackProvision,
+                        identity: "stack-provision:1:4096:16".into(),
+                        detail: "declared demand".into(),
+                    },
+                );
+            }),
+        ),
+    ];
+    for (field, mutate) in identity_bound {
+        assert_substitution_bound_only_by_identity(field, &description, &request, mutate);
+    }
+
+    // A declared assumption-bound entry: replay can only require its digest
+    // to be roster-bound and accepted; the row's kind, identity, and presence
+    // are producer-declared facts the containing identity alone
+    // authenticates.
+    let assumption = [7u8; 32];
+    let mut declared = description.clone();
+    declared.assumptions.push(assumption);
+    declared.entries.push(ComponentEntry {
+        kind: ComponentEntryKind::Startup,
+        identity: "startup:post-link".into(),
+        evidence: EntryEvidence::AssumptionBound(assumption),
+    });
+    let accepted = request_for(&module, BTreeSet::from([assumption]));
+    verify(&declared, &accepted).expect("declared entry verifies");
+
+    // Weakening a module-derived row's evidence to an accepted assumption is
+    // admitted: the row still covers the derived set, and the digest is
+    // bound. The declaration stays identity-bound, not replay-bound.
+    assert_substitution_bound_only_by_identity(
+        "entries[canonical].evidence::assumption-bound",
+        &declared,
+        &accepted,
+        move |d| {
+            d.entries
+                .iter_mut()
+                .find(|entry| entry.kind == ComponentEntryKind::Canonical)
+                .expect("canonical entry")
+                .evidence = EntryEvidence::AssumptionBound(assumption);
+        },
+    );
+    assert_substitution_bound_only_by_identity(
+        "custody[0].evidence::assumption-bound",
+        &declared,
+        &accepted,
+        move |d| {
+            d.custody[0].evidence = CustodyEvidence::AssumptionBound(assumption);
+        },
+    );
+
+    let declared_rows: Vec<(&'static str, Box<dyn Fn(&mut ComponentDescription)>)> = vec![
+        (
+            "entries[startup].identity",
+            Box::new(|d| {
+                d.entries
+                    .iter_mut()
+                    .find(|entry| entry.kind == ComponentEntryKind::Startup)
+                    .expect("declared entry")
+                    .identity = "startup:renamed".into();
+            }),
+        ),
+        (
+            "entries[startup].kind",
+            Box::new(|d| {
+                let entry = d
+                    .entries
+                    .iter_mut()
+                    .find(|entry| entry.kind == ComponentEntryKind::Startup)
+                    .expect("declared entry");
+                entry.kind = ComponentEntryKind::Cleanup;
+                d.entries.sort();
+            }),
+        ),
+        (
+            "entries[startup]::drop",
+            Box::new(|d| {
+                d.entries
+                    .retain(|entry| entry.kind != ComponentEntryKind::Startup);
+            }),
+        ),
+    ];
+    for (field, mutate) in declared_rows {
+        assert_substitution_bound_only_by_identity(field, &declared, &accepted, mutate);
+    }
+
+    // The bound digest itself stays replay-checked: retargeting a declared
+    // row at a digest the roster does not name rejects, as does renaming the
+    // roster digest out from under its row — whether the new digest is
+    // unaccepted or accepted-but-unbound.
+    assert_substitution_rejected_by_replay(
+        "entries[startup].evidence::rebound",
+        &declared,
+        &accepted,
+        |d| {
+            d.entries
+                .iter_mut()
+                .find(|entry| entry.kind == ComponentEntryKind::Startup)
+                .expect("declared entry")
+                .evidence = EntryEvidence::AssumptionBound([9u8; 32]);
+        },
+        |r| {
+            matches!(
+                r,
+                ComponentVerificationRejection::UnboundAssumptionReference(_)
+            )
+        },
+    );
+    assert_substitution_rejected_by_replay(
+        "assumptions[0]::unaccepted",
+        &declared,
+        &accepted,
+        |d| d.assumptions[0] = [9u8; 32],
+        |r| matches!(r, ComponentVerificationRejection::UnacceptedAssumption(_)),
+    );
+    let accepts_both = request_for(&module, BTreeSet::from([assumption, [9u8; 32]]));
+    assert_substitution_rejected_by_replay(
+        "assumptions[0]::accepted-but-unbound",
+        &declared,
+        &accepts_both,
+        |d| d.assumptions[0] = [9u8; 32],
+        |r| {
+            matches!(
+                r,
+                ComponentVerificationRejection::UnboundAssumptionReference(_)
+            )
+        },
+    );
+
+    // A duplicated assumption digest is not independently representable.
+    assert_substitution_rejected_at_decoding(
+        "assumptions::duplicate",
+        &declared,
+        move |d| d.assumptions.push(assumption),
+        DescriptionDecodeRejection::NonCanonicalOrder("assumption"),
+    );
 }

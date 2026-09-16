@@ -589,6 +589,7 @@ version = "0.1.0"
 dependencies = [
  "effects",
  "image-emission",
+ "language-semantics",
  "native-artifact",
  "semantic-vocabulary",
  "sha2",
