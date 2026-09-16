@@ -17,8 +17,13 @@
 //! in its declaring source. Their uses retain exact declaration custody and
 //! rejoin the receiving parameter after symbol allocation; equal layouts and
 //! encoded labels never grant nominal identity. Scoped nominal constants use
-//! the same exact attachment finalization as scoped scalars. Generic carriers
-//! still need their full normalization owners.
+//! the same exact attachment finalization as scoped scalars. A generic carrier
+//! — `Box<u64>` under any fixed-array layers — cannot hold a canonical
+//! const-index identity before its closed instance exists, so those
+//! declarations defer value admission to lowering exactly as root constants
+//! do. Their base template still selects one generic data declaration in the
+//! declaring source at this boundary; unselected or nongeneric spellings
+//! reject here rather than drifting to a later stage's weaker error.
 
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
@@ -121,6 +126,26 @@ pub(crate) fn validate_with_const_resolution_mode(
                         })?;
                     }
                     None
+                } else if let Some(base_name) = generic_const_carrier_leaf(syntax, constant) {
+                    // A `Box<u64>`-style carrier cannot hold a canonical
+                    // const-index identity before its closed instance exists,
+                    // so value admission defers to lowering exactly as for a
+                    // root constant: the base template still selects exactly in
+                    // the declaring source now, and every use destination-
+                    // checks the substituted initializer.
+                    let selected = selection.data(syntax, base_name).and_then(|definition| {
+                        if definition.type_parameters.is_empty() {
+                            Err(format!("`{base_name}` does not select a generic data template"))
+                        } else {
+                            Ok(())
+                        }
+                    });
+                    selected.map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "module-owned nominal constant `{}` is invalid: {reason}", constant.name
+                        )).with_source_span(constant.name.source_span())]
+                    })?;
+                    None
                 } else {
                     crate::preparation::generic_data::canonicalize_selected_declared_const_definition(syntax, constant, Some(selection))
                         .map_err(|reason| vec![Diagnostic::error(format!(
@@ -191,6 +216,23 @@ pub(crate) fn module_literal_constant(
             } => type_reference = *element_type,
             _ => return false,
         }
+    }
+}
+
+/// The base spelling of a module constant's generic carrier once fixed-array
+/// layers are peeled: `Box<u64>` and `[Box<u64>; 2]` share this gate. Any
+/// other leaf — named, constrained, builtin — keeps its existing owner.
+fn generic_const_carrier_leaf<'a>(
+    syntax: &'a SyntaxTrees,
+    constant: &syntax_trees::item::ConstDefinition,
+) -> Option<&'a syntax_trees::identifier::Identifier> {
+    let mut carrier = constant.type_reference;
+    loop {
+        carrier = match syntax.type_references.type_reference(carrier) {
+            TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
+            TypeReferenceNode::Generic { base_name, .. } => return Some(base_name),
+            _ => return None,
+        };
     }
 }
 
