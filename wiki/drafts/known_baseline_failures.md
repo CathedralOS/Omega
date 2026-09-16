@@ -54,6 +54,53 @@ transport is not implemented in the common instruction pipeline`. x86 FMA
 provider transport is unimplemented; the failure is not host-specific.
 
 
+## native-differential `terminal_psi_source`
+
+`cargo nextest run -p omega-native-differential-test --test terminal_psi_source
+--no-fail-fast` at 76df1b15c7 plus 1a56e53b8d on 2026-09-16 (macOS arm64):
+90 run, 82 passed, 8 failed, in three pre-existing families.
+
+- Hosted-receiver custody (5): `control_flow_cleanup_source_reaches_the_publication_gate`,
+  `retired_selected_lowering_rejects_before_native_publication`,
+  `selected_preterminal_optimizers_rejoin_one_native_pipeline`,
+  `selected_progress_free_source_stages_non_visible_terminal_candidate`,
+  `selected_source_entry_retains_build_bound_progress_for_terminal_publication`
+  fail with `native artifact ProgramEntry receiver provisioning failed: hosted
+  receiver requires exact checked initialization and cleanup custody`
+  (`native-realization/src/native_realization.rs`, since 96854008a0 and
+  4f65a07840): the target's `stage_terminal_component_with_policies` helper
+  builds the native request by hand and never supplies the checked entry the
+  production route attaches through `with_checked_entry`. Repair is a harness
+  migration onto the stage crate's route (**ENTRY-CONTENT-ROOTS** area).
+- Frontend-drop custody ordering (2):
+  `contracts_and_frontend_drop::terminal_production_requires_typed_custody_but_not_debug_presentation`
+  and `locals_calls_and_short_circuit::checked_source_scalar_locals_become_terminal_block_values`
+  expect `Unsupported("scalar source custody has no authored state")` but now
+  reach the earlier attached-Unit parameter gate
+  (`checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs`,
+  `carries_parameter_custody`) first: `Unsupported("direct Unit parameter plan
+  has no exact typed machine")`. The expectation dates from 3fcf8240e3; the
+  gate order moved in a 2026-09-15 lowering commit and was not bisected.
+- `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
+  (1): `UnsupportedControlFlow(MachineId(1))` from
+  `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
+  expectation from 2694d433d3, not bisected.
+
+The `pipeline_ownership` target still does not compile (duplicate
+`AcceptTerminalEffects`/`TerminalStructuralInputs` imports in
+`stages/allocation/register_allocation/runtime_scalar_call_chain/scalar_return_calls.rs`
+and `.../framed_rel8.rs`); it was under a live claim when recorded.
+
+## checked-interpreter integration tests
+
+`cargo nextest run -p checked-interpreter --test borrowed_subslices` at
+c7465c23bc (macOS arm64): `inline_const_generic_selectors_execute_distinct_inferred_extents`
+fails at checking with "machine `Main::endpoint` state `endpoint` terminal
+expression returns a value not provably within its declared range" for a
+`<const N: u64>` endpoint returning `u64 [0..=3]` from an inferred extent; a
+generics checker gap (**STRUCTURAL-GENERIC-MATCHING** / **RUNTIME-VALUE-GENERICS**
+areas, both under live claims when recorded).
+
 ## Host note (macOS)
 
 `rust-objcopy` emits `dyld: Library not loaded: @rpath/libLLVM.dylib` (SIGABRT)

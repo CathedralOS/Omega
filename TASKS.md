@@ -1908,9 +1908,11 @@ Owners include
   `mbx nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers`
   passes 38/38 including caller-storage observation, exact widths, neighbors,
   signed/Boolean/IEEE sources, and access-substitution rejection; both Linux
-  legs were not run. `terminal_byte_views` `natural_writer::` (8) and
-  `terminal_psi_source` (`FuelChargeSite` import) are unrelated red at this
-  base, owned by the in-flight IRFUEL work.
+  legs were not run. `terminal_byte_views` `natural_writer::` (8) is
+  unrelated red at this base, owned by the in-flight IRFUEL work;
+  `terminal_psi_source` compiles again (1a56e53b8d) and its 8 remaining
+  failures are attributed in
+  [known baseline failures](wiki/drafts/known_baseline_failures.md).
 
   Call-boundary validation is converged: expression-call and transition-target
   arguments route through the same `validate_call_argument` projected-subloan
