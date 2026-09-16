@@ -1,20 +1,23 @@
+use super::artifacts::RetainedContainerProof;
 use super::{
-    AdmissionReceiptId, Architecture, ArtifactAdmissionEvidence, ArtifactRelocationKind,
-    CodePlacementAuthority, CodePlacementId, DecodedArtifactRelocation, EntrySetId,
-    FinalValidationCertificate, FinalValidationId, InstallAuthority, InstallationAudience,
-    InstallationReceipt, InstallationScopeId, InstalledCodeId, MachineFootprintId,
+    AdmissionReceiptId, Architecture, Artifact, ArtifactAdmissionEvidence, ArtifactEntry,
+    ArtifactId, ArtifactRelocationKind, CodePlacement, CodePlacementAuthority, CodePlacementId,
+    DecodedArtifactRelocation, EntrySetId, FinalValidationCertificate, FinalValidationId,
+    InstallAuthority, InstallationAudience, InstallationReceipt, InstallationScopeId,
+    InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt, MaterializationReceipt,
-    PlacementConstraints, RelocationTarget, RetirementAuthority, RetirementFactDigest,
-    RetirementReceipt, WxEnforcement, admit_executable, install_validated,
-    materialize_admitted_artifact, materialize_and_freeze, normalized_proof_payload_digest,
-    quarantine_installed, retire_installed, validate_final_placement,
+    PlacementConstraints, PlacementPlanId, RelocationSetId, RelocationTarget, RetirementAuthority,
+    RetirementFactDigest, RetirementReceipt, ValidatedPlacement, WxEnforcement, admit_executable,
+    install_validated, materialize_admitted_artifact, materialize_and_freeze,
+    normalized_proof_payload_digest, quarantine_installed, retire_installed,
+    validate_final_placement,
 };
-use extents::{ExtentLineageId, ExtentRootGrant, MappingEraId};
+use extents::{Extent, ExtentLineageId, ExtentRootGrant, MappingEraId};
 use layout_plans::{ArtifactInstallationScopeId, PlacementPhase};
 
 use super::test_support::*;
 use extents::{AddressSpaceId, ExtentProvenanceId, ExtentRights};
-use layout_plans::PlacementSite;
+use layout_plans::{MachineRegimeId, PlacementAddressRange, PlacementSite};
 
 #[test]
 fn canonical_materializer_patches_x86_relative_targets_and_binds_the_receipt() {
@@ -790,4 +793,898 @@ fn retirement_receipt_cannot_substitute_colliding_installed_realization() {
     let error = retire_installed(first_installed, authority, substituted_receipt)
         .expect_err("retirement must bind the exact installed realization");
     assert!(error.diagnostic().0.contains("receipt"));
+}
+
+/// Every provider-visible choice behind one installed realization: each
+/// retained record field the occurrence digest or a lifecycle receipt binds
+/// is reconstructible from this spec, so each substitution below is exactly
+/// one honest field change replayed through the same ladder.
+#[derive(Clone)]
+struct RealizationSpec {
+    artifact: u64,
+    architecture: Architecture,
+    code: Vec<u8>,
+    entry_set: u64,
+    entry: u64,
+    entry_offset: u64,
+    relocations: Vec<DecodedArtifactRelocation>,
+    resolve: fn(RelocationTarget) -> Option<u64>,
+    constraints: PlacementConstraints,
+    admission_receipt: u64,
+    container_proof: Option<RetainedContainerProof>,
+    placement: u64,
+    scope: u64,
+    audience: InstallationAudience,
+    extent_issuance: u64,
+    extent_lineage: u64,
+    extent_space: u64,
+    extent_rights: Vec<u64>,
+    extent_provenance: u64,
+    extent_era: u64,
+    extent_base: u64,
+    extent_length: u64,
+    realized_footprint: u64,
+    validation: u64,
+    installed: u64,
+    wx: WxEnforcement,
+}
+
+fn authentic_spec() -> RealizationSpec {
+    RealizationSpec {
+        artifact: 1,
+        architecture: Architecture::X86_64,
+        code: vec![0; 64],
+        entry_set: 33,
+        entry: 1001,
+        entry_offset: 16,
+        relocations: Vec::new(),
+        resolve: |_| None,
+        constraints: artifact_placement_constraints(),
+        admission_receipt: 40,
+        container_proof: Some(RetainedContainerProof {
+            digest: normalized_proof_payload_digest(b"container proof payload"),
+            bytes: b"container proof payload".to_vec(),
+        }),
+        placement: 107,
+        scope: 61,
+        audience: InstallationAudience::FutureFetcher,
+        extent_issuance: 107,
+        extent_lineage: 107,
+        extent_space: 50,
+        extent_rights: vec![51],
+        extent_provenance: 52,
+        extent_era: 53,
+        extent_base: 0x7000,
+        extent_length: 4096,
+        realized_footprint: 71,
+        validation: 180,
+        installed: 281,
+        wx: WxEnforcement::HardwareEnforced,
+    }
+}
+
+fn spec_constraints(
+    range: Option<(u64, u64)>,
+    alignment: u64,
+    phase: PlacementPhase,
+    regime: Option<u64>,
+    scope: Option<u64>,
+) -> PlacementConstraints {
+    PlacementConstraints::new(
+        range.map(|(start, end)| PlacementAddressRange::new(start, end).expect("range")),
+        alignment,
+        phase,
+        regime.map(|identity| MachineRegimeId::from_normalized_identity(identity).expect("regime")),
+        scope.map(|identity| {
+            ArtifactInstallationScopeId::from_normalized_identity(identity).expect("scope")
+        }),
+    )
+    .expect("spec constraints")
+}
+
+fn spec_artifact(spec: &RealizationSpec) -> Artifact {
+    Artifact::from_canonical_decode(
+        id(spec.artifact, ArtifactId::from_normalized_identity),
+        spec.architecture,
+        spec.code.clone(),
+        id(30, MachineContractSetId::from_normalized_identity),
+        id(31, MachineFootprintId::from_normalized_identity),
+        id(32, PlacementPlanId::from_normalized_identity),
+        spec.constraints,
+        id(spec.entry_set, EntrySetId::from_normalized_identity),
+        vec![ArtifactEntry::from_canonical_decode(
+            entry_id(spec.entry),
+            spec.entry_offset,
+        )],
+        id(34, RelocationSetId::from_normalized_identity),
+        spec.relocations.clone(),
+        authority_commitments(spec.constraints),
+    )
+    .expect("spec artifact")
+}
+
+fn spec_extent(spec: &RealizationSpec) -> Extent {
+    ExtentRootGrant::from_admitted_provider(
+        extent_provider_issuance(spec.extent_issuance),
+        extent_id(
+            spec.extent_lineage,
+            ExtentLineageId::from_normalized_identity,
+        ),
+        extent_id(spec.extent_space, AddressSpaceId::from_normalized_identity),
+        rights(&spec.extent_rights),
+        extent_id(
+            spec.extent_provenance,
+            ExtentProvenanceId::from_normalized_identity,
+        ),
+        extent_id(spec.extent_era, MappingEraId::from_normalized_identity),
+    )
+    .mint(spec.extent_base, spec.extent_length)
+    .expect("spec extent")
+}
+
+fn spec_placement(spec: &RealizationSpec) -> CodePlacement {
+    // The authority binds the exact extent evidence plus its declared site;
+    // the site follows the constraint/spec coordinates so each honest
+    // substitution stays internally consistent.
+    CodePlacementAuthority::from_admitted_provider(
+        id(spec.placement, CodePlacementId::from_normalized_identity),
+        id(spec.scope, InstallationScopeId::from_normalized_identity),
+        spec.audience,
+        &spec_extent(spec),
+        rights(&[51]),
+        spec.constraints,
+        PlacementSite {
+            base_address: spec.extent_base,
+            phase: spec.constraints.phase(),
+            machine_regime: spec.constraints.machine_regime(),
+            installation_scope: Some(
+                ArtifactInstallationScopeId::from_normalized_identity(spec.scope)
+                    .expect("site scope"),
+            ),
+        },
+    )
+    .claim(spec_extent(spec))
+    .expect("spec placement")
+}
+
+fn spec_validated(spec: &RealizationSpec) -> ValidatedPlacement {
+    let candidate = spec_artifact(spec);
+    let mut admitted = admit_executable(
+        &candidate,
+        ArtifactAdmissionEvidence::from_validator(
+            id(
+                spec.admission_receipt,
+                AdmissionReceiptId::from_normalized_identity,
+            ),
+            &candidate,
+            true,
+        ),
+    )
+    .expect("spec admission");
+    admitted.container_proof = spec.container_proof.clone();
+    let placement = spec_placement(spec);
+    let materialized = materialize_admitted_artifact(&admitted, &placement, spec.resolve)
+        .expect("spec materialization");
+    let frozen = materialize_and_freeze(
+        &admitted,
+        placement,
+        materialized.clone(),
+        MaterializationReceipt::from_materialized(
+            &materialized,
+            id(
+                spec.realized_footprint,
+                MachineFootprintId::from_normalized_identity,
+            ),
+            true,
+        ),
+    )
+    .expect("spec frozen placement");
+    let certificate = FinalValidationCertificate::from_validator(
+        id(spec.validation, FinalValidationId::from_normalized_identity),
+        &frozen,
+        true,
+    );
+    validate_final_placement(frozen, &certificate).expect("spec validated placement")
+}
+
+fn realize(spec: &RealizationSpec) -> InstalledCode {
+    let validated = spec_validated(spec);
+    let authority = InstallAuthority::from_admitted_provider(&validated);
+    let receipt = InstallationReceipt::from_provider(
+        id(spec.installed, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        spec.wx,
+    );
+    install_validated(validated, authority, receipt).expect("installed realization")
+}
+
+#[test]
+fn installed_realization_rejects_every_one_field_substitution() {
+    let spec = authentic_spec();
+    let mut authentic = realize(&spec);
+    let authentic_digest = authentic.occurrence_digest();
+    assert_eq!(
+        authentic.receipt_context().occurrence_digest(),
+        authentic_digest,
+        "the retained context replays the same occurrence identity"
+    );
+
+    // The one-shot registry authority burns on issuance and replays the
+    // complete installed evidence rather than the compact report identity.
+    let registry = authentic
+        .claim_installation_registry()
+        .expect("sole registry authority");
+    assert!(
+        authentic.claim_installation_registry().is_err(),
+        "a second registry claim must reject the burned one-shot authority"
+    );
+    assert_eq!(
+        registry.installation_scope(),
+        id(61, InstallationScopeId::from_normalized_identity)
+    );
+    assert!(registry.matches(&authentic));
+
+    // The authentic quarantined installation replays stale-entry contexts
+    // against the complete retained receipt evidence.
+    let quarantine_receipt = MappingQuarantineReceipt::from_provider(
+        &authentic,
+        id(401, MappingQuarantineId::from_normalized_identity),
+        true,
+        true,
+        true,
+        MappingQuarantineCause::IncompleteDrain {
+            residual_authority_count: 1,
+        },
+    );
+    let quarantined =
+        quarantine_installed(authentic, quarantine_receipt).expect("authentic quarantine");
+    quarantined
+        .stale_entry_fault(&realize(&spec).receipt_context())
+        .expect("the authentic context names the quarantined realization");
+
+    /// Every independent replay bound to the authentic realization must
+    /// reject a substituted one: the recomputed occurrence digest differs,
+    /// the registry authority does not match, the quarantined fault rejects
+    /// the substituted context, and each lifecycle gate refuses a receipt or
+    /// authority carrying the substituted evidence in either direction.
+    fn assert_realization_diverged(
+        axis: &str,
+        substituted: &InstalledCode,
+        authentic_digest: installation_evidence::InstalledArtifactOccurrenceDigest,
+        registry: &super::InstallationRegistryAuthority,
+        quarantined: &super::QuarantinedInstallation,
+        spec: &RealizationSpec,
+    ) {
+        assert_ne!(
+            substituted.occurrence_digest(),
+            authentic_digest,
+            "{axis}: the substituted realization must recompute to a different occurrence identity"
+        );
+        assert!(
+            !registry.matches(substituted),
+            "{axis}: the registry authority must not match the substituted realization"
+        );
+        assert!(
+            quarantined
+                .stale_entry_fault(&substituted.receipt_context())
+                .is_err(),
+            "{axis}: the quarantined realization must reject the substituted stale-entry context"
+        );
+        let error = retire_installed(
+            realize(spec),
+            RetirementAuthority::from_admitted_provider(substituted, std::iter::empty()),
+            RetirementReceipt::from_provider(&realize(spec), true, true, true, std::iter::empty()),
+        )
+        .expect_err("retirement authority bound to the substituted realization must reject");
+        assert!(
+            error.diagnostic().0.contains("not scoped"),
+            "{axis}: unexpected authority rejection: {}",
+            error.diagnostic().0
+        );
+        let error = retire_installed(
+            realize(spec),
+            RetirementAuthority::from_admitted_provider(&realize(spec), std::iter::empty()),
+            RetirementReceipt::from_provider(substituted, true, true, true, std::iter::empty()),
+        )
+        .expect_err("retirement receipt bound to the substituted realization must reject");
+        assert!(
+            error.diagnostic().0.contains("does not match"),
+            "{axis}: unexpected receipt rejection: {}",
+            error.diagnostic().0
+        );
+        let error = quarantine_installed(
+            realize(spec),
+            MappingQuarantineReceipt::from_provider(
+                substituted,
+                id(401, MappingQuarantineId::from_normalized_identity),
+                true,
+                true,
+                true,
+                MappingQuarantineCause::IncompleteDrain {
+                    residual_authority_count: 1,
+                },
+            ),
+        )
+        .expect_err("quarantine receipt bound to the substituted realization must reject");
+        assert!(
+            error.diagnostic().0.contains("does not match"),
+            "{axis}: unexpected quarantine rejection: {}",
+            error.diagnostic().0
+        );
+    }
+
+    // Every field retained in the installed-occurrence evidence substitutes
+    // independently: the honest containing identity is recomputed by the
+    // digest and each independent replay still rejects the substitution.
+    let axes: Vec<(&str, fn(&mut RealizationSpec))> = vec![
+        ("artifact code bytes", |s| s.code[0] ^= 1),
+        ("artifact architecture", |s| {
+            s.architecture = Architecture::Aarch64;
+        }),
+        ("artifact identity", |s| s.artifact = 2),
+        ("artifact entry set", |s| s.entry_set = 35),
+        ("artifact entry identity", |s| s.entry = 1002),
+        ("artifact entry code offset", |s| s.entry_offset = 24),
+        ("artifact relocation roster", |s| {
+            s.relocations.push(DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::Absolute64,
+                destination_offset: 8,
+                target: RelocationTarget::Entry(entry_id(1001)),
+                addend: 0,
+            });
+            s.resolve = |_| Some(0x9000);
+        }),
+        ("admission receipt", |s| s.admission_receipt = 41),
+        ("container proof presence", |s| s.container_proof = None),
+        ("container proof digest", |s| {
+            s.container_proof = Some(RetainedContainerProof {
+                digest: normalized_proof_payload_digest(b"forged proof payload"),
+                bytes: b"container proof payload".to_vec(),
+            });
+        }),
+        ("container proof bytes", |s| {
+            s.container_proof = Some(RetainedContainerProof {
+                digest: normalized_proof_payload_digest(b"container proof payload"),
+                bytes: b"forged proof payload".to_vec(),
+            });
+        }),
+        ("installed identity", |s| s.installed = 282),
+        ("placement identity", |s| s.placement = 108),
+        ("installation scope", |s| {
+            s.scope = 62;
+            s.constraints = spec_constraints(
+                Some((0x1000, 0x1_0000)),
+                4096,
+                PlacementPhase::PostHandoff,
+                None,
+                Some(62),
+            );
+        }),
+        ("constraint installation scope", |s| {
+            s.constraints = spec_constraints(
+                Some((0x1000, 0x1_0000)),
+                4096,
+                PlacementPhase::PostHandoff,
+                None,
+                None,
+            );
+        }),
+        ("installation audience", |s| {
+            s.audience = InstallationAudience::DormantLocal;
+        }),
+        ("permitted range dropped", |s| {
+            s.constraints =
+                spec_constraints(None, 4096, PlacementPhase::PostHandoff, None, Some(61));
+        }),
+        ("permitted range start", |s| {
+            s.constraints = spec_constraints(
+                Some((0x800, 0x1_0000)),
+                4096,
+                PlacementPhase::PostHandoff,
+                None,
+                Some(61),
+            );
+        }),
+        ("permitted range end", |s| {
+            s.constraints = spec_constraints(
+                Some((0x1000, 0x2_0000)),
+                4096,
+                PlacementPhase::PostHandoff,
+                None,
+                Some(61),
+            );
+        }),
+        ("placement alignment", |s| {
+            s.constraints = spec_constraints(
+                Some((0x1000, 0x1_0000)),
+                2048,
+                PlacementPhase::PostHandoff,
+                None,
+                Some(61),
+            );
+        }),
+        ("placement phase", |s| {
+            s.constraints = spec_constraints(
+                Some((0x1000, 0x1_0000)),
+                4096,
+                PlacementPhase::Load,
+                None,
+                Some(61),
+            );
+        }),
+        ("placement machine regime", |s| {
+            s.constraints = spec_constraints(
+                Some((0x1000, 0x1_0000)),
+                4096,
+                PlacementPhase::PostHandoff,
+                Some(10),
+                Some(61),
+            );
+        }),
+        ("placement base", |s| s.extent_base = 0x8000),
+        ("placement length", |s| s.extent_length = 8192),
+        ("placement address space", |s| s.extent_space = 54),
+        ("placement rights roster", |s| {
+            s.extent_rights = vec![51, 55]
+        }),
+        ("placement provenance", |s| s.extent_provenance = 56),
+        ("placement mapping era", |s| s.extent_era = 57),
+        ("extent lineage", |s| s.extent_lineage = 117),
+        ("realized footprint", |s| s.realized_footprint = 72),
+        ("final validation identity", |s| s.validation = 181),
+        ("W^X enforcement", |s| s.wx = WxEnforcement::ConventionOnly),
+    ];
+    for (name, mutate) in &axes {
+        let mut changed = spec.clone();
+        mutate(&mut changed);
+        let substituted = realize(&changed);
+        assert_realization_diverged(
+            name,
+            &substituted,
+            authentic_digest,
+            &registry,
+            &quarantined,
+            &spec,
+        );
+    }
+
+    // The exact materialized byte interval is bound independently of the
+    // content identity: one relocation resolved to two different targets
+    // keeps the same artifact, placement, and report identities yet yields a
+    // different final-bytes digest, so the realizations diverge.
+    let mut resolved_a = spec.clone();
+    resolved_a.relocations.push(DecodedArtifactRelocation {
+        kind: ArtifactRelocationKind::Absolute64,
+        destination_offset: 8,
+        target: RelocationTarget::Entry(entry_id(1001)),
+        addend: 0,
+    });
+    resolved_a.resolve = |_| Some(0x9000);
+    let mut resolved_b = resolved_a.clone();
+    resolved_b.resolve = |_| Some(0x9008);
+    let realization_a = realize(&resolved_a);
+    let realization_b = realize(&resolved_b);
+    assert_eq!(
+        realization_a.artifact(),
+        realization_b.artifact(),
+        "the resolver outcome rides outside the artifact content identity"
+    );
+    assert_ne!(
+        realization_a.occurrence_digest(),
+        realization_b.occurrence_digest(),
+        "the exact final bytes are bound by the occurrence identity"
+    );
+
+    // The provider-issuance origin is not retained in placement evidence:
+    // substituting it canonicalizes to the identical realization and replays
+    // as the same custody, exactly like an informational wire axis.
+    let mut envelope = spec.clone();
+    envelope.extent_issuance = 900;
+    let envelope_realization = realize(&envelope);
+    assert_eq!(
+        envelope_realization.occurrence_digest(),
+        authentic_digest,
+        "the provider issuance origin is not retained in the realization identity"
+    );
+    assert!(registry.matches(&envelope_realization));
+
+    // The claimed installed report identity is adopted into the realization
+    // and bound by the occurrence digest: the substitution is representable
+    // but every downstream replay names a different realization.
+    let mut claimed = spec.clone();
+    claimed.installed = 299;
+    let claimed_installed = realize(&claimed);
+    assert_eq!(
+        claimed_installed.identity(),
+        id(299, InstalledCodeId::from_normalized_identity)
+    );
+    assert_realization_diverged(
+        "claimed installed identity",
+        &claimed_installed,
+        authentic_digest,
+        &registry,
+        &quarantined,
+        &spec,
+    );
+
+    // The install gate rejects a receipt or authority bound to a different
+    // validated placement, an incomplete visibility claim, and an
+    // unsupported execute transition, returning all linear inputs.
+    let mut foreign_spec = spec.clone();
+    foreign_spec.placement = 108;
+    let foreign_validated = spec_validated(&foreign_spec);
+    let validated = spec_validated(&spec);
+    let receipt = InstallationReceipt::from_provider(
+        id(spec.installed, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    );
+    let error = install_validated(
+        validated,
+        InstallAuthority::from_admitted_provider(&foreign_validated),
+        receipt,
+    )
+    .expect_err("an install authority bound to another validated placement must reject");
+    assert!(error.diagnostic().0.contains("not scoped"));
+    let (validated, _foreign_authority, _receipt) = (*error).into_parts();
+    let authority = InstallAuthority::from_admitted_provider(&validated);
+    let foreign_receipt = InstallationReceipt::from_provider(
+        id(spec.installed, InstalledCodeId::from_normalized_identity),
+        &foreign_validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    );
+    let error = install_validated(validated, authority, foreign_receipt)
+        .expect_err("a receipt bound to another validated placement must reject");
+    assert!(error.diagnostic().0.contains("does not match"));
+    let (validated, authority, _receipt) = (*error).into_parts();
+    let incomplete = InstallationReceipt::from_provider(
+        id(spec.installed, InstalledCodeId::from_normalized_identity),
+        &validated,
+        false,
+        WxEnforcement::HardwareEnforced,
+    );
+    let error = install_validated(validated, authority, incomplete)
+        .expect_err("an incomplete visibility claim must reject");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("instruction-fetch visibility")
+    );
+    let (validated, authority, _receipt) = (*error).into_parts();
+    let unsupported = InstallationReceipt::from_provider(
+        id(spec.installed, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::Unsupported,
+    );
+    let error = install_validated(validated, authority, unsupported)
+        .expect_err("an unsupported execute transition must reject");
+    assert!(error.diagnostic().0.contains("does not support"));
+    let (_validated, _authority, _receipt) = (*error).into_parts();
+
+    // The retirement gate replays both records against the exact installed
+    // evidence and requires the quiescence, execute-removal, write-restore,
+    // and required-fact claims; a completion-fact superset remains admitted
+    // because required facts are provider-open vocabulary.
+    let fact_a = RetirementFactDigest::from_canonical_bytes(b"provider.drain.complete.v1");
+    let fact_b = RetirementFactDigest::from_canonical_bytes(b"provider.cache-flush.complete.v1");
+    let fact_c = RetirementFactDigest::from_canonical_bytes(b"provider.quiesce.complete.v1");
+    let retired = retire_installed(
+        realize(&spec),
+        RetirementAuthority::from_admitted_provider(&realize(&spec), [fact_a, fact_c]),
+        RetirementReceipt::from_provider(
+            &realize(&spec),
+            true,
+            true,
+            true,
+            [fact_a, fact_b, fact_c],
+        ),
+    )
+    .expect("a receipt establishing a superset of the required facts retires");
+    assert_eq!(
+        retired.previous_artifact().artifact().identity(),
+        id(spec.artifact, ArtifactId::from_normalized_identity)
+    );
+    let _placement = retired.into_placement();
+
+    let rejected_retirement: Vec<(
+        &str,
+        fn(&RealizationSpec) -> RetirementAuthority,
+        fn(&RealizationSpec) -> RetirementReceipt,
+        &str,
+    )> = vec![
+        (
+            "executors not quiesced",
+            |s| RetirementAuthority::from_admitted_provider(&realize(s), std::iter::empty()),
+            |s| {
+                RetirementReceipt::from_provider(&realize(s), false, true, true, std::iter::empty())
+            },
+            "quiescence",
+        ),
+        (
+            "execute not disabled",
+            |s| RetirementAuthority::from_admitted_provider(&realize(s), std::iter::empty()),
+            |s| {
+                RetirementReceipt::from_provider(&realize(s), true, false, true, std::iter::empty())
+            },
+            "execute removal",
+        ),
+        (
+            "write authority not restored",
+            |s| RetirementAuthority::from_admitted_provider(&realize(s), std::iter::empty()),
+            |s| {
+                RetirementReceipt::from_provider(&realize(s), true, true, false, std::iter::empty())
+            },
+            "write authority",
+        ),
+        (
+            "required fact dropped",
+            |s| {
+                RetirementAuthority::from_admitted_provider(
+                    &realize(s),
+                    [
+                        RetirementFactDigest::from_canonical_bytes(b"provider.drain.complete.v1"),
+                        RetirementFactDigest::from_canonical_bytes(b"provider.quiesce.complete.v1"),
+                    ],
+                )
+            },
+            |s| {
+                RetirementReceipt::from_provider(
+                    &realize(s),
+                    true,
+                    true,
+                    true,
+                    [RetirementFactDigest::from_canonical_bytes(
+                        b"provider.drain.complete.v1",
+                    )],
+                )
+            },
+            "completion facts",
+        ),
+        (
+            "required fact renamed",
+            |s| {
+                RetirementAuthority::from_admitted_provider(
+                    &realize(s),
+                    [RetirementFactDigest::from_canonical_bytes(
+                        b"provider.drain.complete.v1",
+                    )],
+                )
+            },
+            |s| {
+                RetirementReceipt::from_provider(
+                    &realize(s),
+                    true,
+                    true,
+                    true,
+                    [RetirementFactDigest::from_canonical_bytes(
+                        b"provider.cache-flush.complete.v1",
+                    )],
+                )
+            },
+            "completion facts",
+        ),
+    ];
+    for (name, build_authority, build_receipt, fragment) in &rejected_retirement {
+        let error = retire_installed(realize(&spec), build_authority(&spec), build_receipt(&spec))
+            .expect_err("retirement gate must reject the substituted record");
+        assert!(
+            error.diagnostic().0.contains(fragment),
+            "{name}: unexpected retirement rejection: {}",
+            error.diagnostic().0
+        );
+        let (_installed, _authority, _receipt) = (*error).into_parts();
+    }
+
+    // The quarantine gate replays the complete installed evidence and the
+    // fail-closed claims; the claimed compact quarantine identity and the
+    // attributed cause are adopted verbatim into the retained record.
+    let quarantine = id(401, MappingQuarantineId::from_normalized_identity);
+    let rejected_quarantine: Vec<(&str, fn(&InstalledCode) -> MappingQuarantineReceipt, &str)> = vec![
+        (
+            "foreign installed evidence",
+            |_| {
+                let mut foreign = authentic_spec();
+                foreign.placement = 108;
+                MappingQuarantineReceipt::from_provider(
+                    &realize(&foreign),
+                    id(401, MappingQuarantineId::from_normalized_identity),
+                    true,
+                    true,
+                    true,
+                    MappingQuarantineCause::IncompleteDrain {
+                        residual_authority_count: 1,
+                    },
+                )
+            },
+            "does not match",
+        ),
+        (
+            "execute not disabled",
+            |installed| {
+                MappingQuarantineReceipt::from_provider(
+                    installed,
+                    id(401, MappingQuarantineId::from_normalized_identity),
+                    false,
+                    true,
+                    true,
+                    MappingQuarantineCause::IncompleteDrain {
+                        residual_authority_count: 1,
+                    },
+                )
+            },
+            "execute removal",
+        ),
+        (
+            "range still mapped",
+            |installed| {
+                MappingQuarantineReceipt::from_provider(
+                    installed,
+                    id(401, MappingQuarantineId::from_normalized_identity),
+                    true,
+                    false,
+                    true,
+                    MappingQuarantineCause::IncompleteDrain {
+                        residual_authority_count: 1,
+                    },
+                )
+            },
+            "unmapped/trapping",
+        ),
+        (
+            "range not reserved",
+            |installed| {
+                MappingQuarantineReceipt::from_provider(
+                    installed,
+                    id(401, MappingQuarantineId::from_normalized_identity),
+                    true,
+                    true,
+                    false,
+                    MappingQuarantineCause::IncompleteDrain {
+                        residual_authority_count: 1,
+                    },
+                )
+            },
+            "reserve",
+        ),
+        (
+            "drained cause",
+            |installed| {
+                MappingQuarantineReceipt::from_provider(
+                    installed,
+                    id(401, MappingQuarantineId::from_normalized_identity),
+                    true,
+                    true,
+                    true,
+                    MappingQuarantineCause::IncompleteDrain {
+                        residual_authority_count: 0,
+                    },
+                )
+            },
+            "no attributed residual holder",
+        ),
+        (
+            "anonymous holder cause",
+            |installed| {
+                MappingQuarantineReceipt::from_provider(
+                    installed,
+                    id(401, MappingQuarantineId::from_normalized_identity),
+                    true,
+                    true,
+                    true,
+                    MappingQuarantineCause::PossibleOpaqueHolder {
+                        provider_identity: "   ".into(),
+                    },
+                )
+            },
+            "no attributed residual holder",
+        ),
+    ];
+    for (name, build_receipt, fragment) in &rejected_quarantine {
+        let installed = realize(&spec);
+        let receipt = build_receipt(&installed);
+        let error = quarantine_installed(installed, receipt)
+            .expect_err("quarantine gate must reject the substituted record");
+        assert!(
+            error.diagnostic().0.contains(fragment),
+            "{name}: unexpected quarantine rejection: {}",
+            error.diagnostic().0
+        );
+        let (_installed, _receipt) = (*error).into_parts();
+    }
+
+    let substituted_claim = quarantine_installed(
+        realize(&spec),
+        MappingQuarantineReceipt::from_provider(
+            &realize(&spec),
+            id(409, MappingQuarantineId::from_normalized_identity),
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        ),
+    )
+    .expect("the claimed quarantine report identity is adopted verbatim");
+    assert_ne!(
+        substituted_claim.quarantine(),
+        quarantined.quarantine(),
+        "the retained record reports the substituted quarantine identity"
+    );
+    let fault = substituted_claim
+        .stale_entry_fault(&realize(&spec).receipt_context())
+        .expect("the unchanged installed evidence still faults");
+    assert_eq!(
+        fault.quarantine(),
+        id(409, MappingQuarantineId::from_normalized_identity),
+        "the stale-entry fault replays the claimed report identity"
+    );
+    assert!(!fault.discharged_obligations());
+
+    let substituted_cause = quarantine_installed(
+        realize(&spec),
+        MappingQuarantineReceipt::from_provider(
+            &realize(&spec),
+            quarantine,
+            true,
+            true,
+            true,
+            MappingQuarantineCause::PossibleOpaqueHolder {
+                provider_identity: "OtherProvider".into(),
+            },
+        ),
+    )
+    .expect("a different attributed cause is adopted verbatim");
+    assert!(
+        matches!(
+            substituted_cause.cause(),
+            MappingQuarantineCause::PossibleOpaqueHolder { provider_identity }
+                if provider_identity == "OtherProvider"
+        ),
+        "the retained record reports the substituted cause"
+    );
+
+    // A stale-entry attempt naming any other realization rejects, including
+    // one whose compact installed report identity collides.
+    let unrelated = realize(&{
+        let mut foreign = spec.clone();
+        foreign.placement = 108;
+        foreign.installed = 282;
+        foreign
+    });
+    assert!(
+        quarantined
+            .stale_entry_fault(&unrelated.receipt_context())
+            .is_err(),
+        "an unrelated realization is not this stale entry"
+    );
+    let mut colliding = spec.clone();
+    colliding.code = vec![0xcc; 64];
+    let colliding_installed = realize(&colliding);
+    assert_eq!(
+        colliding_installed.identity(),
+        realize(&spec).identity(),
+        "the adversary controls a collision-equal compact report identity"
+    );
+    assert!(
+        quarantined
+            .stale_entry_fault(&colliding_installed.receipt_context())
+            .is_err(),
+        "a compact-ID collision must not forge stale-entry evidence"
+    );
+
+    // Zero is never a representable normalized identity: every identity
+    // constructor in this family rejects it before any substitution can be
+    // encoded.
+    assert!(InstalledCodeId::from_normalized_identity(0).is_err());
+    assert!(MappingQuarantineId::from_normalized_identity(0).is_err());
+    assert!(FinalValidationId::from_normalized_identity(0).is_err());
+    assert!(CodePlacementId::from_normalized_identity(0).is_err());
+    assert!(InstallationScopeId::from_normalized_identity(0).is_err());
+    assert!(AdmissionReceiptId::from_normalized_identity(0).is_err());
 }

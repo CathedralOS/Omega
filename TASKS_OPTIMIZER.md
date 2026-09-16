@@ -363,8 +363,33 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   substitutions of the magic, frontier, entry-kind, and entry-evidence
   tags, an over-bound roster count, trailing bytes, and truncation are
   rejected at canonical decoding, and a pure roster reorder canonicalizes
-  to the identical encoding.
->>>>>>> f138b3b7e4 (component-candidate: canonical component descriptions take one-field substitution coverage)
+  to the identical encoding. Landed: installed-realization lifecycle
+  records and occurrence custody
+  (`executable-installation/src/executable_installation/tests.rs`,
+  `installed_realization_rejects_every_one_field_substitution`) — every
+  field retained in the installed-occurrence evidence (artifact code
+  bytes, architecture, identity, entry set, entry identity and code
+  offset, relocation roster, admission receipt, retained container-proof
+  presence, digest, and bytes, installed identity, placement identity,
+  installation scope, every placement-constraint axis, installation
+  audience, extent base, length, address space, rights, provenance,
+  mapping era, and lineage, realized footprint, final validation
+  identity, and W^X mode) is independently representable under an
+  honestly recomputed occurrence digest and rejected by replay through
+  the one-shot registry authority, the quarantined stale-entry fault,
+  and the install, retirement, and quarantine gates binding the
+  substituted evidence in either direction; resolver-dependent final
+  bytes diverge under equal artifact identities, compact installed
+  report-identity collisions cannot forge stale-entry or receipt
+  evidence, and an unretained provider-issuance origin canonicalizes to
+  the identical realization; install authority scoping, receipt binding,
+  visibility completeness, and the unsupported execute transition, each
+  retirement quiescence, execute-removal, write-restore, and
+  required-fact claim, and each quarantine disable, unmapping,
+  reservation, and attributed-cause claim substitute independently,
+  while a claimed quarantine report identity and attributed cause are
+  adopted verbatim and replay-bound; zero normalized identities are
+  unrepresentable across the family.
 
 ## Psi optimization and loops
 
