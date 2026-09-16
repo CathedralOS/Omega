@@ -3,6 +3,9 @@ use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::checks::ranges::facts::dependencies::tests::typed_source;
+use crate::flow::CanonicalPlace;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
 
 fn index_source(declaration: &str, selector: &str) -> TypedTrees {
     typed_source(&format!(
@@ -11,6 +14,26 @@ fn index_source(declaration: &str, selector: &str) -> TypedTrees {
             let cut: i64 = items[{selector}];
         }}"
     ))
+}
+
+fn window(program: &TypedTrees) -> (&Machine, &State) {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "window")
+        .expect("window");
+    (machine, &program.machine_states(machine)[0])
+}
+
+/// Build the checked operator evidence production hands to range facts: the
+/// same value/operator fact construction, including domain selection, so a
+/// recorded use row is the exact occurrence custody the checker consults.
+fn selected_operator_facts(program: &TypedTrees) -> checked_trees::CheckedOperatorFacts {
+    let proof_plan = proof::obligations::build_proof_plan(program);
+    let values = crate::values::build_value_facts(program, &proof_plan);
+    let mut operators = crate::operators::build_operator_facts(program, &values);
+    crate::operators::select_pending_domain_operator_meanings(program, &mut operators);
+    operators
 }
 
 #[test]
@@ -181,6 +204,378 @@ fn authored_index_operators_do_not_claim_builtin_element_reads() {
             "{declaration}"
         );
     }
+}
+
+#[test]
+fn a_selected_index_operator_reads_exactly_its_checked_operands() {
+    let program = index_source(
+        "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;",
+        "index",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("selected index operand reads");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "items"),
+            parameter_place(&program, state, "index"),
+        ]
+        .as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [
+        ("items", false),
+        ("index", false),
+        ("selectors", true),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+#[test]
+fn a_selected_range_operator_reads_its_window_operands() {
+    let program = typed_source(
+        "boundary operator [..] Slice::window(items: &[i64], start: u64, end: u64) -> i64;
+        machine window(items: &[i64; 4], low: u64, high: u64, unrelated: u64) {
+            let cut: i64 = items[low..high];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("selected range operand reads");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "items"),
+            parameter_place(&program, state, "low"),
+            parameter_place(&program, state, "high"),
+        ]
+        .as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [
+        ("items", false),
+        ("low", false),
+        ("high", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+#[test]
+fn a_selected_index_operator_needs_stable_checked_custody() {
+    let declaration = "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;";
+    for mutate in [
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.status = checked_trees::CheckedOperatorResolutionStatus::Missing;
+        },
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.status = checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+        },
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.selected_operator_symbol = SymbolHandle::invalid();
+        },
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.candidate_count += 1;
+        },
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.spelling = language_core::operator_spelling::OperatorSpelling::Range;
+        },
+    ] {
+        let program = index_source(declaration, "index");
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        let mut operators = selected_operator_facts(&program);
+        let handle = operators
+            .uses
+            .iter()
+            .find_map(|(handle, row)| (row.expression == expression).then_some(handle))
+            .expect("checked use row");
+        mutate(operators.uses.get_mut(handle));
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_operators = Some(&operators);
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        assert!(
+            facts.expression_dependencies[0].reads.is_none(),
+            "drifted selection custody still claimed a footprint"
+        );
+    }
+}
+
+#[test]
+fn a_second_use_row_disagreeing_with_the_selection_is_inconsistent_custody() {
+    let program = index_source(
+        "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;",
+        "index",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let mut operators = selected_operator_facts(&program);
+    let mut duplicate = *operators
+        .uses
+        .iter()
+        .find_map(|(_, row)| (row.expression == expression).then_some(row))
+        .expect("checked use row");
+    duplicate.status = checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+    operators.uses.append(duplicate);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+fn statement_index_of(program: &TypedTrees, state: &State, name: &str) -> usize {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .position(|statement| {
+            matches!(statement, StatementNode::LocalData(local) if local.name.as_str() == name)
+        })
+        .expect("named local statement")
+}
+
+/// A computed index operand is hoisted to an immutable local before the
+/// application runs, so the operand read is the captured value's own
+/// identity: writes to the selector's source storage cannot rewrite a value
+/// that was already frozen.
+#[test]
+fn a_selected_index_operator_reads_the_captured_selector_value() {
+    let program = index_source(
+        "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;",
+        "selectors[index]",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let statement_index = statement_index_of(&program, state, "cut");
+    let capture = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) => Some(CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(local.symbol),
+                segments: Vec::new(),
+            }),
+            _ => None,
+        })
+        .expect("hoisted selector capture");
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        panic!("index fixture")
+    };
+    assert!(matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Name(_)
+    ));
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("selected index operand reads");
+    assert_eq!(
+        reads.as_slice(),
+        [parameter_place(&program, state, "items"), capture].as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    // The captured operand is already a value: writes to the selector's
+    // source storage or the original index parameter cannot rewrite it.
+    for (name, survives) in [
+        ("items", false),
+        ("index", true),
+        ("selectors", true),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// A selected application nested under a builtin index is also hoisted, so
+/// each occurrence keeps its own checked custody: corrupting the inner
+/// selection's evidence retires only the inner footprint, while the outer
+/// element read observes the frozen capture.
+#[test]
+fn a_selected_index_operand_keeps_independent_custody_from_the_outer_read() {
+    let declaration = "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;";
+    for corrupt_inner in [false, true] {
+        let program = typed_source(&format!(
+            "{declaration}
+            machine window(items: &[i64; 4], index: u64, unrelated: u64) {{
+                let cut: i64 = items[items[index]];
+            }}"
+        ));
+        let (machine, state) = window(&program);
+        let outer_statement = statement_index_of(&program, state, "cut");
+        let (capture, inner_expression) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .take(outer_statement)
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) => Some((
+                    CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(local.symbol),
+                        segments: Vec::new(),
+                    },
+                    local.initial_value,
+                )),
+                _ => None,
+            })
+            .expect("hoisted inner application");
+        let outer_expression = initializer(&program, state);
+        let ExpressionNode::Indexed(outer) = program.expression_table.expression(outer_expression)
+        else {
+            panic!("index fixture")
+        };
+        let mut operators = selected_operator_facts(&program);
+        if corrupt_inner {
+            let handle = operators
+                .uses
+                .iter()
+                .find_map(|(handle, row)| (row.expression == inner_expression).then_some(handle))
+                .expect("inner checked use row");
+            operators.uses.get_mut(handle).status =
+                checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+        }
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_operators = Some(&operators);
+        facts.statement_index = 0;
+        facts.record_expression_dependencies(&program, machine, state, inner_expression);
+        facts.statement_index = outer_statement;
+        facts.record_expression_dependencies(&program, machine, state, outer_expression);
+
+        let inner_reads = &facts.expression_dependencies[0].reads;
+        let outer_reads = &facts.expression_dependencies[1].reads;
+        // The inner application keeps its own custody; the outer builtin
+        // element read depends only on the frozen capture and the
+        // collection.
+        let mut outer_element = parameter_place(&program, state, "items");
+        outer_element.segments.push(facts::PlaceSegment::Index {
+            expression: outer.index,
+        });
+        assert_eq!(
+            outer_reads.as_deref(),
+            Some([capture.clone(), outer_element].as_slice()),
+            "corrupt_inner={corrupt_inner}"
+        );
+        if corrupt_inner {
+            assert!(inner_reads.is_none());
+        } else {
+            assert_eq!(
+                inner_reads.as_deref(),
+                Some(
+                    [
+                        parameter_place(&program, state, "items"),
+                        parameter_place(&program, state, "index"),
+                    ]
+                    .as_slice()
+                )
+            );
+        }
+        // A write to the original index parameter retires the inner
+        // application's facts but leaves the outer element read, which saw
+        // only the frozen capture.
+        let writes = [parameter_place(&program, state, "index")];
+        let preserved = facts.preserved_expression_labels(&program, machine, state, Some(&writes));
+        let inner_label = program.expression_table.display_name(inner_expression);
+        let outer_label = program.expression_table.display_name(outer_expression);
+        assert!(
+            !preserved.contains(&inner_label),
+            "corrupt_inner={corrupt_inner}"
+        );
+        assert!(
+            preserved.contains(&outer_label),
+            "the outer element read outlives the inner operand's source: corrupt_inner={corrupt_inner}"
+        );
+    }
+}
+
+#[test]
+fn a_selected_index_operator_with_an_open_range_stays_incomplete() {
+    let program = typed_source(
+        "boundary operator [..] Slice::window(items: &[i64], start: u64, end: u64) -> i64;
+        machine window(items: &[i64; 4], low: u64, unrelated: u64) {
+            let cut: i64 = items[low..];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+#[test]
+fn a_requires_scope_selected_operator_has_no_statement_use_custody() {
+    let program = typed_source(
+        "boundary operator [] Slice::custom(items: &[i64], index: u64) -> i64;
+        machine window(items: &[i64; 4], index: u64)
+        requires 0 <= items[index]; {}",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let contract = &program.machine_contracts(machine)[0];
+    let typed_trees::domain::ProofFact::Expression(guard) =
+        program.proof_facts.span_or_empty(contract.facts)[0]
+    else {
+        panic!("expression contract")
+    };
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        panic!("bound comparison")
+    };
+    let expression = binary.right;
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    assert!(
+        facts.expression_dependencies[0].reads.is_none(),
+        "a contract-scope occurrence invented statement use custody"
+    );
 }
 
 #[test]
