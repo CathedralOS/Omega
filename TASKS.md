@@ -2993,7 +2993,23 @@ Owners include
   authored `via` span retained as invocation custody
   (`omega-rust/psi/semantics/build-time-evaluation/src/admission/const_evaluable.rs`,
   `omega-rust/omega/build/provider-planning/src/evaluated_via_bindings.rs`).
-  Open: string-backed bootstrap retirement and the wider acceptance replay.
+  The string-backed bootstrap is retired on the Omega side: no production
+  code constructs `ProviderBinding::StringBackedImportBootstrap` (its payload
+  is an empty `RetiredStringBackedImportBootstrap`), the calling-plan,
+  trust-report, review-policy, and executable-scope carriers dropped their
+  variants, provider derivation and review capture reject a typed
+  `ExternalBindingIdentity::Import` with "declare a typed locator through an
+  evaluated `via` binding producer", and review recovery reports the old tag
+  as `RetiredVocabulary` without a version bump (no producible encoding
+  changed). Remaining deletions once their owners are free: the three
+  `native-realization` arms (`terminal_authority_review/reviewer.rs`,
+  `providers/settlements/source_imports.rs` twice) and then the effects
+  variant itself; the Psi `ExternalBinding::DllImport` variant with its two
+  consumers (`inspection/snapshot/item_snapshots.rs`,
+  `syntax-trees-to-symbol-resolved-trees/src/lowering/machine.rs`) and
+  `language_semantics::ExternalBindingIdentity::Import` with the review
+  vocabulary rows that mirror it. Open after that: the wider acceptance
+  replay.
 
   Extend [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement)
   from fixed-width scalar calls to a
