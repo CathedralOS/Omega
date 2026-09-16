@@ -133,6 +133,39 @@ impl RangeFacts<'_> {
             .any(|(_, upper)| self.index_upper_bound_is_proven(upper, length))
     }
 
+    /// Proves `index < len` for an UNKNOWN-extent collection from a label-keyed
+    /// exclusive upper bound: `index < u` (seeded by a `let` alias of an ensured
+    /// call, an `i < K` guard, or a bound carried through a transition's
+    /// argument transport) and `u <= floor` — where `floor` is the collection's
+    /// `minimum_length`/`exact_length` lower-bounding its live length — give
+    /// `index < u <= floor <= len`. The `u - 1` spelling reuses the strict
+    /// index-value floor check: `u - 1 < floor` is `u <= floor` for integers,
+    /// and stored bounds are always positive so `u - 1` cannot underflow.
+    pub(in crate::checks::ranges) fn index_upper_bound_within_length_floor(
+        &self,
+        index: &str,
+        collection: &str,
+    ) -> bool {
+        self.proven_index_upper_bound(index)
+            .is_some_and(|upper| self.index_value_is_proven(collection, upper - 1))
+    }
+
+    /// The ordering-chained counterpart of `index_upper_bound_within_length_floor`:
+    /// `index <= pivot` (an `at_most` fact) plus `pivot`'s exclusive bound meeting
+    /// the floor gives `index <= pivot < u <= floor <= len`. One level of
+    /// chaining, the same soundness argument as
+    /// `index_upper_bound_is_proven_via_ordering` over a symbolic length.
+    pub(in crate::checks::ranges) fn index_upper_bound_within_length_floor_via_ordering(
+        &self,
+        index: &str,
+        collection: &str,
+    ) -> bool {
+        self.proven_orderings
+            .iter()
+            .filter(|(lower, _)| lower == index)
+            .any(|(_, pivot)| self.index_upper_bound_within_length_floor(pivot, collection))
+    }
+
     /// Proves `index >= 0` by chaining an ordering with non-negativity: if `x <= index`
     /// (an `at_most` fact, e.g. from a two-pointer guard `x < index`) and `x` is proven
     /// non-negative, then `index >= x >= 0`. The symmetric counterpart of
