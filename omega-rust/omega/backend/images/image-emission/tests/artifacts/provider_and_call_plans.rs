@@ -23,8 +23,9 @@ use target::{
     X86FeatureRequirement, X86ScalarFmaDifferentialReceipt, X86ScalarFmaSlot, X86TargetFeature,
 };
 use target_operations::{
-    BoundaryScalarArgument, HostedExitProcessI32Realization, MetadataOnlyPortRealization,
-    ProviderExecutionBinding, ProviderPlanReportIdentity, TerminalPsiProvenance,
+    BoundaryScalarArgument, CallSiteOwner, HostedExitProcessI32Realization,
+    MetadataOnlyPortRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
+    TerminalPsiProvenance,
 };
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralMultiplicity};
 
@@ -256,6 +257,194 @@ pub(super) fn linux_write_line_exit_plan(provider: &WriteExitProvider) -> Machin
                     byte_count: exit_bytes.len(),
                 },
             ],
+            scalar_affine_cleanup: None,
+            scalar_control_affine_cleanups: Vec::new(),
+            scalar_structural_parameters: Vec::new(),
+            scalar_structural_parameter_homes: Vec::new(),
+            structural_return: None,
+        }],
+    }
+}
+
+/// Windows x64 Unit entry whose single semantic operation is one returning
+/// zero-argument PE import call. The lifetime frame reserves the call's MXCSR
+/// slot, the evaluated Microsoft x64 plan leaves shadow space plus call
+/// alignment as its outbound custody, and the admitted same-stack contribution
+/// carries the opaque provider leaf. Every retained interval replays against
+/// the emitted bytes, so object construction, the PE image, and the
+/// installation record's foreign-call stack row are all genuinely derived.
+pub(super) fn windows_foreign_call_plan(provider: &WriteExitProvider) -> MachineCodePlan {
+    let target = NativeTarget::windows_x64();
+    let machine = machine_id(61);
+    let call_operation = operation_id(61);
+    let return_edge = edge_id(61);
+    let locator = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"ExitProcess".to_vec(),
+        },
+        TargetProfile::WindowsX64,
+    )
+    .expect("normalized PE import");
+    let signature = calling_conventions::CallSignature {
+        parameters: Vec::new(),
+        result: None,
+    };
+    let call_plan = calling_conventions::evaluate_call_plan(
+        calling_conventions::CallingPolicy::native_for_target(target),
+        &signature,
+    )
+    .expect("native Windows x64 call plan");
+    let boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        calling_conventions::CallingPolicy::native_for_target(target),
+        &signature,
+    )
+    .expect("ordinary boundary entry plan")
+    .plan()
+    .clone();
+    let save_bytes = isa_x86_64::encode_stmxcsr_rsp_displacement(16).expect("MXCSR save encoding");
+    let restore_bytes =
+        isa_x86_64::encode_ldmxcsr_rsp_displacement(16).expect("MXCSR restore encoding");
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&[0x48, 0x83, 0xec, 0x20]); // sub rsp, 32
+    let save_offset = bytes.len();
+    bytes.extend_from_slice(&save_bytes);
+    let outbound_allocation_offset = bytes.len();
+    bytes.extend_from_slice(&[0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
+    bytes.push(0xe8);
+    let call_offset = bytes.len();
+    bytes.extend_from_slice(&[0; 4]);
+    let outbound_release_offset = bytes.len();
+    bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
+    let restore_offset = bytes.len();
+    bytes.extend_from_slice(&restore_bytes);
+    let frame_release_offset = bytes.len();
+    bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 0x20]); // add rsp, 32
+    let return_offset = bytes.len();
+    bytes.push(0xc3);
+    let provider_plan_commitment =
+        task_plans::SameStackProviderPlanCommitment::from_digest([7; 32]);
+    let same_stack_contribution = task_plans::admit_same_stack_contribution(
+        task_plans::SameStackContributionAdmissionCandidate {
+            provider_plan_report_identity: provider.provider_plan_report_identity(),
+            provider_plan_commitment,
+            requirement_identity: "kernel32::ExitProcess".to_string(),
+            receipt: task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+                0x7757_494e_0001,
+            )
+            .expect("same-stack admission receipt"),
+            bytes: 64,
+            alignment: 16,
+        },
+        provider.provider_plan_report_identity(),
+        provider_plan_commitment,
+        "kernel32::ExitProcess",
+    )
+    .expect("admitted same-stack contribution");
+    MachineCodePlan {
+        psi: identity(),
+        target,
+        entry: machine,
+        functions: vec![MachineCodeFunction {
+            scalar_abi: None,
+            mixed_structural_scalar_abi: None,
+            structural_call_scalar_return: None,
+            parameter_abi: None,
+            internal_unit_scalar_calls: Vec::new(),
+            installed_provider_unit_scalar_calls: Vec::new(),
+            dynamic_calls: Vec::new(),
+            stored_dynamic_calls: Vec::new(),
+            dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_descriptor_calls: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: Vec::new(),
+            unit_affine_scalar_records: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
+            unit_write_only_primitive_stores: Vec::new(),
+            scalar_structural_scalar_field_stores: Vec::new(),
+            machine,
+            attachment: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![call_operation],
+                edges: vec![return_edge],
+            },
+            bytes,
+            x86_scalar_fma: Vec::new(),
+            x86_scalar_fma_occurrences: Vec::new(),
+            x86_floating_control: None,
+            unit_stack: Some(UnitStackEvidence {
+                frame: Some(machine_code::StackAdjustmentPair {
+                    byte_size: 32,
+                    allocation_offset: 0,
+                    allocation_byte_count: 4,
+                    release_offset: frame_release_offset,
+                    release_byte_count: 4,
+                }),
+                aarch64_return_link: None,
+                stack_alignment: 16,
+            }),
+            unit_parameter_homes: Vec::new(),
+            unit_parameters: Vec::new(),
+            scalar_stack: None,
+            internal_calls: Vec::new(),
+            foreign_calls: vec![machine_code::ForeignCallRelocation {
+                owner: CallSiteOwner::Operation(call_operation),
+                operation_ordinal: 0,
+                offset: call_offset,
+                locator,
+                provider_execution: write_exit_provider_binding(provider).into(),
+                boundary_entry_plan,
+                call_plan,
+                scalar_arguments: Vec::new(),
+                callback_address: None,
+                scalar_result: None,
+                x86_floating_control: Some(machine_code::X86ForeignCallFloatingControlRecord {
+                    target,
+                    saved_slot_byte_offset: 16,
+                    save_offset,
+                    save_byte_count: save_bytes.len(),
+                    restore_offset,
+                    restore_byte_count: restore_bytes.len(),
+                }),
+                aarch64_floating_control: None,
+                unit_stack: machine_code::UnitCallStackEvidence {
+                    outbound: Some(machine_code::StackAdjustmentPair {
+                        byte_size: 40,
+                        allocation_offset: outbound_allocation_offset,
+                        allocation_byte_count: 4,
+                        release_offset: outbound_release_offset,
+                        release_byte_count: 4,
+                    }),
+                },
+                same_stack_contribution,
+            }],
+            internal_unit_calls: Vec::new(),
+            unit_continuations: Vec::new(),
+            unit_affine_cleanup: Some(UnitAffineCleanupRecord {
+                psi_edge: return_edge,
+                structural_types: Vec::new().into(),
+                locals: Vec::new(),
+                actions: Vec::new(),
+                code_offset: return_offset,
+                byte_count: 1,
+            }),
+            semantic_code_attribution: vec![
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(call_operation),
+                    operation_ordinal: 0,
+                    code_offset: save_offset,
+                    byte_count: frame_release_offset - save_offset,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(return_edge),
+                    operation_ordinal: 1,
+                    code_offset: return_offset,
+                    byte_count: 1,
+                },
+            ],
+            port_effects: Vec::new(),
+            boundary_settlements: Vec::new(),
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),

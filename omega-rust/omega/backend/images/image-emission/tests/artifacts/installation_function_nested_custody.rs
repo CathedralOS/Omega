@@ -14,8 +14,9 @@
 //! unchanged image rejects it with `ImageBindingMismatch`.
 
 use super::{
-    continuation_unit_call_plan, edge_id, edge_owned_cleanup_plan, machine_id, operation_id,
-    promote_x86_cleanup_to_scalar, scalar_three_leaf_cleanup_plan, stored_dynamic_call_plan,
+    WriteExitProvider, continuation_unit_call_plan, edge_id, edge_owned_cleanup_plan, machine_id,
+    operation_id, promote_x86_cleanup_to_scalar, scalar_three_leaf_cleanup_plan,
+    stored_dynamic_call_plan, windows_foreign_call_plan,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
@@ -609,6 +610,126 @@ fn installation_function_nested_call_stacks_reject_every_one_field_substitution(
             row.foreign_call_stacks
                 .push(foreign_call(function_text_offset + 4));
         },
+    );
+}
+
+/// Every retained field of a genuinely emitted foreign-call stack row is
+/// authenticated: the object pipeline validates the call's exact site bytes,
+/// evaluated plans, MXCSR custody, and same-stack contribution before the PE
+/// image resolves its import relocation, so the installed row exists only
+/// because the emitted image retains it. Each of the eight fields — owner,
+/// text offset, caller-live bytes, provider-plan report identity,
+/// contribution report identity, contribution commitment, contribution bytes,
+/// and contribution alignment — is independently representable, recomputes a
+/// distinct installation identity, and is rejected by independent replay
+/// against the unchanged image. An unselected provider identity is rejected
+/// at canonical encoding and a dropped row is rejected by replay.
+#[test]
+fn installation_foreign_call_stack_row_rejects_every_one_field_substitution() {
+    let provider = WriteExitProvider(91);
+    let plan = windows_foreign_call_plan(&provider);
+    let artifact = build_object_artifact(&plan).expect("foreign call object");
+    let image = emit_executable_image(&artifact, 3).expect("foreign call PE image");
+    assert_eq!(image.foreign_calls().len(), 1, "one emitted foreign call");
+    // Select one unexecuted plan beside the executed provider's so the
+    // report-identity field stays representable inside the closure.
+    let record = build_installation_record_with_selected_provider_plans_and_evidence(
+        &image,
+        ProfileDecisionId::new(41).expect("profile"),
+        [91, 97],
+        [&provider],
+        None,
+    )
+    .expect("foreign call installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = record.functions()[0].clone();
+    let [call] = authentic.foreign_call_stacks.as_slice() else {
+        panic!("one installed foreign-call stack row")
+    };
+    assert_eq!(call.owner, CallSiteOwner::Operation(operation_id(61)));
+    assert_eq!(call.provider_plan_report_identity, 91);
+
+    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
+        (
+            "foreign_call_stacks[0].owner",
+            Box::new(|row| {
+                row.foreign_call_stacks[0].owner = CallSiteOwner::Operation(operation_id(9));
+            }),
+        ),
+        (
+            "foreign_call_stacks[0].text_offset",
+            Box::new(|row| {
+                row.foreign_call_stacks[0].text_offset += 1;
+            }),
+        ),
+        (
+            "foreign_call_stacks[0].caller_live_bytes",
+            Box::new(|row| {
+                row.foreign_call_stacks[0].caller_live_bytes += 1;
+            }),
+        ),
+        (
+            "foreign_call_stacks[0].provider_plan_report_identity",
+            Box::new(|row| {
+                row.foreign_call_stacks[0].provider_plan_report_identity = 97;
+            }),
+        ),
+        (
+            "foreign_call_stacks[0].contribution_report_identity",
+            Box::new(|row| {
+                row.foreign_call_stacks[0].contribution_report_identity =
+                    task_plans::AdmittedStackContributionReportId::from_normalized_identity(
+                        0xc011_e541,
+                    )
+                    .expect("contribution report");
+            }),
+        ),
+        (
+            "foreign_call_stacks[0].contribution_commitment",
+            Box::new(|row| {
+                row.foreign_call_stacks[0].contribution_commitment =
+                    task_plans::SameStackContributionCommitment::from_digest([0xaa; 32]);
+            }),
+        ),
+        (
+            "foreign_call_stacks[0].contribution_bytes",
+            Box::new(|row| {
+                row.foreign_call_stacks[0].contribution_bytes = 128;
+            }),
+        ),
+        (
+            "foreign_call_stacks[0].contribution_alignment",
+            Box::new(|row| {
+                row.foreign_call_stacks[0].contribution_alignment = 8;
+            }),
+        ),
+        (
+            "foreign_call_stacks::drop",
+            Box::new(|row| {
+                row.foreign_call_stacks.pop();
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        assert_substitution_rejected_by_replay(
+            field,
+            &record,
+            &image,
+            &authentic_fingerprint,
+            0,
+            mutate,
+        );
+    }
+
+    assert_substitution_rejected_at_encoding(
+        "foreign_call_stacks[0].provider_plan_report_identity::unselected",
+        &record,
+        0,
+        |row| {
+            row.foreign_call_stacks[0].provider_plan_report_identity = 55;
+        },
+        InstallationError::ProviderSettlementClosureMismatch,
     );
 }
 
