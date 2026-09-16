@@ -64,13 +64,13 @@ fn keys() -> SelectedConstraintKeys {
         bits_to_float64: Some(instruction(31)),
         add_i64: instruction(2),
         subtract_i64: instruction(4),
-        saturating_subtract_u64: instruction(4),
+        saturating_subtract_unsigned: instruction(4),
         saturating_add_u64: instruction(4),
         divide_u64: instruction(4),
         remainder_i64: instruction(38),
-        saturating_add_i32: instruction(40),
-        saturating_subtract_i32: instruction(41),
-        saturating_divide_i32: instruction(42),
+        saturating_add_clamped: instruction(40),
+        saturating_subtract_clamped: instruction(41),
+        saturating_divide_signed: instruction(42),
         add_i64_immediate: instruction(3),
         subtract_i64_immediate: instruction(8),
         compare_i64_zero: instruction(5),
@@ -297,49 +297,90 @@ fn remainder_catalog_identity_binds_its_key_and_distinct_semantic_family() {
 }
 
 #[test]
-fn signed_saturating_i32_catalog_identity_binds_keys_and_distinct_families() {
-    for (semantic, family, tag) in [
-        (
-            MachineSemanticKind::SaturatingAddI32,
-            MachineAlternativeFamily::SaturatingAddI32,
-            60,
-        ),
-        (
-            MachineSemanticKind::SaturatingSubtractI32,
-            MachineAlternativeFamily::SaturatingSubtractI32,
-            61,
-        ),
-        (
-            MachineSemanticKind::SaturatingDivideI32,
-            MachineAlternativeFamily::SaturatingDivideI32,
-            62,
-        ),
-    ] {
-        assert_eq!(semantic_kind_tag(semantic), tag);
-        assert_eq!(alternative_family_tag(family), tag);
-        assert_eq!(MachineAlternativeFamily::from(semantic), family);
+fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_family() {
+    use crate::{SaturatingCarrier, SaturatingOperation, saturating_family_tag};
+    // The forms that existed before the family was widened keep their tags;
+    // every (operation, carrier) pair has one tag and no two pairs collide.
+    assert_eq!(
+        saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::U64),
+        54
+    );
+    assert_eq!(
+        saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::U64),
+        55
+    );
+    assert_eq!(
+        saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::I32),
+        60
+    );
+    assert_eq!(
+        saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::I32),
+        61
+    );
+    assert_eq!(
+        saturating_family_tag(SaturatingOperation::Divide, SaturatingCarrier::I32),
+        62
+    );
+    let mut tags = Vec::new();
+    for carrier in SaturatingCarrier::ALL {
+        for (semantic, family, operation) in [
+            (
+                MachineSemanticKind::SaturatingAdd(carrier),
+                MachineAlternativeFamily::SaturatingAdd(carrier),
+                SaturatingOperation::Add,
+            ),
+            (
+                MachineSemanticKind::SaturatingSubtract(carrier),
+                MachineAlternativeFamily::SaturatingSubtract(carrier),
+                SaturatingOperation::Subtract,
+            ),
+            (
+                MachineSemanticKind::SaturatingDivide(carrier),
+                MachineAlternativeFamily::SaturatingDivide(carrier),
+                SaturatingOperation::Divide,
+            ),
+        ] {
+            let tag = saturating_family_tag(operation, carrier);
+            assert_eq!(semantic_kind_tag(semantic), tag);
+            assert_eq!(alternative_family_tag(family), tag);
+            assert_eq!(MachineAlternativeFamily::from(semantic), family);
+            assert!(MachineSemanticKind::ALL.contains(&semantic));
+            tags.push(tag);
+        }
     }
+    let every_tag: std::collections::BTreeSet<u8> = MachineSemanticKind::ALL
+        .iter()
+        .map(|semantic| semantic_kind_tag(*semantic))
+        .collect();
+    assert_eq!(every_tag.len(), MachineSemanticKind::ALL.len());
+    tags.sort_unstable();
+    tags.dedup();
+    assert_eq!(tags.len(), 24);
     let source = catalog();
     let baseline = machine_effect_catalog_identity(&source);
-    for mutation in 0..6 {
+    for mutation in 0..7 {
         let mut changed = source.clone();
         match mutation {
-            0 => changed.selected_keys.saturating_add_i32 = instruction(43),
-            1 => changed.selected_keys.saturating_subtract_i32 = instruction(43),
-            2 => changed.selected_keys.saturating_divide_i32 = instruction(43),
+            0 => changed.selected_keys.saturating_add_clamped = instruction(43),
+            1 => changed.selected_keys.saturating_subtract_clamped = instruction(43),
+            2 => changed.selected_keys.saturating_divide_signed = instruction(43),
             _ => {
                 let (from, to) = match mutation {
                     3 => (
-                        MachineSemanticKind::SaturatingAddI32,
-                        MachineSemanticKind::SaturatingAddU64,
+                        MachineSemanticKind::SaturatingAdd(SaturatingCarrier::I32),
+                        MachineSemanticKind::SaturatingAdd(SaturatingCarrier::U64),
                     ),
                     4 => (
-                        MachineSemanticKind::SaturatingSubtractI32,
-                        MachineSemanticKind::SaturatingAddI32,
+                        MachineSemanticKind::SaturatingSubtract(SaturatingCarrier::I32),
+                        MachineSemanticKind::SaturatingAdd(SaturatingCarrier::I32),
+                    ),
+                    5 => (
+                        MachineSemanticKind::SaturatingDivide(SaturatingCarrier::I32),
+                        MachineSemanticKind::ExactDivideU64,
                     ),
                     _ => (
-                        MachineSemanticKind::SaturatingDivideI32,
-                        MachineSemanticKind::ExactDivideU64,
+                        MachineSemanticKind::SaturatingAdd(SaturatingCarrier::I8),
+                        MachineSemanticKind::SaturatingAdd(SaturatingCarrier::I16),
                     ),
                 };
                 changed

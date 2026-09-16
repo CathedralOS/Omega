@@ -2,6 +2,7 @@
 //! and emitting the words for every operation family.
 
 use crate::aarch64_physical_register_model;
+use crate::saturating_forms::SaturatingRealization;
 use crate::selected_form_encoding::copy_bytes;
 use crate::selected_form_encoding::decoding::{decode_words, footprint, validate_decoded};
 use crate::selected_form_encoding::float_bits;
@@ -122,26 +123,29 @@ fn family_and_operand_count(
         SelectedInstructionKind::WrappingAddI64 => (MachineAlternativeFamily::WrappingAddI64, 3),
         SelectedInstructionKind::BitwiseAndI64 => (MachineAlternativeFamily::BitwiseAndI64, 3),
         SelectedInstructionKind::BitwiseXorI64 => (MachineAlternativeFamily::BitwiseXorI64, 3),
-        SelectedInstructionKind::SaturatingSubtractU64 => {
-            (MachineAlternativeFamily::SaturatingSubtractU64, 3)
-        }
-        SelectedInstructionKind::SaturatingAddU64 => {
-            (MachineAlternativeFamily::SaturatingAddU64, 3)
-        }
+        SelectedInstructionKind::SaturatingAdd { carrier } => (
+            MachineAlternativeFamily::SaturatingAdd(carrier),
+            SaturatingRealization::of_kind(kind)
+                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
+                .operand_count(),
+        ),
+        SelectedInstructionKind::SaturatingSubtract { carrier } => (
+            MachineAlternativeFamily::SaturatingSubtract(carrier),
+            SaturatingRealization::of_kind(kind)
+                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
+                .operand_count(),
+        ),
+        SelectedInstructionKind::SaturatingDivide { carrier, .. } => (
+            MachineAlternativeFamily::SaturatingDivide(carrier),
+            SaturatingRealization::of_kind(kind)
+                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
+                .operand_count(),
+        ),
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             (MachineAlternativeFamily::ExactDivideU64, 3)
         }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             (MachineAlternativeFamily::WrappingRemainderI64, 3)
-        }
-        SelectedInstructionKind::SaturatingAddI32 => {
-            (MachineAlternativeFamily::SaturatingAddI32, 4)
-        }
-        SelectedInstructionKind::SaturatingSubtractI32 => {
-            (MachineAlternativeFamily::SaturatingSubtractI32, 4)
-        }
-        SelectedInstructionKind::SaturatingDivideI32 { .. } => {
-            (MachineAlternativeFamily::SaturatingDivideI32, 4)
         }
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
@@ -358,23 +362,10 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
-        SelectedInstructionKind::SaturatingSubtractU64 => {
-            words.push(
-                0xeb00_0000
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
-            words.push(0x9a9f_2000 | (u32::from(registers[2]) << 5) | u32::from(registers[2]));
-        }
-        SelectedInstructionKind::SaturatingAddU64 => {
-            words.push(
-                0xab00_0000
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
-            words.push(0xda9f_3000 | (u32::from(registers[2]) << 5) | u32::from(registers[2]));
+        SelectedInstructionKind::SaturatingAdd { .. }
+        | SelectedInstructionKind::SaturatingSubtract { .. }
+        | SelectedInstructionKind::SaturatingDivide { .. } => {
+            append_saturating(&mut words, kind, registers)?;
         }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             words.push(
@@ -402,36 +393,6 @@ fn encode_unchecked(
                     | (u32::from(registers[2]) << 5)
                     | u32::from(registers[2]),
             );
-        }
-        SelectedInstructionKind::SaturatingAddI32
-        | SelectedInstructionKind::SaturatingSubtractI32
-        | SelectedInstructionKind::SaturatingDivideI32 { .. } => {
-            // Inputs are sign-normalized i32 carriers, so the 64-bit result is
-            // exact and only needs clamping to the i32 range. The result and
-            // the bound scratch are both early-clobber outputs, so all four
-            // registers are distinct.
-            if registers[2..]
-                .iter()
-                .any(|late| registers[..2].contains(late))
-                || registers[2] == registers[3]
-            {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            let three_address = |opcode: u32| {
-                opcode
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2])
-            };
-            words.push(three_address(match kind {
-                SelectedInstructionKind::SaturatingAddI32 => 0x8b00_0000,
-                SelectedInstructionKind::SaturatingSubtractI32 => 0xcb00_0000,
-                _ => 0x9ac0_0c00,
-            }));
-            append_i32_clamp(&mut words, registers[2], registers[3], true);
-            if !matches!(kind, SelectedInstructionKind::SaturatingDivideI32 { .. }) {
-                append_i32_clamp(&mut words, registers[2], registers[3], false);
-            }
         }
         SelectedInstructionKind::BitwiseXorI64 => {
             words.push(
@@ -502,22 +463,120 @@ fn encode_unchecked(
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
 }
 
-/// `mov scratch, #bound; cmp value, scratch; csel value, scratch, value, cond`
-/// with the bound as a single ORR bitmask immediate: i32::MAX selected on GT,
-/// or i32::MIN selected on LT.
-pub(crate) fn append_i32_clamp(words: &mut Vec<u32>, value: u8, scratch: u8, upper: bool) {
-    let (materialize, condition) = if upper {
-        (0xb240_7be0, 0xc)
-    } else {
-        (0xb261_83e0, 0xb)
-    };
-    words.push(materialize | u32::from(scratch));
-    words.push(0xeb00_001f | (u32::from(scratch) << 16) | (u32::from(value) << 5));
-    words.push(
-        0x9a80_0000
-            | (u32::from(value) << 16)
-            | (condition << 12)
-            | (u32::from(scratch) << 5)
-            | u32::from(value),
-    );
+/// The single-word `orr xd, xzr, #bound` materialization of each carrier
+/// bound, with the destination register cleared. Every saturating bound is
+/// a valid bitmask immediate, so no bound needs a `movz`/`movk` sequence;
+/// the words were assembled independently by Apple clang.
+pub(crate) const BOUND_WORDS: [(u64, u32); 11] = [
+    (i8::MAX as u64, 0xb240_1be0),
+    (i8::MIN as i64 as u64, 0xb279_e3e0),
+    (i16::MAX as u64, 0xb240_3be0),
+    (i16::MIN as i64 as u64, 0xb271_c3e0),
+    (i32::MAX as u64, 0xb240_7be0),
+    (i32::MIN as i64 as u64, 0xb261_83e0),
+    (i64::MAX as u64, 0xb240_fbe0),
+    (i64::MIN as u64, 0xb241_03e0),
+    (u8::MAX as u64, 0xb240_1fe0),
+    (u16::MAX as u64, 0xb240_3fe0),
+    (u32::MAX as u64, 0xb240_7fe0),
+];
+
+fn bound_word(bound: u64, destination: u8) -> Result<u32, Aarch64SelectedFormEncodingError> {
+    BOUND_WORDS
+        .iter()
+        .find(|(value, _)| *value == bound)
+        .map(|(_, word)| word | u32::from(destination))
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+}
+
+/// `csel value, scratch, value, cond`: replace the value by the scratch when
+/// the preceding compare set the condition.
+fn select(value: u8, scratch: u8, condition: u32) -> u32 {
+    0x9a80_0000
+        | (u32::from(value) << 16)
+        | (condition << 12)
+        | (u32::from(scratch) << 5)
+        | u32::from(value)
+}
+
+fn three_address(opcode: u32, left: u8, right: u8, destination: u8) -> u32 {
+    opcode | (u32::from(right) << 16) | (u32::from(left) << 5) | u32::from(destination)
+}
+
+/// Every saturating realization; see `SaturatingRealization` for why each
+/// carrier class takes its shape. The four-operand forms require the result
+/// and the bound scratch to be distinct from the inputs and from each other
+/// (both are early-clobber outputs) because the scratch is written before
+/// the inputs are consumed and the clamp reads both.
+fn append_saturating(
+    words: &mut Vec<u32>,
+    kind: SelectedInstructionKind,
+    registers: &[u8],
+) -> Result<(), Aarch64SelectedFormEncodingError> {
+    let realization = SaturatingRealization::of_kind(kind)
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+    let (left, right, value) = (registers[0], registers[1], registers[2]);
+    if realization.operand_count() == 4
+        && (registers[2..]
+            .iter()
+            .any(|late| registers[..2].contains(late))
+            || registers[2] == registers[3])
+    {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    match realization {
+        SaturatingRealization::AddU64 => {
+            words.push(three_address(0xab00_0000, left, right, value));
+            words.push(0xda9f_3000 | (u32::from(value) << 5) | u32::from(value));
+        }
+        SaturatingRealization::SubtractUnsigned => {
+            words.push(three_address(0xeb00_0000, left, right, value));
+            words.push(0x9a9f_2000 | (u32::from(value) << 5) | u32::from(value));
+        }
+        SaturatingRealization::DivideUnsigned => {
+            words.push(three_address(0x9ac0_0800, left, right, value));
+        }
+        SaturatingRealization::ClampNarrow { operation, .. } => {
+            let scratch = registers[3];
+            words.push(three_address(
+                match operation {
+                    selected_instructions::SaturatingOperation::Add => 0x8b00_0000,
+                    selected_instructions::SaturatingOperation::Subtract => 0xcb00_0000,
+                    selected_instructions::SaturatingOperation::Divide => 0x9ac0_0c00,
+                },
+                left,
+                right,
+                value,
+            ));
+            // The maximum is compared first (select on GT), then the minimum
+            // (select on LT) for the signed add and subtract.
+            for (index, bound) in realization.clamp_bounds().into_iter().enumerate() {
+                words.push(bound_word(bound, scratch)?);
+                words.push(0xeb00_001f | (u32::from(scratch) << 16) | (u32::from(value) << 5));
+                words.push(select(value, scratch, if index == 0 { 0xc } else { 0xb }));
+            }
+        }
+        SaturatingRealization::OverflowI64 { subtract } => {
+            let scratch = registers[3];
+            words.push(0x937f_fc00 | (u32::from(left) << 5) | u32::from(scratch));
+            words.push(0xd240_f800 | (u32::from(scratch) << 5) | u32::from(scratch));
+            words.push(three_address(
+                if subtract { 0xeb00_0000 } else { 0xab00_0000 },
+                left,
+                right,
+                value,
+            ));
+            words.push(select(value, scratch, 0x6));
+        }
+        SaturatingRealization::DivideI64 => {
+            let scratch = registers[3];
+            words.push(three_address(0x9ac0_0c00, left, right, value));
+            words.push(bound_word(i64::MIN as u64, scratch)?);
+            words.push(0xeb00_001f | (u32::from(scratch) << 16) | (u32::from(value) << 5));
+            words.push(0xba41_0800 | (u32::from(right) << 5));
+            words.push(bound_word(i64::MAX as u64, scratch)?);
+            words.push(select(value, scratch, 0x0));
+        }
+    }
+    Ok(())
 }

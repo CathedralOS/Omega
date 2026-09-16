@@ -2,10 +2,11 @@
 //! resolution and alias partitions.
 
 use crate::selected_form_encoding::X86_64SelectedFormEncodingError;
+use crate::selected_form_encoding::saturating_forms::SaturatingForm;
 use crate::x86_64_physical_register_model;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
+    MachineAlternativeFamily, MachineAlternativeKey, SaturatingOperation, SelectedInstructionKind,
 };
 
 pub(crate) fn validate_request(
@@ -98,27 +99,30 @@ fn family_and_operand_count(
         SelectedInstructionKind::BitwiseAndI64 => {
             (MachineAlternativeFamily::BitwiseAndI64, 3, 0..=0)
         }
-        SelectedInstructionKind::SaturatingSubtractU64 => {
-            (MachineAlternativeFamily::SaturatingSubtractU64, 3, 0..=0)
-        }
-        SelectedInstructionKind::SaturatingAddU64 => {
-            (MachineAlternativeFamily::SaturatingAddU64, 3, 0..=0)
-        }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             (MachineAlternativeFamily::ExactDivideU64, 4, 0..=0)
         }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             (MachineAlternativeFamily::WrappingRemainderI64, 4, 0..=0)
         }
-        SelectedInstructionKind::SaturatingAddI32 => {
-            (MachineAlternativeFamily::SaturatingAddI32, 4, 0..=0)
-        }
-        SelectedInstructionKind::SaturatingSubtractI32 => {
-            (MachineAlternativeFamily::SaturatingSubtractI32, 4, 0..=0)
-        }
-        SelectedInstructionKind::SaturatingDivideI32 { .. } => {
-            (MachineAlternativeFamily::SaturatingDivideI32, 4, 0..=0)
-        }
+        // The carrier's realization shape fixes the operand count: the u64
+        // add and every unsigned subtract are three-operand forms, everything
+        // else carries the early-clobber scratch or the fixed RDX input.
+        SelectedInstructionKind::SaturatingAdd { carrier } => (
+            MachineAlternativeFamily::SaturatingAdd(carrier),
+            SaturatingForm::of(SaturatingOperation::Add, carrier).operand_count(),
+            0..=0,
+        ),
+        SelectedInstructionKind::SaturatingSubtract { carrier } => (
+            MachineAlternativeFamily::SaturatingSubtract(carrier),
+            SaturatingForm::of(SaturatingOperation::Subtract, carrier).operand_count(),
+            0..=0,
+        ),
+        SelectedInstructionKind::SaturatingDivide { carrier, .. } => (
+            MachineAlternativeFamily::SaturatingDivide(carrier),
+            SaturatingForm::of(SaturatingOperation::Divide, carrier).operand_count(),
+            0..=0,
+        ),
         SelectedInstructionKind::BitwiseXorI64 => {
             (MachineAlternativeFamily::BitwiseXorI64, 3, 0..=0)
         }

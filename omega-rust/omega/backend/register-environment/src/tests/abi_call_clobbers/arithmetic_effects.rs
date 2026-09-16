@@ -6,6 +6,7 @@ use super::{
     validated_effects,
 };
 use register_model::RegisterOperandAccess;
+use selected_instructions::SaturatingCarrier;
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
@@ -66,19 +67,64 @@ fn selected_arithmetic_rules(
             Some(keys.subtract_i64_immediate),
             &[ExactSubtractI64Immediate][..],
         ),
+        // Operand shape, not width, selects the saturating rows: unsigned
+        // subtract and the u64 add saturate on the carry flag in three
+        // operands, unsigned divide shares the exact unsigned divide row,
+        // and every other carrier clamps through an early-clobber scratch.
         (
-            Some(keys.saturating_subtract_u64),
-            &[SaturatingSubtractU64][..],
+            Some(keys.saturating_subtract_unsigned),
+            &[
+                SaturatingSubtract(SaturatingCarrier::U8),
+                SaturatingSubtract(SaturatingCarrier::U16),
+                SaturatingSubtract(SaturatingCarrier::U32),
+                SaturatingSubtract(SaturatingCarrier::U64),
+            ][..],
         ),
-        (Some(keys.saturating_add_u64), &[SaturatingAddU64][..]),
-        (Some(keys.divide_u64), &[ExactDivideU64][..]),
+        (
+            Some(keys.saturating_add_u64),
+            &[SaturatingAdd(SaturatingCarrier::U64)][..],
+        ),
+        (
+            Some(keys.divide_u64),
+            &[
+                ExactDivideU64,
+                SaturatingDivide(SaturatingCarrier::U8),
+                SaturatingDivide(SaturatingCarrier::U16),
+                SaturatingDivide(SaturatingCarrier::U32),
+                SaturatingDivide(SaturatingCarrier::U64),
+            ][..],
+        ),
         (Some(keys.remainder_i64), &[WrappingRemainderI64][..]),
-        (Some(keys.saturating_add_i32), &[SaturatingAddI32][..]),
         (
-            Some(keys.saturating_subtract_i32),
-            &[SaturatingSubtractI32][..],
+            Some(keys.saturating_add_clamped),
+            &[
+                SaturatingAdd(SaturatingCarrier::I8),
+                SaturatingAdd(SaturatingCarrier::I16),
+                SaturatingAdd(SaturatingCarrier::I32),
+                SaturatingAdd(SaturatingCarrier::I64),
+                SaturatingAdd(SaturatingCarrier::U8),
+                SaturatingAdd(SaturatingCarrier::U16),
+                SaturatingAdd(SaturatingCarrier::U32),
+            ][..],
         ),
-        (Some(keys.saturating_divide_i32), &[SaturatingDivideI32][..]),
+        (
+            Some(keys.saturating_subtract_clamped),
+            &[
+                SaturatingSubtract(SaturatingCarrier::I8),
+                SaturatingSubtract(SaturatingCarrier::I16),
+                SaturatingSubtract(SaturatingCarrier::I32),
+                SaturatingSubtract(SaturatingCarrier::I64),
+            ][..],
+        ),
+        (
+            Some(keys.saturating_divide_signed),
+            &[
+                SaturatingDivide(SaturatingCarrier::I8),
+                SaturatingDivide(SaturatingCarrier::I16),
+                SaturatingDivide(SaturatingCarrier::I32),
+                SaturatingDivide(SaturatingCarrier::I64),
+            ][..],
+        ),
         (Some(keys.compare_i64_zero), &[CompareI64Zero][..]),
         (Some(keys.compare_i64), &[CompareI64][..]),
         (Some(keys.compare_i64_immediate), &[CompareI64Immediate][..]),
@@ -173,11 +219,25 @@ fn expected_size(
             Float32ToBits | BitsToFloat32 => resolved(4, 5),
             Float64ToBits | BitsToFloat64 => MachineSizeKnowledge::ExactBytes(5),
             WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(17),
-            SaturatingAddI32 | SaturatingSubtractI32 => MachineSizeKnowledge::ExactBytes(40),
-            SaturatingDivideI32 => MachineSizeKnowledge::ExactBytes(22),
+            // mov/add plus movabs/cmp/cmov per clamped bound (17 each); the
+            // i64 forms derive the saturated value with mov/not/sar/btc (15)
+            // before mov/add/cmovo (10); the i64 divide guards MIN / -1 with
+            // cmp/sbb/or/neg/lea/cmovo (21) before cqo/idiv (5).
+            SaturatingAdd(SaturatingCarrier::U64) => MachineSizeKnowledge::ExactBytes(19),
+            SaturatingAdd(SaturatingCarrier::I64) | SaturatingSubtract(SaturatingCarrier::I64) => {
+                MachineSizeKnowledge::ExactBytes(25)
+            }
+            SaturatingAdd(carrier) | SaturatingSubtract(carrier) if carrier.is_signed() => {
+                MachineSizeKnowledge::ExactBytes(40)
+            }
+            SaturatingAdd(_) => MachineSizeKnowledge::ExactBytes(23),
+            SaturatingSubtract(_) => MachineSizeKnowledge::ExactBytes(13),
+            SaturatingDivide(SaturatingCarrier::I64) => MachineSizeKnowledge::ExactBytes(26),
+            SaturatingDivide(carrier) if carrier.is_signed() => {
+                MachineSizeKnowledge::ExactBytes(22)
+            }
+            SaturatingDivide(_) => MachineSizeKnowledge::ExactBytes(3),
             CompareI64Immediate => MachineSizeKnowledge::ExactBytes(7),
-            SaturatingSubtractU64 => MachineSizeKnowledge::ExactBytes(13),
-            SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(19),
             BitwiseAndI64 | BitwiseXorI64 => resolved(3, 6),
             ByteViewAddress | WrappingAddI64 | ExactAddI64 => resolved(4, 5),
             ExactAddI64Immediate | ExactSubtractI64Immediate => resolved(4, 8),
@@ -188,11 +248,25 @@ fn expected_size(
         },
         Architecture::Aarch64 => match semantic {
             MaterializeI64 => resolved(4, 16),
-            SaturatingSubtractU64 | SaturatingAddU64 | WrappingRemainderI64 => {
-                MachineSizeKnowledge::ExactBytes(8)
+            WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
+            // One arithmetic word plus mov/cmp/csel per clamped bound; the
+            // i64 add and subtract use asr/eor/adds/csel; the i64 divide uses
+            // sdiv/mov/cmp/ccmn/mov/csel; the flag-select u64 add and every
+            // unsigned subtract are two words; unsigned divide is one.
+            SaturatingAdd(SaturatingCarrier::U64) => MachineSizeKnowledge::ExactBytes(8),
+            SaturatingAdd(SaturatingCarrier::I64) | SaturatingSubtract(SaturatingCarrier::I64) => {
+                MachineSizeKnowledge::ExactBytes(16)
             }
-            SaturatingAddI32 | SaturatingSubtractI32 => MachineSizeKnowledge::ExactBytes(28),
-            SaturatingDivideI32 => MachineSizeKnowledge::ExactBytes(16),
+            SaturatingAdd(carrier) | SaturatingSubtract(carrier) if carrier.is_signed() => {
+                MachineSizeKnowledge::ExactBytes(28)
+            }
+            SaturatingAdd(_) => MachineSizeKnowledge::ExactBytes(16),
+            SaturatingSubtract(_) => MachineSizeKnowledge::ExactBytes(8),
+            SaturatingDivide(SaturatingCarrier::I64) => MachineSizeKnowledge::ExactBytes(24),
+            SaturatingDivide(carrier) if carrier.is_signed() => {
+                MachineSizeKnowledge::ExactBytes(16)
+            }
+            SaturatingDivide(_) => MachineSizeKnowledge::ExactBytes(4),
             _ => MachineSizeKnowledge::ExactBytes(4),
         },
     }
@@ -312,7 +386,13 @@ fn arithmetic_contract(
             },
             ..ArithmeticContract::plain(&[Use, Use, Def], Vec::new())
         },
-        SaturatingSubtractU64 | SaturatingAddU64 => ArithmeticContract {
+        SaturatingAdd(SaturatingCarrier::U64)
+        | SaturatingSubtract(
+            SaturatingCarrier::U8
+            | SaturatingCarrier::U16
+            | SaturatingCarrier::U32
+            | SaturatingCarrier::U64,
+        ) => ArithmeticContract {
             early_clobbers: if x86 { &[2] } else { &[] },
             flags: if x86 {
                 FlagsCustody::Clobber
@@ -321,7 +401,13 @@ fn arithmetic_contract(
             },
             ..ArithmeticContract::plain(&[Use, Use, Def], one(&[0, 1], &[2]))
         },
-        ExactDivideU64 => ArithmeticContract {
+        ExactDivideU64
+        | SaturatingDivide(
+            SaturatingCarrier::U8
+            | SaturatingCarrier::U16
+            | SaturatingCarrier::U32
+            | SaturatingCarrier::U64,
+        ) => ArithmeticContract {
             fixed_views: if x86 {
                 &[(0, "rax"), (2, "rax"), (3, "rdx")]
             } else {
@@ -375,10 +461,10 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
-        // The signed i32 saturating forms clamp through an early-clobber
-        // bound scratch; x86-64 additionally accumulates in an early-clobber
-        // result and pins the divide to `rax`/`rdx`.
-        SaturatingAddI32 | SaturatingSubtractI32 => ArithmeticContract {
+        // The clamped saturating forms (every add but u64, every signed
+        // subtract) clamp through an early-clobber bound scratch; x86-64
+        // additionally accumulates in an early-clobber result.
+        SaturatingAdd(_) | SaturatingSubtract(_) => ArithmeticContract {
             early_clobbers: &[2, 3],
             flags: if x86 {
                 FlagsCustody::Clobber
@@ -390,7 +476,9 @@ fn arithmetic_contract(
         // x86-64 keeps the unsigned-division operand shape (an explicit RDX
         // input that CQO discards and the clamp reuses); AArch64 clamps through
         // an early-clobber scratch beside an early-clobber result.
-        SaturatingDivideI32 => ArithmeticContract {
+        // Signed division: x86-64 pins it to `rax`/`rdx` like unsigned
+        // division; AArch64 clamps or guards through the bound scratch.
+        SaturatingDivide(_) => ArithmeticContract {
             early_clobbers: if x86 { &[] } else { &[2, 3] },
             fixed_views: if x86 {
                 &[(0, "rax"), (2, "rax"), (3, "rdx")]
@@ -460,7 +548,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         let arithmetic_rules = selected_arithmetic_rules(&environment);
         assert_eq!(
             arithmetic_rules.len(),
-            35,
+            54,
             "{} selects an unexpected arithmetic roster",
             case.convention
         );
@@ -1516,7 +1604,7 @@ fn every_arithmetic_family_rejects_arithmetic_contract_corruption_on_every_targe
                 ],
                 Architecture::Aarch64 => &[
                     (keys.compare_i64, keys.add_i64),
-                    (keys.saturating_subtract_u64, keys.subtract_i64),
+                    (keys.saturating_subtract_unsigned, keys.subtract_i64),
                     (keys.materialize_boolean, keys.materialize_i64),
                     (keys.remainder_i64, keys.divide_u64),
                     (keys.bits_to_float32.unwrap(), keys.float32_to_bits.unwrap()),

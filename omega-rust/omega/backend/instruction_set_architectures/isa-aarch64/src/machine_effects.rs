@@ -5,10 +5,12 @@ use selected_instructions::{
     MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
     MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SelectedConstraintKeys,
+    MachineSizeKnowledge, MachineTrapBehavior, SaturatingOperation, SelectedConstraintKeys,
     ValidatedMachineEffectCatalog, validate_machine_effect_catalog,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
+
+use crate::saturating_forms::SaturatingRealization;
 
 mod scalar_call;
 
@@ -232,13 +234,13 @@ fn selected_keys(
         bits_to_float64: Some(crate::AARCH64_BITS_TO_FLOAT64),
         add_i64: AARCH64_ADD_I64,
         subtract_i64: AARCH64_SUBTRACT_I64,
-        saturating_subtract_u64: crate::register_model::AARCH64_SATURATING_SUBTRACT_U64,
+        saturating_subtract_unsigned: crate::register_model::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
         saturating_add_u64: crate::register_model::AARCH64_SATURATING_ADD_U64,
         divide_u64: crate::register_model::AARCH64_DIVIDE_U64,
         remainder_i64: crate::register_model::AARCH64_REMAINDER_I64,
-        saturating_add_i32: crate::register_model::AARCH64_SATURATING_ADD_I32,
-        saturating_subtract_i32: crate::register_model::AARCH64_SATURATING_SUBTRACT_I32,
-        saturating_divide_i32: crate::register_model::AARCH64_SATURATING_DIVIDE_I32,
+        saturating_add_clamped: crate::register_model::AARCH64_SATURATING_ADD_CLAMPED,
+        saturating_subtract_clamped: crate::register_model::AARCH64_SATURATING_SUBTRACT_CLAMPED,
+        saturating_divide_signed: crate::register_model::AARCH64_SATURATING_DIVIDE_SIGNED,
         add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
@@ -382,14 +384,19 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::WrappingRemainderI64 => {
             (vec![0, 1], vec![2])
         }
-        MachineSemanticKind::SaturatingAddI32
-        | MachineSemanticKind::SaturatingSubtractI32
-        | MachineSemanticKind::SaturatingDivideI32 => (vec![0, 1], vec![2, 3]),
+        MachineSemanticKind::SaturatingAdd(_)
+        | MachineSemanticKind::SaturatingSubtract(_)
+        | MachineSemanticKind::SaturatingDivide(_) => {
+            let realization = SaturatingRealization::of_semantic(semantic)
+                .expect("saturating semantics have a realization");
+            (
+                vec![0, 1],
+                (2..realization.operand_count() as u16).collect(),
+            )
+        }
         MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
-        | MachineSemanticKind::SaturatingSubtractU64
-        | MachineSemanticKind::SaturatingAddU64
         | MachineSemanticKind::WrappingAddI64
         | MachineSemanticKind::ExactAddI64
         | MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
@@ -438,12 +445,22 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineEncodedTrapBehavior::NeverV1,
             MachineEncodedControlEffect::FallThroughV1,
         ),
-        MachineSemanticKind::SaturatingSubtractU64
-        | MachineSemanticKind::SaturatingAddU64
-        | MachineSemanticKind::SaturatingAddI32
-        | MachineSemanticKind::SaturatingSubtractI32
-        | MachineSemanticKind::SaturatingDivideI32
-        | MachineSemanticKind::CompareI64Zero
+        MachineSemanticKind::SaturatingAdd(_)
+        | MachineSemanticKind::SaturatingSubtract(_)
+        | MachineSemanticKind::SaturatingDivide(_) => (
+            vec![],
+            if SaturatingRealization::of_semantic(semantic)
+                .expect("saturating semantics have a realization")
+                .defines_nzcv()
+            {
+                units("nzcv")
+            } else {
+                vec![]
+            },
+            MachineEncodedTrapBehavior::NeverV1,
+            MachineEncodedControlEffect::FallThroughV1,
+        ),
+        MachineSemanticKind::CompareI64Zero
         | MachineSemanticKind::CompareI64
         | MachineSemanticKind::CompareI64Immediate => (
             vec![],
@@ -574,7 +591,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
     }
 }
 
-const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
+fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     if let Some(width) = packed_load_width(semantic) {
         return MachineSizeKnowledge::ExactBytes((2 * width - 1) * 4);
     }
@@ -597,15 +614,18 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate => {
             panic!("scalar calls use their dedicated declaration")
         }
-        MachineSemanticKind::SaturatingSubtractU64 => MachineSizeKnowledge::ExactBytes(8),
-        MachineSemanticKind::SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(4),
         MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
-        // ADD/SUB, then MOV/CMP/CSEL against each bound; SDIV needs only the upper clamp.
-        MachineSemanticKind::SaturatingAddI32 | MachineSemanticKind::SaturatingSubtractI32 => {
-            MachineSizeKnowledge::ExactBytes(28)
-        }
-        MachineSemanticKind::SaturatingDivideI32 => MachineSizeKnowledge::ExactBytes(16),
+        // Each saturating carrier class is one fixed word sequence.
+        MachineSemanticKind::SaturatingAdd(carrier) => MachineSizeKnowledge::ExactBytes(
+            SaturatingRealization::of(SaturatingOperation::Add, carrier).byte_size(),
+        ),
+        MachineSemanticKind::SaturatingSubtract(carrier) => MachineSizeKnowledge::ExactBytes(
+            SaturatingRealization::of(SaturatingOperation::Subtract, carrier).byte_size(),
+        ),
+        MachineSemanticKind::SaturatingDivide(carrier) => MachineSizeKnowledge::ExactBytes(
+            SaturatingRealization::of(SaturatingOperation::Divide, carrier).byte_size(),
+        ),
         // One unshifted `add` inside the first granule; a shifted plus
         // unshifted pair past it.
         MachineSemanticKind::FrameAddress => MachineSizeKnowledge::EncoderResolved {

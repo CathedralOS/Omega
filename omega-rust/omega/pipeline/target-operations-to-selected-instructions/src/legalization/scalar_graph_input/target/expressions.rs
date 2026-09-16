@@ -8,7 +8,7 @@ use crate::legalization::scalar_graph_input::target::location_matches;
 use crate::legalization::scalar_graph_input::target::resolve;
 use crate::legalization::scalar_graph_input::value_type;
 use crate::legalization::scalar_graph_input::{
-    supports_signed_saturating_i32, supports_signed_wrapping_remainder,
+    saturating_carrier, supports_signed_wrapping_remainder,
 };
 impl Checker<'_> {
     // Operation operands refer to established values; only the definition root
@@ -166,7 +166,7 @@ impl Checker<'_> {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                     AbstractOperation::SaturatingIntegerDivide { psi_operation: operation, obligation: expected_obligation, result, scalar_type, left: source_left, right: source_right }
                     if operation == psi_operation && expected_obligation == obligation && *result == resolved
-                        && supports_signed_saturating_i32(*scalar_type)
+                        && saturating_carrier(*scalar_type).is_some()
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }

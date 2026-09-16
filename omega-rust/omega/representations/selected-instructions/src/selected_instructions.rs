@@ -50,12 +50,13 @@ pub use effects::{
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
     PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
     PreAllocationMachineEffectPlan, ValidatedMachineEffectCatalog, machine_effect_catalog_identity,
-    pre_allocation_machine_effect_identity, validate_machine_effect_catalog,
+    pre_allocation_machine_effect_identity, saturating_family_tag, validate_machine_effect_catalog,
 };
 pub use identity::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
+pub use legalized_operations::{SaturatingCarrier, SaturatingOperation};
 pub use live_ranges::*;
 pub use liveness::*;
 pub use provenance::SelectedInstructionProvenance;

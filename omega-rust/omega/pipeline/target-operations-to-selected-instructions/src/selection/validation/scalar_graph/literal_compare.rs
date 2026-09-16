@@ -104,12 +104,11 @@ pub(super) fn folded_literal<'a>(
                     .arguments
                     .iter()
                     .any(|argument| argument.scalar_source() == Some(definition.value)),
-                LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
-        | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
-        | LegalizedScalarInstructionKind::SaturatingAddI32 { left, right }
-        | LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right }
-        | LegalizedScalarInstructionKind::SaturatingDivideI32 { left, right, .. }
-        | LegalizedScalarInstructionKind::WrappingAdd { left, right }
+                LegalizedScalarInstructionKind::SaturatingAdd { left, right, .. }
+                | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
+                | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
+
+                        | LegalizedScalarInstructionKind::WrappingAdd { left, right }
                 | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                 | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
                 | LegalizedScalarInstructionKind::BitwiseAnd { left, right }

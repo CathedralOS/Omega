@@ -6,6 +6,7 @@ use crate::{
     MachineEffectCatalog, MachineEffectCatalogIdentity, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
     MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineSemanticKind, MachineSizeKnowledge,
+    SaturatingCarrier, SaturatingOperation,
 };
 
 pub fn machine_effect_catalog_identity(
@@ -375,14 +376,18 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ExactAddI64 => 3,
         MachineSemanticKind::BitwiseAndI64 => 51,
         MachineSemanticKind::BitwiseXorI64 => 52,
-        MachineSemanticKind::SaturatingSubtractU64 => 54,
-        MachineSemanticKind::SaturatingAddU64 => 55,
         MachineSemanticKind::ExactDivideU64 => 56,
         MachineSemanticKind::WrappingRemainderI64 => 57,
         MachineSemanticKind::WrappingAddI64 => 58,
-        MachineSemanticKind::SaturatingAddI32 => 60,
-        MachineSemanticKind::SaturatingSubtractI32 => 61,
-        MachineSemanticKind::SaturatingDivideI32 => 62,
+        MachineSemanticKind::SaturatingAdd(carrier) => {
+            saturating_family_tag(SaturatingOperation::Add, carrier)
+        }
+        MachineSemanticKind::SaturatingSubtract(carrier) => {
+            saturating_family_tag(SaturatingOperation::Subtract, carrier)
+        }
+        MachineSemanticKind::SaturatingDivide(carrier) => {
+            saturating_family_tag(SaturatingOperation::Divide, carrier)
+        }
         MachineSemanticKind::ExactAddI64Immediate => 4,
         MachineSemanticKind::ExactSubtractI64 => 5,
         MachineSemanticKind::ConditionalBranchNonZero => 6,
@@ -443,14 +448,18 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ExactAddI64 => 3,
         MachineAlternativeFamily::BitwiseAndI64 => 51,
         MachineAlternativeFamily::BitwiseXorI64 => 52,
-        MachineAlternativeFamily::SaturatingSubtractU64 => 54,
-        MachineAlternativeFamily::SaturatingAddU64 => 55,
         MachineAlternativeFamily::ExactDivideU64 => 56,
         MachineAlternativeFamily::WrappingRemainderI64 => 57,
         MachineAlternativeFamily::WrappingAddI64 => 58,
-        MachineAlternativeFamily::SaturatingAddI32 => 60,
-        MachineAlternativeFamily::SaturatingSubtractI32 => 61,
-        MachineAlternativeFamily::SaturatingDivideI32 => 62,
+        MachineAlternativeFamily::SaturatingAdd(carrier) => {
+            saturating_family_tag(SaturatingOperation::Add, carrier)
+        }
+        MachineAlternativeFamily::SaturatingSubtract(carrier) => {
+            saturating_family_tag(SaturatingOperation::Subtract, carrier)
+        }
+        MachineAlternativeFamily::SaturatingDivide(carrier) => {
+            saturating_family_tag(SaturatingOperation::Divide, carrier)
+        }
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,
         MachineAlternativeFamily::ConditionalBranchNonZero => 6,
@@ -476,3 +485,25 @@ fn encode_len(bytes: &mut Vec<u8>, value: usize) {
 
 #[cfg(test)]
 mod tests;
+
+/// The one machine-semantic and alternative-family tag of each saturating
+/// operation and carrier, shared by every identity table that encodes the
+/// family enums. The forms that existed before the family was widened keep
+/// their tags (u64 subtract 54, u64 add 55, i32 add/subtract/divide 60, 61,
+/// 62); every other carrier takes its ordinal above a per-operation base
+/// (add 63, subtract 71, divide 79). Tags are appended, never reused.
+pub const fn saturating_family_tag(
+    operation: SaturatingOperation,
+    carrier: SaturatingCarrier,
+) -> u8 {
+    match (operation, carrier) {
+        (SaturatingOperation::Subtract, SaturatingCarrier::U64) => 54,
+        (SaturatingOperation::Add, SaturatingCarrier::U64) => 55,
+        (SaturatingOperation::Add, SaturatingCarrier::I32) => 60,
+        (SaturatingOperation::Subtract, SaturatingCarrier::I32) => 61,
+        (SaturatingOperation::Divide, SaturatingCarrier::I32) => 62,
+        (SaturatingOperation::Add, carrier) => 63 + carrier.ordinal(),
+        (SaturatingOperation::Subtract, carrier) => 71 + carrier.ordinal(),
+        (SaturatingOperation::Divide, carrier) => 79 + carrier.ordinal(),
+    }
+}

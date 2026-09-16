@@ -1,5 +1,5 @@
-//! Saturating arithmetic legalizes only the families this stage realizes (the
-//! u64 and signed i32 carriers); every other width reports the unsupported
+//! Saturating arithmetic legalizes every fixed 8/16/32/64-bit carrier to a
+//! kind naming that carrier; a non-fixed carrier reports the unsupported
 //! family instead of a custody mismatch, and replay rejects a kind that names
 //! a different carrier than the source operation.
 use abstract_operations::{
@@ -9,13 +9,13 @@ use abstract_operations::{
 use legalized_operations::LegalizedScalarInstructionKind;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
-    EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
-    ValueId,
+    EdgeId, FuelScheduleIdentity, IntegerType, OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
 use target_operations::TargetOperationPlan;
 
-use crate::{LegalizationError, legalize_target_operations, validate_legalized_operations};
+use crate::{legalize_target_operations, validate_legalized_operations};
+use legalized_operations::SaturatingCarrier;
 
 fn value(ordinal: u64) -> ValueId {
     ValueId::new(ordinal).unwrap()
@@ -28,18 +28,6 @@ fn hosted_targets() -> [NativeTarget; 4] {
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ]
-}
-
-/// One saturating addition of two parameters, returned directly.
-fn saturating_add_inputs(
-    integer: IntegerType,
-    native: NativeTarget,
-) -> (
-    AbstractOperationPlan,
-    TargetOperationPlan,
-    PsiOptimizationUnit,
-) {
-    saturating_binary_inputs(integer, native, true)
 }
 
 /// One saturating addition or subtraction of two parameters, returned directly.
@@ -103,119 +91,119 @@ fn saturating_binary_inputs(
 }
 
 #[test]
-fn unsigned_64_bit_saturating_add_legalizes_to_its_u64_kind() {
+fn every_fixed_carrier_saturating_add_and_subtract_legalize_to_its_carrier_kind() {
     for native in hosted_targets() {
-        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-        let (source, target, unit) = saturating_add_inputs(integer, native);
-        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
-        let row = &legalized.plan().scalar_functions[0].blocks[0].instructions[0];
-        assert_eq!(
-            row.kind,
-            LegalizedScalarInstructionKind::SaturatingAddU64 {
-                left: value(1),
-                right: value(2),
-            },
-            "{native:?}"
-        );
-    }
-}
-
-#[test]
-fn signed_32_bit_saturating_add_and_subtract_legalize_to_their_i32_kinds() {
-    for native in hosted_targets() {
-        for adds in [true, false] {
-            let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
-            let (source, target, unit) = saturating_binary_inputs(integer, native, adds);
-            let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
-            let row = &legalized.plan().scalar_functions[0].blocks[0].instructions[0];
-            let expected = if adds {
-                LegalizedScalarInstructionKind::SaturatingAddI32 {
-                    left: value(1),
-                    right: value(2),
-                }
-            } else {
-                LegalizedScalarInstructionKind::SaturatingSubtractI32 {
-                    left: value(1),
-                    right: value(2),
-                }
-            };
-            assert_eq!(row.kind, expected, "{native:?} adds={adds}");
-            assert_eq!(
-                row.result.as_ref().unwrap().scalar_type,
-                ScalarType::Integer(integer)
-            );
-        }
-    }
-}
-
-/// A legalized kind naming the wrong carrier would clamp an i32 value to the
-/// u64 bounds (or a u64 value to the i32 bounds); replay must reject both
-/// directions, along with swapped operands and the sibling operation.
-#[test]
-fn saturating_replay_rejects_a_kind_naming_a_different_carrier() {
-    for native in hosted_targets() {
-        for (integer, adds) in [
-            (IntegerType::new(IntegerSign::Signed, 32).unwrap(), true),
-            (IntegerType::new(IntegerSign::Signed, 32).unwrap(), false),
-            (IntegerType::new(IntegerSign::Unsigned, 64).unwrap(), true),
-            (IntegerType::new(IntegerSign::Unsigned, 64).unwrap(), false),
-        ] {
-            let (source, target, unit) = saturating_binary_inputs(integer, native, adds);
-            let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
-            validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
-                .unwrap();
-            let (left, right) = (value(1), value(2));
-            let substitutes = [
-                LegalizedScalarInstructionKind::SaturatingAddU64 { left, right },
-                LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right },
-                LegalizedScalarInstructionKind::SaturatingAddI32 { left, right },
-                LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right },
-                LegalizedScalarInstructionKind::WrappingAdd { left, right },
-                LegalizedScalarInstructionKind::SaturatingAddI32 {
-                    left: right,
-                    right: left,
-                },
-                LegalizedScalarInstructionKind::SaturatingAddU64 {
-                    left: right,
-                    right: left,
-                },
-            ];
-            let accepted = legalized.plan().scalar_functions[0].blocks[0].instructions[0]
-                .kind
-                .clone();
-            for substitute in substitutes {
-                if substitute == accepted {
-                    continue;
-                }
-                let mut proposed = legalized.plan().clone();
-                proposed.scalar_functions[0].blocks[0].instructions[0].kind = substitute.clone();
-                assert!(
-                    validate_legalized_operations(&target, &source, &unit, proposed).is_err(),
-                    "{native:?} {integer:?} adds={adds} accepted {substitute:?}"
+        for carrier in SaturatingCarrier::ALL {
+            for adds in [true, false] {
+                let integer = carrier.integer_type();
+                let (source, target, unit) = saturating_binary_inputs(integer, native, adds);
+                let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+                let row = &legalized.plan().scalar_functions[0].blocks[0].instructions[0];
+                let expected = if adds {
+                    LegalizedScalarInstructionKind::SaturatingAdd {
+                        carrier,
+                        left: value(1),
+                        right: value(2),
+                    }
+                } else {
+                    LegalizedScalarInstructionKind::SaturatingSubtract {
+                        carrier,
+                        left: value(1),
+                        right: value(2),
+                    }
+                };
+                assert_eq!(row.kind, expected, "{native:?} {carrier:?} adds={adds}");
+                assert_eq!(
+                    row.result.as_ref().unwrap().scalar_type,
+                    ScalarType::Integer(integer)
                 );
+                validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+                    .unwrap();
             }
         }
     }
 }
 
+/// A legalized kind naming the wrong carrier would clamp to the wrong bounds
+/// while every register-level check still passes; replay must reject every
+/// other carrier, the sibling operation, swapped operands, and a wrapping
+/// substitute.
 #[test]
-fn signed_16_bit_saturating_add_reports_the_unsupported_family() {
+fn saturating_replay_rejects_a_kind_naming_a_different_carrier() {
     for native in hosted_targets() {
-        let integer = IntegerType::new(IntegerSign::Signed, 16).unwrap();
-        let (source, target, unit) = saturating_add_inputs(integer, native);
-        let error = legalize_target_operations(&target, &source, &unit).unwrap_err();
+        for carrier in SaturatingCarrier::ALL {
+            for adds in [true, false] {
+                let (source, target, unit) =
+                    saturating_binary_inputs(carrier.integer_type(), native, adds);
+                let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+                let (left, right) = (value(1), value(2));
+                let accepted = legalized.plan().scalar_functions[0].blocks[0].instructions[0]
+                    .kind
+                    .clone();
+                let mut substitutes = vec![
+                    LegalizedScalarInstructionKind::WrappingAdd { left, right },
+                    LegalizedScalarInstructionKind::SaturatingAdd {
+                        carrier,
+                        left: right,
+                        right: left,
+                    },
+                    LegalizedScalarInstructionKind::SaturatingSubtract {
+                        carrier,
+                        left: right,
+                        right: left,
+                    },
+                ];
+                for other in SaturatingCarrier::ALL {
+                    substitutes.push(LegalizedScalarInstructionKind::SaturatingAdd {
+                        carrier: other,
+                        left,
+                        right,
+                    });
+                    substitutes.push(LegalizedScalarInstructionKind::SaturatingSubtract {
+                        carrier: other,
+                        left,
+                        right,
+                    });
+                }
+                for substitute in substitutes {
+                    if substitute == accepted {
+                        continue;
+                    }
+                    let mut proposed = legalized.plan().clone();
+                    proposed.scalar_functions[0].blocks[0].instructions[0].kind =
+                        substitute.clone();
+                    assert!(
+                        validate_legalized_operations(&target, &source, &unit, proposed).is_err(),
+                        "{native:?} {carrier:?} adds={adds} accepted {substitute:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Every native fixed width is now a saturating carrier, so the
+/// `UnsupportedScalarOperation` route is no longer reachable through this
+/// fixture: a non-native carrier (an address carrier or a 128-bit width)
+/// is rejected by target lowering as `UnitFunctionHasScalarParameters`
+/// before legalization admits any node. What remains pinned is the
+/// admission predicate itself, which is what node admission consults.
+#[test]
+fn non_native_carriers_are_not_saturating_carriers() {
+    assert_eq!(
+        SaturatingCarrier::from_integer(IntegerType::address(64).unwrap()),
+        None
+    );
+    assert_eq!(
+        SaturatingCarrier::from_integer(
+            IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 128).unwrap()
+        ),
+        None
+    );
+    for carrier in SaturatingCarrier::ALL {
         assert_eq!(
-            error,
-            LegalizationError::UnsupportedScalarOperation {
-                machine: MachineId::new(1).unwrap(),
-                operation: source.functions[0].operations[0].clone(),
-            },
-            "{native:?}"
-        );
-        assert!(
-            error.to_string().contains("SaturatingIntegerAdd")
-                && error.to_string().contains("bits: 16"),
-            "{error}"
+            SaturatingCarrier::from_integer(carrier.integer_type()),
+            Some(carrier)
         );
     }
 }

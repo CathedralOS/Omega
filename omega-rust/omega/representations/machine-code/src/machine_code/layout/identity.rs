@@ -3,6 +3,7 @@
 use selected_instructions::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    SaturatingOperation,
 };
 use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -203,14 +204,18 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::StorePacked => 50,
         Family::BitwiseAndI64 => 51,
         Family::BitwiseXorI64 => 52,
-        Family::SaturatingSubtractU64 => 54,
-        Family::SaturatingAddU64 => 55,
         Family::ExactDivideU64 => 56,
         Family::WrappingRemainderI64 => 57,
         Family::WrappingAddI64 => 58,
-        Family::SaturatingAddI32 => 60,
-        Family::SaturatingSubtractI32 => 61,
-        Family::SaturatingDivideI32 => 62,
+        Family::SaturatingAdd(carrier) => {
+            selected_instructions::saturating_family_tag(SaturatingOperation::Add, carrier)
+        }
+        Family::SaturatingSubtract(carrier) => {
+            selected_instructions::saturating_family_tag(SaturatingOperation::Subtract, carrier)
+        }
+        Family::SaturatingDivide(carrier) => {
+            selected_instructions::saturating_family_tag(SaturatingOperation::Divide, carrier)
+        }
         Family::Load8 => 33,
         Family::Load16 => 34,
         Family::Load32 => 30,

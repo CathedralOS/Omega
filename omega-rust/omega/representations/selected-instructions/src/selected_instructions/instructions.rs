@@ -1,4 +1,5 @@
 //! Executable selected forms and their explicit operand/effect interfaces.
+use super::SaturatingCarrier;
 use super::{SelectedInstructionId, SelectedInstructionProvenance, SelectedOperand};
 use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{RegisterConstraintKey, RegisterUnitId};
@@ -99,10 +100,6 @@ pub enum SelectedInstructionKind {
     MaterializeI64 {
         value: IntegerValue,
     },
-    /// Unsigned subtraction clamps to zero; no Exact proof is implied.
-    SaturatingSubtractU64,
-    /// Unsigned addition clamps to u64::MAX; no Exact proof is implied.
-    SaturatingAddU64,
     /// Unsigned division admitted by this operation's definedness proof.
     ExactDivideU64 {
         obligation: ObligationId,
@@ -114,16 +111,28 @@ pub enum SelectedInstructionKind {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
-    /// Signed 32-bit saturating addition of sign-normalized carriers: the
-    /// exact 64-bit sum is clamped to [i32::MIN, i32::MAX] and the result
-    /// stays sign-normalized. Operand 3 is an early-clobber bound scratch.
-    SaturatingAddI32,
-    /// Signed 32-bit saturating subtraction; see `SaturatingAddI32`.
-    SaturatingSubtractI32,
-    /// Signed 32-bit saturating division with a proven nonzero divisor. The
-    /// 64-bit quotient of sign-normalized carriers never faults; only
-    /// i32::MIN / -1 exceeds the carrier and is clamped to i32::MAX.
-    SaturatingDivideI32 {
+    /// Addition of normalized carriers clamped to the carrier bounds; no
+    /// Exact proof is implied. The u64 carrier is the three-operand
+    /// carry-select form; every other carrier adds in 64 bits (or detects the
+    /// i64 overflow flag) and clamps through an early-clobber bound scratch in
+    /// operand 3, so the result stays normalized for later source uses.
+    SaturatingAdd {
+        carrier: SaturatingCarrier,
+    },
+    /// Subtraction clamped to the carrier bounds. Unsigned carriers use the
+    /// three-operand borrow-select form (a zero-normalized narrow difference
+    /// borrows exactly when the u64 one does); signed carriers clamp through
+    /// the operand-3 scratch like `SaturatingAdd`.
+    SaturatingSubtract {
+        carrier: SaturatingCarrier,
+    },
+    /// Division with a proven nonzero divisor, clamped to the carrier bounds.
+    /// Unsigned carriers never overflow and share the unsigned divide form;
+    /// signed narrow carriers clamp the one out-of-range quotient MIN / -1 to
+    /// MAX; the i64 carrier must detect that case before dividing because the
+    /// hardware quotient wraps (AArch64) or faults (x86-64).
+    SaturatingDivide {
+        carrier: SaturatingCarrier,
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },

@@ -144,8 +144,10 @@ pub const X86_64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKe
     variant: 5,
 };
 
-/// Total unsigned subtraction with an early-clobber result and RFLAGS clobber.
-pub const X86_64_SATURATING_SUBTRACT_U64: RegisterConstraintKey = RegisterConstraintKey {
+/// Total unsigned subtraction of every unsigned carrier (a zero-normalized
+/// narrow difference borrows exactly when the u64 one does) with an
+/// early-clobber result and RFLAGS clobber.
+pub const X86_64_SATURATING_SUBTRACT_UNSIGNED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 54,
 };
@@ -168,23 +170,27 @@ pub const X86_64_REMAINDER_I64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 57,
 };
 
-/// Signed 32-bit saturating addition: MOV/ADD into an early-clobber result,
-/// then MOV/CMP/CMOV clamps through an early-clobber bound scratch; clobbers RFLAGS.
-pub const X86_64_SATURATING_ADD_I32: RegisterConstraintKey = RegisterConstraintKey {
+/// Saturating addition of every carrier but u64: MOV/ADD into an
+/// early-clobber result, clamped through an early-clobber bound scratch
+/// (MOVABS/CMP/CMOV against the carrier bounds for narrow carriers, a CMOVO
+/// overflow select for i64); clobbers RFLAGS.
+pub const X86_64_SATURATING_ADD_CLAMPED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 58,
 };
 
-/// Signed 32-bit saturating subtraction with the same clamp as addition.
-pub const X86_64_SATURATING_SUBTRACT_I32: RegisterConstraintKey = RegisterConstraintKey {
+/// Signed saturating subtraction with the same early-clobber result and
+/// bound scratch as the clamped addition.
+pub const X86_64_SATURATING_SUBTRACT_CLAMPED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 59,
 };
 
-/// Signed 32-bit saturating division: CQO/IDIV on RAX with the explicit RDX
-/// input of unsigned division, then RDX carries the i32::MAX bound clamping
-/// the only out-of-range quotient; RDX is clobbered.
-pub const X86_64_SATURATING_DIVIDE_I32: RegisterConstraintKey = RegisterConstraintKey {
+/// Signed saturating division: CQO/IDIV on RAX with the explicit RDX input
+/// of unsigned division. Narrow carriers clamp the only out-of-range quotient
+/// MIN / -1 through the carrier maximum held in RDX; the i64 carrier guards
+/// that faulting dividend through RDX before dividing. RDX is clobbered.
+pub const X86_64_SATURATING_DIVIDE_SIGNED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 60,
 };
@@ -341,13 +347,13 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 68] = [
     X86_64_COMPARE_I64,
     X86_64_JUMP,
     X86_64_COMPARE_I64_IMMEDIATE,
-    X86_64_SATURATING_SUBTRACT_U64,
+    X86_64_SATURATING_SUBTRACT_UNSIGNED,
     X86_64_SATURATING_ADD_U64,
     X86_64_DIVIDE_U64,
     X86_64_REMAINDER_I64,
-    X86_64_SATURATING_ADD_I32,
-    X86_64_SATURATING_SUBTRACT_I32,
-    X86_64_SATURATING_DIVIDE_I32,
+    X86_64_SATURATING_ADD_CLAMPED,
+    X86_64_SATURATING_SUBTRACT_CLAMPED,
+    X86_64_SATURATING_DIVIDE_SIGNED,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,

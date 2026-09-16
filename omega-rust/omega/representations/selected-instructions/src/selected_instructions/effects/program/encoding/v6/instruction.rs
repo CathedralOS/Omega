@@ -9,6 +9,7 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_constraint_key,
     decode_ids, decode_obligation, decode_units,
 };
+use crate::{SaturatingCarrier, SaturatingOperation, saturating_family_tag};
 pub(super) fn decode_instruction(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
@@ -190,8 +191,6 @@ fn decode_kind(
         },
         51 => SelectedInstructionKind::BitwiseAndI64,
         52 => SelectedInstructionKind::BitwiseXorI64,
-        54 => SelectedInstructionKind::SaturatingSubtractU64,
-        55 => SelectedInstructionKind::SaturatingAddU64,
         58 => SelectedInstructionKind::WrappingAddI64,
         56 => SelectedInstructionKind::ExactDivideU64 {
             obligation: decode_obligation(cursor)?,
@@ -201,12 +200,20 @@ fn decode_kind(
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
-        60 => SelectedInstructionKind::SaturatingAddI32,
-        61 => SelectedInstructionKind::SaturatingSubtractI32,
-        62 => SelectedInstructionKind::SaturatingDivideI32 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
-        },
+        tag if saturating_kind(tag).is_some() => {
+            let (operation, carrier) = saturating_kind(tag).unwrap();
+            match operation {
+                SaturatingOperation::Add => SelectedInstructionKind::SaturatingAdd { carrier },
+                SaturatingOperation::Subtract => {
+                    SelectedInstructionKind::SaturatingSubtract { carrier }
+                }
+                SaturatingOperation::Divide => SelectedInstructionKind::SaturatingDivide {
+                    carrier,
+                    obligation: decode_obligation(cursor)?,
+                    accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+                },
+            }
+        }
         3 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
@@ -405,14 +412,18 @@ fn decode_alternative_for_version(
         3 => MachineAlternativeFamily::ExactAddI64,
         51 => MachineAlternativeFamily::BitwiseAndI64,
         52 => MachineAlternativeFamily::BitwiseXorI64,
-        54 => MachineAlternativeFamily::SaturatingSubtractU64,
-        55 => MachineAlternativeFamily::SaturatingAddU64,
         56 => MachineAlternativeFamily::ExactDivideU64,
         57 => MachineAlternativeFamily::WrappingRemainderI64,
         58 => MachineAlternativeFamily::WrappingAddI64,
-        60 => MachineAlternativeFamily::SaturatingAddI32,
-        61 => MachineAlternativeFamily::SaturatingSubtractI32,
-        62 => MachineAlternativeFamily::SaturatingDivideI32,
+        tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
+            (SaturatingOperation::Add, carrier) => MachineAlternativeFamily::SaturatingAdd(carrier),
+            (SaturatingOperation::Subtract, carrier) => {
+                MachineAlternativeFamily::SaturatingSubtract(carrier)
+            }
+            (SaturatingOperation::Divide, carrier) => {
+                MachineAlternativeFamily::SaturatingDivide(carrier)
+            }
+        },
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
         5 => MachineAlternativeFamily::ExactSubtractI64,
         6 => MachineAlternativeFamily::ConditionalBranchNonZero,
@@ -693,4 +704,21 @@ mod packed_tests {
             }
         }
     }
+}
+
+/// The saturating operation and carrier a tag encodes, inverting
+/// [`saturating_family_tag`] over every realized carrier.
+fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> {
+    [
+        SaturatingOperation::Add,
+        SaturatingOperation::Subtract,
+        SaturatingOperation::Divide,
+    ]
+    .into_iter()
+    .flat_map(|operation| {
+        SaturatingCarrier::ALL
+            .into_iter()
+            .map(move |carrier| (operation, carrier))
+    })
+    .find(|(operation, carrier)| saturating_family_tag(*operation, *carrier) == tag)
 }

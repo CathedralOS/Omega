@@ -1,4 +1,5 @@
 //! Ordinary scalar instructions, block parameters and explicit control edges.
+use super::SaturatingCarrier;
 use abstract_operations::ValueBinding;
 use calling_conventions::{CallPlan, ValuePlacement};
 use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, ValueDefinitionSite};
@@ -103,11 +104,9 @@ impl LegalizedScalarInstruction {
                         .arguments
                         .iter()
                         .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
-                    LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
-                    | LegalizedScalarInstructionKind::SaturatingAddU64 { left, right }
-                    | LegalizedScalarInstructionKind::SaturatingAddI32 { left, right }
-                    | LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right }
-                    | LegalizedScalarInstructionKind::SaturatingDivideI32 { left, right, .. }
+                    LegalizedScalarInstructionKind::SaturatingAdd { left, right, .. }
+                    | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
+                    | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
                     | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingAdd { left, right }
@@ -277,29 +276,28 @@ pub enum LegalizedScalarInstructionKind {
     },
     Call(LegalizedScalarCall),
     BoundarySettlement(crate::LegalizedBoundarySettlement),
-    /// Total unsigned subtraction clamps underflow to zero.
-    SaturatingAddU64 {
+    /// Addition clamped to the named carrier's bounds. The carrier is part of
+    /// the kind so replay can reject a kind naming a different width than the
+    /// source operation declares: clamping to the wrong bounds is a silent
+    /// wrong answer, not a custody failure the transport would notice.
+    SaturatingAdd {
+        carrier: SaturatingCarrier,
         left: ValueId,
         right: ValueId,
     },
-    SaturatingSubtractU64 {
+    /// Subtraction clamped to the named carrier's bounds; unsigned carriers
+    /// clamp at zero.
+    SaturatingSubtract {
+        carrier: SaturatingCarrier,
         left: ValueId,
         right: ValueId,
     },
-    /// Signed 32-bit addition clamps overflow to the i32 carrier bounds.
-    SaturatingAddI32 {
-        left: ValueId,
-        right: ValueId,
-    },
-    /// Signed 32-bit subtraction clamps overflow to the i32 carrier bounds.
-    SaturatingSubtractI32 {
-        left: ValueId,
-        right: ValueId,
-    },
-    /// Signed 32-bit division clamps i32::MIN / -1 to i32::MAX. Saturating
-    /// does not define a zero divisor: the accepted nonzero-divisor
-    /// obligation remains required.
-    SaturatingDivideI32 {
+    /// Division clamped to the named carrier's bounds: signed MIN / -1 yields
+    /// MAX and unsigned division never overflows. Saturating does not define
+    /// a zero divisor, so the accepted nonzero-divisor obligation remains
+    /// required for every carrier.
+    SaturatingDivide {
+        carrier: SaturatingCarrier,
         left: ValueId,
         right: ValueId,
         obligation: ObligationId,

@@ -5,6 +5,7 @@ use super::scalar::{
 };
 use super::shared::*;
 use super::structural::{encode_effect, encode_ownership_roster};
+use crate::{SaturatingCarrier, SaturatingOperation};
 pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_id(bytes, function.attachment.map(|value| value.get()));
@@ -392,15 +393,36 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(6);
                     super::structural::encode_boundary_settlement(bytes, settlement);
                 }
-                LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right } => {
-                    bytes.push(35);
+                LegalizedScalarInstructionKind::SaturatingAdd {
+                    carrier,
+                    left,
+                    right,
+                } => {
+                    bytes.push(saturating_tag(SaturatingOperation::Add, *carrier));
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }
-                LegalizedScalarInstructionKind::SaturatingAddU64 { left, right } => {
-                    bytes.push(36);
+                LegalizedScalarInstructionKind::SaturatingSubtract {
+                    carrier,
+                    left,
+                    right,
+                } => {
+                    bytes.push(saturating_tag(SaturatingOperation::Subtract, *carrier));
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::SaturatingDivide {
+                    carrier,
+                    left,
+                    right,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(saturating_tag(SaturatingOperation::Divide, *carrier));
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
                 }
                 LegalizedScalarInstructionKind::WrappingRemainder {
                     left,
@@ -418,28 +440,6 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(38);
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
-                }
-                LegalizedScalarInstructionKind::SaturatingAddI32 { left, right } => {
-                    bytes.push(40);
-                    bytes.extend_from_slice(&left.get().to_le_bytes());
-                    bytes.extend_from_slice(&right.get().to_le_bytes());
-                }
-                LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right } => {
-                    bytes.push(41);
-                    bytes.extend_from_slice(&left.get().to_le_bytes());
-                    bytes.extend_from_slice(&right.get().to_le_bytes());
-                }
-                LegalizedScalarInstructionKind::SaturatingDivideI32 {
-                    left,
-                    right,
-                    obligation,
-                    accepted_fact,
-                } => {
-                    bytes.push(42);
-                    bytes.extend_from_slice(&left.get().to_le_bytes());
-                    bytes.extend_from_slice(&right.get().to_le_bytes());
-                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
                 }
                 LegalizedScalarInstructionKind::ExactBinary {
                     operator,
@@ -603,5 +603,22 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_effect(bytes, *effect);
             encode_ownership_roster(bytes, ownership);
         }
+    }
+}
+
+/// One tag per saturating operation and carrier. The u64 and i32 forms keep
+/// the tags they carried before the family was widened (35, 36, 40, 41, 42);
+/// every other carrier takes its ordinal above a per-operation base, and no
+/// tag is ever reused.
+const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarrier) -> u8 {
+    match (operation, carrier) {
+        (SaturatingOperation::Subtract, SaturatingCarrier::U64) => 35,
+        (SaturatingOperation::Add, SaturatingCarrier::U64) => 36,
+        (SaturatingOperation::Add, SaturatingCarrier::I32) => 40,
+        (SaturatingOperation::Subtract, SaturatingCarrier::I32) => 41,
+        (SaturatingOperation::Divide, SaturatingCarrier::I32) => 42,
+        (SaturatingOperation::Add, carrier) => 43 + carrier.ordinal(),
+        (SaturatingOperation::Subtract, carrier) => 51 + carrier.ordinal(),
+        (SaturatingOperation::Divide, carrier) => 59 + carrier.ordinal(),
     }
 }

@@ -213,13 +213,13 @@ pub fn target_register_environment_identity(
         selected_keys.compare_i64,
         selected_keys.jump,
         selected_keys.compare_i64_immediate,
-        selected_keys.saturating_subtract_u64,
+        selected_keys.saturating_subtract_unsigned,
         selected_keys.saturating_add_u64,
         selected_keys.divide_u64,
         selected_keys.remainder_i64,
-        selected_keys.saturating_add_i32,
-        selected_keys.saturating_subtract_i32,
-        selected_keys.saturating_divide_i32,
+        selected_keys.saturating_add_clamped,
+        selected_keys.saturating_subtract_clamped,
+        selected_keys.saturating_divide_signed,
     ] {
         constraint_key(&mut bytes, key.family, key.variant);
     }

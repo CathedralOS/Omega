@@ -84,9 +84,14 @@ pub(super) fn validate(
                     == Some(ScalarType::Integer(*scalar_type))
             }) => {}
         // The legalized kind must name the carrier the source operation
-        // declares: a u64 kind on an i32 node would clamp to the wrong bounds.
+        // declares: a kind naming another width would clamp to the wrong
+        // bounds while every register-level check still passes.
         (
-            LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right },
+            LegalizedScalarInstructionKind::SaturatingSubtract {
+                carrier,
+                left,
+                right,
+            },
             AbstractOperation::SaturatingIntegerSubtract {
                 left: source_left,
                 right: source_right,
@@ -95,7 +100,11 @@ pub(super) fn validate(
             },
         )
         | (
-            LegalizedScalarInstructionKind::SaturatingAddU64 { left, right },
+            LegalizedScalarInstructionKind::SaturatingAdd {
+                carrier,
+                left,
+                right,
+            },
             AbstractOperation::SaturatingIntegerAdd {
                 left: source_left,
                 right: source_right,
@@ -104,37 +113,14 @@ pub(super) fn validate(
             },
         ) if left == source_left
             && right == source_right
-            && *scalar_type == scalar_graph_input::u64_type()
+            && scalar_graph_input::saturating_carrier(*scalar_type) == Some(*carrier)
             && [left, right].iter().all(|value| {
                 scalar_graph_input::value_type(optimized, **value)
                     == Some(ScalarType::Integer(*scalar_type))
             }) => {}
         (
-            LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right },
-            AbstractOperation::SaturatingIntegerSubtract {
-                left: source_left,
-                right: source_right,
-                scalar_type,
-                ..
-            },
-        )
-        | (
-            LegalizedScalarInstructionKind::SaturatingAddI32 { left, right },
-            AbstractOperation::SaturatingIntegerAdd {
-                left: source_left,
-                right: source_right,
-                scalar_type,
-                ..
-            },
-        ) if left == source_left
-            && right == source_right
-            && scalar_graph_input::supports_signed_saturating_i32(*scalar_type)
-            && [left, right].iter().all(|value| {
-                scalar_graph_input::value_type(optimized, **value)
-                    == Some(ScalarType::Integer(*scalar_type))
-            }) => {}
-        (
-            LegalizedScalarInstructionKind::SaturatingDivideI32 {
+            LegalizedScalarInstructionKind::SaturatingDivide {
+                carrier,
                 left,
                 right,
                 obligation,
@@ -156,7 +142,7 @@ pub(super) fn validate(
             });
             let fact = facts.next().ok_or(invalid.clone())?;
             if facts.next().is_some()
-                || !scalar_graph_input::supports_signed_saturating_i32(*scalar_type)
+                || scalar_graph_input::saturating_carrier(*scalar_type) != Some(*carrier)
                 || [source_left, source_right].iter().any(|value| {
                     scalar_graph_input::value_type(optimized, **value)
                         != Some(ScalarType::Integer(*scalar_type))

@@ -63,11 +63,9 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                         .iter()
                         .filter_map(|argument| argument.scalar_source()),
                 ),
-                Instruction::SaturatingSubtractU64 { left, right }
-                | Instruction::SaturatingAddU64 { left, right }
-                | Instruction::SaturatingAddI32 { left, right }
-                | Instruction::SaturatingSubtractI32 { left, right }
-                | Instruction::SaturatingDivideI32 { left, right, .. }
+                Instruction::SaturatingAdd { left, right, .. }
+                | Instruction::SaturatingSubtract { left, right, .. }
+                | Instruction::SaturatingDivide { left, right, .. }
                 | Instruction::ExactBinary { left, right, .. }
                 | Instruction::WrappingRemainder { left, right, .. }
                 | Instruction::WrappingAdd { left, right }

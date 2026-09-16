@@ -6,7 +6,7 @@ use crate::legalization::scalar_graph_input::target::Checker;
 use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::target::location_matches;
 use crate::legalization::scalar_graph_input::{
-    supports_signed_saturating_i32, supports_signed_wrapping_remainder,
+    saturating_carrier, supports_signed_wrapping_remainder,
 };
 use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
@@ -143,7 +143,7 @@ pub(super) fn observation(
             right,
             ..
         } => {
-            if !supports_signed_saturating_i32(*scalar_type)
+            if !saturating_carrier(*scalar_type).is_some()
                 || checker.available.is_none_or(|sources| {
                     [left, right].iter().any(|operand| {
                         !sources.iter().any(|(value, source)| {

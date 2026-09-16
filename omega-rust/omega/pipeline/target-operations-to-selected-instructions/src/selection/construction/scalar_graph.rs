@@ -3,7 +3,10 @@
 
 use crate::selection::constraints::{fixed_input_constraint, instruction, row};
 use crate::selection::shared::*;
-use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
+use legalized_operations::{
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier,
+};
+use register_model::RegisterConstraintKey;
 use semantic_vocabulary::IntegerValue;
 
 mod aggregate_argument;
@@ -384,98 +387,45 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right } => {
-                        let (_, left_register, _, left_type) =
-                            builder.resolve(*left).ok_or_else(invalid)?;
-                        let (_, right_register, _, right_type) =
-                            builder.resolve(*right).ok_or_else(invalid)?;
-                        if left_type != scalar_type
-                            || right_type != scalar_type
-                            || !matches!(scalar_type, ScalarType::Integer(integer)
-                                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                                    && integer.bits() == 64 && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-                        {
-                            return Err(invalid());
-                        }
-                        let output =
-                            builder.register(result.value, result.definition_site, scalar_type)?;
-                        builder.emit(
-                            SelectedInstructionKind::SaturatingSubtractU64,
-                            constraints.keys.saturating_subtract_u64,
-                            &[left_register, right_register, output],
-                            SelectedInstructionProvenance {
-                                operations: vec![operation.operation],
-                                values: vec![*left, *right, result.value],
-                                fuel: operation.fuel.clone(),
-                                ..Default::default()
-                            },
-                        )?;
-                        output
+                    LegalizedScalarInstructionKind::SaturatingAdd {
+                        carrier,
+                        left,
+                        right,
                     }
-                    LegalizedScalarInstructionKind::SaturatingAddU64 { left, right } => {
+                    | LegalizedScalarInstructionKind::SaturatingSubtract {
+                        carrier,
+                        left,
+                        right,
+                    } => {
                         let (_, left_register, _, left_type) =
                             builder.resolve(*left).ok_or_else(invalid)?;
                         let (_, right_register, _, right_type) =
                             builder.resolve(*right).ok_or_else(invalid)?;
                         if left_type != scalar_type
                             || right_type != scalar_type
-                            || !matches!(scalar_type, ScalarType::Integer(integer)
-                                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                                    && integer.bits() == 64 && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+                            || !carries(scalar_type, *carrier)
                         {
                             return Err(invalid());
                         }
-                        let output =
-                            builder.register(result.value, result.definition_site, scalar_type)?;
-                        builder.emit(
-                            SelectedInstructionKind::SaturatingAddU64,
-                            constraints.keys.saturating_add_u64,
-                            &[left_register, right_register, output],
-                            SelectedInstructionProvenance {
-                                operations: vec![operation.operation],
-                                values: vec![*left, *right, result.value],
-                                fuel: operation.fuel.clone(),
-                                ..Default::default()
-                            },
-                        )?;
-                        output
-                    }
-                    LegalizedScalarInstructionKind::SaturatingAddI32 { left, right }
-                    | LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right } => {
-                        let (_, left_register, _, left_type) =
-                            builder.resolve(*left).ok_or_else(invalid)?;
-                        let (_, right_register, _, right_type) =
-                            builder.resolve(*right).ok_or_else(invalid)?;
-                        if left_type != scalar_type
-                            || right_type != scalar_type
-                            || !is_signed_i32(scalar_type)
-                        {
-                            return Err(invalid());
-                        }
-                        // Sign-normalized i32 carriers add exactly in 64 bits;
-                        // the realization clamps the result to the i32 range,
+                        let adds = matches!(
+                            operation.kind,
+                            LegalizedScalarInstructionKind::SaturatingAdd { .. }
+                        );
+                        let (kind, constraint, scratch) =
+                            saturating_add_or_subtract_selection(adds, *carrier, &constraints.keys);
+                        // Normalized narrow carriers combine exactly in 64 bits
+                        // and the realization clamps the result to the carrier,
                         // so it is already normalized for later source uses.
                         let output =
                             builder.register(result.value, result.definition_site, scalar_type)?;
-                        let scratch = saturation_scratch(&mut builder)?;
-                        let (kind, constraint) = if matches!(
-                            operation.kind,
-                            LegalizedScalarInstructionKind::SaturatingAddI32 { .. }
-                        ) {
-                            (
-                                SelectedInstructionKind::SaturatingAddI32,
-                                constraints.keys.saturating_add_i32,
-                            )
-                        } else {
-                            (
-                                SelectedInstructionKind::SaturatingSubtractI32,
-                                constraints.keys.saturating_subtract_i32,
-                            )
-                        };
+                        let mut operands = vec![left_register, right_register, output];
+                        if scratch == SaturatingScratch::Bound {
+                            operands.push(saturation_scratch(&mut builder)?);
+                        }
                         builder.emit(
                             kind,
                             constraint,
-                            &[left_register, right_register, output, scratch],
+                            &operands,
                             SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
                                 values: vec![*left, *right, result.value],
@@ -485,7 +435,8 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
-                    LegalizedScalarInstructionKind::SaturatingDivideI32 {
+                    LegalizedScalarInstructionKind::SaturatingDivide {
+                        carrier,
                         left,
                         right,
                         obligation,
@@ -497,30 +448,38 @@ pub(super) fn build_with_environment(
                             builder.resolve(*right).ok_or_else(invalid)?;
                         if left_type != scalar_type
                             || right_type != scalar_type
-                            || !is_signed_i32(scalar_type)
+                            || !carries(scalar_type, *carrier)
                         {
                             return Err(invalid());
                         }
-                        // The 64-bit quotient of sign-normalized i32 carriers
-                        // never faults; only MIN / -1 exceeds the carrier and
-                        // the realization clamps it to MAX. x86-64 keeps the
-                        // explicit zero RDX input of unsigned division so the
-                        // divisor stays out of the register the clamp reuses.
+                        // The zero divisor stays a proof obligation carried by
+                        // the instruction; the realization handles the one
+                        // signed overflow quotient (MIN / -1) itself.
                         let output =
                             builder.register(result.value, result.definition_site, scalar_type)?;
-                        let scratch =
-                            if environment.target().architecture == target::Architecture::X86_64 {
-                                division_scratch(&mut builder)?
-                            } else {
-                                saturation_scratch(&mut builder)?
-                            };
+                        let (constraint, scratch) = saturating_divide_selection(
+                            *carrier,
+                            &constraints.keys,
+                            environment.target().architecture,
+                        );
+                        let mut operands = vec![left_register, right_register, output];
+                        match scratch {
+                            SaturatingScratch::None => {}
+                            SaturatingScratch::Bound => {
+                                operands.push(saturation_scratch(&mut builder)?)
+                            }
+                            SaturatingScratch::DivisionHighHalf => {
+                                operands.push(division_scratch(&mut builder)?)
+                            }
+                        }
                         builder.emit(
-                            SelectedInstructionKind::SaturatingDivideI32 {
+                            SelectedInstructionKind::SaturatingDivide {
+                                carrier: *carrier,
                                 obligation: *obligation,
                                 accepted_fact: *accepted_fact,
                             },
-                            constraints.keys.saturating_divide_i32,
-                            &[left_register, right_register, output, scratch],
+                            constraint,
+                            &operands,
                             SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
                                 values: vec![*left, *right, result.value],
@@ -889,12 +848,86 @@ impl Builder<'_> {
     }
 }
 
-/// The fixed signed 32-bit carrier every realized saturating i32 form requires.
-fn is_signed_i32(scalar_type: ScalarType) -> bool {
+/// Whether the declared result type is exactly this saturating carrier,
+/// checked here independently of legalization's admission.
+fn carries(scalar_type: ScalarType, carrier: SaturatingCarrier) -> bool {
     matches!(scalar_type, ScalarType::Integer(integer)
-        if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-            && integer.sign() == IntegerSign::Signed
-            && integer.bits() == 32)
+        if SaturatingCarrier::from_integer(integer) == Some(carrier))
+}
+
+/// The scratch operand a saturating realization owns beyond its two inputs
+/// and result.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SaturatingScratch {
+    None,
+    /// Operand 3: the early-clobber bound scratch the clamp compares against.
+    Bound,
+    /// The explicit zero high half of x86-64 division, pinned to `rdx`.
+    DivisionHighHalf,
+}
+
+/// Operand shape follows the carrier class, not the width: the u64 add and
+/// every unsigned subtract saturate on the carry flag in three operands (a
+/// zero-normalized narrow difference borrows exactly when the u64 one does),
+/// while every other carrier computes the exact 64-bit result, or detects
+/// the i64 overflow flag, and clamps through the operand-3 bound scratch.
+fn saturating_add_or_subtract_selection(
+    adds: bool,
+    carrier: SaturatingCarrier,
+    keys: &SelectedConstraintKeys,
+) -> (
+    SelectedInstructionKind,
+    RegisterConstraintKey,
+    SaturatingScratch,
+) {
+    if adds {
+        let kind = SelectedInstructionKind::SaturatingAdd { carrier };
+        if carrier == SaturatingCarrier::U64 {
+            (kind, keys.saturating_add_u64, SaturatingScratch::None)
+        } else {
+            (kind, keys.saturating_add_clamped, SaturatingScratch::Bound)
+        }
+    } else {
+        let kind = SelectedInstructionKind::SaturatingSubtract { carrier };
+        if carrier.is_signed() {
+            (
+                kind,
+                keys.saturating_subtract_clamped,
+                SaturatingScratch::Bound,
+            )
+        } else {
+            (
+                kind,
+                keys.saturating_subtract_unsigned,
+                SaturatingScratch::None,
+            )
+        }
+    }
+}
+
+/// Unsigned division never overflows and shares the exact unsigned divide
+/// row; signed division takes the signed row. x86-64 pins both to `rax`
+/// with the explicit zero `rdx` input the divide discards and its clamp or
+/// guard reuses, so the divisor stays out of that register; AArch64 signed
+/// division clamps through the bound scratch and unsigned division needs
+/// no scratch at all.
+fn saturating_divide_selection(
+    carrier: SaturatingCarrier,
+    keys: &SelectedConstraintKeys,
+    architecture: target::Architecture,
+) -> (RegisterConstraintKey, SaturatingScratch) {
+    let x86 = architecture == target::Architecture::X86_64;
+    let key = if carrier.is_signed() {
+        keys.saturating_divide_signed
+    } else {
+        keys.divide_u64
+    };
+    let scratch = match (x86, carrier.is_signed()) {
+        (true, _) => SaturatingScratch::DivisionHighHalf,
+        (false, true) => SaturatingScratch::Bound,
+        (false, false) => SaturatingScratch::None,
+    };
+    (key, scratch)
 }
 
 // The saturating i32 forms clamp through a bound held in operand 3, an

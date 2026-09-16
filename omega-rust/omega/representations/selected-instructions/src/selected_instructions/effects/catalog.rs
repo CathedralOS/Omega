@@ -14,7 +14,7 @@ use register_model::ValidatedRegisterConstraintCatalog;
 
 use validation::validate_declaration;
 
-pub use identity::machine_effect_catalog_identity;
+pub use identity::{machine_effect_catalog_identity, saturating_family_tag};
 pub use model::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
