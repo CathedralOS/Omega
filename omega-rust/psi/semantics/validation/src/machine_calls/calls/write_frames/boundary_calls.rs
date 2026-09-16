@@ -5,14 +5,17 @@
 //! frame, failing closed when a mutable argument has no supported storage origin.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
-use super::isolation::{aggregate_storage_types_match, type_is_caller_isolated_local};
+use super::isolation::{aggregate_storage_types_match_in, type_is_caller_isolated_local_in};
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, split_place_root,
 };
 use super::receiver_member_chain;
-use super::reference_origins::{exclusive_reference_origin, referent_has_only_owned_storage};
+use super::reference_origins::{exclusive_reference_origin, referent_has_only_owned_storage_in};
 use super::stored_origins::StoredLocalOrigins;
-use super::type_capabilities::type_may_carry_write;
+use super::type_capabilities::type_may_carry_write_in;
+use super::type_instantiation::{
+    TypeBindings, push_generic_application_bindings, substituted_head,
+};
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
 use symbols::SymbolHandle;
@@ -108,6 +111,55 @@ fn boundary_trait_signature_and_receiver<'program>(
     target: &str,
     site: CallerWriteSite<'_>,
 ) -> Option<(&'program typed_trees::signature::StateSignature, bool)> {
+    boundary_trait_signature_and_receiver_inner(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        receiver_members,
+        target,
+        site,
+        false,
+    )
+}
+
+/// The write-frame route additionally admits a signature whose `Type`
+/// parameters the call's actual arguments pin concretely; callers then prove
+/// every carrier against the instantiated environment. A parameter that no
+/// argument binds keeps the named leaf and fails the same single-origin
+/// gates.
+fn boundary_write_signature_and_receiver<'program>(
+    program: &'program TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'program>,
+    receiver_members: &[String],
+    target: &str,
+    site: CallerWriteSite<'_>,
+) -> Option<(&'program typed_trees::signature::StateSignature, bool)> {
+    boundary_trait_signature_and_receiver_inner(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        receiver_members,
+        target,
+        site,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn boundary_trait_signature_and_receiver_inner<'program>(
+    program: &'program TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'program>,
+    receiver_members: &[String],
+    target: &str,
+    site: CallerWriteSite<'_>,
+    allow_type_parameters: bool,
+) -> Option<(&'program typed_trees::signature::StateSignature, bool)> {
     let (receiver_symbol, target_symbol) = match site {
         CallerWriteSite::Call(call) => (call.receiver_symbol, call.target_symbol),
         CallerWriteSite::Expression(expression) => {
@@ -171,7 +223,15 @@ fn boundary_trait_signature_and_receiver<'program>(
         .filter(|signature| signature.name.as_str() == target);
     let signature = signatures.next()?;
     (signatures.next().is_none()
-        && signature.type_parameters.is_empty()
+        && (signature.type_parameters.is_empty()
+            || (allow_type_parameters
+                && program
+                    .state_signature_type_parameters(signature)
+                    .iter()
+                    .all(|parameter| {
+                        parameter.symbol.is_valid()
+                            && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    })))
         && target_symbol.is_valid()
         && signature.symbol == target_symbol
         && (has_runtime_receiver
@@ -265,7 +325,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
-    let (signature, has_runtime_receiver) = boundary_trait_signature_and_receiver(
+    let (signature, has_runtime_receiver) = boundary_write_signature_and_receiver(
         program,
         current_machine,
         machine_symbols,
@@ -287,9 +347,17 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     if parameters.len() != arguments.len() {
         return None;
     }
+    let bindings = super::type_instantiation::signature_call_type_bindings(
+        program,
+        current_machine,
+        signature,
+        site,
+        arguments,
+    )?;
 
     for (parameter, argument) in parameters.into_iter().zip(arguments) {
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let parameter_type = substituted_head(program, parameter_type, &bindings);
         let TypeReferenceNode::Reference {
             access, referee, ..
         } = program.type_reference_table.type_reference(parameter_type)
@@ -297,7 +365,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
             if !matches!(
                 program.type_reference_table.type_reference(parameter_type),
                 TypeReferenceNode::Unit
-            ) && !type_is_caller_isolated_local(program, parameter_type)
+            ) && !type_is_caller_isolated_local_in(program, parameter_type, &bindings)
             {
                 // A by-value carrier can still contain mutable references.
                 // Without leaf-origin transport, omitting their writes would
@@ -309,7 +377,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         if !access.is_exclusive() {
             continue;
         }
-        if !referent_has_only_owned_storage(program, *referee) {
+        if !referent_has_only_owned_storage_in(program, *referee, &bindings) {
             return None;
         }
         for origin in boundary_argument_origins(
@@ -384,7 +452,7 @@ fn boundary_result_origins(
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
     let receiver = receiver_member_chain(program, call.receiver).unwrap_or_default();
-    let (signature, has_runtime_receiver) = boundary_trait_signature_and_receiver(
+    let (signature, has_runtime_receiver) = boundary_write_signature_and_receiver(
         program,
         current_machine,
         machine_symbols,
@@ -392,6 +460,14 @@ fn boundary_result_origins(
         &receiver,
         call.target.as_str(),
         CallerWriteSite::Expression(expression),
+    )?;
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let mut bindings = super::type_instantiation::signature_call_type_bindings(
+        program,
+        current_machine,
+        signature,
+        CallerWriteSite::Expression(expression),
+        arguments,
     )?;
     let result_type = live_unconstrained_type(program, signature.return_type)?;
     let TypeReferenceNode::Reference {
@@ -403,7 +479,8 @@ fn boundary_result_origins(
     if !access.is_exclusive() {
         return None;
     }
-    let referent = live_unconstrained_type(program, *referee)?;
+    let referent =
+        live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?;
 
     let mut origins = Vec::new();
     if has_runtime_receiver {
@@ -422,19 +499,19 @@ fn boundary_result_origins(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
-    let arguments = program.expression_table.expression_handles(call.arguments);
     if parameters.len() != arguments.len() {
         return None;
     }
     for (parameter, actual) in parameters.into_iter().zip(arguments) {
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let parameter_type = substituted_head(program, parameter_type, &bindings);
         let TypeReferenceNode::Reference {
             access, referee, ..
         } = program.type_reference_table.type_reference(parameter_type)
         else {
             // A by-value carrier can still store exclusive references whose
             // referents this frame cannot name; its route stays opaque.
-            if type_may_carry_write(program, parameter_type) {
+            if type_may_carry_write_in(program, parameter_type, &bindings) {
                 return None;
             }
             continue;
@@ -442,13 +519,14 @@ fn boundary_result_origins(
         if !access.is_exclusive() {
             continue;
         }
-        match owned_storage_may_hold(program, *referee, referent) {
+        match owned_storage_may_hold(program, *referee, referent, &mut bindings) {
             Some(true) => {
                 // The admitted route places name the storage the result may
                 // reach. Unless that storage can hold the referent only at
                 // its root, the referent's offset inside stays unknown and a
                 // projected origin must not narrow beneath the root.
-                let root_only = storage_holds_referent_only_at_root(program, *referee, referent);
+                let root_only =
+                    storage_holds_referent_only_at_root(program, *referee, referent, &mut bindings);
                 for origin in boundary_argument_origins(
                     program,
                     current_machine,
@@ -598,23 +676,32 @@ fn push_unique_origin(origins: &mut Vec<FramePlaceOrigin>, origin: FramePlaceOri
 /// storage: `Some(true)` finds the referent, `Some(false)` rules it out, and
 /// `None` means a stored exclusive reference or an unfinished proof could
 /// still reach one, so the callee may route the result into storage this
-/// frame cannot name.
+/// frame cannot name. An applied generic carrier is inspected under its own
+/// argument bindings; an unbound parameter keeps the named leaf.
 fn owned_storage_may_hold(
     program: &TypedTrees,
     container: TypeReferenceHandle,
     referent: TypeReferenceHandle,
+    bindings: &mut TypeBindings,
 ) -> Option<bool> {
-    owned_storage_may_hold_inner(program, container, referent, &mut Vec::new())
+    let referent = substituted_head(program, referent, bindings);
+    owned_storage_may_hold_inner(program, container, referent, &mut Vec::new(), bindings)
 }
 
+/// `visiting` records the *instantiated* containers already on the path, so
+/// `Wrap<Wrap<u64>>` — a finite shape — is not mistaken for the genuine
+/// recursion a self-referential instantiation produces.
 fn owned_storage_may_hold_inner(
     program: &TypedTrees,
     container: TypeReferenceHandle,
     referent: TypeReferenceHandle,
-    visiting: &mut Vec<SymbolHandle>,
+    visiting: &mut Vec<TypeReferenceHandle>,
+    bindings: &mut TypeBindings,
 ) -> Option<bool> {
-    let container = live_unconstrained_type(program, container)?;
-    if aggregate_storage_types_match(program, container, referent) {
+    let container =
+        live_unconstrained_type(program, substituted_head(program, container, bindings))?;
+    let referent = substituted_head(program, referent, bindings);
+    if aggregate_storage_types_match_in(program, container, referent, bindings) {
         return Some(true);
     }
     if program.primitive_type_reference(container).is_some() {
@@ -628,7 +715,7 @@ fn owned_storage_may_hold_inner(
             // references cannot lend exclusive reach; an exclusive one may
             // still route the result into its own untracked storage.
             if access.is_exclusive()
-                && owned_storage_may_hold_inner(program, *referee, referent, visiting)
+                && owned_storage_may_hold_inner(program, *referee, referent, visiting, bindings)
                     != Some(false)
             {
                 return None;
@@ -637,7 +724,7 @@ fn owned_storage_may_hold_inner(
         }
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => {
-            owned_storage_may_hold_inner(program, *element_type, referent, visiting)
+            owned_storage_may_hold_inner(program, *element_type, referent, visiting, bindings)
         }
         TypeReferenceNode::Named { symbol, .. }
         | TypeReferenceNode::Generic {
@@ -656,12 +743,33 @@ fn owned_storage_may_hold_inner(
             if definitions.next().is_some() {
                 return Some(true);
             }
-            if visiting.contains(&definition.symbol) {
-                // A recursive shape cannot finish the proof; a stored
-                // exclusive link in the cycle may still reach the referent.
+            if visiting.iter().any(|visited| {
+                aggregate_storage_types_match_in(program, *visited, container, bindings)
+            }) {
+                // A recursive instantiation cannot finish the proof; a
+                // stored exclusive link in the cycle may still reach the
+                // referent.
                 return None;
             }
-            visiting.push(definition.symbol);
+            // An applied generic carrier binds its `Type` parameters to the
+            // supplied arguments for the member walk; an application that
+            // cannot resolve cannot prove its fields.
+            let mark = bindings.len();
+            let applied = match program.type_reference_table.type_reference(container) {
+                TypeReferenceNode::Generic { arguments, .. } => {
+                    let arguments = program
+                        .type_reference_table
+                        .type_reference_handles(*arguments)
+                        .to_vec();
+                    push_generic_application_bindings(program, *symbol, &arguments, bindings)
+                        .is_some()
+                }
+                _ => true,
+            };
+            if !applied {
+                return None;
+            }
+            visiting.push(container);
             let mut found = false;
             for member in program.data_members(definition) {
                 let field_types: Vec<TypeReferenceHandle> = match member {
@@ -673,17 +781,21 @@ fn owned_storage_may_hold_inner(
                         .collect(),
                 };
                 for field_type in field_types {
-                    match owned_storage_may_hold_inner(program, field_type, referent, visiting) {
+                    match owned_storage_may_hold_inner(
+                        program, field_type, referent, visiting, bindings,
+                    ) {
                         Some(true) => found = true,
                         Some(false) => {}
                         None => {
                             visiting.pop();
+                            bindings.truncate(mark);
                             return None;
                         }
                     }
                 }
             }
             visiting.pop();
+            bindings.truncate(mark);
             Some(found)
         }
         // Provider-opaque storage may hold the referent.
@@ -706,12 +818,16 @@ fn storage_holds_referent_only_at_root(
     program: &TypedTrees,
     container: TypeReferenceHandle,
     referent: TypeReferenceHandle,
+    bindings: &mut TypeBindings,
 ) -> bool {
-    let Some(container) = live_unconstrained_type(program, container) else {
+    let Some(container) =
+        live_unconstrained_type(program, substituted_head(program, container, bindings))
+    else {
         return false;
     };
-    aggregate_storage_types_match(program, container, referent)
-        && storage_member_may_hold(program, container, referent, &mut Vec::new()) == Some(false)
+    aggregate_storage_types_match_in(program, container, referent, bindings)
+        && storage_member_may_hold(program, container, referent, &mut Vec::new(), bindings)
+            == Some(false)
 }
 
 /// `Some` answers whether a proper member or element position inside
@@ -722,15 +838,17 @@ fn storage_member_may_hold(
     program: &TypedTrees,
     container: TypeReferenceHandle,
     referent: TypeReferenceHandle,
-    visiting: &mut Vec<SymbolHandle>,
+    visiting: &mut Vec<TypeReferenceHandle>,
+    bindings: &mut TypeBindings,
 ) -> Option<bool> {
+    let container = substituted_head(program, container, bindings);
     if program.primitive_type_reference(container).is_some() {
         return Some(false);
     }
     match program.type_reference_table.type_reference(container) {
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => {
-            owned_storage_may_hold_inner(program, *element_type, referent, visiting)
+            owned_storage_may_hold_inner(program, *element_type, referent, visiting, bindings)
         }
         TypeReferenceNode::Named { symbol, .. }
         | TypeReferenceNode::Generic {
@@ -742,12 +860,35 @@ fn storage_member_may_hold(
                 .iter()
                 .filter(|definition| definition.symbol == *symbol);
             let definition = definitions.next()?;
-            if definitions.next().is_some() || visiting.contains(&definition.symbol) {
+            if definitions.next().is_some()
+                || visiting.iter().any(|visited| {
+                    aggregate_storage_types_match_in(program, *visited, container, bindings)
+                })
+            {
                 // An ambiguous nominal cannot be inspected, and a recursive
-                // shape cannot prove its interior excludes the referent.
+                // instantiation cannot prove its interior excludes the
+                // referent.
                 return Some(true);
             }
-            visiting.push(definition.symbol);
+            // An applied generic carrier binds its `Type` parameters to the
+            // supplied arguments for the member walk; an application that
+            // cannot resolve cannot prove its interior excludes the referent.
+            let mark = bindings.len();
+            let applied = match program.type_reference_table.type_reference(container) {
+                TypeReferenceNode::Generic { arguments, .. } => {
+                    let arguments = program
+                        .type_reference_table
+                        .type_reference_handles(*arguments)
+                        .to_vec();
+                    push_generic_application_bindings(program, *symbol, &arguments, bindings)
+                        .is_some()
+                }
+                _ => true,
+            };
+            if !applied {
+                return Some(true);
+            }
+            visiting.push(container);
             let result = (|| {
                 for member in program.data_members(definition) {
                     let field_types: Vec<TypeReferenceHandle> = match member {
@@ -759,8 +900,9 @@ fn storage_member_may_hold(
                             .collect(),
                     };
                     for field_type in field_types {
-                        match owned_storage_may_hold_inner(program, field_type, referent, visiting)
-                        {
+                        match owned_storage_may_hold_inner(
+                            program, field_type, referent, visiting, bindings,
+                        ) {
                             Some(false) => {}
                             outcome => return outcome.map(|_| true),
                         }
@@ -769,6 +911,7 @@ fn storage_member_may_hold(
                 Some(false)
             })();
             visiting.pop();
+            bindings.truncate(mark);
             result
         }
         // Provider-opaque and proof-static storage cannot prove their

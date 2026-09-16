@@ -4,6 +4,8 @@
 //! carry a caller-visible write. They do not traverse expressions, resolve
 //! calls, or summarize frames.
 
+use super::type_instantiation::substituted_head;
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -23,6 +25,16 @@ pub(super) fn type_reference_is_reference(
 
 pub(super) fn parameter_may_carry_write(program: &TypedTrees, parameter: &StateParameter) -> bool {
     type_may_carry_write(program, parameter.type_reference)
+}
+
+/// Under an active substitution a bound parameter's actual answers the
+/// capability question; an unbound parameter keeps the named-leaf result.
+pub(super) fn type_may_carry_write_in(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    type_may_carry_write(program, substituted_head(program, handle, bindings))
 }
 
 pub(super) fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {

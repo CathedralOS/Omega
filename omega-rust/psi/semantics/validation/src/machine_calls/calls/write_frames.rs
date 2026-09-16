@@ -40,6 +40,7 @@ mod transition_topology;
 mod transparent_effects;
 mod transparent_results;
 mod type_capabilities;
+mod type_instantiation;
 mod value_expressions;
 
 pub use alias_bindings::state_reference_parameter_binding_is_stable;

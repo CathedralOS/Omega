@@ -5,6 +5,9 @@
 //! of carrying caller-visible aliasing. They inspect only checked typed shapes.
 //! Frame traversal and complete-or-opaque fallback remain in the parent.
 
+use super::type_instantiation::{
+    TypeBindings, push_generic_application_bindings, substituted_head,
+};
 use crate::value_custody::struct_literals::construction_field_type;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -39,8 +42,53 @@ pub(super) fn aggregate_storage_types_match(
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
+    aggregate_storage_types_match_in(program, actual, expected, &[])
+}
+
+/// Under an active substitution, a `Named` parameter resolves to its bound
+/// actual and two applications of the same generic base match when every
+/// argument matches. Anything else keeps the nominal-identity rule.
+pub(super) fn aggregate_storage_types_match_in(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let actual = substituted_head(program, actual, bindings);
+    let expected = substituted_head(program, expected, bindings);
     if crate::value_custody::type_references::type_references_match(program, actual, expected) {
         return true;
+    }
+    if let (
+        TypeReferenceNode::Generic {
+            base_symbol: actual_base,
+            arguments: actual_arguments,
+            ..
+        },
+        TypeReferenceNode::Generic {
+            base_symbol: expected_base,
+            arguments: expected_arguments,
+            ..
+        },
+    ) = (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(expected),
+    ) && actual_base.is_valid()
+        && actual_base == expected_base
+    {
+        let actual_arguments = program
+            .type_reference_table
+            .type_reference_handles(*actual_arguments);
+        let expected_arguments = program
+            .type_reference_table
+            .type_reference_handles(*expected_arguments);
+        return actual_arguments.len() == expected_arguments.len()
+            && actual_arguments
+                .iter()
+                .zip(expected_arguments)
+                .all(|(actual, expected)| {
+                    aggregate_storage_types_match_in(program, *actual, *expected, bindings)
+                });
     }
     let Some((actual, _)) =
         concrete_nominal_type(program.type_reference_table.type_reference(actual))
@@ -114,7 +162,33 @@ pub(super) fn type_is_caller_isolated_local(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new(), false, &mut Vec::new())
+    type_is_caller_isolated_local_inner(
+        program,
+        handle,
+        &mut Vec::<TypeReferenceHandle>::new(),
+        false,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
+}
+
+/// Under an active substitution, the declared members of a generic
+/// application are inspected with its own arguments bound to the
+/// definition's `Type` parameters. An unbound parameter keeps the named
+/// leaf and stays opaque.
+pub(super) fn type_is_caller_isolated_local_in(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    type_is_caller_isolated_local_inner(
+        program,
+        handle,
+        &mut Vec::<TypeReferenceHandle>::new(),
+        false,
+        &mut Vec::new(),
+        &mut bindings.to_vec(),
+    )
 }
 
 /// Erased recursive proof values can have finite constructor terms without a
@@ -124,16 +198,28 @@ pub(super) fn type_is_caller_isolated_proof_value(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated_local_inner(program, handle, &mut Vec::new(), true, &mut Vec::new())
+    type_is_caller_isolated_local_inner(
+        program,
+        handle,
+        &mut Vec::<TypeReferenceHandle>::new(),
+        true,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
+/// `visiting` records instantiated containers, not bare definition symbols:
+/// `Wrap<Wrap<u64>>` is finite while a genuinely recursive instantiation
+/// re-encounters an equal container.
 fn type_is_caller_isolated_local_inner(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
-    visiting: &mut Vec<SymbolHandle>,
+    visiting: &mut Vec<TypeReferenceHandle>,
     proof_values: bool,
     isolated_parameters: &mut Vec<SymbolHandle>,
+    bindings: &mut TypeBindings,
 ) -> bool {
+    let handle = substituted_head(program, handle, bindings);
     if program.primitive_type_reference(handle).is_some() {
         return true;
     }
@@ -144,6 +230,7 @@ fn type_is_caller_isolated_local_inner(
             visiting,
             proof_values,
             isolated_parameters,
+            bindings,
         ),
         TypeReferenceNode::FixedArray { element_type, .. } => type_is_caller_isolated_local_inner(
             program,
@@ -151,6 +238,7 @@ fn type_is_caller_isolated_local_inner(
             visiting,
             proof_values,
             isolated_parameters,
+            bindings,
         ),
         TypeReferenceNode::Named { symbol, name } => {
             if proof_values && symbol.is_valid() && isolated_parameters.contains(symbol) {
@@ -181,9 +269,11 @@ fn type_is_caller_isolated_local_inner(
                 && data_definition_is_caller_isolated(
                     program,
                     definition,
+                    Some(handle),
                     visiting,
                     proof_values,
                     isolated_parameters,
+                    bindings,
                 )
         }
         TypeReferenceNode::Generic {
@@ -214,7 +304,12 @@ fn type_is_caller_isolated_local_inner(
                 // though the data-definition symbol is already on the path.
                 || !arguments.iter().all(|argument| {
                     type_is_caller_isolated_local_inner(
-                        program, *argument, visiting, true, isolated_parameters,
+                        program,
+                        *argument,
+                        visiting,
+                        true,
+                        isolated_parameters,
+                        bindings,
                     )
                 })
             {
@@ -228,16 +323,49 @@ fn type_is_caller_isolated_local_inner(
             let isolated = data_definition_is_caller_isolated(
                 program,
                 definition,
+                Some(handle),
                 visiting,
                 true,
                 isolated_parameters,
+                bindings,
             );
             isolated_parameters.truncate(parameter_count);
             isolated
         }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            // An applied carrier is inspectable exactly when every `Type`
+            // parameter of its definition binds to a supplied argument; the
+            // substituted member walk then carries the same meaning as a
+            // monomorphic field type. A reference-valued actual still fails
+            // closed at the substituted `Reference` arm.
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .to_vec();
+            let mark = bindings.len();
+            let Some(definition) =
+                push_generic_application_bindings(program, *base_symbol, &arguments, bindings)
+            else {
+                return false;
+            };
+            let isolated = data_definition_is_caller_isolated(
+                program,
+                definition,
+                Some(handle),
+                visiting,
+                proof_values,
+                isolated_parameters,
+                bindings,
+            );
+            bindings.truncate(mark);
+            isolated
+        }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => false,
@@ -276,8 +404,10 @@ pub(super) fn struct_literal_type_is_caller_isolated(
         && data_definition_is_caller_isolated(
             program,
             definition,
+            None,
             &mut Vec::new(),
             false,
+            &mut Vec::new(),
             &mut Vec::new(),
         )
 }
@@ -286,31 +416,62 @@ pub(super) fn data_definition_has_only_owned_storage(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
-    data_definition_is_caller_isolated(program, definition, &mut Vec::new(), false, &mut Vec::new())
+    data_definition_is_caller_isolated(
+        program,
+        definition,
+        None,
+        &mut Vec::new(),
+        false,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
+/// `container` is the instantiated type whose member walk is about to run;
+/// a genuinely recursive instantiation revisits an equal container, while a
+/// nested application at different arguments is a distinct finite shape. A
+/// definition-level entry has no spelling, so it cannot seed the guard.
 fn data_definition_is_caller_isolated(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
-    visiting: &mut Vec<SymbolHandle>,
+    container: Option<TypeReferenceHandle>,
+    visiting: &mut Vec<TypeReferenceHandle>,
     proof_values: bool,
     isolated_parameters: &mut Vec<SymbolHandle>,
+    bindings: &mut TypeBindings,
 ) -> bool {
-    if (!definition.type_parameters.is_empty()
-        && (!proof_values
-            || program
-                .data_type_parameters(definition)
-                .iter()
-                .any(|parameter| !isolated_parameters.contains(&parameter.symbol))))
-        || (proof_values
-            && definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape)
-    {
+    if !definition.type_parameters.is_empty() {
+        let parameters_bound = program
+            .data_type_parameters(definition)
+            .iter()
+            .all(|parameter| {
+                if proof_values {
+                    isolated_parameters.contains(&parameter.symbol)
+                } else {
+                    // A parameterized definition is inspectable only inside
+                    // the generic application that bound those parameters.
+                    bindings
+                        .iter()
+                        .any(|(symbol, _)| *symbol == parameter.symbol)
+                }
+            });
+        if !parameters_bound {
+            return false;
+        }
+    }
+    if proof_values && definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
         return false;
     }
-    if visiting.contains(&definition.symbol) {
+    if container.is_some_and(|container| {
+        visiting
+            .iter()
+            .any(|visited| aggregate_storage_types_match_in(program, *visited, container, bindings))
+    }) {
         return proof_values;
     }
-    visiting.push(definition.symbol);
+    if let Some(container) = container {
+        visiting.push(container);
+    }
     let isolated = program
         .data_members(definition)
         .iter()
@@ -321,6 +482,7 @@ fn data_definition_is_caller_isolated(
                 visiting,
                 proof_values,
                 isolated_parameters,
+                bindings,
             ),
             DataMember::Variant(variant) => {
                 program.data_payload_fields(variant).iter().all(|field| {
@@ -330,10 +492,13 @@ fn data_definition_is_caller_isolated(
                         visiting,
                         proof_values,
                         isolated_parameters,
+                        bindings,
                     )
                 })
             }
         });
-    visiting.pop();
+    if container.is_some() {
+        visiting.pop();
+    }
     isolated
 }

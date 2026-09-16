@@ -1,7 +1,11 @@
 //! Proven exclusive-reference origins shared by boundary and method receivers.
 
 use super::caller_aliases::{CallerWriteSite, caller_binding_type, caller_statement_at_site};
-use super::isolation::{data_definition_has_only_owned_storage, type_is_caller_isolated_local};
+use super::isolation::{
+    data_definition_has_only_owned_storage, type_is_caller_isolated_local,
+    type_is_caller_isolated_local_in,
+};
+use super::type_instantiation::{bind_formal_type, substituted_head};
 use super::{FramePathPrecision, FramePlaceOrigin, frame_place_path};
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
@@ -76,7 +80,35 @@ pub(super) fn exclusive_reference_origin(
                     definitions.next().is_none()
                         && data_definition_has_only_owned_storage(program, definition)
                 } else {
-                    referent_has_only_owned_storage(program, referee)
+                    // A generic helper's carrier is judged on the storage the
+                    // call instantiates, not the formal parameter name: bind
+                    // the callee's `Type` parameters from this actual's
+                    // declared type, then run the same owned-storage gate.
+                    let type_parameters = program.machine_type_parameters(callee_machine);
+                    let mut bindings = Vec::new();
+                    if !type_parameters.is_empty() {
+                        let (state, _, _) = caller_statement_at_site(
+                            program,
+                            current_machine,
+                            CallerWriteSite::Expression(actual),
+                        )?;
+                        let actual_type = crate::value_custody::places::declared_place_type_raw(
+                            program,
+                            current_machine,
+                            Some(state),
+                            actual,
+                        )?;
+                        if !bind_formal_type(
+                            program,
+                            parameter.type_reference,
+                            actual_type,
+                            type_parameters,
+                            &mut bindings,
+                        ) {
+                            return None;
+                        }
+                    }
+                    referent_has_only_owned_storage_in(program, referee, &bindings)
                 };
                 if !owned {
                     return None;
@@ -299,14 +331,26 @@ pub(super) fn referent_has_only_owned_storage(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> bool {
+    referent_has_only_owned_storage_in(program, reference, &[])
+}
+
+/// Under an active substitution a bound parameter head resolves to its
+/// caller actual before the owned-storage walk; an unbound parameter keeps
+/// the named leaf and stays opaque.
+pub(super) fn referent_has_only_owned_storage_in(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    bindings: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let reference = substituted_head(program, reference, bindings);
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            referent_has_only_owned_storage(program, *base_type)
+            referent_has_only_owned_storage_in(program, *base_type, bindings)
         }
         TypeReferenceNode::Slice { element_type } => {
-            type_is_caller_isolated_local(program, *element_type)
+            type_is_caller_isolated_local_in(program, *element_type, bindings)
         }
         TypeReferenceNode::Unit => reference.is_valid(),
-        _ => type_is_caller_isolated_local(program, reference),
+        _ => type_is_caller_isolated_local_in(program, reference, bindings),
     }
 }
