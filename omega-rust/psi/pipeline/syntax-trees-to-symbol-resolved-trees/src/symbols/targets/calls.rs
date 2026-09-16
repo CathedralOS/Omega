@@ -74,16 +74,23 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
 
         let receiver_kind = symbols.get(receiver_symbol).kind;
         if receiver_kind == SymbolKind::Module {
+            // Module children retain their declaration kind: a same-named
+            // machine, operator, or other member is the exact selected owner.
+            // Only machines rewrite to their entry state; an operator call
+            // keeps its declaration identity for named-operator validation.
             let callable = child_symbol_by_kinds(
                 symbols,
                 receiver_symbol,
-                &[SymbolKind::Machine],
+                &[SymbolKind::Machine, SymbolKind::Operator],
                 target.as_str(),
             );
-            if symbols.get(callable).kind != SymbolKind::Machine {
-                return SymbolHandle::invalid();
+            match symbols.get(callable).kind {
+                SymbolKind::Machine => {
+                    return child_symbol_by_kinds(symbols, callable, &[SymbolKind::State], "entry");
+                }
+                SymbolKind::Operator => return callable,
+                _ => return SymbolHandle::invalid(),
             }
-            return child_symbol_by_kinds(symbols, callable, &[SymbolKind::State], "entry");
         }
         if let Some(parameter) = parameters
             .iter()
@@ -235,7 +242,19 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     // &Item) -> i32 { ... }`, called as `compute(item)`): resolve to the free
     // machine's entry state so downstream passes (contract call obligations,
     // state-call planning) see a resolved target instead of an invalid symbol.
-    resolve_free_machine_entry_state_symbol(symbols, target)
+    let free_machine = resolve_free_machine_entry_state_symbol(symbols, target);
+    if free_machine.is_valid() {
+        return free_machine;
+    }
+
+    // A bare call to a free named operator keeps the operator's declaration
+    // identity for typed named-call validation. The source-aware lookup
+    // applies the module name law: inside the declaring module or through an
+    // exposing import a module-owned operator selects exactly, and a same-
+    // spelled unmoduled operator wins bare spellings elsewhere. Ambiguous or
+    // invisible candidates stay unresolved, where typed named-call selection
+    // still reaches module siblings by leaf and arity as before.
+    top_level_symbol_for_source(symbols, SymbolKind::Operator, target)
 }
 
 /// The entry-state symbol of the free top-level machine named `target`, or

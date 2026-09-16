@@ -73,7 +73,11 @@ pub(crate) fn normalize_static_module_calls(
             .symbols
             .find_top_level_by_name_and_kinds_from_source(
                 &name,
-                &[SymbolKind::Machine, SymbolKind::Proposition],
+                &[
+                    SymbolKind::Machine,
+                    SymbolKind::Proposition,
+                    SymbolKind::Operator,
+                ],
                 reference,
             );
         let selected = selected
@@ -171,11 +175,17 @@ pub(crate) fn normalize_static_module_calls(
             let selected = symbols
                 .find_top_level_by_name_and_kinds_from_source(
                     &name,
-                    &[SymbolKind::Machine],
+                    &[SymbolKind::Machine, SymbolKind::Operator],
                     reference,
                 )
-                .and_then(|machine| {
-                    symbols.find_child_by_name_and_kind(machine, "entry", SymbolKind::State)
+                .map(|symbol| {
+                    if symbols.get(symbol).kind == SymbolKind::Machine {
+                        symbols
+                            .find_child_by_name_and_kind(symbol, "entry", SymbolKind::State)
+                            .unwrap_or_else(SymbolHandle::invalid)
+                    } else {
+                        symbol
+                    }
                 })
                 .unwrap_or_else(SymbolHandle::invalid);
             call.receiver = arena::HandleSpan::empty();

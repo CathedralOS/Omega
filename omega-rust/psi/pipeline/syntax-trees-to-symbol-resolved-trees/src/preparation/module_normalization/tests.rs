@@ -382,24 +382,27 @@ fn module_domains_and_operators_lower_under_their_namespace() {
 }
 
 #[test]
-fn module_generic_templates_remain_fenced() {
-    for (sources, message) in [
-        (
-            &["module units; operator copy<T>(value: T) -> T;"][..],
-            "namespace-aware template normalization",
-        ),
-        (
-            &["module units; data IntervalSet<T> { value: T; }"][..],
-            "namespace-aware template normalization",
-        ),
+fn module_generic_data_templates_remain_fenced() {
+    let syntax = parse(&["module units; data IntervalSet<T> { value: T; }"]);
+    let diagnostics = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect_err("fenced module declarations still reject");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("namespace-aware template normalization"),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn module_generic_operators_lower_under_their_namespace() {
+    for source in [
+        "module units; pub operator copy<T>(value: T) -> T;",
+        "module units; pub operator at<T, const N: u64>(items: [T; N], index: u64) -> T;",
     ] {
-        let syntax = parse(sources);
-        let diagnostics = crate::resolve(crate::ResolutionRequest::new(&syntax))
-            .expect_err("fenced module declarations still reject");
-        assert!(
-            diagnostics[0].message.contains(message),
-            "{sources:?}: {diagnostics:?}"
-        );
+        let syntax = parse(&[source]);
+        crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect("module-owned generic operators lower under exact namespaces");
     }
 }
 

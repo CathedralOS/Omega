@@ -190,6 +190,97 @@ fn module_owned_domain_and_operator_home_retain_exact_namespace() {
     );
 }
 
+/// Module-qualified operator calls select the operator declaration itself:
+/// `units::copy<u64>` and `units::add` keep `SymbolKind::Operator` identity
+/// for typed named-operator validation instead of rewriting to a machine
+/// entry state, the receiver path retains each module segment's exact
+/// symbol, and a same-spelled unmoduled operator keeps bare spellings under
+/// the module name law. A missing member stays unresolved for downstream
+/// diagnostics rather than silently selecting a sibling.
+#[test]
+fn module_qualified_operator_calls_select_the_operator_symbol() {
+    let program = lower_multi(&[
+        (
+            "units.omg",
+            "module units; pub operator copy<T>(value: T) -> T; pub operator add(left: u64, right: u64) -> u64;",
+        ),
+        (
+            "main.omg",
+            r#"
+            use units;
+            machine Main::main(&mut self) {
+                let total: u64 = units::add(1u64, 2u64);
+                let again: u64 = units::copy<u64>(total);
+                let bare: u64 = copy<u64>(again);
+                let missing: u64 = units::missing(total);
+            }
+            data Main {}
+            pub operator copy<T>(value: T) -> T;
+            "#,
+        ),
+    ]);
+
+    let module_copy = program
+        .operators
+        .iter()
+        .find(|operator| program.symbols.display_path(operator.symbol, "::") == "units::copy")
+        .expect("module copy operator");
+    let module_add = program
+        .operators
+        .iter()
+        .find(|operator| program.symbols.display_path(operator.symbol, "::") == "units::add")
+        .expect("module add operator");
+    let root_copy = program
+        .operators
+        .iter()
+        .find(|operator| program.symbols.display_path(operator.symbol, "::") == "copy")
+        .expect("root copy operator");
+    for operator in [module_copy, module_add, root_copy] {
+        assert_eq!(
+            program.symbols.get(operator.symbol).kind,
+            symbols::SymbolKind::Operator,
+            "module members keep their operator declaration identity"
+        );
+    }
+
+    let calls = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let selected = |target: &str| {
+        calls
+            .iter()
+            .find(|call| call.target.as_str() == target)
+            .unwrap_or_else(|| panic!("call {target}"))
+            .target_symbol
+    };
+    assert_eq!(selected("units::add"), module_add.symbol);
+    assert_eq!(selected("units::copy"), module_copy.symbol);
+    assert_eq!(
+        selected("copy"),
+        root_copy.symbol,
+        "a bare spelling selects the unmoduled operator, not the module sibling"
+    );
+    assert!(
+        !selected("units::missing").is_valid(),
+        "a missing module member keeps its checked obligation unresolved"
+    );
+    for call in &calls {
+        if call.target.as_str() != "units::missing" {
+            assert!(
+                call.target_symbol.is_valid(),
+                "resolved module operator call keeps an exact target symbol"
+            );
+        }
+    }
+}
+
 #[test]
 fn module_domain_membership_selects_relative_and_qualified_names() {
     let program = lower_multi(&[(
