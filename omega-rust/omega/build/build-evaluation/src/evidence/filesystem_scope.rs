@@ -60,6 +60,23 @@ pub struct BuildMachineFilesystemScope {
 /// Maximum declared required sealed outputs for one build occurrence.
 const REQUIRED_BUILD_OUTPUT_LIMIT: usize = 4_096;
 
+/// Release handle for one occurrence's private captured-source backing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CapturedSnapshotRelease {
+    snapshot_dir: Option<PathBuf>,
+}
+
+impl CapturedSnapshotRelease {
+    /// Discard the private materialization if this occurrence bound one.
+    /// An already-absent backing is not an error, so the release may run on
+    /// the settlement path and again on the occurrence's final exit.
+    pub(crate) fn release(&self) {
+        if let Some(snapshot_dir) = &self.snapshot_dir {
+            let _ = discard_materialized_snapshot(snapshot_dir);
+        }
+    }
+}
+
 impl BuildMachineFilesystemScope {
     pub fn for_root(
         root_path: &Path,
@@ -458,15 +475,25 @@ impl BuildMachineFilesystemScope {
         ))]
     }
 
+    /// The release handle for this occurrence's private captured-source
+    /// materialization. The backing is scratch for one run only: it must be
+    /// discarded on every exit of the occurrence, including evaluator halts
+    /// and rejected settlements, so a failed build leaves no residue behind.
+    /// The handle carries only the backing path, so the caller can hold it
+    /// across the run without cloning retained inventory bytes.
+    pub(crate) fn captured_snapshot_release(&self) -> CapturedSnapshotRelease {
+        CapturedSnapshotRelease {
+            snapshot_dir: self.snapshot_dir.clone(),
+        }
+    }
+
     pub(crate) fn staged_output_tree(
         &self,
         filesystem_reachable: bool,
     ) -> Result<Option<BuildStagedOutputTree>, Vec<Diagnostic>> {
         // The private captured-source backing is scratch for the completed
         // run only; release it before staged-output custody is captured.
-        if let Some(snapshot_dir) = &self.snapshot_dir {
-            let _ = discard_materialized_snapshot(snapshot_dir);
-        }
+        self.captured_snapshot_release().release();
         if self.replay.is_some() {
             return Ok(None);
         }
@@ -655,6 +682,55 @@ mod tests {
             .expect("captured run retains inventory evidence");
         assert_eq!(inventory.entry_count(), 2);
         assert_eq!(inventory.file_bytes(), 6);
+
+        fs::remove_dir_all(&fixture).expect("remove fixture");
+    }
+
+    #[test]
+    fn captured_snapshot_release_discards_the_private_backing_on_every_exit() {
+        let fixture = temporary_staging_root("snapshot-release");
+        let source = fixture.join("source");
+        let snapshot = fixture.join("snapshot-backing");
+        fs::create_dir_all(&source).expect("create source dir");
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            source.clone(),
+            fixture.join("build"),
+            None,
+            Some(captured_input().canonical_source_metadata().clone()),
+        )
+        .with_captured_source_input(captured_input(), snapshot.clone())
+        .expect("bind the captured source input");
+        // The handle is taken before the run, as the executor does, and
+        // outlives the scope's own settlement release.
+        let release = scope.captured_snapshot_release();
+
+        scope
+            .ensure_captured_snapshot()
+            .expect("materialize the fresh private snapshot");
+        assert!(snapshot.join("template.tmpl").is_file());
+        // A run that halts before settlement never reaches
+        // `staged_output_tree`; the executor's final release still clears it.
+        release.release();
+        assert!(
+            !snapshot.exists(),
+            "the private backing must not outlive the occurrence"
+        );
+        // Releasing again after the settlement path already ran is inert.
+        release.release();
+        assert!(!snapshot.exists());
+        assert!(
+            source.exists(),
+            "release never touches the live source root"
+        );
+
+        // A scope without a captured input releases nothing.
+        BuildMachineFilesystemScope::for_root(
+            &source.join("main.omg"),
+            fixture.join("build"),
+            None,
+        )
+        .captured_snapshot_release()
+        .release();
 
         fs::remove_dir_all(&fixture).expect("remove fixture");
     }

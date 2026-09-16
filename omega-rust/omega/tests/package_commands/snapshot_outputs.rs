@@ -46,17 +46,113 @@ const OMITTING_BUILD: &str = r#"machine build(builder: &mut Build) {
 }
 "#;
 
+/// Settles its obligation with `fail`: the failure is sticky and the
+/// diagnostic reaches the customer.
+const FAILING_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.package("snapshot-root");
+    let required: RequiredOutput = builder.output.require("artifact.txt");
+    builder.output.fail(required, "generator unavailable");
+}
+"#;
+
+/// Completes one obligation and fails another: no successful product set.
+const MIXED_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.package("snapshot-root");
+    let first: RequiredOutput = builder.output.require("first.txt");
+    let second: RequiredOutput = builder.output.require("second.txt");
+    let first_path: &[u8] = first.path();
+    let artifact: BuildPath = builder.output.resolve(first_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "first\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(first, artifact);
+    builder.output.fail(second, "second generator unavailable");
+}
+"#;
+
+/// Presents an authored `RequiredOutput {}` as an obligation: evaluation
+/// halts before settlement, so the occurrence never reaches the staged
+/// custody path.
+const FORGED_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.package("snapshot-root");
+    let forged: RequiredOutput = RequiredOutput {};
+    let artifact: BuildPath = builder.output.resolve("artifact.txt");
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "forged\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(forged, artifact);
+}
+"#;
+
+/// Completes against an unclosed writer, receives its obligation and file
+/// custody back through `OutputCompletion::Retry`, and completes once the
+/// writer is closed.
+const RETRYING_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.package("snapshot-root");
+    let required: RequiredOutput = builder.output.require("retry.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "retried\n");
+    let first: OutputCompletion = builder.output.complete(required, artifact);
+    transition first {
+        OutputCompletion::Retry { obligation, file } -> finish(builder, obligation, file, descriptor)
+        _ -> unexpected(builder)
+    }
+
+    state finish(
+        builder: &mut Build,
+        obligation: RequiredOutput,
+        file: BuildPath,
+        descriptor: i32
+    ) {
+        let closed: i32 = builder.output.close(descriptor);
+        let second: OutputCompletion = builder.output.complete(obligation, file);
+    }
+
+    state unexpected(builder: &mut Build) {
+        builder.log.write_line("unexpected completion verdict");
+    }
+}
+"#;
+
 fn snapshot_fixture(build: &str) -> Fixture {
     let fixture = Fixture::new();
     fixture.write("root/build.omg", build);
     fixture.write("root/main.omg", MAIN);
     fs::create_dir(fixture.path("root/templates")).unwrap();
     fixture.write("root/templates/banner.tmpl", TEMPLATE);
+    // The child's scratch directory is fixture-private so the test can see
+    // exactly what an occurrence leaves behind.
+    fs::create_dir(fixture.path("scratch")).unwrap();
     fixture
 }
 
 fn audit(fixture: &Fixture) -> std::process::Output {
-    fixture.omega(&["audit", "packages", "--target", "linux_x86_64", "--offline"])
+    let scratch = fixture.path("scratch");
+    fixture.omega_with_env(
+        &["audit", "packages", "--target", "linux_x86_64", "--offline"],
+        &[("TMPDIR", scratch.to_str().unwrap())],
+    )
+}
+
+/// Captured-source snapshots the child materialized and never released.
+fn snapshot_residue(fixture: &Fixture) -> Vec<String> {
+    let mut residue = fs::read_dir(fixture.path("scratch"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("omega-captured-source-"))
+        .collect::<Vec<_>>();
+    residue.sort();
+    residue
+}
+
+fn combined_output(output: &std::process::Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
 }
 
 #[test]
@@ -103,6 +199,11 @@ fn package_build_reads_its_template_through_the_captured_snapshot_and_completes_
     );
     assert!(!fixture.path("root/artifact.txt").exists());
     assert!(!fixture.path("root/build/package-manager/proposal").exists());
+    assert_eq!(
+        snapshot_residue(&fixture),
+        Vec::<String>::new(),
+        "a settled occurrence releases its private snapshot"
+    );
 }
 
 #[test]
@@ -125,4 +226,83 @@ fn package_build_that_never_completes_a_declared_output_rejects_review() {
     assert_eq!(fixture.accepted_files(), before);
     assert!(!fixture.path("root/artifact.txt").exists());
     assert!(!fixture.path("root/build/package-manager/proposal").exists());
+}
+
+#[test]
+fn explicit_failure_and_partial_completion_reject_and_publish_nothing() {
+    for (build, expected) in [
+        (
+            FAILING_BUILD,
+            "required output `artifact.txt` of `build` failed: generator unavailable",
+        ),
+        (
+            MIXED_BUILD,
+            "required output `second.txt` of `build` failed: second generator unavailable",
+        ),
+    ] {
+        let fixture = snapshot_fixture(build);
+        let before = fixture.accepted_files();
+        let output = audit(&fixture);
+        assert_status(&output, 1);
+        let combined = combined_output(&output);
+        assert!(combined.contains(expected), "{combined}");
+        assert!(!combined.contains("fresh-analysis complete"), "{combined}");
+        assert_eq!(fixture.accepted_files(), before);
+        assert!(!fixture.path("root/first.txt").exists());
+        assert!(!fixture.path("root/artifact.txt").exists());
+        assert!(!fixture.path("root/build/package-manager/proposal").exists());
+        assert_eq!(snapshot_residue(&fixture), Vec::<String>::new());
+    }
+}
+
+#[test]
+fn halted_build_releases_its_captured_snapshot_and_rejects_the_forged_obligation() {
+    let fixture = snapshot_fixture(FORGED_BUILD);
+    let before = fixture.accepted_files();
+    let output = audit(&fixture);
+    assert_status(&output, 1);
+    let combined = combined_output(&output);
+    assert!(
+        combined.contains("not a compiler-issued required output obligation"),
+        "{combined}"
+    );
+    assert_eq!(fixture.accepted_files(), before);
+    assert!(!fixture.path("root/artifact.txt").exists());
+    assert!(!fixture.path("root/build/package-manager/proposal").exists());
+    // Evaluation halted before settlement ever ran; the occurrence's private
+    // snapshot must still be released rather than left as read-only residue.
+    assert_eq!(
+        snapshot_residue(&fixture),
+        Vec::<String>::new(),
+        "a halted occurrence releases its private snapshot"
+    );
+}
+
+#[test]
+fn completion_error_returns_custody_and_an_explicit_retry_completes() {
+    let fixture = snapshot_fixture(RETRYING_BUILD);
+    let before = fixture.accepted_files();
+    let output = audit(&fixture);
+    assert_status(&output, 0);
+    let combined = combined_output(&output);
+    assert!(combined.contains("fresh-analysis complete"), "{combined}");
+    assert!(
+        !combined.contains("unexpected completion verdict"),
+        "{combined}"
+    );
+    assert_eq!(fixture.accepted_files(), before);
+    assert_eq!(snapshot_residue(&fixture), Vec::<String>::new());
+
+    let fresh = fixture.fresh_reviews(TARGET);
+    let review = fresh
+        .reviews()
+        .iter()
+        .find(|review| review.key().name().as_str() == "snapshot-root")
+        .expect("the root package is reviewed");
+    let observation = review
+        .build_observation_summary()
+        .expect("an executed package build retains its observation");
+    let settlements = observation.required_output_settlements();
+    assert_eq!(settlements.len(), 1, "the retried obligation settles once");
+    assert_eq!(settlements[0].relative_path(), b"retry.txt");
 }
