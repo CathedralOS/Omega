@@ -1,4 +1,4 @@
-//!
+//! Task activation plans: elaborated, settled and fingerprinted.
 //! This file elaborates and settles the plans and computes their report
 //! fingerprints. `specialization_commitments.rs` commits exact task machine
 //! specializations, `runtime_requirements.rs` selects the task runtime

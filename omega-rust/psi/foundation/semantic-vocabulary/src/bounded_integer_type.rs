@@ -1,3 +1,5 @@
+//! A fixed integer carrier restricted to one closed, inclusive interval.
+
 use crate::{IntegerCarrier, IntegerType, IntegerValue, PropositionError};
 
 /// A fixed integer carrier restricted to one closed, inclusive interval.

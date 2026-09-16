@@ -1,3 +1,7 @@
+//! Component progress: the exact progress root of a selected component,
+//! its build-selected progress manifest, and the rejection of undischarged
+//! build-bound progress.
+
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use symbols::SymbolHandle;

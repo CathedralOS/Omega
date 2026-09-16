@@ -1,3 +1,6 @@
+//! Observation models over an optimization unit: what each node may
+//! observe, and the closed-region observations rewrites are checked against.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;

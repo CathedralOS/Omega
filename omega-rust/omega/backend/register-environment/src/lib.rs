@@ -5,6 +5,13 @@
 //! Joins exact ISA/ABI declarations and reservation policy into an independently
 //! validated allocator environment. This is shared target setup, not a program
 //! transformation or a successor in the representation pipeline.
+//!
+//! `baseline_target_register_environment` and
+//! `validate_target_register_environment` in this file are the entries.
+//! `catalog` selects the target's physical register model, constraint catalog
+//! and baseline reservation profile; `validation` joins them into the
+//! `model::ValidatedTargetRegisterEnvironment`; `abi_preservation` selects the
+//! ABI preservation facts the validated environment implies.
 
 mod abi_preservation;
 mod catalog;

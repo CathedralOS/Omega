@@ -5,6 +5,15 @@
 //! module later. Canonical artifact encoding remains outside this vocabulary;
 //! the content helper reconstructs the already-settled checked-plan identity
 //! needed for independent terminal validation.
+//!
+//! Start at `identity.rs` for the ids every terminal artifact names (machines,
+//! blocks, edges, operations, values, places, claims, obligations, contracts,
+//! services, structural types, domains and fields) and `proposition/` for the
+//! scalar types, terms and propositions built over them. `content.rs` is the
+//! content-projection vocabulary, `bounded_integer_type.rs` restricts a fixed
+//! integer carrier to one interval, `qualified_scalar_type.rs` pairs a scalar
+//! type with its qualification set, and `ieee_float_comparison_operation.rs`
+//! names the executable float relations.
 
 #![forbid(unsafe_code)]
 

@@ -1,3 +1,6 @@
+//! Provider trust grants: resolving selected and authored root grants by
+//! their selector kind.
+
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderPlan, ProviderPlanDigest};
 

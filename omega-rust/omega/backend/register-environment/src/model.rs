@@ -1,3 +1,6 @@
+//! The validated target register environment and the errors its join can
+//! raise.
+
 use isa_aarch64::{Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view};
 use isa_x86_64::{X86_64RegisterConstraintCatalogValidationError, x86_64_fixed_register_view};
 use register_model::{

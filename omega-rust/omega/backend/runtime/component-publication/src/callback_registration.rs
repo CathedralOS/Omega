@@ -1,3 +1,7 @@
+//! Registering a runnable component's callbacks: its installed external-root
+//! runtimes and compiler-private callbacks, with the registration,
+//! unregistration and lease-release errors each step can raise.
+
 use executable_installation::InstalledCode;
 use external_roots::{
     CompletedOpaqueCallbackUnregistration, ExternalRootDiagnostic, InstalledExternalRoot,

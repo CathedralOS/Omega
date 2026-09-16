@@ -1,3 +1,5 @@
+//! Accepted template identities and their classifications.
+
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;

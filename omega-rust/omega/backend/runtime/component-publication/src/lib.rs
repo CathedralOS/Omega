@@ -6,6 +6,14 @@
 //! lifecycle publication are independent gates. This crate is the narrow
 //! orchestration owner that joins their opaque results before an era may be
 //! treated as runnable and retains those results until retirement succeeds.
+//!
+//! Start at `bind_installed_runnable_component` in this file: it joins the
+//! independent gates' results for one era. `deployment_journal` records each
+//! era through preparation, activation and finalization,
+//! `deployment_journal_storage` persists those records,
+//! `callback_registration` registers a runnable component's external-root and
+//! compiler-private callbacks, and `stack_provision` leases the
+//! provider-admitted external stacks an installed component runs on.
 
 use std::collections::BTreeMap;
 

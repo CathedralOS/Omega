@@ -1,3 +1,7 @@
+//! The content-projection vocabulary: content algebras, projection
+//! identities and expressions, content places and terms, and content
+//! conservation with its report fingerprint.
+
 use std::collections::BTreeMap;
 
 use crate::{

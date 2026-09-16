@@ -1,3 +1,7 @@
+//! The component deployment journal: one record per era through
+//! preparation, activation and finalization, with the admission and
+//! acceptance snapshots it retains.
+
 use effects::{ComponentEraCandidate, ComponentEraEntryState, ComponentEraPublicationReceipt};
 use executable_installation::InstalledCodeContext;
 use image_emission::{
