@@ -881,10 +881,10 @@ fn synthesize_machine_named(
 /// selected trait's logical path: the compiler-derived partition requires a
 /// generated spelling, and a qualified path still reaches the exact owner in
 /// its package where a bare leaf could select a same-spelled competitor.
-fn exact_unargumented_requirement_owner<'a>(
-    traits: &'a HashMap<SymbolHandle, TraitDefaultsInput>,
+fn exact_unargumented_requirement_owner(
+    traits: &HashMap<SymbolHandle, TraitDefaultsInput>,
     owner: SymbolHandle,
-) -> Option<&'a str> {
+) -> Option<&str> {
     let definition = traits.get(&owner)?;
     (!definition.has_lifetime_parameters && definition.parameter_names.is_empty())
         .then_some(definition.path.as_str())
