@@ -389,7 +389,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   reservation, and attributed-cause claim substitute independently,
   while a claimed quarantine report identity and attributed cause are
   adopted verbatim and replay-bound; zero normalized identities are
-  unrepresentable across the family.
+  unrepresentable across the family. Landed: installed integer-constant
+  rows (`image-emission/tests/internal_unit_scalar_calls.rs`,
+  `installation_function_integer_constant_rows_reject_every_one_field_substitution`)
+  — every field of a retained constant no call references (defining
+  operation, source value, scalar type, value, operation ordinal), a
+  dropped unreferenced row, and a distinct inserted row are independently
+  representable and rejected by replay; every field of the constant the
+  scalar-call argument sources name, a dropped referenced row, an
+  address-carrier or out-of-width scalar type, an unadmitted or
+  sign-mismatched value, non-increasing or successor-overtaking ordinals,
+  defining-operation and source-value collisions, and swapped or
+  duplicated rows are rejected at encoding as non-canonical.
 
 ## Psi optimization and loops
 
