@@ -1,6 +1,9 @@
 //! The execution engine: the live execution state, executable machines,
-//! suspended calls, runtime descriptors and claims, and every step of the
-//! interpreter loop.
+//! suspended calls, runtime descriptors and claims, and the interpreter loop.
+//! `resume_with_effect_handler` charges and dispatches each operation to its
+//! `execute_*` method (`integer_operations`, `boolean_float_operations`,
+//! `call_operations`, `structural_operations` and the earlier owners), then
+//! settles the block terminator.
 
 use crate::TerminalEffectResult;
 use crate::TerminalStructuralScalarFieldValue;
@@ -8,20 +11,15 @@ use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
 use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
 use crate::terminal_interpreter::case_membership::StructuralCaseContents;
 use crate::terminal_interpreter::custody::{
-    bind_affine_frontier, bind_arguments, bind_boundary_arguments, bind_entry_claims,
-    bind_structural_arguments, bind_structural_primitive_values, commit_cleanup_actions,
-    complete_claims, consume_affine_projection, direct_scalar_field_type, has_live_linear_claims,
-    rebind_structural_result_claims, remove_affine_root, resolve_structural_arguments,
-    resolve_structural_path_type, validate_boundary_requirements,
+    bind_affine_frontier, bind_arguments, bind_entry_claims, bind_structural_arguments,
+    bind_structural_primitive_values, commit_cleanup_actions, consume_affine_projection,
+    has_live_linear_claims, rebind_structural_result_claims, remove_affine_root,
+    resolve_structural_path_type,
 };
-use crate::terminal_interpreter::effect_results;
 use crate::terminal_interpreter::primitive_storage;
 use crate::terminal_interpreter::reference;
 use crate::terminal_interpreter::results::meter_status;
 use crate::terminal_interpreter::scalar_array::TerminalScalarArrayValue;
-use crate::terminal_interpreter::scalar_operations::{
-    ieee_float_compare, nearest_ieee_float_fused_multiply_add, terminal_scalar_belongs_to_type,
-};
 use crate::terminal_interpreter::structural_scalar_fields;
 use crate::terminal_interpreter::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
@@ -34,18 +32,26 @@ use crate::terminal_interpreter::{
     TerminalStructuralValue,
 };
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
-    Block, BoundaryMachineDeclaration, ClaimTransfer, EntryClaim, NominalAffineCleanup,
-    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralResultClaimTransfer, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachineResult, Terminator,
+    Block, BoundaryMachineDeclaration, EntryClaim, NominalAffineCleanup, OperationKind,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralResultClaimTransfer, StructuralTypeDeclaration, TerminalMachineResult, Terminator,
 };
+
+/// What one executed operation tells the interpreter loop to do next.
+pub(super) enum OperationFlow {
+    /// The operation completed; advance to the next operation.
+    Advance,
+    /// A call replaced the current frame; dispatch from the callee's entry.
+    Redispatch,
+    /// Execution stops here with this status.
+    Yield(TerminalExecutionStatus),
+}
 
 /// Resumable execution state created from canonical terminal-Psi artifact
 /// sections.
@@ -605,1574 +611,185 @@ impl TerminalExecution {
                 if let Err(error) = meter.charge_operation(operation) {
                     return meter_status(error);
                 }
-                match operation.kind {
+                let flow = match operation.kind {
                     OperationKind::EstablishReference { ref source } => {
                         self.establish_reference(operation, source)?;
+                        OperationFlow::Advance
                     }
                     OperationKind::ReleaseReference { source } => {
                         self.release_reference(operation, source)?;
+                        OperationFlow::Advance
                     }
                     OperationKind::EstablishScalarArray { ref elements } => {
                         self.execute_scalar_array_establishment(operation, elements)?;
+                        OperationFlow::Advance
                     }
                     OperationKind::EstablishPrimitiveLocal { value } => {
                         self.execute_primitive_establishment(operation, value)?;
+                        OperationFlow::Advance
                     }
                     OperationKind::PrimitiveScalarRead { source, ref path } => {
                         self.execute_primitive_read(operation, source, path)?;
+                        OperationFlow::Advance
                     }
-                    OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
-                        if operation.result != terminal_psi::OperationResult::Unit
-                            || !self
-                                .dynamic_descriptor_templates
-                                .contains_key(&(self.current_machine, descriptor_ordinal))
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
+                    OperationKind::StoreDynamicDescriptor { .. } => {
+                        self.execute_store_dynamic_descriptor(operation)?
                     }
-                    OperationKind::EstablishScalarCase {
-                        result_case,
-                        ref fields,
-                    } => {
-                        let terminal_psi::OperationResult::Structural(result) = &operation.result
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if self.structural_values.contains_key(&result.place)
-                            || self.scalar_case_values.contains_key(&result.place)
-                            || !matches!(
-                                result.multiplicity,
-                                StructuralMultiplicity::Unrestricted
-                                    | StructuralMultiplicity::Affine
-                            )
-                            || !result.qualifications.is_empty()
-                            || !result.projected_qualifications.is_empty()
-                            || !result.claims.is_empty()
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let Some(StructuralTypeDeclaration {
-                            shape: StructuralTypeShape::Sum { cases },
-                            ..
-                        }) = self.structural_types.get(&result.structural_type)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let Some(selected) = cases.iter().find(|case| case.id == result_case)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if selected.fields.len() != fields.len() {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let mut payload = Vec::with_capacity(fields.len());
-                        for (declaration, binding) in selected.fields.iter().zip(fields) {
-                            let value = self.values.get(&binding.value).copied().ok_or(
-                                TerminalInterpretError::VerifiedValueMissing(binding.value),
-                            )?;
-                            if declaration.id != binding.field
-                                || declaration.field_type.scalar_type() != Some(value.scalar_type())
-                            {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                            if let terminal_psi::StructuralFieldType::BoundedInteger(bounds) =
-                                declaration.field_type
-                            {
-                                let TerminalScalarValue::Integer { value, .. } = value else {
-                                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                                };
-                                if !bounds.contains(value) {
-                                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                                }
-                            }
-                            payload.push((binding.field, value));
-                        }
-                        self.scalar_case_values.insert(
-                            result.place,
-                            TerminalScalarCaseValue {
-                                structural_type: result.structural_type,
-                                result_case,
-                                fields: payload,
-                            },
-                        );
-                        if result.multiplicity == StructuralMultiplicity::Affine {
-                            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                                place: result.place,
-                                path: Vec::new(),
-                                structural_type: result.structural_type,
-                            });
-                        }
+                    OperationKind::EstablishScalarCase { .. } => {
+                        self.execute_establish_scalar_case(operation)?
                     }
-                    OperationKind::EstablishByteSequenceLiteral {
-                        destination,
-                        ref bytes,
-                    } => {
-                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let machine = self.machines.get(&self.current_machine).ok_or(
-                            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-                        )?;
-                        let Some(terminal_psi::StructuralPlaceDeclaration {
-                            kind:
-                                semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
-                                    structural_type,
-                                    ..
-                                },
-                            ..
-                        }) = machine
-                            .structural_places
-                            .iter()
-                            .find(|place| place.id == destination)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if let Some(previous) = self.structural_values.get(&destination) {
-                            // Reentering the unique literal producer retains the
-                            // same immutable value. Fuel was charged above;
-                            // existing aliases keep their exact original bytes.
-                            if previous.opaque_identity != destination.get()
-                                || previous.structural_type != *structural_type
-                                || !previous.path.is_empty()
-                                || !previous.qualifications.is_empty()
-                                || self
-                                    .byte_sequence_values
-                                    .get(&destination)
-                                    .is_none_or(|binding| !matches!(binding.immutable(), Ok(view) if view.bytes() == bytes))
-                            {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                        } else {
-                            if self
-                                .byte_sequence_values
-                                .insert(
-                                    destination,
-                                    ByteSequenceBinding::Immutable(ByteSequenceView::new(
-                                        bytes.clone(),
-                                    )),
-                                )
-                                .is_some()
-                            {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                            self.structural_values.insert(
-                                destination,
-                                TerminalStructuralValue {
-                                    opaque_identity: destination.get(),
-                                    structural_type: *structural_type,
-                                    qualifications: Vec::new(),
-                                    path: Vec::new(),
-                                },
-                            );
-                        }
+                    OperationKind::EstablishByteSequenceLiteral { .. } => {
+                        self.execute_establish_byte_sequence_literal(operation)?
                     }
-                    OperationKind::EstablishTrivialAffineLocal { destination } => {
-                        if !matches!(operation.result, terminal_psi::OperationResult::Unit)
-                            || self.structural_values.contains_key(&destination)
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let machine = self.machines.get(&self.current_machine).ok_or(
-                            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-                        )?;
-                        let Some(terminal_psi::StructuralPlaceDeclaration {
-                            kind:
-                                semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
-                                    structural_type,
-                                    ..
-                                },
-                            ..
-                        }) = machine
-                            .structural_places
-                            .iter()
-                            .find(|place| place.id == destination)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        self.structural_values.insert(
-                            destination,
-                            TerminalStructuralValue {
-                                opaque_identity: destination.get(),
-                                structural_type: *structural_type,
-                                qualifications: Vec::new(),
-                                path: Vec::new(),
-                            },
-                        );
-                        self.live_affine_frontier.insert(StructuralAffineDiscard {
-                            place: destination,
-                            path: Vec::new(),
-                            structural_type: *structural_type,
-                        });
+                    OperationKind::EstablishTrivialAffineLocal { .. } => {
+                        self.execute_establish_trivial_affine_local(operation)?
                     }
-                    OperationKind::EstablishRecord { ref fields } => {
-                        self.establish_record(
-                            operation
-                                .result
-                                .structural()
-                                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
-                            fields,
-                        )?;
+                    OperationKind::EstablishRecord { .. } => {
+                        self.execute_establish_record(operation)?
                     }
-                    OperationKind::CallUnit {
-                        callee,
-                        arguments: ref scalar_argument_ids,
-                        ref structural_arguments,
-                        ref claim_transfers,
-                        ..
-                    } => {
-                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let scalar_arguments = scalar_argument_ids
-                            .iter()
-                            .map(|argument| {
-                                self.values
-                                    .get(argument)
-                                    .copied()
-                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let dynamic_parameters =
-                            self.resolve_dynamic_call_arguments(operation.id)?;
-                        let prepared_arguments =
-                            self.prepare_structural_call_arguments(callee, structural_arguments)?;
-                        self.begin_unit_call(
-                            callee,
-                            &scalar_arguments,
-                            structural_arguments,
-                            prepared_arguments,
-                            claim_transfers,
-                            dynamic_parameters,
-                        )?;
-                        continue;
+                    OperationKind::CallUnit { .. } => self.execute_call_unit(operation)?,
+                    OperationKind::CallStructuralScalar { .. } => {
+                        self.execute_call_structural_scalar(operation)?
                     }
-                    OperationKind::CallStructuralScalar {
-                        callee,
-                        ref arguments,
-                        ref structural_arguments,
-                        ref claim_transfers,
-                        ..
-                    } => {
-                        let result = operation
-                            .result
-                            .scalar()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let dynamic_parameters =
-                            self.resolve_dynamic_call_arguments(operation.id)?;
-                        let scalar_arguments = arguments
-                            .iter()
-                            .map(|argument| {
-                                self.values
-                                    .get(argument)
-                                    .copied()
-                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        self.begin_structural_scalar_call(
-                            callee,
-                            result,
-                            &scalar_arguments,
-                            structural_arguments,
-                            claim_transfers,
-                            dynamic_parameters,
-                        )?;
-                        continue;
+                    OperationKind::CallDynamicScalar { .. } => {
+                        self.execute_call_dynamic_scalar(operation)?
                     }
-                    OperationKind::CallDynamicScalar {
-                        descriptor_ordinal, ..
-                    } => {
-                        let result = operation
-                            .result
-                            .scalar()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let (callee, source) = self
-                            .dynamic_scalar_calls
-                            .get(&(self.current_machine, descriptor_ordinal))
-                            .cloned()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.begin_structural_scalar_call(
-                            callee,
-                            result,
-                            &[],
-                            &[source],
-                            &[],
-                            BTreeMap::new(),
-                        )?;
-                        continue;
+                    OperationKind::CallDynamicParameterScalar { .. } => {
+                        self.execute_call_dynamic_parameter_scalar(operation)?
                     }
-                    OperationKind::CallDynamicParameterScalar {
-                        parameter_ordinal,
-                        requirement_slot,
-                        ..
-                    } => {
-                        let result = operation
-                            .result
-                            .scalar()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let descriptor =
-                            self.dynamic_parameters
-                                .get(&parameter_ordinal)
-                                .cloned()
-                                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let slot = usize::try_from(requirement_slot)
-                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let callee = descriptor
-                            .callables
-                            .get(slot)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.begin_runtime_dynamic_scalar_call(callee, result, descriptor.source)?;
-                        continue;
+                    OperationKind::CallDynamicUnit { .. } => {
+                        self.execute_call_dynamic_unit(operation)?
                     }
-                    OperationKind::CallDynamicUnit {
-                        descriptor_ordinal, ..
-                    } => {
-                        if operation.result != terminal_psi::OperationResult::Unit {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let (callee, source) = self
-                            .dynamic_scalar_calls
-                            .get(&(self.current_machine, descriptor_ordinal))
-                            .cloned()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let arguments = resolve_structural_arguments(
-                            &self.structural_types,
-                            &self.structural_values,
-                            std::slice::from_ref(&source),
-                        )?;
-                        let [source] = arguments.as_slice() else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        self.begin_runtime_dynamic_unit_call(callee, source.clone())?;
-                        continue;
+                    OperationKind::CallDynamicParameterUnit { .. } => {
+                        self.execute_call_dynamic_parameter_unit(operation)?
                     }
-                    OperationKind::CallDynamicParameterUnit {
-                        parameter_ordinal,
-                        requirement_slot,
-                        ..
-                    } => {
-                        if operation.result != terminal_psi::OperationResult::Unit {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let descriptor =
-                            self.dynamic_parameters
-                                .get(&parameter_ordinal)
-                                .cloned()
-                                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let slot = usize::try_from(requirement_slot)
-                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let callee = descriptor
-                            .callables
-                            .get(slot)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.begin_runtime_dynamic_unit_call(callee, descriptor.source)?;
-                        continue;
+                    OperationKind::CallStructural { .. } => {
+                        self.execute_call_structural(operation)?
                     }
-                    OperationKind::CallStructural {
-                        callee,
-                        ref structural_arguments,
-                        ref claim_transfers,
-                        ref returned_claim_transfers,
-                        ..
-                    } => {
-                        let result = operation
-                            .result
-                            .structural()
-                            .cloned()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let prepared_arguments =
-                            self.prepare_structural_call_arguments(callee, structural_arguments)?;
-                        self.begin_structural_result_call(
-                            callee,
-                            result,
-                            &[],
-                            structural_arguments,
-                            prepared_arguments,
-                            claim_transfers,
-                            returned_claim_transfers.clone(),
-                        )?;
-                        continue;
+                    OperationKind::CallStructuralWithScalarArguments { .. } => {
+                        self.execute_call_structural_with_scalar_arguments(operation)?
                     }
-                    OperationKind::CallStructuralWithScalarArguments {
-                        callee,
-                        ref arguments,
-                        ref structural_arguments,
-                        ref claim_transfers,
-                        ref returned_claim_transfers,
-                        ..
-                    } => {
-                        let result = operation
-                            .result
-                            .structural()
-                            .cloned()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let scalar_arguments = arguments
-                            .iter()
-                            .map(|argument| {
-                                self.values
-                                    .get(argument)
-                                    .copied()
-                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let prepared_arguments =
-                            self.prepare_structural_call_arguments(callee, structural_arguments)?;
-                        self.begin_structural_result_call(
-                            callee,
-                            result,
-                            &scalar_arguments,
-                            structural_arguments,
-                            prepared_arguments,
-                            claim_transfers,
-                            returned_claim_transfers.clone(),
-                        )?;
-                        continue;
+                    OperationKind::BoundaryCall { .. } => {
+                        self.execute_boundary_call(operation, handler)?
                     }
-                    OperationKind::BoundaryCall {
-                        boundary,
-                        arguments: ref scalar_argument_ids,
-                        ref structural_arguments,
-                        ref completion_receipts,
-                        ..
-                    } => {
-                        let boundary_declaration = self.boundary_machines.get(&boundary).ok_or(
-                            TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
-                        )?;
-                        let scalar_arguments = scalar_argument_ids
-                            .iter()
-                            .map(|argument| {
-                                self.values
-                                    .get(argument)
-                                    .copied()
-                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        bind_boundary_arguments(
-                            &boundary_declaration.scalar_parameters,
-                            &scalar_arguments,
-                        )?;
-                        if self.provider_candidates.contains(&boundary) {
-                            let boundary_arguments = self.prepare_boundary_arguments(
-                                &boundary_declaration.structural_parameters,
-                                structural_arguments,
-                            )?;
-                            bind_structural_arguments(
-                                &boundary_declaration.structural_parameters,
-                                &boundary_arguments.values,
-                            )?;
-                            validate_boundary_requirements(
-                                boundary_declaration,
-                                &boundary_arguments.values,
-                            )?;
-                            let supported_result = match &operation.result {
-                                terminal_psi::OperationResult::Unit => true,
-                                terminal_psi::OperationResult::Structural(result) => {
-                                    result.multiplicity == StructuralMultiplicity::Affine
-                                        && result.qualifications.is_empty()
-                                        && result.projected_qualifications.is_empty()
-                                        && result.claims.is_empty()
-                                }
-                                terminal_psi::OperationResult::Scalar(_) => false,
-                            };
-                            if !supported_result {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                            let callee_id =
-                                self.provider_installation.get(&boundary).copied().ok_or(
-                                    TerminalInterpretError::ProviderInstallationMissing(boundary),
-                                )?;
-                            let callee = self.machines.get(&callee_id).ok_or(
-                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
-                            )?;
-                            let prepared_arguments = boundary_arguments
-                                .into_call_arguments(&callee.structural_parameters)?;
-                            let claim_transfers = completion_receipts
-                                .iter()
-                                .map(|receipt| ClaimTransfer {
-                                    claim: receipt.claim,
-                                    argument_index: receipt.argument_index,
-                                })
-                                .collect::<Vec<_>>();
-                            match &operation.result {
-                                terminal_psi::OperationResult::Unit => self.begin_unit_call(
-                                    callee_id,
-                                    // Boundary binding and installed conformance preserve
-                                    // this ordered scalar lane; the ordinary call binder
-                                    // validates it again against the selected callee.
-                                    &scalar_arguments,
-                                    structural_arguments,
-                                    prepared_arguments,
-                                    &claim_transfers,
-                                    BTreeMap::new(),
-                                )?,
-                                terminal_psi::OperationResult::Structural(result) => {
-                                    self.begin_structural_result_call(
-                                        callee_id,
-                                        result.clone(),
-                                        &scalar_arguments,
-                                        structural_arguments,
-                                        prepared_arguments,
-                                        &claim_transfers,
-                                        Vec::new(),
-                                    )?;
-                                }
-                                terminal_psi::OperationResult::Scalar(_) => {
-                                    unreachable!("scalar provider results were rejected above")
-                                }
-                            }
-                            continue;
-                        }
-                        let mut boundary_arguments = self.resolve_boundary_arguments(
-                            &boundary_declaration.structural_parameters,
-                            structural_arguments,
-                        )?;
-                        bind_structural_arguments(
-                            &boundary_declaration.structural_parameters,
-                            &boundary_arguments.values,
-                        )?;
-                        validate_boundary_requirements(
-                            boundary_declaration,
-                            &boundary_arguments.values,
-                        )?;
-                        self.preflight_boundary_result(&operation.result)?;
-                        let remaining_claims = complete_claims(
-                            &self.live_claims,
-                            structural_arguments,
-                            completion_receipts,
-                            &boundary_declaration.structural_parameters,
-                        )?;
-                        let effect = TerminalEffect::BoundaryCall {
-                            operation: operation.id,
-                            boundary,
-                            arguments: scalar_arguments,
-                            structural_arguments: std::mem::take(&mut boundary_arguments.values),
-                            byte_sequence_arguments: std::mem::take(&mut boundary_arguments.bytes),
-                            completion_receipts: completion_receipts.clone(),
-                            result: boundary_declaration.result.clone(),
-                        };
-                        let returned = handler
-                            .handle_effect_with_byte_buffers(
-                                &effect,
-                                &mut boundary_arguments.buffers,
-                            )
-                            .map_err(|rejection| TerminalInterpretError::EffectRejected {
-                                operation: operation.id,
-                                rejection,
-                            })?;
-                        if let TerminalEffectResult::Crash(cause) = returned {
-                            // A boundary crash belongs to the invocation, not a
-                            // fabricated CFG edge. Validate before publishing a
-                            // result, writeback, disposal, or completion receipt.
-                            let crash =
-                                self.admit_boundary_crash(boundary_declaration, &effect, cause)?;
-                            self.effects.push(effect);
-                            self.crash = Some(crash.clone());
-                            return Ok(TerminalExecutionStatus::Crashed(crash));
-                        }
-                        boundary_arguments.validate_writeback()?;
-                        if let TerminalEffectResult::Structural(value) = &returned {
-                            self.local_structural_identities.reserve_host(value)?;
-                        }
-                        effect_results::commit_boundary_result(
-                            &mut self.values,
-                            &mut self.structural_values,
-                            &mut self.live_affine_frontier,
-                            &operation.result,
-                            &boundary_declaration.result,
-                            returned,
-                        )?;
-                        for (argument, parameter) in structural_arguments
-                            .iter()
-                            .zip(&boundary_declaration.structural_parameters)
-                            .filter(|(argument, parameter)| {
-                                argument.path.is_empty()
-                                    && parameter.access == StructuralAccess::Owned
-                                    && parameter.multiplicity
-                                        != StructuralMultiplicity::Unrestricted
-                            })
-                        {
-                            if self.structural_values.remove(&argument.place).is_none() {
-                                return Err(
-                                    TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                                        argument.place,
-                                    ),
-                                );
-                            }
-                            if parameter.multiplicity == StructuralMultiplicity::Affine {
-                                remove_affine_root(&mut self.live_affine_frontier, argument.place);
-                            }
-                        }
-                        self.live_claims = remaining_claims;
-                        boundary_arguments.commit(self);
-                        self.effects.push(effect);
+                    OperationKind::PortWrite { .. } => {
+                        self.execute_port_write(operation, handler)?
                     }
-                    OperationKind::PortWrite {
-                        service,
-                        port,
-                        value,
-                    } => {
-                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let effect = TerminalEffect::PortWrite {
-                            operation: operation.id,
-                            service,
-                            port,
-                            value,
-                        };
-                        handler.handle_effect(&effect).map_err(|rejection| {
-                            TerminalInterpretError::EffectRejected {
-                                operation: operation.id,
-                                rejection,
-                            }
-                        })?;
-                        self.effects.push(effect);
-                    }
-                    OperationKind::Call {
-                        callee,
-                        ref arguments,
-                        ..
-                    } => {
-                        let arguments = arguments
-                            .iter()
-                            .map(|argument| {
-                                self.values
-                                    .get(argument)
-                                    .copied()
-                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let callee_id = callee;
-                        let callee = machines
-                            .get(&callee_id)
-                            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
-                        if !callee.structural_parameters.is_empty()
-                            || !callee.entry_claims.is_empty()
-                            || !callee.content_entry_claims.is_empty()
-                            || !matches!(callee.result, TerminalMachineResult::Scalar(_))
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let values = bind_arguments(&callee.parameters, &arguments)?;
-                        self.next_operation += 1;
-                        self.call_stack.push(SuspendedCall {
-                            values: std::mem::take(&mut self.values),
-                            structural_values: std::mem::take(&mut self.structural_values),
-                            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-                            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
-                            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-                            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
-                            live_claims: std::mem::take(&mut self.live_claims),
-                            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
-                            current_machine: self.current_machine,
-                            current: self.current,
-                            next_operation: self.next_operation,
-                            result: SuspendedCallResult::Scalar(
-                                operation.result.expect_scalar().id,
-                            ),
-                        });
-                        self.values = values;
-                        self.structural_values = BTreeMap::new();
-                        self.live_affine_frontier = BTreeSet::new();
-                        self.live_claims = BTreeMap::new();
-                        self.dynamic_parameters = BTreeMap::new();
-                        self.current_machine = callee_id;
-                        self.current = callee.entry;
-                        self.next_operation = 0;
-                        continue;
-                    }
+                    OperationKind::Call { .. } => self.execute_call(operation, &machines)?,
                     OperationKind::WriteOnlyPrimitiveStore {
                         destination,
                         value,
                         ref path,
                     } => {
                         self.execute_primitive_store(operation, destination, value, path)?;
+                        OperationFlow::Advance
                     }
-                    OperationKind::StructuralScalarFieldStore {
-                        destination,
-                        ref path,
-                        field,
-                        value,
-                        ..
-                    } => {
-                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let machine = self.machines.get(&self.current_machine).ok_or(
-                            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-                        )?;
-                        let access = machine
-                            .structural_parameters
-                            .iter()
-                            .chain(machine.blocks.values().flat_map(|block| &block.structural_parameters))
-                            .find(|parameter| parameter.place == destination)
-                            .filter(|parameter| {
-                                matches!(
-                                    parameter.access,
-                                    StructuralAccess::Owned
-                                        | StructuralAccess::MutableBorrow
-                                        | StructuralAccess::WriteOnlyBorrow
-                                ) && matches!(
-                                    parameter.multiplicity,
-                                    StructuralMultiplicity::Unrestricted
-                                        | StructuralMultiplicity::Affine
-                                ) && parameter.qualifications.is_empty()
-                                    && parameter.projected_qualifications.is_empty()
-                            })
-                            .map(|parameter| parameter.access)
-                            .or_else(|| {
-                                machine.blocks.values().flat_map(|block| &block.operations)
-                                    .filter(|producer| matches!(producer.kind,
-                                        OperationKind::EstablishRecord { .. }
-                                            | OperationKind::CallStructural { .. }
-                                            | OperationKind::CallStructuralWithScalarArguments { .. }))
-                                    .filter_map(|producer| producer.result.structural())
-                                    .find(|result| result.place == destination
-                                        && matches!(result.multiplicity,
-                                            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine)
-                                        && result.qualifications.is_empty()
-                                        && result.projected_qualifications.is_empty()
-                                        && result.claims.is_empty())
-                                    .map(|_| StructuralAccess::Owned)
-                            })
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let source = self
-                            .values
-                            .get(&value)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
-                        let parent = resolve_structural_arguments(
-                            &self.structural_types,
-                            &self.structural_values,
-                            &[StructuralArgument {
-                                place: destination,
-                                path: path.clone(),
-                                access,
-                            }],
-                        )?
-                        .pop()
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        if direct_scalar_field_type(
-                            &self.structural_types,
-                            parent.structural_type,
-                            field,
-                        ) != Some(source.scalar_type())
-                            || !terminal_scalar_belongs_to_type(source)
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        self.structural_scalar_fields.insert(
-                            StructuralScalarRuntimeField {
-                                parent: StructuralRuntimePlace::from(&parent),
-                                field,
-                            },
-                            source,
-                        );
+                    OperationKind::StructuralScalarFieldStore { .. } => {
+                        self.execute_structural_scalar_field_store(operation)?
                     }
                     OperationKind::StructuralByteSequenceFieldStore { .. } => {
                         self.execute_structural_byte_sequence_field_store(operation)?;
+                        OperationFlow::Advance
                     }
                     OperationKind::StructuralByteSequenceFieldLength { .. } => {
                         self.execute_structural_byte_sequence_field_length(operation)?;
+                        OperationFlow::Advance
                     }
                     OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
                         self.execute_structural_byte_sequence_field_byte_store(operation)?;
+                        OperationFlow::Advance
                     }
-                    OperationKind::IntegerConstant { value } => {
-                        let ScalarType::Integer(scalar_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
+                    OperationKind::IntegerConstant { .. } => {
+                        self.execute_integer_constant(operation)?
                     }
-                    OperationKind::IeeeFloatConstant { value } => {
-                        if operation.result.expect_scalar().scalar_type
-                            != ScalarType::IeeeFloat(value.format())
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::IeeeFloat(value),
-                        );
+                    OperationKind::IeeeFloatConstant { .. } => {
+                        self.execute_ieee_float_constant(operation)?
                     }
-                    OperationKind::IeeeFloatCompare {
-                        comparison,
-                        left,
-                        right,
-                    } => {
-                        let read_float = |operand| match self.values.get(&operand).copied() {
-                            Some(TerminalScalarValue::IeeeFloat(value)) => Ok(value),
-                            Some(_) => Err(TerminalInterpretError::VerifiedOperationMalformed),
-                            None => Err(TerminalInterpretError::VerifiedValueMissing(operand)),
-                        };
-                        let left = read_float(left)?;
-                        let right = read_float(right)?;
-                        if left.format() != right.format()
-                            || operation.result.expect_scalar().scalar_type != ScalarType::Boolean
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(ieee_float_compare(
-                                comparison, left, right,
-                            )),
-                        );
+                    OperationKind::IeeeFloatCompare { .. } => {
+                        self.execute_ieee_float_compare(operation)?
                     }
-                    OperationKind::NearestIeeeFloatFusedMultiplyAdd {
-                        left,
-                        right,
-                        addend,
-                    } => {
-                        let ScalarType::IeeeFloat(format) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::IeeeFloat(left) = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::IeeeFloat(right) = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::IeeeFloat(addend) = self
-                            .values
-                            .get(&addend)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(addend))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left.format() != format
-                            || right.format() != format
-                            || addend.format() != format
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let result =
-                            nearest_ieee_float_fused_multiply_add(format, left, right, addend);
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::IeeeFloat(result),
-                        );
+                    OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => {
+                        self.execute_nearest_ieee_float_fused_multiply_add(operation)?
                     }
-                    OperationKind::BooleanConstant { value } => {
-                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(value),
-                        );
+                    OperationKind::BooleanConstant { .. } => {
+                        self.execute_boolean_constant(operation)?
                     }
-                    OperationKind::StructuralCaseMembership {
-                        source,
-                        ref path,
-                        case,
-                    } => {
-                        let active_case = self.observe_structural_case(source, path)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(active_case == case),
-                        );
+                    OperationKind::StructuralCaseMembership { .. } => {
+                        self.execute_structural_case_membership(operation)?
                     }
-                    OperationKind::BooleanStructuralField {
-                        source,
-                        ref path,
-                        field,
-                    } => {
-                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let structural_value = self.structural_values.get(&source).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-                        )?;
-                        let carrier = terminal_semantics::record_field_carrier(
-                            self.structural_types.values(),
-                            structural_value.structural_type,
-                            path,
-                        )
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let mut parent = StructuralRuntimePlace::from(structural_value);
-                        parent.path.extend(carrier.path);
-                        let value = self
-                            .structural_scalar_fields
-                            .get(&StructuralScalarRuntimeField { parent, field })
-                            .copied()
-                            .ok_or(TerminalInterpretError::StructuralBooleanFieldMissing {
-                                source,
-                                field,
-                            })?;
-                        let TerminalScalarValue::Boolean(value) = value else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(value),
-                        );
+                    OperationKind::BooleanStructuralField { .. } => {
+                        self.execute_boolean_structural_field(operation)?
                     }
-                    OperationKind::IntegerStructuralField {
-                        source,
-                        ref path,
-                        field,
-                    } => {
-                        let result = operation.result.expect_scalar();
-                        if !matches!(result.scalar_type, ScalarType::Integer(_)) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let structural_value = self.structural_values.get(&source).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-                        )?;
-                        let carrier = terminal_semantics::record_field_carrier(
-                            self.structural_types.values(),
-                            structural_value.structural_type,
-                            path,
-                        )
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        if direct_scalar_field_type(
-                            &self.structural_types,
-                            carrier.structural_type,
-                            field,
-                        ) != Some(result.scalar_type)
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let mut parent = StructuralRuntimePlace::from(structural_value);
-                        parent.path.extend(carrier.path);
-                        let value = self
-                            .structural_scalar_fields
-                            .get(&StructuralScalarRuntimeField { parent, field })
-                            .copied()
-                            .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
-                                source,
-                                field,
-                            })?;
-                        if value.scalar_type() != result.scalar_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        self.values.insert(result.id, value);
+                    OperationKind::IntegerStructuralField { .. } => {
+                        self.execute_integer_structural_field(operation)?
                     }
                     OperationKind::ByteSequenceSubslice { .. } => {
                         self.execute_byte_sequence_subslice(operation)?;
+                        OperationFlow::Advance
                     }
                     OperationKind::ByteSequenceWrite { .. } => {
                         self.execute_byte_sequence_write(operation)?;
+                        OperationFlow::Advance
                     }
-                    OperationKind::ByteSequenceRead {
-                        source,
-                        index,
-                        length,
-                        ..
-                    } => {
-                        let result = operation.result.expect_scalar();
-                        let byte_type =
-                            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
-                                .expect("u8 is valid");
-                        let count_type =
-                            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                                .expect("u64 is valid");
-                        if result.scalar_type != ScalarType::Integer(byte_type) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let count = |operand| -> Result<u64, TerminalInterpretError> {
-                            let value = self
-                                .values
-                                .get(&operand)
-                                .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?;
-                            let TerminalScalarValue::Integer {
-                                scalar_type,
-                                value: IntegerValue::Unsigned(value),
-                            } = value
-                            else {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            };
-                            if *scalar_type != count_type {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                            u64::try_from(*value)
-                                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)
-                        };
-                        let byte_index = count(index)?;
-                        let byte_length = count(length)?;
-                        let bytes = self
-                            .byte_sequence_values
-                            .get(&source)
-                            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                                source,
-                            ))?
-                            .immutable()?;
-                        if u64::try_from(bytes.len()).ok() != Some(byte_length)
-                            || byte_index >= byte_length
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let byte_index = usize::try_from(byte_index)
-                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let byte = bytes
-                            .get(byte_index)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            result.id,
-                            TerminalScalarValue::Integer {
-                                scalar_type: byte_type,
-                                value: IntegerValue::Unsigned(u128::from(byte)),
-                            },
-                        );
+                    OperationKind::ByteSequenceRead { .. } => {
+                        self.execute_byte_sequence_read(operation)?
                     }
-                    OperationKind::ByteSequenceLength { source } => {
-                        let result = operation.result.expect_scalar();
-                        let integer_type =
-                            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                                .expect("u64 is valid");
-                        if result.scalar_type != ScalarType::Integer(integer_type) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let length = self.byte_sequence_length(source)?;
-                        self.values.insert(
-                            result.id,
-                            TerminalScalarValue::Integer {
-                                scalar_type: integer_type,
-                                value: IntegerValue::Unsigned(u128::from(length)),
-                            },
-                        );
+                    OperationKind::ByteSequenceLength { .. } => {
+                        self.execute_byte_sequence_length(operation)?
                     }
-                    OperationKind::BooleanNot { operand } => {
-                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let TerminalScalarValue::Boolean(value) = self
-                            .values
-                            .get(&operand)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(!value),
-                        );
+                    OperationKind::BooleanNot { .. } => self.execute_boolean_not(operation)?,
+                    OperationKind::BooleanEqual { .. } => self.execute_boolean_equal(operation)?,
+                    OperationKind::IntegerEqual { .. } => self.execute_integer_equal(operation)?,
+                    OperationKind::IntegerLessThan { .. }
+                    | OperationKind::IntegerLessOrEqual { .. } => {
+                        self.execute_integer_less_than(operation)?
                     }
-                    OperationKind::BooleanEqual { left, right } => {
-                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let TerminalScalarValue::Boolean(left) = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Boolean(right) = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(left == right),
-                        );
+                    OperationKind::IntegerBitwiseNot { .. } => {
+                        self.execute_integer_bitwise_not(operation)?
                     }
-                    OperationKind::IntegerEqual { left, right } => {
-                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let TerminalScalarValue::Integer {
-                            scalar_type: left_type,
-                            value: left,
-                        } = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: right_type,
-                            value: right,
-                        } = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left_type != right_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(left == right),
-                        );
+                    OperationKind::IntegerWiden { .. } => self.execute_integer_widen(operation)?,
+                    OperationKind::IntegerExactCast { .. } => {
+                        self.execute_integer_exact_cast(operation)?
                     }
-                    OperationKind::IntegerLessThan { left, right }
-                    | OperationKind::IntegerLessOrEqual { left, right } => {
-                        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let TerminalScalarValue::Integer {
-                            scalar_type: left_type,
-                            value: left_value,
-                        } = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: right_type,
-                            value: right_value,
-                        } = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left_type != right_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let ordering = left_type
-                            .compare(left_value, right_value)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let result = match operation.kind {
-                            OperationKind::IntegerLessThan { .. } => ordering.is_lt(),
-                            OperationKind::IntegerLessOrEqual { .. } => !ordering.is_gt(),
-                            _ => unreachable!(),
-                        };
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Boolean(result),
-                        );
+                    OperationKind::IntegerBitwiseAnd { .. }
+                    | OperationKind::IntegerBitwiseOr { .. }
+                    | OperationKind::IntegerBitwiseXor { .. } => {
+                        self.execute_integer_bitwise_and(operation)?
                     }
-                    OperationKind::IntegerBitwiseNot { operand } => {
-                        let ScalarType::Integer(scalar_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: operand_type,
-                            value: operand,
-                        } = self
-                            .values
-                            .get(&operand)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if operand_type != scalar_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let value = scalar_type
-                            .bitwise_not(operand)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
+                    OperationKind::WrappingIntegerShiftLeft { .. }
+                    | OperationKind::WrappingIntegerShiftRight { .. }
+                    | OperationKind::ExactIntegerShiftLeft { .. }
+                    | OperationKind::ExactIntegerShiftRight { .. } => {
+                        self.execute_wrapping_integer_shift_left(operation)?
                     }
-                    OperationKind::IntegerWiden { operand } => {
-                        let ScalarType::Integer(target_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: source_type,
-                            value,
-                        } = self
-                            .values
-                            .get(&operand)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let value = source_type
-                            .widen_value_to(target_type, value)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer {
-                                scalar_type: target_type,
-                                value,
-                            },
-                        );
+                    OperationKind::ExactIntegerAdd { .. }
+                    | OperationKind::WrappingIntegerAdd { .. }
+                    | OperationKind::ExactIntegerSubtract { .. }
+                    | OperationKind::WrappingIntegerSubtract { .. }
+                    | OperationKind::ExactIntegerMultiply { .. }
+                    | OperationKind::ExactIntegerDivide { .. }
+                    | OperationKind::ExactIntegerRemainder { .. }
+                    | OperationKind::WrappingIntegerDivide { .. }
+                    | OperationKind::WrappingIntegerRemainder { .. }
+                    | OperationKind::SaturatingIntegerDivide { .. }
+                    | OperationKind::SaturatingIntegerRemainder { .. }
+                    | OperationKind::WrappingIntegerMultiply { .. } => {
+                        self.execute_exact_integer_add(operation)?
                     }
-                    OperationKind::IntegerExactCast { operand, .. } => {
-                        let ScalarType::Integer(target_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: source_type,
-                            value,
-                        } = self
-                            .values
-                            .get(&operand)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let value = source_type
-                            .exact_cast_value_to(target_type, value)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer {
-                                scalar_type: target_type,
-                                value,
-                            },
-                        );
+                    OperationKind::SaturatingIntegerAdd { .. } => {
+                        self.execute_saturating_integer_add(operation)?
                     }
-                    OperationKind::IntegerBitwiseAnd { left, right }
-                    | OperationKind::IntegerBitwiseOr { left, right }
-                    | OperationKind::IntegerBitwiseXor { left, right } => {
-                        let ScalarType::Integer(scalar_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: left_type,
-                            value: left_value,
-                        } = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: right_type,
-                            value: right_value,
-                        } = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left_type != scalar_type || right_type != scalar_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let value = match operation.kind {
-                            OperationKind::IntegerBitwiseAnd { .. } => {
-                                scalar_type.bitwise_and(left_value, right_value)
-                            }
-                            OperationKind::IntegerBitwiseOr { .. } => {
-                                scalar_type.bitwise_or(left_value, right_value)
-                            }
-                            OperationKind::IntegerBitwiseXor { .. } => {
-                                scalar_type.bitwise_xor(left_value, right_value)
-                            }
-                            _ => unreachable!(),
-                        }
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
+                    OperationKind::SaturatingIntegerSubtract { .. } => {
+                        self.execute_saturating_integer_subtract(operation)?
                     }
-                    OperationKind::WrappingIntegerShiftLeft { value, count }
-                    | OperationKind::WrappingIntegerShiftRight { value, count }
-                    | OperationKind::ExactIntegerShiftLeft { value, count, .. }
-                    | OperationKind::ExactIntegerShiftRight { value, count, .. } => {
-                        let ScalarType::Integer(value_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: actual_value_type,
-                            value,
-                        } = self
-                            .values
-                            .get(&value)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let TerminalScalarValue::Integer {
-                            scalar_type: count_type,
-                            value: count,
-                        } = self
-                            .values
-                            .get(&count)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(count))?
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if actual_value_type != value_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let value = match operation.kind {
-                            OperationKind::WrappingIntegerShiftLeft { .. } => {
-                                value_type.wrapping_shift_left(value, count_type, count)
-                            }
-                            OperationKind::WrappingIntegerShiftRight { .. } => {
-                                value_type.wrapping_shift_right(value, count_type, count)
-                            }
-                            OperationKind::ExactIntegerShiftLeft { .. } => {
-                                value_type.exact_shift_left(value, count_type, count)
-                            }
-                            OperationKind::ExactIntegerShiftRight { .. } => {
-                                value_type.exact_shift_right(value, count_type, count)
-                            }
-                            _ => unreachable!(),
-                        }
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer {
-                                scalar_type: value_type,
-                                value,
-                            },
-                        );
+                    OperationKind::SaturatingIntegerMultiply { .. } => {
+                        self.execute_saturating_integer_multiply(operation)?
                     }
-                    OperationKind::ExactIntegerAdd { left, right, .. }
-                    | OperationKind::WrappingIntegerAdd { left, right }
-                    | OperationKind::ExactIntegerSubtract { left, right, .. }
-                    | OperationKind::WrappingIntegerSubtract { left, right }
-                    | OperationKind::ExactIntegerMultiply { left, right, .. }
-                    | OperationKind::ExactIntegerDivide { left, right, .. }
-                    | OperationKind::ExactIntegerRemainder { left, right, .. }
-                    | OperationKind::WrappingIntegerDivide { left, right, .. }
-                    | OperationKind::WrappingIntegerRemainder { left, right, .. }
-                    | OperationKind::SaturatingIntegerDivide { left, right, .. }
-                    | OperationKind::SaturatingIntegerRemainder { left, right, .. }
-                    | OperationKind::WrappingIntegerMultiply { left, right } => {
-                        let ScalarType::Integer(scalar_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let left = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-                        let right = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
-                        let (
-                            TerminalScalarValue::Integer {
-                                scalar_type: left_type,
-                                value: left,
-                            },
-                            TerminalScalarValue::Integer {
-                                scalar_type: right_type,
-                                value: right,
-                            },
-                        ) = (left, right)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left_type != scalar_type || right_type != scalar_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let value = match operation.kind {
-                            OperationKind::ExactIntegerAdd { .. } => {
-                                scalar_type.exact_add(left, right)
-                            }
-                            OperationKind::WrappingIntegerAdd { .. } => {
-                                scalar_type.wrapping_add(left, right)
-                            }
-                            OperationKind::ExactIntegerSubtract { .. } => {
-                                scalar_type.exact_sub(left, right)
-                            }
-                            OperationKind::WrappingIntegerSubtract { .. } => {
-                                scalar_type.wrapping_sub(left, right)
-                            }
-                            OperationKind::ExactIntegerMultiply { .. } => {
-                                scalar_type.exact_mul(left, right)
-                            }
-                            OperationKind::ExactIntegerDivide { .. } => {
-                                scalar_type.exact_div(left, right)
-                            }
-                            OperationKind::ExactIntegerRemainder { .. } => {
-                                scalar_type.exact_rem(left, right)
-                            }
-                            OperationKind::WrappingIntegerDivide { .. } => {
-                                scalar_type.wrapping_div(left, right)
-                            }
-                            OperationKind::WrappingIntegerRemainder { .. } => {
-                                scalar_type.wrapping_rem(left, right)
-                            }
-                            OperationKind::SaturatingIntegerDivide { .. } => {
-                                scalar_type.saturating_div(left, right)
-                            }
-                            OperationKind::SaturatingIntegerRemainder { .. } => {
-                                scalar_type.saturating_rem(left, right)
-                            }
-                            OperationKind::WrappingIntegerMultiply { .. } => {
-                                scalar_type.wrapping_mul(left, right)
-                            }
-                            _ => unreachable!(),
-                        }
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
-                    }
-                    OperationKind::SaturatingIntegerAdd { left, right } => {
-                        let ScalarType::Integer(scalar_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let left = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-                        let right = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
-                        let (
-                            TerminalScalarValue::Integer {
-                                scalar_type: left_type,
-                                value: left,
-                            },
-                            TerminalScalarValue::Integer {
-                                scalar_type: right_type,
-                                value: right,
-                            },
-                        ) = (left, right)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left_type != scalar_type || right_type != scalar_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let value = scalar_type
-                            .saturating_add(left, right)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
-                    }
-                    OperationKind::SaturatingIntegerSubtract { left, right } => {
-                        let ScalarType::Integer(scalar_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let left = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-                        let right = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
-                        let (
-                            TerminalScalarValue::Integer {
-                                scalar_type: left_type,
-                                value: left,
-                            },
-                            TerminalScalarValue::Integer {
-                                scalar_type: right_type,
-                                value: right,
-                            },
-                        ) = (left, right)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left_type != scalar_type || right_type != scalar_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let value = scalar_type
-                            .saturating_sub(left, right)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
-                    }
-                    OperationKind::SaturatingIntegerMultiply { left, right } => {
-                        let ScalarType::Integer(scalar_type) =
-                            operation.result.expect_scalar().scalar_type
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let left = self
-                            .values
-                            .get(&left)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-                        let right = self
-                            .values
-                            .get(&right)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
-                        let (
-                            TerminalScalarValue::Integer {
-                                scalar_type: left_type,
-                                value: left,
-                            },
-                            TerminalScalarValue::Integer {
-                                scalar_type: right_type,
-                                value: right,
-                            },
-                        ) = (left, right)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        if left_type != scalar_type || right_type != scalar_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let value = scalar_type
-                            .saturating_mul(left, right)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.values.insert(
-                            operation.result.expect_scalar().id,
-                            TerminalScalarValue::Integer { scalar_type, value },
-                        );
-                    }
+                };
+                match flow {
+                    OperationFlow::Advance => {}
+                    OperationFlow::Redispatch => continue,
+                    OperationFlow::Yield(status) => return Ok(status),
                 }
                 self.next_operation += 1;
             }
