@@ -13,21 +13,27 @@ use crate::machine_calls::calls::write_frames::call_targets::{
 };
 use crate::machine_calls::calls::write_frames::call_trees::parameter_relative_expression_preserves_transparent_result;
 use crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite;
-use crate::machine_calls::calls::write_frames::demand::collect_expression_call_written_paths;
+use crate::machine_calls::calls::write_frames::demand::{
+    collect_expression_call_written_paths, statement_value_expression_roots,
+};
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::isolated_initializers::isolated_local_initializer_preserves_transparent_result;
 use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
 use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts_with_origins;
-use crate::machine_calls::calls::write_frames::local_aliases::expression_may_rebind_mutable_alias;
+use crate::machine_calls::calls::write_frames::local_aliases::{
+    expression_has_exclusive_borrow, expression_may_rebind_mutable_alias,
+};
 use crate::machine_calls::calls::write_frames::parameter_aliases::{
     ParameterRelativeFrameOrigin, parameter_relative_alias_position,
 };
 use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origin;
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, split_place_root,
+    FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, same_place_origin,
+    split_place_root,
 };
 use crate::machine_calls::calls::write_frames::transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
+    frame_place_root_symbol,
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
 use crate::machine_calls::calls::write_frames::value_expressions::{
@@ -45,7 +51,9 @@ use typed_trees::statement::{StatementNode, TableCall};
 /// free or attached, but must be acyclic at the result surface, return a reference,
 /// and have one terminal result expression rooted in one reference
 /// parameter -- either a trailing expression or the lone ordinary `Always`
-/// value transition an authored single-arm return desugars to. A prefix may
+/// value transition an authored single-arm return desugars to -- or rooted in
+/// a declared exclusive reference leaf of one by-value carrier parameter whose
+/// binding stayed frozen across the prefix. A prefix may
 /// contain caller-isolated scratch locals and local
 /// reference bindings that forward direct places from that parameter, an
 /// earlier such local, or another structurally transparent helper. Value-shaped
@@ -431,6 +439,9 @@ pub(crate) fn transparent_callee_result_origin(
             symbols,
             inference,
         )
+        // A returned place may also be rooted in a by-value carrier
+        // parameter's declared exclusive reference leaf.
+        .or_else(|| carrier_leaf_result_origin(program, result, parameters, prefix))
         .filter(|origin| {
             origin.parameter_symbol.is_valid()
                 && parameters.iter().any(|parameter| {
@@ -556,4 +567,116 @@ fn statement_call_preserves_transparent_result(
         .flatten()
     })
     .is_some()
+}
+
+/// A returned place can be rooted in a by-value carrier parameter's declared
+/// exclusive reference leaf: `machine pf(a: View) -> &mut u64 { a.body }`
+/// returns the reference stored in `a.body`, which instantiates through the
+/// carrier actual exactly like a parameter-rooted place. The projected path
+/// must land on a declared exclusive leaf of the parameter's own type; the
+/// declaration walk has already enforced owned referent storage, so a private
+/// or doubly-loaded slot cannot be named here. Conditional result arms keep
+/// the leaf only when every arm selects the same one.
+///
+/// The carrier binding must also stay frozen across the prefix: reassigning
+/// or rebinding the parameter, or lending any place rooted in it through an
+/// exclusive borrow, would leave the exported leaf describing a binding the
+/// helper no longer holds.
+fn carrier_leaf_result_origin(
+    program: &TypedTrees,
+    result: ExpressionHandle,
+    parameters: &[StateParameter],
+    prefix: &[StatementNode],
+) -> Option<ParameterRelativeFrameOrigin> {
+    let (parameter_symbol, place) = carrier_leaf_place(program, result, parameters)?;
+    if prefix
+        .iter()
+        .any(|statement| statement_rebases_carrier_root(program, statement, parameter_symbol))
+    {
+        return None;
+    }
+    Some(ParameterRelativeFrameOrigin {
+        place,
+        parameter_symbol,
+    })
+}
+
+/// Resolve a result expression to `(carrier parameter, place)` when it spells
+/// a declared exclusive reference leaf beneath one by-value parameter.
+/// Conditional arms must all converge on the same leaf; divergent routes stay
+/// opaque rather than selecting one side of the case analysis.
+fn carrier_leaf_place(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+) -> Option<(SymbolHandle, FramePlaceOrigin)> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => carrier_leaf_place(program, inner.target, parameters),
+        ExpressionNode::Match(dispatch) => {
+            let mut selected = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let leaf = carrier_leaf_place(program, arm.value, parameters)?;
+                match &selected {
+                    None => selected = Some(leaf),
+                    Some((parameter_symbol, place))
+                        if *parameter_symbol == leaf.0 && same_place_origin(place, &leaf.1) => {}
+                    Some(_) => return None,
+                }
+            }
+            selected
+        }
+        ExpressionNode::Cast(cast)
+            if cast.form.is_recast()
+                && !expression_is_effectful_for_transparent_result(program, cast.value) =>
+        {
+            carrier_leaf_place(program, cast.value, parameters)
+        }
+        _ => {
+            let place = frame_place_path(program, expression)?;
+            let parameter = parameters.iter().find(|parameter| {
+                !parameter.is_self
+                    && parameter.symbol == place.source.root
+                    && !type_reference_is_reference(program, parameter.type_reference)
+            })?;
+            let declared = super::stored_origins::declared_origins_for_query(
+                program,
+                parameter.symbol,
+                parameter.name.as_str(),
+                parameter.type_reference,
+                false,
+            )?;
+            declared
+                .references
+                .iter()
+                .any(|leaf| {
+                    super::stored_origins::source_reaches_leaf(
+                        &place.source.segments,
+                        &leaf.local_segments,
+                    )
+                })
+                .then_some((parameter.symbol, place))
+        }
+    }
+}
+
+/// Whether one prefix statement can redirect the exported carrier leaf: a
+/// direct assignment target rooted in the parameter replaces or reshapes the
+/// binding, and an exclusive borrow of a rooted place hands the slot to a
+/// callee that may rebind it. Either leaves the parameter-relative result
+/// describing storage the helper no longer holds.
+fn statement_rebases_carrier_root(
+    program: &TypedTrees,
+    statement: &StatementNode,
+    parameter_symbol: SymbolHandle,
+) -> bool {
+    let retargeted = matches!(statement, StatementNode::Assignment(assignment)
+        if frame_place_root_symbol(program, assignment.target) == Some(parameter_symbol));
+    retargeted
+        || statement_value_expression_roots(program, statement)
+            .into_iter()
+            .any(|expression| {
+                expression_has_exclusive_borrow(program, expression, &|target| {
+                    frame_place_root_symbol(program, target) == Some(parameter_symbol)
+                })
+            })
 }

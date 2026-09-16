@@ -66,8 +66,19 @@ pub(super) fn exclusive_reference_origin(
             call,
             symbols,
             inference,
-            |callee_machine, parameter, _, actual, inference| {
-                let referee = exclusive_reference_referee(program, parameter.type_reference)?;
+            |callee_machine, parameter, result_place, actual, inference| {
+                let Some(referee) = exclusive_reference_referee(program, parameter.type_reference)
+                else {
+                    // The result is rooted in a by-value carrier parameter's
+                    // declared reference leaf. The actual must be a caller
+                    // place spelling the carrier itself; the shared suffix
+                    // composition below then names the leaf inside it.
+                    if parameter.is_self || result_place.source.root != parameter.symbol {
+                        return None;
+                    }
+                    declared_origin_root(program, current_machine, actual)?;
+                    return frame_place_path(program, actual);
+                };
                 let owned = if parameter.is_self {
                     // The typed receiver uses nominal `Self`, whose concrete
                     // declaration belongs to this resolved attached machine.
