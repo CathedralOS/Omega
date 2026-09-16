@@ -1026,6 +1026,37 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   intentionally not a legal second input because baseline admission plans
   the six-byte branch rows the rewrite replaced — while a change-free
   output admits as a fresh baseline and re-stages to no actions.
+  All six `abstract-operations-to-abstract-operations` selection members
+  — `SparseConditionalConstantPropagation`, `ControlFlowCleanup`,
+  `CopyPropagation`, `GlobalValueNumbering`, `ProofCheckElision`, and
+  `DeadPureScalarElimination` — now carry the same matrix through the
+  public `run_psi_pipeline`, `publish_optimization_run`, and
+  `optimize_abstract_operations` entrances (365 lib tests pass on macOS
+  arm64): each positive leg runs a verified Terminal-Psi artifact
+  admitted through the real `lower_artifact_for_optimization` boundary
+  and commits through the selection's own rule; negative legs decline
+  the empty workload; boundary legs decline near-miss workloads — a
+  conditional join with distinct returns for control-flow cleanup, a
+  merge parameter with a distinct false-arm source for copy
+  propagation, an add over unknown parameters for sparse conditional
+  constant propagation and global value numbering, a certified
+  obligation no elision rule covers for proof-check elision, and
+  all-live scalar work for dead scalar elimination; every member is a
+  `PsiOptimization` selection, so disabled legs are sibling-selection
+  identities on the member's own positive workload; the measured
+  five-axis `OptimizationWorkBudget` admits at the exact recorded usage
+  and refuses one step below on every axis; determinism legs compare
+  independent runs and publications across commits, usage, decisions,
+  manifests, ledgers, and identity bundles; fixed-point legs re-admit
+  the published run's transformed unit through
+  `VerifiedPsiOptimizationSession::from_transformed` — the legal second
+  input — and re-run the selected registry to a terminal decline;
+  corruption legs reject drifted phase projections, forged commit
+  outputs, foreign sessions, ledgers, manifests, decision logs, and
+  usage records through the independent publication replay, plus a
+  foreign complete-selection projection refused at the phase entrance;
+  and malformed carriers fail closed at the external-decision decode
+  and artifact admission boundaries.
   Remaining:
   the same matrix for the selected-instructions phase's `runtime_spill`
   exact rule, then the other phases' exact rules.
