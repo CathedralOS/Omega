@@ -293,8 +293,10 @@ fn x86_64_register_name(code: u8) -> String {
 /// `str` per save slot including the saved link register.
 fn aarch64_prologue_saves(prologue: &[u8]) -> Vec<(String, u64)> {
     let mut words = prologue
-        .chunks_exact(4)
-        .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()));
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|chunk| u32::from_le_bytes(*chunk));
     let first = words.next().expect("prologue adjusts the stack pointer");
     assert_eq!(
         first & 0xff00_03ff,
@@ -321,8 +323,10 @@ fn aarch64_prologue_saves(prologue: &[u8]) -> Vec<(String, u64)> {
 /// one `ldr` per saved slot in reverse prologue order.
 fn aarch64_epilogue_restores(epilogue: &[u8]) -> Vec<(String, u64)> {
     let words = epilogue
-        .chunks_exact(4)
-        .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|chunk| u32::from_le_bytes(*chunk))
         .collect::<Vec<_>>();
     let (loads, tail) = words.split_at(words.len() - 1);
     assert_eq!(
