@@ -1,3 +1,6 @@
+//! The proposition vocabulary, evidence contract lanes and outcome guards
+//! a module retains for proof.
+
 use super::{
     BTreeMap, BTreeSet, EvidenceContractLaneKind, EvidenceTermId, IntegerSign, IntegerType,
     MachineId, ModuleError, PlaceId, Proposition, PropositionBinderArgumentKind,

@@ -1,3 +1,6 @@
+//! Contract clauses: the proposition shape each clause kind may carry and
+//! the machine scope a clause's places must stay within.
+
 use super::{
     BTreeSet, ContractClauseKind, ContractId, ModuleError, Proposition, ScalarTerm, ScalarType,
     StructuralFieldType, TerminalMachine, TerminalModule, ValueId, structural_leaf_type,

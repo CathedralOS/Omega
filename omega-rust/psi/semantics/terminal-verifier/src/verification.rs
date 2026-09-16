@@ -1,3 +1,15 @@
+//! Proof verification of one validated terminal module.
+//!
+//! `verify_module` (and its interpretation, optimization and fixed-fuel
+//! variants) runs `verify_validated_module`: it reconstructs every
+//! executable-site obligation and all-path fact (`reconstruction`), composes
+//! call contracts under the three exact call policies (`call_composition`),
+//! preserves copied scalar facts across storage expiry (`field_snapshots`),
+//! substitutes retained terms capture-free (`substitution`), reconstructs
+//! float-meaning projections (`float_meaning_projection`), and discharges
+//! each obligation against the proof bundle through `proof_admission`,
+//! recording evidence producers (`evidence_provenance`).
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use proof_admission::{
