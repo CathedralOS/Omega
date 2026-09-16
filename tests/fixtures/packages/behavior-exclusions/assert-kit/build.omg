@@ -1,0 +1,9 @@
+// package-manager fixture: one assertion library with a checking and a no-op
+// implementation behind the same public Trap ceiling
+// (wiki/spec/build/behavior_exclusions.md). The library composes the no-op
+// implementation by default; an application selects the one it composes.
+
+machine build(builder: &mut Build) {
+    builder.package("assert-kit");
+    builder.select_provider<Assert, NoOpAssert>();
+}

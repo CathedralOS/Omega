@@ -1,0 +1,16 @@
+// Application root: one assertion through the selected implementation. The
+// entry keeps the requirement's public Trap allowance; the build decides
+// whether the composed product may actually trap.
+use assert_kit::main;
+use omega::language::core::service;
+
+data Main {
+    assert: Service<Assert> in Bound;
+}
+
+machine Main::main(&mut self)
+reaches Assert
+crashes Trap
+{
+    self.assert.check(1 == 1);
+}

@@ -1,0 +1,12 @@
+// package-manager fixture: composes assert-kit's NoOpAssert and excludes
+// Trap from the product; the optional optimization must not decide the
+// verdict.
+
+machine build(builder: &mut Build) {
+    builder.application("no-op-assert-app");
+    builder.depend(Source::Path { location: "../assert-kit" });
+    builder.select_provider<Assert, NoOpAssert>();
+    builder.optimizations.enable(Optimization::ControlFlowCleanup);
+    builder.exclude_crash(CrashCause::Trap);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}

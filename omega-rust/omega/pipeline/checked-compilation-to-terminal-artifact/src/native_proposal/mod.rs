@@ -374,9 +374,16 @@ fn produce_callback_thunk_artifact(
     // The callback body is part of the admitted composition; the authored
     // exclusions apply to its unoptimized module exactly as to the program
     // entry's.
+    let provenance =
+        crate::terminal_artifact::behavior_exclusions::MachineProvenance::from_lowering(
+            checked,
+            &lowered.terminal,
+            placement.selected_machine,
+        );
     crate::terminal_artifact::behavior_exclusions::verify_module_behavior_exclusions(
         checked,
         &lowered.terminal.semantic_module,
+        &provenance,
     )?;
     let psi_optimizations = checked.optimization_selections().project_psi();
     let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(
