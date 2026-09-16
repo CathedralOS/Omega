@@ -33,7 +33,12 @@ fn window_demo_runs_headless_to_native_exit() {
             )
         },
     );
-    let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
+    let outcome = checked_interpreter::interpret_entry(
+        &checked,
+        "Main::main",
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(
         outcome.error, None,
         "the headless run must not decline: {:?}",

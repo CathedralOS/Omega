@@ -5,7 +5,10 @@
 //! struct and returning a plan-like struct -- the exact call shape the Layout
 //! machinery makes (wiki/spec/layouts/plans.md).
 
-use checked_interpreter::{BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA, evaluate_build_time_machine, BuildMachineEvaluationRequest, interpret_entry};
+use checked_interpreter::{
+    BuildMachineEvaluationRequest, BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE,
+    CURRENT_EVALUATION_USAGE_SCHEMA, evaluate_build_time_machine, interpret_entry,
+};
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::fs;
@@ -93,12 +96,18 @@ machine Main::main(&mut self) { }
         ],
     };
 
-    let first =
-        evaluate_build_time_machine(&checked.typed, BuildMachineEvaluationRequest::named("Planner::plan", vec![schema.clone()])).map(BuildTimeOperationEvaluation::into_measured)
-            .expect("plan() should evaluate with usage");
-    let second =
-        evaluate_build_time_machine(&checked.typed, BuildMachineEvaluationRequest::named("Planner::plan", vec![schema])).map(BuildTimeOperationEvaluation::into_measured)
-            .expect("equal evaluation should reproduce usage");
+    let first = evaluate_build_time_machine(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("Planner::plan", vec![schema.clone()]),
+    )
+    .map(BuildTimeOperationEvaluation::into_measured)
+    .expect("plan() should evaluate with usage");
+    let second = evaluate_build_time_machine(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("Planner::plan", vec![schema]),
+    )
+    .map(BuildTimeOperationEvaluation::into_measured)
+    .expect("equal evaluation should reproduce usage");
     assert_eq!(first.usage(), second.usage());
     assert_eq!(first.usage().schema(), CURRENT_EVALUATION_USAGE_SCHEMA);
     assert_eq!(first.usage().schedule(), CURRENT_EVALUATION_STEP_SCHEDULE);
@@ -139,8 +148,12 @@ machine Main::main(&mut self) { }
 
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("arity program should compile");
-    let error = evaluate_build_time_machine(&checked.typed, BuildMachineEvaluationRequest::named("Planner::plan", Vec::new())).map(BuildTimeOperationEvaluation::into_value)
-        .expect_err("missing argument should be a clear error");
+    let error = evaluate_build_time_machine(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("Planner::plan", Vec::new()),
+    )
+    .map(BuildTimeOperationEvaluation::into_value)
+    .expect_err("missing argument should be a clear error");
     assert!(
         error.contains("takes 1 argument"),
         "expected the arity message, got: {error}"
@@ -172,7 +185,11 @@ machine Main::main(&mut self) { }
         fields: vec![("value".to_owned(), BuildTimeValue::Int(3))],
     };
 
-    let evaluated = evaluate_build_time_machine(&checked.typed, BuildMachineEvaluationRequest::named("Mutator::replace", vec![argument.clone()])).map(BuildTimeOperationEvaluation::into_measured)
+    let evaluated = evaluate_build_time_machine(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("Mutator::replace", vec![argument.clone()]),
+    )
+    .map(BuildTimeOperationEvaluation::into_measured)
     .expect("local mutation should evaluate in an isolated value graph");
 
     assert_eq!(evaluated.value(), &BuildTimeValue::Int(9));
