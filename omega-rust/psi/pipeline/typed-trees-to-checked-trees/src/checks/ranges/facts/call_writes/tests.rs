@@ -8,7 +8,7 @@ fn program() -> typed_trees::TypedTrees {
         machine first(value: u64) -> u64 {
             pair(leaf(value), leaf(leaf(value)));
             let result: u64 = pair(leaf(value), leaf(value));
-            transition { _ -> next(result) }
+            transition { _ -> next(pair(result, leaf(value))) }
             state next(value: u64) -> u64 {
                 pair(leaf(value), leaf(value));
                 leaf(value)
@@ -38,6 +38,7 @@ fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
     let frames = validation::CallFrameResolver::new(&program);
     let mut expressions = 0;
     let mut statements = 0;
+    let mut transitions = 0;
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
@@ -50,9 +51,6 @@ fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
                     expected.call_ordinal,
                 )
                 .expect("authored occurrence");
-                if matches!(site, CallSite::TransitionNamed { .. }) {
-                    continue;
-                }
                 let actual = context
                     .find_call(&program, machine, state, expected.statement_index, &site)
                     .expect("exact call survives the owner-local join");
@@ -108,7 +106,37 @@ fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
                             "equal payload is not the authored statement"
                         );
                     }
-                    CallSite::TransitionNamed { .. } => unreachable!(),
+                    CallSite::TransitionNamed {
+                        path,
+                        arguments,
+                        evidence_arguments,
+                        source_span,
+                        authored_call_selection,
+                    } => {
+                        transitions += 1;
+                        // An identical payload borrowed from elsewhere is not
+                        // the authored target node.
+                        let copied = *path;
+                        let forged = CallSite::TransitionNamed {
+                            path: &copied,
+                            arguments,
+                            evidence_arguments,
+                            source_span,
+                            authored_call_selection,
+                        };
+                        assert!(
+                            context
+                                .find_call(
+                                    &program,
+                                    machine,
+                                    state,
+                                    expected.statement_index,
+                                    &forged,
+                                )
+                                .is_none(),
+                            "equal payload is not the authored transition target"
+                        );
+                    }
                 }
             }
         }
@@ -118,6 +146,10 @@ fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
         "fixture exercises nested and sibling expressions"
     );
     assert_eq!(statements, 3);
+    assert_eq!(
+        transitions, 1,
+        "fixture exercises the named transition target join"
+    );
 }
 
 #[test]
