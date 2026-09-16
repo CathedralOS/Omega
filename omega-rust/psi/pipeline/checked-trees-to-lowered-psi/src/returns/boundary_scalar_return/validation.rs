@@ -45,6 +45,42 @@ pub(crate) fn validate_boundary_scalar_return<'a>(
     {
         return unsupported("result-bearing boundary call coordinates are not canonical");
     }
+    // The checked Unit plan of the same machine describes this call too. Both
+    // custody copies must name one call site, target and source occurrence.
+    if let Some(unit) = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(plan.machine)
+    {
+        let CheckedUnitEffectOperationPlan::BoundaryCall {
+            source_site: authored_site,
+            ..
+        } = &plan.boundary_call
+        else {
+            return unsupported("result-bearing boundary plan does not contain a boundary call");
+        };
+        let agrees = unit.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    coordinate: unit_coordinate,
+                    source_site: unit_site,
+                    target_machine: unit_machine,
+                    target_state: unit_state,
+                    ..
+                } if unit_coordinate == coordinate
+                    && unit_site == authored_site
+                    && unit_machine == target_machine
+                    && unit_state == target_state
+            )
+        });
+        if !agrees {
+            return unsupported(
+                "result-bearing boundary call disagrees with the machine's checked Unit plan",
+            );
+        }
+    }
     let mut matches = plans
         .boundary_machines
         .iter()

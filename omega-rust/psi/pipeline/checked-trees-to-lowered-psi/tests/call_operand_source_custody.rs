@@ -71,7 +71,7 @@ const CALLABLE_BOUNDARY_SOURCE: &str = r#"
     }
     data Main {}
     machine Main::main(left: i32, right: i32)
-    reaches Host invokes Host;
+    reaches Host
     {
         Host::finish(left, right);
     }
@@ -468,10 +468,11 @@ fn assert_operation_custody(checked: &checked_trees::CheckedTrees) {
                 let operation = &mut changed.facts.flow.terminal_unit_effects.machines[plan_index]
                     .operations[operation_index];
                 if mutate_operation_custody(operation, mutation) {
+                    let operation = operation.clone();
                     assert!(
                         checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main")
                             .is_err(),
-                        "operation={operation_index}, outer custody mutation={mutation}"
+                        "operation={operation_index}, outer custody mutation={mutation}: {operation:?}"
                     );
                 }
             }
