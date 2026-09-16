@@ -4,6 +4,7 @@ use crate::checks::termination::progress::lineage::StateParameterLineage;
 use crate::checks::termination::progress::lineage::transfers;
 use symbols::SymbolHandle;
 
+mod arrivals;
 mod discovery;
 mod projected;
 
