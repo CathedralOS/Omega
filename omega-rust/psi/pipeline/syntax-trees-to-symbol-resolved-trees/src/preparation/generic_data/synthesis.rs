@@ -99,8 +99,15 @@ pub(super) fn desugar_generic_data_instances_with_selection(
         // These compiler-owned proof algebras never acquire runtime layout.
         // Keep their generic argument structurally visible so checked content
         // plans retain a normalized coordinate-space/unit identity instead of
-        // collapsing it into a synthesized diagnostic spelling.
-        if matches!(definition.name.as_str(), "IntervalSet" | "CountedQuantity") {
+        // collapsing it into a synthesized diagnostic spelling. The exemption
+        // covers only the unmoduled declarations a bare algebra spelling can
+        // select; a module-owned declaration with the same leaf is ordinary
+        // user data reachable through its qualified or imported path, and it
+        // normalizes as a template like any other module record.
+        if matches!(definition.name.as_str(), "IntervalSet" | "CountedQuantity")
+            && super::module_constants::module_path(syntax, definition.name.source_span().source_id)
+                .is_none()
+        {
             continue;
         }
         let definition_parameters = syntax
