@@ -995,6 +995,30 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   grammars through its own `SaturatingAddZero`/`SaturatingAddZeroLeft`
   source shapes, runs its own dead-unit scan, and never consults the
   pair descriptor).
+  `PairOperandShape::BinaryRightLiteralScratchDefs` and
+  `BinaryLeftLiteralScratchDefs` declare the surviving-`Use` grammars
+  extended past the scalar `Def` result: every operand past the result
+  is a scratch `Def` the fold drops under occurrence-free custody —
+  each dropped register must occur nowhere else in the function — and
+  `SATURATING_ADD_ZERO_COPIES` now declares one pair per `Use` position
+  per carrier, folding `MaterializeI64(0)` feeding `SaturatingAdd` on
+  any of the eight carriers into a `CopyI64` of the surviving `Use`
+  under `LiteralFoldPolicy::SATURATING_ADD_ZERO_V1`. The u64 pairs keep
+  the exact three-operand grammar; every other carrier binds the
+  clamped row whose bound scratch `Def` — early-clobber on both
+  targets — the realization computes its saturation bound through, and
+  the same `DeadConsumerUnitDefs` gate retires aarch64's `nzcv`
+  definition while x86-64's `rflags` clobber drops unconditionally
+  (595 crate tests pass, including firing on both Linux targets at
+  either operand position of every clamped carrier, live-`nzcv`
+  rejection under a conditional-branch terminator, cross-carrier
+  kind-versus-row rejection, scratch-custody negatives — a tail `Use`
+  or a register read or defined elsewhere — forbidden operand bindings,
+  decision-field substitution, and wrong-policy negatives; the replay
+  restates the clamped grammars through its own
+  `SaturatingAddZeroScratch`/`SaturatingAddZeroLeftScratch` source
+  shapes, re-derives each dropped `Def`'s custody itself, and never
+  consults the pair descriptor).
   Remaining: further unit roles beyond retired implicit definitions,
   stack- and control-flow-carrying relationships, and trap relationships
   beyond the existing `FaultDischargedByLiteral` and
