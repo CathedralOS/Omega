@@ -1,5 +1,6 @@
 use compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+    ArtifactEmissionPolicy, CheckedCompileRequest, CompileOptions, CompileRequest,
+    RequestedCompileProduct, compile, compile_to_checked,
 };
 use effects::provider_plan::ProviderBinding;
 use std::fs;
@@ -13,9 +14,14 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        // Every fixture in this target shares the process temp dir, so give
+        // each one a unique suffix: parallel tests must not overwrite or
+        // delete a source tree another compile is still reading.
+        static NEXT_FIXTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let root = std::env::temp_dir().join(format!(
-            "omega-terminal-import-custody-{}",
-            std::process::id()
+            "omega-terminal-import-custody-{}-{}",
+            std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create Terminal import fixture");
@@ -239,22 +245,59 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
 /// pipeline. `Ok` means native emission succeeded; `Err` carries every
 /// rendered diagnostic.
 fn compile_called_leaf(leaf_declaration: &str) -> Result<(), Vec<String>> {
-    // Each call needs its own fixture directory: tests in this target run in
-    // parallel and a process-wide path lets one test overwrite or delete the
-    // other's source while its compile is still reading it.
-    static NEXT_FIXTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let root = std::env::temp_dir().join(format!(
-        "omega-called-leaf-{}-{}",
-        std::process::id(),
-        NEXT_FIXTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-    ));
-    let _ = fs::remove_dir_all(&root);
-    fs::create_dir_all(&root).expect("create called-leaf fixture");
-    let main = root.join("main.omg");
-    fs::write(
-        &main,
-        format!(
-            r#"use omega::language::core::external_binding;
+    let fixture = CalledLeafFixture::new(leaf_declaration);
+    compile_called_leaf_with_policy(&fixture, None)
+}
+
+/// The same called-leaf compile under one explicit receiving
+/// mechanism-classification policy. `None` exercises the deny-by-absence
+/// default of no explicit rows.
+fn compile_called_leaf_with_policy(
+    fixture: &CalledLeafFixture,
+    terminal_authority_policy: Option<native_realization::TerminalAuthorityPolicy>,
+) -> Result<(), Vec<String>> {
+    let mut request = CompileRequest::new(CompileOptions {
+        root_path: fixture.main.clone(),
+        build_dir: Some(fixture.root.join("build")),
+        target_name: Some("windows_x86_64".to_owned()),
+    })
+    .with_requested_product(RequestedCompileProduct::NativeArtifact)
+    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    if let Some(policy) = terminal_authority_policy {
+        request = request.with_terminal_authority_policy(policy);
+    }
+    let outcome = compile(request).and_then(compiler::CompileOutcomes::into_single_report);
+    outcome
+        .map(|_| ())
+        .map_err(|diagnostics| diagnostics.iter().map(ToString::to_string).collect())
+}
+
+/// Scratch project whose `Main::main` calls the `Leaf::exit` boundary. The
+/// returned value keeps the source tree alive for both the checked read that
+/// derives owner policy rows and the subsequent full native compile.
+struct CalledLeafFixture {
+    root: PathBuf,
+    main: PathBuf,
+}
+
+impl CalledLeafFixture {
+    fn new(leaf_declaration: &str) -> Self {
+        // Each call needs its own fixture directory: tests in this target run
+        // in parallel and a process-wide path lets one test overwrite or
+        // delete the other's source while its compile is still reading it.
+        static NEXT_FIXTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let root = std::env::temp_dir().join(format!(
+            "omega-called-leaf-{}-{}",
+            std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create called-leaf fixture");
+        let main = root.join("main.omg");
+        fs::write(
+            &main,
+            format!(
+                r#"use omega::language::core::external_binding;
 
 boundary trait Leaf {{
     machine exit(code: i32) -> i32;
@@ -268,39 +311,29 @@ machine Main::main(&mut self) reaches Leaf {{
     let keep: i32 = rc;
 }}
 "#,
-        ),
-    )
-    .expect("write called-leaf source");
-    fs::write(
-        root.join("build.omg"),
-        r#"machine build(builder: &mut Build) {
+            ),
+        )
+        .expect("write called-leaf source");
+        fs::write(
+            root.join("build.omg"),
+            r#"machine build(builder: &mut Build) {
     builder.application("called-leaf");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,
-    )
-    .expect("write called-leaf build policy");
-    let request = CompileRequest::new(CompileOptions {
-        root_path: main,
-        build_dir: Some(root.join("build")),
-        target_name: Some("windows_x86_64".to_owned()),
-    })
-    .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
-    let outcome = compile(request).and_then(compiler::CompileOutcomes::into_single_report);
-    let _ = fs::remove_dir_all(&root);
-    outcome
-        .map(|_| ())
-        .map_err(|diagnostics| diagnostics.iter().map(ToString::to_string).collect())
+        )
+        .expect("write called-leaf build policy");
+        Self { root, main }
+    }
 }
 
-/// A called evaluated `via` leaf keeps its exact normalized foreign identity
-/// all the way to the terminal-authority boundary: the only refusal is the
-/// missing independently admitted mechanism row, never a legacy fallback.
-#[test]
-fn called_evaluated_import_reaches_native_authority_as_normalized_foreign() {
-    let diagnostics = compile_called_leaf(
-        r#"windows_x86_64 machine exit_binding() -> Binding<12, 11, 0> {
+impl Drop for CalledLeafFixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}
+
+const CALLED_LEAF_DECLARATION: &str = r#"windows_x86_64 machine exit_binding() -> Binding<12, 11, 0> {
     Binding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
@@ -309,9 +342,48 @@ fn called_evaluated_import_reaches_native_authority_as_normalized_foreign() {
     }
 }
 
-machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via exit_binding();"#,
-    )
-    .expect_err(
+machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via exit_binding();"#;
+
+/// Rebuild the exact normalized-foreign mechanism rows an owner accepts for
+/// one fixture root: each retained external binding's own normalized locator
+/// and canonical boundary-entry plan, never its readable source spelling.
+fn fixture_foreign_policy(
+    main: &std::path::Path,
+    disposition: effects::TerminalAuthorityDisposition,
+) -> native_realization::TerminalAuthorityPolicy {
+    let checked = compile_to_checked(CheckedCompileRequest::new(main, Some("windows_x86_64")))
+        .expect("fixture reaches checked trees");
+    let rows = checked
+        .external_binding_rows()
+        .iter()
+        .filter_map(|row| {
+            let calling_conventions::ExternalBindingKind::Import { locator } = &row.binding else {
+                return None;
+            };
+            let boundary_entry_plan = row
+                .boundary_entry_plan
+                .as_ref()
+                .expect("retained import row carries its admitted boundary plan");
+            Some(native_realization::TerminalAuthorityPolicyRow::new(
+                native_realization::normalized_foreign_terminal_mechanism(
+                    locator,
+                    boundary_entry_plan,
+                )
+                .expect("retained foreign boundary plan is canonical"),
+                disposition.clone(),
+            ))
+        })
+        .collect();
+    native_realization::terminal_authority_policy_with_rows(rows)
+        .expect("exact normalized-foreign rows form a valid receiving policy")
+}
+
+/// A called evaluated `via` leaf keeps its exact normalized foreign identity
+/// all the way to the terminal-authority boundary: the only refusal is the
+/// missing independently admitted mechanism row, never a legacy fallback.
+#[test]
+fn called_evaluated_import_reaches_native_authority_as_normalized_foreign() {
+    let diagnostics = compile_called_leaf(CALLED_LEAF_DECLARATION).expect_err(
         "a called evaluated import still requires independently admitted terminal authority",
     );
     let expected_locator = normalize_foreign_locator(
@@ -338,6 +410,147 @@ machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via exit_binding();"#,
         "an evaluated `via` row must never degrade to legacy string-backed \
          bootstrap: {diagnostics:?}"
     );
+}
+
+/// One exact owner-supplied mechanism row classifies the demanded leaf, so
+/// the refusal moves past classification to the next independent axis:
+/// provider-execution and same-stack custody, which a receiving policy never
+/// manufactures.
+#[test]
+fn called_evaluated_import_with_exact_policy_row_reaches_execution_custody() {
+    let fixture = CalledLeafFixture::new(CALLED_LEAF_DECLARATION);
+    let policy = fixture_foreign_policy(
+        &fixture.main,
+        effects::TerminalAuthorityDisposition::from_classes([
+            effects::TerminalAuthorityClass::ProcessTermination,
+        ]),
+    );
+    assert_eq!(
+        policy.explicit_rows().len(),
+        1,
+        "the fixture retains exactly one normalized-foreign mechanism"
+    );
+    let diagnostics = compile_called_leaf_with_policy(&fixture, Some(policy))
+        .expect_err("classification authority alone cannot admit provider-execution custody");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|message| message.contains("has no admitted native settlement")),
+        "with its exact mechanism row accepted, the called import must reach \
+         the provider-execution custody gate: {diagnostics:?}"
+    );
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|message| message.contains("does not classify")),
+        "the accepted exact row must classify the demanded mechanism: {diagnostics:?}"
+    );
+}
+
+/// A policy row keyed by a different locator is not the demanded mechanism:
+/// substitution still rejects at classification with the demanded identity,
+/// never by similarity of library or provider names.
+#[test]
+fn called_evaluated_import_with_substituted_policy_row_still_rejects() {
+    let fixture = CalledLeafFixture::new(CALLED_LEAF_DECLARATION);
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &fixture.main,
+        Some("windows_x86_64"),
+    ))
+    .expect("called-leaf fixture reaches checked trees");
+    let externals = checked
+        .external_binding_rows()
+        .iter()
+        .filter(|row| {
+            matches!(
+                row.binding,
+                calling_conventions::ExternalBindingKind::Import { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    let [external] = externals.as_slice() else {
+        panic!("one retained normalized external import expected")
+    };
+    let boundary_entry_plan = external
+        .boundary_entry_plan
+        .as_ref()
+        .expect("retained import row carries its admitted boundary plan");
+    let substituted_locator = normalize_foreign_locator(
+        ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"ExitThread".to_vec(),
+        },
+        TargetProfile::WindowsX64,
+    )
+    .expect("substituted locator remains structurally valid");
+    let policy = native_realization::terminal_authority_policy_with_rows(vec![
+        native_realization::TerminalAuthorityPolicyRow::new(
+            native_realization::normalized_foreign_terminal_mechanism(
+                &substituted_locator,
+                boundary_entry_plan,
+            )
+            .expect("substituted mechanism is still canonical"),
+            effects::TerminalAuthorityDisposition::from_classes([
+                effects::TerminalAuthorityClass::ProcessTermination,
+            ]),
+        ),
+    ])
+    .expect("a substituted-locator row still forms a valid policy");
+    let diagnostics = compile_called_leaf_with_policy(&fixture, Some(policy))
+        .expect_err("a substituted locator row must not classify the demanded mechanism");
+    let expected_locator = normalize_foreign_locator(
+        ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"ExitProcess".to_vec(),
+        },
+        TargetProfile::WindowsX64,
+    )
+    .expect("valid test locator");
+    let expected_digest = format!("{:?}", expected_locator.identity_digest().as_bytes());
+    assert!(
+        diagnostics.iter().any(|message| {
+            message.contains("does not classify normalized foreign mechanism")
+                && message.contains(&expected_digest)
+        }),
+        "a substituted policy row must leave the demanded mechanism \
+         unclassified under its exact identity: {diagnostics:?}"
+    );
+}
+
+/// A selected but never-called evaluated import retains its typed identity
+/// without demanding classification or execution inputs; the same compile
+/// also accepts the owner row for that mechanism as an unused explicit row.
+#[test]
+fn uncalled_evaluated_import_compiles_with_or_without_policy_row() {
+    for with_policy in [false, true] {
+        let fixture = Fixture::new();
+        let mut request = CompileRequest::new(CompileOptions {
+            root_path: fixture.main.clone(),
+            build_dir: Some(fixture.root.join("build-native")),
+            target_name: Some("windows_x86_64".to_owned()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+        if with_policy {
+            request = request.with_terminal_authority_policy(fixture_foreign_policy(
+                &fixture.main,
+                effects::TerminalAuthorityDisposition::from_classes([]),
+            ));
+        }
+        compile(request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "an uncalled evaluated import keeps identity without execution \
+                     inputs (policy supplied: {with_policy}):\n{}",
+                    diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            });
+    }
 }
 
 /// A called legacy `via Binding::DllImport("module", "symbol")` leaf is

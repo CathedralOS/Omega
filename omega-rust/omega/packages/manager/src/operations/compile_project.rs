@@ -16,8 +16,8 @@ use compiler::{
 };
 use diagnostics::Diagnostic;
 use native_realization::{
-    TerminalAuthorityPermissionPolicy, current_terminal_authority_permission_policy,
-    current_terminal_authority_policy,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
+    current_terminal_authority_permission_policy, current_terminal_authority_policy,
 };
 use std::fmt;
 use std::path::PathBuf;
@@ -25,8 +25,9 @@ use std::path::PathBuf;
 /// Complete policy and output input for one package-aware native production.
 ///
 /// Construction defaults to the toolchain's explicit deny-by-absence
-/// receiving permission policy. Callers may replace that policy, but package
-/// acceptance is checked against the prepared project's accepted lock target.
+/// receiving permission policy and empty explicit mechanism rows. Callers may
+/// replace either policy, but package acceptance is checked against the
+/// prepared project's accepted lock target.
 pub struct PreparedLocalProjectNativeRequest {
     prepared: PreparedLocalProject,
     build_dir: PathBuf,
@@ -34,6 +35,7 @@ pub struct PreparedLocalProjectNativeRequest {
     artifact_policy: ArtifactEmissionPolicy,
     accepted_trust_admissions: Vec<TrustAdmission>,
     optimization_rollback: OptimizationRollback,
+    terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
 }
 
@@ -50,6 +52,7 @@ impl PreparedLocalProjectNativeRequest {
             artifact_policy: ArtifactEmissionPolicy::Full,
             accepted_trust_admissions: Vec::new(),
             optimization_rollback: OptimizationRollback::default(),
+            terminal_authority_policy: current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy:
                 current_terminal_authority_permission_policy(),
         }
@@ -67,6 +70,15 @@ impl PreparedLocalProjectNativeRequest {
 
     pub fn with_optimization_rollback(mut self, rollback: OptimizationRollback) -> Self {
         self.optimization_rollback = rollback;
+        self
+    }
+
+    /// Supply the receiving mechanism-classification policy. Accepted package
+    /// evidence never manufactures these rows; every demanded
+    /// normalized-foreign, syscall, or checked-physical leaf still needs one
+    /// exact explicit row from the receiving authority.
+    pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
+        self.terminal_authority_policy = policy;
         self
     }
 
@@ -150,6 +162,7 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
         artifact_policy,
         accepted_trust_admissions,
         optimization_rollback,
+        terminal_authority_policy,
         receiving_terminal_authority_permission_policy,
     } = request;
     let (entry_path, source_closure, accepted_target) = prepared.into_review_parts();
@@ -189,7 +202,7 @@ pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: current_terminal_authority_policy(),
+            terminal_authority_policy,
             receiving_terminal_authority_permission_policy,
             imports: &[],
         },
