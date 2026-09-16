@@ -5,8 +5,8 @@ use super::{StatementOutputs, StatementScope};
 use crate::value_custody::places::validate_assignment_target_handle;
 use crate::{
     machine_calls::calls, proof_contracts::arithmetic_domains, proof_contracts::domain_weakening,
-    value_custody::expression_types, value_custody::placed_views, value_custody::places,
-    value_custody::struct_literals,
+    value_custody::atomic_operations, value_custody::expression_types, value_custody::placed_views,
+    value_custody::places, value_custody::struct_literals,
 };
 use typed_trees::statement::StatementNode;
 
@@ -31,6 +31,9 @@ pub(super) fn validate(
     let exact_integer_casts = &mut *outputs.exact_integer_casts;
     let diagnostics = &mut *outputs.diagnostics;
     let state = current_state;
+    // A placed atomic field is authorized by its plan's permission rows in
+    // `placed_views`; a core atomic cell is authorized by the carried
+    // operation's receiver polarity. Neither is an ordinary exclusive write.
     if !state.is_some_and(|state| {
         placed_views::assignment_is_placed_atomic_operation(program, machine, state, assignment)
     }) {
@@ -42,6 +45,7 @@ pub(super) fn validate(
             machine,
             state,
             state_name,
+            atomic_operations::assignment_receiver_polarity(program, machine, state, assignment),
         );
     }
     calls::validate_asm_value_destination(program, machine, state, assignment, diagnostics);

@@ -71,6 +71,16 @@ impl BuiltinTypeAtom {
             .expect("builtin type atom belongs to its closed inventory")
     }
 
+    /// Whether this atom is one of the dedicated atomic core types whose
+    /// storage is operated on through the sealed atomic requirements (see
+    /// `wiki/spec/language/concurrency.md`). Ordinary integers are never
+    /// implicitly atomic, and a package type spelled `Atomic...` is not an
+    /// atom at all, so this is the classification to use instead of a name
+    /// prefix.
+    pub const fn is_atomic(self) -> bool {
+        matches!(self, Self::AtomicBool | Self::AtomicU32 | Self::AtomicU64)
+    }
+
     pub const fn identity(self) -> &'static str {
         match self {
             Self::Bool => "bool",

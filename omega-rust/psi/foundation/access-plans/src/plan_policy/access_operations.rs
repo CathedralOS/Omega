@@ -27,6 +27,22 @@ pub enum AccessOperation {
     Atomic(AtomicAccessOperation),
 }
 
+impl AccessOperation {
+    /// The borrow polarity the operation's sealed requirement declares for
+    /// its receiver. Ordinary writes, takes, and compound mutation need an
+    /// exclusive receiver; reads and every atomic family are shared
+    /// (`wiki/spec/language/concurrency.md`: "All receivers are shared").
+    /// The custody rule that authorizes an operation through a borrow reads
+    /// this rather than deciding per type name.
+    pub const fn receiver_polarity(self) -> BorrowPolarity {
+        match self {
+            Self::Read => BorrowPolarity::Shared,
+            Self::Atomic(operation) => operation.receiver_polarity(),
+            Self::Take | Self::Write | Self::CompoundMutation => BorrowPolarity::Exclusive,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AtomicAccessOperation {
     Load(MemoryOrdering),
@@ -48,6 +64,14 @@ pub enum AtomicAccessOperation {
 }
 
 impl AtomicAccessOperation {
+    /// Every sealed atomic requirement takes a shared receiver: the hardware
+    /// operation serializes the cell itself, so an exclusive borrow of the
+    /// enclosing record adds no permission and a shared one withholds none.
+    /// This is one fact for all families, including the mutating ones.
+    pub const fn receiver_polarity(self) -> BorrowPolarity {
+        BorrowPolarity::Shared
+    }
+
     pub const fn ordering_plan(self) -> AtomicOrderingPlan {
         match self {
             Self::Load(ordering) => AtomicOrderingPlan::Load(ordering),

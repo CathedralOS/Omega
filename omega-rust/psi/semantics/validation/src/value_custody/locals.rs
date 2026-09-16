@@ -265,6 +265,31 @@ impl WritableRoots<'_, '_> {
                 .iter()
                 .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
     }
+
+    /// Whether a root is reachable at all from this state, with no
+    /// mutability demand: an attached field behind any `self`, machine-owned
+    /// data, a declared local, or a parameter of either polarity. This is the
+    /// demand of an operation whose sealed requirement takes a shared
+    /// receiver (the atomic families); it still refuses an undeclared root.
+    pub(crate) fn contains_for_shared_access(&self, root_name: &str) -> bool {
+        (self.machine_symbols.has_owned_data(root_name)
+            && (self.parameters.iter().any(|parameter| parameter.is_self)
+                || self
+                    .program
+                    .machine_owned_data(self.machine)
+                    .iter()
+                    .any(|owned| owned.name.as_str() == root_name)))
+            || self.statements.iter().any(|statement| {
+                matches!(
+                    statement,
+                    StatementNode::LocalData(local_data) if local_data.name.as_str() == root_name
+                )
+            })
+            || self
+                .parameters
+                .iter()
+                .any(|parameter| parameter.name.as_str() == root_name)
+    }
 }
 
 /// Attached fields inherit the current state's receiver access, not ownership
