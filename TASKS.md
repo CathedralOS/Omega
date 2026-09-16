@@ -2536,14 +2536,20 @@ Owners include
   and wrong-width, shape-substituted (type/machine/conformance argument
   coordinates or closed conformance applications), duplicated, and
   sibling-provider records all reject rather than lending rows.
-  Remaining open slice: retain `family_tuple` rows through Terminal
-  dynamic-call/descriptor (`terminal_module/boundary/dynamic_dispatch.rs` has
-  no tuple coordinate) and Omega native table replay; runtime `Value`-binder
-  requirement spellings still need trait-signature parser admission
-  (`<Width: u32>` is admitted only on machine declarations today), and
-  boundary calls never demand provider specializations, so every roster tuple
-  needs one static call site until a dynamic selection generates the complete
-  family.
+  The `Value`-binder requirement slice landed at db52146ce1: trait
+  requirement signatures admit `<Width: u32>` through a dedicated parser
+  mode (`const` stays static-only, conformance binders stay off
+  requirement signatures), and conformance signature matching slices a
+  specialized instance's trailing realized `Value` subjects against the
+  template's declared carriers so a runtime-bound provider body still
+  satisfies its requirement without becoming roster evidence. A runtime
+  boundary argument and a roster filled only by carrier-keyed records both
+  still reject. Remaining open slice: retain `family_tuple` rows through
+  Terminal dynamic-call/descriptor
+  (`terminal_module/boundary/dynamic_dispatch.rs` has no tuple coordinate)
+  and Omega native table replay; boundary calls never demand provider
+  specializations, so every roster tuple needs one static call site until
+  a dynamic selection generates the complete family.
 
   Acceptance: widths 16/32/64 need no handwritten suffix-method family; source
   alternative order and duplicates normalize deterministically. One selected
