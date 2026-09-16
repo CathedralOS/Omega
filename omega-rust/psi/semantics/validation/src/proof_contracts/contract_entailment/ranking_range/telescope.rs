@@ -26,6 +26,30 @@ pub fn discover_state_entry_mappings(
     rank_subject: SymbolHandle,
     required: &[SymbolHandle],
 ) -> Option<Vec<Vec<SymbolHandle>>> {
+    let preferred = if rank_subject.is_valid() {
+        &[rank_subject][..]
+    } else {
+        &[][..]
+    };
+    discover_state_entry_mappings_preferring(program, machine, preferred, rank_subject, required)
+}
+
+/// The same discovery, with every entry role a multi-subject computed actual
+/// may carry. A single-subject view has one preferred carrier;
+/// `Nat::BoundedDistance` ranks BOTH its subjects, so a computed arrival
+/// mentioning copies of each claims the entry its earliest dependency names —
+/// the edge judgment then reproves equality, membership, and descent for that
+/// exact reading instead of leaving the slot role-less. `record_subject`
+/// remains the custom-view rank subject whose nominal record can claim a
+/// dependency-free literal arrival through `fresh_record_carrier`; scalar-only
+/// measures pass an invalid handle.
+pub fn discover_state_entry_mappings_preferring(
+    program: &TypedTrees,
+    machine: &Machine,
+    preferred: &[SymbolHandle],
+    record_subject: SymbolHandle,
+    required: &[SymbolHandle],
+) -> Option<Vec<Vec<SymbolHandle>>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
     let mut mappings = vec![None; states.len()];
@@ -74,7 +98,8 @@ pub fn discover_state_entry_mappings(
                         target,
                         &source_mapping,
                         arguments,
-                        rank_subject,
+                        preferred,
+                        record_subject,
                         required,
                     ) else {
                         if identity {
@@ -181,7 +206,8 @@ fn argument_mapping(
     target: &State,
     source_mapping: &[SymbolHandle],
     arguments: &[ExpressionHandle],
-    rank_subject: SymbolHandle,
+    preferred: &[SymbolHandle],
+    record_subject: SymbolHandle,
     required: &[SymbolHandle],
 ) -> Option<Vec<SymbolHandle>> {
     let source_parameters = program
@@ -216,22 +242,34 @@ fn argument_mapping(
                 .iter()
                 .position(|parameter| parameter.symbol == *subject && !parameter.is_const)?;
             let entry_symbol = source_mapping[source_position];
-            if subjects.len() == 1 || (rank_subject.is_valid() && entry_symbol == rank_subject) {
+            if subjects.len() == 1 || (entry_symbol.is_valid() && preferred.contains(&entry_symbol))
+            {
                 // Discover the authored role, not equality of current values.
                 // The edge judgment independently establishes equality of all
                 // required rank copies on every arrival before using it as an
                 // invariant. Diverging copies still fail that judgment.
-                if selected_entry.is_some_and(|selected| selected != entry_symbol) {
-                    return None;
+                // A computed actual can mention several preferred entries —
+                // both subjects of a bounded distance rank the pair — so the
+                // earliest dependency in argument order names the carrier and
+                // the rest keep the actual's substitution rather than
+                // conflicting the slot out of its telescope.
+                if let Some(selected) = selected_entry
+                    && selected != entry_symbol
+                {
+                    if subjects.len() == 1 {
+                        return None;
+                    }
+                    continue;
                 }
                 selected_entry = Some(entry_symbol);
             }
         }
-        if let Some(owner) = fresh_record_carrier(program, machine, target, position, rank_subject)
+        if let Some(owner) =
+            fresh_record_carrier(program, machine, target, position, record_subject)
         {
             let discovered_record = selected_entry
                 .is_some_and(|entry| entry_is_record_of(program, machine, entry, owner));
-            if !discovered_record && !parameters.contains(&rank_subject) {
+            if !discovered_record && !parameters.contains(&record_subject) {
                 // A fresh record literal carries no subject dependency, but
                 // its destination slot is still the record the selected view
                 // reads. A discovered scalar role can never serve this slot —
@@ -239,7 +277,7 @@ fn argument_mapping(
                 // lineage stays authoritative. The claim only locates the
                 // record; the edge judgment extracts the literal's fields and
                 // proves membership, pinning and descent independently.
-                selected_entry = Some(rank_subject);
+                selected_entry = Some(record_subject);
             }
         }
         // Auxiliary-only arithmetic over several inputs names no single role.

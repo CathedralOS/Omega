@@ -97,6 +97,46 @@ fn named_state_rank_and_endpoint_follow_reordered_arguments() {
     ));
 }
 
+const DISTANCE: &str = r#"
+machine walk(lower: u32 [0..=5], upper: u32 [5..=10])
+requires lower <= upper;
+terminates by (lower, upper) -> Nat::BoundedDistance in 0..=10;
+-> u32 {
+    transition lower < upper {
+        true -> step(lower + 1, upper)
+        false -> lower
+    }
+    state step(left: u32 [0..=10], right: u32 [0..=10]) {
+        transition left < right {
+            true -> step(left + 1, right)
+            false -> left
+        }
+    }
+}
+"#;
+
+#[test]
+fn distance_named_state_arrivals_claim_both_ranked_roles() {
+    prove(DISTANCE);
+    // A computed actual carrying copies of BOTH distance subjects claims the
+    // entry its earliest dependency names; the edge judgment then reproves
+    // membership and descent for that exact reading.
+    prove(&DISTANCE.replace(
+        "step(left + 1, right)",
+        "step(left + (right - right) + 1, right)",
+    ));
+    prove(&DISTANCE.replace(
+        "step(left + 1, right)",
+        "step(left, right + (left - left) - 1)",
+    ));
+    // A mix that does not cancel keeps its named role's range reading, which
+    // no longer fits the destination's distance.
+    reject(&DISTANCE.replace("step(left + 1, right)", "step(left + right, right)"));
+    // Diverging copies of a required distance subject keep their equality
+    // obligation: the upper role cannot silently become a second lower copy.
+    reject(&DISTANCE.replace("step(left + 1, right)", "step(left, left + 1)"));
+}
+
 #[test]
 fn named_state_cannot_reuse_a_non_inductive_machine_requirement() {
     let source = r#"

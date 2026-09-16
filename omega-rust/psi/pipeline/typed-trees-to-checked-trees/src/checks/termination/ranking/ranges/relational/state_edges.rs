@@ -26,21 +26,39 @@ pub(super) fn prove<'program>(
         targets.dedup();
     }
     let entry_is_initial = !adjacency.iter().any(|targets| targets.contains(&0));
-    let rank_subject = match measure {
-        validation::RankingRangeMeasure::Single(subject)
-        | validation::RankingRangeMeasure::Field { subject, .. }
-        | validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
-            match program.expression_table.expression(subject) {
-                ExpressionNode::Name(name)
-                    if name.symbol.is_valid() && name.head_symbol == name.symbol =>
-                {
-                    name.symbol
-                }
-                _ => SymbolHandle::default(),
-            }
+    // Every entry a computed arrival may carry. A single-subject view names
+    // its one ranked carrier; a bounded distance ranks BOTH subjects, so a
+    // computed actual mentioning copies of each claims the role its earliest
+    // dependency names rather than staying role-less. A slice subject can
+    // never carry a scalar slot — the destination's type validation rejects
+    // the claim — while the slice slot itself selects its sole collection
+    // dependency without any preference.
+    let ranked_symbol = |subject: ExpressionHandle| match program
+        .expression_table
+        .expression(subject)
+    {
+        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
+            Some(name.symbol)
         }
-        _ => SymbolHandle::default(),
+        _ => None,
     };
+    let mut preferred = Vec::new();
+    let mut record_subject = SymbolHandle::default();
+    match measure {
+        validation::RankingRangeMeasure::Single(subject)
+        | validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
+            preferred.extend(ranked_symbol(subject));
+        }
+        validation::RankingRangeMeasure::Field { subject, .. } => {
+            preferred.extend(ranked_symbol(subject));
+            record_subject = preferred.first().copied().unwrap_or_default();
+        }
+        validation::RankingRangeMeasure::Distance { lower, upper } => {
+            preferred.extend(ranked_symbol(lower));
+            preferred.extend(ranked_symbol(upper));
+        }
+        validation::RankingRangeMeasure::SliceLength(_) => {}
+    }
     // The telescope is shared with the runtime call-component judgment: a
     // call issued from a subordinate state must read the same entry roles as
     // the member's own witness or the hypothesis would name a different value.
@@ -53,9 +71,13 @@ pub(super) fn prove<'program>(
     else {
         return false;
     };
-    let Some(mappings) =
-        validation::discover_state_entry_mappings(program, machine, rank_subject, &required)
-    else {
+    let Some(mappings) = validation::discover_state_entry_mappings_preferring(
+        program,
+        machine,
+        &preferred,
+        record_subject,
+        &required,
+    ) else {
         return false;
     };
     let components = graph::strongly_connected_components(&adjacency);
