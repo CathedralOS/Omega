@@ -142,6 +142,436 @@ fn cross_block_walk_crosses_every_intermediate_block() {
     forward(&branched, &environment).unwrap();
 }
 
+/// A join forwards when every predecessor path's last writer stored the same
+/// register: one store dominating the join, or each leg's own last writer of
+/// that register.
+#[test]
+fn cross_block_joins_forward_when_every_path_resolves_one_register() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The store sits above a diamond: block 0 branches to blocks 2 and 3,
+    // both empty legs jumping to the load's block, so the store decides on
+    // both paths.
+    let diamond = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (instruction_id, block_id) in [(7, 2), (8, 3)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block_id),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block_id) + 2).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(1),
+                },
+            });
+        }
+    });
+    let result = forward(&diamond, &environment).unwrap();
+    let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+    assert_eq!(rewritten.id, LOAD);
+    assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+    validate_stored_load_forwarding(
+        &diamond,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // Each leg carrying its own last writer of the same register resolves the
+    // join the same way: block 0 loses its store, and blocks 2 and 3 each
+    // store VALUE to the same place range.
+    let per_leg = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions.remove(1);
+        function.memory_accesses.remove(0);
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (instruction_id, block_id) in [(7, 2), (9, 3)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block_id),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block_id) + 2).unwrap()),
+                instructions: vec![instruction(
+                    SelectedInstructionId(instruction_id + 10),
+                    SelectedInstructionKind::Store {
+                        byte_offset: 0,
+                        byte_size: 8,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                )],
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(1),
+                },
+            });
+            function.memory_accesses.push(access(
+                SelectedInstructionId(instruction_id + 10),
+                4,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WritePlace,
+            ));
+        }
+    });
+    let result = forward(&per_leg, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1].instructions[0].kind,
+        SelectedInstructionKind::CopyI64
+    );
+    validate_stored_load_forwarding(
+        &per_leg,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A non-interfering access on one leg does not end its resolution: block
+    // 3's store of a different place walks past and the leg still resolves to
+    // block 0's writer.
+    let disjoint_leg = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(1),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(5).unwrap()),
+            instructions: vec![instruction(
+                SelectedInstructionId(9),
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                },
+                store,
+                &[POINTER, SCRATCH],
+            )],
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(1),
+            },
+        });
+        function.memory_accesses.push(access(
+            SelectedInstructionId(9),
+            4,
+            PlaceId::new(2).unwrap(),
+            0,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    let result = forward(&disjoint_leg, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1].instructions[0].kind,
+        SelectedInstructionKind::CopyI64
+    );
+}
+
+/// A join rejects when its legs disagree on the stored register, when a leg's
+/// edge or terminator disturbs the pair, or when a deferred region never
+/// reaches a writer.
+#[test]
+fn cross_block_joins_reject_when_paths_disagree_or_never_resolve() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Block 0 branches to blocks 2 and 3, each storing a different register
+    // to the forwarded range: the load observes a path-dependent value.
+    let divergent = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions.remove(1);
+        function.memory_accesses.remove(0);
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (instruction_id, block_id, value) in [(7, 2, VALUE), (9, 3, SCRATCH)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block_id),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block_id) + 2).unwrap()),
+                instructions: vec![instruction(
+                    SelectedInstructionId(instruction_id + 10),
+                    SelectedInstructionKind::Store {
+                        byte_offset: 0,
+                        byte_size: 8,
+                    },
+                    store,
+                    &[POINTER, value],
+                )],
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(1),
+                },
+            });
+            function.memory_accesses.push(access(
+                SelectedInstructionId(instruction_id + 10),
+                4,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WritePlace,
+            ));
+        }
+    });
+    assert_eq!(
+        forward(&divergent, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // A register parameter defined on one leg's crossed edge redefines the
+    // carried value even though every leg's writer stored it.
+    let redefined = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (instruction_id, block_id) in [(7, 2), (8, 3)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block_id),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block_id) + 2).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(1),
+                },
+            });
+        }
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[2].terminator
+        else {
+            unreachable!()
+        };
+        edge.bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: SCRATCH,
+                parameter: VALUE,
+            },
+        });
+    });
+    assert_eq!(
+        forward(&redefined, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedUse
+    );
+    // A roster row on one leg's terminator still decides before its edge.
+    let terminator_write = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (instruction_id, block_id) in [(7, 2), (8, 3)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block_id),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block_id) + 2).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(1),
+                },
+            });
+        }
+        function.memory_accesses.push(access(
+            SelectedInstructionId(8),
+            4,
+            place(),
+            0,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    assert_eq!(
+        forward(&terminator_write, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A deferred cycle among the predecessors never reaches a writer: block 2
+    // jumps to the load's block or to block 3, which jumps back to block 2.
+    // Every arriving path does carry block 0's store, but the unresolved
+    // region keeps the walk conservative, matching the self-loop rejection.
+    let cycled = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        *edge = successor(2);
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: successor(1),
+                when_zero: successor(3),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(5).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(2),
+            },
+        });
+    });
+    assert_eq!(
+        forward(&cycled, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+}
+
 #[test]
 fn cross_block_joins_unreachable_and_entry_blocks_reject() {
     let target = NativeTarget::linux_x64();

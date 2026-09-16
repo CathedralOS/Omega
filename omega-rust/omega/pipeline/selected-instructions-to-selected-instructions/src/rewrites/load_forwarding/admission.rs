@@ -1,7 +1,7 @@
 //! Shared admission for store-to-load forwarding: locate the named load,
-//! walk back through its block and its unique-predecessor chain to the exact
-//! same-width `Store` that last wrote its place range, and prove no
-//! intervening instruction or crossed edge can disturb it.
+//! walk back through its block and across its predecessor edges to the
+//! exact same-width `Store` that last wrote its place range on every path,
+//! and prove no intervening instruction or crossed edge can disturb it.
 //!
 //! `Load64` pairs with an eight-byte `Store` and forwards to `CopyI64`.
 //! `Load32`/`Load16`/`Load8` pair with a `Store` of exactly the load's width
@@ -21,14 +21,16 @@
 //! work. Calls, hosted effects, and unaccounted writers reject.
 //!
 //! The walk is not confined to one block: reaching a block's top without
-//! interference continues through the block's only predecessor, since every
-//! path into it then runs through that one block and a store found there
-//! wrote the bytes on every path to the load. The entry block, a join with
-//! several predecessors, and a self-loop each admit a path the chain never
-//! stored through, so they end the walk in rejection. A crossed terminator
-//! sits between its block's body and the edge, so its roster rows decide
-//! first; each crossed edge is then checked for transports that could
-//! redefine the carried registers or write the forwarded place.
+//! interference continues through every predecessor block, and the deferred
+//! block resolves once each of those paths resolves to the same stored
+//! register — a store dominating a join decides all its legs, as does each
+//! leg's own store of that register. The entry block, a block no edge
+//! reaches, and a deferred region whose paths never resolve to one register
+//! — a self-loop or writerless cycle included — each end the walk in
+//! rejection. A crossed terminator sits between its block's body and the
+//! edge, so its roster rows decide first; each crossed edge is then checked
+//! for transports that could redefine the carried registers or write the
+//! forwarded place.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
@@ -215,19 +217,31 @@ pub(super) fn admit<'source>(
     {
         return Err(StoredLoadForwardingError::ConstraintMismatch);
     }
-    // Walk back to the last writer of the forwarded range. The first
-    // potentially interfering access decides: an exact same-width referent
-    // store forwards; anything else rejects. When a block's top is reached
-    // without interference the walk crosses into its only predecessor block;
-    // the carried `value` and the load's `output` are validated against every
-    // crossed edge and terminator once the store is found.
+    // Walk back to the last writer of the forwarded range on every path to
+    // the load. Within a block the first potentially interfering access
+    // scanning back decides: an exact same-width referent store resolves the
+    // block to the register that store wrote; anything else rejects. A block
+    // whose body shows no interference defers to its predecessors — the walk
+    // crosses every edge into it and each predecessor's terminator rows
+    // decide first. A deferred block then resolves when every predecessor
+    // path resolves to one register: either the same store dominates the
+    // join or each leg's own last writer stored that register. The entry
+    // block's implicit path, a block no edge reaches, and a deferred region
+    // whose paths never agree on one register — including cycles with no
+    // writer — each leave the load unproven. The carried `value` and the
+    // load's `output` are validated against every crossed edge, terminator,
+    // and walked span once the common register is known.
     let mut visited = vec![false; function.blocks.len()];
+    let mut resolved = vec![None; function.blocks.len()];
+    let mut deferred = Vec::new();
     let mut walked = Vec::new();
     let mut between = Vec::new();
     let mut crossed = Vec::new();
-    let mut cursor = block_index;
-    let mut cursor_end = load_index;
-    let value = loop {
+    let mut pending = vec![(block_index, load_index)];
+    while let Some((cursor, cursor_end)) = pending.pop() {
+        if visited[cursor] {
+            continue;
+        }
         visited[cursor] = true;
         walked.push(cursor);
         let current = &function.blocks[cursor];
@@ -260,13 +274,13 @@ pub(super) fn admit<'source>(
             }
         }
         if let Some(value) = found {
-            break value;
+            resolved[cursor] = Some(value);
+            continue;
         }
         between.push((cursor, 0, cursor_end));
-        // Reached the block's top. Every path into it must run through
-        // exactly one predecessor block; the entry block has an implicit
-        // path no predecessor covers, and a join or self-loop admits paths
-        // outside the walked chain.
+        // Reached the block's top. The writer must arrive on every path in:
+        // the entry block has an implicit path no predecessor covers, and a
+        // block no edge names leaves this path without a writer at all.
         if current.id == function.entry_block {
             return Err(StoredLoadForwardingError::UnsupportedPair);
         }
@@ -276,34 +290,58 @@ pub(super) fn admit<'source>(
                 .into_iter()
                 .filter(|successor| successor.block == current.id)
                 .collect();
-            if !edges.is_empty() {
-                predecessors.push((predecessor_index, edges));
+            if edges.is_empty() {
+                continue;
+            }
+            // The terminator instruction sits between the predecessor's
+            // body and the crossed edge, so an interfering row on it decides
+            // first. It never has the exact referent `Store` kind, so it
+            // rejects the pair.
+            let terminator = terminator_instruction(&predecessor.terminator);
+            if function
+                .memory_accesses
+                .iter()
+                .any(|access| access.instruction == terminator.id && interferes(&forwarded, access))
+            {
+                return Err(StoredLoadForwardingError::AliasingWrite);
+            }
+            crossed.extend(edges.iter().copied());
+            predecessors.push(predecessor_index);
+            if !visited[predecessor_index] {
+                pending.push((predecessor_index, predecessor.instructions.len()));
             }
         }
-        let [(predecessor_index, edges)] = predecessors.as_slice() else {
-            return Err(StoredLoadForwardingError::UnsupportedPair);
-        };
-        // The terminator instruction sits between the predecessor's body and
-        // the crossed edge, so an interfering row on it decides first. It
-        // never has the exact referent `Store` kind, so it rejects the pair.
-        let terminator = terminator_instruction(&function.blocks[*predecessor_index].terminator);
-        let mut terminator_interferes = false;
-        for access in function
-            .memory_accesses
-            .iter()
-            .filter(|access| access.instruction == terminator.id)
-        {
-            terminator_interferes |= interferes(&forwarded, access);
-        }
-        if terminator_interferes {
-            return Err(StoredLoadForwardingError::AliasingWrite);
-        }
-        crossed.extend(edges.iter().copied());
-        if visited[*predecessor_index] {
+        if predecessors.is_empty() {
             return Err(StoredLoadForwardingError::UnsupportedPair);
         }
-        cursor = *predecessor_index;
-        cursor_end = function.blocks[cursor].instructions.len();
+        deferred.push((cursor, predecessors));
+    }
+    // Resolve the deferred region: a block resolves to the one register
+    // every predecessor resolved to, so convergence through a shared
+    // predecessor lands while divergent legs, writerless cycles, and
+    // unreached regions leave the load's block unresolved.
+    let value = loop {
+        if let Some(value) = resolved[block_index] {
+            break value;
+        }
+        let mut progressed = false;
+        for (block, predecessors) in &deferred {
+            if resolved[*block].is_some() {
+                continue;
+            }
+            let mut values = predecessors
+                .iter()
+                .map(|predecessor| resolved[*predecessor]);
+            if let Some(Some(first)) = values.next()
+                && values.all(|value| value == Some(first))
+            {
+                resolved[*block] = Some(first);
+                progressed = true;
+            }
+        }
+        if !progressed {
+            return Err(StoredLoadForwardingError::UnsupportedPair);
+        }
     };
     if value == output {
         return Err(StoredLoadForwardingError::UnsupportedUse);
