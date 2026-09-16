@@ -1,6 +1,12 @@
 //! Two object-file lanes that share a crate and almost nothing else, plus the
 //! symbol-naming rules both obey.
 //!
+//! Start at `object_plan.rs` for the mutable lane; `relocation_free_object`
+//! is the immutable lane with its publication and text-section children,
+//! `fragment_container` and `artifact_custody` are its optimizer entrances,
+//! and `names` and `target_matrix` hold the spellings and the target policy
+//! both lanes obey.
+//!
 //! The first lane is mutable and arena-backed: `ObjectPlan` and
 //! `RelocationPlan`, which the image builders consume and which serializes as
 //! the OMGOBJ container. The second is immutable and SHA-256-identified:
@@ -47,7 +53,7 @@
 //! than matching a format wildcard.
 
 //! The architecture and object-format tag mappings are written out three times:
-//! as `u32` in `container/ids.rs`, as `u8` in the relocation-free object codec,
+//! as `u32` in `object_plan/container/ids.rs`, as `u8` in the relocation-free object codec,
 //! and in the machine-code representation's text-section identity. A shared
 //! `to_tag()` on the enums is the obvious
 //! cleanup and would be wrong. These are three independently versioned wire
@@ -55,7 +61,7 @@
 //! shared table means a change made for one format silently changes the other
 //! two, and silently reinterprets every text-section identity already hashed and
 //! stored. The duplication is the version boundary. Worth knowing before you
-//! trust it: only the `container/ids.rs` copy is pinned by a test.
+//! trust it: only the `object_plan/container/ids.rs` copy is pinned by a test.
 //!
 //! `RelocationOrigin::SemanticOperation` and `RelocationOrigin::SemanticEdge`
 //! carry byte-identical payloads - a symbol handle and a `u64` - and still get
@@ -98,26 +104,69 @@
 //! mistake tag 4 for something it knows. Do not bump it without leaving the same
 //! kind of trace.
 
-mod container;
-mod fragment_container;
-pub use fragment_container::*;
 mod artifact_custody;
-pub use artifact_custody::*;
+mod fragment_container;
 mod names;
-mod plan;
+mod object_plan;
 mod relocation_free_object;
-mod relocation_free_text_section;
-mod relocations;
-mod sections;
-mod symbols;
 mod target_matrix;
 
-pub use container::*;
-pub use names::*;
-pub use plan::*;
-pub use relocation_free_object::*;
-pub use relocation_free_text_section::*;
-pub use relocations::*;
-pub use sections::*;
-pub use symbols::*;
-pub use target_matrix::*;
+pub use artifact_custody::{
+    OptimizedObjectArtifactCustodyReceipt, OptimizedObjectArtifactError,
+    OptimizedObjectArtifactManifest, OptimizedObjectArtifactManifestDecodeError,
+    OptimizedObjectArtifactRecord, OptimizedObjectArtifactRecordDecodeError,
+    OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
+    OptimizedObjectArtifactUnavailableData, StagedValidatedOptimizedObjectArtifact,
+    ValidatedOptimizedObjectArtifactManifest, stage_validated_optimized_object_artifact,
+    validate_optimized_object_artifact,
+};
+pub use fragment_container::{
+    RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer,
+    StagedRelocationFreeObjectContainerCustodyReceipt,
+    ValidatedFunctionFragmentObjectContainerManifest,
+    stage_optimized_relocation_free_object_container,
+    validate_optimized_relocation_free_object_container,
+};
+/// The relocation-free lane's text-section input is machine-code
+/// representation data, re-exported here for existing consumers.
+pub use machine_code::{
+    InternalMachineCallResolutionKind, InternalMachineCallResolutionState, PlacedBlockSpan,
+    PlacedFunctionFragment, PlacedInstructionSpan, PlacedInternalMachineCallResolution,
+    RelocationFreeTextSectionPlacement, TextSectionPlacementPolicy,
+    TextSectionRelocationRequirements, relocation_free_text_section_identity,
+};
+pub use names::{
+    entry_symbol_name, normalized_foreign_import_symbol_name, object_entry_symbol_name,
+    object_function_symbol, object_symbol_handle_by_foreign_locator, object_symbol_handle_by_name,
+    object_symbol_name, private_function_symbol_name, section_name, symbol_section_name,
+};
+pub use object_plan::container::{
+    ObjectContainerInput, ObjectContainerOutput, emit_omega_object_container,
+};
+pub use object_plan::relocations::{
+    RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, RelocationRecordSet,
+};
+pub use object_plan::sections::{SectionKind, SectionPlan};
+pub use object_plan::symbols::{
+    FunctionSymbolPlan, NormalizedImportPlan, ObjectSymbolHandle, SymbolKind, SymbolPlan,
+    SymbolSection,
+};
+pub use object_plan::{ObjectFileLayout, ObjectPlan};
+pub use relocation_free_object::publication::{
+    FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerManifestDecodeError,
+    FunctionFragmentObjectContainerStage, FunctionFragmentObjectContainerStatistics,
+    FunctionFragmentObjectContainerUnavailableData, relocation_free_object_statistics,
+};
+pub use relocation_free_object::text_section::{
+    RelocationFreeObjectFromTextError, construct_relocation_free_object_from_text,
+    validate_relocation_free_object_from_text,
+};
+pub use relocation_free_object::{
+    ObjectLocalSymbolId, RelocationFreeFunctionSymbol, RelocationFreeObjectContainer,
+    RelocationFreeObjectDecodeError, RelocationFreeObjectError, RelocationFreeObjectPlan,
+    RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
+    RelocationFreeObjectSymbolPolicy, RelocationFreeObjectSymbolRole,
+    RelocationFreeObjectTextSection, canonical_private_machine_symbol_name,
+    decode_relocation_free_object, encode_relocation_free_object, validate_relocation_free_object,
+};
+pub use target_matrix::{ObjectTargetPolicy, object_target_policy};

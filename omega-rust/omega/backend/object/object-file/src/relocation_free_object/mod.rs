@@ -3,10 +3,8 @@
 
 use std::collections::BTreeSet;
 
-mod publication;
-mod text_section;
-pub use publication::*;
-pub use text_section::*;
+pub(crate) mod publication;
+pub(crate) mod text_section;
 
 use crate::object_target_policy;
 use optimization_core::{

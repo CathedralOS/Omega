@@ -1,4 +1,12 @@
-//! The mutable arena-backed object plan the image builders consume.
+//! Start here. The mutable arena-backed object plan the image builders
+//! consume: `ObjectPlan` over its arena layout, with `symbols`, `sections`
+//! and `relocations` describing the records it holds and `container`
+//! serializing the whole plan as the OMGOBJ container.
+
+pub(crate) mod container;
+pub(crate) mod relocations;
+pub(crate) mod sections;
+pub(crate) mod symbols;
 
 use crate::{
     FunctionSymbolPlan, NormalizedImportPlan, ObjectSymbolHandle, SectionPlan, SymbolPlan,
