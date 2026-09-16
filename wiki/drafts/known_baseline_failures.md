@@ -34,6 +34,18 @@ The crate's `src/tests`, `src/flow`, `src/values`, `src/facts`, and
 termination/multiplicity check areas were under live work claims when this row
 was refreshed, so no attribution beyond the names is recorded here.
 
+## checked-trees-to-lowered-psi
+
+`mbx nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast` at
+3e985353b9 on 2026-09-16 (macOS arm64) reports 1 failure in this crate's lib
+tests: `tests::reach_and_scalar_lowering::direct_float_result_proof_only_contract_rejects_additional_value_clauses`.
+The test asserts `lower_machine` returns
+`Unsupported("machine must have exactly one requires and one ensures clause")`;
+the machine now lowers differently since the float-entry-range retention work
+(fed329df49 touched `src/unit/runtime_requirements/source.rs` and adjacent
+contract plumbing), so the expectation is stale relative to the landed clause
+handling rather than the task diff that observed it.
+
 ## compiler build-target activation
 
 `mbx nextest run -p compiler --test build_target_activation` — 49/51 pass; 2
