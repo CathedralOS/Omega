@@ -345,16 +345,36 @@ fn terminate_before(
     deadline: Instant,
     limits: BoundedCaptureLimits,
 ) -> Result<(), BoundedProcessRunError> {
-    child.terminate().map_err(|error| {
-        BoundedProcessRunError::Cleanup(format!(
-            "could not terminate the process container: {error}"
-        ))
-    })?;
     let started = Instant::now();
     let cleanup_budget = limits
         .cleanup_timeout
         .min(deadline.saturating_duration_since(started));
     let cleanup_deadline = started.checked_add(cleanup_budget).unwrap_or(started);
+    loop {
+        match child.terminate() {
+            Ok(()) => break,
+            Err(error) if BoundedProcessChild::group_signal_refused(&error) => {
+                // A primary that is exiting at this instant is neither
+                // signallable nor reapable yet on macOS; give it the cleanup
+                // budget to become one, then let `terminate` reap and retry.
+                if Instant::now() >= cleanup_deadline {
+                    return Err(BoundedProcessRunError::Cleanup(format!(
+                        "could not terminate the process container: {error}"
+                    )));
+                }
+                std::thread::sleep(
+                    limits
+                        .poll_interval
+                        .min(cleanup_deadline.saturating_duration_since(Instant::now())),
+                );
+            }
+            Err(error) => {
+                return Err(BoundedProcessRunError::Cleanup(format!(
+                    "could not terminate the process container: {error}"
+                )));
+            }
+        }
+    }
     loop {
         match child.try_wait() {
             Ok(Some(_)) => return Ok(()),

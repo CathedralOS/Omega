@@ -96,7 +96,47 @@ impl BoundedProcessChild {
                 self.container_closed = true;
                 Ok(())
             }
+            Err(error) if Self::group_signal_refused(&error) => {
+                // macOS answers EPERM, not ESRCH, when every remaining member
+                // of the group is an unreaped zombie (POSIX reserves EPERM for
+                // a live process this caller may not signal). A primary that
+                // exited before cleanup is exactly that case, so reap it and
+                // retry once: a surviving descendant is then signalled by the
+                // retry, an empty group answers ESRCH and closes, and a live
+                // member this caller genuinely cannot signal still refuses.
+                // A primary still in the middle of exiting is not reapable
+                // yet and refuses again; the caller that owns the cleanup
+                // budget polls and retries `terminate` in that case.
+                self.try_wait()?;
+                match self.child.kill() {
+                    Ok(()) => {
+                        self.container_closed = true;
+                        Ok(())
+                    }
+                    Err(retry) if native_container_already_absent(&retry) => {
+                        self.container_closed = true;
+                        Ok(())
+                    }
+                    Err(_) => Err(error),
+                }
+            }
             Err(error) => Err(error),
+        }
+    }
+
+    /// Whether a `terminate` failure means the platform refused to signal a
+    /// group that still exists (POSIX EPERM). On macOS this is also what an
+    /// exiting-but-not-yet-reapable primary answers, so it is worth retrying
+    /// within the caller's cleanup budget rather than reporting at once.
+    pub fn group_signal_refused(error: &io::Error) -> bool {
+        #[cfg(unix)]
+        {
+            error.raw_os_error() == Some(1)
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = error;
+            false
         }
     }
 
@@ -158,7 +198,8 @@ fn native_container_already_absent(error: &io::Error) -> bool {
     #[cfg(unix)]
     {
         // POSIX ESRCH alone proves that no process group exists. EPERM proves
-        // the opposite: a group exists but this caller cannot signal it.
+        // the opposite: a group exists but this caller cannot signal it, or,
+        // on macOS, its only members are zombies (see `terminate`).
         error.raw_os_error() == Some(3)
     }
     #[cfg(not(unix))]
