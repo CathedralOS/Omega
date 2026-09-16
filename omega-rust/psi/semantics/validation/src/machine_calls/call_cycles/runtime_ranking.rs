@@ -287,6 +287,7 @@ pub(super) fn check_component(
                                 | projection::RankOrder::BoundedDistance(_)
                                 | projection::RankOrder::SliceLength
                                 | projection::RankOrder::DeclaredIdentity { .. }
+                                | projection::RankOrder::DeclaredComputation { .. }
                         ) {
                             match prove_ranking_range_call(
                                 program,

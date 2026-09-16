@@ -1,0 +1,31 @@
+// FAIL CANARY. `Countdown::Doubled` and `Countdown::Remaining` are two
+// declared measures; a computation view and an identity view do not share a
+// ranking order even though both rank the same subject monotonically.
+data Countdown {}
+
+measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
+measure Countdown::Remaining(value: u8) -> u8 { value }
+
+data Main {}
+
+machine Main::main(&mut self) -> u8 {
+    transition { _ -> self.scan_a(100) }
+}
+
+machine Main::scan_a(&mut self, remaining: u8 [0..=100])
+terminates by remaining -> Countdown::Doubled in 0..=200;
+-> u8 {
+    transition remaining > 0 {
+        true -> self.scan_b(remaining)
+        false -> remaining
+    }
+}
+
+machine Main::scan_b(&mut self, pending: u8 [0..=100])
+terminates by pending -> Countdown::Remaining in 0..=100;
+-> u8 {
+    transition pending > 0 {
+        true -> self.scan_a(pending - 1)
+        false -> pending
+    }
+}

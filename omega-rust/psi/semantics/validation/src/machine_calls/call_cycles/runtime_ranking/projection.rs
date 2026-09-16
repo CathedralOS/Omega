@@ -1,4 +1,4 @@
-use crate::proof_contracts::contract_entailment::declared_identity_view;
+use crate::proof_contracts::contract_entailment::{ScalarViewComputation, declared_scalar_view};
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -32,6 +32,17 @@ pub(super) enum RankOrder {
     DeclaredIdentity {
         measure: SymbolHandle,
         primitive: PrimitiveType,
+    },
+    /// A declared measure whose `+`/`*` body validation's `declared_scalar_view`
+    /// admitted as strictly increasing on the naturals with builtin meaning --
+    /// the only reason the subject's descent stands for the produced rank's
+    /// descent. The rank is the body over the subject, judged by the scalar
+    /// range call judgment, which also proves its formation in the carrier.
+    /// Members share this order only through the same measure and carrier.
+    DeclaredComputation {
+        measure: SymbolHandle,
+        primitive: PrimitiveType,
+        computation: ScalarViewComputation,
     },
     Lexicographic {
         measure_index: usize,
@@ -150,17 +161,26 @@ impl RankProjection {
         {
             return None;
         }
-        // A declared identity view produces the subject's own natural rank.
-        // The classification is validation's, shared with the checked stage,
-        // so the same admission covers both readers; an optional authored
-        // range then transports through the scalar range judgment.
-        if let Some(view) = declared_identity_view(program, entry, *subject, &witness.view_path) {
+        // A declared scalar view produces the subject's own natural rank
+        // (identity) or its body over the subject (computation). The
+        // classification is validation's, shared with the checked stage, so
+        // the same admission covers both readers; an optional authored range
+        // then transports through the scalar range judgment.
+        if let Some(view) = declared_scalar_view(program, entry, *subject, &witness.view_path) {
             let primitive = unsigned_carrier(program, parameter)?;
-            return Some(Self {
-                order: RankOrder::DeclaredIdentity {
+            let order = match view.computation {
+                None => RankOrder::DeclaredIdentity {
                     measure: view.measure,
                     primitive,
                 },
+                Some(computation) => RankOrder::DeclaredComputation {
+                    measure: view.measure,
+                    primitive,
+                    computation,
+                },
+            };
+            return Some(Self {
+                order,
                 parameter: parameter.symbol,
                 argument_position,
                 subject: *subject,

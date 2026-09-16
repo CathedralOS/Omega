@@ -1,0 +1,33 @@
+// PASS CANARY. Both members select the declared computation view
+// `Countdown::Doubled` (`value * 2`). Validation admits the body once for the
+// checked stage and for the runtime call-component judgment, so the produced
+// rank is `2 * subject`: `scan_a -> scan_b` forwards it, `scan_b -> scan_a`
+// proves the strict decrease, and both sides prove the rank forms inside
+// `u8` from the members' `[0..=100]` bounds.
+data Countdown {}
+
+measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
+
+data Main {}
+
+machine Main::main(&mut self) -> u8 {
+    transition { _ -> self.scan_a(100) }
+}
+
+machine Main::scan_a(&mut self, remaining: u8 [0..=100])
+terminates by remaining -> Countdown::Doubled in 0..=200;
+-> u8 {
+    transition remaining > 0 {
+        true -> self.scan_b(remaining)
+        false -> remaining
+    }
+}
+
+machine Main::scan_b(&mut self, pending: u8 [0..=100])
+terminates by pending -> Countdown::Doubled in 0..=200;
+-> u8 {
+    transition pending > 0 {
+        true -> self.scan_a(pending - 1)
+        false -> pending
+    }
+}
