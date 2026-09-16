@@ -30,6 +30,7 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
         references: Vec::new(),
         cases: Vec::new(),
         moves: Vec::new(),
+        symbolic: true,
     };
     let mut pending = vec![(reference, Vec::new(), Vec::new())];
     while let Some((reference, segments, mut visiting)) = pending.pop() {

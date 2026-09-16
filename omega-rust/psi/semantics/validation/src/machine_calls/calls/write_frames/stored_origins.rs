@@ -12,6 +12,7 @@ use crate::machine_calls::calls::write_frames::FrameInference;
 use facts::PlaceSegment;
 use typed_trees::statement::TableLocalData;
 
+mod assignments;
 mod frozen_bindings;
 mod projections;
 mod reference_values;
@@ -27,6 +28,7 @@ pub(super) fn has_aggregate_case_shape(
         .is_some_and(|origins| !origins.cases.is_empty())
 }
 
+pub(super) use assignments::assigned_stored_origins;
 pub(super) use frozen_bindings::assignment_replaces_case_binding;
 pub(super) use frozen_bindings::assignment_replaces_reference_ancestor;
 pub(super) use frozen_bindings::binding_source;
@@ -48,6 +50,10 @@ pub(super) struct StoredLocalOrigins {
     pub references: Vec<StoredWriteOrigin>,
     pub cases: Vec<Vec<PlaceSegment>>,
     pub moves: Vec<super::path_instantiation::aggregate_arguments::AggregateMove>,
+    /// Type-derived frontier rows are a symbolic may-set: a selected element
+    /// can specialize an unknown index. Rows observed from an assigned or
+    /// initialized value already name their source selectors.
+    pub symbolic: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -162,6 +168,7 @@ pub(super) fn declaration_origins_for_query(
         references: origins,
         cases: leaves.cases,
         moves: leaves.moves,
+        symbolic: false,
     })
 }
 

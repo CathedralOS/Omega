@@ -541,6 +541,144 @@ fn helper_case_moves_require_live_and_compatible_selected_target() {
 }
 
 #[test]
+fn helper_bodies_transfer_mutable_case_state_through_proven_replacements() {
+    let helpers = r#"
+        machine reset_selected(mut input: Choice, value: &mut u64) -> Choice { input = Choice::Selected { view: View { body: value } }; input }
+        machine reset_empty(mut input: Choice) -> Choice { input = Choice::Empty {}; input }
+        machine reset_via(mut input: Choice, value: &mut u64) -> Choice { input = identity(Choice::Selected { view: View { body: value } }); input }
+        machine reset_self(mut input: Choice) -> Choice { input = identity(input); input }
+        machine reassign_twice(mut input: Choice, value: &mut u64) -> Choice { input = Choice::Empty {}; input = Choice::Selected { view: View { body: value } }; input }
+        machine clear_choice(value: &mut Choice) { value = Choice::Empty {}; }
+        machine expose_choice(mut input: Choice) -> Choice { clear_choice(&mut input); input }
+        machine set_payload(mut input: Choice, value: &mut u64) -> Choice { input.view.body = value; input }
+        machine Choice::reset(&mut self, value: &mut u64) { self = Choice::Selected { view: View { body: value } }; }
+        machine receive_choice(mut input: Choice, value: &mut u64) -> Choice { input.reset(value); input }
+    "#;
+    // A whole-carrier assignment retires the parameter's frozen rows and
+    // installs the replacement's own proven origins, so a later result reads
+    // the replacement rather than the caller's overwritten actual. Replacing
+    // a reference leaf, lending the binding to a nested call, or exposing it
+    // through a mutable receiver stays opaque.
+    for (name, body, expected) in [
+        (
+            "reset_selected",
+            "let local: Choice = reset_selected(Choice::Empty {}, &mut self.value); write_outer(Outer { inner: local.view });",
+            [Some(vec!["self.value"]), Some(vec!["self.value"])],
+        ),
+        (
+            // The carrier write itself still claims the overwritten actual's
+            // leaf; the replacement payload supplies the consumer's origin.
+            "reset_selected_over_selected",
+            "let local: Choice = reset_selected(Choice::Selected { view: View { body: &mut self.other } }, &mut self.value); write_outer(Outer { inner: local.view });",
+            [
+                Some(vec!["self.other", "self.value"]),
+                Some(vec!["self.value"]),
+            ],
+        ),
+        (
+            // The replacement's Empty case is proven, so the payload access on
+            // the result is a checked partial operation with no reachable
+            // write.
+            "reset_empty",
+            "let local: Choice = reset_empty(Choice::Selected { view: View { body: &mut self.value } }); write_outer(Outer { inner: local.view });",
+            [None, None],
+        ),
+        (
+            "reset_via",
+            "let local: Choice = reset_via(Choice::Empty {}, &mut self.value); write_outer(Outer { inner: local.view });",
+            [Some(vec!["self.value"]), Some(vec!["self.value"])],
+        ),
+        (
+            "reset_self",
+            "let local: Choice = reset_self(Choice::Selected { view: View { body: &mut self.value } }); write_outer(Outer { inner: local.view });",
+            [Some(vec!["self.value"]), Some(vec!["self.value"])],
+        ),
+        (
+            // The final assignment owns the binding; the earlier Empty case
+            // cannot resurrect its absent payload.
+            "reassign_twice",
+            "let local: Choice = reassign_twice(Choice::Empty {}, &mut self.value); write_outer(Outer { inner: local.view });",
+            [Some(vec!["self.value"]), Some(vec!["self.value"])],
+        ),
+        (
+            "expose_choice",
+            "let local: Choice = expose_choice(Choice::Selected { view: View { body: &mut self.value } }); write_outer(Outer { inner: local.view });",
+            [None, None],
+        ),
+        (
+            "set_payload",
+            "let local: Choice = set_payload(Choice::Selected { view: View { body: &mut self.other } }, &mut self.value); write_outer(Outer { inner: local.view });",
+            [None, None],
+        ),
+        (
+            "receive_choice",
+            "let local: Choice = receive_choice(Choice::Empty {}, &mut self.value); write_outer(Outer { inner: local.view });",
+            [None, None],
+        ),
+    ] {
+        assert_eq!(
+            caller_frames(&case_result_program_with_helpers(body, helpers)),
+            expected.map(|paths| paths
+                .map(|paths: Vec<&str>| paths.into_iter().map(str::to_owned).collect())),
+            "{name}",
+        );
+    }
+}
+
+#[test]
+fn mutable_local_replacements_transfer_their_exact_origins() {
+    // The same transfer applies to caller locals: a whole-carrier or
+    // field-prefixed assignment retires the binding's stored evidence and
+    // installs the replacement's proven rows for later projections.
+    for (name, body, expected) in [
+        (
+            "replaced_with_helper_result",
+            "let mut local: Choice = Choice::Empty {}; local = identity(Choice::Selected { view: View { body: &mut self.value } }); write_outer(Outer { inner: local.view });",
+            [Some(vec!["self.value"]), Some(vec!["self.value"])],
+        ),
+        (
+            // identity cannot instantiate its Selected leaf against an Empty
+            // actual, so the replacement keeps no proven origin.
+            "replaced_with_empty_helper_result",
+            "let mut local: Choice = Choice::Selected { view: View { body: &mut self.value } }; local = identity(Choice::Empty {}); write_outer(Outer { inner: local.view });",
+            [None, None],
+        ),
+        (
+            // The binding write still claims the overwritten referent; the
+            // consumer sees the replacement's origin.
+            "replaced_whole_carrier",
+            "let mut local: View = View { body: &mut self.value }; local = View { body: &mut self.other }; write_outer(Outer { inner: local });",
+            [
+                Some(vec!["self.other", "self.value"]),
+                Some(vec!["self.other"]),
+            ],
+        ),
+        (
+            "replaced_nested_carrier",
+            "let mut local: Nested = Nested { inner: Choice::Empty {} }; local = Nested { inner: Choice::Selected { view: View { body: &mut self.value } } }; write_outer(Outer { inner: local.inner.view });",
+            [Some(vec!["self.value"]), Some(vec!["self.value"])],
+        ),
+        (
+            "replaced_nested_field",
+            "let mut local: Nested = Nested { inner: Choice::Empty {} }; local.inner = Choice::Selected { view: View { body: &mut self.value } }; write_outer(Outer { inner: local.inner.view });",
+            [Some(vec!["self.value"]), Some(vec!["self.value"])],
+        ),
+        (
+            "moved_from_exact_local",
+            "let source: Choice = Choice::Selected { view: View { body: &mut self.value } }; let mut local: Choice = Choice::Empty {}; local = source; write_outer(Outer { inner: local.view });",
+            [Some(vec!["self.value"]), Some(vec!["self.value"])],
+        ),
+    ] {
+        assert_eq!(
+            caller_frames(&case_result_program(body)),
+            expected.map(|paths| paths
+                .map(|paths: Vec<&str>| paths.into_iter().map(str::to_owned).collect())),
+            "{name}",
+        );
+    }
+}
+
+#[test]
 fn named_actual_cases_remove_absent_declared_reference_rows() {
     let helpers = r#"
         machine consume(input: Choice) {}

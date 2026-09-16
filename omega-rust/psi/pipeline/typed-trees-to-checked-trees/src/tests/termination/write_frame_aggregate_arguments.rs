@@ -61,9 +61,11 @@ fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
             None,
         ),
         (
+            // The carrier write claims the overwritten actual leaf while the
+            // payload write follows the replacement's own reference origin.
             "replaced_whole_carrier",
             "replace_view(View { body: &mut self.value, tag: 0 }, &mut self.other);",
-            None,
+            Some(vec!["self.other", "self.value"]),
         ),
         (
             "array_projected_reference_replacement",

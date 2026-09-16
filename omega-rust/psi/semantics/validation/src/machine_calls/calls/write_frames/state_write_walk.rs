@@ -387,7 +387,7 @@ fn walk_state_write_prefix_inner(
                 let replaces_local_binding = representable_alias_rebinding
                     || (include_shared
                         && reference_subjects::replaces_binding(program, machine, statement)?);
-                if (!replaces_local_binding
+                let replaces_stored_binding = (!replaces_local_binding
                     && (stored_origins::assignment_replaces_case_binding(
                         program,
                         assignment,
@@ -406,10 +406,27 @@ fn walk_state_write_prefix_inner(
                         state,
                         assignment,
                         &local_alias_origins,
-                    )
-                {
-                    return None;
-                }
+                    );
+                // A carrier replacement retires the binding's stored evidence,
+                // so the transfer installs the replacement's own proven rows
+                // under the same root. An unproven source keeps the walk
+                // opaque rather than reviving the overwritten rows.
+                let replacement = if replaces_stored_binding {
+                    Some(stored_origins::assigned_stored_origins(
+                        program,
+                        machine,
+                        state,
+                        statement,
+                        assignment,
+                        &local_alias_origins,
+                        &stored,
+                        symbols,
+                        inference,
+                        include_shared,
+                    )?)
+                } else {
+                    None
+                };
                 let direct_target = coarse_place_path(program, assignment.target);
                 if let Some(relative) = direct_target.as_deref()
                     && rebind_stable_local_mutable_alias_origin(
@@ -497,6 +514,19 @@ fn walk_state_write_prefix_inner(
                 }
                 for path in paths {
                     push_visible_frame_path(&mut written, path, parameters, &locals)?;
+                }
+                // The write itself expanded through the pre-state evidence;
+                // only later statements see the replacement's own origins.
+                if let Some(replacement) = replacement {
+                    inference.record_local(&replacement);
+                    if let Some(existing) = stored
+                        .iter_mut()
+                        .find(|local| local.local_symbol == replacement.local_symbol)
+                    {
+                        *existing = replacement;
+                    } else {
+                        stored.push(replacement);
+                    }
                 }
             }
             StatementNode::Call(nested_call) => {

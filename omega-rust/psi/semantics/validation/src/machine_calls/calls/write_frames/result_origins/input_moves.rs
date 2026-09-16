@@ -8,7 +8,6 @@ use super::super::stored_origins::{self, StoredLocalOrigins, StoredWriteOrigin};
 use super::super::{FrameInference, Machine, TableCallExpression, TopLevelSymbols, TypedTrees};
 use facts::PlaceSegment;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 pub(super) fn validate_frozen_inputs(
     program: &TypedTrees,
@@ -40,6 +39,9 @@ pub(super) fn validate_frozen_inputs(
     if inputs.is_empty() {
         return Some(());
     }
+    // Assignment replacement is no longer a pre-walk reject: the shared
+    // transfer retires the frozen rows and installs the replacement's proven
+    // origins, so this fence covers only non-assignment exposure.
     for statement in program.statement_table.statements(state.statement_nodes) {
         if stored_origins::statement_exposes_frozen_binding(
             program,
@@ -48,9 +50,7 @@ pub(super) fn validate_frozen_inputs(
             statement,
             &inputs,
             &[],
-        ) || matches!(statement, StatementNode::Assignment(assignment)
-                if stored_origins::assignment_replaces_case_binding(program, assignment, &inputs, &[]))
-        {
+        ) {
             return None;
         }
     }
@@ -118,6 +118,7 @@ pub(super) fn instantiate_moves(
                 .collect(),
             cases: actual.cases,
             moves: actual.moves,
+            symbolic: false,
         };
         // The relation retains possible-element selection, not a callee-local
         // executable index identity in the caller's source namespace.
