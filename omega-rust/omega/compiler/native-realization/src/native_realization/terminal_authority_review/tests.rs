@@ -238,15 +238,28 @@ fn filesystem_foreign_fixture() -> (
     effects::provider_plan::EvaluatedForeignImport,
     TerminalMechanismIdentity,
 ) {
-    let locator = target::normalize_foreign_locator(
+    let (evaluated, mechanism) = foreign_import_fixture(
         target::ForeignLocatorCandidate::ElfVersioned {
             object: b"libfixture.so".to_vec(),
             symbol: b"filesystem_operation".to_vec(),
             version: b"FIXTURE_1".to_vec(),
         },
         target::TargetProfile::LinuxX64,
-    )
-    .expect("fixture locator normalizes");
+    );
+    (evaluated, mechanism.into())
+}
+
+/// One evaluated import binding and its unconstrained normalized-foreign
+/// mechanism, whose admitted calling plan is the whole contract.
+fn foreign_import_fixture(
+    candidate: target::ForeignLocatorCandidate,
+    target: target::TargetProfile,
+) -> (
+    effects::provider_plan::EvaluatedForeignImport,
+    effects::NormalizedForeignTerminalMechanismIdentity,
+) {
+    let locator =
+        target::normalize_foreign_locator(candidate, target).expect("fixture locator normalizes");
     let usage =
         effects::provider_plan::EvaluatedBindingUsage::from_evaluator(1, 1, 1, 1, 0, 0, 1, 1, 1, 0)
             .expect("fixture usage");
@@ -272,8 +285,7 @@ fn filesystem_foreign_fixture() -> (
     let mechanism = effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
         &locator,
         effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([34; 32]),
-    )
-    .into();
+    );
     (evaluated, mechanism)
 }
 
@@ -1145,6 +1157,137 @@ fn filesystem_release_occurrence_review_binds_the_retained_record() {
         &[],
     )
     .expect_err("another record's occurrence does not inherit this row");
+    assert!(error.contains("does not classify"), "{error}");
+    assert!(error.contains("close_handle"), "{error}");
+}
+
+#[test]
+fn foreign_release_occurrence_review_binds_the_retained_record() {
+    use super::super::terminal_authority_policy::filesystem_native_handle_query_release_contracts;
+    use super::super::{
+        filesystem_host_permission_row, filesystem_mechanism_row, filesystem_release_mechanism_row,
+        terminal_authority_permission_policy::terminal_authority_permission_policy_with_rows,
+        terminal_authority_policy::{
+            UnsettledFilesystemRequirement, terminal_authority_policy_with_rows,
+        },
+    };
+
+    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
+    let record = build_evaluation::capture_verified_build_filesystem_replay_record(
+        &build_evaluation::test_support::replayable_native_handle_query_chain_summary(&[(
+            b"pkg/main.omg",
+            7,
+        )]),
+        limits,
+    )
+    .expect("the retained query-release chain encodes")
+    .expect("the verified query-release chain keeps replay custody");
+    let contracts = filesystem_native_handle_query_release_contracts(&record, limits)
+        .expect("the retained occurrence realizes its release contract");
+    let [contract] = contracts.as_slice() else {
+        panic!("one retained occurrence derives exactly one release contract")
+    };
+
+    // The Windows realization of `close_handle` is a `kernel32!CloseHandle`
+    // import, not a direct syscall: the constrained occurrence keeps the
+    // admitted calling plan and carries the retained contract as its checked
+    // coordinate.
+    let requirement = "test::FilesystemHost::close_handle()";
+    let method = service_method(requirement);
+    let (evaluated, unconstrained) = foreign_import_fixture(
+        target::ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"CloseHandle".to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    );
+    let bound: TerminalMechanismIdentity = unconstrained
+        .with_checked_argument_contract(contract.checked_argument_contract())
+        .into();
+    let provider_plan = ProviderPlan {
+        name: "filesystem".to_owned(),
+        provider_type: "FilesystemProvider".to_owned(),
+        provider_type_package_identity: None,
+        target: "windows_x86_64".to_owned(),
+        schema: ServiceSchema {
+            trait_name: "test::FilesystemHost".to_owned(),
+            trait_package_identity: None,
+            methods: vec![method.clone()],
+        },
+        rows: vec![ProviderPlanRow {
+            method: method.name.clone(),
+            requirement_identity: method.requirement_identity.clone(),
+            requirement_lifetime_partition: Vec::new(),
+            binding: ProviderBinding::Import { evaluated },
+        }],
+        origin_package_identity: None,
+        origin_package: "test".to_owned(),
+    };
+    let selected = SelectedProviderPlanFacts::from_selected_plans(vec![provider_plan.clone()])
+        .expect("selected filesystem close_handle import");
+    let mechanisms = vec![AdmittedTerminalMechanism {
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        mechanism: bound,
+    }];
+    let physical = terminal_authority_policy_with_rows(vec![
+        filesystem_release_mechanism_row(bound, &method, *contract)
+            .expect("the retained occurrence earns its evidence-bound empty row"),
+    ])
+    .expect("exact release policy");
+    assert_eq!(
+        filesystem_mechanism_row(bound, &method),
+        Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract),
+        "the generic emitter never classifies a release cohort"
+    );
+    let permitted = terminal_authority_permission_policy_with_rows(vec![
+        filesystem_host_permission_row(provider_plan.schema.identity_digest(), &method)
+            .expect("the canonical release requirement has a justified permission"),
+    ])
+    .expect("exact filesystem permission table");
+
+    let plan = abstract_plan(
+        vec![boundary(1, requirement)],
+        Vec::new(),
+        vec![function(1, &[1])],
+    );
+    let receipt = review_terminal_authority_closure(
+        [31; 32],
+        target::TargetProfile::WindowsX64,
+        &plan,
+        &selected,
+        &physical,
+        &permitted,
+        &mechanisms,
+        &[],
+    )
+    .expect("the constrained close_handle import admits under the retained record's contract");
+    let [leaf] = receipt.leaves() else {
+        panic!("one requirement admits exactly one leaf")
+    };
+    assert_eq!(leaf.requirement_identity(), requirement);
+    assert_eq!(leaf.mechanism(), bound);
+    assert!(leaf.exercised().is_authority_class_empty());
+    assert!(leaf.permitted().is_authority_class_empty());
+    receipt.validate().expect("canonical receipt replays");
+
+    // The unconstrained import of the same symbol under the same admitted
+    // plan does not inherit the bound row: the admitted plan alone is not
+    // narrowing evidence, so classification stays fail-closed.
+    let substituted = vec![AdmittedTerminalMechanism {
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        mechanism: unconstrained.into(),
+    }];
+    let error = review_terminal_authority_closure(
+        [31; 32],
+        target::TargetProfile::WindowsX64,
+        &plan,
+        &selected,
+        &physical,
+        &permitted,
+        &substituted,
+        &[],
+    )
+    .expect_err("the unconstrained import does not inherit the bound row");
     assert!(error.contains("does not classify"), "{error}");
     assert!(error.contains("close_handle"), "{error}");
 }

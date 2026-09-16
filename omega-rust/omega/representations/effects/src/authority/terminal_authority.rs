@@ -73,19 +73,42 @@ pub fn compiler_intrinsic_execution_identity_bytes(
     bytes
 }
 
+/// The argument-contract coordinate of one normalized foreign leaf.
+///
+/// The admitted boundary calling plan fixes ABI movement and is the whole
+/// contract of an ordinary import: every runtime value its carriers permit is
+/// reachable, so the key classifies that complete union. Narrowing a foreign
+/// leaf below that union requires exact checked constraint evidence in the
+/// mechanism key, exactly as a direct syscall carries its checked argument
+/// contract; a checking stage retains that evidence and the receiving policy
+/// row binds to it, so a constrained occurrence and the unconstrained import
+/// of the same symbol never share a key or a classification row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizedForeignArgumentContract {
+    /// The admitted calling plan is the complete contract; no narrowing
+    /// evidence is claimed.
+    AdmittedPlan,
+    /// A checking stage retained exact constraint evidence for this leaf's
+    /// occurrence and committed it under its own domain.
+    Checked(CheckedSyscallArgumentContractIdentity),
+}
+
 /// One exact normalized foreign leaf after source binding evaluation and
 /// calling-plan admission. The target and raw locator coordinates are sealed
 /// by `locator_identity`; the separately retained calling-plan commitment is
-/// the admitted implementation contract. Neither provider identity nor
-/// service schema is permitted to alter this physical identity.
+/// the admitted implementation contract, and `argument_contract` carries any
+/// checked narrowing evidence. Neither provider identity nor service schema
+/// is permitted to alter this physical identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NormalizedForeignTerminalMechanismIdentity {
     target: target::TargetProfile,
     locator_identity: target::ForeignLocatorIdentityDigest,
     implementation_contract: crate::provider_plan::BoundaryCallingPlanCommitment,
+    argument_contract: NormalizedForeignArgumentContract,
 }
 
 impl NormalizedForeignTerminalMechanismIdentity {
+    /// The ordinary import key: the admitted plan is the whole contract.
     pub fn from_normalized_locator(
         locator: &target::NormalizedForeignLocator,
         implementation_contract: crate::provider_plan::BoundaryCallingPlanCommitment,
@@ -94,7 +117,26 @@ impl NormalizedForeignTerminalMechanismIdentity {
             target: locator.target(),
             locator_identity: locator.identity_digest(),
             implementation_contract,
+            argument_contract: NormalizedForeignArgumentContract::AdmittedPlan,
         }
+    }
+
+    /// Bind retained checked constraint evidence into this leaf's key. The
+    /// target, locator, and admitted plan are unchanged; only the narrowing
+    /// coordinate moves, so the result is a distinct key that no row for the
+    /// unconstrained import can classify.
+    pub const fn with_checked_argument_contract(
+        self,
+        contract: CheckedSyscallArgumentContractIdentity,
+    ) -> Self {
+        Self {
+            argument_contract: NormalizedForeignArgumentContract::Checked(contract),
+            ..self
+        }
+    }
+
+    pub const fn argument_contract(self) -> NormalizedForeignArgumentContract {
+        self.argument_contract
     }
 
     pub const fn target(self) -> target::TargetProfile {
@@ -113,14 +155,16 @@ impl NormalizedForeignTerminalMechanismIdentity {
 }
 
 /// Strong identity of the compiler-checked argument contract that constrains
-/// one direct syscall leaf.
+/// one direct syscall leaf, or narrows one normalized foreign leaf below its
+/// admitted calling plan.
 ///
 /// This is deliberately distinct from a boundary calling-plan commitment:
 /// the calling plan fixes ABI movement, while this identity commits to the
 /// checked constants, ranges, handle provenance, or conservative
 /// unconstrained argument contract used for authority classification. A
 /// checking stage must define and retain the committed contract; a syscall
-/// number or readable requirement name never substitutes for it.
+/// number, foreign locator, or readable requirement name never substitutes
+/// for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedSyscallArgumentContractIdentity([u8; 32]);
 
@@ -259,7 +303,7 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
         }
         TerminalMechanismIdentity::NormalizedForeign(foreign) => {
             let target = foreign.target().identity().as_str().as_bytes();
-            let mut bytes = Vec::with_capacity(1 + 4 + target.len() + 32 + 32);
+            let mut bytes = Vec::with_capacity(1 + 4 + target.len() + 32 + 32 + 1 + 32);
             bytes.push(1);
             bytes.extend_from_slice(
                 &u32::try_from(target.len())
@@ -269,6 +313,18 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
             bytes.extend_from_slice(target);
             bytes.extend_from_slice(&foreign.locator_identity().as_bytes());
             bytes.extend_from_slice(&foreign.implementation_contract().as_bytes());
+            // The admitted-plan key keeps the bytes it had before the
+            // argument-contract coordinate existed, so every published
+            // unconstrained foreign row and policy commitment is unchanged;
+            // a checked coordinate appends its own tag and digest, and the
+            // fixed-width prefix keeps the two forms distinguishable.
+            match foreign.argument_contract() {
+                NormalizedForeignArgumentContract::AdmittedPlan => {}
+                NormalizedForeignArgumentContract::Checked(contract) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&contract.as_bytes());
+                }
+            }
             bytes
         }
         TerminalMechanismIdentity::CheckedPhysical(physical) => {
@@ -951,7 +1007,8 @@ mod tests {
     use super::{
         BTreeSet, CheckedPhysicalTerminalMechanismIdentity, CheckedSyscallArgumentContractIdentity,
         CompilerIntrinsicExecutionIdentity, CompilerNumericType,
-        CompilerPrimitiveFloatBinaryOperation, PortableFilesystemAuthorityFacet,
+        CompilerPrimitiveFloatBinaryOperation, NormalizedForeignArgumentContract,
+        NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
         SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityDisposition,
         compiler_intrinsic_execution_identity_bytes, terminal_mechanism_identity_bytes,
     };
@@ -1137,5 +1194,49 @@ mod tests {
             terminal_mechanism_identity_bytes(exact.into()),
             terminal_mechanism_identity_bytes(other_contract.into()),
         );
+    }
+
+    #[test]
+    fn normalized_foreign_identity_binds_its_checked_argument_contract() {
+        let locator = target::normalize_foreign_locator(
+            target::ForeignLocatorCandidate::PeByName {
+                library: b"kernel32.dll".to_vec(),
+                export: b"CloseHandle".to_vec(),
+            },
+            target::TargetProfile::WindowsX64,
+        )
+        .expect("fixture locator normalizes");
+        let plan = crate::provider_plan::BoundaryCallingPlanCommitment::from_digest([7; 32]);
+        let admitted =
+            NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(&locator, plan);
+        assert_eq!(
+            admitted.argument_contract(),
+            NormalizedForeignArgumentContract::AdmittedPlan
+        );
+        let checked = admitted.with_checked_argument_contract(
+            CheckedSyscallArgumentContractIdentity::from_digest([1; 32]),
+        );
+        let other_checked = admitted.with_checked_argument_contract(
+            CheckedSyscallArgumentContractIdentity::from_digest([2; 32]),
+        );
+        assert_eq!(checked.target(), admitted.target());
+        assert_eq!(checked.locator_identity(), admitted.locator_identity());
+        assert_eq!(
+            checked.implementation_contract(),
+            admitted.implementation_contract()
+        );
+        assert_ne!(checked, admitted);
+        assert_ne!(checked, other_checked);
+
+        let admitted_bytes = terminal_mechanism_identity_bytes(admitted.into());
+        let checked_bytes = terminal_mechanism_identity_bytes(checked.into());
+        let other_checked_bytes = terminal_mechanism_identity_bytes(other_checked.into());
+        // The unconstrained key keeps its published encoding as a prefix of
+        // the checked key, which appends exactly one tag and one digest.
+        assert!(checked_bytes.starts_with(&admitted_bytes));
+        assert_eq!(checked_bytes.len(), admitted_bytes.len() + 1 + 32);
+        assert_eq!(checked_bytes[admitted_bytes.len()], 1);
+        assert_eq!(&checked_bytes[admitted_bytes.len() + 1..], &[1; 32]);
+        assert_ne!(checked_bytes, other_checked_bytes);
     }
 }

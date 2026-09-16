@@ -3,7 +3,7 @@
 //! ordinary-release contracts, and stale or substituted proof earns no row.
 
 use super::super::{
-    UnsettledFilesystemRequirement, filesystem_mechanism_row,
+    TerminalAuthorityPolicyBuildError, UnsettledFilesystemRequirement, filesystem_mechanism_row,
     filesystem_native_handle_query_release_contracts, filesystem_release_mechanism_row,
     terminal_authority_policy_with_rows,
 };
@@ -13,8 +13,8 @@ use build_evaluation::{
     recover_review_only_build_filesystem_replay_record,
 };
 use effects::{
-    CheckedSyscallArgumentContractIdentity, SyscallTerminalMechanismIdentity,
-    TerminalMechanismIdentity, provider_plan::ServiceMethod,
+    CheckedSyscallArgumentContractIdentity, NormalizedForeignTerminalMechanismIdentity,
+    SyscallTerminalMechanismIdentity, TerminalMechanismIdentity, provider_plan::ServiceMethod,
 };
 
 fn method(name: &str) -> ServiceMethod {
@@ -37,6 +37,31 @@ fn release_bound_mechanism(
         contract.checked_argument_contract(),
     )
     .into()
+}
+
+/// The unconstrained Windows `CloseHandle` import: the admitted calling plan
+/// is its whole contract.
+fn close_handle_import() -> NormalizedForeignTerminalMechanismIdentity {
+    let locator = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"CloseHandle".to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    )
+    .expect("the CloseHandle import normalizes");
+    NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
+        &locator,
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([34; 32]),
+    )
+}
+
+fn release_bound_import(
+    contract: super::super::FilesystemOrdinaryReleaseContract,
+) -> TerminalMechanismIdentity {
+    close_handle_import()
+        .with_checked_argument_contract(contract.checked_argument_contract())
+        .into()
 }
 
 fn retained_record(occurrences: &[(&[u8], u64)]) -> ReviewOnlyBuildFilesystemReplayRecord {
@@ -211,4 +236,83 @@ fn tampered_occurrence_evidence_cannot_realize_the_bound_contract() {
             }
         }
     }
+}
+
+#[test]
+fn retained_occurrence_binds_a_normalized_foreign_release_row() {
+    let record = retained_record(&[(b"pkg/main.omg", 7)]);
+    let contracts = release_contracts(&record);
+    let [contract] = contracts.as_slice() else {
+        panic!("one retained occurrence derives exactly one contract")
+    };
+
+    // The constrained import occurrence carries the retained contract as its
+    // checked coordinate beside the unchanged admitted plan and earns the
+    // same evidence-bound empty row a direct syscall does.
+    let bound = release_bound_import(*contract);
+    let row = filesystem_release_mechanism_row(bound, &method("close_handle"), *contract)
+        .expect("the occurrence-bound import earns the explicit empty row");
+    assert_eq!(row.mechanism(), bound);
+    assert!(row.disposition().is_authority_class_empty());
+
+    let policy = terminal_authority_policy_with_rows(vec![row]).expect("exact release policy");
+    assert!(
+        policy
+            .classify(bound)
+            .expect("the bound import classifies")
+            .is_authority_class_empty()
+    );
+    // The unconstrained import of the same symbol under the same admitted
+    // plan is a different key: the row binds the occurrence, not the locator.
+    let unconstrained: TerminalMechanismIdentity = close_handle_import().into();
+    assert!(policy.classify(unconstrained).is_err());
+    assert_eq!(
+        filesystem_release_mechanism_row(unconstrained, &method("close_handle"), *contract),
+        Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract),
+        "the admitted plan alone is not narrowing evidence"
+    );
+    // The generic emitter still refuses the bound import: the contract must
+    // arrive through the release path.
+    assert_eq!(
+        filesystem_mechanism_row(bound, &method("close_handle")),
+        Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
+    );
+    // Another occurrence's contract neither fits this key nor claims its row.
+    let stale = retained_record(&[(b"pkg/other.omg", 7)]);
+    let stale_contracts = release_contracts(&stale);
+    let [stale_contract] = stale_contracts.as_slice() else {
+        panic!("the stale occurrence derives one contract")
+    };
+    assert_ne!(contract, stale_contract);
+    assert_eq!(
+        filesystem_release_mechanism_row(bound, &method("close_handle"), *stale_contract),
+        Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
+    );
+    assert_eq!(
+        filesystem_release_mechanism_row(
+            release_bound_import(*stale_contract),
+            &method("close_handle"),
+            *contract
+        ),
+        Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
+    );
+    assert!(
+        policy
+            .classify(release_bound_import(*stale_contract))
+            .is_err()
+    );
+}
+
+#[test]
+fn an_empty_checked_foreign_argument_contract_is_never_a_policy_key() {
+    let empty: TerminalMechanismIdentity = close_handle_import()
+        .with_checked_argument_contract(CheckedSyscallArgumentContractIdentity::from_digest(
+            [0; 32],
+        ))
+        .into();
+    let row = super::row(empty, []);
+    assert_eq!(
+        terminal_authority_policy_with_rows(vec![row]).err(),
+        Some(TerminalAuthorityPolicyBuildError::EmptyCheckedForeignArgumentContract(empty))
+    );
 }

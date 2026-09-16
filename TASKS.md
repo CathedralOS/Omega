@@ -2577,12 +2577,22 @@ Owners include
   retained `FilesystemOrdinaryReleaseContract` in its checked
   argument-contract coordinate, and the review admits one constrained close
   leaf with empty exercised and permitted classes while the unconstrained
-  sibling under the same syscall number stays unclassified. Remaining: a
-  normalized foreign release mechanism has no occurrence contract
-  coordinate, so a constrained `close_handle`/`find_close` import
-  occurrence cannot earn its row; that slot needs a mechanism-identity
-  extension outside this seam before the broad `Filesystem` summary can
-  retire.
+  sibling under the same syscall number stays unclassified. A normalized
+  foreign mechanism now carries an argument-contract coordinate beside its
+  admitted calling plan (`effects::NormalizedForeignArgumentContract`):
+  the admitted-plan key keeps its published bytes, and a checked coordinate
+  binds the same retained release contract, so a constrained
+  `kernel32!CloseHandle` import occurrence earns the evidence-bound empty
+  row under review while the unconstrained import of the same symbol stays
+  unclassified (`terminal_authority_review/tests.rs::
+  foreign_release_occurrence_review_binds_the_retained_record`, macOS
+  ARM64). Remaining: settlement wiring —
+  `native-realization/src/native_realization/providers/settlements/source_imports.rs`
+  mints only the conservative syscall key and the admitted-plan foreign key,
+  and nothing hands a compile's retained build filesystem replay record
+  through `filesystem_native_handle_query_release_contracts` into the
+  settled mechanisms, so no real compile earns the constrained row yet; the
+  broad `Filesystem` summary retires only after that wiring closes.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Implement bounded occurrence-specific
   open/query/close evidence through checked flow and native realization replay.
@@ -2607,11 +2617,14 @@ Owners include
   `get_last_error` observations, one nonzero `close_handle` retiring the
   identity; acquisition failure, aliased/duplicated outputs, substituted or
   cross-domain inputs, early retirement, missing/ambiguous/late release, and
-  lane tampering all reject. Next legs: teach the claimed
-  `build-evaluation` eligibility prefix (`replay_eligibility.rs`) and shape
-  decoder (`replay_record.rs`) the tag-28 chain, then bind the occurrence
-  evidence into a terminal-authority mechanism key so the constrained close
-  earns one evidence-bound empty row in `native-realization`'s reviewer.
+  lane tampering all reject. `build-evaluation` rehydrates the tag-28 chain
+  (`replay_record/rehydration.rs`, `replay_eligibility.rs`) and
+  `native-realization` derives one release contract per retained occurrence
+  and binds it into a direct-syscall key or a normalized-foreign checked
+  coordinate (`terminal_authority_policy/filesystem.rs`); the reviewer admits
+  the constrained close under either role. Next leg: the settlement wiring
+  named under **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, so an ordinary compile
+  hands its retained record into the settled mechanisms.
 
   Native acceptance also needs the checked transitive machine plan missing
   from `filesystem/windows_canonicalize_exit`: Terminal production currently

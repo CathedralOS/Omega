@@ -1,8 +1,8 @@
 //! Exact construction and validation of receiving-authority policy rows.
 
 use effects::{
-    CheckedPhysicalOperationIdentity, TerminalAuthorityClass, TerminalAuthorityPolicyIdentity,
-    TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
+    CheckedPhysicalOperationIdentity, NormalizedForeignArgumentContract, TerminalAuthorityClass,
+    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
 
 use super::commitment::complete_policy_commitment;
@@ -14,7 +14,7 @@ use super::{
 /// Build one accepted receiving policy from explicit exact non-intrinsic rows.
 /// Compiler-intrinsic rows cannot be overridden, duplicate physical identities
 /// reject, and a normalized foreign row's empty strong implementation contract
-/// is never a policy key.
+/// or empty checked argument contract is never a policy key.
 pub(super) fn build_terminal_authority_policy(
     mut explicit_rows: Vec<TerminalAuthorityPolicyRow>,
 ) -> Result<TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError> {
@@ -30,6 +30,18 @@ pub(super) fn build_terminal_authority_policy(
             {
                 return Err(
                     TerminalAuthorityPolicyBuildError::EmptyImplementationContract(row.mechanism),
+                );
+            }
+            TerminalMechanismIdentity::NormalizedForeign(foreign)
+                if matches!(
+                    foreign.argument_contract(),
+                    NormalizedForeignArgumentContract::Checked(contract) if contract.is_zero()
+                ) =>
+            {
+                return Err(
+                    TerminalAuthorityPolicyBuildError::EmptyCheckedForeignArgumentContract(
+                        row.mechanism,
+                    ),
                 );
             }
             TerminalMechanismIdentity::NormalizedForeign(_) => {}

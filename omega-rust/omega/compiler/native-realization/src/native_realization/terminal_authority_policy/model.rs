@@ -112,6 +112,7 @@ pub enum TerminalAuthorityPolicyBuildError {
     EmptyImplementationContract(TerminalMechanismIdentity),
     UnsupportedSyscallTarget(TerminalMechanismIdentity),
     EmptyCheckedSyscallArgumentContract(TerminalMechanismIdentity),
+    EmptyCheckedForeignArgumentContract(TerminalMechanismIdentity),
     CheckedPortWriteRequiresExactPortIo(TerminalMechanismIdentity),
     DuplicateMechanism(TerminalMechanismIdentity),
 }
