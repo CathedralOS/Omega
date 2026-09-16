@@ -627,11 +627,8 @@ impl SelectedProviderClosureDigestEncoder {
                 }
                 self.bytes(&evaluated.receipt().identity_digest());
             }
-            crate::OpaqueInProcessBinding::StringBackedImportBootstrap { library, symbol } => {
-                self.byte(1);
-                self.string(library);
-                self.string(symbol);
-            }
+            // Tag byte 1 belonged to the retired string-backed import
+            // bootstrap and stays unassigned.
             crate::OpaqueInProcessBinding::VtableSlot { index } => {
                 self.byte(2);
                 self.i64(*index);

@@ -424,10 +424,7 @@ mod tests {
             provider_plan_digest: entry.provider_plan_digest,
             method: "open".into(),
             requirement_identity: "Window::open".into(),
-            binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
-                library: "platform".into(),
-                symbol: "open".into(),
-            },
+            binding: OpaqueInProcessBinding::VtableSlot { index: 3 },
         };
         let manifest = ExecutableTcbManifest {
             known_entries: vec![entry.clone()],

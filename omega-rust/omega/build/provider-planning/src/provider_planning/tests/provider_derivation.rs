@@ -383,6 +383,27 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
         plan.rows[0].binding,
         ProviderBinding::Syscall { number: 60 }
     );
+
+    // A typed program that still interns the retired string-backed import
+    // identity is rejected where typed identities enter provider planning,
+    // with the diagnostic that names the typed replacement.
+    let mut retired = typed;
+    retired
+        .external_bindings
+        .intern(language_semantics::ExternalBindingIdentity::Import {
+            library: "kernel32.dll".to_owned(),
+            symbol: "ExitProcess".to_owned(),
+        });
+    let evaluated_bindings =
+        crate::evaluated_via_bindings::evaluate_via_bindings(&retired, None, None)
+            .expect("no ordinary via leaf to evaluate");
+    let diagnostics = ProviderPlanDerivation::evaluated(&retired, None, &evaluated_bindings, &[])
+        .err()
+        .expect("retired string-backed import identity must reject");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains(
+        "string-backed import bootstrap `kernel32.dll`/`ExitProcess` is retired; declare a typed locator"
+    ));
 }
 
 #[test]

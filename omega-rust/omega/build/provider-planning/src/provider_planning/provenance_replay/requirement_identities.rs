@@ -283,20 +283,34 @@ fn exact_catalog_i32_to_unit_signature(
         )
 }
 
+/// Diagnostic for a typed `ExternalBindingIdentity::Import`, the retired
+/// string-backed import bootstrap. Two authored strings are not a physical
+/// locator; an import binds through an evaluated `via` producer.
+pub(crate) fn retired_string_backed_import_diagnostic(
+    library: &str,
+    symbol: &str,
+) -> diagnostics::Diagnostic {
+    diagnostics::Diagnostic::error(format!(
+        "string-backed import bootstrap `{library}`/`{symbol}` is retired; declare a typed locator through an evaluated `via` binding producer"
+    ))
+}
+
+/// Map one retained typed external-binding identity to its provider-plan
+/// binding. The string-backed `Import` identity has no provider binding any
+/// more: [`super::ProviderPlanDerivation::evaluated`] rejects a program that
+/// still interns one before derivation starts, and the derivation walks skip
+/// the row so the replay stays total.
 pub(crate) fn external_provider_binding(
     binding: &language_semantics::ExternalBindingIdentity,
     provider_type: &str,
     intrinsic_machine_identity: &str,
-) -> ProviderBinding {
+) -> Result<ProviderBinding, diagnostics::Diagnostic> {
     use language_semantics::ExternalBindingIdentity;
 
-    match binding {
+    Ok(match binding {
         ExternalBindingIdentity::Syscall { number } => ProviderBinding::Syscall { number: *number },
         ExternalBindingIdentity::Import { library, symbol } => {
-            ProviderBinding::StringBackedImportBootstrap {
-                library: library.clone(),
-                symbol: symbol.clone(),
-            }
+            return Err(retired_string_backed_import_diagnostic(library, symbol));
         }
         ExternalBindingIdentity::CompilerIntrinsic => ProviderBinding::CompilerIntrinsic {
             machine: intrinsic_machine_identity.to_owned(),
@@ -312,7 +326,7 @@ pub(crate) fn external_provider_binding(
             table: provider_type.to_owned(),
             field: field.clone(),
         },
-    }
+    })
 }
 
 pub(crate) fn realization_machine_identity(typed: &TypedTrees, machine_name: &str) -> String {

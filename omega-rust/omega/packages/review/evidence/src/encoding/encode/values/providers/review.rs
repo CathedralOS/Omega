@@ -204,11 +204,9 @@ pub(crate) fn encode_provider_row(
             encoder.fixed_bytes(&locator.identity_digest().as_bytes());
             encode_evaluated_binding_receipt(encoder, evaluated.receipt())?;
         }
-        ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-            encoder.byte(0);
-            encoder.string(library)?;
-            encoder.string(symbol)?;
-        }
+        // Byte 0 was the retired string-backed import bootstrap; it stays
+        // unassigned so review bytes of typed plans are unchanged.
+        ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
         ProviderBinding::Syscall { number } => {
             encoder.byte(1);
             encoder.i64(*number);

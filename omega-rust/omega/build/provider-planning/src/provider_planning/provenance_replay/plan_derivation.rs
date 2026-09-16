@@ -82,18 +82,18 @@ pub(crate) fn derive_provider_plans(
                         ) else {
                             continue;
                         };
-                        (
-                            external_provider_binding(
-                                binding,
-                                machine
-                                    .attached_data
-                                    .as_ref()
-                                    .map(|name| name.as_str())
-                                    .unwrap_or_default(),
-                                &realization_machine_identity(typed, machine.name.as_str()),
-                            ),
-                            None,
-                        )
+                        let Ok(binding) = external_provider_binding(
+                            binding,
+                            machine
+                                .attached_data
+                                .as_ref()
+                                .map(|name| name.as_str())
+                                .unwrap_or_default(),
+                            &realization_machine_identity(typed, machine.name.as_str()),
+                        ) else {
+                            continue;
+                        };
+                        (binding, None)
                     }
                     (
                         language_semantics::MachineSupplyMode::ExternalRealization {
@@ -326,11 +326,14 @@ fn derive_top_level_requirement_plans(
                     ) else {
                         continue;
                     };
-                    external_provider_binding(
+                    let Ok(binding) = external_provider_binding(
                         binding,
                         &provider_type,
                         &realization_machine_identity(typed, machine.name.as_str()),
-                    )
+                    ) else {
+                        continue;
+                    };
+                    binding
                 }
                 (
                     language_semantics::MachineSupplyMode::ExternalRealization {
@@ -521,7 +524,7 @@ fn derive_boundary_operator_plans(
                     ) else {
                         continue;
                     };
-                    external_provider_binding(
+                    let Ok(binding) = external_provider_binding(
                         binding,
                         machine
                             .attached_data
@@ -532,7 +535,10 @@ fn derive_boundary_operator_plans(
                             .normalized_machine_overload_identity(machine)
                             .map(|identity| identity.identity())
                             .unwrap_or_default(),
-                    )
+                    ) else {
+                        continue;
+                    };
+                    binding
                 }
                 (
                     language_semantics::MachineSupplyMode::ExternalRealization {

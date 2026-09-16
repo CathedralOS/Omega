@@ -543,7 +543,7 @@ fn replay_provider_row_binding(
                             .normalized_machine_overload_identity(realization)
                             .map(|identity| identity.identity())
                             .unwrap_or_default(),
-                    )
+                    )?
                 }
                 (
                     language_semantics::MachineSupplyMode::ExternalRealization {

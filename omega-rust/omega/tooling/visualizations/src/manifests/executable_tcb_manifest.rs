@@ -380,12 +380,6 @@ fn push_opaque_binding_json(json: &mut String, binding: &OpaqueInProcessBinding)
             }
             json.push('}');
         }
-        OpaqueInProcessBinding::StringBackedImportBootstrap { library, symbol } => {
-            json.push_str("{\"kind\": \"string_backed_import_bootstrap\", \"library\": ");
-            push_json_string(json, library);
-            json.push_str(", \"symbol\": ");
-            push_json_string(json, symbol);
-        }
         OpaqueInProcessBinding::VtableSlot { index } => {
             let _ = write!(json, "{{\"kind\": \"vtable_slot\", \"index\": {index}");
         }
@@ -504,6 +498,18 @@ mod tests {
         EvaluatedForeignImport::from_retained_evidence(locator, receipt).unwrap()
     }
 
+    fn windows_import(export: &[u8], seed: u8) -> EvaluatedForeignImport {
+        let locator = effects::normalize_foreign_locator(
+            effects::ForeignLocatorCandidate::PeByName {
+                library: b"platform.dll".to_vec(),
+                export: export.to_vec(),
+            },
+            target::TargetProfile::WindowsX64,
+        )
+        .expect("normalized fixture import");
+        evaluated_import(locator, seed)
+    }
+
     fn selected(binding: ProviderBinding) -> SelectedProviderPlanFacts {
         let target = match &binding {
             ProviderBinding::Import { evaluated } => evaluated.locator().target().target_name(),
@@ -553,11 +559,9 @@ mod tests {
 
     #[test]
     fn artifact_separates_known_entries_from_attributed_completeness() {
-        let json =
-            executable_tcb_manifest_json(&selected(ProviderBinding::StringBackedImportBootstrap {
-                library: "opaque.dll".into(),
-                symbol: "read".into(),
-            }));
+        let json = executable_tcb_manifest_json(&selected(ProviderBinding::Import {
+            evaluated: windows_import(b"read", 31),
+        }));
 
         assert!(json.contains("\"known_entries\": []"));
         assert!(json.contains("\"status\": \"incomplete\""));
@@ -616,9 +620,9 @@ mod tests {
 
     #[test]
     fn artifact_reports_pinned_opaque_identity_and_independent_receipts() {
-        let selected = selected(ProviderBinding::StringBackedImportBootstrap {
-            library: "platform".into(),
-            symbol: "read".into(),
+        let evaluated = windows_import(b"read", 41);
+        let selected = selected(ProviderBinding::Import {
+            evaluated: evaluated.clone(),
         });
         let plan_identity = selected.plans()[0].report_fingerprint();
         let plan_digest = selected.plans()[0].identity_digest();
@@ -628,10 +632,7 @@ mod tests {
                 provider_plan_digest: plan_digest,
                 method: "read".into(),
                 requirement_identity: "Storage::read".into(),
-                binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
-                    library: "platform".into(),
-                    symbol: "read".into(),
-                },
+                binding: OpaqueInProcessBinding::Import { evaluated },
                 executable_identity: "platform-baseline:read-v1".into(),
                 implementation_evidence_identity: "receipt:binary-v1".into(),
                 execution_scope: ExecutionScope::CallerAddressSpace,
