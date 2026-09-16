@@ -1,4 +1,3 @@
-use terminal_interpreter::{AcceptTerminalEffects};
 use super::{
     AbstractOperation, AdmissionProfile, CrashCause, DebugSubject, IntegerSign, IntegerType,
     IntegerValue, LoweringError, MachineId, NativeTarget, OperationKind, ScalarType,
@@ -10,6 +9,7 @@ use super::{
     terminal_source_canary, verify_module,
 };
 use compiler::CheckedCompileRequest;
+use terminal_interpreter::AcceptTerminalEffects;
 
 #[test]
 fn checked_source_integer_policy_operations_survive_frontend_drop() {

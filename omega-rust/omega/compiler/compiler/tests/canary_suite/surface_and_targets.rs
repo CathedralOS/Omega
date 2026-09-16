@@ -1,13 +1,13 @@
-#[cfg(windows)]
-use std::io::Write as _;
-#[cfg(windows)]
-use std::process::Stdio;
 use super::{
     CanaryCompileProduct, CanaryCompileSpec, Command, Path, compile,
     compile_canary_without_output_for_target,
     compile_rooted_canary_for_target_with_auxiliary_artifacts, compile_single_file_hosted_main,
     compile_with_auxiliary_artifacts, fail_canary, fs, pass_canary, repo_root, sample_project,
 };
+#[cfg(windows)]
+use std::io::Write as _;
+#[cfg(windows)]
+use std::process::Stdio;
 #[path = "../fixture_rosters/surface_and_targets.rs"]
 pub(super) mod fixture_roster;
 

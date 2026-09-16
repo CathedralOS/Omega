@@ -1,4 +1,3 @@
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use super::{
     AbstractOperation, AdmissionProfile, IntegerSign, IntegerType, IntegerValue, NativeTarget,
     OperationKind, TargetLoweringRequest, TerminalExecutionResult, TerminalFuelSchedule,
@@ -7,6 +6,7 @@ use super::{
     lower_machine, lower_to_target_operations, source_canary, verify_module,
 };
 use compiler::CheckedCompileRequest;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 #[test]
 fn checked_source_exact_multiply_uses_known_factor_bound() {

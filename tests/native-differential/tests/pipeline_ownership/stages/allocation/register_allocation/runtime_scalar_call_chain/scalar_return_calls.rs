@@ -1,6 +1,5 @@
 //! Scalar call results cross two ordinary machine boundaries and the final return.
 
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use crate::tests::{
     AdmissionProfile, CertificateEnvelope, EdgeId, EvidenceIdentity, EvidenceRoute, IntegerValue,
     NativeTarget, ObligationEvidence, ObligationId, Operation, OperationId, OperationKind,
@@ -14,6 +13,7 @@ use crate::tests::{
     validate_fixed_frame_function_relative_realization,
     validate_optimized_relocation_free_object_container,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod boolean_calls;
 mod control_flow;

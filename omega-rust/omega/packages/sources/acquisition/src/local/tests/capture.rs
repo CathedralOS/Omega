@@ -1,5 +1,9 @@
 #[cfg(unix)]
-use super::{CapabilityDirectory, LocalSourceLimits, OsStr, SourceTreePolicy, ambient_authority, capture_local_source_from_open_root, open_canonical_source_root, open_captured_directory, read_capability_file_bounded, resolve_local_source, temp_root};
+use super::{
+    CapabilityDirectory, LocalSourceLimits, OsStr, SourceTreePolicy, ambient_authority,
+    capture_local_source_from_open_root, open_canonical_source_root, open_captured_directory,
+    read_capability_file_bounded, resolve_local_source, temp_root,
+};
 #[cfg(unix)]
 #[cfg(unix)]
 #[test]

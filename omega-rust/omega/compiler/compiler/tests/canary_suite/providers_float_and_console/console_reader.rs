@@ -1,8 +1,8 @@
 //! Bounded input is shared checked library code, not a target line intrinsic.
-use checked_interpreter::{InterpretOptions};
 use super::super::{interpret_entry, repo_root, sample_project};
 use super::{checked_adapter_identity, fixture_roster};
 use crate::{compile_reviewed_repository_fixture, interpret, pass_canary};
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 

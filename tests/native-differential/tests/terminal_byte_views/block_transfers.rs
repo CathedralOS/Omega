@@ -1,5 +1,4 @@
 //! Distinct incoming views bind one destination descriptor before real calls.
-use super::{NativeTarget, OperationKind, PlaceId, ProofBundle, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalModule, calls, fixtures};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -8,6 +7,10 @@ use super::{NativeTarget, OperationKind, PlaceId, ProofBundle, StructuralPlaceDe
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{
+    NativeTarget, OperationKind, PlaceId, ProofBundle, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalModule, calls, fixtures,
+};
 use semantic_vocabulary::{BlockId, EdgeId, ScalarType};
 use terminal_psi::{Block, StructuralAccess, StructuralArgument, SuccessorEdge, Terminator};
 

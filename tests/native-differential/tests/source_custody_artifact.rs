@@ -5,7 +5,7 @@
 //! the current product frontend and checked interpreter. Agreement is
 //! differential evidence, not bootstrap authority.
 
-use checked_interpreter::{InterpretOptions};
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;

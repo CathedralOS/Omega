@@ -1,4 +1,3 @@
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IeeeFloatComparisonOperation, IeeeFloatFormat,
@@ -6,6 +5,7 @@ use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind,
     StructuralTypeId, ValueId,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
 };

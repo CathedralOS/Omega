@@ -1,5 +1,3 @@
-#[cfg(windows)]
-use crate::{compile_rooted_canary_for_target, executable_name};
 use super::application_build;
 use super::fixture_roster;
 use crate::{
@@ -7,6 +5,8 @@ use crate::{
     compile_rooted_canary_for_native_host, compile_with_auxiliary_artifacts, fs, interpret,
     pass_canary, production_compile,
 };
+#[cfg(windows)]
+use crate::{compile_rooted_canary_for_target, executable_name};
 use compiler::CheckedCompileRequest;
 
 #[test]

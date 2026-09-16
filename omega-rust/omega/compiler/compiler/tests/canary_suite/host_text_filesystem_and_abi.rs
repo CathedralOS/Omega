@@ -1,5 +1,3 @@
-#[cfg(windows)]
-use crate::compile_rooted_canary_for_target;
 use super::{
     AcceptedSemanticBindingRole, CanaryCompileProduct, CanaryCompileSpec, Command,
     FilesystemServiceBinding, InterpretOptions, Path, Stdio, compile,
@@ -7,6 +5,8 @@ use super::{
     compile_with_auxiliary_artifacts, executable_name, fs, hosted_main_program_entry_build,
     interpret, interpret_entry, pass_canary, run_canary, unique_no_output_build_dir,
 };
+#[cfg(windows)]
+use crate::compile_rooted_canary_for_target;
 use compiler::CheckedCompileRequest;
 use std::io::Write;
 

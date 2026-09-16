@@ -1,10 +1,10 @@
-use checked_interpreter::{InterpretOptions};
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_canary_without_output,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
     fail_canary, fs, interpret, pass_canary, repo_root,
 };
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 

@@ -1,5 +1,5 @@
 //! A caller-owned checked suffix reaches an effectful Unit reader.
-use super::super::{PlaceId};
+use super::super::PlaceId;
 #[cfg(any(
     all(
         target_os = "linux",

@@ -1,10 +1,10 @@
-use checked_interpreter::{InterpretOptions};
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, compile_reviewed_repository_fixture,
     compile_with_auxiliary_artifacts, fail_canary, fs, pass_canary, production_compile,
     unique_no_output_build_dir,
 };
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 

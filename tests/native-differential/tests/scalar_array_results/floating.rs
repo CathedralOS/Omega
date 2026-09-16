@@ -1,6 +1,5 @@
 //! Floating leaves retain IEEE bits inside the existing integer-fragment array ABI.
 
-use super::{NativeTarget, publish};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -9,6 +8,7 @@ use super::{NativeTarget, publish};
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
+use super::{NativeTarget, publish};
 fn source(carrier: &str, shape: &str, initializer: &str) -> String {
     format!(
         "machine keep(row: {shape}) -> {shape} {{ row }}
