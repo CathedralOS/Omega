@@ -21,7 +21,8 @@
 //!   admitted current fragments into that same object.
 //! - **The canonical installation record wire format** lives in
 //!   [`installation_record`]: manifest metadata over the resulting sealed
-//!   image, with one `*_codec` child per record family. It does not grant
+//!   image, its bytes under `installation_record/codec/` with one codec per
+//!   record family and its canonical shape under `record_shape/`. It does not grant
 //!   executable authority or replace the separate native admission, placement,
 //!   and retirement ladder. [`installed_artifact`] joins that record to an
 //!   installed code occurrence when the `installed-artifact` feature is on.
