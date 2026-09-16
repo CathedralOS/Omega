@@ -1,6 +1,6 @@
 use super::{
     DataMember, EvalResult, Evaluator, FilesystemHostOperation, Frame, Halt, SymbolHandle,
-    TableCall, Value, is_canonical_host_method,
+    TableCall, Value,
 };
 impl<'program> Evaluator<'program> {
     /// Resolve one call target through an exact compiler-selected filesystem
@@ -352,4 +352,32 @@ impl<'program> Evaluator<'program> {
                 trait_definition.is_boundary && trait_definition.symbol == symbol
             })
     }
+}
+
+/// The canonical Console host-boundary method names the interpreter drives directly.
+fn is_canonical_host_method(name: &str) -> bool {
+    matches!(
+        name,
+        "write"
+            | "write_line"
+            | "write_error"
+            | "write_error_line"
+            | "read_line"
+            | "read_byte"
+            | "write_byte"
+            | "exit_process"
+            | "sleep"
+            | "tick_count"
+            | "key_state"
+            | "dc_create"
+            | "get_dc"
+            | "window_create"
+            | "blit"
+            | "msg_peek"
+            | "msg_translate"
+            | "msg_dispatch"
+            | "is_window"
+            | "window_destroy"
+            | "foreground_window"
+    )
 }
