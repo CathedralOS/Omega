@@ -619,13 +619,32 @@ fn scalar_entry<'program>(
         .find(|machine| machine.symbol == member.machine.symbol)?;
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     let custody = program.ranking_expression_custody_for(machine.symbol)?;
-    if Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
-        || witness.subjects.len() != custody.subjects.len()
+    if witness.subjects.len() != custody.subjects.len()
         || witness.rank_range.is_some() != custody.rank_range.is_some()
         || custody.rank_range.unwrap_or_default() != member.range
         || custody.rank_range.is_some_and(|range| !range.is_valid())
     {
         return None;
+    }
+    let state = program.machine_states(machine).first()?;
+    if Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path() {
+        // A declared identity view: the shared classification admits the
+        // measure for this exact subject, and the produced rank is the
+        // subject itself. Any other authored path has no scalar transport.
+        let [subject] = custody.subjects.as_slice() else {
+            return None;
+        };
+        if witness.ranking_view.is_valid()
+            || !witness.view_arguments.is_empty()
+            || !custody.view_arguments.is_empty()
+            || *subject != member.subject
+            || member.paired_subject.is_valid()
+            || super::declared_identity_view(program, state, *subject, &witness.view_path).is_none()
+        {
+            return None;
+        }
+        entry_scalar_parameter(program, state, *subject)?;
+        return Some((state, RankingRangeMeasure::Single(member.subject)));
     }
     let measure = match witness.ranking_view {
         language_semantics::RankingViewId::NAT_DESCENDING
@@ -689,7 +708,6 @@ fn scalar_entry<'program>(
     // Authored subjects and endpoint expressions name entry parameters; the
     // member's own witness owns every internal arrival, so only the entry
     // binding is checked here.
-    let state = program.machine_states(machine).first()?;
     for subject in [member.subject, member.paired_subject]
         .into_iter()
         .filter(|subject| subject.is_valid())

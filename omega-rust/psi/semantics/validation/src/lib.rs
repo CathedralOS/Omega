@@ -187,6 +187,11 @@ pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::transparent_proposition_application_entailed;
 pub use proof_contracts::contract_entailment::{
+    DeclaredIdentityView, MeasureBodyShape, declared_identity_view, find_declared_measure,
+    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
+    unwrap_constraint_shells,
+};
+pub use proof_contracts::contract_entailment::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,
     inherited_requirement_proposition_label, inherited_satisfier_parameters,
 };

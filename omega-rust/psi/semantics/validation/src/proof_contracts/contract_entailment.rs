@@ -111,6 +111,11 @@ pub(crate) use proof_integer::{
     proof_integer_expression, proof_integer_nonnegative, proof_nat_cast,
     validate_proof_fact_integer_casts, validate_proof_integer_casts,
 };
+pub use ranking_range::{
+    DeclaredIdentityView, MeasureBodyShape, declared_identity_view, find_declared_measure,
+    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
+    unwrap_constraint_shells,
+};
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
     call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,

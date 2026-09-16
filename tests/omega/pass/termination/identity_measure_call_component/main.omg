@@ -1,0 +1,33 @@
+// PASS CANARY. Both members select the declared identity measure
+// `Countdown::Remaining`, whose body forwards its `u32` parameter. Validation
+// classifies the view once for the checked stage and for the runtime
+// call-component judgment, so the produced rank is the subject itself: the
+// `scan_a -> scan_b` edge forwards it and the `scan_b -> scan_a` edge proves
+// the strict decrease inside the authored range.
+data Countdown {}
+
+measure Countdown::Remaining(value: u32) -> u32 { value }
+
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.scan_a(5) }
+}
+
+machine Main::scan_a(&mut self, remaining: u32 [0..=5])
+terminates by remaining -> Countdown::Remaining in 0..=5;
+-> u32 {
+    transition remaining > 0 {
+        true -> self.scan_b(remaining)
+        false -> remaining
+    }
+}
+
+machine Main::scan_b(&mut self, pending: u32 [0..=5])
+terminates by pending -> Countdown::Remaining in 0..=5;
+-> u32 {
+    transition pending > 0 {
+        true -> self.scan_a(pending - 1)
+        false -> pending
+    }
+}

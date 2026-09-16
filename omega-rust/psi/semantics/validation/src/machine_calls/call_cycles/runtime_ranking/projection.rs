@@ -1,3 +1,4 @@
+use crate::proof_contracts::contract_entailment::declared_identity_view;
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -23,6 +24,15 @@ pub(super) enum RankOrder {
     /// coordinate is one shared order; each call edge still re-proves the
     /// actual's exact length arrival.
     SliceLength,
+    /// A declared measure whose body forwards its parameter on the same
+    /// unsigned carrier the subject has (validation's `declared_identity_view`).
+    /// The produced rank is the subject itself, judged exactly as `Natural`,
+    /// but the authored view stays private witness identity: members share
+    /// this order only through the same measure, never with `Nat::Descending`.
+    DeclaredIdentity {
+        measure: SymbolHandle,
+        primitive: PrimitiveType,
+    },
     Lexicographic {
         measure_index: usize,
         data: SymbolHandle,
@@ -135,10 +145,30 @@ impl RankProjection {
             });
         }
         if witness.ranking_view.is_valid()
-            || custody.rank_range.is_some()
             || !witness.view_arguments.is_empty()
             || !custody.view_arguments.is_empty()
         {
+            return None;
+        }
+        // A declared identity view produces the subject's own natural rank.
+        // The classification is validation's, shared with the checked stage,
+        // so the same admission covers both readers; an optional authored
+        // range then transports through the scalar range judgment.
+        if let Some(view) = declared_identity_view(program, entry, *subject, &witness.view_path) {
+            let primitive = unsigned_carrier(program, parameter)?;
+            return Some(Self {
+                order: RankOrder::DeclaredIdentity {
+                    measure: view.measure,
+                    primitive,
+                },
+                parameter: parameter.symbol,
+                argument_position,
+                subject: *subject,
+                paired_subject: ExpressionHandle::invalid(),
+                range: custody.rank_range.unwrap_or_default(),
+            });
+        }
+        if custody.rank_range.is_some() {
             return None;
         }
         let TypeReferenceNode::Named { symbol: data, .. } = program
