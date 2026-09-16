@@ -47,7 +47,13 @@ pub use validate::validate_literal_fold;
 /// `0 + x` are both `x` modulo 2^64 — or the all-ones literal at either
 /// operand of a bitwise-and into a `CopyI64` of the surviving operand —
 /// `x & MAX` and `MAX & x` are both `x`, disjoint on the literal's value
-/// from the bitwise-and annihilator fold.
+/// from the bitwise-and annihilator fold — or the literal `0` at the
+/// dividend operand of a wrapping remainder into a `MaterializeI64` of
+/// the constant zero — `0 % x` is `0` for every `x` — discharging the
+/// consumer's encoded fault surface under the nonzero-divisor obligation
+/// the remainder kind already carries, and dropping its divisor `Use`
+/// and dead scratch `Def` operands; disjoint on the folded literal's
+/// operand position from the divisor-one fold.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

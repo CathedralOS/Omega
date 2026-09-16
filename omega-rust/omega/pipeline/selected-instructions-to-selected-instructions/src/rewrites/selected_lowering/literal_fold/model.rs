@@ -49,6 +49,7 @@ impl LiteralFoldPolicy {
     const BITWISE_XOR_ZERO_BIT: u16 = 1 << 10;
     const WRAPPING_ADD_ZERO_BIT: u16 = 1 << 11;
     const BITWISE_AND_ONES_BIT: u16 = 1 << 12;
+    const WRAPPING_REMAINDER_ZERO_BIT: u16 = 1 << 13;
     const KNOWN_BITS: u16 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -61,7 +62,8 @@ impl LiteralFoldPolicy {
         | Self::BITWISE_AND_ZERO_BIT
         | Self::BITWISE_XOR_ZERO_BIT
         | Self::WRAPPING_ADD_ZERO_BIT
-        | Self::BITWISE_AND_ONES_BIT;
+        | Self::BITWISE_AND_ONES_BIT
+        | Self::WRAPPING_REMAINDER_ZERO_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -149,6 +151,23 @@ impl LiteralFoldPolicy {
     pub const BITWISE_AND_ONES_V1: Self = Self {
         enabled_rules: Self::BITWISE_AND_ONES_BIT,
     };
+    /// Wrapping-remainder zero-dividend fold: fold a materialized literal
+    /// `0` feeding its sole `WrappingRemainderI64` consumer's dividend
+    /// operand into a `MaterializeI64` of zero at the result register — a
+    /// remainder of a zero dividend is always zero. The literal is not
+    /// what discharges the consumer's encoded fault surface: the
+    /// nonzero-divisor obligation the remainder kind carries already
+    /// excludes division by zero, and the zero dividend fixes a quotient
+    /// that cannot overflow — so the fold retires the trap surface under
+    /// the consumer's own definedness proof while dropping the divisor
+    /// `Use` and dead scratch `Def` operands. The zero-dividend grammar
+    /// is disjoint from the divisor-one family on the folded literal's
+    /// operand position: the producer selects between the two
+    /// `WrappingRemainderI64` families by which position the recorded
+    /// future use names.
+    pub const WRAPPING_REMAINDER_ZERO_V1: Self = Self {
+        enabled_rules: Self::WRAPPING_REMAINDER_ZERO_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -214,6 +233,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_bitwise_and_ones(self) -> bool {
         self.enabled_rules & Self::BITWISE_AND_ONES_BIT != 0
+    }
+
+    pub const fn enables_wrapping_remainder_zero(self) -> bool {
+        self.enabled_rules & Self::WRAPPING_REMAINDER_ZERO_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u16 {

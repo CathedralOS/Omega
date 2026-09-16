@@ -32,6 +32,7 @@ fn selected_lowering_catalog_selections_pass_the_physical_gate() {
         Optimization::SelectedIncomingBitwiseXorZeroIdentityCopy,
         Optimization::SelectedIncomingWrappingAddZeroIdentityCopy,
         Optimization::SelectedIncomingBitwiseAndOnesIdentityCopy,
+        Optimization::SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization,
     ] {
         let selections = PostTerminalOptimizationSelections::new(
             OptimizationSelections::new([optimization]).unwrap(),

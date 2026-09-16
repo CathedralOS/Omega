@@ -1672,20 +1672,53 @@ pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
     }
 }
 
-/// A `MaterializeI64` victim producing the literal `1` feeding operand 1 —
-/// the divisor — of `WrappingRemainderI64`, whose operand-2 `Def` result is
-/// `VirtualRegisterId(2)`, with the pressure-recovery classification already
-/// admitted as an `Incoming` rematerialization candidate. The consumer's
-/// operand decorations come from the target's real remainder row: on x86-64
-/// that is the pinned `idiv` form — the operand-0 `Use` and operand-2 `Def`
-/// result both pinned to `rax`, plus the operand-3 early-clobber `Def`
-/// quotient scratch pinned to `rdx`, staged as `VirtualRegisterId(3)` —
-/// while aarch64's `udiv`/`msub` row carries only an early-clobber
-/// operand-2 `Def` and no scratch tail. Every `Def` operand past the result
-/// is a scratch output the fold drops; the fixture gives each a register
-/// occurring nowhere else in the function, which is the dead-definition
-/// custody the grammar requires.
+/// A `MaterializeI64` victim producing `Unsigned(1)` feeding operand 1 —
+/// the divisor — of a `WrappingRemainderI64` consumer: `x % 1` is `0`.
 pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
+    staged_remainder_family_inputs(
+        target,
+        1,
+        IntegerValue::Unsigned(1),
+        LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+    )
+}
+
+/// A `MaterializeI64` victim producing `Unsigned(0)` feeding operand 0 —
+/// the dividend — of a `WrappingRemainderI64` consumer: `0 % x` is `0`
+/// under the carried nonzero-divisor obligation. The surviving register
+/// `VirtualRegisterId(0)` occupies the operand-1 divisor `Use` the fold
+/// drops; the fold's fault discharge is the consumer's recorded
+/// obligation, not the folded literal.
+pub(super) fn staged_remainder_zero_dividend_inputs(target: NativeTarget) -> Inputs {
+    staged_remainder_family_inputs(
+        target,
+        0,
+        IntegerValue::Unsigned(0),
+        LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+    )
+}
+
+/// One `WrappingRemainderI64` consumer whose `literal_operand` `Use`
+/// position binds the `MaterializeI64` victim's register
+/// `VirtualRegisterId(1)` carrying `literal_value`, with the other `Use`
+/// position binding the entry-parameter register `VirtualRegisterId(0)`
+/// and `VirtualRegisterId(2)` the `Def` result either way. `policy` is
+/// the fold policy the staged selected input declares. The consumer's
+/// operand decorations come from the target's real remainder row: on
+/// x86-64 that is the pinned `idiv` form — the operand-0 `Use` and
+/// operand-2 `Def` result both pinned to `rax`, plus the operand-3
+/// early-clobber `Def` quotient scratch pinned to `rdx`, staged as
+/// `VirtualRegisterId(3)` — while aarch64's `udiv`/`msub` row carries
+/// only an early-clobber operand-2 `Def` and no scratch tail. Every `Def`
+/// operand past the result is a scratch output the fold drops; the
+/// fixture gives each a register occurring nowhere else in the function,
+/// which is the dead-definition custody the grammar requires.
+fn staged_remainder_family_inputs(
+    target: NativeTarget,
+    literal_operand: u16,
+    literal_value: IntegerValue,
+    policy: LiteralFoldPolicy,
+) -> Inputs {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
     let machine = MachineId::new(1).unwrap();
@@ -1697,10 +1730,10 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
     let gpr = materialize.operands[0].class;
     let source_block = BlockId::new(1).unwrap();
     let literal_operation = OperationId::new(1).unwrap();
-    let literal_value = ValueId::new(2).unwrap();
+    let literal_source = ValueId::new(2).unwrap();
     let literal_provenance = SelectedInstructionProvenance {
         operations: vec![literal_operation],
-        values: vec![literal_value],
+        values: vec![literal_source],
         edges: Vec::new(),
         obligations: Vec::new(),
         fuel: vec![FuelSettlement {
@@ -1709,16 +1742,17 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
         }],
     };
     // The operand grammar fixes positions 0 through 2 — dividend `Use`,
-    // folded divisor `Use`, result `Def`; every `Def` operand past the
-    // result is a scratch output the fold drops, staged as a register the
-    // consumer alone defines.
+    // divisor `Use`, result `Def` — with `literal_operand` naming the
+    // `Use` position the folded literal feeds; every `Def` operand past
+    // the result is a scratch output the fold drops, staged as a register
+    // the consumer alone defines.
     let scratch_defs = remainder.operands.len() - 3;
     let literal_id = SelectedInstructionId(0);
     let consumer_id = SelectedInstructionId(1);
     let literal = SelectedInstruction {
         id: literal_id,
         kind: SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(1),
+            value: literal_value,
         },
         constraint: materialize.key,
         operands: vec![SelectedOperand {
@@ -1745,14 +1779,32 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
         operands: remainder
             .operands
             .iter()
-            .map(|operand| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: VirtualRegisterId(u32::from(operand.operand)),
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
+            .map(|operand| {
+                // `VirtualRegisterId(1)` is the literal's result register:
+                // it binds whichever `Use` position the fold admits. The
+                // entry-parameter `VirtualRegisterId(0)` binds the other
+                // `Use`; `Def` positions bind their own index onward.
+                let index = u32::from(operand.operand);
+                let virtual_register = if operand.access == RegisterOperandAccess::Use
+                    && operand.operand == literal_operand
+                {
+                    VirtualRegisterId(1)
+                } else if operand.access == RegisterOperandAccess::Use
+                    && operand.operand == 1 - literal_operand
+                {
+                    VirtualRegisterId(0)
+                } else {
+                    VirtualRegisterId(index)
+                };
+                SelectedOperand {
+                    operand: operand.operand,
+                    virtual_register,
+                    access: operand.access,
+                    class: operand.class,
+                    fixed_view: operand.fixed_view,
+                    tied_to: operand.tied_to,
+                    early_clobber: operand.early_clobber,
+                }
             })
             .collect(),
         implicit_uses: remainder.implicit_uses.clone(),
@@ -1803,7 +1855,7 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
             class: gpr,
             origin: VirtualRegisterOrigin::InstructionResult {
                 instruction: literal_id,
-                source_value: literal_value,
+                source_value: literal_source,
             },
             definition_site: Some(ValueDefinitionSite::Node {
                 block: source_block,
@@ -1907,7 +1959,7 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
             machine_effect_catalog: effect_catalog_identity,
             optimization_unit: unit,
             fuel_schedule: fuel,
-            policy: LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+            policy,
             budget: budget(),
             usage: usage(),
             functions: vec![FunctionLiteralFold {
@@ -1930,7 +1982,7 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
             optimization_unit: unit,
             fuel_schedule: fuel,
             transformed_selected: selected_identity,
-            policy: LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+            policy,
             usage: usage(),
             function_count: 1,
             applied_count: 0,
@@ -1967,7 +2019,7 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
             vec![occurrence(
                 consumer_point,
                 consumer_id,
-                0,
+                1 - literal_operand,
                 RegisterOperandAccess::Use,
             )],
             vec![fragment(0, consumer_point + 1)],
@@ -1976,7 +2028,12 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
             VirtualRegisterId(1),
             vec![
                 occurrence(literal_id.0, literal_id, 0, RegisterOperandAccess::Def),
-                occurrence(consumer_point, consumer_id, 1, RegisterOperandAccess::Use),
+                occurrence(
+                    consumer_point,
+                    consumer_id,
+                    literal_operand,
+                    RegisterOperandAccess::Use,
+                ),
             ],
             vec![fragment(literal_id.0, consumer_point + 1)],
         ),
@@ -2165,7 +2222,7 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
                     class: gpr,
                     origin: VirtualRegisterOrigin::InstructionResult {
                         instruction: literal_id,
-                        source_value: literal_value,
+                        source_value: literal_source,
                     },
                     definition_site: Some(ValueDefinitionSite::Node {
                         block: source_block,
@@ -2174,14 +2231,14 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
                     classification:
                         RecoveryClassification::ImmediateU64RematerializationCandidate {
                             defining_instruction: literal_id,
-                            source_value: literal_value,
-                            value: IntegerValue::Unsigned(1),
+                            source_value: literal_source,
+                            value: literal_value,
                             provenance: literal_provenance,
                             future_uses: vec![RecoveryFutureUse {
                                 block: SelectedBlockId(0),
                                 point: LiveRangePoint(consumer_point),
                                 instruction: consumer_id,
-                                operand: 1,
+                                operand: literal_operand,
                             }],
                         },
                 }),
