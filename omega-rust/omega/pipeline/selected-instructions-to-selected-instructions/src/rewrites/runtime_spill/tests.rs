@@ -9,12 +9,13 @@ use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionPlan, SelectedTerminator, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionPlan, SelectedLocalStorageSlot, SelectedTerminator,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType, ValueId,
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
+    ScalarType, ValueId,
 };
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -659,4 +660,437 @@ fn address_values_and_exhausted_budget_do_not_gain_spill_authority() {
             .unwrap_err(),
         RuntimeSpillError::UnsupportedValue
     );
+}
+
+/// The measured validation-step boundary: admission charges one step per
+/// block plus one per instruction across the plan, then four per admitted
+/// use, one per storage definition, and two per block of the rewritten
+/// function — so the exact count admits the spill on both the proposal and
+/// the independent replay path while one step below rejects both, at three
+/// fixture sizes that each grow a different term of the charge.
+#[test]
+fn measured_validation_step_boundary_admits_and_rejects() {
+    let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
+    for (source, exact_steps) in [
+        // (1 block + 4 instructions) + (3 uses × 4) + 1 definition + 2 = 20.
+        (fixture(NativeTarget::linux_x64()), 20u64),
+        // (3 blocks + 4 instructions) + (3 uses × 4) + 1 definition + 6 = 26.
+        (control_flow::cfg_fixture(NativeTarget::linux_x64()), 26u64),
+        // (4 blocks + 5 instructions) + (2 uses × 4) + 2 definitions + 8 = 27.
+        (
+            parameters::parameter_fixture(NativeTarget::linux_x64()),
+            27u64,
+        ),
+    ] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, exact)
+                .unwrap();
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            exact,
+            result.transformed().clone(),
+        )
+        .unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, starved)
+                .unwrap_err(),
+            RuntimeSpillError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            RuntimeSpillError::WorkBudgetExceeded
+        );
+    }
+}
+
+/// Two runs over the identical source produce the identical validated
+/// result, and the published artifact is a legal second input through the
+/// sealed analysis boundary: the phase's real liveness and live-range
+/// analyses accept it, re-admission of the same victim is terminal because
+/// its private slot already exists, the produced `SpillAddress` register
+/// stays outside admission, and the shared reload register — an ordinary
+/// instruction result on the published plan — still admits a second,
+/// independently validated spill whose receipt chains the first artifact.
+#[test]
+fn spill_is_deterministic_and_the_published_plan_re_admits() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    let first =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let second =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is a
+    // legal second input — not merely a reconstruction of one. The real
+    // prerequisite analyses the recovery route consumes accept it directly.
+    let liveness = crate::analyze_liveness(&first).unwrap();
+    crate::analyze_live_ranges(&first, &liveness).unwrap();
+    // Re-admitting the same victim is terminal: the published plan already
+    // carries its private slot, so the site refuses before any use scan.
+    assert_eq!(
+        spill_selected_runtime_value(&first, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedUse
+    );
+    // The spill-address register keeps its `SpillAddress` origin on the
+    // second input, which stays outside admission exactly as on the first.
+    let address_register = first.transformed().functions[0]
+        .virtual_registers
+        .iter()
+        .find(|register| matches!(register.origin, VirtualRegisterOrigin::SpillAddress { .. }))
+        .expect("the shared reload opened with a spill address")
+        .id;
+    assert_eq!(
+        spill_selected_runtime_value(&first, 0, address_register, &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedValue
+    );
+    // A fresh victim on the published plan still admits: the shared reload
+    // register is an ordinary instruction result defined before its uses,
+    // and its spill is a second independently validated rewrite whose
+    // receipt binds the first artifact's identity as its source.
+    let shared_reload = first.transformed().functions[0]
+        .virtual_registers
+        .iter()
+        .find(|register| {
+            matches!(
+                register.origin,
+                VirtualRegisterOrigin::InstructionResult { instruction, .. }
+                    if instruction.0 > 5
+            )
+        })
+        .expect("the shared reload is the inserted load's result")
+        .id;
+    let respilled =
+        spill_selected_runtime_value(&first, 0, shared_reload, &environment, budget()).unwrap();
+    assert_eq!(
+        respilled.receipt().source_selected(),
+        first.receipt().transformed_selected()
+    );
+    assert_eq!(
+        respilled.transformed().functions[0]
+            .local_storage_slots
+            .len(),
+        2
+    );
+    validate_runtime_spill(
+        &first,
+        0,
+        shared_reload,
+        &environment,
+        budget(),
+        respilled.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// The shared reload interval reaches across an intervening call: a flexible
+/// use before and after a `CallUnit` name the same still-open reload
+/// register, because a view of the victim's class survives everything the
+/// block touches — the call's caller-saved clobbers leave a callee-saved
+/// home for the interval. Replay independently reconstructs that shape, so
+/// a dropped pair, a forged second pair, or a rebound use each reject.
+#[test]
+fn a_surviving_view_shares_one_reload_across_an_intervening_call() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let call = environment
+            .constraint(
+                *environment
+                    .selected_keys()
+                    .call_unit
+                    .first()
+                    .expect("every baseline target has a zero-argument unit call row"),
+            )
+            .unwrap();
+        // A zero-argument unit call reads no operand register: it stands
+        // strictly between the victim's two uses without consuming either.
+        assert!(call.operands.is_empty());
+        let mut source = fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            function.blocks[0].instructions[2] = admission::instruction(
+                SelectedInstructionId(3),
+                SelectedInstructionKind::CallUnit {
+                    callee: MachineId::new(2).unwrap(),
+                },
+                call,
+                &[],
+            );
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let block = &result.transformed().functions[0].blocks[0];
+        // The four originals plus one definition store and a single shared
+        // pair: [copy, store, address, load, copy, call, copy].
+        assert_eq!(block.instructions.len(), 7);
+        let load_position = block
+            .instructions
+            .iter()
+            .position(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+            })
+            .expect("the shared reload loads once");
+        assert_eq!(
+            block
+                .instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                })
+                .count(),
+            1
+        );
+        let reload = block.instructions[load_position].operands[1].virtual_register;
+        let call_position = block
+            .instructions
+            .iter()
+            .position(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::CallUnit { .. })
+            })
+            .unwrap();
+        // Both flexible uses name the shared reload and the call sits inside
+        // its interval: between the load and the post-call consumer.
+        for original_id in [2u32, 4] {
+            let rewritten = block
+                .instructions
+                .iter()
+                .find(|instruction| instruction.id == SelectedInstructionId(original_id))
+                .unwrap();
+            assert_eq!(rewritten.operands[0].virtual_register, reload);
+        }
+        assert!(load_position < call_position);
+        assert!(call_position < block.instructions.len() - 1);
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+        for mutation in 0..5 {
+            let mut proposed = result.transformed().clone();
+            let function = &mut proposed.functions[0];
+            match mutation {
+                // Dropping the shared load leaves the uses' register without
+                // its pair.
+                0 => {
+                    function.blocks[0].instructions.remove(load_position);
+                }
+                // A second private pair before the post-call use breaks the
+                // one-pair-per-block shape replay reconstructs.
+                1 => {
+                    let address = function.blocks[0].instructions[load_position - 1].clone();
+                    let load = function.blocks[0].instructions[load_position].clone();
+                    function.blocks[0]
+                        .instructions
+                        .insert(call_position, address);
+                    function.blocks[0]
+                        .instructions
+                        .insert(call_position + 1, load);
+                }
+                // Rebinding the post-call use back to the victim leaves the
+                // shared pair without its second consumer.
+                2 => {
+                    function.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|instruction| instruction.id == SelectedInstructionId(4))
+                        .unwrap()
+                        .operands[0]
+                        .virtual_register = VirtualRegisterId(1);
+                }
+                // A forged extra slot leaves a trailing slot the rewrite did
+                // not publish.
+                3 => function.local_storage_slots.push(SelectedLocalStorageSlot {
+                    id: LocalStorageSlotId::Boundary {
+                        operation: OperationId::new(1).unwrap(),
+                    },
+                    byte_size: 8,
+                    alignment: 8,
+                }),
+                // Drift on an instruction the rewrite never touched — a use
+                // operand appearing on the call — still rejects.
+                4 => {
+                    let operand = function.blocks[0].instructions[1].operands[0];
+                    function.blocks[0].instructions[call_position]
+                        .operands
+                        .push(operand);
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    proposed
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch,
+                "{target:?} mutation {mutation}"
+            );
+        }
+    }
+}
+
+/// The shared/private boundary: when every view of the victim's class meets
+/// something the block touches — here an intervening call whose clobber
+/// list covers every unit — no home survives the interval and each flexible
+/// use keeps its own private reload pair, exactly the per-use shape the
+/// rewrite produced before block-local sharing existed. Replay requires
+/// that shape too: two uses may not share a register.
+#[test]
+fn no_surviving_view_keeps_every_flexible_use_on_a_private_pair() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let call_row = environment
+            .constraint(
+                *environment
+                    .selected_keys()
+                    .call_unit
+                    .first()
+                    .expect("every baseline target has a zero-argument unit call row"),
+            )
+            .unwrap();
+        let model = environment.physical().model();
+        let mut source = fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            let victim_class = function.virtual_registers[1].class;
+            let mut call = admission::instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::CallUnit {
+                    callee: MachineId::new(2).unwrap(),
+                },
+                call_row,
+                &[],
+            );
+            // Extend the call's effects so every unit the victim's class
+            // offers is touched inside this block: no view can host an
+            // interval spanning it.
+            for class in &model.classes {
+                if class.id != victim_class {
+                    continue;
+                }
+                for view_id in &class.views {
+                    if let Some(view) = model.views.get(usize::from(view_id.0)) {
+                        call.clobbers
+                            .extend(view.units.iter().chain(&view.write_units).copied());
+                    }
+                }
+            }
+            call.clobbers.sort_unstable();
+            call.clobbers.dedup();
+            function.blocks[0].instructions.insert(2, call);
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let block = &result.transformed().functions[0].blocks[0];
+        // Five originals plus the definition store and one private pair per
+        // use: [copy, store, address, load, copy, call, address, load, copy,
+        // address, load, copy].
+        assert_eq!(block.instructions.len(), 12);
+        assert_eq!(
+            block
+                .instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                })
+                .count(),
+            3
+        );
+        // Each consumer names its own reload register — no two share.
+        let reloads: Vec<_> = [2u32, 3, 4]
+            .iter()
+            .map(|original_id| {
+                block
+                    .instructions
+                    .iter()
+                    .find(|instruction| instruction.id == SelectedInstructionId(*original_id))
+                    .unwrap()
+                    .operands[0]
+                    .virtual_register
+            })
+            .collect();
+        for (index, reload) in reloads.iter().enumerate() {
+            assert!(!reloads[..index].contains(reload));
+            assert_ne!(*reload, VirtualRegisterId(1));
+        }
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone()
+            )
+            .is_ok()
+        );
+        // A proposed pair short of the per-use shape — the last two uses
+        // sharing one register — cannot replay: the second use's expected
+        // pair is not in the stream.
+        let mut shared_anyway = result.transformed().clone();
+        shared_anyway.functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|instruction| instruction.id == SelectedInstructionId(4))
+            .unwrap()
+            .operands[0]
+            .virtual_register = reloads[1];
+        assert_eq!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                shared_anyway
+            )
+            .unwrap_err(),
+            RuntimeSpillError::ReplayMismatch
+        );
+    }
 }
