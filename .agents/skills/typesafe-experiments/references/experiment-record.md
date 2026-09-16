@@ -346,11 +346,11 @@ single failure and relabel it generalization.
 
 The 30 exposed retrieval queries are development data; lexical context extraction
 is a strong baseline and further reranking trials need demonstrated headroom.
-After compiler-domain transfer below, compare original short quotations with
-unique containing-paragraph context on fresh cases, counting false warnings and
-preserving false-claim/wrong-owner controls. Separately explore explicit owner
-context for the high-scoring wrong-owner failure. Compare against deterministic
-expansion and lexical selection, not only expensive answer rewriting. Inspect
+After the expanded-input replay below, freeze its scoped-support prompt candidate
+and compare against the original on NEW claims with partial-answer queries and
+wrong-owner evidence. Keep completeness separate from individual claim support.
+No further tuning on the 19 exposed replay cases. Compare against deterministic
+expansion and lexical selection, not only expensive answer rewriting; inspect
 flagged AND unflagged outputs and retain owner/scope evidence.
 No automatic blocks or verifier retries. Calibrate a new
 threshold only as a development hypothesis with fresh evaluation; do not promote
@@ -496,3 +496,38 @@ repair this gap, and two false warnings remain. Windows quote/ID/tool/claim/pari
 Python compilation, metadata/link and diff checks passed; no macOS runtime or
 production integration. Next: fresh short-quote versus expanded-input comparison
 including negative controls, rather than repeated tuning on exposed examples.
+
+## Expanded-input replay and scoped-support prompt candidate
+
+`build/experiments/expanded-input/` preserves two frozen protocols, four A/B calls
+and two follow-up calls, inputs, outcomes and report. Fifteen observed compiler
+claims plus four authored unsupported controls: all exposed development data.
+Claims, model and .90 cutoff fixed. Original short evidence versus unique
+containing paragraphs, separate request states in short/expanded/expanded/short
+order. The four negatives already had full paragraphs in BOTH arms, so this is
+not a negative-expansion transfer test.
+
+False warnings on 14 commonly supported claims: short 2/3 across two runs versus
+expanded 1/1. The missing-antecedent claim properly becomes supported after
+expansion and is excluded from this denominator. Both expanded runs accepted it;
+the second short run also accepted it, missing the support gap. All four controls
+rejected in all calls. Expanded-input gate passed. Input 7,428 vs 6,103 (+21.7%),
+output 614 each. API short .355/.337s; expanded .379/.284s, no speed claim.
+
+The expanded runs still flagged the literal normalizer-identity claim. A separate
+two-call development hypothesis clarified "support this single claim" versus
+"complete the entire answer", retaining query owner/scope and requiring support
+for every assertion actually present. Both clarified runs had zero false warnings
+on the 14 common positives, accepted the repaired antecedent claim, and rejected
+all four negatives. Thus 15 positive/4 negative decisions correct on this exposed
+replay, not 38 independent cases or proven general reliability. The inferred
+cause of the earlier warning remains a hypothesis about prompt interpretation.
+
+Scoped calls .385/.310s, 8,416 input / 614 output each. All six calls: 2.051s,
+43,894 input / 3,684 output tokens. No generator call or end-to-end timing claim.
+Candidate clarification saved in evidence-repair.md; original prompt/results
+remain unchanged. Freeze candidate for fresh evaluation, do not promote to an
+automatic gate. Complete-answer coverage is a separate requirement. Windows
+unique-containment, unchanged-claim, response-coverage, Python compile, metadata
+and diff checks passed; macOS not run. Live State docs again inaccessible; existing
+cached guidance/integration reused without new API assumptions.
