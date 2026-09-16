@@ -447,6 +447,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   before the edge while a store into any carrier still rejects
   (`pass/termination/rank_range_{,call_}scratch_input_write`,
   `fail/termination/rank_range_{subject,endpoint}_intervening_write`).
+  7232f16727 closes the vacuous acceptance that slice opened at runtime
+  call sites: prefix stores also protect every slot sharing an entry role
+  with another slot and, in mixed-range components, every role-carrying
+  slot, so a written copy can no longer make a copy-equality guard dead
+  (`fail/termination/rank_range_call_copied_input_write`,
+  `pass/termination/rank_range_call_copies_with_scratch_write`).
+  Diverging rank-input copies remain rejected by design of the checked
+  route (`prepare(remaining, remaining)` then `prepare(left - 1, right)`
+  fails "cannot prove rank range"; diverged copies select no convenient
+  representative), so admitting them needs an arrival mapping that names
+  the ranked copy, not a positional guess. Declared identity measures
+  inside call components still reject ("a member lacks a supported exact
+  ranking witness": `RankProjection::resolve` accepts builtin canonical
+  paths only), and non-identity scalar views need the measure-body
+  recognizer in `checks/termination/order.rs`.
   Still open on this item: diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
   premises, borrowed and nested
