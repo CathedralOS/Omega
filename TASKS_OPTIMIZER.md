@@ -861,10 +861,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   the load's result reject, as do structural destinations, case custody
   slots, and custody discards touching the forwarded place's storage,
   while joins, unreachable blocks, self-loops, and the function entry
-  end the walk unproven (crate `nextest`: 357 pass). Remaining:
+  end the walk unproven (crate `nextest`: 357 pass). Dead-store
+  admission also accepts `StorePacked` as the removed store: the
+  instruction's encoded byte offset and packed width define the dead
+  range, its single `WritePlace` row must name that exact place and
+  range, and the instruction must carry the target's declared
+  `store_packed` constraint with its `[use pointer, use packed value,
+  def scratch]` operand row — the scratch `Def` early-clobbered in the
+  constraint — while the scratch virtual register must occur exactly
+  once in the whole function across body and terminator operands,
+  successor structural bindings, case payloads, and edge transports,
+  so the removal cannot strand a surviving mention; the kill side is
+  unchanged, with any later covering store — plain or packed —
+  rewriting the dead range unobserved in-block or across a
+  single-successor edge (crate `nextest`: 414 pass). Remaining:
   place-backed local-slot and dynamic-extent writes still cannot
-  cover, `StorePacked` cannot yet be the removed store, and load
-  forwarding still stops at joins.
+  cover, and load forwarding still stops at joins.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
