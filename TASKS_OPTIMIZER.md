@@ -870,10 +870,25 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   terminal re-admission at the rule core — the transformed plan's
   rewritten uses cannot admit a second application — with staged budget,
   disabled, corruption, and rebuilt-analysis fixed-point legs in the
-  native-differential suite. Remaining: the same matrix for the phase's
-  `copy_removal`, `literal_compare`, `redundant_extension`,
-  `runtime_rematerialization`, and `runtime_spill` exact rules, then the
-  other phases' exact rules.
+  native-differential suite. The phase's four remaining per-instruction
+  exact rules — `copy_removal`, `literal_compare`,
+  `redundant_extension`, and `runtime_rematerialization` — now carry the
+  same matrix (400 lib tests pass on macOS arm64): each admits at its
+  measured validation-step count and rejects one step below on both the
+  proposal and independent-replay paths at two fixture sizes — an
+  edge-transport successor for `copy_removal`, a widened instruction
+  scan for `literal_compare` and `redundant_extension`, and a dominated
+  successor block for `runtime_rematerialization` — and each rejects
+  replay drift in blocks the rewrite never touched through the
+  restore-by-content check. `copy_removal` also gains its determinism
+  and fixed-point legs: the published artifact is a legal second input
+  through the sealed analysis boundary, re-admission at the removed
+  copy's site refuses, and a surviving chained copy whose destination
+  nobody reads is dead code the rule declines. Like the memory rules,
+  none of the four is an `Optimization` selection-vocabulary member, so
+  the disabled-policy axis stays absent. Remaining: the same matrix for
+  the phase's `runtime_spill` exact rule, then the other phases' exact
+  rules.
 
 - **TARGET-MATRICES.** Complete supported target/OS allocator, encoding,
   unwind, object, and callable matrices. Existing selected-lowering and
