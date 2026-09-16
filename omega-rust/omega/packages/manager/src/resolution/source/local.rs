@@ -1,4 +1,5 @@
 mod recovery;
+#[cfg(test)]
 use package_source::PrimaryGitChoices;
 pub(crate) use recovery::recover_cached_external_local_source;
 

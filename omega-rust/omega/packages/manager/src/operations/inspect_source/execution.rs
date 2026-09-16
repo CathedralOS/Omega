@@ -4,6 +4,7 @@ use super::report::PackageSourceInspection;
 #[cfg(test)]
 use super::request::PackageSourceRequestParseError;
 use super::request::{PackageSourceInspectionError, PackageSourceRequest, SourceAdapter};
+#[cfg(test)]
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::resolve_git_source_in_lane;
 #[cfg(test)]
@@ -142,6 +143,7 @@ mod tests {
         inspect_package_source_locator_in_cache,
     };
     use package_source::GitSourceRequest;
+    #[cfg(test)]
     use package_source::PrimaryGitChoices;
     use std::ffi::OsStr;
     use std::process::Command;
