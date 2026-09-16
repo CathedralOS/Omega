@@ -1,4 +1,3 @@
-use terminal_interpreter::{TerminalStructuralInputs};
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use std::{
     fs,
@@ -6,6 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
