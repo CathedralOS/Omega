@@ -5,7 +5,9 @@
 //! folding an ignored argument cannot hide a bad conversion. Closed range
 //! refinements and declared integer domains check the concrete value before
 //! invocation through the admission plan's fact evaluator; policy
-//! qualifications cannot enter by base-type stripping.
+//! qualifications cannot enter by base-type stripping. A bare `bool`
+//! parameter lands through the same shared scalar evaluator with the Boolean
+//! destination, after its own custody walk.
 //! The shared context-free numeric query rejects owner-dependent
 //! operations rather than evaluating them in the endpoint callee's scope.
 
@@ -49,12 +51,40 @@ pub(super) fn evaluate(
     let mut values = Vec::new();
     let mut warnings = Vec::new();
     for (argument, parameter) in arguments.iter().zip(parameters) {
-        let position = super::integer_type::IntegerPosition::prepare(
+        let position = super::integer_type::ScalarPosition::prepare(
             program,
             original,
             parameter.type_reference,
             authority,
         )?;
+        let position = match position {
+            super::integer_type::ScalarPosition::Integer(position) => position,
+            super::integer_type::ScalarPosition::Boolean => {
+                crate::machine_execution::admission::require_closed_boolean_argument(
+                    original, *argument, authority,
+                )?;
+                let (value, argument_warnings) =
+                    crate::const_evaluation::const_generic_expressions::value::evaluate(
+                        program,
+                        machine,
+                        entry,
+                        *argument,
+                        typed_trees::types::PrimitiveType::Bool,
+                        None,
+                    )?;
+                let Some(DecodedCanonicalConstValue::Boolean(value)) = value.decode_encoding()
+                else {
+                    return Err("range endpoint argument did not produce a Boolean".to_owned());
+                };
+                values.push(BuildTimeValue::Bool(value));
+                for warning in argument_warnings {
+                    if !warnings.contains(&warning) {
+                        warnings.push(warning);
+                    }
+                }
+                continue;
+            }
+        };
         let destination = position.primitive;
         crate::machine_execution::admission::require_closed_integer_argument(
             original, program, *argument, authority,

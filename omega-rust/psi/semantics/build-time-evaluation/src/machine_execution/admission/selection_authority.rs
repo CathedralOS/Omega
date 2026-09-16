@@ -3,7 +3,7 @@ use source::{SourceOrigin, SourceSpan};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
-    expression::{ExpressionHandle, ExpressionNode},
+    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
     machine::Machine,
     state::State,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
@@ -333,6 +333,74 @@ pub(crate) fn require_closed_integer_argument(
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Result<(), String> {
+    require_closed_scalar_custody(program, expression, authority)?;
+    evaluated.closed_integer_value_in(expression, SymbolHandle::invalid())
+        .map(|_| ())
+        .ok_or_else(|| "range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned())
+}
+
+/// A Boolean argument position admits Boolean literals, Boolean logic and
+/// folded helper calls. Comparisons stay outside: their integer operands
+/// would need the same owner-independent meaning the integer gate proves,
+/// and the shared scalar evaluator is the only place that can land them.
+/// Custody is resolved on the original tree exactly as for integers; the
+/// caller lands the value on the working tree through the shared evaluator.
+pub(crate) fn require_closed_boolean_argument(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
+) -> Result<(), String> {
+    let mut pending = vec![expression];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(_) => {
+                if let Some(violation) =
+                    expression_occurrence_violation(program, expression, authority)
+                {
+                    return Err(violation);
+                }
+            }
+            ExpressionNode::Binary(binary)
+                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+            {
+                if let Some(violation) =
+                    expression_occurrence_violation(program, expression, authority)
+                {
+                    return Err(violation);
+                }
+                pending.push(binary.right);
+                pending.push(binary.left);
+            }
+            ExpressionNode::Call(_) => {
+                require_closed_scalar_custody(program, expression, authority)?
+            }
+            _ => {
+                return Err(
+                    "range endpoint Boolean argument admits only Boolean literals, Boolean logic and folded helper calls"
+                        .to_owned(),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Selection custody over one closed scalar argument tree in the original
+/// program, where every call still has its target. Integer, decimal and
+/// Boolean leaves are all admitted here because a nested helper call may
+/// take either kind; the caller's final query on the working tree decides
+/// the carrier. Keep traversal complete if the shared evaluators grow new
+/// expression forms: each new form needs its own selection walk.
+fn require_closed_scalar_custody(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
+) -> Result<(), String> {
     let mut pending = vec![expression];
     let mut visited = Vec::new();
     while let Some(expression) = pending.pop() {
@@ -363,15 +431,11 @@ pub(crate) fn require_closed_integer_argument(
                 pending.push(binary.right);
                 pending.push(binary.left);
             }
-            ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {}
-            // Keep traversal complete if the shared numeric query grows new
-            // expression forms: each new form needs its own selection walk.
+            ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {}
             _ => return Err("range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned()),
         }
     }
-    evaluated.closed_integer_value_in(expression, SymbolHandle::invalid())
-        .map(|_| ())
-        .ok_or_else(|| "range endpoint argument requires a closed integer expression with context-independent operator meaning".to_owned())
+    Ok(())
 }
 
 fn expression_occurrence_violation(

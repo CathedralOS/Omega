@@ -574,6 +574,92 @@ fn proved_parameter_domains_do_not_stand_down_the_fence_for_other_premises() {
     }
 }
 
+#[test]
+fn boolean_arguments_and_boolean_helpers_fold_into_integer_endpoints() {
+    // A Boolean literal, Boolean logic, and a Boolean-returning helper are
+    // closed arguments of an integer-returning endpoint callee. Each helper
+    // folds to a Boolean literal in argument position; the bound itself is
+    // still the integer the callee returned.
+    let declarations = "machine pick(wide: bool) -> u64 {
+             transition wide {
+                 true -> 512
+                 false -> 256
+             }
+         }
+         machine is_wide() -> bool { false }
+         machine both(first: bool, second: bool) -> bool { first && second }";
+    for (endpoint, bound) in [
+        ("pick(false)", "256"),
+        ("pick(true)", "512"),
+        ("pick(is_wide())", "256"),
+        ("pick(both(true, is_wide()))", "256"),
+        ("pick(true && is_wide())", "256"),
+        ("pick(false || true)", "512"),
+        ("pick(is_wide()) + 1", "257"),
+    ] {
+        let mut program = typed(&format!(
+            "{declarations}
+             machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        evaluate_const_range_endpoints(&mut program, None)
+            .unwrap_or_else(|errors| panic!("{endpoint}: {errors:?}"));
+        assert!(
+            pending_endpoints(&program).unwrap().is_empty(),
+            "{endpoint}"
+        );
+        // Surrounding bound arithmetic stays authored around the folded
+        // literal, so read the bound through the shared closed query.
+        let (_, _, constraints) = program
+            .type_reference_table
+            .constrained_type_reference_sites()[0];
+        let TypeConstraintNode::Range { maximum, .. } =
+            program.type_reference_table.constraints(constraints)[0]
+        else {
+            panic!("{endpoint}: authored range");
+        };
+        assert_eq!(
+            validation::closed_integer_range_bound(&program, maximum)
+                .map(|value| value.to_string())
+                .as_deref(),
+            Some(bound),
+            "{endpoint}"
+        );
+    }
+}
+
+#[test]
+fn boolean_results_never_become_range_bounds_and_mismatched_arguments_reject() {
+    // The bound position keeps its integer-carrier requirement even when the
+    // Boolean call sits under bound arithmetic; an integer into a Boolean
+    // parameter, a Boolean into an integer parameter, and a comparison in a
+    // Boolean argument all stay outside this route.
+    let declarations = "machine pick(wide: bool) -> u64 {
+             transition wide {
+                 true -> 512
+                 false -> 256
+             }
+         }
+         machine is_wide() -> bool { false }
+         machine endpoint(value: u64) -> u64 { value }";
+    for (endpoint, fragment) in [
+        ("is_wide()", "requires an exact builtin integer carrier"),
+        ("is_wide() + 1", "requires an exact builtin integer carrier"),
+        ("pick(256)", "admits only Boolean literals"),
+        ("endpoint(false)", "closed integer expression"),
+        ("pick(1 < 2)", "admits only Boolean literals"),
+    ] {
+        let mut program = typed(&format!(
+            "{declarations}
+             machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        let errors = evaluate_const_range_endpoints(&mut program, None).expect_err(endpoint);
+        assert!(
+            errors.iter().any(|error| error.message.contains(fragment)),
+            "{endpoint}: {errors:?}"
+        );
+    }
+}
+
 fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

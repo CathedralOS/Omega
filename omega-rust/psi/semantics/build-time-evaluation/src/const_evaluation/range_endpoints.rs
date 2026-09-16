@@ -42,6 +42,10 @@
 //! Walk strict integer arithmetic and call arguments in postorder. Temporary
 //! call results keep their declared integer landing: making a returned u8
 //! anonymous would let surrounding arithmetic widen it or initialize u64.
+//! An argument-position helper may instead return `bool`; it folds to a
+//! Boolean literal for the enclosing call's Boolean parameter. The range
+//! bound itself is always prepared as an integer position, so a Boolean
+//! result can never become an endpoint.
 //! Argument selections still read the original prepared tree, while numeric
 //! queries read the working substitutions. Machine bodies always execute in
 //! the immutable prepared tree; a rollback journal avoids a clone per call.
@@ -68,6 +72,10 @@ struct PendingEndpoint {
     expression: ExpressionHandle,
     machine: symbols::SymbolHandle,
     source_span: source::SourceSpan,
+    /// Whether this call is the authored range bound itself, whose result
+    /// must land as an integer, or an argument of an enclosing call, whose
+    /// declared result may be Boolean.
+    range_bound: bool,
 }
 
 pub fn evaluate_const_range_endpoints(
@@ -194,12 +202,21 @@ pub(crate) fn evaluate_selected_range_endpoints(
                 .machine_states(machine)
                 .first()
                 .ok_or("range endpoint machine has no entry state")?;
-            let position = integer_type::IntegerPosition::prepare(
-                typed,
-                execution,
-                entry.return_type,
-                selection_authority.as_deref(),
-            )?;
+            let position = if endpoint.range_bound {
+                integer_type::ScalarPosition::Integer(integer_type::IntegerPosition::prepare(
+                    typed,
+                    execution,
+                    entry.return_type,
+                    selection_authority.as_deref(),
+                )?)
+            } else {
+                integer_type::ScalarPosition::prepare(
+                    typed,
+                    execution,
+                    entry.return_type,
+                    selection_authority.as_deref(),
+                )?
+            };
             warnings.extend(argument_warnings);
             // A domain-qualified parameter is a generated `requires` premise
             // on the entry state. `arguments::evaluate` has just proved each
@@ -225,6 +242,18 @@ pub(crate) fn evaluate_selected_range_endpoints(
                     custody,
                 )?
             };
+            let position = match position {
+                integer_type::ScalarPosition::Integer(position) => position,
+                integer_type::ScalarPosition::Boolean => {
+                    return match value {
+                        crate::BuildTimeValue::Bool(value) => Ok(ExpressionNode::Boolean(value)),
+                        other => Err(format!(
+                            "machine `{}` returned `{other:?}` instead of `bool`",
+                            machine.name
+                        )),
+                    };
+                }
+            };
             let value = crate::const_evaluation::const_lengths::decode_integer_result(
                 execution, machine, value,
             )?;
@@ -249,21 +278,21 @@ pub(crate) fn evaluate_selected_range_endpoints(
                 &value.abs().to_string(),
             )
             .map(|literal| {
-                literal.with_landing(IntegerLanding {
+                ExpressionNode::Integer(literal.with_landing(IntegerLanding {
                     landed_type,
                     domain: ArithmeticDomain::Exact,
-                })
+                }))
             })
             .map_err(|reason| format!("invalid evaluated range endpoint: {reason}"))
         });
         match result {
-            Ok(literal) => {
+            Ok(folded) => {
                 let original = std::mem::replace(
                     typed.expression_table.expression_mut(endpoint.expression),
-                    ExpressionNode::Integer(literal.clone()),
+                    folded.clone(),
                 );
                 originals.push((endpoint.expression, original));
-                substitutions.push((endpoint.expression, literal));
+                substitutions.push((endpoint.expression, folded));
             }
             Err(reason) => diagnostics.push(Diagnostic::error(format!(
                 "range endpoint of `{}`: const evaluation of `{}` failed: {reason}",
@@ -285,8 +314,8 @@ pub(crate) fn evaluate_selected_range_endpoints(
     }
 
     if diagnostics.is_empty() {
-        for (expression, literal) in substitutions {
-            *typed.expression_table.expression_mut(expression) = ExpressionNode::Integer(literal);
+        for (expression, folded) in substitutions {
+            *typed.expression_table.expression_mut(expression) = folded;
             typed.pending_const_range_endpoints.remove(&expression);
         }
         for warning in warnings {
@@ -314,6 +343,11 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
             };
             let mut work = vec![(*maximum, false), (*minimum, false)];
             let mut active = Vec::new();
+            // Expressions beneath a call's argument list. Everything else,
+            // including arithmetic around the bound and the callee's own
+            // signature bounds, is a range bound whose value must land as an
+            // integer.
+            let mut argument_positions = Vec::new();
             while let Some((expression, leaving)) = work.pop() {
                 if !typed.expression_table.expression_is_valid(expression) {
                     continue;
@@ -329,18 +363,18 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
                     work.push((expression, true));
                     match typed.expression_table.expression(expression) {
                         ExpressionNode::Binary(binary) => {
+                            if argument_positions.contains(&expression) {
+                                argument_positions.push(binary.left);
+                                argument_positions.push(binary.right);
+                            }
                             work.push((binary.right, false));
                             work.push((binary.left, false));
                         }
                         ExpressionNode::Call(call) => {
-                            work.extend(
-                                typed
-                                    .expression_table
-                                    .expression_handles(call.arguments)
-                                    .iter()
-                                    .rev()
-                                    .map(|argument| (*argument, false)),
-                            );
+                            let arguments =
+                                typed.expression_table.expression_handles(call.arguments);
+                            argument_positions.extend(arguments.iter().copied());
+                            work.extend(arguments.iter().rev().map(|argument| (*argument, false)));
                             if let Some(machine) = selected_endpoint_machine(typed, expression) {
                                 append_signature_bounds(typed, machine, &mut work)?;
                             }
@@ -359,6 +393,7 @@ fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Dia
                     expression,
                     machine: machine.symbol,
                     source_span: typed.expression_table.source_span(expression),
+                    range_bound: !argument_positions.contains(&expression),
                 });
             }
         }

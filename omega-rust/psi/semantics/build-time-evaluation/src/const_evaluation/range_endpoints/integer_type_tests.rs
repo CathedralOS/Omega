@@ -1,4 +1,4 @@
-use super::integer_type::IntegerPosition;
+use super::integer_type::{IntegerPosition, ScalarPosition};
 use super::{
     ExpressionNode, TypeConstraintNode, TypeReferenceHandle, TypedTrees,
     evaluate_const_range_endpoints,
@@ -322,4 +322,22 @@ fn retained_constant_bound_selection_is_admitted_before_the_body() {
             "{signature}: {errors:?}"
         );
     }
+}
+
+#[test]
+fn bare_boolean_parameters_are_boolean_positions_and_ranges_stay_integer() {
+    let program = typed("machine endpoint(flag: bool, count: u64[0..=8]) {}");
+    assert!(matches!(
+        ScalarPosition::prepare(&program, &program, parameter_type(&program, 0), None).unwrap(),
+        ScalarPosition::Boolean
+    ));
+    assert!(matches!(
+        ScalarPosition::prepare(&program, &program, parameter_type(&program, 1), None).unwrap(),
+        ScalarPosition::Integer(_)
+    ));
+    // The range bound never prepares as a scalar position: a Boolean there
+    // is still rejected by the integer position.
+    assert!(
+        IntegerPosition::prepare(&program, &program, parameter_type(&program, 0), None).is_err()
+    );
 }
