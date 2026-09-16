@@ -12,6 +12,7 @@ mod foreign_helper_product_queries;
 #[path = "build_target_activation/x86_feature_admission.rs"]
 mod x86_feature_admission;
 
+use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use package_compilation::{
@@ -123,6 +124,13 @@ fn diagnostic_text(project: &TempProject) -> String {
 
 const MACOS_HOSTED_MAIN: &str = "data Main { }\nmachine Main::main() { }\n";
 
+/// The owner's `build.omg` imports `support::setup`, so `support` is a
+/// build-scope edge: the root build entry's imports resolve only through
+/// `build_depend`/`build_depend_as` declarations, and a product `depend` edge
+/// used from build code rejects
+/// (wiki/spec/build/scoped_execution.md, "Dependency declarations and
+/// discovery"). The helper holds no product-scope binding, so the product
+/// queries below still answer for the query occurrence's own package.
 fn foreign_helper_inputs(project: &TempProject, helper: &TempProject) -> PackageCompilationInputs {
     PackageCompilationInputs::new(
         package_identity(1),
@@ -131,10 +139,11 @@ fn foreign_helper_inputs(project: &TempProject, helper: &TempProject) -> Package
             PackageSourceBinding::new(package_identity(1), "root-binding-owner", project.0.clone()),
             PackageSourceBinding::new(package_identity(2), "root-binding-helper", helper.0.clone()),
         ],
-        vec![PackageDependencyBinding::new(
+        vec![PackageDependencyBinding::for_purpose(
             package_identity(1),
             "support",
             package_identity(2),
+            DependencyPurpose::Build,
         )],
     )
     .expect("explicit package graph")
