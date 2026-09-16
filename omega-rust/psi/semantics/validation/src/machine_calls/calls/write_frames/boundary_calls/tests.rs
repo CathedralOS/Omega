@@ -351,6 +351,126 @@ fn static_boundary_finite_constraint_chains_preserve_exclusive_writes() {
     }
 }
 
+/// A signature `Type` parameter the call's actual arguments pin concretely
+/// instantiates the boundary route: the same single-origin and owned-storage
+/// gates then run against the caller's storage, not the formal name.
+#[test]
+fn generic_boundary_signature_result_binds_the_caller_actual() {
+    for (name, source, expected) in [
+        // `project<T>(carrier: &mut T) -> &mut T` instantiated at `Cell`:
+        // the single admitted route is the argument's exact storage, so the
+        // projected write stays a precise subpath and the re-exported
+        // reference keeps that origin through the boundary receiver's frame.
+        (
+            "result_root_exact",
+            "data Cell { value: u64; } data Main { device: Device; cell: Cell; } boundary trait Device { machine project<T>(carrier: &mut T) -> &mut T; machine output(value: &mut Cell); } machine Main::inspect(&mut self) { let r: &mut Cell = Device::project(&mut self.cell); r.value = 1; self.device.output(r); }",
+            Some(&["self.cell", "self.cell.value", "self.device"][..]),
+        ),
+        // The referent sits inside a `Wrap<Cell>` at an offset the caller
+        // cannot name, so the routed origin claims the coarse storage root.
+        (
+            "carrier_interior_result",
+            "data Cell { value: u64; } data Wrap<T> { inner: T; } data Main { device: Device; wrap: Wrap<Cell>; } boundary trait Device { machine project(wrap: &mut Wrap<Cell>) -> &mut Cell; } machine Main::inspect(&mut self) { let r: &mut Cell = Device::project(&mut self.wrap); r.value = 1; }",
+            Some(&["self.wrap"][..]),
+        ),
+        // The same substitution reaches a scalar referent one member deep.
+        (
+            "carrier_scalar_interior",
+            "data Wrap<T> { inner: T; } data Main { device: Device; wrap: Wrap<u64>; } boundary trait Device { machine project(wrap: &mut Wrap<u64>) -> &mut u64; } machine Main::inspect(&mut self) { let r: &mut u64 = Device::project(&mut self.wrap); r = 1; }",
+            Some(&["self.wrap"][..]),
+        ),
+        // A nested application binds the inner parameter under its own
+        // scope, so `Wrap<Wrap<u64>>` still resolves the `u64` interior.
+        (
+            "nested_application",
+            "data Wrap<T> { inner: T; } data Main { device: Device; wrap: Wrap<Wrap<u64>>; } boundary trait Device { machine project(wrap: &mut Wrap<Wrap<u64>>) -> &mut u64; } machine Main::inspect(&mut self) { let r: &mut u64 = Device::project(&mut self.wrap); r = 1; }",
+            Some(&["self.wrap"][..]),
+        ),
+        // An exclusive `&mut Wrap<Cell>` parameter writes its argument's
+        // origin through the same substitution the result route uses.
+        (
+            "generic_argument_footprint",
+            "data Cell { value: u64; } data Wrap<T> { inner: T; } data Main { device: Device; wrap: Wrap<Cell>; } boundary trait Device { machine consume(wrap: &mut Wrap<Cell>); } machine Main::inspect(&mut self) { self.device.consume(&mut self.wrap); }",
+            Some(&["self.device", "self.wrap"][..]),
+        ),
+        // A generic helper's member projection composes under the call's
+        // instantiation, keeping the exact leaf through the boundary write.
+        (
+            "helper_carrier_projection",
+            "data Cell { value: u64; } data Wrap<T> { inner: T; } data Main { device: Device; wrap: Wrap<Cell>; } boundary trait Device { machine output(value: &mut u64); } machine project(wrap: &mut Wrap<Cell>) -> &mut u64 { &mut wrap.inner.value } machine Main::inspect(&mut self) { self.device.output(project(&mut self.wrap)); }",
+            Some(&["self.device", "self.wrap.inner.value"][..]),
+        ),
+    ] {
+        let program = typed(source);
+        let mut actual = frame(&program).complete_paths().map(|paths| paths.to_vec());
+        if let Some(paths) = &mut actual {
+            paths.sort();
+        }
+        let expected = expected.map(|paths| {
+            paths
+                .iter()
+                .map(|path| (*path).to_owned())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+/// Substitution never widens admission: a route whose parameter stays
+/// unbound, whose carrier stores an exclusive reference, recurses without a
+/// finite proof, or admits several caller origins keeps the frame opaque.
+#[test]
+fn generic_boundary_carriers_still_fail_closed() {
+    for (name, source) in [
+        // No argument binds `T`, so the result's referent stays unproven.
+        (
+            "unbound_result_parameter",
+            "data Cell { value: u64; } data Main { device: Device; cell: Cell; } boundary trait Device { machine spawn<T>() -> &mut T; machine output(value: &mut Cell); } machine Main::inspect(&mut self) { let r: &mut Cell = Device::spawn(); self.device.output(r); }",
+        ),
+        // Both exclusive arguments admit the referent, so no single origin.
+        (
+            "two_admitted_origins",
+            "data Cell { value: u64; } data Main { device: Device; cell: Cell; other: Cell; } boundary trait Device { machine pick<T>(hit: &mut T, other: &mut T) -> &mut T; machine output(value: &mut Cell); } machine Main::inspect(&mut self) { let r: &mut Cell = Device::pick(&mut self.cell, &mut self.other); self.device.output(r); }",
+        ),
+        // A carrier whose stored exclusive reference may already reach the
+        // referent cannot name where the result lands.
+        (
+            "stored_exclusive_carrier",
+            "data Cell { value: u64; } data Pocket<T> { held: &mut T; } data Main { device: Device; pocket: Pocket<Cell>; } boundary trait Device { machine project(pocket: &mut Pocket<Cell>) -> &mut Cell; } machine Main::inspect(&mut self) { let r: &mut Cell = Device::project(&mut self.pocket); r.value = 1; }",
+        ),
+        // A by-value carrier is judged on the instantiated storage: once
+        // `T` binds `Cell`, the stored exclusive reference still fails.
+        (
+            "by_value_reference_carrier",
+            "data Cell { value: u64; } data Pocket<T> { held: &mut T; } data Main { device: Device; pocket: Pocket<Cell>; } boundary trait Device { machine consume<T>(pocket: Pocket<T>); } machine Main::inspect(&mut self) { self.device.consume(self.pocket); }",
+        ),
+        // The recursive member walk cannot finish, so the route stays
+        // opaque instead of guessing which link holds the referent.
+        (
+            "recursive_carrier",
+            "data Link<T> { next: &mut Link<T>; value: T; } data Main { device: Device; link: Link<u64>; } boundary trait Device { machine project(link: &mut Link<u64>) -> &mut u64; } machine Main::inspect(&mut self) { let r: &mut u64 = Device::project(&mut self.link); r = 1; }",
+        ),
+        // `T` instantiated at a dynamic carrier still fails the
+        // owned-storage gate: the referent cannot be proven isolated.
+        (
+            "dynamic_carrier",
+            "trait Shape {} data Cell { value: u64; } data Main { device: Device; shape: dyn Shape; } boundary trait Device { machine project<T>(carrier: &mut T); } machine Main::inspect(&mut self) { self.device.project(&mut self.shape); }",
+        ),
+        // Trait-level `Device<Cell>` instantiation is out of scope: the
+        // receiver does not select an inspectable signature.
+        (
+            "generic_boundary_trait",
+            "data Cell { value: u64; } data Main { device: Device<Cell>; cell: Cell; } boundary trait Device<T> { machine project(carrier: &mut T) -> &mut T; } machine Main::inspect(&mut self) { let r: &mut Cell = self.device.project(&mut self.cell); r.value = 1; }",
+        ),
+    ] {
+        let program = typed(source);
+        assert!(
+            !frame(&program).is_complete(),
+            "{name} unexpectedly completed"
+        );
+    }
+}
+
 #[test]
 fn static_boundary_cyclic_formal_constraints_remain_opaque() {
     let program = typed(
