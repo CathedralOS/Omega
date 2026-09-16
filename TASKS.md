@@ -3129,7 +3129,16 @@ Owners include
   `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources.
   Keep IEEE runtime comparison distinct from mathematical meaning equality;
   NaN payloads erase only in the meaning projection and signed zeros remain
-  distinct there.
+  distinct there. Resume: terminal-interpreter boundary dispatch now executes
+  installed scalar-result providers through the shared suspended scalar frame
+  (`call_operations.rs`/`call_frames.rs`, witnessed by
+  `terminal_interpreter/scalar_provider_call_tests.rs`). Open: verifier
+  provider-result conformance still lacks a
+  `(BoundaryMachineResult::Scalar, TerminalMachineResult::Scalar)` arm
+  (`terminal-verifier` `validation/foundation/provider_result.rs`, owned by
+  STRICT-FLOAT-RANGES), so codec representation validation and artifact
+  admission still reject scalar provider rows; kernel discharge and
+  artifact-aware proof sources remain.
 
 - **STRICT-FLOAT-RANGES.** Implement exclusive floating range evidence in
   validation's type-reference/cast readers, proof constraints and retained

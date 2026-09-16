@@ -33,6 +33,8 @@ mod results;
 mod scalar_array;
 mod scalar_case_arguments;
 mod scalar_operations;
+#[cfg(test)]
+mod scalar_provider_call_tests;
 mod semantic_value_comparison;
 #[cfg(test)]
 mod structural_argument_binding_tests;
