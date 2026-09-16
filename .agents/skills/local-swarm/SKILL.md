@@ -31,11 +31,6 @@ coordinator's procedure — the agents get rendered prompts, not this file.
    runs host gates/route/claims checks, renders prompts to
    `build/swarm/<wave>/prompts/<name>.md`, and prints the launch table.
    Fix what it rejects; do not `--skip-*` without a reason you can state.
-5. Read each row's `partition_hints` before spawning: `dependency_language`
-   and `same_layer_reference` mark items that belong in separate layers;
-   `uncovered_mentions` means `owning_paths` don't cover the machinery the
-   board text names — fix the paths so the fence protects the real surface;
-   `scale_hint` means the item is a multi-layer decomposition, not a slice.
 
 ## Launch
 
@@ -45,9 +40,12 @@ that row's prompt file contents as its task.
 
 Concurrency is bounded by the org-wide message budget shared with cloud waves
 and other machines, not by this host. A burst of ~20 died in minutes; 8 held
-while the budget was quiet. When the user gives no count, default to 4
-concurrent and backfill freed slots toward the observed ceiling — and only
-while the user asked the wave to keep running.
+while the budget was quiet. When the user gives no count, run 6 subagents in
+parallel constantly: backfill a freed slot immediately on landing, report, or
+confirmed death, and treat a slot showing zero filesystem output for ~30
+minutes (clean worktree, no commits, no new files) as dead — relaunch it in a
+fresh worktree rather than waiting. Keep the tank at 6 only while the user
+asked the wave to keep running.
 
 ## Monitor
 
