@@ -1,12 +1,17 @@
 //! Fixtures shared by the native filesystem canaries: compilation, exact
-//! macOS entry builds, project copies and run assertions.
+//! macOS entry builds, project copies, staged package inputs and run
+//! assertions.
 
 #![cfg(target_os = "macos")]
 
+#[path = "support/console_acceptance.rs"]
+mod console_acceptance;
 #[path = "fixture_rosters/native_filesystem_canaries.rs"]
 mod fixture_roster;
 #[path = "native_filesystem_canaries/gui_and_sample_apps.rs"]
 mod gui_and_sample_apps;
+#[path = "support/macos_entry_acceptance.rs"]
+mod macos_entry_acceptance;
 #[path = "native_filesystem_canaries/native_filesystem_passes.rs"]
 mod native_filesystem_passes;
 #[path = "native_filesystem_canaries/samples_floats_and_objc.rs"]
@@ -20,7 +25,16 @@ mod samples_floats_and_objc;
 // across the range: no-Path (close), Path+stat, multi-op CRUD, dirent walk, locking,
 // dir ops. (These canaries signal success via "PASS: …" on stdout and exit with the
 // final write's byte count, so the assertion is on stdout, not the exit code.)
-use compiler::CompileOptions;
+// The sample projects under `samples/` instead import `omega_language_std` as an
+// ordinary package dependency; `staged_std_package_inputs` supplies that graph.
+use build_declarations::{BuildDeclaration, extract_build_declaration};
+use compiler::{CheckedCompileRequest, CompileOptions, compile_to_checked};
+use diagnostics::Diagnostic;
+use package_compilation::{
+    AcceptedSemanticBindingRole, PackageCompilationInputs, PackageDependencyBinding,
+    PackageSourceBinding,
+};
+use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -29,21 +43,40 @@ static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
 
 fn compile_program(
     options: CompileOptions,
-) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
+    package_inputs: Option<PackageCompilationInputs>,
+) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
     let build_dir = options.build_dir();
-    let report = compiler::compile(
-        compiler::CompileRequest::new(options)
-            .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report)?;
+    let mut request = compiler::CompileRequest::new(options)
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+    if let Some(package_inputs) = package_inputs {
+        // The permission policy is derived from the bindings this harness
+        // accepted, exactly as the canary suite and sample oracle do.
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            package_inputs
+                .accepted_semantic_bindings()
+                .flat_map(|binding| binding.terminal_authority_permissions())
+                .cloned()
+                .collect(),
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot construct staged project terminal-authority policy: {error:?}"
+            ))]
+        })?;
+        request = request
+            .with_terminal_authority_permission_policy(permission_policy)
+            .with_package_inputs(package_inputs);
+    }
+    let report =
+        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
     report
         .publish_retained_native_artifact(&build_dir)
-        .map_err(|error| vec![diagnostics::Diagnostic::error(error)])
+        .map_err(|error| vec![Diagnostic::error(error)])
 }
 
 fn compile_exact_macos_entry(
     options: CompileOptions,
-) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
+) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
     let ordinal = NEXT_ENTRY_STAGE.fetch_add(1, Ordering::Relaxed);
     let stage_dir = std::env::temp_dir().join(format!(
         "omega-macos-entry-stage-{}-{ordinal}",
@@ -60,18 +93,150 @@ fn compile_exact_macos_entry(
         .expect("stage native source project");
     write_exact_macos_build(&stage_dir);
 
-    let result = compile_program(CompileOptions {
-        root_path: stage_dir.join(
-            options
-                .root_path
-                .file_name()
-                .expect("native source has a file name"),
-        ),
-        build_dir: options.build_dir,
-        target_name: Some("macos_arm64".to_owned()),
+    let root_path = stage_dir.join(
+        options
+            .root_path
+            .file_name()
+            .expect("native source has a file name"),
+    );
+    let result = staged_std_package_inputs(&root_path).and_then(|package_inputs| {
+        compile_program(
+            CompileOptions {
+                root_path,
+                build_dir: options.build_dir,
+                target_name: Some("macos_arm64".to_owned()),
+            },
+            package_inputs,
+        )
     });
     let _ = std::fs::remove_dir_all(&stage_dir);
     result
+}
+
+fn staged_package_identity(marker: u8) -> PackageKeyIdentity {
+    PackageKeyIdentity::from_digest([marker; 32]).expect("staged package identity is nonzero")
+}
+
+/// Package inputs for a staged project that declares the ordinary std
+/// dependency in its `build.omg`; `None` for the self-contained corpus
+/// fixtures, which import the bundled `omega::language::std` modules and
+/// compile exactly as before.
+///
+/// The stage is a copy of the project under a temporary directory. Without a
+/// package graph the compiler resolves `omega_language_std::console` as a
+/// module below the project root, which the copy cannot satisfy. The sample's
+/// `builder.depend(Source::Path { location: "../../../source/library/std" })`
+/// is relative to its checked-in location and dangles from the copy, but the
+/// package-aware route never reads that row: it consumes the reconciled graph
+/// supplied here, which binds the root package to the stage directory and std
+/// to the repository path directly. Copying std into the stage was rejected
+/// because it would duplicate the package instead of reusing the route the
+/// canary suite and sample oracle already take, and the sample itself stays
+/// unedited. Acceptance follows those harnesses: the exact macOS entry
+/// schema, the std `FilesystemHost` service when imported, and the std
+/// `Console` plan with termination, byte output and byte input, since the
+/// samples reach output through std wrappers such as `write_line` rather
+/// than spelling `write_byte` themselves. This is test-owned acceptance, not
+/// a package-review receipt.
+fn staged_std_package_inputs(
+    root_path: &Path,
+) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
+    let project_root = root_path
+        .parent()
+        .expect("staged source has a project root");
+    let declares_std = std::fs::read_to_string(project_root.join("build.omg")).is_ok_and(|build| {
+        build.contains("builder.depend(Source::Path") && build.contains("source/library/std")
+    });
+    if !declares_std {
+        return Ok(None);
+    }
+
+    let declaration = extract_build_declaration(project_root)
+        .unwrap_or_else(|error| panic!("staged project {}: {error}", project_root.display()));
+    let root_role = declaration.kind();
+    let root_name = match declaration {
+        BuildDeclaration::Application(application) => application.name,
+        BuildDeclaration::Package(package) => package.name,
+        BuildDeclaration::Workspace(_) => {
+            panic!(
+                "staged project {} cannot be a workspace root",
+                project_root.display()
+            )
+        }
+    };
+    let root_identity = staged_package_identity(1);
+    let standard_library = staged_package_identity(2);
+    let standard_library_root = repo_root().join("source/library/std");
+    let packages = vec![
+        PackageSourceBinding::new(
+            root_identity,
+            root_name.into_string(),
+            project_root.to_path_buf(),
+        ),
+        PackageSourceBinding::new(
+            standard_library,
+            "omega-language-std",
+            standard_library_root.clone(),
+        ),
+    ];
+    let dependencies = vec![PackageDependencyBinding::new(
+        root_identity,
+        "omega_language_std",
+        standard_library,
+    )];
+    let package_inputs =
+        PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
+            .unwrap_or_else(|errors| {
+                panic!("staged project {}: {errors:#?}", project_root.display())
+            });
+
+    // Every staged build binds `macos_arm64::ProgramEntry`, so the checked
+    // dependency entry is accepted before the application is selected.
+    let mut bindings = vec![macos_entry_acceptance::candidate_macos_entry_binding(
+        &standard_library_root,
+        standard_library,
+    )?];
+    let package_inputs = package_inputs
+        .with_accepted_semantic_bindings(bindings.clone())
+        .map_err(|errors| {
+            vec![Diagnostic::error(format!(
+                "cannot accept staged project entry binding: {errors:?}"
+            ))]
+        })?;
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs.clone()),
+        ..CheckedCompileRequest::new(root_path, Some("macos_arm64"))
+    })?;
+    let source = std::fs::read_to_string(root_path).unwrap_or_default();
+    // `omega_language_std::filesystem` also matches the raw `filesystem_host`
+    // import; both reach the same std service.
+    if source.contains("omega_language_std::filesystem") {
+        bindings.push(
+            preliminary
+                .candidate_service_binding(
+                    AcceptedSemanticBindingRole::FilesystemHostService,
+                    standard_library,
+                    "FilesystemHost",
+                )
+                .map_err(|diagnostic| vec![diagnostic])?,
+        );
+    }
+    if source.contains("omega_language_std::console") {
+        bindings.push(console_acceptance::candidate_console_exit_binding(
+            &preliminary,
+            standard_library,
+            true,
+            true,
+        )?);
+    }
+    package_inputs
+        .with_accepted_semantic_bindings(bindings)
+        .map(Some)
+        .map_err(|errors| {
+            vec![Diagnostic::error(format!(
+                "cannot accept staged project std bindings: {errors:?}"
+            ))]
+        })
 }
 
 fn copy_project_tree(
