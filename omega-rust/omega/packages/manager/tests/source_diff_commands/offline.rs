@@ -3,6 +3,7 @@ fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparis
     run(
         "offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparison",
         |fixture| {
+            use package_source::PrimaryGitChoices;
             use package_manager::PackageCommandKind;
             use package_source::git::resolution::resolve_git_source_with_storage;
             use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};

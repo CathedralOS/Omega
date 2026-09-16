@@ -9,6 +9,7 @@ use super::{
     GitResolutionOptions, ResolveExternalLocalPackageClosureError, ResolvedPackageSourceClosure,
     write_package,
 };
+use package_source::PrimaryGitChoices;
 use package_source::local::staging::stage_local_source_replacement_in_lane;
 use sha2::{Digest, Sha256};
 use std::process::Command;

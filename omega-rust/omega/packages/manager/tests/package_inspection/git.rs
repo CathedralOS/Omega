@@ -1,6 +1,7 @@
 use super::fixture::*;
 use package_manager::PackageCommandStatus;
 use package_manager::operations::{PackageInspectionOptions, inspect_packages_with_storage};
+use package_source::PrimaryGitChoices;
 use package_source::SourceResolverStorage;
 
 #[test]

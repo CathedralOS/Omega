@@ -8,6 +8,7 @@ use super::workspace::{
 };
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource};
+#[cfg(test)]
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::{
     resolve_git_source_from_pin_in_lane, resolve_git_workspace_member_from_pin_in_lanes,

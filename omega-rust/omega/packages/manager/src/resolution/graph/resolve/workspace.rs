@@ -10,6 +10,7 @@ use super::cache::{
 use super::dependencies::{WorkspaceContext, resolve_registered_package_closure};
 use super::errors::ResolveWorkspacePackageClosureError;
 use crate::resolution::source::ResolvePackageSourceError;
+#[cfg(test)]
 use package_source::PrimaryGitChoices;
 use package_source::{
     ExternalSourceContext, SourceLineage, SourceRelativePath, WorkspaceLineageIdentity,

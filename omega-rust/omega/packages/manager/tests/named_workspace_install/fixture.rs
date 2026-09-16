@@ -3,6 +3,7 @@ use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
     PackageCommandOutcome, execute_package_command,
 };
+use package_source::PrimaryGitChoices;
 use package_source::SourceResolverStorage;
 use std::fs;
 use std::path::{Path, PathBuf};

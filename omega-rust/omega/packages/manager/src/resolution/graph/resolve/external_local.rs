@@ -14,6 +14,7 @@ use crate::declarations::PackageKey;
 use crate::resolution::source::{
     PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
 };
+#[cfg(test)]
 use package_source::PrimaryGitChoices;
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{ExternalSourceContext, SourceLineage};
