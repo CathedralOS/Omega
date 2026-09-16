@@ -218,7 +218,8 @@ fn validate_immediate_row(
         (
             PairOperandShape::UnaryLiteral
             | PairOperandShape::BinaryRightLiteralConstantResult
-            | PairOperandShape::BinaryLeftLiteralConstantResult,
+            | PairOperandShape::BinaryLeftLiteralConstantResult
+            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses,
             PairResultDisposition::ScalarRegister,
             [result],
         ) => {

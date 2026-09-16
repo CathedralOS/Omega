@@ -63,6 +63,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_wrapping_add_zero());
     assert!(policy.enables_bitwise_and_ones());
     assert!(policy.enables_wrapping_remainder_zero());
+    assert!(policy.enables_exact_divide_zero());
 }
 
 #[test]
@@ -82,6 +83,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         wrapping_add_zero,
         and_ones,
         remainder_zero,
+        divide_zero,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -536,6 +538,105 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         None
     );
 
+    // The exact-divide zero-dividend family declares the fourth
+    // trap-carrying machine-effect relationship: a dividend literal of
+    // exactly zero folds `ExactDivideU64` into a `MaterializeI64` of the
+    // constant zero — an unsigned divide of a zero dividend is always
+    // zero — under `FaultDischargedByObligation`: the folded literal does
+    // not discharge the divide's encoded architectural fault; the
+    // nonzero-divisor obligation the kind carries does. The family shares
+    // the divisor-one family's consumer kind; the folded literal's
+    // operand position keeps the grammars disjoint, and its operand shape
+    // keeps the provably-zero auxiliary `Use` tail a `div` realization
+    // reads as the dividend's upper half under explicit custody.
+    let &[divide_zero_rule] = divide_zero.payload().pairs() else {
+        panic!("the divide zero-dividend family declares one pair rule")
+    };
+    assert_eq!(
+        divide_zero.optimization(),
+        Optimization::SelectedIncomingExactDivideZeroDividendZeroMaterialization
+    );
+    assert_eq!(
+        divide_zero_rule,
+        SelectedInstructionPairRule::EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE
+    );
+    assert_eq!(
+        divide_zero_rule.producer(),
+        MachineSemanticKind::MaterializeI64
+    );
+    assert_eq!(
+        divide_zero_rule.consumer(),
+        MachineSemanticKind::ExactDivideU64
+    );
+    assert_eq!(
+        divide_zero_rule.rewritten(),
+        MachineSemanticKind::MaterializeI64
+    );
+    assert_eq!(
+        divide_zero_rule.immediate_bound(),
+        PairImmediateBound::Exactly(0)
+    );
+    assert!(divide_zero_rule.admits_immediate(0));
+    assert!(!divide_zero_rule.admits_immediate(1));
+    assert!(!divide_zero_rule.admits_immediate(2));
+    assert!(!divide_zero_rule.admits_immediate(u64::MAX));
+    assert_eq!(divide_zero_rule.fold_immediate(0), Some(0));
+    assert_eq!(
+        divide_zero_rule.operand_shape(),
+        PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
+    );
+    assert_eq!(divide_zero_rule.victim_operand(), 0);
+    assert_ne!(
+        divide_zero_rule.victim_operand(),
+        divide_rule.victim_operand()
+    );
+    assert_eq!(
+        divide_zero_rule.result(),
+        PairResultDisposition::ScalarRegister
+    );
+    assert_eq!(
+        divide_zero_rule.unit_effects(),
+        PairUnitEffects::BoundConsumerOperands
+    );
+    assert_eq!(
+        divide_zero_rule.machine_effects(),
+        PairMachineEffects::FaultDischargedByObligation
+    );
+    let divide_kind = SelectedInstructionKind::ExactDivideU64 {
+        obligation,
+        accepted_fact,
+    };
+    assert_eq!(
+        divide_zero_rule.rewrite_consumer(divide_kind, 0, Some(u64_scalar)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0),
+        })
+    );
+    assert_eq!(
+        divide_zero_rule.rewrite_consumer(divide_kind, 0, Some(i64_scalar)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Signed(0),
+        })
+    );
+    // The consumer guard binds the rule to its own consumer kind: the
+    // zero-dividend divide rule never rewrites a remainder or an and.
+    assert_eq!(
+        divide_zero_rule.rewrite_consumer(remainder_kind, 0, Some(u64_scalar)),
+        None
+    );
+    assert_eq!(
+        divide_zero_rule.rewrite_consumer(
+            SelectedInstructionKind::BitwiseAndI64,
+            0,
+            Some(u64_scalar)
+        ),
+        None
+    );
+    assert_eq!(
+        divide_zero_rule.rewrite_consumer(divide_kind, 0, None),
+        None
+    );
+
     // The bitwise-and annihilator family declares one pair per `Use`
     // position: a literal of exactly zero folds `BitwiseAndI64` into a
     // `MaterializeI64` of the constant zero — `x & 0` and `0 & x` are both
@@ -887,6 +988,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         vec![SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE]
     );
     assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1).collect::<Vec<_>>(),
+        vec![SelectedInstructionPairRule::EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE]
+    );
+    assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::BITWISE_AND_ZERO_V1).collect::<Vec<_>>(),
         SelectedInstructionPairRule::BITWISE_AND_ZERO_FOLDS.to_vec()
     );
@@ -972,6 +1077,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         Some(keys.materialize_i64)
     );
     assert_eq!(
+        divide_zero_rule.immediate_constraint_key(&keys),
+        Some(keys.materialize_i64)
+    );
+    assert_eq!(
         and_zero_rule.immediate_constraint_key(&keys),
         Some(keys.materialize_i64)
     );
@@ -1033,6 +1142,10 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // relaxes only the dropped consumer's operand decorations.
             SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE,
             SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE,
+            // The materialize row the divide zero-dividend fold rewrites
+            // into is likewise unit-clean; `BoundConsumerOperands` relaxes
+            // only the dropped consumer's operand bindings.
+            SelectedInstructionPairRule::EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE,
             // Both and-zero grammars rewrite into the same materialize
             // row, which is itself unit-clean.
             SelectedInstructionPairRule::BITWISE_AND_ZERO_MATERIALIZE,
@@ -1250,6 +1363,49 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         // replay check it against the consumer record itself.
         {
             let rule = SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE;
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A faulting surface the obligation does not discharge —
+            // memory traffic or a hosted trap — cannot take the consumer
+            // role.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
+            );
+        }
+
+        // The divide zero-dividend pair admits its own triple on both
+        // targets under the obligation-discharged surface: the same
+        // possibly-faulting divide consumer the divisor-one fold binds and
+        // the isolated materialization — the declaration-level requirement
+        // is the shared fault-discharged shape; the distinguishing
+        // obligation custody is instruction-level and the producer and
+        // replay check it against the consumer record itself.
+        {
+            let rule = SelectedInstructionPairRule::EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE;
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
             let rewritten = declaration(rule.rewritten());

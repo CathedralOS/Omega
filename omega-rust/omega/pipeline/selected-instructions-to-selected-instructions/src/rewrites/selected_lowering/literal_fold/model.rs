@@ -50,6 +50,7 @@ impl LiteralFoldPolicy {
     const WRAPPING_ADD_ZERO_BIT: u16 = 1 << 11;
     const BITWISE_AND_ONES_BIT: u16 = 1 << 12;
     const WRAPPING_REMAINDER_ZERO_BIT: u16 = 1 << 13;
+    const EXACT_DIVIDE_ZERO_BIT: u16 = 1 << 14;
     const KNOWN_BITS: u16 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -63,7 +64,8 @@ impl LiteralFoldPolicy {
         | Self::BITWISE_XOR_ZERO_BIT
         | Self::WRAPPING_ADD_ZERO_BIT
         | Self::BITWISE_AND_ONES_BIT
-        | Self::WRAPPING_REMAINDER_ZERO_BIT;
+        | Self::WRAPPING_REMAINDER_ZERO_BIT
+        | Self::EXACT_DIVIDE_ZERO_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -168,6 +170,24 @@ impl LiteralFoldPolicy {
     pub const WRAPPING_REMAINDER_ZERO_V1: Self = Self {
         enabled_rules: Self::WRAPPING_REMAINDER_ZERO_BIT,
     };
+    /// Exact-divide zero-dividend fold: fold a materialized literal `0`
+    /// feeding its sole `ExactDivideU64` consumer's dividend operand into
+    /// a `MaterializeI64` of zero at the result register — an unsigned
+    /// divide of a zero dividend is always zero. The literal is not what
+    /// discharges the consumer's encoded fault surface: a quotient of
+    /// zero can never overflow, and the nonzero-divisor obligation the
+    /// exact-divide kind carries already excludes division by zero — so
+    /// the fold retires the trap surface under the consumer's own
+    /// definedness proof while dropping the divisor `Use` and the
+    /// provably-zero auxiliary `Use` operands a `div` realization reads
+    /// as the dividend's upper half. The zero-dividend grammar is
+    /// disjoint from the divisor-one family on the folded literal's
+    /// operand position: the producer selects between the two
+    /// `ExactDivideU64` families by which position the recorded future
+    /// use names.
+    pub const EXACT_DIVIDE_ZERO_V1: Self = Self {
+        enabled_rules: Self::EXACT_DIVIDE_ZERO_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -237,6 +257,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_wrapping_remainder_zero(self) -> bool {
         self.enabled_rules & Self::WRAPPING_REMAINDER_ZERO_BIT != 0
+    }
+
+    pub const fn enables_exact_divide_zero(self) -> bool {
+        self.enabled_rules & Self::EXACT_DIVIDE_ZERO_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u16 {
@@ -396,9 +420,9 @@ pub struct LiteralFoldAction {
     /// operand 1, under the `Use`-free unary grammar it records the folded
     /// input register, and under the constant-result grammars it records
     /// the dropped non-victim `Use` — the operand-0 dividend under the
-    /// right grammar, the operand-1 `Use` under the left annihilator
-    /// grammar — for custody; the rewritten row binds no `Use` position
-    /// at all.
+    /// right grammar, the operand-1 `Use` under the left annihilator and
+    /// left auxiliary-`Use` grammars — for custody; the rewritten row
+    /// binds no `Use` position at all.
     pub surviving: VirtualRegisterId,
     /// The folded consumer's scalar result. Flag-defining consumers such as
     /// `CompareI64` carry no `Def` operand and record `None`.

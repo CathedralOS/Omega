@@ -1090,16 +1090,52 @@ pub(super) fn staged_add_inputs(target: NativeTarget, literal_operand: u16) -> I
 }
 
 /// A `MaterializeI64` victim producing the literal `1` feeding operand 1 —
-/// the divisor — of `ExactDivideU64`, whose operand-2 `Def` result is
-/// `VirtualRegisterId(2)`, with the pressure-recovery classification already
-/// admitted as an `Incoming` rematerialization candidate. The consumer's
-/// operand decorations come from the target's real divide row: on x86-64
-/// that is the pinned `div` form whose operand 3 `Use` is the high-half
-/// dividend, staged as a `VirtualRegisterId(3)` scratch defined by a
-/// `MaterializeI64(0)` emitted immediately before the literal — the shape
-/// selected construction produces; aarch64's `udiv` row carries no
-/// auxiliary `Use` and stages the bare three-operand form.
+/// the divisor — of `ExactDivideU64`: `x / 1` is `x`.
 pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
+    staged_divide_family_inputs(
+        target,
+        1,
+        IntegerValue::Unsigned(1),
+        LiteralFoldPolicy::EXACT_DIVIDE_V1,
+    )
+}
+
+/// A `MaterializeI64` victim producing `Unsigned(0)` feeding operand 0 —
+/// the dividend — of an `ExactDivideU64` consumer: `0 / x` is `0` under
+/// the carried nonzero-divisor obligation. The surviving register
+/// `VirtualRegisterId(0)` occupies the operand-1 divisor `Use` the fold
+/// drops; the fold's fault discharge is the consumer's recorded
+/// obligation, not the folded literal.
+pub(super) fn staged_divide_zero_dividend_inputs(target: NativeTarget) -> Inputs {
+    staged_divide_family_inputs(
+        target,
+        0,
+        IntegerValue::Unsigned(0),
+        LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
+    )
+}
+
+/// One `ExactDivideU64` consumer whose `literal_operand` `Use` position
+/// binds the `MaterializeI64` victim's register `VirtualRegisterId(1)`
+/// carrying `literal_immediate`, with the other `Use` position binding the
+/// entry-parameter register `VirtualRegisterId(0)` and
+/// `VirtualRegisterId(2)` the `Def` result either way, with the
+/// pressure-recovery classification already admitted as an `Incoming`
+/// rematerialization candidate. `policy` is the fold policy the staged
+/// selected input declares. The consumer's operand decorations come from
+/// the target's real divide row: on x86-64 that is the pinned `div` form
+/// whose operand 3 `Use` is the high-half dividend, staged as a
+/// `VirtualRegisterId(3)` scratch defined by a `MaterializeI64(0)` emitted
+/// immediately before the literal — the shape selected construction
+/// produces, and the zero-provenance custody the auxiliary-`Use` grammar
+/// requires; aarch64's `udiv` row carries no auxiliary `Use` and stages
+/// the bare three-operand form.
+fn staged_divide_family_inputs(
+    target: NativeTarget,
+    literal_operand: u16,
+    literal_immediate: IntegerValue,
+    policy: LiteralFoldPolicy,
+) -> Inputs {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
     let machine = MachineId::new(1).unwrap();
@@ -1160,7 +1196,7 @@ pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
     let literal = SelectedInstruction {
         id: literal_id,
         kind: SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(1),
+            value: literal_immediate,
         },
         constraint: materialize.key,
         operands: vec![SelectedOperand {
@@ -1187,14 +1223,33 @@ pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
         operands: divide
             .operands
             .iter()
-            .map(|operand| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: VirtualRegisterId(u32::from(operand.operand)),
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
+            .map(|operand| {
+                // `VirtualRegisterId(1)` is the literal's result register:
+                // it binds whichever `Use` position the fold admits. The
+                // entry-parameter `VirtualRegisterId(0)` binds the other
+                // leading `Use`; `Def` positions and the auxiliary `Use`
+                // tail bind their own index onward.
+                let index = u32::from(operand.operand);
+                let virtual_register = if operand.access == RegisterOperandAccess::Use
+                    && operand.operand == literal_operand
+                {
+                    VirtualRegisterId(1)
+                } else if operand.access == RegisterOperandAccess::Use
+                    && operand.operand == 1 - literal_operand
+                {
+                    VirtualRegisterId(0)
+                } else {
+                    VirtualRegisterId(index)
+                };
+                SelectedOperand {
+                    operand: operand.operand,
+                    virtual_register,
+                    access: operand.access,
+                    class: operand.class,
+                    fixed_view: operand.fixed_view,
+                    tied_to: operand.tied_to,
+                    early_clobber: operand.early_clobber,
+                }
             })
             .collect(),
         implicit_uses: divide.implicit_uses.clone(),
@@ -1358,7 +1413,7 @@ pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
             machine_effect_catalog: effect_catalog_identity,
             optimization_unit: unit,
             fuel_schedule: fuel,
-            policy: LiteralFoldPolicy::EXACT_DIVIDE_V1,
+            policy,
             budget: budget(),
             usage: usage(),
             functions: vec![FunctionLiteralFold {
@@ -1381,7 +1436,7 @@ pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
             optimization_unit: unit,
             fuel_schedule: fuel,
             transformed_selected: selected_identity,
-            policy: LiteralFoldPolicy::EXACT_DIVIDE_V1,
+            policy,
             usage: usage(),
             function_count: 1,
             applied_count: 0,
@@ -1418,7 +1473,7 @@ pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
             vec![occurrence(
                 consumer_point,
                 consumer_id,
-                0,
+                1 - literal_operand,
                 RegisterOperandAccess::Use,
             )],
             vec![fragment(0, consumer_point + 1)],
@@ -1427,7 +1482,12 @@ pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
             VirtualRegisterId(1),
             vec![
                 occurrence(literal_id.0, literal_id, 0, RegisterOperandAccess::Def),
-                occurrence(consumer_point, consumer_id, 1, RegisterOperandAccess::Use),
+                occurrence(
+                    consumer_point,
+                    consumer_id,
+                    literal_operand,
+                    RegisterOperandAccess::Use,
+                ),
             ],
             vec![fragment(literal_id.0, consumer_point + 1)],
         ),
@@ -1632,13 +1692,13 @@ pub(super) fn staged_divide_inputs(target: NativeTarget) -> Inputs {
                         RecoveryClassification::ImmediateU64RematerializationCandidate {
                             defining_instruction: literal_id,
                             source_value: literal_value,
-                            value: IntegerValue::Unsigned(1),
+                            value: literal_immediate,
                             provenance: literal_provenance,
                             future_uses: vec![RecoveryFutureUse {
                                 block: SelectedBlockId(0),
                                 point: LiveRangePoint(consumer_point),
                                 instruction: consumer_id,
-                                operand: 1,
+                                operand: literal_operand,
                             }],
                         },
                 }),
