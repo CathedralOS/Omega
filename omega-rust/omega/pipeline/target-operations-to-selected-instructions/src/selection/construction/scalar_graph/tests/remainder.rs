@@ -146,10 +146,48 @@ fn signed_remainder_preserves_operand_type_proof_and_scratch_custody() {
                 environment.constraints(),
             )
             .unwrap();
-            assert_eq!(
-                same_operand.blocks[0].instructions[2].operands[0].virtual_register,
-                same_operand.blocks[0].instructions[2].operands[1].virtual_register
-            );
+            if target.architecture == target::Architecture::X86_64 {
+                // The divisor is pinned to RCX, so a shared dividend/divisor
+                // register cannot satisfy RAX and RCX at once: the constructor
+                // unshares it through a copy before the remainder.
+                assert_eq!(
+                    same_operand.blocks[0].instructions[2].kind,
+                    SelectedInstructionKind::CopyI64
+                );
+                let remainder = &same_operand.blocks[0].instructions[3];
+                assert_eq!(
+                    remainder.kind,
+                    SelectedInstructionKind::WrappingRemainderI64 {
+                        obligation,
+                        accepted_fact
+                    }
+                );
+                assert_ne!(
+                    remainder.operands[0].virtual_register,
+                    remainder.operands[1].virtual_register
+                );
+                let mut changed = same_operand.clone();
+                changed.blocks[0].instructions[2].kind = SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(0),
+                };
+                assert!(
+                    crate::selection::validation::scalar_graph::validate(
+                        0,
+                        &same_operand_source,
+                        &changed,
+                        target,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                    )
+                    .is_err()
+                );
+            } else {
+                assert_eq!(
+                    same_operand.blocks[0].instructions[2].operands[0].virtual_register,
+                    same_operand.blocks[0].instructions[2].operands[1].virtual_register
+                );
+            }
             source.blocks[0].instructions[1]
                 .result
                 .as_mut()

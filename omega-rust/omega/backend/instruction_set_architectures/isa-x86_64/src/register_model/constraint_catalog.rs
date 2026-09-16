@@ -369,18 +369,19 @@ pub fn x86_64_register_constraint_catalog(
         implicit_defs: Vec::new(),
         clobbers: view("rflags").units.clone(),
     });
+    // The realized form zeroes RDX before reading the divisor, so the divisor
+    // is pinned to RCX — a fixed view that cannot overlap the scratch — rather
+    // than left allocatable over an early-clobbered RDX. The RDX scratch is an
+    // ordinary late definition: the row's two outputs both define at the
+    // instruction's after-point, which the fixed precolored contract accepts.
     constraints.push(RegisterInstructionConstraint {
         id: RegisterConstraintId(0),
         key: X86_64_REMAINDER_I64,
         operands: vec![
             fixed(0, RegisterOperandAccess::Use, "rax"),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            fixed(1, RegisterOperandAccess::Use, "rcx"),
             fixed(2, RegisterOperandAccess::Def, "rax"),
-            {
-                let mut scratch = fixed(3, RegisterOperandAccess::Def, "rdx");
-                scratch.early_clobber = true;
-                scratch
-            },
+            fixed(3, RegisterOperandAccess::Def, "rdx"),
         ],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),

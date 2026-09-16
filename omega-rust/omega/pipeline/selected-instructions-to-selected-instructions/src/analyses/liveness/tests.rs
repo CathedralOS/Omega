@@ -1,15 +1,16 @@
 //! Liveness fixtures and focused transfer tests.
 
+use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
-    RegisterUnitId,
+    RegisterUnitId, validate_physical_register_model,
 };
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedSuccessor,
     SelectedTerminator, VirtualRegisterId,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, ObligationId};
 
 use super::compute::{compute_function, reject_unsupported_constraints};
 use crate::LivenessError;
@@ -745,6 +746,93 @@ fn admits_only_distinct_use_to_def_ties_and_rejects_other_phase_frontiers() {
         });
     assert!(matches!(
         reject_unsupported_constraints(0, &tied_overlap),
+        Err(LivenessError::UnsupportedEarlyClobber { .. })
+    ));
+}
+
+#[test]
+fn catalog_remainder_rows_are_liveness_admissible() {
+    // Every operand field is mirrored from the real catalog row so a
+    // substituted or understated declaration rejects here before the row can
+    // reach allocation. The x86-64 row once declared a fixed early-clobber
+    // RDX output beside an ordinary fixed RAX result: a shape this gate
+    // refuses for mixing early and ordinary definitions, and which
+    // fixed-precolored interval validation refuses outright.
+    let x86_64_model =
+        validate_physical_register_model(isa_x86_64::x86_64_physical_register_model()).unwrap();
+    let x86_64 = isa_x86_64::x86_64_register_constraint_catalog(&x86_64_model);
+    let aarch64_model =
+        validate_physical_register_model(isa_aarch64::aarch64_physical_register_model()).unwrap();
+    let aarch64 = isa_aarch64::aarch64_register_constraint_catalog(&aarch64_model);
+    for (catalog, key) in [
+        (&x86_64, isa_x86_64::X86_64_REMAINDER_I64),
+        (&aarch64, isa_aarch64::AARCH64_REMAINDER_I64),
+    ] {
+        let row = catalog
+            .constraints
+            .iter()
+            .find(|row| row.key == key)
+            .unwrap();
+        let mut function = function_with_operand(RegisterOperandAccess::Use);
+        let instruction = &mut function.blocks[0].instructions[0];
+        instruction.kind = SelectedInstructionKind::WrappingRemainderI64 {
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        };
+        instruction.constraint = key;
+        instruction.operands = row
+            .operands
+            .iter()
+            .map(|operand| SelectedOperand {
+                operand: operand.operand,
+                virtual_register: VirtualRegisterId(u32::from(operand.operand)),
+                access: operand.access,
+                class: operand.class,
+                fixed_view: operand.fixed_view,
+                tied_to: operand.tied_to,
+                early_clobber: operand.early_clobber,
+            })
+            .collect();
+        instruction.implicit_uses = row.implicit_uses.clone();
+        instruction.implicit_defs = row.implicit_defs.clone();
+        instruction.clobbers = row.clobbers.clone();
+        compute_function(0, &function).unwrap();
+    }
+
+    // The replaced row's shape still refuses: a fixed early-clobber RDX
+    // definition beside the ordinary fixed RAX result mixes early and
+    // ordinary writes.
+    let rax = x86_64_model.model().view_named("rax").unwrap().id;
+    let rdx = x86_64_model.model().view_named("rdx").unwrap().id;
+    let mut understated = function_with_operand(RegisterOperandAccess::Use);
+    let instruction = &mut understated.blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::WrappingRemainderI64 {
+        obligation: ObligationId::new(1).unwrap(),
+        accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    };
+    instruction.constraint = isa_x86_64::X86_64_REMAINDER_I64;
+    instruction.operands = [
+        (RegisterOperandAccess::Use, Some(rax), false),
+        (RegisterOperandAccess::Use, None, false),
+        (RegisterOperandAccess::Def, Some(rax), false),
+        (RegisterOperandAccess::Def, Some(rdx), true),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(
+        |(operand, (access, fixed_view, early_clobber))| SelectedOperand {
+            operand: operand as u16,
+            virtual_register: VirtualRegisterId(operand as u32),
+            access,
+            class: RegisterClassId(0),
+            fixed_view,
+            tied_to: None,
+            early_clobber,
+        },
+    )
+    .collect();
+    assert!(matches!(
+        compute_function(0, &understated),
         Err(LivenessError::UnsupportedEarlyClobber { .. })
     ));
 }
