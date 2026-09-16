@@ -50,13 +50,14 @@ pub(super) fn written_paths(
 
 /// Temporary structural evidence shared by immediate arguments and stored
 /// aggregate declarations. Only the string view coarsens array selectors.
+#[derive(Clone)]
 pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
     pub local_suffix: String,
     pub local_segments: Vec<PlaceSegment>,
     pub origin: FramePlaceOrigin,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(in crate::machine_calls::calls::write_frames) struct AggregateOrigins {
     pub references: Vec<ReferenceLeaf>,
     /// Each path ends in the selected Case, including empty payload cases.
