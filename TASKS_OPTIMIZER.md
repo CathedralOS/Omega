@@ -473,7 +473,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   its `ByteSequenceLength` producer measuring the same rebound root in the
   same run, `ByteSequenceSubslice` views whose scalar operands rebind
   the same way while the structural result and bounds obligation stay
-  byte-exact inside the moved operation, and scalar-signature `Call`
+  byte-exact inside the moved operation,
+  `EstablishByteSequenceLiteral` establishments — the boundary's first
+  non-observation structural relocation — whose declared place,
+  structural type, and payload move byte-exact inside the moved
+  operation while every consumer keeps spelling the same place
+  identity, and scalar-signature `Call`
   nodes — the boundary's first call relocation — whose callee's
   transitive effect summary proves no observable effect, crash, or
   suspension (the `structural_state` axis stays exempt because a scalar
@@ -496,9 +501,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   fence re-derives both halves of that non-speculative gate from the
   authenticated topology. Remaining: other
   non-scalar families, profitability, and motion beyond the shared-source
-  preheader. Structural establishments (`EstablishScalarArray`,
-  `EstablishRecord`, `EstablishStructuralValue`) currently have no source
-  route into a cyclic member block — scalar-graph arrays only emit as
+  preheader. Operand-carrying structural establishments
+  (`EstablishScalarArray`, `EstablishRecord`, `EstablishScalarCase`,
+  `EstablishPrimitiveLocal`, `EstablishTrivialAffineLocal`) and
+  structural-signature calls (`CallStructuralScalar`, `CallStructural`,
+  `CallUnit`) currently have no admitted relocation evidence — and the
+  establishments other than the byte literal still have no source route
+  into a cyclic member block, since scalar-graph arrays only emit as
   call arguments and a structural `let` inside a Unit state removes the
   machine's ranked cycle evidence — so the next non-scalar family needs
   an admitted source shape before admission work can begin.
