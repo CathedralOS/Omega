@@ -1,0 +1,14 @@
+// FAIL CANARY. The range constrains the produced rank `value * 2`, so the
+// subject's own interval `0..=100` is too narrow: `2 * 100` is not in it.
+data Countdown {}
+
+measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
+
+machine walk(remaining: u8 [0..=100])
+terminates by remaining -> Countdown::Doubled in 0..=100;
+-> u8 {
+    transition remaining > 0 {
+        true -> walk(remaining - 1)
+        false -> remaining
+    }
+}

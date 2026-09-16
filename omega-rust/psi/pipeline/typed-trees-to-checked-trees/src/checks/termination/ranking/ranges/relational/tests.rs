@@ -95,3 +95,65 @@ fn named_state_prefix_store_into_a_slot_carrying_a_premise_role_rejects() {
     reject(&SCRATCH_ARRIVAL.replace("iterate(remaining, seen)", "iterate(remaining, remaining)"));
     reject(&SCRATCH_ARRIVAL.replace("count = pending;", "pending = 4;"));
 }
+
+fn reject_unsupported(source: &str) {
+    let diagnostics =
+        crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove the `terminates by`")),
+        "{source}\n{diagnostics:#?}"
+    );
+}
+
+const DOUBLED: &str = r#"
+data Countdown {}
+measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
+machine walk(remaining: u8 [0..=100])
+terminates by remaining -> Countdown::Doubled in 0..=200;
+-> u8 {
+    transition remaining > 0 {
+        true -> walk(remaining - 1)
+        false -> remaining
+    }
+}
+"#;
+
+#[test]
+fn computed_scalar_views_rank_the_body_not_the_subject() {
+    prove(DOUBLED);
+    prove(
+        &DOUBLED
+            .replace("{ value * 2 }", "{ value + 100 }")
+            .replace("in 0..=200", "in 100..=200"),
+    );
+    // A quadratic body classifies as strictly increasing, but its membership
+    // and formation goals carry a nonlinear monomial the arithmetic engine
+    // cannot bound, so the produced rank stays unproven rather than assumed.
+    reject(
+        &DOUBLED
+            .replace("{ value * 2 }", "{ value * value + 3 }")
+            .replace("[0..=100]", "[0..=15]")
+            .replace("in 0..=200", "in 3..=228"),
+    );
+    // The range and the carrier are obligations on the produced rank.
+    reject(&DOUBLED.replace("in 0..=200", "in 0..=100"));
+    reject(
+        &DOUBLED
+            .replace("[0..=100]", "[0..=200]")
+            .replace("in 0..=200", "in 0..=400"),
+    );
+    reject(&DOUBLED.replace("remaining: u8 [0..=100]", "remaining: u8"));
+    reject(&DOUBLED.replace("walk(remaining - 1)", "walk(remaining)"));
+}
+
+#[test]
+fn computed_scalar_views_need_a_strictly_increasing_builtin_body() {
+    reject_unsupported(&DOUBLED.replace("{ value * 2 }", "{ value * 0 + 1 }"));
+    reject_unsupported(&DOUBLED.replace("{ value * 2 }", "{ value - 1 }"));
+    reject_unsupported(&DOUBLED.replace("(value: u8) -> u8", "(value: u16) -> u16"));
+    reject_unsupported(&format!(
+        "operator * u8::mul(left: u8, right: u8) -> u8; {DOUBLED}"
+    ));
+}

@@ -541,6 +541,7 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
         RankingOrder::SliceLength => Some("Slice::Length"),
         RankingOrder::IncreasingTo(_) => Some("Nat::IncreasingTo"),
         RankingOrder::CustomNatDescending
+        | RankingOrder::CustomScalarView { .. }
         | RankingOrder::CustomStructView { .. }
         | RankingOrder::Lexicographic(_) => None,
     }
@@ -625,9 +626,12 @@ fn cycle_edge_strictly_decreases(
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
             | RankingOrder::CustomNatDescending
+            | RankingOrder::CustomScalarView { .. }
     ) {
         // Slice-length, struct-view and lexicographic orders stay
-        // self-loop-only (no pointwise cross-state meaning).
+        // self-loop-only (no pointwise cross-state meaning). A computed
+        // scalar view ranks its subject pointwise because its admission
+        // proved the body strictly increasing on the naturals.
         return false;
     }
     let mut found = false;
@@ -666,7 +670,8 @@ fn state_has_proven_supported_self_loop(
             RankingOrder::NatDescending
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
-            | RankingOrder::CustomNatDescending,
+            | RankingOrder::CustomNatDescending
+            | RankingOrder::CustomScalarView { .. },
             _,
         ) => nat::state_has_proven_self_loop(program, state, measure, orientation),
         (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {
