@@ -1,6 +1,6 @@
 use super::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame, Halt,
-    SymbolHandle, Value, real_fs,
+    SymbolHandle, Value, real_filesystem,
 };
 use crate::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
@@ -291,7 +291,7 @@ impl<'program> Evaluator<'program> {
         let scoped_real_output = self
             .real_fs
             .as_ref()
-            .is_some_and(real_fs::RealFs::is_scoped);
+            .is_some_and(real_filesystem::RealFs::is_scoped);
         let replayed_output = self
             .filesystem_replay
             .as_ref()

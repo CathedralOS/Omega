@@ -13,7 +13,7 @@ use crate::{
 };
 use checked_trees::CheckedTrees;
 use evaluator::{
-    CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget, real_fs,
+    CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget, real_filesystem,
 };
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -380,12 +380,12 @@ fn evaluate_granted_arguments(
                     FilesystemAccess::Virtual => {}
                     FilesystemAccess::RealUnscoped => {
                         evaluator.real_fs = Some(
-                            real_fs::RealFs::new(None, None)
+                            real_filesystem::RealFs::new(None, None)
                                 .expect("unscoped filesystem has no grant configuration"),
                         );
                     }
                     FilesystemAccess::RealScoped(grants) => {
-                        evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants), None).map_err(
+                        evaluator.real_fs = Some(real_filesystem::RealFs::new(Some(grants), None).map_err(
                             |message| {
                                 BuildMachineEvaluationFailure::without_evidence(
                                     BuildMachineEvaluationFailureKind::InvalidFilesystemGrant,
@@ -396,7 +396,7 @@ fn evaluate_granted_arguments(
                     }
                     FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
                         evaluator.real_fs = Some(
-                            real_fs::RealFs::new(Some(grants), Some(sponsor)).map_err(
+                            real_filesystem::RealFs::new(Some(grants), Some(sponsor)).map_err(
                                 |message| {
                                     BuildMachineEvaluationFailure::without_evidence(
                                         BuildMachineEvaluationFailureKind::InvalidFilesystemGrant,
@@ -588,12 +588,12 @@ fn interpret_on_current_thread(
         FilesystemAccess::Virtual => {}
         FilesystemAccess::RealUnscoped => {
             evaluator.real_fs = Some(
-                real_fs::RealFs::new(None, None)
+                real_filesystem::RealFs::new(None, None)
                     .expect("unscoped filesystem has no grant configuration"),
             );
         }
         FilesystemAccess::RealScoped(grants) => {
-            let filesystem = match real_fs::RealFs::new(Some(grants), None) {
+            let filesystem = match real_filesystem::RealFs::new(Some(grants), None) {
                 Ok(filesystem) => filesystem,
                 Err(message) => {
                     return InterpretOutcome::error(
@@ -607,7 +607,7 @@ fn interpret_on_current_thread(
             evaluator.real_fs = Some(filesystem);
         }
         FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
-            let filesystem = match real_fs::RealFs::new(Some(grants), Some(sponsor)) {
+            let filesystem = match real_filesystem::RealFs::new(Some(grants), Some(sponsor)) {
                 Ok(filesystem) => filesystem,
                 Err(message) => {
                     return InterpretOutcome::error(

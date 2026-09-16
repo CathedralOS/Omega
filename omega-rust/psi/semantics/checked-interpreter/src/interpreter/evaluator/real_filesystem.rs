@@ -2562,5 +2562,4 @@ fn win32_error_code(error: &std::io::Error) -> i32 {
 }
 
 #[cfg(test)]
-#[path = "real_filesystem/sponsor_provider_tests.rs"]
 mod sponsor_provider_tests;

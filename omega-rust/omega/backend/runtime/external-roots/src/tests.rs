@@ -1,24 +1,19 @@
 //! Fixtures shared by the external-root tests: fuel schedules, installed
 //! code, boundary plans, candidates and slots with fixed seeds.
 
-#[path = "tests/boundary_fixtures.rs"]
 mod boundary_fixtures;
 mod entry_stack_epochs;
-#[path = "tests/installed_code_fixtures.rs"]
 mod installed_code_fixtures;
-#[path = "tests/interrupt_and_progress_fixtures.rs"]
 mod interrupt_and_progress_fixtures;
 mod interrupt_entries;
 mod program_local_epochs;
 mod program_local_extents;
-#[path = "tests/program_local_fixtures.rs"]
 mod program_local_fixtures;
 mod program_local_root_joins;
 mod progress_profiles;
 mod provider_execution;
 mod required_root_closures;
 mod root_installation;
-#[path = "tests/root_installation_fixtures.rs"]
 mod root_installation_fixtures;
 mod stack_and_fuel_composition;
 

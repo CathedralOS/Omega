@@ -279,7 +279,6 @@ impl<'program> Evaluator<'program> {
 }
 
 #[cfg(test)]
-#[path = "host_dispatch/byte_input_rejection_tests.rs"]
 mod byte_input_rejection_tests;
 
 #[cfg(test)]

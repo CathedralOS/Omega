@@ -238,5 +238,4 @@ pub(crate) fn decode_structural_field(
 }
 
 #[cfg(test)]
-#[path = "structural_field_wire/bounded_integer_tests.rs"]
 mod bounded_integer_tests;

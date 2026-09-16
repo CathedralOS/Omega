@@ -31,8 +31,7 @@ mod root_bindings;
 /// build.omg rung). A CHILD module so it can serve ops against the private
 /// `Evaluator` internals (the fs argument/buffer helpers) without widening
 /// their visibility outside the interpreter owner.
-#[path = "evaluator/real_filesystem.rs"]
-pub(super) mod real_fs;
+pub(super) mod real_filesystem;
 
 /// Per-target open-flag BIT POSITIONS, mirroring the checked target encoders in
 /// `std/targets/<target>/filesystem_impl.omg`. The differential oracle compiles
@@ -497,7 +496,7 @@ pub(crate) struct Evaluator<'program> {
     /// filesystem instead of the virtual model above. The default (`None`)
     /// keeps the interpreter hermetic -- the differential oracle never touches
     /// real disk.
-    pub(super) real_fs: Option<real_fs::RealFs>,
+    pub(super) real_fs: Option<real_filesystem::RealFs>,
     /// Expected compiler-produced events for bounded no-host filesystem replay.
     pub(super) filesystem_replay: Option<crate::FilesystemReplay>,
     /// The canonical Build activation carried Source/Output facets. In this
