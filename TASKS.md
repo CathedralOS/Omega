@@ -3011,10 +3011,20 @@ Owners include
   `values/bounds.rs`; regressions
   `mutable_formal_call_results_read_the_lent_places_incoming_value` and
   `effectful_nested_call_arguments_keep_the_return_bounds_live`, Linux
-  `cargo nextest run -p typed-trees-to-checked-trees`). Collection elements
-  still need the live declared-predicate coverage named above; the dungeon
-  probe currently stops earlier at case-literal construction and branch-local
-  transfer joins (Linux x86-64 `omega --check`, 6 diagnostics).
+  `cargo nextest run -p typed-trees-to-checked-trees`). Ensured call-result
+  bounds now propagate through bound names — `let i: u64 = idx()`,
+  `i = idx()`, and `self.slot = idx()` seed the callee's literal `result`
+  bounds on the bound name's label, retired by reassignment like any
+  label-keyed bound (`checks/ranges/statements/aliases.rs`; regression
+  `call_result_alias_carries_the_ensured_result_bounds`, macOS arm64
+  `mbx nextest run -p typed-trees-to-checked-trees`). Unknown-length slice
+  indexes still do not consult `ensured_call_result_bounds` — the remaining
+  named leg needs the ensured literal bound met against the slice's
+  `minimum_length`/`exact_length` facts plus the signed lower half in
+  `indexes/validation/lower_bounds.rs`. Collection elements still need the
+  live declared-predicate coverage named above; the dungeon probe currently
+  stops earlier at case-literal construction and branch-local transfer joins
+  (Linux x86-64 `omega --check`, 6 diagnostics).
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
