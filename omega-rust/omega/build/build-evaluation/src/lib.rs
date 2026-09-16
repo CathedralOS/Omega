@@ -41,8 +41,8 @@
 //!   through the original Build activation, including local helpers/reborrows.
 //!   Executed requests rejoin their lexical owner before exact product selection.
 //!
-//! `admitted_build_program.rs` is the root: the admission request, the
-//! admitted program and `admit_build_program`. `execution.rs` runs an admitted
+//! Start at `admitted_build_program.rs`: the admission request, the
+//! admitted program and `admit_build_program`. `execution` runs an admitted
 //! program and assembles its checked result. `admission/` owns what the build
 //! program declares and selects (selection, target machines, vocabulary,
 //! declarations, wire protocol, behavior exclusions, configuration), and
