@@ -778,3 +778,64 @@ instead of another same-evidence model vote. Do not raise the threshold to hide
 the known owner failure. Retain this failed stream as regression; changed policy
 needs fresh operational handoffs. Windows identity/hash/citation/artifact/session,
 zero-tool and Python compile checks passed; macOS not run. No production changes.
+
+## Owner-bound acquisition fixes structure; fresh prose gate still over-warns
+
+`build/experiments/owner-bound/` preserves protocol, probe.py, regression evidence
+updates, original answers, fresh producer outputs, labels frozen before Jev,
+requests/responses, SUMMARY.json and REPORT.md. The linked evidence-repair guide
+now carries the owner/warning/artifact boundaries, not an automatic approval rule.
+TypeSafe State docs read live; no new API contract or supervisor framework.
+
+Declared required source paths and historical revision are caller-owned inputs.
+They are not inferred by Jev; historical annotations add known contract information
+to exposed examples. Fresh assignments name the owners before generation. Code
+checks owner citation coverage and literal membership. A pending normalized
+source-content identity prevents bare same-evidence approval from clearing a gap;
+unchanged evidence stays in review rather than refetching in a loop. New source
+permits reevaluation, not acceptance. The semantic questions and .90 cutoff stayed
+unchanged. Whole declared owner files are fetched at the same pinned revision.
+
+On the six prior natural handoffs, reuse the initial Jev receipts. Code now holds
+the wrong-registry answer even though old support was .95. Simulated bare positive
+approvals cannot clear any of the three previous gaps. Three actual owner-document
+fetches plus three new API calls resolve the work-claim-history and test-scope
+evidence defects without rewriting answers. Five of six historical answers become
+ready, zero unsupported retention. Wait-exit remains held: coverage .89, support
+.99 despite sufficient full source. Frozen six-of-six completion target fails.
+Retrieval 1.283s, new regression API 1.916s; not complete workflow or a matched
+speed comparison against the previous review-only artifact. Source acquisition
+itself supplies missing facts; no unique Jev benefit over always-fetch-owner proved.
+
+Three previously authored complete-false controls remain held with correct owner
+sources; these are exposed controls, not natural negatives. One fresh SWE-2 Max
+batch (51.104s) then answers three new questions with full declared owner sources:
+lease models, invisible source-reader coverage, and the two exit-2 meanings.
+
+| Fresh answer | Pre-Jev source review | Support yes | Coverage yes | Gate |
+| --- | --- | ---: | ---: | --- |
+| Claims versus landing leases | Supported | .79 | 1.00 | Unnecessary review |
+| Source-reader fallback | Overclaim | .87 | .99 | Review |
+| Claims versus landing exit 2 | Supported | .89 | 1.00 | Unnecessary review |
+
+The reader answer says "anything not recorded falls back to full selection",
+turning a maintainer obligation into an automatic guarantee. Pinned selector
+implementation confirms known Rust changes use declared and SOURCE_READERS edges;
+unrecorded runtime reads cannot discover themselves. Strict-support label fixed
+before inference, with exact text/rationale retained. A permissive policy-only
+reading could remove this defect; labels are unblinded coordinator review.
+
+Jev raw support choice is yes for all three. The threshold holds the overclaim
+but also both good answers: zero fresh bypasses, two false warnings. A scalar
+threshold cannot retain both supported answers while rejecting the overclaim in
+this sample. No cutoff tuning or correctness retry. Fresh API .965s; all nine new
+calls 3.794s, 35,302 input / 657 output tokens. Three old positive receipts reused.
+
+Retain structural guards for experiments, not the whole-answer skip gate. Next
+useful question is fresh claim-first producer selectivity rather than further
+tuning of these exposed prose answers. Evidence-stage and ready/held artifacts
+are distinct; all original answer strings retained. Python self-checks cover owner,
+revision, failure, literal quotes, unchanged/whitespace-only evidence, missing
+verdicts, NaN and new-evidence reevaluation. Windows compilation, pinned citations,
+ready/held artifact checks, zero worker tools and empty workspace pass; macOS not
+run. No production changes, compiler task completion, dropped tests or publication.
