@@ -195,9 +195,35 @@ prerequisite to every lower-rung milestone.
   the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md)
   and [Beta definitions](bootstrap/proofs/beta_encoding/README.md), following the
   [complete encoding acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md).
-  Remaining work: complete error-valued Beta encoding definitions, independently
-  reconstruct the owner-fixed proposition, and produce the untrusted explicit
-  certificate through the selected source-owned route.
+  Remaining work: the produced full-subject certificate cannot be admitted
+  under the selected provisions; the residual routes are the owner-level
+  decisions in the [cost review](wiki/drafts/bootstrap_cost_review.md).
+  Resume evidence on macOS arm64: the complete 18-sort/361-constructor/
+  108-function theory emits from Gamma source at 116,992 bytes, SHA-256
+  `b2ab717f574b39e7ef6986b2ec3a43036a2ca4f5e7512c1dcbe3435b564ebb4b`, matching
+  the independent restatement in
+  [encoding.py](tests/gamma/beta-encoding-theory/encoding.py); the source
+  closure is 5,536 manifest bytes / 131,059 packed bytes.
+  `sh tests/gamma/beta-encoding-theory/run.sh` passes two identical emissions,
+  three producer refusals, and 203 exact checker diagnostics (1,024 lexical
+  truths, 256 joins, 512 splits, 256 roundtrips, 13 word emissions, 512 byte
+  counter equations, 19 checked successors, 256 nibble, 12 byte, 30 word
+  comparisons, plus 200 encoder equations over all functions 58..108 produced
+  by the generic [stepper](tests/gamma/beta-encoding-theory/stepper.py) —
+  including two tiny end-to-end `encode` calls — and seven encoder-range
+  rejections); generic formation checks every new clause on each request.
+  `--subject-shape` checks both full-subject spines at 225,305 work in
+  557.725s and rejects the altered witness at its fixed coordinate under a
+  900-second watchdog; `--counter-cost` preserves the shared-successor
+  measurements; `sh tests/bootstrap/proofs-identity.sh` re-binds the
+  manifest and packed identities. Formation and these finite equations are
+  not artifact admission: the owner-fixed
+  `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` proposition for the
+  selected evaluator source and tape is now independently reconstructed
+  (534,208 owner bytes) and its complete untrusted derivation produced
+  (3,182,484 rows, maximum depth 204, 135,451,492 request bytes) — 16.1 times
+  the request provision and ~70-80 times the work provision and physical
+  pair ceiling, so it measures the gap rather than closing it.
   The exact subject is the entire selected Gamma evaluator's raw Beta source
   and persisted Alpha tape. Encoding equality does not prove the evaluator
   implements Gamma; retain that trust assumption explicitly.
