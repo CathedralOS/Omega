@@ -19,9 +19,10 @@
 //! the consumer-grammar dimension: whether the folded literal is a binary
 //! consumer's right `Use` operand, a commutative binary consumer's left
 //! `Use` operand, a unary consumer's sole `Use` operand, or a binary
-//! right-literal consumer whose folded result is a constant of the literal
-//! alone — no `Use` operand survives and every operand past the result is
-//! a dropped `Def` scratch. Beyond the
+//! consumer whose folded result is a constant of the literal alone — no
+//! `Use` operand survives and every operand past the result is a dropped
+//! `Def` scratch — at the right `Use` position or, under the annihilator
+//! grammar, the left one. Beyond the
 //! isolated machine-effect surface, [`PairMachineEffects::IndexedPointerReadFold`]
 //! declares the first non-isolated relationship — a consumer that reads
 //! memory through the folded index and a rewritten form that reads the same
@@ -542,6 +543,23 @@ pub enum PairOperandShape {
     /// past the result, or any operand at positions 0 through 2 outside
     /// this grammar — rejects.
     BinaryRightLiteralConstantResult,
+    /// Binary left-literal consumer whose folded result is a constant of
+    /// the literal alone: the literal victim is the operand-0 `Use`,
+    /// operand 1 is a `Use` the fold drops because the constant result
+    /// never reads it, operand 2 is the `Def` result, and every operand
+    /// past the result is a `Def` scratch output the fold drops under the
+    /// same occurrence-free custody
+    /// [`BinaryRightLiteralConstantResult`](Self::BinaryRightLiteralConstantResult)
+    /// declares. Unlike [`BinaryLeftLiteral`](Self::BinaryLeftLiteral),
+    /// declaring this shape attests nothing about commutation: the
+    /// rewritten constant must be exact regardless of the dropped
+    /// operand-1 value — `0 & x` is zero for every `x`, because zero is
+    /// the bitwise-and annihilator — so only an operation whose operand-0
+    /// literal alone fixes the result may declare it. An operand that is
+    /// not in its declared position and access — a `Use` past the result,
+    /// or any operand at positions 0 through 2 outside this grammar —
+    /// rejects.
+    BinaryLeftLiteralConstantResult,
 }
 
 /// The literal values a pair's fold admits.
@@ -825,6 +843,62 @@ impl SelectedInstructionPairRule {
         rule
     };
 
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
+    /// `BitwiseAndI64` when the literal is exactly zero: zero is the
+    /// bitwise-and annihilator — `x & 0` is `0` for every `x` — so the
+    /// rewrite is a `MaterializeI64` of the constant zero at the
+    /// consumer's result register. Both forms are effect-isolated on every
+    /// target — the consumer's flag clobber, where one is declared, dies
+    /// with the folded form — and neither side pins or binds an operand,
+    /// so the ordinary
+    /// [`Isolated`](PairMachineEffects::Isolated) and
+    /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
+    /// operand-0 `Use` is dropped because the constant result never reads
+    /// it, under the
+    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult)
+    /// grammar's custody: every `Def` operand past the result must occur
+    /// nowhere else in the function.
+    pub const BITWISE_AND_ZERO_MATERIALIZE: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::BitwiseAndI64,
+            rewritten: MachineSemanticKind::MaterializeI64,
+            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            immediate_bound: PairImmediateBound::Exactly(0),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::Isolated,
+            machine_effects: PairMachineEffects::Isolated,
+        };
+        assert!(
+            matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
+            "the annihilator fold holds only for the literal zero"
+        );
+        rule
+    };
+
+    /// The left-operand annihilator fold: `MaterializeI64` feeding the
+    /// operand-0 `Use` of `BitwiseAndI64` when the literal is exactly
+    /// zero — `0 & x` is `0` for every `x`. The constant result is a
+    /// function of the literal alone, so no commutativity attestation is
+    /// needed: under
+    /// [`BinaryLeftLiteralConstantResult`](PairOperandShape::BinaryLeftLiteralConstantResult)
+    /// the dropped operand-1 `Use` is never read and every `Def` operand
+    /// past the result drops under the same occurrence-free custody the
+    /// right grammar declares. The same catalog selection admits both
+    /// operand positions; the pair disambiguates by which `Use` position
+    /// the folded literal occupies.
+    pub const BITWISE_AND_ZERO_LEFT_MATERIALIZE: Self = Self {
+        operand_shape: PairOperandShape::BinaryLeftLiteralConstantResult,
+        ..Self::BITWISE_AND_ZERO_MATERIALIZE
+    };
+
+    /// The two bitwise-and annihilator rules, one per literal `Use`
+    /// position.
+    pub const BITWISE_AND_ZERO_FOLDS: [Self; 2] = [
+        Self::BITWISE_AND_ZERO_MATERIALIZE,
+        Self::BITWISE_AND_ZERO_LEFT_MATERIALIZE,
+    ];
+
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
@@ -868,7 +942,9 @@ impl SelectedInstructionPairRule {
             PairOperandShape::BinaryRightLiteral
             | PairOperandShape::BinaryRightLiteralAuxiliaryUses
             | PairOperandShape::BinaryRightLiteralConstantResult => 1,
-            PairOperandShape::BinaryLeftLiteral | PairOperandShape::UnaryLiteral => 0,
+            PairOperandShape::BinaryLeftLiteral
+            | PairOperandShape::BinaryLeftLiteralConstantResult
+            | PairOperandShape::UnaryLiteral => 0,
         }
     }
 
@@ -894,10 +970,13 @@ impl SelectedInstructionPairRule {
             PairOperandShape::BinaryRightLiteral
             | PairOperandShape::BinaryLeftLiteral
             | PairOperandShape::BinaryRightLiteralAuxiliaryUses => Some(literal),
-            // The constant-result grammar records the constant the
+            // The constant-result grammars record the constant the
             // rewritten `MaterializeI64` embeds: a remainder by one is
-            // always zero, whatever the folded divisor literal was.
-            PairOperandShape::BinaryRightLiteralConstantResult => Some(0),
+            // always zero, whatever the folded divisor literal was, and a
+            // bitwise-and with a zero literal is always zero at either
+            // `Use` position.
+            PairOperandShape::BinaryRightLiteralConstantResult
+            | PairOperandShape::BinaryLeftLiteralConstantResult => Some(0),
             PairOperandShape::UnaryLiteral => match self.consumer {
                 MachineSemanticKind::CopyI64 => Some(literal),
                 MachineSemanticKind::ZeroExtendU8 => Some(literal & 0xFF),
@@ -1011,14 +1090,21 @@ impl SelectedInstructionPairRule {
             (MachineSemanticKind::CopyI64, SelectedInstructionKind::ExactDivideU64 { .. }) => {
                 Some(SelectedInstructionKind::CopyI64)
             }
-            // A remainder by one is always zero: the `MaterializeI64`
-            // rewrite materializes the folded constant at the result
-            // register, sign-matched and admitted by its scalar type.
+            // A remainder by one is always zero, and a bitwise-and with a
+            // zero literal is always zero at either `Use` position: the
+            // `MaterializeI64` rewrite materializes the folded constant at
+            // the result register, sign-matched and admitted by its scalar
+            // type. The consumer guard keeps each rule bound to its own
+            // consumer kind — the remainder rule never rewrites an and,
+            // the and-zero rule never rewrites a remainder.
             (
                 MachineSemanticKind::MaterializeI64,
-                SelectedInstructionKind::WrappingRemainderI64 { .. },
-            ) => scalar_materialize_value(immediate, result_scalar?)
-                .map(|value| SelectedInstructionKind::MaterializeI64 { value }),
+                kind @ (SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::BitwiseAndI64),
+            ) if machine_semantic_kind(kind) == self.consumer => {
+                scalar_materialize_value(immediate, result_scalar?)
+                    .map(|value| SelectedInstructionKind::MaterializeI64 { value })
+            }
             _ => None,
         }
     }

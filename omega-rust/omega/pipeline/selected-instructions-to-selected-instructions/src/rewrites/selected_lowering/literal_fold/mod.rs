@@ -37,7 +37,10 @@ pub use validate::validate_literal_fold;
 /// or the literal `1` at the divisor operand of a wrapping remainder into a
 /// `MaterializeI64` of the constant zero — a remainder by one is always
 /// zero — discharging the consumer's encoded fault surface and dropping its
-/// dividend `Use` and dead scratch `Def` operands.
+/// dividend `Use` and dead scratch `Def` operands — or the literal `0` at
+/// either operand of a bitwise-and into a `MaterializeI64` of the constant
+/// zero — `x & 0` is `0` for every `x` — dropping the other `Use` and dead
+/// scratch `Def` operands.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

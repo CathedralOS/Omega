@@ -39,6 +39,11 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// fold the selection did not enable cannot replay under another
     /// family's policy.
     pub(super) remainder: Option<&'a RegisterInstructionConstraint>,
+    /// The `MaterializeI64` row the bitwise-and annihilator fold rewrites
+    /// into — the same constraint row the unary and remainder folds bind,
+    /// gated separately so a fold the selection did not enable cannot
+    /// replay under another family's policy.
+    pub(super) and_zero: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -94,6 +99,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_wrapping_remainder()
         .then(|| find(keys.materialize_i64))
         .transpose()?;
+    let and_zero = policy
+        .enables_bitwise_and_zero()
+        .then(|| find(keys.materialize_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -104,6 +113,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         address_offset,
         divide,
         remainder,
+        and_zero,
     ]
     .into_iter()
     .flatten()
@@ -163,6 +173,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::MaterializeI64,
             isolated_rewritten_declaration,
         ),
+        (
+            and_zero,
+            MachineSemanticKind::MaterializeI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -181,6 +196,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         address_offset,
         divide,
         remainder,
+        and_zero,
         catalog,
     })
 }

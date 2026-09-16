@@ -181,10 +181,13 @@ fn validate_immediate_row(
         }
         // Constant-materialization form: `result = materialize folded` carries
         // no register input; its single `Def` operand is the only output. The
-        // constant-result grammar rewrites into the same row: its folded
-        // result is a `MaterializeI64` constant binding no `Use` operand.
+        // constant-result grammars rewrite into the same row: its folded
+        // result is a `MaterializeI64` constant binding no `Use` operand,
+        // whichever `Use` position the folded literal occupied.
         (
-            PairOperandShape::UnaryLiteral | PairOperandShape::BinaryRightLiteralConstantResult,
+            PairOperandShape::UnaryLiteral
+            | PairOperandShape::BinaryRightLiteralConstantResult
+            | PairOperandShape::BinaryLeftLiteralConstantResult,
             PairResultDisposition::ScalarRegister,
             [result],
         ) => {

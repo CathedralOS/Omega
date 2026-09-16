@@ -233,6 +233,23 @@ fn reconstruct_action(
             rows.remainder,
             MachineSemanticKind::MaterializeI64,
         ),
+        // The bitwise-and annihilator fold: a literal of exactly zero at
+        // either `Use` folds `BitwiseAndI64` into a `MaterializeI64` of
+        // zero — `0 & x` and `x & 0` are both zero — bound to the
+        // `MaterializeI64` row the and-zero policy's own gate selected.
+        // The other `Use` drops because the constant result never reads
+        // it, and every `Def` operand past the operand-2 result drops
+        // under the same occurrence-free custody the remainder grammar
+        // derives. The recorded operand position picks the grammar.
+        SelectedInstructionKind::BitwiseAndI64 => (
+            if future_use.operand == 0 {
+                SourceShape::AndZeroLeft
+            } else {
+                SourceShape::AndZero
+            },
+            rows.and_zero,
+            MachineSemanticKind::MaterializeI64,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -282,6 +299,19 @@ fn reconstruct_action(
         // the constant the rewritten `MaterializeI64` embeds — zero.
         SourceShape::RemainderIdentity => {
             if literal_u64 != 1 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            0
+        }
+        // The and-zero fold is the constant zero only when the folded
+        // literal is exactly zero — zero is the bitwise-and annihilator at
+        // either `Use` position; any other literal is a different
+        // computation the replay must not admit. The recorded immediate
+        // is the constant the rewritten `MaterializeI64` embeds — zero.
+        SourceShape::AndZero | SourceShape::AndZeroLeft => {
+            if literal_u64 != 0 {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
                 });
@@ -375,6 +405,58 @@ fn reconstruct_action(
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The and-zero grammar: `[left, victim, result, scratch...]`
+        // folds the operand-1 `Use`, drops the operand-0 `Use` — the
+        // constant result never reads it — and drops every `Def` operand
+        // past the operand-2 `Def` result. The validator independently
+        // re-derives the dropped-operand custody: each dropped `Def`
+        // register must occur nowhere else in the function, because the
+        // fold discards a definition a surviving read or second
+        // definition would still observe.
+        (SourceShape::AndZero, [left, right, result, scratch @ ..]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The left annihilator grammar: `[victim, right, result,
+        // scratch...]` folds the operand-0 `Use`, drops the operand-1
+        // `Use`, and drops every `Def` operand past the result under the
+        // same occurrence-free custody. No commutation is attested — the
+        // operand-0 literal alone fixes the result, so the fold never
+        // repositions the dropped operand.
+        (SourceShape::AndZeroLeft, [victim, right, result, scratch @ ..]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
@@ -514,15 +596,21 @@ fn reconstruct_action(
 
     // The surviving operand is the register each `Use` position of the
     // rewritten row binds: the operand-0 `Use` under a right-literal grammar,
-    // the operand-1 `Use` under the left-literal one. The `Use`-free unary
-    // grammar records its folded input.
+    // the operand-1 `Use` under a left-literal one. The `Use`-free unary
+    // grammar records its folded input, and the constant-result grammars —
+    // whose rewritten row binds no `Use` at all — record the dropped
+    // non-victim `Use` for custody: operand 0 under the right grammars,
+    // operand 1 under the left annihilator grammar.
     let surviving = match shape {
-        SourceShape::BinaryLeftImmediate => consumer.operands[1].virtual_register,
+        SourceShape::BinaryLeftImmediate | SourceShape::AndZeroLeft => {
+            consumer.operands[1].virtual_register
+        }
         SourceShape::BinaryImmediate
         | SourceShape::UnaryExtension
         | SourceShape::UnaryCopy
         | SourceShape::DivideIdentity
-        | SourceShape::RemainderIdentity => consumer.operands[0].virtual_register,
+        | SourceShape::RemainderIdentity
+        | SourceShape::AndZero => consumer.operands[0].virtual_register,
     };
 
     Ok(LiteralFoldAction {
@@ -549,7 +637,10 @@ fn reconstruct_action(
 /// drops every `Use` operand past the operand-2 `Def` result, or the
 /// remainder-identity form whose operand-1 divisor literal of one folds
 /// into a materialized zero and drops the operand-0 `Use` and every `Def`
-/// operand past the operand-2 `Def` result.
+/// operand past the operand-2 `Def` result, or the bitwise-and
+/// annihilator forms whose zero literal folds `BitwiseAndI64` into a
+/// materialized zero — at the operand-1 `Use`, or at the operand-0 `Use`
+/// under the left grammar that drops the operand-1 `Use` instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
@@ -558,13 +649,21 @@ enum SourceShape {
     UnaryCopy,
     DivideIdentity,
     RemainderIdentity,
+    AndZero,
+    AndZeroLeft,
 }
 
 impl SourceShape {
     const fn victim_operand(self) -> u16 {
         match self {
-            Self::BinaryImmediate | Self::DivideIdentity | Self::RemainderIdentity => 1,
-            Self::BinaryLeftImmediate | Self::UnaryExtension | Self::UnaryCopy => 0,
+            Self::BinaryImmediate
+            | Self::DivideIdentity
+            | Self::RemainderIdentity
+            | Self::AndZero => 1,
+            Self::BinaryLeftImmediate
+            | Self::UnaryExtension
+            | Self::UnaryCopy
+            | Self::AndZeroLeft => 0,
         }
     }
 }
@@ -848,7 +947,8 @@ fn rebuild_function(
         | SelectedInstructionKind::SignExtendI16
         | SelectedInstructionKind::SignExtendI32
         | SelectedInstructionKind::CopyI64
-        | SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+        | SelectedInstructionKind::WrappingRemainderI64 { .. }
+        | SelectedInstructionKind::BitwiseAndI64 => {
             // The folded materialization must declare the exact constant the
             // result register's scalar type admits; the validator recomputes
             // it from the action payload and the surviving result register.
@@ -869,8 +969,9 @@ fn rebuild_function(
                 },
             )?;
             // The copy fold binds its own policy-gated row, the remainder
-            // fold binds the materialize row under its own policy bit, and
-            // the extension consumers bind theirs.
+            // fold binds the materialize row under its own policy bit, the
+            // and-zero fold binds the materialize row under its own policy
+            // bit, and the extension consumers bind theirs.
             let row = if consumer.kind == SelectedInstructionKind::CopyI64 {
                 rows.copy
             } else if matches!(
@@ -878,6 +979,8 @@ fn rebuild_function(
                 SelectedInstructionKind::WrappingRemainderI64 { .. }
             ) {
                 rows.remainder
+            } else if consumer.kind == SelectedInstructionKind::BitwiseAndI64 {
+                rows.and_zero
             } else {
                 rows.materialize
             };
