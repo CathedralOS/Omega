@@ -10,6 +10,8 @@ use terminal_interpreter::{
 };
 use terminal_psi::{OperationKind, TerminalModule};
 
+#[path = "value_dispatch/borrowed_results.rs"]
+mod borrowed_results;
 #[path = "value_dispatch/owned_results.rs"]
 mod owned_results;
 

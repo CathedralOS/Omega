@@ -206,17 +206,23 @@ impl Evaluation {
         };
         let mut local_symbol = symbols::SymbolHandle::invalid();
         if let Some(local) = local {
+            // A `&T` local holds shared-borrow custody of the referent's
+            // storage; its carrier identity is the record `T`, matching the
+            // structural type `add_type` recorded for the result.
+            let shared_borrow =
+                crate::expression_preparation::source_custody::structural::shared_borrow_record_referent(
+                    checked,
+                    local.type_reference,
+                );
+            let carrier = match shared_borrow {
+                Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
+                None => super::parameters::structural_carrier_type(checked, local.type_reference)?,
+            };
             if !local.symbol.is_valid()
                 || !checked
                     .expression_table
                     .expression_is_valid(local.initial_value)
-                || checked
-                    .normalized_type_identity(super::parameters::structural_carrier_type(
-                        checked,
-                        local.type_reference,
-                    )?)
-                    .as_str()
-                    != result.type_identity
+                || checked.normalized_type_identity(carrier).as_str() != result.type_identity
                 || checked.type_multiplicity(local.type_reference) != result.multiplicity
                 || self
                     .structural_locals
@@ -242,7 +248,11 @@ impl Evaluation {
                 StructuralArgument {
                     place: produced.place,
                     path: Vec::new(),
-                    access: StructuralAccess::Owned,
+                    access: if shared_borrow.is_some() {
+                        StructuralAccess::SharedBorrow
+                    } else {
+                        StructuralAccess::Owned
+                    },
                 },
             ));
         }

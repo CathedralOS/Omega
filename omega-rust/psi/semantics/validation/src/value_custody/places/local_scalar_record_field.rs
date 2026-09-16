@@ -249,13 +249,29 @@ fn local_plain_record(
             program.type_multiplicity(local.type_reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
         )
-        || !crate::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
     {
         return None;
     }
-    let TypeReferenceNode::Named { symbol, .. } = program
+    // A shared-borrow local presents its referent's record storage: `view.f`
+    // reads field `f` of `T` out of the borrowed place without moving custody.
+    // The returned `type_reference` stays the referent so downstream carriers
+    // and structural type identities keep naming the record, not `&T`.
+    let carrier = match program
         .type_reference_table
         .type_reference(local.type_reference)
+    {
+        TypeReferenceNode::Reference {
+            referee,
+            access: language_semantics::ReferenceAccess::Shared,
+            ..
+        } => *referee,
+        _ => local.type_reference,
+    };
+    if !crate::has_plain_owned_contents_with_numeric_constraints(program, carrier) {
+        return None;
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(carrier)
     else {
         return None;
     };
@@ -276,7 +292,7 @@ fn local_plain_record(
     Some(LocalRecordSource {
         local: local.symbol,
         local_statement_ordinal: u32::try_from(ordinal).ok()?,
-        type_reference: local.type_reference,
+        type_reference: carrier,
     })
 }
 

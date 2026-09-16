@@ -96,9 +96,15 @@ impl ScalarBindings {
                 let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
                     "computed shared argument lost its established local",
                 ))?;
+                // An owned local lends its whole place; a `&T` local is itself
+                // a shared-borrow join result, so borrowing through it reuses
+                // that same shared custody rather than fabricating ownership.
                 if !symbol.is_valid()
                     || locals.next().is_some()
-                    || source.access != StructuralAccess::Owned
+                    || !matches!(
+                        source.access,
+                        StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                    )
                     || !source.path.is_empty()
                 {
                     return unsupported("computed shared argument changes its local custody");

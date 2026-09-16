@@ -29,9 +29,13 @@ pub(super) fn is_record_value(
     ) {
         return false;
     }
+    let shared_referent = shared_record_reference(program, expected);
     let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
         return false;
     };
+    // A `&T` selection result plans its borrowed arms against the referent
+    // record; owned results keep their own carrier.
+    let reference = shared_referent.unwrap_or(reference);
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)
     else {
@@ -60,11 +64,26 @@ pub(super) fn is_record_value(
                 if validation::plain_owned_value_source(program, expression, expected)
                     .is_some() => {}
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-                if projected_leaf_type(program, expression).is_some_and(|reference| {
-                    program.normalized_type_identity(reference)
-                        == program.normalized_type_identity(expected)
-                        && program.type_multiplicity(reference)
-                            == language_semantics::Multiplicity::Affine
+                if shared_referent.is_none()
+                    && projected_leaf_type(program, expression).is_some_and(|reference| {
+                        program.normalized_type_identity(reference)
+                            == program.normalized_type_identity(expected)
+                            && program.type_multiplicity(reference)
+                                == language_semantics::Multiplicity::Affine
+                    }) => {}
+            // A shared-borrow arm does not move its referent's owner: the
+            // canonical place is rebuilt with exact state scope during value
+            // planning and replayed again at lowering.
+            ExpressionNode::Borrow(borrow)
+                if shared_referent.is_some_and(|referent| {
+                    borrow.access == language_semantics::ReferenceAccess::Shared
+                        && program
+                            .expression_table
+                            .expression_is_direct_place_path(borrow.target)
+                        && borrowed_place_leaf_type(program, borrow.target).is_some_and(|leaf| {
+                            program.normalized_type_identity(leaf)
+                                == program.normalized_type_identity(referent)
+                        })
                 }) => {}
             ExpressionNode::Match(dispatch) => {
                 let arms = program.expression_table.match_arms(dispatch.arms);
@@ -77,6 +96,63 @@ pub(super) fn is_record_value(
         }
     }
     true
+}
+
+/// The record referent of a shared-borrow result type (`&T` where `T` is a
+/// named record with plain-owned contents). `None` for owned results and for
+/// borrows the structural pipeline cannot carry.
+fn shared_record_reference(
+    program: &TypedTrees,
+    expected: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program.type_reference_table.type_reference(expected)
+    else {
+        return None;
+    };
+    if *access != language_semantics::ReferenceAccess::Shared
+        || !validation::has_plain_owned_contents_with_numeric_constraints(program, *referee)
+    {
+        return None;
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(*referee)
+    else {
+        return None;
+    };
+    let record = program
+        .data_definitions()
+        .iter()
+        .find(|record| record.symbol == *symbol)?;
+    (!program
+        .data_members(record)
+        .iter()
+        .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_))))
+    .then_some(*referee)
+}
+
+/// The declared type of a shared borrow's exact target without state scope: a
+/// whole local's declared type, or a projected leaf resolved through its
+/// root's declaration. `canonical_place_from_expression` keeps the root and
+/// every segment exact.
+fn borrowed_place_leaf_type(
+    program: &TypedTrees,
+    target: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.expression_table.expression(target) {
+        ExpressionNode::Name(path)
+            if path.symbol.is_valid()
+                && path.head_symbol == path.symbol
+                && path.members.count() == 1 =>
+        {
+            symbol_declared_type(program, path.symbol)
+        }
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            projected_leaf_type(program, target)
+        }
+        _ => None,
+    }
 }
 
 /// The declared type of a field/fixed-index projection leaf, resolved through
@@ -272,6 +348,8 @@ impl Builder<'_, '_> {
                     .into_string(),
                 access: checked_trees::CheckedStructuralAccess::Owned,
             })
+        } else if let Some(borrowed) = self.borrowed_place(expression, expected) {
+            borrowed
         } else {
             let ExpressionNode::Match(dispatch) =
                 self.program.expression_table.expression(expression).clone()
@@ -462,6 +540,66 @@ impl Builder<'_, '_> {
                 .program
                 .normalized_type_identity(projected)
                 .into_string(),
+        })
+    }
+
+    /// One shared borrow of an exact place selected as a `&T` result. The
+    /// referent stays owned by its established root; the authored target's
+    /// canonical root and path become a `SharedBorrow` source so lowering can
+    /// rejoin borrowed custody at the selection's block parameter instead of
+    /// moving a child. `shared_record_reference` pins the referent to a
+    /// plain-owned record, and the target must be the exact place semantics
+    /// admitted: its projected leaf type has to equal the declared referent.
+    fn borrowed_place(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        let ExpressionNode::Borrow(borrow) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if borrow.access != language_semantics::ReferenceAccess::Shared
+            || !self
+                .program
+                .expression_table
+                .expression_is_direct_place_path(borrow.target)
+        {
+            return None;
+        }
+        let referent = shared_record_reference(self.program, expected)?;
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            borrow.target,
+        )?;
+        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+            return None;
+        };
+        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+        )?;
+        if self.program.normalized_type_identity(projected)
+            != self.program.normalized_type_identity(referent)
+        {
+            return None;
+        }
+        Some(CheckedStructuralValueKind::Reference {
+            source: checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                },
+                path,
+                type_identity: self
+                    .program
+                    .normalized_type_identity(projected)
+                    .into_string(),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            },
         })
     }
 

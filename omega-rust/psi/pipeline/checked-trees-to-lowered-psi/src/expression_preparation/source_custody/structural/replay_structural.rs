@@ -17,6 +17,7 @@ use symbols::SymbolHandle;
 mod owned_places;
 pub(crate) use owned_places::validate as validate_owned_place;
 mod owned_selection;
+mod shared_borrow;
 #[cfg(test)]
 mod tests;
 
@@ -104,21 +105,20 @@ pub(crate) fn validate(
         .ownership
         .owned_selection_at(state, result.statement_index)
         .map(|(_, receipt)| receipt);
+    // A `&T` establishment keeps the authored reference type on its root but
+    // joins the referent's structural carrier: the planned identity names the
+    // record, not the borrow shell.
+    let carrier = shared_borrow_record_referent(checked, reference).unwrap_or(reference);
     if owner.symbol != machine
         || root.machine != machine
         || root.state != state
         || root.expression != expression
         || root.type_reference != reference
         || root.root != *value
-        || checked.normalized_type_identity(reference).as_str() != result.type_identity
+        || checked.normalized_type_identity(carrier).as_str() != result.type_identity
         || checked.type_multiplicity(reference) != result.multiplicity
-        || !(validation::has_plain_owned_contents_with_numeric_constraints(
-            &checked.typed,
-            reference,
-        ) || validation::reference_result_custody::is_reference_record(
-            &checked.typed,
-            reference,
-        ))
+        || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
+            || validation::reference_result_custody::is_reference_record(&checked.typed, reference))
     {
         return unsupported("structural construction substituted its owner or result type");
     }
@@ -267,17 +267,32 @@ pub(crate) fn validate(
                 consumed_calls.push(handle);
             }
             CheckedStructuralValueKind::Reference { source: argument } => {
-                let expected = validation::reference_result_custody::initializer_source(
-                    &checked.typed,
-                    source,
-                    expression,
-                    reference,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "reference field has no exact authored ingress",
-                ))?;
-                if argument != expected {
-                    return unsupported("reference field substituted its ingress");
+                if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                    // A `&T` selection leaf replays its authored `&place`
+                    // against the retained root/path instead of the
+                    // owned-ingress map used by mutable reference carriers.
+                    shared_borrow::validate(
+                        checked,
+                        owner,
+                        source,
+                        result.statement_index,
+                        expression,
+                        reference,
+                        &argument,
+                    )?;
+                } else {
+                    let expected = validation::reference_result_custody::initializer_source(
+                        &checked.typed,
+                        source,
+                        expression,
+                        reference,
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "reference field has no exact authored ingress",
+                    ))?;
+                    if argument != expected {
+                        return unsupported("reference field substituted its ingress");
+                    }
                 }
             }
             CheckedStructuralValueKind::Record {
@@ -1076,13 +1091,28 @@ pub(crate) fn validate_local_ownership(
     let mut establishments = 0;
     let mut drops = 0;
     let mut transfers = 0;
+    let mut loan_events: Vec<(
+        arena::Handle<checked_trees::BorrowLoanFact>,
+        language_semantics::PermissionEventKind,
+    )> = Vec::new();
     for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
         event.machine_symbol == machine
             && event.state_symbol == state
             && event.root == facts::PlaceRoot::Symbol(symbol)
     }) {
-        if event.access != language_semantics::PermissionAccess::Owned
-            || event.multiplicity != multiplicity
+        // Borrow loans share the local's event stream: `&a.first` records a
+        // Shared Establish/Consume pair on `a` for the loan's whole range.
+        // They transfer no ownership, so they cannot join the owned roster —
+        // each must rejoin its exact recorded loan instead.
+        if event.access != language_semantics::PermissionAccess::Owned {
+            if !replays_loan_event(checked, machine, state, symbol, event, &mut loan_events) {
+                return unsupported(
+                    "structural local carried a borrow event with no recorded loan",
+                );
+            }
+            continue;
+        }
+        if event.multiplicity != multiplicity
             || multiplicity != Multiplicity::Affine
             || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
             || event.provenance
@@ -1126,6 +1156,134 @@ pub(crate) fn validate_local_ownership(
         return unsupported("structural local lost its exact establishment or final disposition");
     }
     Ok(())
+}
+
+/// Rejoin one borrow-axis permission event to its exact recorded loan. The
+/// formation statement, access kind and borrowed path must all agree, each
+/// loan supplies at most one `Establish`/`Consume` pair, and the event's
+/// provenance must name the loan's own formation statement rather than a
+/// substituted origin.
+fn replays_loan_event(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    root: SymbolHandle,
+    event: &checked_trees::FlowPermissionEventFact,
+    matched: &mut Vec<(
+        arena::Handle<checked_trees::BorrowLoanFact>,
+        language_semantics::PermissionEventKind,
+    )>,
+) -> bool {
+    use language_semantics::{
+        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+        PermissionEventSource, PermissionProvenance,
+    };
+    if event.multiplicity != Multiplicity::Unrestricted || event.obligation_live {
+        return false;
+    }
+    let borrow = &checked.facts.borrow;
+    let Some(borrow_state) = borrow
+        .states
+        .iter()
+        .map(|(_, fact)| fact)
+        .find(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+    else {
+        return false;
+    };
+    let event_segments = checked.facts.flow.ownership.segments.span(event.segments);
+    let expected_provenance =
+        |loan: &checked_trees::BorrowLoanFact| PermissionProvenance::Established {
+            machine_symbol: machine,
+            state_symbol: state,
+            source: PermissionEventSource::Statement {
+                statement_index: loan.statement_index,
+            },
+        };
+    let matched_loan = borrow.loans.iter().find(|(handle, loan)| {
+        if matched.contains(&(*handle, event.kind))
+            || !borrow.state_owns_loan(borrow_state, *handle)
+            || loan.root_symbol != root
+            || Some(borrow.loan_segments(loan)) != event_segments
+            || event.provenance != expected_provenance(loan)
+            || !matches!(
+                event.claim_identity,
+                PermissionClaimIdentity::Established {
+                    machine_symbol: claim_machine,
+                    state_symbol: claim_state,
+                    source: PermissionEventSource::Statement { statement_index },
+                    ..
+                } if claim_machine == machine
+                    && claim_state == state
+                    && statement_index == loan.statement_index
+            )
+        {
+            return false;
+        }
+        matches!(
+            (event.access, &loan.kind),
+            (
+                PermissionAccess::Shared,
+                checked_trees::BorrowAccessKind::Read
+            ) | (
+                PermissionAccess::Exclusive,
+                checked_trees::BorrowAccessKind::Mutable
+                    | checked_trees::BorrowAccessKind::WriteOnly,
+            )
+        ) && match event.kind {
+            PermissionEventKind::Establish => {
+                event.source
+                    == PermissionEventSource::Statement {
+                        statement_index: loan.statement_index,
+                    }
+            }
+            PermissionEventKind::Consume => event.source == PermissionEventSource::StateExit,
+            _ => false,
+        }
+    });
+    let Some((handle, _)) = matched_loan else {
+        return false;
+    };
+    matched.push((handle, event.kind));
+    true
+}
+
+/// The record referent of a shared-borrow `&T` result/local type: `T` must be
+/// a named record with plain-owned contents, the same admissible carrier the
+/// checked value planner required. `None` for owned types, `&mut` carriers
+/// (which keep their own `reference_result_custody` lane), and sums. Shared by
+/// source replay and attached-unit registration, so it lives here rather than
+/// in a machine producer.
+pub(crate) fn shared_borrow_record_referent(
+    checked: &CheckedTrees,
+    reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<checked_trees::types::TypeReferenceHandle> {
+    let checked_trees::types::TypeReferenceNode::Reference {
+        referee, access, ..
+    } = checked.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    if *access != language_semantics::ReferenceAccess::Shared {
+        return None;
+    }
+    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        checked.type_reference_table.type_reference(*referee)
+    else {
+        return None;
+    };
+    let record = checked
+        .data_definitions()
+        .iter()
+        .find(|record| record.symbol == *symbol)?;
+    if checked
+        .data_members(record)
+        .iter()
+        .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
+        || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, *referee)
+    {
+        return None;
+    }
+    Some(*referee)
 }
 
 /// Closed record storage has a nominal declaration and no variant selection.

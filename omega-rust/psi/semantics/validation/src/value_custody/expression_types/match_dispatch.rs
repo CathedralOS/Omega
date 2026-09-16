@@ -348,12 +348,65 @@ fn projected_plain_owned_source(
     }
 }
 
+/// A shared borrow of an exact place joins borrowed custody at the selected
+/// destination: the referent's owner is never transferred, so there is no
+/// owned input custody to merge. The typed-to-checked stage replays the
+/// authored target's canonical root and path, so admission here is limited to
+/// a direct place path whose declared referent is a plain-owned record the
+/// structural pipeline can carry.
+fn selected_shared_borrow_place(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    value: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(value) else {
+        return false;
+    };
+    if borrow.access != language_semantics::ReferenceAccess::Shared
+        || !program
+            .expression_table
+            .expression_is_direct_place_path(borrow.target)
+    {
+        return false;
+    }
+    // `expression_result_type_reference` deliberately returns no result type
+    // for a Borrow node, so the referent is read off the exact target place:
+    // `&a.first` borrows the declared `first` field's own type. That referent
+    // must be a named plain-owned record the structural pipeline can carry.
+    let Some(referent) = declared_value_type(program, machine, state, borrow.target) else {
+        return false;
+    };
+    if !crate::has_plain_owned_contents_with_numeric_constraints(program, referent) {
+        return false;
+    }
+    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(referent)
+    else {
+        return false;
+    };
+    let Some(record) = program
+        .data_definitions()
+        .iter()
+        .find(|record| record.symbol == *symbol)
+    else {
+        return false;
+    };
+    !program
+        .data_members(record)
+        .iter()
+        .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+}
+
 fn result_needs_custody_join(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
 ) -> bool {
+    if selected_shared_borrow_place(program, machine, state, value) {
+        return false;
+    }
     let reference = declared_value_type(program, machine, state, value);
     if reference.is_some_and(|reference| {
         !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
