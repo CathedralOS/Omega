@@ -62,6 +62,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_bitwise_xor_zero());
     assert!(policy.enables_wrapping_add_zero());
     assert!(policy.enables_bitwise_and_ones());
+    assert!(policy.enables_wrapping_remainder_zero());
 }
 
 #[test]
@@ -80,6 +81,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         xor_zero,
         wrapping_add_zero,
         and_ones,
+        remainder_zero,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -445,6 +447,95 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         None
     );
 
+    // The remainder zero-dividend family declares the third trap-carrying
+    // machine-effect relationship: a dividend literal of exactly zero folds
+    // `WrappingRemainderI64` into a `MaterializeI64` of the constant zero —
+    // a remainder of a zero dividend is always zero — under
+    // `FaultDischargedByObligation`: the folded literal does not discharge
+    // the remainder's encoded architectural fault; the nonzero-divisor
+    // obligation the kind carries does. The family shares the divisor-one
+    // family's consumer kind and rewritten form; the folded literal's
+    // operand position keeps the grammars disjoint.
+    let &[remainder_zero_rule] = remainder_zero.payload().pairs() else {
+        panic!("the remainder zero-dividend family declares one pair rule")
+    };
+    assert_eq!(
+        remainder_zero.optimization(),
+        Optimization::SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization
+    );
+    assert_eq!(
+        remainder_zero_rule,
+        SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE
+    );
+    assert_eq!(
+        remainder_zero_rule.producer(),
+        MachineSemanticKind::MaterializeI64
+    );
+    assert_eq!(
+        remainder_zero_rule.consumer(),
+        MachineSemanticKind::WrappingRemainderI64
+    );
+    assert_eq!(
+        remainder_zero_rule.rewritten(),
+        MachineSemanticKind::MaterializeI64
+    );
+    assert_eq!(
+        remainder_zero_rule.immediate_bound(),
+        PairImmediateBound::Exactly(0)
+    );
+    assert!(remainder_zero_rule.admits_immediate(0));
+    assert!(!remainder_zero_rule.admits_immediate(1));
+    assert!(!remainder_zero_rule.admits_immediate(2));
+    assert!(!remainder_zero_rule.admits_immediate(u64::MAX));
+    assert_eq!(remainder_zero_rule.fold_immediate(0), Some(0));
+    assert_eq!(
+        remainder_zero_rule.operand_shape(),
+        PairOperandShape::BinaryLeftLiteralConstantResult
+    );
+    assert_eq!(remainder_zero_rule.victim_operand(), 0);
+    assert_ne!(
+        remainder_zero_rule.victim_operand(),
+        remainder_rule.victim_operand()
+    );
+    assert_eq!(
+        remainder_zero_rule.result(),
+        PairResultDisposition::ScalarRegister
+    );
+    assert_eq!(
+        remainder_zero_rule.unit_effects(),
+        PairUnitEffects::BoundEarlyClobberConsumerOperands
+    );
+    assert_eq!(
+        remainder_zero_rule.machine_effects(),
+        PairMachineEffects::FaultDischargedByObligation
+    );
+    assert_eq!(
+        remainder_zero_rule.rewrite_consumer(remainder_kind, 0, Some(u64_scalar)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0),
+        })
+    );
+    assert_eq!(
+        remainder_zero_rule.rewrite_consumer(remainder_kind, 0, Some(i64_scalar)),
+        Some(SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Signed(0),
+        })
+    );
+    // The consumer guard binds the rule to its own consumer kind: the
+    // zero-dividend remainder rule never rewrites a bitwise-and.
+    assert_eq!(
+        remainder_zero_rule.rewrite_consumer(
+            SelectedInstructionKind::BitwiseAndI64,
+            0,
+            Some(u64_scalar)
+        ),
+        None
+    );
+    assert_eq!(
+        remainder_zero_rule.rewrite_consumer(remainder_kind, 0, None),
+        None
+    );
+
     // The bitwise-and annihilator family declares one pair per `Use`
     // position: a literal of exactly zero folds `BitwiseAndI64` into a
     // `MaterializeI64` of the constant zero — `x & 0` and `0 & x` are both
@@ -728,7 +819,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // unit-effect isolated: no implicit unit uses or clobbers and no
     // operand unit bindings beyond the declared result channel. The divide
     // fold deliberately drops the pinned consumer's `fixed_view` bindings;
-    // the remainder fold drops the pinned consumer's `fixed_view` pins and
+    // the remainder folds drop the pinned consumer's `fixed_view` pins and
     // `early_clobber` scratch marks.
     for entry in [
         add,
@@ -790,6 +881,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::WRAPPING_REMAINDER_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE]
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1).collect::<Vec<_>>(),
+        vec![SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE]
     );
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::BITWISE_AND_ZERO_V1).collect::<Vec<_>>(),
@@ -873,6 +968,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         Some(keys.materialize_i64)
     );
     assert_eq!(
+        remainder_zero_rule.immediate_constraint_key(&keys),
+        Some(keys.materialize_i64)
+    );
+    assert_eq!(
         and_zero_rule.immediate_constraint_key(&keys),
         Some(keys.materialize_i64)
     );
@@ -929,10 +1028,11 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // unit-clean; `BoundConsumerOperands` relaxes only the dropped
             // consumer's operand bindings, not the rewritten row.
             SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY,
-            // The materialize row the remainder fold rewrites into is
+            // The materialize row the remainder folds rewrite into is
             // likewise unit-clean; `BoundEarlyClobberConsumerOperands`
             // relaxes only the dropped consumer's operand decorations.
             SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE,
+            SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE,
             // Both and-zero grammars rewrite into the same materialize
             // row, which is itself unit-clean.
             SelectedInstructionPairRule::BITWISE_AND_ZERO_MATERIALIZE,
@@ -1125,6 +1225,49 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             );
             // A faulting surface the literal does not discharge — memory
             // traffic or a hosted trap — cannot take the consumer role.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
+            );
+        }
+
+        // The remainder zero-dividend pair admits its own triple on both
+        // targets under the obligation-discharged surface: the same
+        // possibly-faulting remainder consumer and isolated materialization
+        // the divisor-one fold binds — the declaration-level requirement
+        // is the shared fault-discharged shape; the distinguishing
+        // obligation custody is instruction-level and the producer and
+        // replay check it against the consumer record itself.
+        {
+            let rule = SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE;
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A faulting surface the obligation does not discharge —
+            // memory traffic or a hosted trap — cannot take the consumer
+            // role.
             let memory_bound = declaration(MachineSemanticKind::Load64);
             assert!(
                 !rule

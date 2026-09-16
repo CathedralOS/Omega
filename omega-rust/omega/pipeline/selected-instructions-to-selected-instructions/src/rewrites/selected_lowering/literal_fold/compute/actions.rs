@@ -322,6 +322,20 @@ pub(super) fn derive_action(
             function: function_index,
         });
     }
+    // The obligation-discharged surface also needs the obligation's
+    // instruction-level custody: under `FaultDischargedByObligation` the
+    // folded literal does not itself make the encoded fault unreachable,
+    // so the fold is admitted only when the obligation the consumer kind
+    // names is retained in the instruction's recorded proof custody.
+    if !pair
+        .rule
+        .machine_effects()
+        .admits_consumer_obligation(consumer)
+    {
+        return Err(LiteralFoldError::EffectSurfaceMismatch {
+            function: function_index,
+        });
+    }
     // The pair's declared machine-effect surface must hold in the bound
     // catalog for both instructions the rewrite touches: the eliminated
     // literal must be fully effect-isolated so its removal drops nothing

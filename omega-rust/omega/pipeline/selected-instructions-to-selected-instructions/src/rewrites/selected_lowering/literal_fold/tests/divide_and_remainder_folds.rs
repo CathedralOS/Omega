@@ -1,6 +1,7 @@
 use super::{
     assert_budget_is_enforced, assert_deterministic_fixed_point, budget, fold_with, policy_without,
-    staged_divide_inputs, staged_inputs, staged_remainder_inputs, validate,
+    policy_without_all, staged_divide_inputs, staged_inputs, staged_remainder_inputs,
+    staged_remainder_zero_dividend_inputs, validate,
 };
 use crate::RecoveryClassification;
 use crate::{
@@ -477,17 +478,36 @@ fn remainder_fold_rejects_consumers_the_selection_does_not_enable() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // The remainder's operand grammar admits the literal only under the
-    // remainder policy: every other selected family sees no admitted
-    // consumer kind — including the strongest posture, every other rule
-    // enabled at once.
+    // remainder policies: a selection naming no remainder family sees no
+    // admitted consumer kind — including the strongest posture, every
+    // other rule enabled at once with both remainder bits closed.
     let inputs = staged_remainder_inputs(target);
     for policy in [
         LiteralFoldPolicy::EXACT_DIVIDE_V1,
-        policy_without(LiteralFoldPolicy::WRAPPING_REMAINDER_V1),
+        policy_without_all(&[
+            LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+        ]),
     ] {
         assert_eq!(
             fold_with(&inputs, &environment, policy).map(|_| ()),
             Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "{policy:?}"
+        );
+    }
+    // The sibling remainder family admits the same consumer kind at the
+    // operand-0 dividend position: with only the zero-dividend bit set —
+    // or with every family enabled except the divisor-one bit — the kind
+    // is admitted but no enabled grammar covers the operand-1 divisor
+    // position the staged literal occupies: a future-use mismatch, not an
+    // unadmitted consumer.
+    for policy in [
+        LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+        policy_without(LiteralFoldPolicy::WRAPPING_REMAINDER_V1),
+    ] {
+        assert_eq!(
+            fold_with(&inputs, &environment, policy).map(|_| ()),
+            Err(LiteralFoldError::FutureUseMismatch { function: 0 }),
             "{policy:?}"
         );
     }
@@ -585,6 +605,514 @@ fn remainder_fold_is_deterministic_and_a_fixed_point_on_its_output() {
             &inputs,
             &environment,
             LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+        );
+    }
+}
+
+#[test]
+fn wrapping_remainder_zero_dividend_fold_rewrites_the_remainder_to_a_zero_materialization_on_both_linux_targets()
+ {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let inputs = staged_remainder_zero_dividend_inputs(target);
+        let scratch_defs = environment
+            .constraint(keys.remainder_i64)
+            .unwrap()
+            .operands
+            .len()
+            - 3;
+        let result = fold_with(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+        )
+        .expect("the staged zero-dividend remainder fold should validate");
+
+        assert_eq!(result.receipt().applied_count(), 1);
+        let action = result.plan().functions[0].action.unwrap();
+        assert_eq!(action.result, Some(VirtualRegisterId(2)));
+        // The recorded immediate is the folded constant the rewritten
+        // `MaterializeI64` embeds — zero — which the folded zero dividend
+        // already is.
+        assert_eq!(action.immediate, 0);
+        // The surviving register records the dropped operand-1 divisor
+        // `Use` for custody; the rewritten row binds no `Use` at all.
+        assert_eq!(action.surviving, VirtualRegisterId(0));
+        assert_eq!(action.victim, VirtualRegisterId(1));
+        assert_eq!(action.literal_instruction, SelectedInstructionId(0));
+        assert_eq!(action.consumer_instruction, SelectedInstructionId(1));
+        assert_eq!(action.immediate_constraint, keys.materialize_i64);
+
+        let function = &result.transformed().functions[0];
+        // The fold removes only the dividend literal and its register:
+        // the divisor register and every dead scratch `Def` register stay
+        // declared, left unreferenced by the rebuilt operand list.
+        assert_eq!(function.virtual_registers.len(), 2 + scratch_defs);
+        let instructions = &function.blocks[0].instructions;
+        assert_eq!(instructions.len(), 1);
+        let rewritten = &instructions[0];
+        assert_eq!(rewritten.id, SelectedInstructionId(0));
+        assert_eq!(
+            rewritten.kind,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(0),
+            }
+        );
+        assert_eq!(rewritten.constraint, keys.materialize_i64);
+        assert_eq!(rewritten.operands.len(), 1);
+        // The rebuilt operand list binds only the result `Def` — the
+        // register pins, the early-clobber scratch, and the dropped
+        // divisor `Use` are gone with the pinned remainder form.
+        assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(1));
+        assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Def);
+        assert_eq!(rewritten.operands[0].fixed_view, None);
+        assert!(!rewritten.operands[0].early_clobber);
+        assert!(rewritten.implicit_uses.is_empty());
+        assert!(rewritten.implicit_defs.is_empty());
+        assert!(rewritten.clobbers.is_empty());
+        // The folded literal's provenance joins the consumer's, and the
+        // remainder's obligation custody is retained — the fold's fault
+        // discharge still rests on the carried nonzero-divisor proof.
+        assert_eq!(rewritten.provenance.operations.len(), 2);
+        assert_eq!(
+            rewritten.provenance.obligations,
+            vec![ObligationId::new(7).unwrap()]
+        );
+
+        let SelectedTerminator::ConditionalBranch { instruction, .. } =
+            &function.blocks[0].terminator
+        else {
+            panic!("conditional branch terminator retained");
+        };
+        assert_eq!(instruction.id, SelectedInstructionId(1));
+        let SelectedTerminator::Return { instruction, .. } = &function.blocks[1].terminator else {
+            panic!("return terminator retained");
+        };
+        assert_eq!(instruction.id, SelectedInstructionId(2));
+    }
+}
+
+#[test]
+fn remainder_zero_dividend_fold_rejects_a_non_zero_dividend() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let effect_catalog =
+            validated_machine_effect_catalog(environment.target(), environment.constraints())
+                .unwrap();
+        let inputs = staged_remainder_zero_dividend_inputs(target);
+        let mut plan = inputs.selected.transformed().clone();
+        // The literal is the zero dividend only under the constant fold:
+        // a dividend of seven is a different computation both the
+        // producer's declared bound and the replay's re-derived grammar
+        // reject.
+        plan.functions[0].blocks[0].instructions[0].kind =
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(7),
+            };
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+        let mut recovery = inputs.recovery.clone();
+        let classification = recovery.plan.functions[0].classification.as_mut().unwrap();
+        let RecoveryClassification::ImmediateU64RematerializationCandidate { value, .. } =
+            &mut classification.classification
+        else {
+            panic!("staged classification is the immediate candidate");
+        };
+        *value = IntegerValue::Unsigned(7);
+
+        assert_eq!(
+            fold_selected_incoming_literal(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+                budget(),
+            ),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+            "{target:?}"
+        );
+        assert_eq!(
+            validate_literal_fold(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                inputs.selected.plan().clone(),
+            ),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+            "{target:?} replay"
+        );
+    }
+}
+
+#[test]
+fn remainder_zero_dividend_fold_rejects_a_missing_obligation() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let effect_catalog =
+            validated_machine_effect_catalog(environment.target(), environment.constraints())
+                .unwrap();
+        let inputs = staged_remainder_zero_dividend_inputs(target);
+        let mut plan = inputs.selected.transformed().clone();
+        // The fold's fault discharge is the carried nonzero-divisor
+        // obligation, not the folded literal: an instruction record that
+        // no longer retains the obligation its kind declares cannot fold
+        // — the producer and the independent replay reject alike under
+        // the obligation-discharged surface.
+        plan.functions[0].blocks[0].instructions[1]
+            .provenance
+            .obligations
+            .clear();
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+
+        assert_eq!(
+            fold_selected_incoming_literal(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+                budget(),
+            ),
+            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
+            "{target:?}"
+        );
+        assert_eq!(
+            validate_literal_fold(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                inputs.selected.plan().clone(),
+            ),
+            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
+            "{target:?} replay"
+        );
+    }
+}
+
+#[test]
+fn remainder_zero_dividend_fold_rejects_a_dropped_def_without_dead_custody() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.allocation_constraint_keys();
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
+    let remainder_operands = environment
+        .constraint(keys.remainder_i64)
+        .unwrap()
+        .operands
+        .len();
+    assert_eq!(
+        remainder_operands, 4,
+        "the x86-64 remainder carries one dropped scratch def"
+    );
+
+    // A `Def` operand past the result is droppable only when its register
+    // occurs nowhere else in the function: a `Use` in the scratch position,
+    // a scratch register the dropped divisor `Use` also reads, and a
+    // scratch register that `Use` also defines each reject — the producer
+    // and the independent replay alike.
+    for mutation in 0..3 {
+        let inputs = staged_remainder_zero_dividend_inputs(target);
+        let mut plan = inputs.selected.transformed().clone();
+        match mutation {
+            // The operand past the result reads a register rather than
+            // writing a dead scratch — not a `Def` the grammar may drop.
+            0 => {
+                plan.functions[0].blocks[0].instructions[1].operands[3].access =
+                    RegisterOperandAccess::Use;
+            }
+            // The scratch operand binds the divisor register, which the
+            // operand-1 `Use` the fold drops also reads — the dropped
+            // `Def` would strand that read's own operand position.
+            1 => {
+                plan.functions[0].blocks[0].instructions[1].operands[3].virtual_register =
+                    VirtualRegisterId(0);
+            }
+            // The divisor operand reads the scratch register, which the
+            // operand-3 `Def` also writes — the dropped `Def` is not dead.
+            _ => {
+                plan.functions[0].blocks[0].instructions[1].operands[1].virtual_register =
+                    VirtualRegisterId(3);
+            }
+        }
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+
+        assert_eq!(
+            fold_selected_incoming_literal(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+                budget(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "mutation {mutation}"
+        );
+        assert_eq!(
+            validate_literal_fold(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                inputs.selected.plan().clone(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "mutation {mutation} replay"
+        );
+    }
+}
+
+#[test]
+fn remainder_zero_dividend_fold_rejects_consumer_operands_carrying_forbidden_bindings() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.allocation_constraint_keys();
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
+    let inputs = staged_remainder_zero_dividend_inputs(target);
+
+    // The pinned remainder form carries `fixed_view` decorations and an
+    // early-clobber scratch the rewrite deliberately drops with the folded
+    // operand list; `tied_to` has no carried meaning once the operand list
+    // is rebuilt and rejects under the declared unit-effect surface at
+    // either `Use` position.
+    for position in 0..2 {
+        let mut plan = inputs.selected.transformed().clone();
+        plan.functions[0].blocks[0].instructions[1].operands[position].tied_to = Some(0);
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+
+        assert_eq!(
+            fold_selected_incoming_literal(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+                budget(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "position {position}"
+        );
+        assert_eq!(
+            validate_literal_fold(
+                &selected,
+                &inputs.ranges,
+                &inputs.legality,
+                &inputs.spill_choices,
+                &inputs.recovery,
+                &inputs.availability,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &keys,
+                &effect_catalog,
+                inputs.selected.plan().clone(),
+            ),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "position {position} replay"
+        );
+    }
+}
+
+#[test]
+fn remainder_zero_dividend_fold_rejects_consumers_the_selection_does_not_enable() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The zero-dividend operand grammar admits the literal only under its
+    // own policy: a selection naming no remainder family sees no admitted
+    // consumer kind — including the strongest posture, every other rule
+    // enabled at once with both remainder bits closed.
+    let inputs = staged_remainder_zero_dividend_inputs(target);
+    for policy in [
+        LiteralFoldPolicy::EXACT_DIVIDE_V1,
+        policy_without_all(&[
+            LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+        ]),
+    ] {
+        assert_eq!(
+            fold_with(&inputs, &environment, policy).map(|_| ()),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "{policy:?}"
+        );
+    }
+    // The sibling remainder family admits the same consumer kind at the
+    // operand-1 divisor position: with only the divisor-one bit set — or
+    // with every family enabled except the zero-dividend bit — the kind
+    // is admitted but no enabled grammar covers the operand-0 dividend
+    // position the staged literal occupies: a future-use mismatch, not an
+    // unadmitted consumer.
+    for policy in [
+        LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+        policy_without(LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1),
+    ] {
+        assert_eq!(
+            fold_with(&inputs, &environment, policy).map(|_| ()),
+            Err(LiteralFoldError::FutureUseMismatch { function: 0 }),
+            "{policy:?}"
+        );
+    }
+    // And the zero-dividend policy admits no other consumer: the compare
+    // fixture's flag-defining consumer has no `Def` operand 2 the
+    // constant-result grammar could bind.
+    let compare = staged_inputs(target);
+    assert_eq!(
+        fold_with(
+            &compare,
+            &environment,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1
+        )
+        .map(|_| ()),
+        Err(LiteralFoldError::ConsumerMismatch { function: 0 })
+    );
+}
+
+#[test]
+fn remainder_zero_dividend_fold_replay_rejects_every_decision_field_substitution() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let inputs = staged_remainder_zero_dividend_inputs(target);
+    let result = fold_with(
+        &inputs,
+        &environment,
+        LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+    )
+    .expect("the staged zero-dividend remainder fold should validate");
+
+    for mutation in 0..11 {
+        let mut plan = result.plan().clone();
+        match mutation {
+            // The recorded result register is the remainder's own `Def`,
+            // not the dropped divisor `Use`.
+            0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
+            1 => plan.functions[0].action.as_mut().unwrap().result = None,
+            // The recorded immediate is the materialized constant zero;
+            // any substitution replays differently.
+            2 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
+            3 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .consumer_instruction = SelectedInstructionId(9)
+            }
+            4 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .immediate_constraint
+                    .variant += 1
+            }
+            5 => plan.functions[0].action = None,
+            6 => plan.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([99; 32]),
+            7 => plan.usage.candidates += 1,
+            // A policy without the zero-dividend bit cannot replay the
+            // fold: the sibling family's row covers only the divisor
+            // position, so the action reconstructs nothing.
+            8 => plan.policy = LiteralFoldPolicy::EXACT_ADD_V1,
+            9 => plan.machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes([98; 32]),
+            // The surviving register is the dropped divisor: recording
+            // the scratch `Def` register instead fails the re-derived
+            // action.
+            _ => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(3),
+        }
+        assert!(
+            validate(&inputs, &environment, plan).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn remainder_zero_dividend_fold_reports_and_enforces_its_measured_work() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_remainder_zero_dividend_inputs(target);
+        assert_budget_is_enforced(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+        );
+    }
+}
+
+#[test]
+fn remainder_zero_dividend_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let inputs = staged_remainder_zero_dividend_inputs(target);
+        assert_deterministic_fixed_point(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
         );
     }
 }

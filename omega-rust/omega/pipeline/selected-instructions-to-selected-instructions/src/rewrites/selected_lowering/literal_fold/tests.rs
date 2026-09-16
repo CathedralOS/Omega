@@ -16,7 +16,8 @@ mod wrapping_add_zero_copies;
 
 use staged_arithmetic_inputs::{
     staged_add_inputs, staged_and_inputs, staged_and_ones_inputs, staged_divide_inputs,
-    staged_remainder_inputs, staged_subtract_inputs, staged_wrapping_add_inputs, staged_xor_inputs,
+    staged_remainder_inputs, staged_remainder_zero_dividend_inputs, staged_subtract_inputs,
+    staged_wrapping_add_inputs, staged_xor_inputs,
 };
 use staged_memory_inputs::{
     staged_byte_view_address_inputs, staged_copy_inputs, staged_extension_inputs,
@@ -621,6 +622,15 @@ fn fold_with_budget(
 /// strongest disabled-policy posture, where the rule's own bit is the only
 /// admission gate left closed.
 fn policy_without(disabled: LiteralFoldPolicy) -> LiteralFoldPolicy {
+    policy_without_all(&[disabled])
+}
+
+/// Every SelectedLowering literal-fold family enabled except each policy in
+/// `disabled`: the strongest posture for a consumer kind disjoint families
+/// share — closing only one `WrappingRemainderI64` or `BitwiseAndI64` bit
+/// still admits the kind through its sibling, so a test of the unadmitted
+/// kind closes every bit that kind answers to.
+fn policy_without_all(disabled: &[LiteralFoldPolicy]) -> LiteralFoldPolicy {
     [
         LiteralFoldPolicy::EXACT_ADD_V1,
         LiteralFoldPolicy::EXACT_SUBTRACT_V1,
@@ -635,9 +645,10 @@ fn policy_without(disabled: LiteralFoldPolicy) -> LiteralFoldPolicy {
         LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
         LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
         LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
+        LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
     ]
     .into_iter()
-    .filter(|policy| *policy != disabled)
+    .filter(|policy| !disabled.contains(policy))
     .fold(LiteralFoldPolicy::empty(), |enabled, policy| {
         enabled.union(policy)
     })

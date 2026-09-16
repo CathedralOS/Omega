@@ -62,6 +62,14 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// family; the literal's value names which family a `BitwiseAndI64`
     /// fold belongs to.
     pub(super) and_ones: Option<&'a RegisterInstructionConstraint>,
+    /// The `MaterializeI64` row the wrapping-remainder zero-dividend fold
+    /// rewrites into — the same constraint row the unary, remainder, and
+    /// and-zero folds bind, gated separately so a fold the selection did
+    /// not enable cannot replay under another family's policy. The
+    /// zero-dividend family shares its consumer kind with the divisor-one
+    /// family; the folded literal's operand position names which family a
+    /// `WrappingRemainderI64` fold belongs to.
+    pub(super) remainder_zero: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -133,6 +141,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_bitwise_and_ones()
         .then(|| find(keys.copy_i64))
         .transpose()?;
+    let remainder_zero = policy
+        .enables_wrapping_remainder_zero()
+        .then(|| find(keys.materialize_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -147,6 +159,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         xor_zero,
         wrapping_add_zero,
         and_ones,
+        remainder_zero,
     ]
     .into_iter()
     .flatten()
@@ -226,6 +239,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::CopyI64,
             isolated_rewritten_declaration,
         ),
+        (
+            remainder_zero,
+            MachineSemanticKind::MaterializeI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -248,6 +266,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         xor_zero,
         wrapping_add_zero,
         and_ones,
+        remainder_zero,
         catalog,
     })
 }
@@ -485,4 +504,25 @@ pub(super) fn fault_discharged_fold_admission(
                 })
         })
         && isolated_rewritten_declaration(rewritten)
+}
+
+/// The relationship the validator re-derives between a fault-carrying
+/// consumer whose encoded fault is unreachable under its own carried
+/// obligation — rather than under the folded literal — and the fully
+/// isolated materialization the fold rewrites into. The declaration
+/// surface is the one `fault_discharged_fold_admission` requires; the
+/// distinguishing evidence is `obligation_carried`, which the caller
+/// re-derives from the instruction record itself: under the
+/// zero-dividend remainder grammar the folded dividend of zero does not
+/// discharge the divide-by-zero fault — a zero dividend over an unproven
+/// divisor would still fault — so the nonzero-divisor obligation the
+/// `WrappingRemainderI64` kind names must appear in the consumer's
+/// recorded provenance obligations for the rewrite to retire the trap
+/// surface.
+pub(super) fn obligation_discharged_fold_admission(
+    consumer: &MachineEffectDeclaration,
+    rewritten: &MachineEffectDeclaration,
+    obligation_carried: bool,
+) -> bool {
+    obligation_carried && fault_discharged_fold_admission(consumer, rewritten)
 }

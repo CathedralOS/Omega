@@ -15,7 +15,7 @@ use crate::{
 use super::constraints::{
     ValidationImmediateRows, effect_declaration, fault_discharged_fold_admission,
     indexed_read_fold_admission, isolated_effect_alternative, isolated_effect_declaration,
-    isolated_rewritten_declaration,
+    isolated_rewritten_declaration, obligation_discharged_fold_admission,
 };
 
 pub(super) fn reconstruct_literal_fold(
@@ -220,19 +220,35 @@ fn reconstruct_action(
             rows.divide,
             MachineSemanticKind::CopyI64,
         ),
-        // The wrapping remainder folds an operand-1 divisor literal of
-        // exactly one into a `MaterializeI64` of zero — a remainder by one
-        // is always zero — bound to the `MaterializeI64` row the
-        // remainder policy's own gate selected. Operands past the
-        // operand-2 `Def` result are `Def` scratch outputs the fold drops,
-        // each independently required to occur nowhere else in the
-        // function, and the operand-0 `Use` is dropped because the
-        // constant result never reads it.
-        SelectedInstructionKind::WrappingRemainderI64 { .. } => (
-            SourceShape::RemainderIdentity,
-            rows.remainder,
-            MachineSemanticKind::MaterializeI64,
-        ),
+        // Two disjoint families fold `WrappingRemainderI64`; the folded
+        // literal's operand position names the family a fold belongs to.
+        // The divisor-one fold admits an operand-1 literal of exactly one
+        // — a remainder by one is always zero — bound to the
+        // `MaterializeI64` row the remainder policy's own gate selected;
+        // the operand-0 `Use` is dropped because the constant result never
+        // reads it, and every `Def` operand past the operand-2 `Def`
+        // result drops under occurrence-free custody. The zero-dividend
+        // fold admits an operand-0 dividend literal of exactly zero —
+        // `0 % x` is `0` for every `x` — bound to the `MaterializeI64`
+        // row the zero-dividend policy's own gate selected, dropping the
+        // operand-1 divisor `Use` and the same dead scratch `Def`s. Its
+        // fault surface retires under the nonzero-divisor obligation the
+        // kind carries, not under the folded literal.
+        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+            if future_use.operand == 0 {
+                (
+                    SourceShape::RemainderZeroDividend,
+                    rows.remainder_zero,
+                    MachineSemanticKind::MaterializeI64,
+                )
+            } else {
+                (
+                    SourceShape::RemainderIdentity,
+                    rows.remainder,
+                    MachineSemanticKind::MaterializeI64,
+                )
+            }
+        }
         // Two disjoint families fold `BitwiseAndI64` at either `Use`
         // position; the literal's value names the family a fold belongs
         // to. The and-zero annihilator admits exactly the literal zero —
@@ -319,7 +335,11 @@ fn reconstruct_action(
     // literal no enabled family admits is an unsupported immediate, a
     // position outside both grammars a future-use mismatch, and a
     // `BitwiseAndI64` with no and family enabled a consumer mismatch like
-    // any other unadmitted kind.
+    // any other unadmitted kind. `WrappingRemainderI64` is admitted by two
+    // disjoint families on *different* operand positions — the position
+    // already picked the family, so its row being unbound means no enabled
+    // grammar covers the position: a future-use mismatch while either
+    // remainder family is enabled, a consumer mismatch when neither is.
     let row = row.ok_or_else(|| {
         if matches!(consumer.kind, SelectedInstructionKind::BitwiseAndI64)
             && (rows.and_zero.is_some() || rows.and_ones.is_some())
@@ -332,6 +352,14 @@ fn reconstruct_action(
                 LiteralFoldError::FutureUseMismatch {
                     function: function_index,
                 }
+            }
+        } else if matches!(
+            consumer.kind,
+            SelectedInstructionKind::WrappingRemainderI64 { .. }
+        ) && (rows.remainder.is_some() || rows.remainder_zero.is_some())
+        {
+            LiteralFoldError::FutureUseMismatch {
+                function: function_index,
             }
         } else {
             LiteralFoldError::ConsumerMismatch {
@@ -379,6 +407,20 @@ fn reconstruct_action(
         // the constant the rewritten `MaterializeI64` embeds — zero.
         SourceShape::RemainderIdentity => {
             if literal_u64 != 1 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            0
+        }
+        // The zero-dividend fold is the constant zero only when the
+        // dividend literal is exactly zero — `0 % x` is `0` for every `x`
+        // the consumer's proven nonzero divisor admits; any other dividend
+        // is a different computation the replay must not admit. The
+        // recorded immediate is the constant the rewritten `MaterializeI64`
+        // embeds — zero.
+        SourceShape::RemainderZeroDividend => {
+            if literal_u64 != 0 {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
                 });
@@ -525,6 +567,33 @@ fn reconstruct_action(
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The zero-dividend grammar: `[victim, divisor, result,
+        // scratch...]` folds the operand-0 `Use` — the zero dividend —
+        // drops the operand-1 divisor `Use` because the constant result
+        // never reads it, and drops every `Def` operand past the operand-2
+        // `Def` result under the same occurrence-free custody the
+        // divisor-one grammar derives: each dropped `Def` register must
+        // occur nowhere else in the function — the dead quotient scratch
+        // an x86-64 `idiv` realization writes.
+        (SourceShape::RemainderZeroDividend, [victim, right, result, scratch @ ..]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
@@ -742,9 +811,14 @@ fn reconstruct_action(
     // exists only inside the folded operand list.
     let drops_fixed_views = matches!(
         shape,
-        SourceShape::DivideIdentity | SourceShape::RemainderIdentity
+        SourceShape::DivideIdentity
+            | SourceShape::RemainderIdentity
+            | SourceShape::RemainderZeroDividend
     );
-    let drops_early_clobbers = shape == SourceShape::RemainderIdentity;
+    let drops_early_clobbers = matches!(
+        shape,
+        SourceShape::RemainderIdentity | SourceShape::RemainderZeroDividend
+    );
     if consumer.operands.iter().any(|operand| {
         (operand.fixed_view.is_some() && !drops_fixed_views)
             || operand.tied_to.is_some()
@@ -799,10 +873,25 @@ fn reconstruct_action(
         // folded divisor of one discharges that surface, so the validator
         // requires the fault-discharging relationship rather than strict
         // isolation on the consumer side.
-        SelectedInstructionKind::ExactDivideU64 { .. }
-        | SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
             fault_discharged_fold_admission(consumer_declaration, rewritten_declaration)
         }
+        // The remainder's encoded alternatives may architecturally fault;
+        // the two grammars discharge that surface by different evidence
+        // the validator re-derives separately. The divisor-one fold's
+        // literal is itself the discharging value. The zero-dividend fold
+        // relies on the nonzero-divisor obligation the consumer kind
+        // carries — which must appear in the instruction's recorded
+        // provenance obligations, because the folded dividend of zero
+        // does not by itself discharge the divide-by-zero fault.
+        SelectedInstructionKind::WrappingRemainderI64 { obligation, .. } => match shape {
+            SourceShape::RemainderZeroDividend => obligation_discharged_fold_admission(
+                consumer_declaration,
+                rewritten_declaration,
+                consumer.provenance.obligations.contains(&obligation),
+            ),
+            _ => fault_discharged_fold_admission(consumer_declaration, rewritten_declaration),
+        },
         _ => {
             isolated_effect_declaration(consumer_declaration)
                 && consumer_declaration.alternatives.iter().all(|alternative| {
@@ -843,7 +932,8 @@ fn reconstruct_action(
         | SourceShape::AndZeroLeft
         | SourceShape::XorZeroLeft
         | SourceShape::WrappingAddZeroLeft
-        | SourceShape::AndOnesLeft => consumer.operands[1].virtual_register,
+        | SourceShape::AndOnesLeft
+        | SourceShape::RemainderZeroDividend => consumer.operands[1].virtual_register,
         SourceShape::BinaryImmediate
         | SourceShape::UnaryExtension
         | SourceShape::UnaryCopy
@@ -879,7 +969,11 @@ fn reconstruct_action(
 /// drops every `Use` operand past the operand-2 `Def` result, or the
 /// remainder-identity form whose operand-1 divisor literal of one folds
 /// into a materialized zero and drops the operand-0 `Use` and every `Def`
-/// operand past the operand-2 `Def` result, or the bitwise-and
+/// operand past the operand-2 `Def` result, or the remainder
+/// zero-dividend form whose operand-0 dividend literal of zero folds into
+/// a materialized zero under the consumer's carried nonzero-divisor
+/// obligation and drops the operand-1 `Use` and the same dead scratch
+/// `Def`s, or the bitwise-and
 /// annihilator forms whose zero literal folds `BitwiseAndI64` into a
 /// materialized zero — at the operand-1 `Use`, or at the operand-0 `Use`
 /// under the left grammar that drops the operand-1 `Use` instead — or the
@@ -899,6 +993,7 @@ enum SourceShape {
     UnaryCopy,
     DivideIdentity,
     RemainderIdentity,
+    RemainderZeroDividend,
     AndZero,
     AndZeroLeft,
     XorZero,
@@ -922,6 +1017,7 @@ impl SourceShape {
             Self::BinaryLeftImmediate
             | Self::UnaryExtension
             | Self::UnaryCopy
+            | Self::RemainderZeroDividend
             | Self::AndZeroLeft
             | Self::XorZeroLeft
             | Self::WrappingAddZeroLeft
@@ -1229,16 +1325,33 @@ fn rebuild_function(
                     function: function_index,
                 },
             )?;
-            // The copy fold binds its own policy-gated row, the remainder
+            // The copy fold binds its own policy-gated row, each remainder
             // fold binds the materialize row under its own policy bit, and
-            // the extension consumers bind theirs.
+            // the extension consumers bind theirs. The two remainder
+            // grammars share the row but not the gate: the victim
+            // register's operand position names which family's gate
+            // applied — operand 0 is the zero-dividend fold.
             let row = if consumer.kind == SelectedInstructionKind::CopyI64 {
                 rows.copy
             } else if matches!(
                 consumer.kind,
                 SelectedInstructionKind::WrappingRemainderI64 { .. }
             ) {
-                rows.remainder
+                let victim_position = consumer
+                    .operands
+                    .iter()
+                    .position(|operand| {
+                        operand.access == RegisterOperandAccess::Use
+                            && operand.virtual_register == action.victim
+                    })
+                    .ok_or(LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    })?;
+                if victim_position == 0 {
+                    rows.remainder_zero
+                } else {
+                    rows.remainder
+                }
             } else {
                 rows.materialize
             };
