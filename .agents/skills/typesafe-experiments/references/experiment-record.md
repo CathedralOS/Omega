@@ -1057,3 +1057,54 @@ producer's compound claims. No post-hoc confidence threshold. Python bundle
 self-check/compilation, payload hashes, clean source revision, comparator identity
 and literal packet checks passed. macOS not run. Raw exports/credentials stay
 ignored; only public final claims were consumed, not private reasoning.
+
+## 2026-09-16: existing implementation discovery passes a bounded screening
+
+User proposed improving the codebase rather than advancing the compiler and chose
+the "does this already exist?" test. Adapted the official reranking cookbook
+(https://docs.typesafe.ai/cookbooks/rerank_typesafe.md, refreshed for this new use)
+to Choice over actual functions plus none. No source edits or coding worker.
+Local artifacts: `build/experiments/reuse-search/`, `reuse-search-wide/` and
+`reuse-search-holdout/`; first directory has probe.py, check.py and full REPORT.md.
+
+Five declared Python tooling owners at root's pinned HEAD: coordination, claims,
+landing, test_affected and swarm/launch. Eight authored positive requests and two
+absent-mechanism controls, source-reviewed targets frozen before model calls.
+This is controlled discovery, not natural production tasks or proof of reuse safety.
+
+| Recipe | Correct lexical / cases | Correct Jev / cases | API seconds |
+| --- | ---: | ---: | ---: |
+| Top-six lexical shortlist from 96 functions | 5/10 | 7/10 | .438 |
+| All 70 bounded top-level functions; exposed replay | 5/10 | 10/10 | .634 |
+| Unchanged broad recipe; six new authored requests | 2/6 | 6/6 | .491 |
+
+Initial candidates omitted paths_overlap, expired_claims and push_atomic. Jev
+retained the five reachable positives and rejected both false reuse suggestions;
+its none for omitted positives means only "not in the offered set." Broad replay
+used top-level functions <=3500 characters, excluding larger orchestration/methods.
+All positive targets appeared without gold-based insertion. It also shortened
+uniform option labels to fit the input guard; not isolated context-size attribution.
+The recovered helpers ranked 10th, 39th and 22nd in the broad lexical pool.
+
+Six new frozen requests recovered push_url, remote_refs, live_claims (rank 19) and
+board_items (rank 2), rejecting case-insensitive ancestry and abbreviated-object
+expansion. All four positive targets and both negatives correct. Always-none
+completes zero positives and scores only the two controls. No prompt retries,
+threshold fitting or relabeling. This beats the existing lexical ranker, not all
+code-search tools; synthetic specificity and a small owner-scoped corpus limit it.
+
+Preparation 2.848/2.716/2.518s; API .438/.634/.491s. Total measured selection paths
+3.286/3.350/3.009s, excluding Python startup/imports, research and human labeling.
+Lexical search itself is faster. Input/output usage 15490/759, 32963/6432, 26419/3859.
+Aggregate usage across questions must not be equated to a per-question context
+limit; accepted broad calls do not justify exceeding the reported 32k window.
+First broad preparation stopped at the 100k-character guard before upload; uniform
+label compaction fixed it. Two dependent missing-file shell failures made no API
+calls. All valid outcomes retained; no worker cost or saved coding-time claim.
+
+Retain as a promising advisory navigation recipe, not production integration.
+Next test an actual task and observe whether the suggested implementation is used
+and avoids exploration or duplicate code. None is not repository-wide absence.
+Exact pinned source/line membership, frozen request hashes, full response coverage
+and offered-choice checks pass via check.py; Python compilation passed on Windows.
+No macOS runtime validation, pushes, source mutation, private traces or key uploads.
