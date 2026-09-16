@@ -581,7 +581,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/partial_affine.rs",
-        sha256: Some("58ab406fe0bab5ebe344f152b251cc441948b344e8b95475fec8f585aaf019f9"),
+        sha256: Some("5f95408606f4039b2380476187038fc6144b7b983fbf96f392c884af163b63b2"),
         inventory_machinery: false,
     },
     ImplementationSite {

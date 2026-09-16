@@ -190,18 +190,11 @@ pub(super) fn validate_receipt(
                 return unsupported("selected ownership substituted its prior result origin");
             }
             // A prior selection's destination arrives on a join block
-            // parameter. Projected moves out of that root would need
-            // partial-affine residual custody against a block parameter,
-            // which the terminal evidence does not carry yet; admit only
-            // whole moves through this edge.
-            if transfers.iter().any(|transfer| {
-                transfer.source == source_handle
-                    && !ownership.segments.span_or_empty(transfer.path).is_empty()
-            }) {
-                return unsupported(
-                    "projected selection of a prior selection result requires block-parameter residual custody",
-                );
-            }
+            // parameter. The terminal verifier resolves a block parameter's
+            // declared root type from its target block's parameter roster, so
+            // projected moves out of that root carry the same partial-affine
+            // residual custody as signature-parameter and operation-result
+            // roots.
         } else if source.provenance
             != (PermissionProvenance::Established {
                 machine_symbol: machine,
