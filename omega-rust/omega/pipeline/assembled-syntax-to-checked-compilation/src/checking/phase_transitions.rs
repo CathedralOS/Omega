@@ -64,6 +64,12 @@ pub(crate) struct TypedToCheckedSettlementInput<'a> {
     pub(crate) native_target: Option<target::NativeTarget>,
     pub(crate) package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub(crate) selected_build_machine: Option<symbols::SymbolHandle>,
+    /// The evaluated `Build.freestanding` selection. The asm authority
+    /// discharge is a typed-program validation whose only input outside the
+    /// trees is this build.omg fact, which `lower_*` deliberately never sees;
+    /// the settlement input carries it so the gate joins this transition's
+    /// program-validation pass on the exact graph about to be checked.
+    pub(crate) freestanding: bool,
     pub(crate) boundary_calling_plan_realizations:
         &'a mut [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub(crate) opaque_representation_selections:
@@ -159,6 +165,7 @@ pub(crate) fn typed_trees_to_checked_trees(
             .filter(|&selection| selection.copy_disposition()
                     == representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy ).map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
             .collect::<Vec<_>>();
+        typed_trees_to_checked_trees::validate_asm_discharge(&typed, settlement.freestanding)?;
         let mut program = if settlement.package_inputs.is_some() {
             typed_trees_to_checked_trees::lower_package_typed_trees_with_selected_generic_operator_providers(
                 typed,

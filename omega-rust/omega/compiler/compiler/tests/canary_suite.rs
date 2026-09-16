@@ -4681,11 +4681,14 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/proposition_relation_inherited_law_rejected",
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
-    // The freestanding-authority discharge (`validate_asm_discharge`) is not
-    // wired into the current pipeline, so the four
-    // `inline_asm/asm_*_requires_machine_authority` fixtures are not listed
-    // here; they stay registered through the inline-asm owner rosters that
-    // pin the intended contract diagnostic.
+    // The v0 freestanding-authority discharge is wired into the typed->checked
+    // settlement transition, so a hosted build (no `freestanding = true` in
+    // build.omg) rejects asm instructions whose catalog contract requires
+    // machine authority.
+    "inline_asm/asm_cli_requires_machine_authority",
+    "inline_asm/asm_popfq_requires_machine_authority",
+    "inline_asm/asm_wrmsr_requires_machine_authority",
+    "inline_asm/asm_write_cr3_requires_machine_authority",
 ];
 
 #[derive(Clone, Copy)]
