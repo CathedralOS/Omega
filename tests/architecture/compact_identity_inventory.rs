@@ -469,8 +469,8 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
         "checked callback resource receipts must retain the exact selected machine contract",
     );
 
-    let stack_path =
-        root.join("omega-rust/omega/representations/calling-conventions/src/stack_realizations/mod.rs");
+    let stack_path = root
+        .join("omega-rust/omega/representations/calling-conventions/src/stack_realizations/mod.rs");
     let stack = fs::read_to_string(&stack_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", stack_path.display()));
     let roots_path = root.join(
@@ -635,8 +635,10 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
 #[test]
 fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() {
     let root = workspace_root();
-    let carrier_path = root.join("omega-rust/omega/tooling/artifacts/src/reports/trust_report/mod.rs");
-    let report_path = root.join("omega-rust/omega/tooling/artifacts/src/reports/trust_report/mod.rs");
+    let carrier_path =
+        root.join("omega-rust/omega/tooling/artifacts/src/reports/trust_report/mod.rs");
+    let report_path =
+        root.join("omega-rust/omega/tooling/artifacts/src/reports/trust_report/mod.rs");
     let carrier = fs::read_to_string(&carrier_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", carrier_path.display()));
     let report = fs::read_to_string(&report_path)
