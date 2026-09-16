@@ -148,6 +148,9 @@ fn terminal_selected_keys(
         saturating_add_u64: keys.saturating_add_u64,
         divide_u64: keys.divide_u64,
         remainder_i64: keys.remainder_i64,
+        saturating_add_i32: keys.saturating_add_i32,
+        saturating_subtract_i32: keys.saturating_subtract_i32,
+        saturating_divide_i32: keys.saturating_divide_i32,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
@@ -312,6 +315,13 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::ExactDivideU64 { .. } => MachineSemanticKind::ExactDivideU64,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             MachineSemanticKind::WrappingRemainderI64
+        }
+        SelectedInstructionKind::SaturatingAddI32 => MachineSemanticKind::SaturatingAddI32,
+        SelectedInstructionKind::SaturatingSubtractI32 => {
+            MachineSemanticKind::SaturatingSubtractI32
+        }
+        SelectedInstructionKind::SaturatingDivideI32 { .. } => {
+            MachineSemanticKind::SaturatingDivideI32
         }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate

@@ -38,6 +38,25 @@ fn append_register_binary(bytes: &mut Vec<u8>, opcode: u8, source: u8, destinati
     ]);
 }
 
+/// `movabs scratch, bound; cmp value, scratch; cmovcc value, scratch` with
+/// i32::MAX selected on G, or i32::MIN selected on L.
+fn append_i32_clamp(bytes: &mut Vec<u8>, value: u8, scratch: u8, upper: bool) {
+    let (bound, condition) = if upper {
+        (i64::from(i32::MAX), 0x4f)
+    } else {
+        (i64::from(i32::MIN), 0x4c)
+    };
+    bytes.extend([0x48 | (scratch >> 3), 0xb8 | (scratch & 7)]);
+    bytes.extend((bound as u64).to_le_bytes());
+    append_register_binary(bytes, 0x39, scratch, value);
+    bytes.extend([
+        rex(value, 0, scratch),
+        0x0f,
+        condition,
+        modrm(3, value, scratch),
+    ]);
+}
+
 fn append_lea_register(bytes: &mut Vec<u8>, left: u8, right: u8, destination: u8) {
     let (base, index) = if left & 7 == 5 && right & 7 != 5 {
         (right, left)
@@ -233,6 +252,39 @@ pub(crate) fn encode_unchecked(
             bytes.extend([0x74, 5, 0x48, 0x99]);
             bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 7, registers[1])]);
             append_register_binary(&mut bytes, 0x89, registers[3], registers[2]);
+        }
+        SelectedInstructionKind::SaturatingAddI32
+        | SelectedInstructionKind::SaturatingSubtractI32 => {
+            // The early-clobber result accumulates the exact 64-bit sum of two
+            // sign-normalized i32 carriers; the early-clobber scratch holds
+            // each bound for the CMP/CMOV clamp.
+            if registers[2..]
+                .iter()
+                .any(|late| registers[..2].contains(late))
+                || registers[2] == registers[3]
+            {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
+            let opcode = if kind == SelectedInstructionKind::SaturatingAddI32 {
+                0x01
+            } else {
+                0x29
+            };
+            append_register_binary(&mut bytes, opcode, registers[1], registers[2]);
+            append_i32_clamp(&mut bytes, registers[2], registers[3], true);
+            append_i32_clamp(&mut bytes, registers[2], registers[3], false);
+        }
+        SelectedInstructionKind::SaturatingDivideI32 { .. } => {
+            if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            // The 64-bit quotient of sign-normalized i32 carriers cannot fault;
+            // only i32::MIN / -1 exceeds the carrier and is clamped through RDX,
+            // whose explicit input value CQO discards.
+            bytes.extend([0x48, 0x99]);
+            bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 7, registers[1])]);
+            append_i32_clamp(&mut bytes, registers[2], registers[3], true);
         }
         SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             // Both operations commute, so either input may already own the

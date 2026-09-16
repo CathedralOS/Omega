@@ -108,6 +108,14 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     }
 }
 
+/// The realized signed saturating family is the i32 carrier; wider and
+/// narrower fixed widths still report the unsupported family.
+pub(super) fn supports_signed_saturating_i32(integer: IntegerType) -> bool {
+    integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+        && integer.sign() == IntegerSign::Signed
+        && integer.bits() == 32
+}
+
 pub(super) fn supports_signed_wrapping_remainder(integer: IntegerType) -> bool {
     integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
         && integer.sign() == IntegerSign::Signed
@@ -252,6 +260,11 @@ pub(super) fn match_input(
             ..
         }
         | AbstractOperation::WrappingIntegerRemainder {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerDivide {
             psi_operation,
             obligation,
             ..

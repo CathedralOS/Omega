@@ -110,6 +110,15 @@ fn family_and_operand_count(
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             (MachineAlternativeFamily::WrappingRemainderI64, 4, 0..=0)
         }
+        SelectedInstructionKind::SaturatingAddI32 => {
+            (MachineAlternativeFamily::SaturatingAddI32, 4, 0..=0)
+        }
+        SelectedInstructionKind::SaturatingSubtractI32 => {
+            (MachineAlternativeFamily::SaturatingSubtractI32, 4, 0..=0)
+        }
+        SelectedInstructionKind::SaturatingDivideI32 { .. } => {
+            (MachineAlternativeFamily::SaturatingDivideI32, 4, 0..=0)
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             (MachineAlternativeFamily::BitwiseXorI64, 3, 0..=0)
         }

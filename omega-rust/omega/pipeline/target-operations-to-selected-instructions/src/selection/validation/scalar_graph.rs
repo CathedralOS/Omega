@@ -500,6 +500,97 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::SaturatingAddI32 { left, right }
+                    | LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !is_signed_i32(scalar_type)
+                        {
+                            return Err(invalid());
+                        }
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        let scratch = saturation_scratch(&mut replay)?;
+                        let (kind, constraint) = if matches!(
+                            operation.kind,
+                            LegalizedScalarInstructionKind::SaturatingAddI32 { .. }
+                        ) {
+                            (
+                                SelectedInstructionKind::SaturatingAddI32,
+                                constraints.keys.saturating_add_i32,
+                            )
+                        } else {
+                            (
+                                SelectedInstructionKind::SaturatingSubtractI32,
+                                constraints.keys.saturating_subtract_i32,
+                            )
+                        };
+                        replay.check_instruction(
+                            kind,
+                            constraint,
+                            &[left_register, right_register, output, scratch],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::SaturatingDivideI32 {
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !is_signed_i32(scalar_type)
+                        {
+                            return Err(invalid());
+                        }
+                        // Reconstruct operand snapshots and proof custody from the
+                        // legalized operation, not the proposed instruction's claims.
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        let scratch =
+                            if environment.target().architecture == target::Architecture::X86_64 {
+                                division_scratch(&mut replay)?
+                            } else {
+                                saturation_scratch(&mut replay)?
+                            };
+                        replay.check_instruction(
+                            SelectedInstructionKind::SaturatingDivideI32 {
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraints.keys.saturating_divide_i32,
+                            &[left_register, right_register, output, scratch],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::WrappingRemainder {
                         left,
                         right,
@@ -878,6 +969,53 @@ impl Replay<'_> {
 
 // Remainder scratch is defined by this instruction, with no semantic source or
 // incoming value. Its identity must not alias a transported program value.
+/// The fixed signed 32-bit carrier every realized saturating i32 form requires,
+/// checked here independently of the constructor's admission.
+fn is_signed_i32(scalar_type: ScalarType) -> bool {
+    matches!(scalar_type, ScalarType::Integer(integer)
+        if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+            && integer.sign() == IntegerSign::Signed
+            && integer.bits() == 32)
+}
+
+// The saturating i32 bound scratch is the next virtual register, owned by
+// this instruction as operand 3 with no source definition or fixed home.
+fn saturation_scratch(
+    replay: &mut Replay<'_>,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let instruction = SelectedInstructionId(
+        replay
+            .instruction_cursor
+            .try_into()
+            .map_err(|_| replay.invalid())?,
+    );
+    let expected_type = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Signed, 64)
+            .map_err(|_| replay.invalid())?,
+    );
+    let register = replay
+        .selected
+        .virtual_registers
+        .get(replay.register_cursor)
+        .ok_or_else(|| replay.invalid())?;
+    if register.id.0 as usize != replay.register_cursor
+        || register.origin
+            != (VirtualRegisterOrigin::InstructionScratch {
+                instruction,
+                operand: 3,
+            })
+        || register.scalar_type != expected_type
+        || register.class != replay.class
+        || register.definition_site.is_some()
+        || register.entry_fixed_view.is_some()
+    {
+        return Err(replay.invalid());
+    }
+    let id = register.id;
+    replay.register_cursor += 1;
+    Ok(id)
+}
+
 fn remainder_scratch(
     replay: &mut Replay<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {

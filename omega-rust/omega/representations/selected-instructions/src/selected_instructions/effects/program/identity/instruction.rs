@@ -102,6 +102,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ExactDivideU64 { .. } => 56,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 57,
         SelectedInstructionKind::WrappingAddI64 => 58,
+        SelectedInstructionKind::SaturatingAddI32 => 60,
+        SelectedInstructionKind::SaturatingSubtractI32 => 61,
+        SelectedInstructionKind::SaturatingDivideI32 { .. } => 62,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -202,6 +205,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             obligation,
             accepted_fact,
         }
+        | SelectedInstructionKind::SaturatingDivideI32 {
+            obligation,
+            accepted_fact,
+        }
         | SelectedInstructionKind::ExactDivideU64 {
             obligation,
             accepted_fact,
@@ -243,6 +250,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::SaturatingSubtractU64
         | SelectedInstructionKind::SaturatingAddU64
         | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::SaturatingAddI32
+        | SelectedInstructionKind::SaturatingSubtractI32
         | SelectedInstructionKind::Float32ToBits
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32

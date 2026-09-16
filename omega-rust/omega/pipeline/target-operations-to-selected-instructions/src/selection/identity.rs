@@ -120,6 +120,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ExactDivideU64 { .. } => 54,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 55,
         SelectedInstructionKind::WrappingAddI64 => 56,
+        SelectedInstructionKind::SaturatingAddI32 => 60,
+        SelectedInstructionKind::SaturatingSubtractI32 => 61,
+        SelectedInstructionKind::SaturatingDivideI32 { .. } => 62,
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -228,6 +231,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             obligation,
             accepted_fact,
         }
+        | SelectedInstructionKind::SaturatingDivideI32 {
+            obligation,
+            accepted_fact,
+        }
         | SelectedInstructionKind::ExactAddI64 {
             obligation,
             accepted_fact,
@@ -281,6 +288,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::SaturatingSubtractU64
         | SelectedInstructionKind::SaturatingAddU64
         | SelectedInstructionKind::WrappingAddI64
+        | SelectedInstructionKind::SaturatingAddI32
+        | SelectedInstructionKind::SaturatingSubtractI32
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::Float32ToBits
@@ -568,6 +577,14 @@ mod tests {
                     [0x5a; 32],
                 ),
             },
+            SelectedInstructionKind::SaturatingAddI32,
+            SelectedInstructionKind::SaturatingSubtractI32,
+            SelectedInstructionKind::SaturatingDivideI32 {
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [0x5a; 32],
+                ),
+            },
         ];
         let discriminants = kinds.map(|kind| {
             let instruction = SelectedInstruction {
@@ -589,6 +606,6 @@ mod tests {
             assert_eq!(&bytes[..identity.len()], &identity);
             bytes[identity.len()]
         });
-        assert_eq!(discriminants, [55, 51, 52, 53, 54]);
+        assert_eq!(discriminants, [55, 51, 52, 53, 54, 60, 61, 62]);
     }
 }

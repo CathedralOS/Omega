@@ -16,7 +16,10 @@ pub use register_model::AARCH64_LOAD16;
 pub use register_model::AARCH64_LOAD32;
 pub use register_model::AARCH64_MATERIALIZE_BOOLEAN;
 pub use register_model::AARCH64_REMAINDER_I64;
+pub use register_model::AARCH64_SATURATING_ADD_I32;
 pub use register_model::AARCH64_SATURATING_ADD_U64;
+pub use register_model::AARCH64_SATURATING_DIVIDE_I32;
+pub use register_model::AARCH64_SATURATING_SUBTRACT_I32;
 pub use register_model::AARCH64_SATURATING_SUBTRACT_U64;
 pub use register_model::{
     AARCH64_BITS_TO_FLOAT32, AARCH64_BITS_TO_FLOAT64, AARCH64_DARWIN_HOSTED_READ_BYTE,

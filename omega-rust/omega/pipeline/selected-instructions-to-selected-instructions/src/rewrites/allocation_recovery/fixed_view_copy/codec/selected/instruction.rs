@@ -112,6 +112,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ExactDivideU64 { .. } => 56,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 57,
         SelectedInstructionKind::WrappingAddI64 => 58,
+        SelectedInstructionKind::SaturatingAddI32 => 60,
+        SelectedInstructionKind::SaturatingSubtractI32 => 61,
+        SelectedInstructionKind::SaturatingDivideI32 { .. } => 62,
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -197,6 +200,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             obligation,
             accepted_fact,
         }
+        | SelectedInstructionKind::SaturatingDivideI32 {
+            obligation,
+            accepted_fact,
+        }
         | SelectedInstructionKind::ExactDivideU64 {
             obligation,
             accepted_fact,
@@ -246,6 +253,8 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
         (SelectedInstructionKind::SaturatingSubtractU64, 54),
         (SelectedInstructionKind::SaturatingAddU64, 55),
         (SelectedInstructionKind::WrappingAddI64, 58),
+        (SelectedInstructionKind::SaturatingAddI32, 60),
+        (SelectedInstructionKind::SaturatingSubtractI32, 61),
         (SelectedInstructionKind::ZeroExtendU32, 20),
         (SelectedInstructionKind::ZeroExtendU16, 37),
         (SelectedInstructionKind::SignExtendI8, 38),
@@ -359,6 +368,14 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         54 => SelectedInstructionKind::SaturatingSubtractU64,
         55 => SelectedInstructionKind::SaturatingAddU64,
         58 => SelectedInstructionKind::WrappingAddI64,
+        60 => SelectedInstructionKind::SaturatingAddI32,
+        61 => SelectedInstructionKind::SaturatingSubtractI32,
+        62 => SelectedInstructionKind::SaturatingDivideI32 {
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        },
         56 => SelectedInstructionKind::ExactDivideU64 {
             obligation: decode_id(cursor, ObligationId::new)?,
             accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
@@ -662,6 +679,13 @@ fn wrapping_remainder_round_trips_with_distinct_tag_and_complete_proof() {
                 accepted_fact,
             },
             57,
+        ),
+        (
+            SelectedInstructionKind::SaturatingDivideI32 {
+                obligation,
+                accepted_fact,
+            },
+            62,
         ),
     ] {
         let mut expected = vec![tag];

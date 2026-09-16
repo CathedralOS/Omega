@@ -134,6 +134,15 @@ fn family_and_operand_count(
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             (MachineAlternativeFamily::WrappingRemainderI64, 3)
         }
+        SelectedInstructionKind::SaturatingAddI32 => {
+            (MachineAlternativeFamily::SaturatingAddI32, 4)
+        }
+        SelectedInstructionKind::SaturatingSubtractI32 => {
+            (MachineAlternativeFamily::SaturatingSubtractI32, 4)
+        }
+        SelectedInstructionKind::SaturatingDivideI32 { .. } => {
+            (MachineAlternativeFamily::SaturatingDivideI32, 4)
+        }
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
         }
@@ -394,6 +403,36 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
+        SelectedInstructionKind::SaturatingAddI32
+        | SelectedInstructionKind::SaturatingSubtractI32
+        | SelectedInstructionKind::SaturatingDivideI32 { .. } => {
+            // Inputs are sign-normalized i32 carriers, so the 64-bit result is
+            // exact and only needs clamping to the i32 range. The result and
+            // the bound scratch are both early-clobber outputs, so all four
+            // registers are distinct.
+            if registers[2..]
+                .iter()
+                .any(|late| registers[..2].contains(late))
+                || registers[2] == registers[3]
+            {
+                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            let three_address = |opcode: u32| {
+                opcode
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2])
+            };
+            words.push(three_address(match kind {
+                SelectedInstructionKind::SaturatingAddI32 => 0x8b00_0000,
+                SelectedInstructionKind::SaturatingSubtractI32 => 0xcb00_0000,
+                _ => 0x9ac0_0c00,
+            }));
+            append_i32_clamp(&mut words, registers[2], registers[3], true);
+            if !matches!(kind, SelectedInstructionKind::SaturatingDivideI32 { .. }) {
+                append_i32_clamp(&mut words, registers[2], registers[3], false);
+            }
+        }
         SelectedInstructionKind::BitwiseXorI64 => {
             words.push(
                 0xca00_0000
@@ -461,4 +500,24 @@ fn encode_unchecked(
         }
     }
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
+}
+
+/// `mov scratch, #bound; cmp value, scratch; csel value, scratch, value, cond`
+/// with the bound as a single ORR bitmask immediate: i32::MAX selected on GT,
+/// or i32::MIN selected on LT.
+pub(crate) fn append_i32_clamp(words: &mut Vec<u32>, value: u8, scratch: u8, upper: bool) {
+    let (materialize, condition) = if upper {
+        (0xb240_7be0, 0xc)
+    } else {
+        (0xb261_83e0, 0xb)
+    };
+    words.push(materialize | u32::from(scratch));
+    words.push(0xeb00_001f | (u32::from(scratch) << 16) | (u32::from(value) << 5));
+    words.push(
+        0x9a80_0000
+            | (u32::from(value) << 16)
+            | (condition << 12)
+            | (u32::from(scratch) << 5)
+            | u32::from(value),
+    );
 }

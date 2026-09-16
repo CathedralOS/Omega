@@ -236,6 +236,9 @@ fn selected_keys(
         saturating_add_u64: crate::register_model::AARCH64_SATURATING_ADD_U64,
         divide_u64: crate::register_model::AARCH64_DIVIDE_U64,
         remainder_i64: crate::register_model::AARCH64_REMAINDER_I64,
+        saturating_add_i32: crate::register_model::AARCH64_SATURATING_ADD_I32,
+        saturating_subtract_i32: crate::register_model::AARCH64_SATURATING_SUBTRACT_I32,
+        saturating_divide_i32: crate::register_model::AARCH64_SATURATING_DIVIDE_I32,
         add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
@@ -379,6 +382,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::WrappingRemainderI64 => {
             (vec![0, 1], vec![2])
         }
+        MachineSemanticKind::SaturatingAddI32
+        | MachineSemanticKind::SaturatingSubtractI32
+        | MachineSemanticKind::SaturatingDivideI32 => (vec![0, 1], vec![2, 3]),
         MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseXorI64
@@ -434,6 +440,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         ),
         MachineSemanticKind::SaturatingSubtractU64
         | MachineSemanticKind::SaturatingAddU64
+        | MachineSemanticKind::SaturatingAddI32
+        | MachineSemanticKind::SaturatingSubtractI32
+        | MachineSemanticKind::SaturatingDivideI32
         | MachineSemanticKind::CompareI64Zero
         | MachineSemanticKind::CompareI64
         | MachineSemanticKind::CompareI64Immediate => (
@@ -592,6 +601,11 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::SaturatingAddU64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(4),
         MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
+        // ADD/SUB, then MOV/CMP/CSEL against each bound; SDIV needs only the upper clamp.
+        MachineSemanticKind::SaturatingAddI32 | MachineSemanticKind::SaturatingSubtractI32 => {
+            MachineSizeKnowledge::ExactBytes(28)
+        }
+        MachineSemanticKind::SaturatingDivideI32 => MachineSizeKnowledge::ExactBytes(16),
         // One unshifted `add` inside the first granule; a shifted plus
         // unshifted pair past it.
         MachineSemanticKind::FrameAddress => MachineSizeKnowledge::EncoderResolved {

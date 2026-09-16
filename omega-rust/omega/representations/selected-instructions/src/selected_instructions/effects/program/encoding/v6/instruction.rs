@@ -201,6 +201,12 @@ fn decode_kind(
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
+        60 => SelectedInstructionKind::SaturatingAddI32,
+        61 => SelectedInstructionKind::SaturatingSubtractI32,
+        62 => SelectedInstructionKind::SaturatingDivideI32 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
         3 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
@@ -404,6 +410,9 @@ fn decode_alternative_for_version(
         56 => MachineAlternativeFamily::ExactDivideU64,
         57 => MachineAlternativeFamily::WrappingRemainderI64,
         58 => MachineAlternativeFamily::WrappingAddI64,
+        60 => MachineAlternativeFamily::SaturatingAddI32,
+        61 => MachineAlternativeFamily::SaturatingSubtractI32,
+        62 => MachineAlternativeFamily::SaturatingDivideI32,
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
         5 => MachineAlternativeFamily::ExactSubtractI64,
         6 => MachineAlternativeFamily::ConditionalBranchNonZero,

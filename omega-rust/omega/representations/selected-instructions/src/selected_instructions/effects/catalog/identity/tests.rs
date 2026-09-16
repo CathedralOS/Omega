@@ -68,6 +68,9 @@ fn keys() -> SelectedConstraintKeys {
         saturating_add_u64: instruction(4),
         divide_u64: instruction(4),
         remainder_i64: instruction(38),
+        saturating_add_i32: instruction(40),
+        saturating_subtract_i32: instruction(41),
+        saturating_divide_i32: instruction(42),
         add_i64_immediate: instruction(3),
         subtract_i64_immediate: instruction(8),
         compare_i64_zero: instruction(5),
@@ -291,6 +294,68 @@ fn remainder_catalog_identity_binds_its_key_and_distinct_semantic_family() {
         .unwrap();
     declaration.semantic = MachineSemanticKind::ExactDivideU64;
     assert_ne!(baseline, machine_effect_catalog_identity(&changed));
+}
+
+#[test]
+fn signed_saturating_i32_catalog_identity_binds_keys_and_distinct_families() {
+    for (semantic, family, tag) in [
+        (
+            MachineSemanticKind::SaturatingAddI32,
+            MachineAlternativeFamily::SaturatingAddI32,
+            60,
+        ),
+        (
+            MachineSemanticKind::SaturatingSubtractI32,
+            MachineAlternativeFamily::SaturatingSubtractI32,
+            61,
+        ),
+        (
+            MachineSemanticKind::SaturatingDivideI32,
+            MachineAlternativeFamily::SaturatingDivideI32,
+            62,
+        ),
+    ] {
+        assert_eq!(semantic_kind_tag(semantic), tag);
+        assert_eq!(alternative_family_tag(family), tag);
+        assert_eq!(MachineAlternativeFamily::from(semantic), family);
+    }
+    let source = catalog();
+    let baseline = machine_effect_catalog_identity(&source);
+    for mutation in 0..6 {
+        let mut changed = source.clone();
+        match mutation {
+            0 => changed.selected_keys.saturating_add_i32 = instruction(43),
+            1 => changed.selected_keys.saturating_subtract_i32 = instruction(43),
+            2 => changed.selected_keys.saturating_divide_i32 = instruction(43),
+            _ => {
+                let (from, to) = match mutation {
+                    3 => (
+                        MachineSemanticKind::SaturatingAddI32,
+                        MachineSemanticKind::SaturatingAddU64,
+                    ),
+                    4 => (
+                        MachineSemanticKind::SaturatingSubtractI32,
+                        MachineSemanticKind::SaturatingAddI32,
+                    ),
+                    _ => (
+                        MachineSemanticKind::SaturatingDivideI32,
+                        MachineSemanticKind::ExactDivideU64,
+                    ),
+                };
+                changed
+                    .declarations
+                    .iter_mut()
+                    .find(|declaration| declaration.semantic == from)
+                    .unwrap()
+                    .semantic = to;
+            }
+        }
+        assert_ne!(
+            baseline,
+            machine_effect_catalog_identity(&changed),
+            "mutation {mutation}"
+        );
+    }
 }
 
 #[test]

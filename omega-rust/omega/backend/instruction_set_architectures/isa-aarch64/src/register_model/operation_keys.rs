@@ -135,6 +135,27 @@ pub const AARCH64_REMAINDER_I64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 57,
 };
 
+/// Signed 32-bit saturating addition: a 64-bit ADD into an early-clobber
+/// result followed by two CMP/CSEL clamps against bounds held in an
+/// early-clobber scratch; defines NZCV.
+pub const AARCH64_SATURATING_ADD_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 58,
+};
+
+/// Signed 32-bit saturating subtraction with the same clamp as addition.
+pub const AARCH64_SATURATING_SUBTRACT_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 59,
+};
+
+/// Signed 32-bit saturating division: a 64-bit SDIV whose only out-of-range
+/// quotient, i32::MIN / -1, is clamped through the scratch-held maximum.
+pub const AARCH64_SATURATING_DIVIDE_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 60,
+};
+
 /// Flag-transparent three-address exact i64 subtraction, matching the
 /// ordinary AArch64 `SUB` register form.
 pub const AARCH64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
@@ -234,7 +255,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 82] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 85] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -407,6 +428,9 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 82] = [
     AARCH64_SATURATING_ADD_U64,
     AARCH64_DIVIDE_U64,
     AARCH64_REMAINDER_I64,
+    AARCH64_SATURATING_ADD_I32,
+    AARCH64_SATURATING_SUBTRACT_I32,
+    AARCH64_SATURATING_DIVIDE_I32,
     AARCH64_FLOAT32_TO_BITS,
     AARCH64_FLOAT64_TO_BITS,
     AARCH64_BITS_TO_FLOAT32,

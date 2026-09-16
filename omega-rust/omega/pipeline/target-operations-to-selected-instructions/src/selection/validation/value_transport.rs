@@ -119,6 +119,9 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
             .any(|argument| argument.scalar_source() == Some(value)),
         Instruction::SaturatingSubtractU64 { left, right }
         | Instruction::SaturatingAddU64 { left, right }
+        | Instruction::SaturatingAddI32 { left, right }
+        | Instruction::SaturatingSubtractI32 { left, right }
+        | Instruction::SaturatingDivideI32 { left, right, .. }
                 | Instruction::ExactBinary { left, right, .. }
                 | Instruction::WrappingRemainder { left, right, .. }
                 | Instruction::WrappingAdd { left, right }

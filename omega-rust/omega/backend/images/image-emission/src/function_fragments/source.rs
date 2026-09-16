@@ -361,6 +361,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::WrappingIntegerRemainder { .. }
         | AbstractOperation::SaturatingIntegerSubtract { .. }
         | AbstractOperation::SaturatingIntegerAdd { .. }
+                // Saturating division also replays its accepted nonzero-divisor evidence.
+                | AbstractOperation::SaturatingIntegerDivide { .. }
                 | AbstractOperation::ExactIntegerSubtract { .. } => true,
                 AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, destination, .. } => {

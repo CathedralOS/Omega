@@ -440,6 +440,97 @@ pub(super) fn build_with_environment(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::SaturatingAddI32 { left, right }
+                    | LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !is_signed_i32(scalar_type)
+                        {
+                            return Err(invalid());
+                        }
+                        // Sign-normalized i32 carriers add exactly in 64 bits;
+                        // the realization clamps the result to the i32 range,
+                        // so it is already normalized for later source uses.
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let scratch = saturation_scratch(&mut builder)?;
+                        let (kind, constraint) = if matches!(
+                            operation.kind,
+                            LegalizedScalarInstructionKind::SaturatingAddI32 { .. }
+                        ) {
+                            (
+                                SelectedInstructionKind::SaturatingAddI32,
+                                constraints.keys.saturating_add_i32,
+                            )
+                        } else {
+                            (
+                                SelectedInstructionKind::SaturatingSubtractI32,
+                                constraints.keys.saturating_subtract_i32,
+                            )
+                        };
+                        builder.emit(
+                            kind,
+                            constraint,
+                            &[left_register, right_register, output, scratch],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::SaturatingDivideI32 {
+                        left,
+                        right,
+                        obligation,
+                        accepted_fact,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, right_register, _, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !is_signed_i32(scalar_type)
+                        {
+                            return Err(invalid());
+                        }
+                        // The 64-bit quotient of sign-normalized i32 carriers
+                        // never faults; only MIN / -1 exceeds the carrier and
+                        // the realization clamps it to MAX. x86-64 keeps the
+                        // explicit zero RDX input of unsigned division so the
+                        // divisor stays out of the register the clamp reuses.
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let scratch =
+                            if environment.target().architecture == target::Architecture::X86_64 {
+                                division_scratch(&mut builder)?
+                            } else {
+                                saturation_scratch(&mut builder)?
+                            };
+                        builder.emit(
+                            SelectedInstructionKind::SaturatingDivideI32 {
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraints.keys.saturating_divide_i32,
+                            &[left_register, right_register, output, scratch],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                obligations: vec![*obligation],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::WrappingRemainder {
                         left,
                         right,
@@ -796,6 +887,45 @@ impl Builder<'_> {
         )?;
         Ok(output)
     }
+}
+
+/// The fixed signed 32-bit carrier every realized saturating i32 form requires.
+fn is_signed_i32(scalar_type: ScalarType) -> bool {
+    matches!(scalar_type, ScalarType::Integer(integer)
+        if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+            && integer.sign() == IntegerSign::Signed
+            && integer.bits() == 32)
+}
+
+// The saturating i32 forms clamp through a bound held in operand 3, an
+// early-clobber scratch the encoding defines itself on every target.
+fn saturation_scratch(
+    builder: &mut Builder<'_>,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    let instruction = SelectedInstructionId(
+        builder
+            .instructions
+            .len()
+            .try_into()
+            .map_err(|_| invalid())?,
+    );
+    builder.registers.push(VirtualRegister {
+        id,
+        scalar_type: ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(IntegerSign::Signed, 64)
+                .map_err(|_| invalid())?,
+        ),
+        class: builder.class,
+        origin: VirtualRegisterOrigin::InstructionScratch {
+            instruction,
+            operand: 3,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    Ok(id)
 }
 
 // The signed remainder encoding defines its high-half scratch itself. Unlike

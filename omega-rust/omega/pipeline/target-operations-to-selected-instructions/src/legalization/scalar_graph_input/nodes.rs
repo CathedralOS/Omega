@@ -7,10 +7,12 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::exact_cast_has_native_carriers;
 use crate::legalization::scalar_graph_input::integer_call_shape;
 use crate::legalization::scalar_graph_input::integer_type;
-use crate::legalization::scalar_graph_input::supports_signed_wrapping_remainder;
 use crate::legalization::scalar_graph_input::u8_type;
 use crate::legalization::scalar_graph_input::u64_type;
 use crate::legalization::scalar_graph_input::value_type;
+use crate::legalization::scalar_graph_input::{
+    supports_signed_saturating_i32, supports_signed_wrapping_remainder,
+};
 use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
 /// Why a node has no legal instruction row. Only the first kind is a custody
@@ -184,13 +186,21 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type() => Ok((*psi_operation, *result)),
-        AbstractOperation::SaturatingIntegerSubtract {
+        }
+        | AbstractOperation::SaturatingIntegerSubtract {
             psi_operation,
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type() => Ok((*psi_operation, *result)),
+        } if *scalar_type == u64_type() || supports_signed_saturating_i32(*scalar_type) => {
+            Ok((*psi_operation, *result))
+        }
+        AbstractOperation::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } if supports_signed_saturating_i32(*scalar_type) => Ok((*psi_operation, *result)),
         AbstractOperation::ExactIntegerDivide {
             psi_operation,
             result,
@@ -575,7 +585,21 @@ pub(super) fn validate(
                 right,
                 ..
             } => {
-                if *scalar_type != u64_type()
+                if !(*scalar_type == u64_type() || supports_signed_saturating_i32(*scalar_type))
+                    || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
+                    || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(*scalar_type)
+            }
+            AbstractOperation::SaturatingIntegerDivide {
+                scalar_type,
+                left,
+                right,
+                ..
+            } => {
+                if !supports_signed_saturating_i32(*scalar_type)
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {

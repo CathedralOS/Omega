@@ -37,6 +37,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::WrappingIntegerRemainder { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerSubtract { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
+                | AbstractOperation::SaturatingIntegerDivide { psi_operation, .. }
                 | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
                 | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
                 | AbstractOperation::ByteSequenceLength { psi_operation, .. }

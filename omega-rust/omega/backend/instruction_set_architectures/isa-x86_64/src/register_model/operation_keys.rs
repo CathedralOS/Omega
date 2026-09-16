@@ -168,6 +168,27 @@ pub const X86_64_REMAINDER_I64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 57,
 };
 
+/// Signed 32-bit saturating addition: MOV/ADD into an early-clobber result,
+/// then MOV/CMP/CMOV clamps through an early-clobber bound scratch; clobbers RFLAGS.
+pub const X86_64_SATURATING_ADD_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 58,
+};
+
+/// Signed 32-bit saturating subtraction with the same clamp as addition.
+pub const X86_64_SATURATING_SUBTRACT_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 59,
+};
+
+/// Signed 32-bit saturating division: CQO/IDIV on RAX with the explicit RDX
+/// input of unsigned division, then RDX carries the i32::MAX bound clamping
+/// the only out-of-range quotient; RDX is clobbered.
+pub const X86_64_SATURATING_DIVIDE_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 60,
+};
+
 /// Exact `result = left - right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `XOR result, result` when both inputs
 /// share a view, `SUB` when the result is only the left input, `NEG; ADD` when
@@ -210,7 +231,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 65] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 68] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -324,6 +345,9 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 65] = [
     X86_64_SATURATING_ADD_U64,
     X86_64_DIVIDE_U64,
     X86_64_REMAINDER_I64,
+    X86_64_SATURATING_ADD_I32,
+    X86_64_SATURATING_SUBTRACT_I32,
+    X86_64_SATURATING_DIVIDE_I32,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,
