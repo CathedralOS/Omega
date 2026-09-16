@@ -331,6 +331,278 @@ fn exact_divide_binds_unsigned_opcode_and_registers() {
     }
 }
 
+fn signed_saturating_i32_kinds() -> [(SelectedInstructionKind, MachineAlternativeFamily); 3] {
+    [
+        (
+            SelectedInstructionKind::SaturatingAddI32,
+            MachineAlternativeFamily::SaturatingAddI32,
+        ),
+        (
+            SelectedInstructionKind::SaturatingSubtractI32,
+            MachineAlternativeFamily::SaturatingSubtractI32,
+        ),
+        (
+            SelectedInstructionKind::SaturatingDivideI32 {
+                obligation: ObligationId::new(1).unwrap(),
+                accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+            },
+            MachineAlternativeFamily::SaturatingDivideI32,
+        ),
+    ]
+}
+
+fn signed_saturating_i32_operands(
+    physical: &register_model::ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+) -> [register_model::RegisterViewId; 4] {
+    if matches!(kind, SelectedInstructionKind::SaturatingDivideI32 { .. }) {
+        ["rax", "r9", "rax", "rdx"]
+    } else {
+        ["r9", "r10", "r11", "r12"]
+    }
+    .map(|name| physical.model().view_named(name).unwrap().id)
+}
+
+#[test]
+fn signed_saturating_i32_forms_match_independent_assembler_and_reject_mutation() {
+    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    // Independently assembled with Apple clang; not derived from this encoder.
+    let upper_clamp = [
+        0x49, 0xbc, 0xff, 0xff, 0xff, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x4d, 0x39, 0xe3, 0x4d, 0x0f,
+        0x4f, 0xdc,
+    ];
+    let lower_clamp = [
+        0x49, 0xbc, 0x00, 0x00, 0x00, 0x80, 0xff, 0xff, 0xff, 0xff, 0x4d, 0x39, 0xe3, 0x4d, 0x0f,
+        0x4c, 0xdc,
+    ];
+    for (kind, family) in signed_saturating_i32_kinds() {
+        let key = alternative(family, 0);
+        let operands = signed_saturating_i32_operands(&physical, kind);
+        let expected: Vec<u8> = match kind {
+            SelectedInstructionKind::SaturatingAddI32 => [0x4d, 0x89, 0xcb, 0x4d, 0x01, 0xd3]
+                .into_iter()
+                .chain(upper_clamp)
+                .chain(lower_clamp)
+                .collect(),
+            SelectedInstructionKind::SaturatingSubtractI32 => [0x4d, 0x89, 0xcb, 0x4d, 0x29, 0xd3]
+                .into_iter()
+                .chain(upper_clamp)
+                .chain(lower_clamp)
+                .collect(),
+            _ => vec![
+                0x48, 0x99, 0x49, 0xf7, 0xf9, 0x48, 0xba, 0xff, 0xff, 0xff, 0x7f, 0x00, 0x00, 0x00,
+                0x00, 0x48, 0x39, 0xd0, 0x48, 0x0f, 0x4f, 0xc2,
+            ],
+        };
+        let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+        assert_eq!(encoded.bytes(), expected, "{kind:?}");
+        assert!(encoded.footprint().writes_rflags);
+        if matches!(kind, SelectedInstructionKind::SaturatingDivideI32 { .. }) {
+            // Division keeps the explicit RDX input that CQO discards.
+            assert_eq!(
+                encoded.footprint().register_reads,
+                [operands[0], operands[1], operands[3]]
+            );
+            assert_eq!(encoded.footprint().register_writes, [operands[2]]);
+            assert_eq!(
+                encoded.footprint().encoded.external_operand_reads,
+                [0, 1, 3]
+            );
+            assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
+        } else {
+            assert_eq!(encoded.footprint().register_reads, operands[..2]);
+            assert_eq!(encoded.footprint().register_writes, operands[2..]);
+            assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
+            assert_eq!(encoded.footprint().encoded.external_operand_writes, [2, 3]);
+        }
+        assert!(
+            !encoded
+                .footprint()
+                .encoded
+                .implicit_unit_clobbers
+                .is_empty()
+        );
+        for byte_position in 0..expected.len() {
+            let mut changed = expected.clone();
+            changed[byte_position] ^= 1;
+            assert!(
+                validate_x86_64_selected_form_encoding(&physical, kind, key, &operands, &changed)
+                    .is_err(),
+                "{kind:?} mutated byte {byte_position}"
+            );
+        }
+        for operand_position in 0..operands.len() {
+            let mut changed = operands;
+            changed[operand_position] = physical.model().view_named("r8").unwrap().id;
+            assert!(
+                validate_x86_64_selected_form_encoding(&physical, kind, key, &changed, &expected)
+                    .is_err(),
+                "{kind:?} substituted operand {operand_position}"
+            );
+        }
+        for (other_kind, other_family) in signed_saturating_i32_kinds() {
+            if other_family != family {
+                assert!(
+                    validate_x86_64_selected_form_encoding(
+                        &physical,
+                        other_kind,
+                        alternative(other_family, 0),
+                        &signed_saturating_i32_operands(&physical, other_kind),
+                        &expected,
+                    )
+                    .is_err(),
+                    "{kind:?} bytes accepted as {other_kind:?}"
+                );
+            }
+        }
+    }
+    // Add and subtract accumulate in the result and clamp through the
+    // scratch, so neither may alias an input and they may not alias each other.
+    for (kind, family) in [
+        (
+            SelectedInstructionKind::SaturatingAddI32,
+            MachineAlternativeFamily::SaturatingAddI32,
+        ),
+        (
+            SelectedInstructionKind::SaturatingSubtractI32,
+            MachineAlternativeFamily::SaturatingSubtractI32,
+        ),
+    ] {
+        let key = alternative(family, 0);
+        for names in [
+            ["r9", "r10", "r9", "r12"],
+            ["r9", "r10", "r10", "r12"],
+            ["r9", "r10", "r11", "r9"],
+            ["r9", "r10", "r11", "r10"],
+            ["r9", "r10", "r11", "r11"],
+        ] {
+            let aliased = names.map(|name| physical.model().view_named(name).unwrap().id);
+            assert!(
+                encode_x86_64_selected_form(&physical, kind, key, &aliased).is_err(),
+                "{kind:?} {names:?}"
+            );
+        }
+    }
+    let divide = signed_saturating_i32_kinds()[2].0;
+    for names in [
+        ["rax", "rdx", "rax", "rdx"],
+        ["rcx", "r9", "rax", "rdx"],
+        ["rax", "r9", "rcx", "rdx"],
+        ["rax", "r9", "rax", "rcx"],
+    ] {
+        let invalid = names.map(|name| physical.model().view_named(name).unwrap().id);
+        assert!(
+            encode_x86_64_selected_form(
+                &physical,
+                divide,
+                alternative(MachineAlternativeFamily::SaturatingDivideI32, 0),
+                &invalid,
+            )
+            .is_err(),
+            "{names:?}"
+        );
+    }
+}
+
+#[test]
+fn signed_saturating_i32_decoded_arithmetic_clamps_every_carrier_edge() {
+    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    let inputs = [
+        (i32::MAX, 1),
+        (i32::MIN, -1),
+        (i32::MIN, 1),
+        (i32::MAX, i32::MAX),
+        (i32::MIN, i32::MIN),
+        (-7, 2),
+        (7, -2),
+        (40, 30),
+        (0, -1),
+        (i32::MAX, -1),
+    ];
+    for (kind, family) in signed_saturating_i32_kinds() {
+        let operands = signed_saturating_i32_operands(&physical, kind);
+        let encoded =
+            encode_x86_64_selected_form(&physical, kind, alternative(family, 0), &operands)
+                .unwrap();
+        let (left_home, right_home, result_home) =
+            if matches!(kind, SelectedInstructionKind::SaturatingDivideI32 { .. }) {
+                (0, 9, 0)
+            } else {
+                (9, 10, 11)
+            };
+        for (left, right) in inputs {
+            let expected = match kind {
+                SelectedInstructionKind::SaturatingAddI32 => left.saturating_add(right),
+                SelectedInstructionKind::SaturatingSubtractI32 => left.saturating_sub(right),
+                _ => left.saturating_div(right),
+            };
+            let mut registers = [0_i64; 16];
+            registers[left_home] = i64::from(left);
+            registers[right_home] = i64::from(right);
+            let mut greater = false;
+            let mut less = false;
+            let mut byte_position = 0;
+            while byte_position < encoded.bytes().len() {
+                let (instruction, length) = decode_one(&encoded.bytes()[byte_position..]).unwrap();
+                byte_position += length;
+                match instruction {
+                    DecodedInstruction::Move {
+                        source,
+                        destination,
+                    } => registers[destination as usize] = registers[source as usize],
+                    DecodedInstruction::Add {
+                        source,
+                        destination,
+                    } => registers[destination as usize] += registers[source as usize],
+                    DecodedInstruction::Subtract {
+                        source,
+                        destination,
+                    } => registers[destination as usize] -= registers[source as usize],
+                    DecodedInstruction::SignExtendDividend => registers[2] = registers[0] >> 63,
+                    DecodedInstruction::SignedDivide { divisor } => {
+                        let dividend =
+                            (i128::from(registers[2]) << 64) | i128::from(registers[0] as u64);
+                        let divisor = i128::from(registers[divisor as usize]);
+                        registers[2] = (dividend % divisor) as i64;
+                        registers[0] =
+                            i64::try_from(dividend / divisor).expect("IDIV quotient must fit");
+                    }
+                    DecodedInstruction::Materialize { destination, value } => {
+                        registers[destination as usize] = value as i64;
+                    }
+                    DecodedInstruction::Compare { left, right } => {
+                        greater = registers[left as usize] > registers[right as usize];
+                        less = registers[left as usize] < registers[right as usize];
+                    }
+                    DecodedInstruction::MoveOnGreater {
+                        source,
+                        destination,
+                    } => {
+                        if greater {
+                            registers[destination as usize] = registers[source as usize];
+                        }
+                    }
+                    DecodedInstruction::MoveOnLess {
+                        source,
+                        destination,
+                    } => {
+                        if less {
+                            registers[destination as usize] = registers[source as usize];
+                        }
+                    }
+                    other => panic!("unexpected saturating instruction {other:?}"),
+                }
+            }
+            assert_eq!(
+                registers[result_home],
+                i64::from(expected),
+                "{kind:?} {left} {right}"
+            );
+            assert_eq!(registers[right_home], i64::from(right));
+        }
+    }
+}
+
 #[test]
 fn scalar_call_is_explicitly_refused_before_encoding() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();

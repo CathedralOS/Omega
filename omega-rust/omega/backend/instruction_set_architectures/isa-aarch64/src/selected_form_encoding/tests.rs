@@ -298,6 +298,207 @@ fn exact_divide_binds_unsigned_opcode_and_registers() {
     }
 }
 
+fn signed_saturating_i32_kinds() -> [(SelectedInstructionKind, MachineAlternativeFamily); 3] {
+    [
+        (
+            SelectedInstructionKind::SaturatingAddI32,
+            MachineAlternativeFamily::SaturatingAddI32,
+        ),
+        (
+            SelectedInstructionKind::SaturatingSubtractI32,
+            MachineAlternativeFamily::SaturatingSubtractI32,
+        ),
+        (
+            SelectedInstructionKind::SaturatingDivideI32 {
+                obligation: ObligationId::new(1).unwrap(),
+                accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+            },
+            MachineAlternativeFamily::SaturatingDivideI32,
+        ),
+    ]
+}
+
+#[test]
+fn signed_saturating_i32_forms_match_independent_assembler_and_reject_mutation() {
+    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+    let operands =
+        ["x9", "x10", "x11", "x12"].map(|name| physical.model().view_named(name).unwrap().id);
+    // Independently assembled with Apple clang; not derived from this encoder.
+    let upper_clamp = [0xb240_7bec_u32, 0xeb0c_017f, 0x9a8b_c18b];
+    let lower_clamp = [0xb261_83ec_u32, 0xeb0c_017f, 0x9a8b_b18b];
+    for (kind, family) in signed_saturating_i32_kinds() {
+        let key = alternative(family);
+        let mut expected = vec![match kind {
+            SelectedInstructionKind::SaturatingAddI32 => 0x8b0a_012b,
+            SelectedInstructionKind::SaturatingSubtractI32 => 0xcb0a_012b,
+            _ => 0x9aca_0d2b,
+        }];
+        expected.extend(upper_clamp);
+        if !matches!(kind, SelectedInstructionKind::SaturatingDivideI32 { .. }) {
+            expected.extend(lower_clamp);
+        }
+        let expected = expected
+            .into_iter()
+            .flat_map(u32::to_le_bytes)
+            .collect::<Vec<_>>();
+        let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+        assert_eq!(encoded.bytes(), expected, "{kind:?}");
+        assert_eq!(encoded.footprint().register_reads, operands[..2]);
+        assert_eq!(encoded.footprint().register_writes, operands[2..]);
+        assert!(encoded.footprint().writes_nzcv);
+        assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
+        assert_eq!(encoded.footprint().encoded.external_operand_writes, [2, 3]);
+        for byte_position in 0..expected.len() {
+            let mut changed = expected.clone();
+            changed[byte_position] ^= 1;
+            assert!(
+                validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, &changed)
+                    .is_err(),
+                "{kind:?} mutated byte {byte_position}"
+            );
+        }
+        for operand_position in 0..operands.len() {
+            let mut changed = operands;
+            changed[operand_position] = physical.model().view_named("x8").unwrap().id;
+            assert!(
+                validate_aarch64_selected_form_encoding(&physical, kind, key, &changed, &expected)
+                    .is_err(),
+                "{kind:?} substituted operand {operand_position}"
+            );
+        }
+        // Both outputs are early-clobber: neither the result nor the bound
+        // scratch may alias an input, and they may not alias each other.
+        for names in [
+            ["x9", "x10", "x11", "x9"],
+            ["x9", "x10", "x11", "x10"],
+            ["x9", "x10", "x11", "x11"],
+            ["x9", "x10", "x9", "x12"],
+            ["x9", "x10", "x10", "x12"],
+        ] {
+            let aliased = names.map(|name| physical.model().view_named(name).unwrap().id);
+            assert!(
+                encode_aarch64_selected_form(&physical, kind, key, &aliased).is_err(),
+                "{kind:?} {names:?}"
+            );
+        }
+        for (other_kind, other_family) in signed_saturating_i32_kinds() {
+            if other_family != family {
+                assert!(
+                    validate_aarch64_selected_form_encoding(
+                        &physical,
+                        other_kind,
+                        alternative(other_family),
+                        &operands,
+                        &expected,
+                    )
+                    .is_err(),
+                    "{kind:?} bytes accepted as {other_kind:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn signed_saturating_i32_decoded_arithmetic_clamps_every_carrier_edge() {
+    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+    let operands =
+        ["x9", "x10", "x11", "x12"].map(|name| physical.model().view_named(name).unwrap().id);
+    let inputs = [
+        (i32::MAX, 1),
+        (i32::MIN, -1),
+        (i32::MIN, 1),
+        (i32::MAX, i32::MAX),
+        (i32::MIN, i32::MIN),
+        (-7, 2),
+        (7, -2),
+        (40, 30),
+        (0, -1),
+        (i32::MAX, -1),
+    ];
+    for (kind, family) in signed_saturating_i32_kinds() {
+        let encoded =
+            encode_aarch64_selected_form(&physical, kind, alternative(family), &operands).unwrap();
+        let decoded = decode_words(encoded.bytes()).unwrap();
+        for (left, right) in inputs {
+            let expected = match kind {
+                SelectedInstructionKind::SaturatingAddI32 => left.saturating_add(right),
+                SelectedInstructionKind::SaturatingSubtractI32 => left.saturating_sub(right),
+                _ => left.saturating_div(right),
+            };
+            let mut registers = [0_i64; 31];
+            registers[9] = i64::from(left);
+            registers[10] = i64::from(right);
+            let mut greater = false;
+            let mut less = false;
+            for word in &decoded {
+                match *word {
+                    DecodedWord::Add {
+                        left,
+                        right,
+                        destination,
+                    } => {
+                        registers[destination as usize] =
+                            registers[left as usize] + registers[right as usize];
+                    }
+                    DecodedWord::Subtract {
+                        left,
+                        right,
+                        destination,
+                    } => {
+                        registers[destination as usize] =
+                            registers[left as usize] - registers[right as usize];
+                    }
+                    DecodedWord::SignedDivide {
+                        dividend,
+                        divisor,
+                        destination,
+                    } => {
+                        registers[destination as usize] =
+                            registers[dividend as usize] / registers[divisor as usize];
+                    }
+                    DecodedWord::MaterializeI32Maximum { destination } => {
+                        registers[destination as usize] = i64::from(i32::MAX);
+                    }
+                    DecodedWord::MaterializeI32Minimum { destination } => {
+                        registers[destination as usize] = i64::from(i32::MIN);
+                    }
+                    DecodedWord::Compare { left, right } => {
+                        greater = registers[left as usize] > registers[right as usize];
+                        less = registers[left as usize] < registers[right as usize];
+                    }
+                    DecodedWord::SelectOnGreater {
+                        source,
+                        destination,
+                    } => {
+                        if greater {
+                            registers[destination as usize] = registers[source as usize];
+                        }
+                    }
+                    DecodedWord::SelectOnLess {
+                        source,
+                        destination,
+                    } => {
+                        if less {
+                            registers[destination as usize] = registers[source as usize];
+                        }
+                    }
+                    other => panic!("unexpected saturating word {other:?}"),
+                }
+            }
+            assert_eq!(
+                registers[11],
+                i64::from(expected),
+                "{kind:?} {left} {right}"
+            );
+            assert_eq!(
+                (registers[9], registers[10]),
+                (i64::from(left), i64::from(right))
+            );
+        }
+    }
+}
+
 #[test]
 fn scalar_call_is_explicitly_refused_before_encoding() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();

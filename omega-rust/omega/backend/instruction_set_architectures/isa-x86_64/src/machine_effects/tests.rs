@@ -27,6 +27,82 @@ fn constraints() -> ValidatedRegisterConstraintCatalog {
 }
 
 #[test]
+fn signed_saturating_i32_catalog_defines_scratch_and_clobbers_flags() {
+    let constraints = constraints();
+    for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+        let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+        for (semantic, key, size, faulting) in [
+            (
+                MachineSemanticKind::SaturatingAddI32,
+                crate::register_model::X86_64_SATURATING_ADD_I32,
+                40,
+                false,
+            ),
+            (
+                MachineSemanticKind::SaturatingSubtractI32,
+                crate::register_model::X86_64_SATURATING_SUBTRACT_I32,
+                40,
+                false,
+            ),
+            (
+                MachineSemanticKind::SaturatingDivideI32,
+                crate::register_model::X86_64_SATURATING_DIVIDE_I32,
+                22,
+                true,
+            ),
+        ] {
+            let declaration = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == semantic)
+                .unwrap();
+            assert_eq!(declaration.constraint, key);
+            assert_eq!(declaration.alternatives.len(), 1);
+            let alternative = &declaration.alternatives[0];
+            assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(size));
+            let physical = x86_64_physical_register_model();
+            let mut clobbers = physical.view_named("rflags").unwrap().units.clone();
+            if faulting {
+                // Division redefines RDX through CQO and reuses it for the clamp.
+                assert_eq!(alternative.encoded.external_operand_reads, [0, 1, 3]);
+                assert_eq!(alternative.encoded.external_operand_writes, [2]);
+                clobbers.extend(physical.view_named("rdx").unwrap().units.clone());
+                clobbers.sort_unstable();
+                clobbers.dedup();
+            } else {
+                assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
+                assert_eq!(alternative.encoded.external_operand_writes, [2, 3]);
+            }
+            assert_eq!(alternative.encoded.implicit_unit_clobbers, clobbers);
+            assert_eq!(
+                alternative.encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                faulting
+            );
+            for corruption in 0..3 {
+                let mut changed = catalog.clone();
+                let alternative = &mut changed
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == semantic)
+                    .unwrap()
+                    .alternatives[0];
+                match corruption {
+                    // Drop the RDX read of division or the scratch write of add/subtract.
+                    0 if faulting => alternative.encoded.external_operand_reads.truncate(2),
+                    0 => alternative.encoded.external_operand_writes.truncate(1),
+                    1 => alternative.encoded.implicit_unit_clobbers.clear(),
+                    _ => alternative.size = MachineSizeKnowledge::ExactBytes(19),
+                }
+                assert!(
+                    validate_x86_64_machine_effect_catalog(target, &constraints, changed).is_err(),
+                    "{semantic:?} corruption {corruption}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
     let constraints = constraints();
     for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {

@@ -25,6 +25,68 @@ fn constraints() -> ValidatedRegisterConstraintCatalog {
 }
 
 #[test]
+fn signed_saturating_i32_catalog_binds_scratch_write_size_and_flags() {
+    let constraints = constraints();
+    for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+        let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
+        for (semantic, key, size) in [
+            (
+                MachineSemanticKind::SaturatingAddI32,
+                crate::register_model::AARCH64_SATURATING_ADD_I32,
+                28,
+            ),
+            (
+                MachineSemanticKind::SaturatingSubtractI32,
+                crate::register_model::AARCH64_SATURATING_SUBTRACT_I32,
+                28,
+            ),
+            (
+                MachineSemanticKind::SaturatingDivideI32,
+                crate::register_model::AARCH64_SATURATING_DIVIDE_I32,
+                16,
+            ),
+        ] {
+            let declaration = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == semantic)
+                .unwrap();
+            assert_eq!(declaration.constraint, key);
+            assert_eq!(declaration.alternatives.len(), 1);
+            let alternative = &declaration.alternatives[0];
+            assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(size));
+            assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
+            assert_eq!(alternative.encoded.external_operand_writes, [2, 3]);
+            assert_eq!(
+                alternative.encoded.implicit_unit_defs,
+                crate::aarch64_physical_register_model()
+                    .view_named("nzcv")
+                    .unwrap()
+                    .units
+            );
+            for corruption in 0..3 {
+                let mut changed = catalog.clone();
+                let alternative = &mut changed
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == semantic)
+                    .unwrap()
+                    .alternatives[0];
+                match corruption {
+                    0 => alternative.encoded.external_operand_writes.truncate(1),
+                    1 => alternative.size = MachineSizeKnowledge::ExactBytes(8),
+                    _ => alternative.key.family = MachineSemanticKind::SaturatingAddU64.into(),
+                };
+                assert!(
+                    validate_aarch64_machine_effect_catalog(target, &constraints, changed).is_err(),
+                    "{semantic:?} corruption {corruption}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn wrapping_remainder_catalog_preserves_inputs_and_flags() {
     let constraints = constraints();
     for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
