@@ -346,9 +346,10 @@ single failure and relabel it generalization.
 
 The 30 exposed retrieval queries are development data; lexical context extraction
 is a strong baseline and further reranking trials need demonstrated headroom.
-After the claim-first repair below, the next uncertainty is incremental correction
-yield on fresh naturally defective claim lists versus ordinary review using the
-same evidence. Inspect flagged AND unflagged outputs and retain owner/scope evidence.
+After the review-cascade trial below, test nongenerative evidence repair on fresh
+tasks with no-match, wrong-owner and contradictory sources. Compare against lexical
+selection, not only expensive answer rewriting. Inspect flagged AND unflagged
+outputs and retain owner/scope evidence.
 No automatic blocks or verifier retries. Calibrate a new
 threshold only as a development hypothesis with fresh evaluation; do not promote
 the favorable repeat or a post-hoc cutoff as established correctness.
@@ -389,3 +390,40 @@ compilation, live payload checks, skill validation and diff checks passed on
 Windows; macOS runtime not exercised. Some emitted claims remain compound:
 semantic atomicity and query completeness still require review. Warning-only,
 not a certificate or publication gate. Raw sessions and credentials stay ignored.
+
+## Review cascade and nongenerative evidence repair
+
+`build/experiments/citation-cascade/` retains both frozen protocols, scripts,
+source inputs, reviewer outputs, semantic reviews, metrics and REPORT.md. Replay
+of all 20 earlier compact claims (16 supported, four actual support defects), not
+fresh or independent evaluation. A development-only P(supported)<.90 rule routed
+six cases including every defect; 6,503 input / 613 output tokens in .374s.
+
+Ordinary SWE-2 Max review of all 20 took 130.808s and repaired four defects without
+regressions. Selected review of six took 175.595s including routing: 34.2% slower,
+same four repairs, two unnecessary supported-answer rewrites. The volume gate
+passed but time gate failed. Same per-task source evidence and instructions;
+one run per arm, selected first, no correctness retries. Two batched calls, not
+fourteen avoided calls. Repeated questions also require a grouped baseline.
+
+The follow-up removed regeneration entirely: preserve claims, group exact
+query/claim/allowed-source matches, retrieve six whole paragraphs per group with
+the existing lexical ranker, and let Jev select supporting evidence. Four unique
+groups, 24 support questions. All four observed defects repaired, no unsupported
+replacement; six selected records got citations, fourteen stayed unchanged.
+Concrete output: `span-repair/repaired-answers.json`. All 20 claim strings retained.
+
+Routing .374055s + preparation .005516s + repair API .399118s = .778689s measured
+stages versus 130.808s observed all-review process. Repair API 8,889 input / 747
+output tokens; combined API usage 15,392 / 1,360. Excludes common source loading,
+small-script startup, final serialization and manual review; not a repeated
+end-to-end timing or dollar-cost result. Windows quote/coverage/unchanged-claim
+checks, zero worker tools, Python compilation and skill validation passed.
+
+Crucially, deterministic lexical top-one ALSO repaired 4/4. Its liveness recovery
+paragraph adequately supports the narrow original claim, consistent with prior
+accepted labels; Jev chose more explicit support but earns no incremental quality
+win here. Retain nongenerative repair as the promising workflow direction, not
+evidence of Jev superiority. Exposed positive-repair tasks contain no absent/false
+claims; safe abstention and fresh transfer remain untested. Single-paragraph
+support is the prototype ceiling. No automatic publication or production approval.
