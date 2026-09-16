@@ -89,6 +89,9 @@ pub enum PackagePolicyRecoveryError {
     AllocationFailed,
     UnexpectedEnd,
     InvalidTag,
+    /// A closed-vocabulary tag that an earlier encoding assigned and the
+    /// current schema retired without reuse.
+    RetiredVocabulary,
     InvalidUtf8,
     InvalidIdentity,
     InvalidValue,
@@ -109,6 +112,7 @@ impl fmt::Display for PackagePolicyRecoveryError {
             Self::AllocationFailed => "package policy allocation failed",
             Self::UnexpectedEnd => "package policy ends before its declared fields",
             Self::InvalidTag => "package policy contains an unknown closed-vocabulary tag",
+            Self::RetiredVocabulary => "package policy contains a retired closed-vocabulary tag; recapture the review with the current toolchain",
             Self::InvalidUtf8 => "package policy contains an invalid UTF-8 text field",
             Self::InvalidIdentity => "package policy contains an invalid nominal owner",
             Self::InvalidValue => "package policy contains an invalid field value",

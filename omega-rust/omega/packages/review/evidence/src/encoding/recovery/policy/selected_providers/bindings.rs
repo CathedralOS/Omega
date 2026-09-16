@@ -5,10 +5,10 @@ use crate::record::{PackagePolicyProviderBinding, PackagePolicyProviderEvaluated
 pub(super) fn binding(reader: &mut Reader<'_>) -> Result<PackagePolicyProviderBinding, Error> {
     use PackagePolicyProviderBinding as Binding;
     Ok(match reader.byte()? {
-        0 => Binding::StringBackedImportBootstrap {
-            library: reader.string()?,
-            symbol: reader.string()?,
-        },
+        // Tag 0 carried the retired string-backed import bootstrap. A row
+        // that still uses it is a stale artifact: reject it by name rather
+        // than reinterpreting two authored strings as a physical locator.
+        0 => return Err(Error::RetiredVocabulary),
         1 => Binding::Syscall {
             number: reader.i64()?,
             evaluated: reader.option(|reader| {

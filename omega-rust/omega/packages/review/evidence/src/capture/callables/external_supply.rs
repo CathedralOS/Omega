@@ -159,12 +159,12 @@ pub(super) fn validate_external_binding_payload(
     use language_semantics::ExternalBindingIdentity;
 
     let invalid = match identity {
-        ExternalBindingIdentity::Import { library, symbol } if library.is_empty() => {
-            Some("has no exact import-library identity")
-        }
-        ExternalBindingIdentity::Import { symbol, .. } if symbol.is_empty() => {
-            Some("has no exact import-symbol identity")
-        }
+        // The string-backed import identity has no review projection any
+        // more: two authored strings are not a physical locator, so the
+        // review fails closed before projecting anything.
+        ExternalBindingIdentity::Import { .. } => Some(
+            "uses the retired string-backed import bootstrap; declare a typed locator through an evaluated `via` binding producer",
+        ),
         ExternalBindingIdentity::Syscall { number } if u32::try_from(*number).is_err() => {
             Some("has a syscall number outside 0..=u32::MAX")
         }
@@ -188,8 +188,7 @@ pub(super) fn validate_external_binding_payload(
         {
             Some("has table-field supply without one exact attached provider data declaration")
         }
-        ExternalBindingIdentity::Import { .. }
-        | ExternalBindingIdentity::Syscall { .. }
+        ExternalBindingIdentity::Syscall { .. }
         | ExternalBindingIdentity::CompilerIntrinsic
         | ExternalBindingIdentity::VtableSlot { .. }
         | ExternalBindingIdentity::VtableField { .. }

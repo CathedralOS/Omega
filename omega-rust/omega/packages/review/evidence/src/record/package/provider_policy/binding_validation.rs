@@ -29,11 +29,6 @@ impl PackagePolicyProviderBinding {
                 validate_producer(producer)?;
                 validate_locator(locator, target)?;
             }
-            Self::StringBackedImportBootstrap { library, symbol } => {
-                if library.is_empty() || symbol.is_empty() {
-                    return Err("provider import has an empty locator");
-                }
-            }
             Self::Syscall { number, evaluated } => {
                 if u32::try_from(*number).is_err() {
                     return Err("provider syscall number does not fit its carrier");

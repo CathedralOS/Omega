@@ -21,13 +21,6 @@ fn every_binding_kind_and_all_four_locator_forms_round_trip() {
     let producer = fixtures::producer();
     let mut cases = vec![
         policy(
-            Binding::StringBackedImportBootstrap {
-                library: "lib".into(),
-                symbol: "symbol".into(),
-            },
-            TargetProfile::LinuxX64,
-        ),
-        policy(
             Binding::Syscall {
                 number: 19,
                 evaluated: None,
@@ -122,6 +115,44 @@ fn every_binding_kind_and_all_four_locator_forms_round_trip() {
             crate::encoding::encode::text_test_support::Component::SelectedProviders(&policy),
         );
     }
+}
+
+#[test]
+fn retired_string_backed_import_tag_is_rejected_by_name() {
+    // The two encodings differ first at the binding tag byte: `Syscall` is
+    // tag 1 and `CompilerIntrinsic` tag 2. Rewriting that byte to the retired
+    // tag 0 yields the stale artifact shape without hand-assembling a row.
+    let syscall = policy(
+        PackagePolicyProviderBinding::Syscall {
+            number: 19,
+            evaluated: None,
+        },
+        TargetProfile::LinuxX64,
+    )
+    .canonical_bytes()
+    .unwrap();
+    let intrinsic = policy(
+        PackagePolicyProviderBinding::CompilerIntrinsic {
+            machine: "intrinsic".into(),
+        },
+        TargetProfile::LinuxX64,
+    )
+    .canonical_bytes()
+    .unwrap();
+    let tag_index = syscall
+        .iter()
+        .zip(&intrinsic)
+        .position(|(left, right)| left != right)
+        .expect("binding tag differs");
+    assert_eq!(syscall[tag_index], 1);
+    assert_eq!(intrinsic[tag_index], 2);
+
+    let mut stale = syscall;
+    stale[tag_index] = 0;
+    assert_eq!(
+        recover(&stale),
+        Err(crate::encoding::PackagePolicyRecoveryError::RetiredVocabulary)
+    );
 }
 
 #[test]

@@ -657,17 +657,10 @@ pub machine invoke_leaf()
     let malformed = [
         (
             language_semantics::ExternalBindingIdentity::Import {
-                library: String::new(),
+                library: "omega".to_owned(),
                 symbol: "entry".to_owned(),
             },
-            "has no exact import-library identity",
-        ),
-        (
-            language_semantics::ExternalBindingIdentity::Import {
-                library: "omega".to_owned(),
-                symbol: String::new(),
-            },
-            "has no exact import-symbol identity",
+            "uses the retired string-backed import bootstrap; declare a typed locator",
         ),
         (
             language_semantics::ExternalBindingIdentity::Syscall { number: -1 },

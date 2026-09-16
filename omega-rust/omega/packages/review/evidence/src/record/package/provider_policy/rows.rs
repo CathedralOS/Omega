@@ -66,10 +66,6 @@ pub enum PackagePolicyProviderBinding {
         locator: PackageReviewForeignLocator,
         producer: PackagePolicyEvaluatedBindingProducer,
     },
-    StringBackedImportBootstrap {
-        library: String,
-        symbol: String,
-    },
     Syscall {
         number: i64,
         evaluated: Option<PackagePolicyProviderEvaluatedSyscall>,
