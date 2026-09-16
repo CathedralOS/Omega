@@ -1,12 +1,14 @@
 //! Borrow-carrying subrange loans whose polarity derives from the parent
 //! borrow.
 
-use crate::diagnostic::ExtentDiagnostic;
 use crate::extent::Extent;
+use crate::extent::diagnostic::ExtentDiagnostic;
 use crate::identities::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
 };
-use crate::root_origins::{ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin};
+use crate::roots::root_origins::{
+    ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoanPolarity {

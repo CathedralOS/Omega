@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::diagnostic::{ExtentDiagnostic, nonzero_identity};
+use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
 use crate::identities::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
 };
