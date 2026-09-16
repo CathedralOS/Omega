@@ -143,16 +143,89 @@ pub(super) fn overlaps_pressure(
     else {
         return false;
     };
-    let failed_register = VirtualRegisterId(*failed_register);
+    let Some(function_ranges) = ranges.plan().functions.get(*failed_function) else {
+        return false;
+    };
     function == *failed_function
-        && (register == failed_register
-            || ranges.plan().functions[function]
-                .interference
-                .iter()
-                .any(|pair| {
-                    (pair.lower == register && pair.higher == failed_register)
-                        || (pair.higher == register && pair.lower == failed_register)
-                }))
+        && split_domain_pressure(
+            function_ranges,
+            VirtualRegisterId(*failed_register),
+            register,
+        )
+}
+
+// A pressure failure names the leader of one tied/edge-transferred domain: a
+// single live range split into disjoint member fragments at the tie and
+// transfer points, all sharing one home. Member fragments never interfere
+// with each other, so the domain's pressure is the union of every member's
+// interference. Coalescing that evidence across the split points admits a
+// victim overlapping any member fragment — or a member fragment itself, whose
+// own split breaks the shared-home requirement.
+fn split_domain_pressure(
+    ranges: &crate::FunctionLiveRanges,
+    leader: VirtualRegisterId,
+    register: VirtualRegisterId,
+) -> bool {
+    let members = split_domain_members(ranges, leader);
+    members.contains(&register)
+        || members
+            .iter()
+            .any(|member| interferes(ranges, register, *member))
+}
+
+// Collect the failed domain's member fragments: the connected component of
+// use/def ties and edge transfers rooted at the named leader. Those are the
+// same relations domain construction unions, so this reproduces the split
+// range's membership without rebuilding allocation domains.
+fn split_domain_members(
+    ranges: &crate::FunctionLiveRanges,
+    leader: VirtualRegisterId,
+) -> std::collections::BTreeSet<VirtualRegisterId> {
+    let mut members = std::collections::BTreeSet::from([leader]);
+    let mut frontier = vec![leader];
+    while let Some(member) = frontier.pop() {
+        for tie in &ranges.tied_pairs {
+            let other = if tie.use_virtual_register == member {
+                tie.def_virtual_register
+            } else if tie.def_virtual_register == member {
+                tie.use_virtual_register
+            } else {
+                continue;
+            };
+            if members.insert(other) {
+                frontier.push(other);
+            }
+        }
+        for transfer in &ranges.edge_transfers {
+            let other = if transfer.argument == member {
+                transfer.parameter
+            } else if transfer.parameter == member {
+                transfer.argument
+            } else {
+                continue;
+            };
+            if members.insert(other) {
+                frontier.push(other);
+            }
+        }
+    }
+    members
+}
+
+fn interferes(
+    ranges: &crate::FunctionLiveRanges,
+    left: VirtualRegisterId,
+    right: VirtualRegisterId,
+) -> bool {
+    let (lower, higher) = if left < right {
+        (left, right)
+    } else {
+        (right, left)
+    };
+    ranges
+        .interference
+        .binary_search(&crate::VirtualInterference { lower, higher })
+        .is_ok()
 }
 
 // The failed id is a tied-domain leader, not necessarily an admissible payload.
