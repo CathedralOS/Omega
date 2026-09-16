@@ -514,16 +514,10 @@ fn rematerialize(
     rematerialize_selected_runtime_value(source, 0, VirtualRegisterId(1), environment, budget())
 }
 
-/// A use in a block the definition block dominates regenerates locally: each
-/// use block receives its own fresh materializations immediately before the
-/// consuming instructions.
-#[test]
-fn dominated_successor_uses_regenerate_in_their_own_block() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // Stretch the fixture across one edge: block 0 keeps the definition and
-    // the first copy; the remaining two copies move to its successor.
-    let source = mutated(target, |function, environment| {
+/// The fixture stretched across one edge: block 0 keeps the definition and
+/// the first copy; the remaining two copies move to its dominated successor.
+fn spread(target: NativeTarget) -> ValidatedRuntimeRematerialization {
+    mutated(target, |function, environment| {
         let jump = environment
             .constraint(environment.selected_keys().jump)
             .unwrap();
@@ -546,7 +540,17 @@ fn dominated_successor_uses_regenerate_in_their_own_block() {
             instructions: tail_instructions,
             terminator: tail_terminator,
         });
-    });
+    })
+}
+
+/// A use in a block the definition block dominates regenerates locally: each
+/// use block receives its own fresh materializations immediately before the
+/// consuming instructions.
+#[test]
+fn dominated_successor_uses_regenerate_in_their_own_block() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = spread(target);
     let result = rematerialize(&source, &environment).unwrap();
     let function = &result.transformed().functions[0];
     // Block 0 regenerates for its own use only.
@@ -818,4 +822,176 @@ fn rematerialization_is_deterministic_and_per_victim_terminal() {
         chained.transformed().clone(),
     )
     .unwrap();
+}
+
+/// The measured validation-step boundary: admission charges one step per
+/// block plus one per instruction across the plan, two steps per admitted
+/// use, and two per block of the admitted function — thirteen steps for the
+/// single-block fixture, sixteen once its uses spread across a dominated
+/// successor — so the exact count admits regeneration on both the proposal
+/// and the independent replay path while one step below rejects both.
+#[test]
+fn validation_budget_covers_the_admission_scan() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for (source, exact_steps) in [(fixture(target), 13u64), (spread(target), 16u64)] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result = rematerialize_selected_runtime_value(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            exact,
+        )
+        .unwrap();
+        validate_runtime_rematerialization(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            exact,
+            result.transformed().clone(),
+        )
+        .unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            rematerialize_selected_runtime_value(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                starved
+            )
+            .unwrap_err(),
+            RuntimeRematerializationError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_runtime_rematerialization(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            RuntimeRematerializationError::WorkBudgetExceeded
+        );
+    }
+}
+
+/// Replay corruption in a block the regeneration never touched still
+/// rejects: the restore-by-content check compares the complete plan, not
+/// just the use blocks carrying fresh materializations.
+#[test]
+fn replay_rejects_drift_in_an_untouched_block() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Every use stays in the definition block; the trailing block is
+    // dominated but carries no use, so the rewrite never enters it.
+    let source = mutated(target, |function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let tail = std::mem::replace(
+            &mut function.blocks[0].terminator,
+            SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(20),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(1),
+            },
+        );
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: Vec::new(),
+            terminator: tail,
+        });
+    });
+    let result = rematerialize(&source, &environment).unwrap();
+    assert_eq!(result.transformed().functions[0].blocks.len(), 2);
+    // An extra instruction in the untouched landing block rejects.
+    let mut proposed = result.transformed().clone();
+    let copy = environment
+        .constraint(environment.selected_keys().copy_i64)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks[1]
+        .instructions
+        .push(instruction(
+            SelectedInstructionId(30),
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[VirtualRegisterId(0), VirtualRegisterId(2)],
+        ));
+    assert_eq!(
+        validate_runtime_rematerialization(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            proposed
+        )
+        .unwrap_err(),
+        RuntimeRematerializationError::ReplayMismatch
+    );
+    // Drift in the untouched block's terminator rejects.
+    let mut proposed = result.transformed().clone();
+    let SelectedTerminator::Return {
+        instruction: return_instruction,
+        ..
+    } = &mut proposed.functions[0].blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    return_instruction.id = SelectedInstructionId(31);
+    assert_eq!(
+        validate_runtime_rematerialization(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            proposed
+        )
+        .unwrap_err(),
+        RuntimeRematerializationError::ReplayMismatch
+    );
+    // A phantom trailing block rejects.
+    let mut proposed = result.transformed().clone();
+    let terminal_row = environment
+        .constraint(environment.selected_keys().return_unit)
+        .unwrap()
+        .clone();
+    proposed.functions[0].blocks.push(SelectedBlock {
+        id: SelectedBlockId(2),
+        origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::Return {
+            instruction: instruction(
+                SelectedInstructionId(32),
+                SelectedInstructionKind::ReturnUnit,
+                &terminal_row,
+                &[],
+            ),
+            psi_return_edge: EdgeId::new(3).unwrap(),
+        },
+    });
+    assert_eq!(
+        validate_runtime_rematerialization(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            proposed
+        )
+        .unwrap_err(),
+        RuntimeRematerializationError::ReplayMismatch
+    );
 }
