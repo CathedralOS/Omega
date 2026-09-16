@@ -338,3 +338,48 @@ fn shared_entry_policy_rejects_noncanonical_compare_copy_branch_shape() {
         Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
     ));
 }
+
+/// Two derivations over the identical boundary set produce the identical
+/// copy and transformed function; the shared-copy admission window is
+/// exactly the two boundaries covering both branch successors — an empty
+/// set admits no copy while one or three refuse — and the transformed
+/// function is itself terminal: its entry block no longer presents the
+/// canonical compare-only shape, so re-admission refuses a second copy.
+#[test]
+fn shared_entry_copy_is_deterministic_bounded_and_terminal() {
+    let (function, legality, row) = fixture();
+    let boundaries = boundaries(&legality);
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let first = build_shared_entry_copy(0, &function, &references, &row, row.key, 4, 2)
+        .unwrap()
+        .unwrap();
+    let second = build_shared_entry_copy(0, &function, &references, &row, row.key, 4, 2)
+        .unwrap()
+        .unwrap();
+    assert_eq!(first, second);
+    let mut transformed_a = function.clone();
+    apply_copy(0, &mut transformed_a, &first, &row).unwrap();
+    let mut transformed_b = function.clone();
+    apply_copy(0, &mut transformed_b, &second, &row).unwrap();
+    assert_eq!(transformed_a, transformed_b);
+    // Fixed point: the published transformed function is a legal input to
+    // the rule core, and its rewritten entry block admits no second copy.
+    assert_eq!(
+        build_shared_entry_copy(0, &transformed_a, &references, &row, row.key, 5, 3),
+        Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
+    );
+    // The boundary-count window is exactly two — one per branch successor.
+    assert_eq!(
+        build_shared_entry_copy(0, &function, &[], &row, row.key, 4, 2),
+        Ok(None)
+    );
+    for narrowed in [
+        vec![references[0]],
+        vec![references[0], references[1], references[0]],
+    ] {
+        assert_eq!(
+            build_shared_entry_copy(0, &function, &narrowed, &row, row.key, 4, 2),
+            Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 }),
+        );
+    }
+}

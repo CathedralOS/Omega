@@ -129,3 +129,23 @@ fn independent_shared_copy_replay_rejects_invalid_source_and_boundary_premises()
         Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
     ));
 }
+
+/// The replay core is equally terminal: the published transformed function
+/// is a legal input, and its rewritten entry block — compare plus inserted
+/// copy — no longer presents the canonical compare-only shape, so
+/// re-admission refuses to reconstruct a second copy.
+#[test]
+fn independent_shared_copy_replay_is_terminal_on_the_transformed_function() {
+    let (function, legality, row, produced, transformed) = computed_shared_fixture();
+    let boundaries = boundaries(&legality);
+    let references = boundaries.iter().collect::<Vec<_>>();
+    assert_eq!(
+        replay_shared_entry_copy(0, &transformed, &references, &row, row.key, 4, 2),
+        Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
+    );
+    // The source function still replays the admitted copy.
+    assert_eq!(
+        replay_shared_entry_copy(0, &function, &references, &row, row.key, 4, 2),
+        Ok(Some(produced))
+    );
+}

@@ -199,3 +199,23 @@ pub fn exercise_multiple_use_rematerialization(
     };
     check_assignment(&legality, &post_ranges.plan().functions[0], &physical);
 }
+
+/// Two derivations over the identical inputs produce the identical action
+/// and transformed plan, and the published transformed plan is terminal at
+/// the rule core: its rewritten uses now read the fresh suffix register, so
+/// the recorded future-use evidence cannot admit a second application. The
+/// sealed-artifact fixed-point leg — the validated result refed through
+/// `rematerialize_selected_active_resident`, which accepts any
+/// `ValidatedSelectedAnalysis` — is exercised by the staged pipeline.
+#[test]
+fn multiple_use_rematerialization_is_deterministic_and_terminal() {
+    let (selected, ranges, recovery, row) = multiple_future_fixture();
+    let policy = PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1;
+    let first = build_functions(&selected, &ranges, &recovery, &row, policy).unwrap();
+    let second = build_functions(&selected, &ranges, &recovery, &row, policy).unwrap();
+    assert_eq!(first, second);
+    assert_eq!(
+        build_functions(&first.1, &ranges, &recovery, &row, policy),
+        Err(PressureRematerializationError::FutureUseMismatch { function: 0 })
+    );
+}
