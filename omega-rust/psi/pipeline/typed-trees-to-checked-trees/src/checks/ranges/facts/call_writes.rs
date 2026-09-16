@@ -84,7 +84,33 @@ impl<'program> RangeCallContext<'program> {
                     && matches!(program.statement_table.statements(state.statement_nodes).get(statement_index),
                         Some(typed_trees::statement::StatementNode::Call(candidate))
                             if std::ptr::eq(*statement_call, candidate)),
-                CallSite::TransitionNamed { .. } => false,
+                // The named target call is the one occurrence in a transition
+                // statement whose checked row has no authored expression;
+                // nested argument calls still join by expression handle.
+                // `transition_call_target` maps the row's ordinal back to the
+                // enclosing target handle, and the path field address pins the
+                // exact authored node (target and continuation are distinct
+                // nodes even when spelled identically).
+                CallSite::TransitionNamed { path, .. } => {
+                    !call.authored_expression.is_valid()
+                        && crate::semantic_calls::transition_call_target(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            call.call_ordinal,
+                        )
+                        .is_some_and(|target| {
+                            target.is_valid()
+                                && matches!(
+                                    program.statement_table.transition_target(target),
+                                    typed_trees::statement::TransitionTargetNode::Named {
+                                        path: candidate,
+                                        ..
+                                    } if std::ptr::eq(*path, candidate)
+                                )
+                        })
+                }
             }
         })?;
         self.borrow_calls.iter().find(|borrow_call| {
