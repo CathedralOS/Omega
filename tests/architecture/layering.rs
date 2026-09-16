@@ -1133,7 +1133,7 @@ fn compiler_executable_review_identity_stays_retired() {
 fn compiler_builtins_never_masquerade_as_provider_execution_evidence() {
     let root = workspace_root();
     let settlements = std::fs::read_to_string(
-        root.join("omega-rust/omega/build/provider-planning/src/compiler_intrinsics.rs"),
+        root.join("omega-rust/omega/build/provider-planning/src/compiler_intrinsics/mod.rs"),
     )
     .expect("read compiler intrinsic proposals");
     for retired in [
@@ -1563,7 +1563,7 @@ fn provider_approval_stays_in_omega_after_psi_checking() {
         "Psi semantic checking must not perform Omega provider admission"
     );
 
-    let omega_approval = root.join("omega-rust/omega/build/provider-planning/src/approval.rs");
+    let omega_approval = root.join("omega-rust/omega/build/provider-planning/src/approval/mod.rs");
     let omega_source = std::fs::read_to_string(&omega_approval)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_approval.display()));
     assert!(
@@ -1797,10 +1797,8 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
         "target/layout-specific task activation plans must remain an Omega sidecar with compact specialization coordinates explicitly report-only beside strong authority"
     );
 
-    let task_planning = root.join("omega-rust/omega/build/provider-planning/src/task_plans.rs");
-    let task_planning_source = std::fs::read_to_string(&task_planning)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", task_planning.display()))
-        + &recursive_production_rust_source(&task_planning.with_extension(""));
+    let task_planning = root.join("omega-rust/omega/build/provider-planning/src/task_plans");
+    let task_planning_source = recursive_production_rust_source(&task_planning);
     assert!(
         task_planning_source.contains("omega.task-specialization.sha256.v2")
             && task_planning_source.contains("normalized_trait_requirement_overload_identity")

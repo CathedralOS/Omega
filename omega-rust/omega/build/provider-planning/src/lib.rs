@@ -7,7 +7,8 @@
 //! compiler coordinator supplies checked inputs and consumes the resulting
 //! plans; it does not define their domain model.
 //!
-//! Start in `provider_planning.rs` for selection and checked-program binding.
+//! Start at `provider_planning.rs` for selection and checked-program binding;
+//! every other folder is one public vocabulary the compiler consumes by path.
 
 pub mod approval;
 pub mod calling_policy_plans;
@@ -15,13 +16,40 @@ pub mod compiler_intrinsics;
 pub mod component_progress;
 pub mod evaluated_via_bindings;
 mod provider_planning;
-mod selection;
 pub mod service_schema;
 pub mod task_plans;
 pub mod x86_fma_plan_association;
 
-pub use provider_planning::*;
-pub use selection::{
+pub use provider_planning::selection::{
     CompositionMode, ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection,
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject,
+};
+#[cfg(feature = "installed-writer")]
+pub use provider_planning::{
+    AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
+    BoundExternalRootWriterExecutionError, ExternalRootPostHandoffWriterBindingError,
+    SelectedExternalRootEntryFactBinding, SelectedExternalRootPostHandoffWriterPreparation,
+    SelectedExternalRootProviderPlan, SelectedExternalRootWriterPreparationError,
+    ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
+    WrittenBoundExternalRootConsumerValidationError,
+    WrittenBoundExternalRootPostHandoffWriterDestination,
+    WrittenBoundExternalRootWriterRecoveryError, bind_external_root_post_handoff_writer_invocation,
+    optional_selected_external_root_provider_plan, selected_external_root_entry_fact_bindings,
+    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+};
+pub use provider_planning::{
+    CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
+    ProviderSelectionProvenance, SelectedProviderPlanBinding, SelectedProviderPlanWithProvenance,
+    SelectedProviderReviewProvenance, SelectedTargetMachineOrigin,
+    bind_selected_provider_plan_facts, compiler_intrinsic_diagnostic_label, derive_satisfies_plans,
+    derive_satisfies_plans_with_evaluated_bindings,
+    derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins,
+    derive_satisfies_plans_with_provenance, exact_checked_adapter, extract_external_binding_rows,
+    extract_native_external_binding_rows, intrinsic_realization_matches_operator,
+    primitive_float_binary_intrinsic_execution_identity, satisfied_requirement_identity,
+    satisfies_plan_name, select_provider_plans, select_provider_plans_with_provenance,
+    selected_provider_plan_facts_with_provenance, settle_external_binding_rows,
+    validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
+    validate_selected_synchronous_invocation_cycles,
 };
