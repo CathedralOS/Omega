@@ -35,7 +35,7 @@ use dynamic_and_cleanup_plans::{
     add_empty_unit_cleanup, continuation_unit_call_plan, dynamic_conformance_table_plan,
     dynamic_parameter_call_plan, edge_owned_cleanup_plan, forwarded_dynamic_descriptor_call_plan,
     forwarded_dynamic_parameter_call_plan, mixed_edge_owned_cleanup_plan, stored_dynamic_call_plan,
-    two_call_edge_owned_cleanup_plan,
+    structural_call_scalar_return_plan, two_call_edge_owned_cleanup_plan,
 };
 use provider_and_call_plans::{
     WriteExitProvider, admitted_x86_fma_provider, artifact_symbol,
