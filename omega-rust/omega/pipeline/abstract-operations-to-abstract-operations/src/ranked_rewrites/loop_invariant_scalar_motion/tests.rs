@@ -2,7 +2,7 @@
 
 use super::super::super::VerifiedPsiOptimizationSession;
 use crate::{
-    LoopInvariantScalarMotionError, LoopInvariantScalarRelocation,
+    LoopInvariantNodeResult, LoopInvariantScalarMotionError, LoopInvariantScalarRelocation,
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
@@ -711,11 +711,10 @@ fn bypassed_member_computation_is_speculation_and_stays_inside() {
         node: crate::LoopInvariantScalarNode {
             psi_operation: addition_operation,
             result: match addition.definitions.as_slice() {
-                [definition] => definition.value,
-                _ => panic!("one defined result"),
-            },
-            scalar_type: match addition.definitions.as_slice() {
-                [definition] => definition.scalar_type,
+                [definition] => LoopInvariantNodeResult::Scalar {
+                    value: definition.value,
+                    scalar_type: definition.scalar_type,
+                },
                 _ => panic!("one defined result"),
             },
             location: NodeLocation {
@@ -1034,7 +1033,7 @@ fn invariant_place_observation_relocates_with_its_chained_computation() {
         relocation.node().operand_rewrites().is_empty(),
         "the observed root already names a preheader-visible place"
     );
-    assert_eq!(relocation.node().result(), read_result);
+    assert_eq!(relocation.node().result().scalar_value(), Some(read_result));
     assert_eq!(relocation.node().location().block, member);
     assert_eq!(relocation.destination().block, preheader);
     let chained = candidate
@@ -1386,7 +1385,7 @@ fn member_view_parameter_observation_relocates_rebinding_its_root() {
         relocation.node().operand_rewrites().is_empty(),
         "a place observation rebinds its root, not a scalar operand"
     );
-    assert_eq!(relocation.node().result(), read_result);
+    assert_eq!(relocation.node().result().scalar_value(), Some(read_result));
     assert_eq!(relocation.node().location().block, member);
     assert_eq!(relocation.destination().block, preheader);
     // The scalar member parameter still relocates through its own path in the
@@ -1651,9 +1650,16 @@ fn member_produced_view_parameter_stays_loop_carried() {
             .contains_key(&view_parameter.place),
         "a member-produced back-edge binding keeps the member view parameter loop-carried"
     );
+    // The member's own subslice establishment no longer closes the custody
+    // gate: it reads the carried root's extent without mutating it and its
+    // fresh view is a member-produced root that can never anchor another
+    // parameter's invariant representative. The refusal for this component
+    // lives entirely in the root resolution — `view` is bound to a
+    // member-produced place on the back edge, so it stays loop-carried and
+    // every observation through it refuses below.
     assert!(
-        !crate::validation::component_preserves_place_observations(function, component),
-        "the member's own subslice establishment ends place-observation custody"
+        crate::validation::component_preserves_place_observations(function, component),
+        "establishing a fresh view mutates no established place"
     );
     let reads = member_length_reads(function, component);
     let read_operations: Vec<_> = reads
@@ -2052,7 +2058,7 @@ fn invariant_byte_read_relocates_rebinding_its_root_and_index() {
         &[(read_index, index_anchor)],
         "the relocation substitutes the member index parameter"
     );
-    assert_eq!(relocation.node().result(), read_result);
+    assert_eq!(relocation.node().result().scalar_value(), Some(read_result));
     assert_eq!(relocation.node().location().block, member);
     assert_eq!(relocation.destination().block, preheader);
     let length_relocation = candidate
@@ -2541,6 +2547,478 @@ fn forged_byte_read_length_and_obligation_are_rejected_by_the_freeze_fence() {
             }
         ) if rejected_machine == machine && block == member
     ));
+}
+
+/// A `ByteSequenceSubslice` whose evidence is all loop-invariant: `view` is
+/// the member structural parameter every reaching edge binds to `entries`,
+/// its `start` is a member scalar-constant leaf, and its `end`/`length` pair
+/// is the member `ByteSequenceLength` result that relocates in the same run.
+/// The subslice's fresh view crosses the `step` → `tail` member edge as
+/// `window`, so relocating the producer also exercises a structural result
+/// whose member consumers stay inside the loop.
+const MEMBER_SUBSLICE_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, entries: &[u8], index: u64, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, entries, index, remaining) }
+        state step(s: u32 in Wrapping, view: &[u8], i: u64, pending: u32 [0..=5])
+        {
+            transition { _ -> tail(s, view, view[0..view.len], i, pending) }
+        }
+        state tail(s: u32 in Wrapping, view: &[u8], window: &[u8], i: u64, pending: u32 [0..=5]) {
+            transition pending > 0 && window.len > 0 {
+                true -> step(s, view, i, pending - 1)
+                _ -> finish()
+            }
+        }
+        state finish() {}
+    }
+"#;
+
+/// The `ByteSequenceSubslice` operations inside a component's member blocks,
+/// as `(member block, node)` pairs in member order.
+fn member_subslices<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> Vec<(
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+)> {
+    component
+        .members
+        .iter()
+        .map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+        })
+        .flat_map(|block| {
+            block
+                .nodes
+                .iter()
+                .filter(|node| {
+                    matches!(
+                        node.operation,
+                        AbstractOperation::ByteSequenceSubslice { .. }
+                    )
+                })
+                .map(move |node| (block, node))
+        })
+        .collect()
+}
+
+#[test]
+fn invariant_byte_subslice_relocates_preserving_its_structural_result() {
+    let session = lowered_session(MEMBER_SUBSLICE_SOURCE, "member subslice loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let [entries_parameter] = function.structural_parameters.as_slice() else {
+        panic!("the machine carries one structural parameter")
+    };
+    let subslices = member_subslices(function, component);
+    let [(subslice_block, subslice)] = subslices.as_slice() else {
+        panic!("one member subslice")
+    };
+    let member = subslice_block.id;
+    let (subslice_source, start, end, length, subslice_obligation, result_place) =
+        match &subslice.operation {
+            AbstractOperation::ByteSequenceSubslice {
+                source,
+                start,
+                end,
+                length,
+                obligation,
+                result,
+                ..
+            } => (*source, *start, *end, *length, *obligation, result.place),
+            _ => unreachable!("member_subslices only yields subslices"),
+        };
+    assert_eq!(
+        crate::validation::admissible_invariant_subslice(subslice),
+        Some((subslice_source, start, end, length)),
+        "the subslice carries the source-owned admission shape"
+    );
+    assert!(
+        subslice.definitions.is_empty(),
+        "the structural result defines no scalar"
+    );
+    assert!(
+        crate::validation::guaranteed_executed_member_blocks(component).contains(&member),
+        "the subslice's member block dominates every exit"
+    );
+    assert!(
+        crate::validation::component_preserves_place_observations(function, component),
+        "no member mutates or moves custody of any established place"
+    );
+    let entries_place = entries_parameter.place;
+    assert_eq!(
+        crate::validation::invariant_member_place_parameters(function, component)
+            .get(&subslice_source),
+        Some(&entries_place),
+        "the subslice's member view parameter resolves to `entries`"
+    );
+    // `start` is the member scalar-constant leaf's result and `end`/`length`
+    // are the member `ByteSequenceLength` result — all run-internal producers
+    // the same run relocates, so the substitution is empty.
+    let relocating = std::collections::BTreeSet::from([start, end, length]);
+    assert_eq!(
+        crate::validation::invariant_subslice_admission(function, component, subslice, &relocating),
+        Some((entries_place, std::collections::BTreeMap::new())),
+        "the shared admission rebinds the root and keeps every operand bound"
+    );
+    let subslice_operation = operation_of(subslice);
+    let member_structural_parameters = subslice_block.structural_parameters.clone();
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == subslice_operation)
+        .expect("the subslice is a planned relocation");
+    assert_eq!(
+        relocation.node().root_rewrite(),
+        Some((subslice_source, entries_place)),
+        "the relocation rebinds the member view parameter to `entries`"
+    );
+    assert!(
+        relocation.node().operand_rewrites().is_empty(),
+        "every scalar operand stays bound to its run-internal producer"
+    );
+    let LoopInvariantNodeResult::Structural(result) = relocation.node().result() else {
+        panic!("the subslice relocation preserves a structural result")
+    };
+    assert_eq!(result.place, result_place);
+    assert_eq!(relocation.node().location().block, member);
+    assert_eq!(relocation.destination().block, preheader);
+    // The `length` producer must relocate ahead of the subslice it defines.
+    let length_reads = member_length_reads(function, component);
+    let length_read = length_reads
+        .iter()
+        .find(|(_, node)| {
+            matches!(
+                node.definitions.as_slice(),
+                [definition] if definition.value == length
+            )
+        })
+        .map(|(_, node)| node)
+        .expect("the member length observation feeds the subslice");
+    let length_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == operation_of(length_read))
+        .expect("the length producer relocates in the same run");
+    assert!(
+        length_relocation.destination().node < relocation.destination().node,
+        "the run keeps the length producer ahead of the subslice it defines"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let destination = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::ByteSequenceSubslice {
+            source,
+            start: moved_start,
+            end: moved_end,
+            length: moved_length,
+            obligation,
+            result,
+            ..
+        } => {
+            assert_eq!(
+                *source, entries_place,
+                "the relocated subslice observes the representative root"
+            );
+            assert_eq!(
+                (*moved_start, *moved_end, *moved_length),
+                (start, end, length),
+                "the scalar operands keep their relocated producers' results"
+            );
+            assert_eq!(
+                *obligation, subslice_obligation,
+                "the bounds obligation stays byte-exact"
+            );
+            assert_eq!(
+                result.place, result_place,
+                "the fresh view place is preserved, not re-spelled"
+            );
+        }
+        operation => panic!("relocated subslice keeps its operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    assert!(
+        output_function
+            .blocks
+            .iter()
+            .find(|block| block.id == member)
+            .expect("member block exists")
+            .nodes
+            .iter()
+            .all(|node| !matches!(
+                node.operation,
+                AbstractOperation::ByteSequenceSubslice { .. }
+            )),
+        "the subslice exists once, at the destination"
+    );
+    // Place custody survives the transform: the fresh view root stays declared
+    // and the member's view parameter roster is unchanged.
+    assert!(output_function.declared_places.contains(&result_place));
+    assert!(output_function.declared_places.contains(&entries_place));
+    assert_eq!(
+        output_function
+            .blocks
+            .iter()
+            .find(|block| block.id == member)
+            .expect("member block exists")
+            .structural_parameters,
+        member_structural_parameters,
+    );
+
+    let [record] = applied.ledger().records() else {
+        panic!("one atomic relocation has one ledger record")
+    };
+    let row = record
+        .provenance
+        .iter()
+        .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
+        .expect("the relocated subslice has exact ledger custody");
+    assert_eq!(
+        row.disposition,
+        ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
+    );
+    assert_eq!(&row.sources, relocation.node().provenance());
+    assert_eq!(&row.fuel, relocation.node().fuel());
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn moved_byte_subslice_without_its_length_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_SUBSLICE_SOURCE, "member subslice loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (subslice_block, subslice) = member_subslices(function, component)[0];
+    let member = subslice_block.id;
+    let subslice_operation = operation_of(subslice);
+    let (input, mut unit) = session.into_parts();
+    // Hand-move the subslice while its `ByteSequenceLength` producer stays
+    // inside: the subslice's `end`/`length` operands name member-internal
+    // results no run relocates, so the seed-derived admission refuses before
+    // any root or operand comparison — the coupling is replayed, not trusted.
+    let moved = take_operation(&mut unit, subslice_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn forged_byte_subslice_root_and_obligation_are_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_SUBSLICE_SOURCE, "member subslice loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, subslice) = member_subslices(function, component)[0];
+    let subslice_operation = operation_of(subslice);
+    let subslice_obligation = match &subslice.operation {
+        AbstractOperation::ByteSequenceSubslice { obligation, .. } => *obligation,
+        _ => unreachable!("member_subslices only yields subslices"),
+    };
+    // A second live obligation the forgery can claim — the member's
+    // `pending - 1` descent carries its own exact-subtraction obligation.
+    let other_obligation = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            AbstractOperation::ExactIntegerSubtract { obligation, .. } => Some(*obligation),
+            _ => None,
+        })
+        .find(|obligation| *obligation != subslice_obligation)
+        .expect("the member carries a second obligation to forge");
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == subslice_operation)
+        .expect("the subslice is a planned relocation");
+    let member = relocation.node().location().block;
+    let (parameter, _) = relocation
+        .node()
+        .root_rewrite()
+        .expect("root rewrite exists");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the rebound root back to the member view parameter must fail the
+    // seed-derived resolution, not just dominance bookkeeping.
+    let forged = find_operation_mut(&mut unit, subslice_operation);
+    if let AbstractOperation::ByteSequenceSubslice { source, .. } = &mut forged.operation {
+        *source = parameter;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+
+    // Rebuild the applied unit and forge the obligation instead: the
+    // obligation is not a substitutable position, so the replayed operation
+    // comparison rejects any other obligation identity.
+    let session = lowered_session(MEMBER_SUBSLICE_SOURCE, "member subslice loop");
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    let forged = find_operation_mut(&mut unit, subslice_operation);
+    if let AbstractOperation::ByteSequenceSubslice { obligation, .. } = &mut forged.operation {
+        *obligation = other_obligation;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn forged_byte_subslice_result_place_is_rejected() {
+    let session = lowered_session(MEMBER_SUBSLICE_SOURCE, "member subslice loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, subslice) = member_subslices(function, component)[0];
+    let subslice_operation = operation_of(subslice);
+    // Another live place the forgery can claim — the `entries` root itself.
+    let [entries_parameter] = function.structural_parameters.as_slice() else {
+        panic!("the machine carries one structural parameter")
+    };
+    let forged_place = entries_parameter.place;
+    let candidate = propose_loop_invariant_scalar_motion(&session, 1)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .any(|relocation| relocation.node().psi_operation() == subslice_operation),
+        "the subslice is a planned relocation"
+    );
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Re-spelling the fresh view's place rebinds the structural result to a
+    // root it never produced: the moved operation's result is not a
+    // substitutable position, so validation must reject the forged unit.
+    let forged = find_operation_mut(&mut unit, subslice_operation);
+    if let AbstractOperation::ByteSequenceSubslice { result, .. } = &mut forged.operation {
+        result.place = forged_place;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit).is_err(),
+        "a forged structural result place is rejected"
+    );
 }
 
 fn lowered_session(source: &str, label: &str) -> VerifiedPsiOptimizationSession {

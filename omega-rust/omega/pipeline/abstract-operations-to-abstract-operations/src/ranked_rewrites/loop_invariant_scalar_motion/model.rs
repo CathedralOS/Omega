@@ -7,21 +7,56 @@ use super::{
     PlaceId, ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance, PsiTransformationLedger,
     ScalarType, ValueId, VerifiedPsiOptimizationSession,
 };
+/// The result one relocated node preserves. Scalar-constant leaves, admitted
+/// place observations, and invariant scalar computations keep the one scalar
+/// definition the node carried — the value downstream uses and run-internal
+/// operands stay bound to. A `ByteSequenceSubslice` defines no scalar: the
+/// relocation instead preserves the structural view result its operation
+/// spells — the fresh root's place, type, multiplicity, and qualifications
+/// stay byte-exact inside the moved operation rather than re-spelling a
+/// scalar result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoopInvariantNodeResult {
+    /// A preserved scalar definition: the result value and its declared type.
+    Scalar {
+        value: ValueId,
+        scalar_type: ScalarType,
+    },
+    /// A preserved structural operation result — the fresh view place a
+    /// `ByteSequenceSubslice` establishes. The moved operation keeps it
+    /// byte-exact, so the transformed unit's structural custody still sees
+    /// the same producer declaring the same place.
+    Structural(terminal_psi::StructuralOperationResult),
+}
+
+impl LoopInvariantNodeResult {
+    /// The scalar value this result preserves — `None` for a
+    /// structural-producing relocation, which defines no scalar.
+    pub const fn scalar_value(&self) -> Option<ValueId> {
+        match self {
+            Self::Scalar { value, .. } => Some(*value),
+            Self::Structural(_) => None,
+        }
+    }
+}
+
 /// One loop-invariant scalar node selected for relocation. The node records
 /// the exact source-owned custody the ledger and validator must see: its
-/// operation identity, defined result, original location, provenance, and fuel
-/// settlements, plus the operand rebinding an invariant member parameter
+/// operation identity, preserved result, original location, provenance, and
+/// fuel settlements, plus the operand rebinding an invariant member parameter
 /// performs when the computation is re-expressed on its preheader-visible
 /// representative. Scalar-constant leaves and admitted place observations
 /// carry an empty operand rewrite list — an observation whose storage root
 /// already names a preheader-visible place relocates byte-exact like a leaf,
 /// while one reading through an invariant member structural parameter records
-/// that root rebind in `root_rewrite`.
+/// that root rebind in `root_rewrite`. A `ByteSequenceSubslice` records the
+/// same root rebind and scalar-operand rewrites a byte read does, but its
+/// result is [`LoopInvariantNodeResult::Structural`]: the fresh view stays
+/// byte-exact inside the moved operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,
-    pub(super) result: ValueId,
-    pub(super) scalar_type: ScalarType,
+    pub(super) result: LoopInvariantNodeResult,
     pub(super) location: NodeLocation,
     pub(super) operand_rewrites: Vec<(ValueId, ValueId)>,
     /// The observed-root rebind an admitted place observation performs when
@@ -39,12 +74,8 @@ impl LoopInvariantScalarNode {
         self.psi_operation
     }
 
-    pub const fn result(&self) -> ValueId {
-        self.result
-    }
-
-    pub const fn scalar_type(&self) -> ScalarType {
-        self.scalar_type
+    pub const fn result(&self) -> &LoopInvariantNodeResult {
+        &self.result
     }
 
     pub const fn location(&self) -> NodeLocation {
@@ -234,7 +265,37 @@ pub(super) fn candidate_identity(
     );
     for relocation in relocations {
         canonical.extend_from_slice(&relocation.node.psi_operation.get().to_le_bytes());
-        canonical.extend_from_slice(&relocation.node.result.get().to_le_bytes());
+        match &relocation.node.result {
+            LoopInvariantNodeResult::Scalar { value, .. } => {
+                canonical.push(0);
+                canonical.extend_from_slice(&value.get().to_le_bytes());
+            }
+            LoopInvariantNodeResult::Structural(result) => {
+                canonical.push(1);
+                canonical.extend_from_slice(&result.place.get().to_le_bytes());
+                canonical.extend_from_slice(&result.structural_type.get().to_le_bytes());
+                canonical.push(match result.multiplicity {
+                    terminal_psi::StructuralMultiplicity::Unrestricted => 0,
+                    terminal_psi::StructuralMultiplicity::Affine => 1,
+                    terminal_psi::StructuralMultiplicity::Linear => 2,
+                });
+                // Admitted structural results carry no qualification or claim
+                // rows; the roster lengths still commit the claim so a richer
+                // shape can never collide with an admitted one. The output
+                // unit identity binds their full contents byte-exact.
+                for count in [
+                    result.qualifications.len(),
+                    result.projected_qualifications.len(),
+                    result.claims.len(),
+                ] {
+                    canonical.extend_from_slice(
+                        &u64::try_from(count)
+                            .expect("result roster length fits u64")
+                            .to_le_bytes(),
+                    );
+                }
+            }
+        }
         encode_location(&mut canonical, relocation.node.location);
         encode_location(&mut canonical, relocation.destination);
         canonical.extend_from_slice(

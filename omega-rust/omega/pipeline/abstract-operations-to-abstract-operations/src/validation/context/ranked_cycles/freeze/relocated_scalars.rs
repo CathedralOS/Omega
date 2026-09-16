@@ -5,7 +5,10 @@
 //! source-owned scalar constant leaf, an admissible place observation whose
 //! component performs no place mutation or custody movement and whose storage
 //! root is visible at the preheader insertion point — directly, or as the
-//! representative an invariant member structural parameter resolves to — or
+//! representative an invariant member structural parameter resolves to — an
+//! admissible byte observation (a `ByteSequenceRead`, or a
+//! `ByteSequenceSubslice` whose structural view result and bounds obligation
+//! relocate byte-exact inside the moved operation), or
 //! an admissible scalar
 //! computation whose uses are all defined outside the component, name
 //! provably invariant
@@ -178,6 +181,27 @@ pub(super) fn validate(
                 // and its own observation root must resolve to the read's
                 // rebound root.
                 match crate::validation::invariant_byte_read_admission(
+                    expected,
+                    component,
+                    relocation.expected,
+                    relocated_results
+                        .get(&component.id)
+                        .unwrap_or(&no_relocated_results),
+                ) {
+                    Some((root, substitution)) => (substitution, Some(root)),
+                    None => return Err(mismatch(machine, relocation.expected_block)),
+                }
+            } else if crate::validation::admissible_invariant_subslice(relocation.expected)
+                .is_some()
+            {
+                // A subslice replays the same two halves — root resolution
+                // and `start`/`end`/`length` substitution with the `length`
+                // coupling — while its structural result place, type,
+                // multiplicity, and bounds obligation stay byte-exact inside
+                // the moved operation. A forged result or obligation
+                // spelling rejects in `same_relocated_node`'s operation
+                // comparison.
+                match crate::validation::invariant_subslice_admission(
                     expected,
                     component,
                     relocation.expected,

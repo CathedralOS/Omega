@@ -28,14 +28,15 @@ mod tests;
 
 use model::candidate_identity;
 pub use model::{
-    AppliedLoopInvariantScalarMotion, LoopInvariantScalarMotionCandidate,
+    AppliedLoopInvariantScalarMotion, LoopInvariantNodeResult, LoopInvariantScalarMotionCandidate,
     LoopInvariantScalarMotionError, LoopInvariantScalarNode, LoopInvariantScalarRelocation,
     ValidatedLoopInvariantScalarMotion,
 };
 
 /// Propose every single-entry cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
-/// leaves, invariant place observations, and side-effect-free scalar
+/// leaves, invariant place observations, byte observations, and
+/// side-effect-free scalar
 /// computations whose operands are all
 /// defined outside the component, name provably invariant member parameters
 /// (each rebound to the representative every reaching edge agrees on, resolved
@@ -48,7 +49,13 @@ pub use model::{
 /// preheader insertion point: either directly, or through a member structural
 /// parameter every reaching edge resolves to the same preheader-visible
 /// representative — the root analog of member scalar-parameter resolution,
-/// rebound on the moved node rather than relocated byte-exact. Computation
+/// rebound on the moved node rather than relocated byte-exact. The byte
+/// family adds its own evidence: a `ByteSequenceRead` or
+/// `ByteSequenceSubslice` must also substitute each scalar operand under the
+/// same rule and keep its `length` operand coupled to a `ByteSequenceLength`
+/// measuring the rebound root, and a subslice preserves its structural view
+/// result and bounds obligation byte-exact inside the moved operation.
+/// Computation
 /// and observation
 /// relocation is non-speculative: the unique entry edge must be the preheader
 /// terminator's only successor, and only member blocks guaranteed to execute
