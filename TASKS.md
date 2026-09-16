@@ -1089,8 +1089,7 @@ Owners include
   assignment; physical lowering may choose locations but not change semantic
   access. Recursive build-time projection/replay carries record depth as data,
   with a bounded traversal; extend that owner rather than adding depth-specific
-  implementations. Nested sum arrays, direct-
-  sum coexistence, recursive shapes, and target-dependent placement remain
+  implementations. Nested sum arrays and target-dependent placement remain
   fenced until their general rules land. Acceptance includes nested field/index
   canaries on both Linux ISAs.
 
@@ -1108,9 +1107,24 @@ Owners include
   `cargo nextest run -p compiler --test layout_plans symbolic_materialization`
   4 pass with the x86-64 native leg executed. The Linux aarch64 native leg is
   host-gated and has not yet run on a Linux aarch64 host; macOS/Windows/QEMU
-  legs were unavailable here. Next acceptance: run the same filter on a Linux
-  aarch64 host, then lift one of the fenced shapes (nested sum arrays or
-  direct-sum coexistence) under a general rule.
+  legs were unavailable here. Direct-sum coexistence then landed under the
+  general recursive rule: `ConventionalRecordSumPathsLayoutReport` carries the
+  record level's own `child_sum_layouts` beside `paths`
+  (`omega-rust/psi/foundation/layout-plans/src/layout_reports/mod.rs`), the
+  recursive projection emits both child kinds on one `Branch`
+  (`omega-rust/omega/backend/layout/src/sum_materialization.rs`), the carrier
+  fold joins them in one field-keyed namespace
+  (`symbolic_values::SymbolicFieldInnerLayout::from_recursive_sum_paths`), and
+  build-time evaluation retains, replays, and fingerprints the direct-sum
+  custody under the same bounded traversal
+  (`const_record_with_nested_sum_materializable`). Focused coverage:
+  `recursive_direct_sums_coexist_with_deeper_paths_on_one_level` in
+  `omega/backend/layout/src/sum_materialization/tests/recursive.rs`, the
+  extended recursive fixtures in `layout-plans` and `build-time-evaluation`
+  tests, and the coexisting `route` field in
+  `recursive_sum_symbolic_materialization_realizes_on_both_linux_isas`. Next
+  acceptance: run the `symbolic_materialization` filter on a Linux aarch64
+  host, then lift nested sum arrays under a general rule.
 
 ## P3 - Terminal Psi, PCC, and observation
 
