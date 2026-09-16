@@ -506,10 +506,12 @@ pub enum PairOperandShape {
     /// operand (operand index 0) and the right `Use` operand survives into
     /// the rewritten instruction's `Use` position. Declaring this shape
     /// attests that the fold computes the same value under operand exchange:
-    /// the immediate form encodes `surviving <op> literal`, so only an
-    /// operation exact under commutation may declare it. Exact addition
-    /// commutes; subtraction and comparison fix the literal's role, so only
-    /// the add family declares a left-literal pair.
+    /// the immediate form encodes `surviving <op> literal` — and the
+    /// xor-zero identity copy binds `surviving` unchanged, which `0 ^ x`
+    /// and `x ^ 0` share — so only an operation exact under commutation
+    /// may declare it. Exact addition and bitwise xor commute; subtraction
+    /// and comparison fix the literal's role, so only those families
+    /// declare a left-literal pair.
     BinaryLeftLiteral,
     /// Unary consumer: the literal victim is the sole `Use` operand (operand
     /// index 0). The rewritten instruction consumes no register input — the
@@ -899,6 +901,58 @@ impl SelectedInstructionPairRule {
         Self::BITWISE_AND_ZERO_LEFT_MATERIALIZE,
     ];
 
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
+    /// `BitwiseXorI64` when the literal is exactly zero: zero is the
+    /// bitwise-xor identity element — `x ^ 0` is `x` for every `x` — so
+    /// the rewrite is a `CopyI64` of the surviving operand-0 register at
+    /// the consumer's result register. Both forms are effect-isolated on
+    /// every target — the consumer's flag clobber, where one is declared,
+    /// dies with the folded form — and neither side pins or binds an
+    /// operand, so the ordinary
+    /// [`Isolated`](PairMachineEffects::Isolated) and
+    /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
+    /// operand-0 `Use` survives under the ordinary
+    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// grammar: the rewritten row binds it as its `Use` operand.
+    pub const BITWISE_XOR_ZERO_COPY: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::BitwiseXorI64,
+            rewritten: MachineSemanticKind::CopyI64,
+            operand_shape: PairOperandShape::BinaryRightLiteral,
+            immediate_bound: PairImmediateBound::Exactly(0),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::Isolated,
+            machine_effects: PairMachineEffects::Isolated,
+        };
+        assert!(
+            matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
+            "the identity fold holds only for the literal zero"
+        );
+        rule
+    };
+
+    /// The left-operand identity fold: `MaterializeI64` feeding the
+    /// operand-0 `Use` of `BitwiseXorI64` when the literal is exactly
+    /// zero — `0 ^ x` is `x` for every `x`. Bitwise xor commutes, so the
+    /// `CopyI64` of the surviving operand-1 register computes the same
+    /// value `x ^ 0` does; the
+    /// [`BinaryLeftLiteral`](PairOperandShape::BinaryLeftLiteral) grammar
+    /// attests that commutation and binds operand 1 into the rewritten
+    /// row's `Use` position. The same catalog selection admits both
+    /// operand positions; the pair disambiguates by which `Use` position
+    /// the folded literal occupies.
+    pub const BITWISE_XOR_ZERO_LEFT_COPY: Self = Self {
+        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        ..Self::BITWISE_XOR_ZERO_COPY
+    };
+
+    /// The two bitwise-xor identity rules, one per literal `Use` position.
+    pub const BITWISE_XOR_ZERO_COPIES: [Self; 2] = [
+        Self::BITWISE_XOR_ZERO_COPY,
+        Self::BITWISE_XOR_ZERO_LEFT_COPY,
+    ];
+
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
@@ -1088,6 +1142,12 @@ impl SelectedInstructionPairRule {
             // the proof-custody fields from the kind — the obligation list
             // in the rebuilt provenance retains them.
             (MachineSemanticKind::CopyI64, SelectedInstructionKind::ExactDivideU64 { .. }) => {
+                Some(SelectedInstructionKind::CopyI64)
+            }
+            // An exclusive-or with a zero literal is the other operand —
+            // `x ^ 0` and `0 ^ x` are both `x`: the `CopyI64` rewrite
+            // binds the surviving register the recorded action names.
+            (MachineSemanticKind::CopyI64, SelectedInstructionKind::BitwiseXorI64) => {
                 Some(SelectedInstructionKind::CopyI64)
             }
             // A remainder by one is always zero, and a bitwise-and with a

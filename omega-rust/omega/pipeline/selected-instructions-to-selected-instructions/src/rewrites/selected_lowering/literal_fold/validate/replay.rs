@@ -250,6 +250,21 @@ fn reconstruct_action(
             rows.and_zero,
             MachineSemanticKind::MaterializeI64,
         ),
+        // The bitwise-xor identity fold: a literal of exactly zero at
+        // either `Use` folds `BitwiseXorI64` into a `CopyI64` of the other
+        // `Use` — `x ^ 0` and `0 ^ x` are both `x` — bound to the
+        // `CopyI64` row the xor-zero policy's own gate selected. The
+        // surviving `Use` binds the rewritten row's operand-0 `Use`
+        // position. The recorded operand position picks the grammar.
+        SelectedInstructionKind::BitwiseXorI64 => (
+            if future_use.operand == 0 {
+                SourceShape::XorZeroLeft
+            } else {
+                SourceShape::XorZero
+            },
+            rows.xor_zero,
+            MachineSemanticKind::CopyI64,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -317,6 +332,19 @@ fn reconstruct_action(
                 });
             }
             0
+        }
+        // The xor fold is the identity only when the folded literal is
+        // exactly zero — zero is the bitwise-xor identity element at
+        // either `Use` position; any other literal is a different
+        // computation the replay must not admit. The recorded immediate
+        // is the folded literal itself, unused by the `CopyI64` rebuild.
+        SourceShape::XorZero | SourceShape::XorZeroLeft => {
+            if literal_u64 != 0 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
         }
     };
     let result = match (shape, consumer.operands.as_slice()) {
@@ -472,6 +500,45 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
+        // The xor-identity grammar: `[surviving, victim, result]` folds
+        // the operand-1 `Use`; the operand-0 `Use` survives and binds the
+        // `CopyI64` row's `Use` position. The consumer carries exactly
+        // three operands — an operand past the `Def` result has no
+        // droppable role under this grammar.
+        (SourceShape::XorZero, [left, right, result]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The commuted xor-identity grammar: `[victim, surviving, result]`
+        // folds the operand-0 `Use`; the operand-1 `Use` survives into the
+        // `CopyI64` row's `Use` position because bitwise xor commutes —
+        // `0 ^ x` is `x ^ 0` is `x`.
+        (SourceShape::XorZeroLeft, [victim, right, result]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || right.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         (SourceShape::UnaryExtension | SourceShape::UnaryCopy, [input, result]) => {
             if input.access != RegisterOperandAccess::Use
                 || input.virtual_register != candidate.victim
@@ -602,7 +669,7 @@ fn reconstruct_action(
     // non-victim `Use` for custody: operand 0 under the right grammars,
     // operand 1 under the left annihilator grammar.
     let surviving = match shape {
-        SourceShape::BinaryLeftImmediate | SourceShape::AndZeroLeft => {
+        SourceShape::BinaryLeftImmediate | SourceShape::AndZeroLeft | SourceShape::XorZeroLeft => {
             consumer.operands[1].virtual_register
         }
         SourceShape::BinaryImmediate
@@ -610,7 +677,8 @@ fn reconstruct_action(
         | SourceShape::UnaryCopy
         | SourceShape::DivideIdentity
         | SourceShape::RemainderIdentity
-        | SourceShape::AndZero => consumer.operands[0].virtual_register,
+        | SourceShape::AndZero
+        | SourceShape::XorZero => consumer.operands[0].virtual_register,
     };
 
     Ok(LiteralFoldAction {
@@ -640,7 +708,11 @@ fn reconstruct_action(
 /// operand past the operand-2 `Def` result, or the bitwise-and
 /// annihilator forms whose zero literal folds `BitwiseAndI64` into a
 /// materialized zero — at the operand-1 `Use`, or at the operand-0 `Use`
-/// under the left grammar that drops the operand-1 `Use` instead.
+/// under the left grammar that drops the operand-1 `Use` instead — or the
+/// bitwise-xor identity forms whose zero literal folds `BitwiseXorI64`
+/// into a copy of the surviving `Use` — at the operand-1 `Use`, or at
+/// the operand-0 `Use` under the commuted left grammar that binds the
+/// operand-1 `Use` instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
@@ -651,6 +723,8 @@ enum SourceShape {
     RemainderIdentity,
     AndZero,
     AndZeroLeft,
+    XorZero,
+    XorZeroLeft,
 }
 
 impl SourceShape {
@@ -659,11 +733,13 @@ impl SourceShape {
             Self::BinaryImmediate
             | Self::DivideIdentity
             | Self::RemainderIdentity
-            | Self::AndZero => 1,
+            | Self::AndZero
+            | Self::XorZero => 1,
             Self::BinaryLeftImmediate
             | Self::UnaryExtension
             | Self::UnaryCopy
-            | Self::AndZeroLeft => 0,
+            | Self::AndZeroLeft
+            | Self::XorZeroLeft => 0,
         }
     }
 }
@@ -1012,6 +1088,10 @@ fn rebuild_function(
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             (rows.divide, SelectedInstructionKind::CopyI64)
         }
+        // An exclusive-or with a zero literal is the surviving operand:
+        // the validator rebuilds the consumer as a `CopyI64` bound to the
+        // `CopyI64` row the xor-zero policy gate selected.
+        SelectedInstructionKind::BitwiseXorI64 => (rows.xor_zero, SelectedInstructionKind::CopyI64),
         _ => (None, consumer.kind),
     };
     let row = row
