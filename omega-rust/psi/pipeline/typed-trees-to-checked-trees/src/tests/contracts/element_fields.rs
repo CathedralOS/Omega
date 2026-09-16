@@ -666,6 +666,124 @@ fn slice_view_runtime_index_still_needs_element_coverage() {
     check(&source, false);
 }
 
+/// A view names the source's elements under the same indices, so a dynamic
+/// floor proven on the receiver's element field (`rows[0].bytes.len > 0`)
+/// re-anchors below the view (`view[0].bytes`) at the binding.
+#[test]
+fn view_write_into_slice_field_uses_the_receiver_elements_length_floor() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data SliceRow {{ bytes: [u8]; tag: u64; }}
+        machine caller(rows: &mut [SliceRow; 2]) requires rows[0].bytes.len > 0; {{
+            let view: &mut [SliceRow] = rows.as_mut_slice();
+            view[0].bytes[0] = 255;
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// The same re-anchoring applies when the view's receiver is a machine field
+/// (`level.rooms`) rather than a bare parameter.
+#[test]
+fn view_write_into_slice_field_of_a_field_receiver() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data SliceRow {{ bytes: [u8]; tag: u64; }}
+        data Level {{ rooms: [SliceRow; 2]; }}
+        machine caller(level: &mut Level) requires level.rooms[0].bytes.len > 0; {{
+            let view: &mut [SliceRow] = level.rooms.as_mut_slice();
+            view[0].bytes[0] = 255;
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// A requires clause that itself indexes the element's slice field records the
+/// index proof; that proof re-anchors below the view too.
+#[test]
+fn view_write_into_slice_field_uses_the_elements_index_proof() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data SliceRow {{ bytes: [u8]; tag: u64; }}
+        machine caller(rows: &mut [SliceRow; 2], i: u64) requires rows[0].bytes[i] == 0; {{
+            let view: &mut [SliceRow] = rows.as_mut_slice();
+            view[0].bytes[i] = 255;
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// An owned copy carries the same bound-time element values, so the source's
+/// nested slice-field floor holds below the copy as well.
+#[test]
+fn copied_collection_keeps_the_elements_slice_field_floor() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data SliceRow {{ bytes: [u8]; tag: u64; }}
+        machine caller(rows: [SliceRow; 2]) requires rows[0].bytes.len > 0; {{
+            let mut copy: [SliceRow; 2] = rows;
+            copy[0].bytes[0] = 255;
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// Without any length evidence for the element's slice field, the nested
+/// write keeps its rejection — the view cannot invent a floor.
+#[test]
+fn view_write_into_slice_field_without_length_evidence_still_rejects() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data SliceRow {{ bytes: [u8]; tag: u64; }}
+        machine caller(rows: &mut [SliceRow; 2]) {{
+            let view: &mut [SliceRow] = rows.as_mut_slice();
+            view[0].bytes[0] = 255;
+        }}
+    "#
+    );
+    check_rejection(&source, false, "within unknown slice length");
+}
+
+/// The floor on `rows[0]`'s field says nothing about `rows[1]` — the
+/// sibling's nested write still has no extent to prove against.
+#[test]
+fn view_write_into_slice_field_rejects_an_unproven_sibling() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data SliceRow {{ bytes: [u8]; tag: u64; }}
+        machine caller(rows: &mut [SliceRow; 2]) requires rows[0].bytes.len > 0; {{
+            let view: &mut [SliceRow] = rows.as_mut_slice();
+            view[1].bytes[0] = 255;
+        }}
+    "#
+    );
+    check_rejection(&source, false, "within unknown slice length");
+}
+
+/// Rebinding the view retires the facts rooted at it: the nested floor `a`'s
+/// element supplied must not keep proving `view[0].bytes` once `view` names
+/// `b`'s elements instead.
+#[test]
+fn reassigned_view_drops_the_first_receivers_nested_field_floor() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        data SliceRow {{ bytes: [u8]; tag: u64; }}
+        machine caller(a: &mut [SliceRow; 2], b: &mut [SliceRow; 2])
+            requires a[0].bytes.len > 0;
+        {{
+            let mut view: &mut [SliceRow] = a.as_mut_slice();
+            view = b.as_mut_slice();
+            view[0].bytes[0] = 255;
+        }}
+    "#
+    );
+    check_rejection(&source, false, "within unknown slice length");
+}
+
 const COPY_ROW: &str = "data CopyRow [copy] { bytes: [u8; 4] in Utf8; tag: u64; }";
 
 /// A returned owned collection keeps the same call-expression result facts a
