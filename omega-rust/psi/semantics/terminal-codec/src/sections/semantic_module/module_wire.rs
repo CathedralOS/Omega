@@ -4,35 +4,28 @@
 //! vocabulary envelope. Individual declaration, machine, scalar, proof, and
 //! structural payloads remain in their dedicated sibling wire modules.
 //!
-//! This file encodes and decodes the module body.
-//! `carry_and_suspension_wire.rs` carries carry policies and suspension
-//! call plans, `borrow_wire.rs` borrow boundaries, places, accesses and
-//! reborrow handoffs and `recursive_component_wire.rs` proof recursive
-//! components.
+//! `encode_raw` and `decode_module_body` are the ordered section list: each
+//! row kind is encoded and decoded by a named pair in this folder
+//! (`declaration_wire`, `placed_view_wire`, `borrow_wire`,
+//! `float_meaning_wire`, `evidence_wire`, `proof_output_wire`,
+//! `recursive_component_wire`, `closed_conformance_wire`,
+//! `carry_and_suspension_wire`, `scalar_block_invariant_wire`) or in a
+//! sibling wire module.
 
 mod borrow_wire;
 mod carry_and_suspension_wire;
 mod recursive_component_wire;
 
-use super::proposition_wire::{decode_proposition, encode_proposition};
-use semantic_vocabulary::{ContentProjectionIdentity, IeeeFloatFormat};
-use terminal_psi::{
-    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
-    ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRow, DirectBlockFloatParameter,
-    DirectCallFloatResult, DirectMachineFloatParameter, DirectMachineFloatResult,
-    DirectOperationFloatResult, DirectStructuralFloatLeaf, EvidenceContractLane,
-    EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
-    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
-    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
-    ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-    ServiceDeclaration, StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
-    StructuralDomainDeclaration, TerminalModule, TerminalPlacedViewInput, TerminalRootServiceReach,
-    VocabularyMarker,
-};
+mod closed_conformance_wire;
+mod declaration_wire;
+mod evidence_wire;
+mod float_meaning_wire;
+mod placed_view_wire;
+mod proof_output_wire;
+mod scalar_block_invariant_wire;
 
-use super::content_wire::{decode_content_algebra, encode_content_algebra};
+use terminal_psi::{TerminalModule, TerminalRootServiceReach, VocabularyMarker};
+
 use super::dynamic_dispatch_wire::{
     decode_direct_dynamic_dispatches, decode_dynamic_conformance_selections,
     decode_dynamic_descriptor_arguments, decode_dynamic_descriptor_parameters,
@@ -45,19 +38,14 @@ use super::dynamic_dispatch_wire::{
     encode_stored_dynamic_descriptors, encode_stored_dynamic_dispatches,
 };
 use super::proof_declaration_wire::{
-    decode_evidence_interface, decode_proposition_application, decode_proposition_declaration,
-    encode_evidence_interface, encode_proposition_application, encode_proposition_declaration,
+    decode_proposition_application, decode_proposition_declaration, encode_proposition_application,
+    encode_proposition_declaration,
 };
 use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
 use super::quotient_correspondence_wire::{
     decode_quotient_correspondence, encode_quotient_correspondence,
 };
-use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
-use super::structural_field_wire::{decode_ieee_float_field, encode_ieee_float_field};
-use super::structural_signature_wire::{
-    decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
-    encode_content_projection_expression,
-};
+use super::structural_signature_wire::{decode_boundary_machine, encode_boundary_machine};
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::wire::{Reader, Writer};
 use super::{CodecError, FORMAT_MARKER, MAGIC};
@@ -87,26 +75,11 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     }
     writer.len("structural domains", module.structural_domains.len())?;
     for declaration in &module.structural_domains {
-        writer.id(declaration.id);
-        writer.id(declaration.semantic_domain);
-        writer.string("structural domain identity", &declaration.identity)?;
-        writer.id(declaration.carrier);
-        writer.boolean(declaration.content_projection.is_some());
-        if let Some(projection) = &declaration.content_projection {
-            writer.id(projection.identity.domain);
-            writer.u64(projection.identity.projection_report_fingerprint);
-            encode_content_algebra(&mut writer, &projection.algebra)?;
-            encode_content_projection_expression(&mut writer, &projection.expression)?;
-        }
+        declaration_wire::encode_structural_domain(&mut writer, declaration)?;
     }
     writer.len("services", module.services.len())?;
     for declaration in &module.services {
-        writer.id(declaration.id);
-        writer.string("service identity", &declaration.identity)?;
-        writer.len("service parents", declaration.parents.len())?;
-        for parent in &declaration.parents {
-            writer.id(*parent);
-        }
+        declaration_wire::encode_service(&mut writer, declaration)?;
     }
     writer.len(
         "concrete root service reach",
@@ -120,51 +93,11 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         module.root_service_reach.installation_dependencies.len(),
     )?;
     for dependency in &module.root_service_reach.installation_dependencies {
-        writer.string(
-            "installation reach requirement identity",
-            &dependency.requirement_identity,
-        )?;
-        writer.len(
-            "installation reach upper bound",
-            dependency.upper_bound.len(),
-        )?;
-        for service in &dependency.upper_bound {
-            writer.id(*service);
-        }
+        declaration_wire::encode_installation_reach_dependency(&mut writer, dependency)?;
     }
     writer.len("placed-view inputs", module.placed_view_inputs.len())?;
     for input in &module.placed_view_inputs {
-        writer.id(input.machine);
-        writer.u32(input.position);
-        writer.string(
-            "placed-view source machine identity",
-            &input.source_machine_identity,
-        )?;
-        writer.string(
-            "placed-view source state identity",
-            &input.source_state_identity,
-        )?;
-        writer.string(
-            "placed-view source parameter identity",
-            &input.source_parameter_identity,
-        )?;
-        writer.u8(match input.access {
-            StructuralAccess::Owned => 1,
-            StructuralAccess::SharedBorrow => 2,
-            StructuralAccess::MutableBorrow => 3,
-            StructuralAccess::WriteOnlyBorrow => 4,
-        });
-        writer.boolean(input.binding_is_const);
-        writer.boolean(input.binding_is_mutable);
-        writer.string("placed-view identity", &input.view_identity)?;
-        writer.string("placed-view policy identity", &input.policy_identity)?;
-        writer.string(
-            "placed-view policy-plan machine identity",
-            &input.policy_plan_machine_identity,
-        )?;
-        writer.string("placed-view schema identity", &input.schema_identity)?;
-        writer.u64(input.placement_report_fingerprint);
-        writer.bytes(&input.placement_commitment);
+        placed_view_wire::encode_placed_view_input(&mut writer, input)?;
     }
     writer.len(
         "reborrow root handoffs",
@@ -193,103 +126,14 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         module.float_meaning_projections.len(),
     )?;
     for projection in &module.float_meaning_projections {
-        writer.u32(projection.result.id.0);
-        writer.u8(match projection.result.value_type {
-            ProofOnlyValueType::FloatMeaning => 1,
-        });
-        match &projection.source {
-            FloatMeaningSource::TransitionalInput(input) => {
-                writer.u8(1);
-                writer.u32(input.id.0);
-                writer.u8(match input.format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            FloatMeaningSource::DirectMachineParameter(parameter) => {
-                writer.u8(4);
-                writer.id(parameter.owner);
-                writer.id(parameter.parameter);
-                writer.u8(match parameter.format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            FloatMeaningSource::DirectMachineResult(result) => {
-                writer.u8(5);
-                writer.id(result.owner);
-                writer.id(result.result);
-                writer.u8(match result.format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            FloatMeaningSource::DirectBlockParameter(parameter) => {
-                writer.u8(7);
-                writer.id(parameter.owner);
-                writer.id(parameter.block);
-                writer.id(parameter.parameter);
-                writer.u8(match parameter.format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            FloatMeaningSource::DirectOperationResult(result) => {
-                writer.u8(6);
-                writer.id(result.owner);
-                writer.id(result.producer);
-                writer.id(result.result);
-                writer.u8(match result.format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            FloatMeaningSource::DirectCallResult(result) => {
-                writer.u8(8);
-                writer.id(result.owner);
-                writer.id(result.producer);
-                writer.id(result.result);
-                writer.u8(match result.format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            FloatMeaningSource::DirectStructuralLeaf(leaf) => {
-                writer.u8(9);
-                writer.id(leaf.owner);
-                encode_ieee_float_field(&mut writer, &leaf.field)?;
-                writer.u8(match leaf.format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            FloatMeaningSource::ExactBinary32Literal(bits) => {
-                writer.u8(2);
-                writer.u32(*bits);
-            }
-            FloatMeaningSource::ExactBinary64Literal(bits) => {
-                writer.u8(3);
-                writer.u64(*bits);
-            }
-        }
-        writer.u8(match projection.operation {
-            FloatMeaningProjectionOperation::Meaning32 => 1,
-            FloatMeaningProjectionOperation::Meaning64 => 2,
-        });
-        writer.u16(projection.contract.format);
-        writer.u8(projection.contract.operation);
-        writer.u8(projection.contract.declaration);
-        writer.u16(projection.contract.catalog_version);
-        writer.bytes(&projection.contract.commitment);
+        float_meaning_wire::encode_float_meaning_projection(&mut writer, projection)?;
     }
     writer.len(
         "float-meaning equalities",
         module.float_meaning_equalities.len(),
     )?;
     for proposition in &module.float_meaning_equalities {
-        writer.u32(proposition.id.0);
-        writer.u32(proposition.left.0);
-        writer.u32(proposition.right.0);
+        float_meaning_wire::encode_float_meaning_equality(&mut writer, proposition)?;
     }
     writer.len(
         "proposition declarations",
@@ -307,105 +151,18 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     }
     writer.len("evidence terms", module.evidence_terms.len())?;
     for term in &module.evidence_terms {
-        writer.id(term.id);
-        writer.id(term.proposition);
-        encode_evidence_interface(&mut writer, &term.interface)?;
+        evidence_wire::encode_evidence_term(&mut writer, term)?;
     }
     writer.len(
         "evidence contract lanes",
         module.evidence_contract_lanes.len(),
     )?;
     for lane in &module.evidence_contract_lanes {
-        writer.id(lane.machine);
-        writer.u8(match lane.kind {
-            EvidenceContractLaneKind::Requires => 1,
-            EvidenceContractLaneKind::Ensures => 2,
-        });
-        writer.u32(lane.position);
-        writer.id(lane.term);
-        writer.boolean(lane.output_field.is_some());
-        if let Some(field) = &lane.output_field {
-            writer.string("evidence output field", field)?;
-        }
+        evidence_wire::encode_evidence_contract_lane(&mut writer, lane)?;
     }
     writer.len("proof-output invocations", module.proof_output_calls.len())?;
     for invocation in &module.proof_output_calls {
-        writer.id(invocation.caller);
-        writer.u32(invocation.ordinal);
-        writer.string(
-            "proof-output target machine identity",
-            &invocation.target_machine_identity,
-        )?;
-        writer.boolean(invocation.static_requirement_dispatch.is_some());
-        if let Some(dispatch) = &invocation.static_requirement_dispatch {
-            writer.u64(dispatch.conformance_application_report_fingerprint);
-            writer.bytes(&dispatch.conformance_application_commitment.as_bytes());
-            writer.string(
-                "static public requirement identity",
-                &dispatch.public_requirement_identity,
-            )?;
-            writer.string(
-                "static requirement declaring trait identity",
-                &dispatch.declaring_trait_identity,
-            )?;
-            writer.string(
-                "static requirement identity",
-                &dispatch.requirement_identity,
-            )?;
-            writer.string(
-                "static requirement realization identity",
-                &dispatch.realization_identity,
-            )?;
-            writer.string(
-                "static requirement realization callable identity",
-                &dispatch.realization_callable_identity,
-            )?;
-            writer.id(dispatch.realization);
-        }
-        writer.boolean(invocation.runtime_result.is_some());
-        if let Some(runtime_result) = invocation.runtime_result {
-            writer.boolean(matches!(
-                runtime_result,
-                ProofOutputRuntimeResult::Scalar(_)
-            ));
-            if let ProofOutputRuntimeResult::Scalar(runtime_value) = runtime_result {
-                encode_scalar_type(&mut writer, runtime_value);
-            }
-        }
-        writer.boolean(invocation.runtime_call.is_some());
-        if let Some(runtime_call) = invocation.runtime_call {
-            writer.id(runtime_call.operation);
-            writer.id(runtime_call.callee);
-        }
-        writer.len(
-            "proof-output evidence arguments",
-            invocation.evidence_arguments.len(),
-        )?;
-        for argument in &invocation.evidence_arguments {
-            writer.u32(argument.input_position);
-            writer.id(argument.callee_proposition);
-            writer.id(argument.source);
-            writer.id(argument.instantiated_proposition);
-        }
-        writer.len("proof outputs", invocation.outputs.len())?;
-        for output in &invocation.outputs {
-            writer.u32(output.output_position);
-            writer.string("proof-output field", &output.output_field)?;
-            writer.id(output.callee_proposition);
-            writer.boolean(output.callee_output.is_some());
-            if let Some(callee_output) = output.callee_output {
-                writer.id(callee_output);
-            }
-            writer.id(output.instantiated_proposition);
-            writer.boolean(output.forwarded_input_position.is_some());
-            if let Some(position) = output.forwarded_input_position {
-                writer.u32(position);
-            }
-            writer.boolean(output.output.is_some());
-            if let Some(output) = output.output {
-                writer.id(output);
-            }
-        }
+        proof_output_wire::encode_proof_output_call(&mut writer, invocation)?;
     }
     writer.len(
         "proof recursive components",
@@ -419,82 +176,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         module.closed_conformance_applications.len(),
     )?;
     for application in &module.closed_conformance_applications {
-        writer.id(application.owner);
-        writer.string(
-            "closed conformance declaration identity",
-            &application.declaration_identity,
-        )?;
-        writer.len("closed conformance telescope", application.telescope.len())?;
-        for binding in &application.telescope {
-            writer.string("closed conformance parameter", &binding.parameter)?;
-            writer.u8(match binding.kind {
-                ClosedConformanceParameterKind::Lifetime => 1,
-                ClosedConformanceParameterKind::Type => 2,
-                ClosedConformanceParameterKind::Const => 3,
-                ClosedConformanceParameterKind::Machine => 4,
-            });
-            writer.string("closed conformance argument", &binding.argument)?;
-        }
-        writer.boolean(application.subject_identity.is_some());
-        if let Some(subject) = &application.subject_identity {
-            writer.string("closed conformance subject identity", subject)?;
-        }
-        writer.string(
-            "closed conformance trait identity",
-            &application.trait_identity,
-        )?;
-        writer.strings(
-            "closed conformance trait lifetime arguments",
-            &application.trait_lifetime_arguments,
-        )?;
-        writer.strings(
-            "closed conformance trait arguments",
-            &application.trait_arguments,
-        )?;
-        writer.len(
-            "closed conformance realization callables",
-            application.realization_callables.len(),
-        )?;
-        for callable in &application.realization_callables {
-            writer.string(
-                "closed conformance realization callable identity",
-                &callable.source_callable_identity,
-            )?;
-            writer.id(callable.machine);
-            writer.u8(match callable.result {
-                ClosedConformanceCallableResult::Unit => 1,
-                ClosedConformanceCallableResult::I32 => 2,
-                ClosedConformanceCallableResult::Bool => 3,
-            });
-        }
-        writer.len("closed conformance rows", application.rows.len())?;
-        for row in &application.rows {
-            writer.string(
-                "closed conformance row declaring trait identity",
-                &row.declaring_trait_identity,
-            )?;
-            writer.string(
-                "closed conformance row public requirement identity",
-                &row.public_requirement_identity,
-            )?;
-            writer.string(
-                "closed conformance row requirement identity",
-                &row.requirement_identity,
-            )?;
-            writer.string(
-                "closed conformance row realization identity",
-                &row.realization_identity,
-            )?;
-            writer.boolean(row.realization_callable_identity.is_some());
-            if let Some(identity) = &row.realization_callable_identity {
-                writer.string(
-                    "closed conformance row realization callable identity",
-                    identity,
-                )?;
-            }
-        }
-        writer.u64(application.report_fingerprint);
-        writer.bytes(&application.commitment.as_bytes());
+        closed_conformance_wire::encode_closed_conformance_application(&mut writer, application)?;
     }
     encode_dynamic_descriptor_parameters(&mut writer, &module.dynamic_dispatch.parameters)?;
     encode_dynamic_descriptor_arguments(&mut writer, &module.dynamic_dispatch.arguments)?;
@@ -529,14 +211,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         module.scalar_block_invariants.len(),
     )?;
     for invariant in &module.scalar_block_invariants {
-        writer.id(invariant.machine);
-        writer.id(invariant.header);
-        encode_proposition(&mut writer, &invariant.predicate, 0)?;
-        writer.len("scalar block invariant arrivals", invariant.arrivals.len())?;
-        for arrival in &invariant.arrivals {
-            writer.id(arrival.edge);
-            writer.id(arrival.obligation);
-        }
+        scalar_block_invariant_wire::encode_scalar_block_invariant(&mut writer, invariant)?;
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
@@ -556,174 +231,22 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let entry = reader.id("MachineId")?;
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
-    let structural_domains = decode_counted(reader, |reader| {
-        Ok(StructuralDomainDeclaration {
-            id: reader.id("StructuralDomainId")?,
-            semantic_domain: reader.id("DomainSemanticId")?,
-            identity: reader.string("structural domain identity")?,
-            carrier: reader.id("StructuralTypeId")?,
-            content_projection: if reader.boolean()? {
-                Some(StructuralContentProjection {
-                    identity: ContentProjectionIdentity {
-                        domain: reader.id("ContentDomainId")?,
-                        projection_report_fingerprint: reader.u64()?,
-                    },
-                    algebra: decode_content_algebra(reader)?,
-                    expression: decode_content_projection_expression(reader, 0)?,
-                })
-            } else {
-                None
-            },
-        })
-    })?;
-    let services = decode_counted(reader, |reader| {
-        Ok(ServiceDeclaration {
-            id: reader.id("ServiceId")?,
-            identity: reader.string("service identity")?,
-            parents: decode_ids(reader, "ServiceId")?,
-        })
-    })?;
+    let structural_domains = decode_counted(reader, declaration_wire::decode_structural_domain)?;
+    let services = decode_counted(reader, declaration_wire::decode_service)?;
     let concrete_root_service_reach = decode_ids(reader, "ServiceId")?;
-    let installation_reach_dependencies = decode_counted(reader, |reader| {
-        Ok(InstallationReachDependency {
-            requirement_identity: reader.string("installation reach requirement identity")?,
-            upper_bound: decode_ids(reader, "ServiceId")?,
-        })
-    })?;
-    let placed_view_inputs = decode_counted(reader, |reader| {
-        Ok(TerminalPlacedViewInput {
-            machine: reader.id("MachineId")?,
-            position: reader.u32()?,
-            source_machine_identity: reader.string("placed-view source machine identity")?,
-            source_state_identity: reader.string("placed-view source state identity")?,
-            source_parameter_identity: reader.string("placed-view source parameter identity")?,
-            access: match reader.u8()? {
-                1 => StructuralAccess::Owned,
-                2 => StructuralAccess::SharedBorrow,
-                3 => StructuralAccess::MutableBorrow,
-                4 => StructuralAccess::WriteOnlyBorrow,
-                tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
-            },
-            binding_is_const: reader.boolean()?,
-            binding_is_mutable: reader.boolean()?,
-            view_identity: reader.string("placed-view identity")?,
-            policy_identity: reader.string("placed-view policy identity")?,
-            policy_plan_machine_identity: reader
-                .string("placed-view policy-plan machine identity")?,
-            schema_identity: reader.string("placed-view schema identity")?,
-            placement_report_fingerprint: reader.u64()?,
-            placement_commitment: reader.array()?,
-        })
-    })?;
+    let installation_reach_dependencies = decode_counted(
+        reader,
+        declaration_wire::decode_installation_reach_dependency,
+    )?;
+    let placed_view_inputs = decode_counted(reader, placed_view_wire::decode_placed_view_input)?;
     let reborrow_root_handoffs = decode_counted(reader, decode_reborrow_root_handoff)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
-    let float_meaning_projections = decode_counted(reader, |reader| {
-        Ok(FloatMeaningProjection {
-            result: ProofValueDeclaration {
-                id: ProofValueId(reader.u32()?),
-                value_type: match reader.u8()? {
-                    1 => ProofOnlyValueType::FloatMeaning,
-                    tag => return Err(CodecError::InvalidTag("ProofOnlyValueType", tag)),
-                },
-            },
-            source: match reader.u8()? {
-                1 => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                    id: FloatProjectionInputId(reader.u32()?),
-                    format: match reader.u8()? {
-                        1 => IeeeFloatFormat::Binary32,
-                        2 => IeeeFloatFormat::Binary64,
-                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                    },
-                }),
-                2 => FloatMeaningSource::ExactBinary32Literal(reader.u32()?),
-                3 => FloatMeaningSource::ExactBinary64Literal(reader.u64()?),
-                4 => FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
-                    owner: reader.id("float-meaning direct parameter owner")?,
-                    parameter: reader.id("float-meaning direct parameter value")?,
-                    format: match reader.u8()? {
-                        1 => IeeeFloatFormat::Binary32,
-                        2 => IeeeFloatFormat::Binary64,
-                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                    },
-                }),
-                5 => FloatMeaningSource::DirectMachineResult(DirectMachineFloatResult {
-                    owner: reader.id("float-meaning direct result owner")?,
-                    result: reader.id("float-meaning direct result value")?,
-                    format: match reader.u8()? {
-                        1 => IeeeFloatFormat::Binary32,
-                        2 => IeeeFloatFormat::Binary64,
-                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                    },
-                }),
-                6 => FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
-                    owner: reader.id("float-meaning direct operation-result owner")?,
-                    producer: reader.id("float-meaning direct operation-result producer")?,
-                    result: reader.id("float-meaning direct operation-result value")?,
-                    format: match reader.u8()? {
-                        1 => IeeeFloatFormat::Binary32,
-                        2 => IeeeFloatFormat::Binary64,
-                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                    },
-                }),
-                7 => FloatMeaningSource::DirectBlockParameter(DirectBlockFloatParameter {
-                    owner: reader.id("float-meaning direct block-parameter owner")?,
-                    block: reader.id("float-meaning direct block-parameter block")?,
-                    parameter: reader.id("float-meaning direct block-parameter value")?,
-                    format: match reader.u8()? {
-                        1 => IeeeFloatFormat::Binary32,
-                        2 => IeeeFloatFormat::Binary64,
-                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                    },
-                }),
-                8 => FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
-                    owner: reader.id("float-meaning direct call-result owner")?,
-                    producer: reader.id("float-meaning direct call-result producer")?,
-                    result: reader.id("float-meaning direct call-result value")?,
-                    format: match reader.u8()? {
-                        1 => IeeeFloatFormat::Binary32,
-                        2 => IeeeFloatFormat::Binary64,
-                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                    },
-                }),
-                9 => FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
-                    owner: reader.id("float-meaning direct structural-leaf owner")?,
-                    field: decode_ieee_float_field(reader)?,
-                    format: match reader.u8()? {
-                        1 => IeeeFloatFormat::Binary32,
-                        2 => IeeeFloatFormat::Binary64,
-                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                    },
-                }),
-                tag => return Err(CodecError::InvalidTag("FloatMeaningSource", tag)),
-            },
-            operation: match reader.u8()? {
-                1 => FloatMeaningProjectionOperation::Meaning32,
-                2 => FloatMeaningProjectionOperation::Meaning64,
-                tag => {
-                    return Err(CodecError::InvalidTag(
-                        "FloatMeaningProjectionOperation",
-                        tag,
-                    ));
-                }
-            },
-            contract: terminal_psi::FloatProjectionContractIdentity {
-                format: reader.u16()?,
-                operation: reader.u8()?,
-                declaration: reader.u8()?,
-                catalog_version: reader.u16()?,
-                commitment: reader.array()?,
-            },
-        })
-    })?;
-    let float_meaning_equalities = decode_counted(reader, |reader| {
-        Ok(FloatMeaningEqualityProposition {
-            id: ProofPropositionId(reader.u32()?),
-            left: ProofValueId(reader.u32()?),
-            right: ProofValueId(reader.u32()?),
-        })
-    })?;
+    let float_meaning_projections =
+        decode_counted(reader, float_meaning_wire::decode_float_meaning_projection)?;
+    let float_meaning_equalities =
+        decode_counted(reader, float_meaning_wire::decode_float_meaning_equality)?;
     let count = reader.count()?;
     let mut proposition_declarations = Vec::with_capacity(count as usize);
     for _ in 0..count {
@@ -734,176 +257,15 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     for _ in 0..count {
         proposition_applications.push(decode_proposition_application(reader)?);
     }
-    let evidence_terms = decode_counted(reader, |reader| {
-        Ok(EvidenceTermDeclaration {
-            id: reader.id("EvidenceTermId")?,
-            proposition: reader.id("PropositionId")?,
-            interface: decode_evidence_interface(reader)?,
-        })
-    })?;
-    let evidence_contract_lanes = decode_counted(reader, |reader| {
-        let machine = reader.id("MachineId")?;
-        let kind = match reader.u8()? {
-            1 => EvidenceContractLaneKind::Requires,
-            2 => EvidenceContractLaneKind::Ensures,
-            tag => return Err(CodecError::InvalidTag("EvidenceContractLaneKind", tag)),
-        };
-        Ok(EvidenceContractLane {
-            machine,
-            kind,
-            position: reader.u32()?,
-            term: reader.id("EvidenceTermId")?,
-            output_field: reader
-                .boolean()?
-                .then(|| reader.string("evidence output field"))
-                .transpose()?,
-        })
-    })?;
-    let proof_output_calls = decode_counted(reader, |reader| {
-        Ok(ProofOutputCall {
-            caller: reader.id("MachineId")?,
-            ordinal: reader.u32()?,
-            target_machine_identity: reader.string("proof-output target machine identity")?,
-            static_requirement_dispatch: reader
-                .boolean()?
-                .then(|| {
-                    Ok(StaticRequirementDispatch {
-                        conformance_application_report_fingerprint: reader.u64()?,
-                        conformance_application_commitment:
-                            ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
-                        public_requirement_identity: reader
-                            .string("static public requirement identity")?,
-                        declaring_trait_identity: reader
-                            .string("static requirement declaring trait identity")?,
-                        requirement_identity: reader.string("static requirement identity")?,
-                        realization_identity: reader
-                            .string("static requirement realization identity")?,
-                        realization_callable_identity: reader
-                            .string("static requirement realization callable identity")?,
-                        realization: reader.id("MachineId")?,
-                    })
-                })
-                .transpose()?,
-            runtime_result: reader
-                .boolean()?
-                .then(|| {
-                    Ok(if reader.boolean()? {
-                        ProofOutputRuntimeResult::Scalar(decode_scalar_type(reader)?)
-                    } else {
-                        ProofOutputRuntimeResult::Unit
-                    })
-                })
-                .transpose()?,
-            runtime_call: reader
-                .boolean()?
-                .then(|| {
-                    Ok(ProofOutputRuntimeCall {
-                        operation: reader.id("OperationId")?,
-                        callee: reader.id("MachineId")?,
-                    })
-                })
-                .transpose()?,
-            evidence_arguments: decode_counted(reader, |reader| {
-                Ok(ProofOutputEvidenceArgument {
-                    input_position: reader.u32()?,
-                    callee_proposition: reader.id("PropositionId")?,
-                    source: reader.id("EvidenceTermId")?,
-                    instantiated_proposition: reader.id("PropositionId")?,
-                })
-            })?,
-            outputs: decode_counted(reader, |reader| {
-                Ok(ProofOutput {
-                    output_position: reader.u32()?,
-                    output_field: reader.string("proof-output field")?,
-                    callee_proposition: reader.id("PropositionId")?,
-                    callee_output: reader
-                        .boolean()?
-                        .then(|| reader.id("EvidenceTermId"))
-                        .transpose()?,
-                    instantiated_proposition: reader.id("PropositionId")?,
-                    forwarded_input_position: reader
-                        .boolean()?
-                        .then(|| reader.u32())
-                        .transpose()?,
-                    output: reader
-                        .boolean()?
-                        .then(|| reader.id("EvidenceTermId"))
-                        .transpose()?,
-                })
-            })?,
-        })
-    })?;
+    let evidence_terms = decode_counted(reader, evidence_wire::decode_evidence_term)?;
+    let evidence_contract_lanes =
+        decode_counted(reader, evidence_wire::decode_evidence_contract_lane)?;
+    let proof_output_calls = decode_counted(reader, proof_output_wire::decode_proof_output_call)?;
     let proof_recursive_components = decode_counted(reader, decode_proof_recursive_component)?;
-    let closed_conformance_applications = decode_counted(reader, |reader| {
-        Ok(ClosedConformanceApplication {
-            owner: reader.id("MachineId")?,
-            declaration_identity: reader.string("closed conformance declaration identity")?,
-            telescope: decode_counted(reader, |reader| {
-                Ok(ClosedConformanceParameterBinding {
-                    parameter: reader.string("closed conformance parameter")?,
-                    kind: match reader.u8()? {
-                        1 => ClosedConformanceParameterKind::Lifetime,
-                        2 => ClosedConformanceParameterKind::Type,
-                        3 => ClosedConformanceParameterKind::Const,
-                        4 => ClosedConformanceParameterKind::Machine,
-                        tag => {
-                            return Err(CodecError::InvalidTag(
-                                "ClosedConformanceParameterKind",
-                                tag,
-                            ));
-                        }
-                    },
-                    argument: reader.string("closed conformance argument")?,
-                })
-            })?,
-            subject_identity: reader
-                .boolean()?
-                .then(|| reader.string("closed conformance subject identity"))
-                .transpose()?,
-            trait_identity: reader.string("closed conformance trait identity")?,
-            trait_lifetime_arguments: reader
-                .strings("closed conformance trait lifetime arguments")?,
-            trait_arguments: reader.strings("closed conformance trait arguments")?,
-            realization_callables: decode_counted(reader, |reader| {
-                Ok(terminal_psi::ClosedConformanceRealizationCallable {
-                    source_callable_identity: reader
-                        .string("closed conformance realization callable identity")?,
-                    machine: reader.id("MachineId")?,
-                    result: match reader.u8()? {
-                        1 => ClosedConformanceCallableResult::Unit,
-                        2 => ClosedConformanceCallableResult::I32,
-                        3 => ClosedConformanceCallableResult::Bool,
-                        tag => {
-                            return Err(CodecError::InvalidTag(
-                                "ClosedConformanceCallableResult",
-                                tag,
-                            ));
-                        }
-                    },
-                })
-            })?,
-            rows: decode_counted(reader, |reader| {
-                Ok(ClosedConformanceRow {
-                    declaring_trait_identity: reader
-                        .string("closed conformance row declaring trait identity")?,
-                    public_requirement_identity: reader
-                        .string("closed conformance row public requirement identity")?,
-                    requirement_identity: reader
-                        .string("closed conformance row requirement identity")?,
-                    realization_identity: reader
-                        .string("closed conformance row realization identity")?,
-                    realization_callable_identity: reader
-                        .boolean()?
-                        .then(|| {
-                            reader.string("closed conformance row realization callable identity")
-                        })
-                        .transpose()?,
-                })
-            })?,
-            report_fingerprint: reader.u64()?,
-            commitment: ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
-        })
-    })?;
+    let closed_conformance_applications = decode_counted(
+        reader,
+        closed_conformance_wire::decode_closed_conformance_application,
+    )?;
     let (
         dynamic_descriptor_parameters,
         dynamic_descriptor_arguments,
@@ -931,19 +293,10 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, decode_suspension_call_plan)?,
     );
     let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
-    let scalar_block_invariants = decode_counted(reader, |reader| {
-        Ok(terminal_psi::ScalarBlockInvariant {
-            machine: reader.id("MachineId")?,
-            header: reader.id("BlockId")?,
-            predicate: decode_proposition(reader, 0)?,
-            arrivals: decode_counted(reader, |reader| {
-                Ok(terminal_psi::ScalarBlockInvariantArrival {
-                    edge: reader.id("EdgeId")?,
-                    obligation: reader.id("ObligationId")?,
-                })
-            })?,
-        })
-    })?;
+    let scalar_block_invariants = decode_counted(
+        reader,
+        scalar_block_invariant_wire::decode_scalar_block_invariant,
+    )?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
