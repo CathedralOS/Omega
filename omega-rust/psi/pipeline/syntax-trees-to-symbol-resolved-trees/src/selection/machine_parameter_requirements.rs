@@ -170,18 +170,12 @@ fn resolve_rendered_requirement(
         return Err("expected one exact `Trait::requirement` path");
     }
     let trait_name = trait_path.join("::");
-    let matching_traits = program
-        .traits
-        .iter()
-        .filter(|definition| {
-            crate::selection::signature_free_requirements::same_semantic_name(
-                definition.name.as_str(),
-                &trait_name,
-            ) && program
-                .symbols
-                .source_reference_can_see_symbol(use_span, definition.symbol)
-        })
-        .collect::<Vec<_>>();
+    let matching_traits =
+        crate::selection::signature_free_requirements::signature_free_trait_candidates(
+            program,
+            &trait_name,
+            use_span,
+        );
     let [trait_definition] = matching_traits.as_slice() else {
         return Err("path does not resolve to one exact trait");
     };
