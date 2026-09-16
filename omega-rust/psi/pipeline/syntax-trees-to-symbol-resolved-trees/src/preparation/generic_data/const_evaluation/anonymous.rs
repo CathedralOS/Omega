@@ -17,7 +17,7 @@ pub(in crate::preparation::generic_data) struct AnonymousNumericValue {
 
 /// Named values and prior landings stay with the declared integer evaluator.
 /// This pass has no declaration-selection authority: the shared anonymous
-/// classifier declines when an authored spelling could supply the meaning.
+/// classifier declines if an authored spelling could supply the meaning.
 pub(super) fn evaluate_anonymous_integer_argument(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
