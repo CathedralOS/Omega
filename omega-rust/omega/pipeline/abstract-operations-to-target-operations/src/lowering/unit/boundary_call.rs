@@ -9,7 +9,9 @@ use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 mod normalized_foreign;
 
 #[cfg(test)]
-use normalized_foreign::lower_normalized_foreign_scalar_arguments;
+use normalized_foreign::{
+    lower_normalized_foreign_scalar_arguments, lower_normalized_foreign_structural_arguments,
+};
 use normalized_foreign::{
     lower_normalized_foreign_scalar_arguments_with_result, lower_normalized_foreign_scalar_result,
 };
@@ -65,6 +67,24 @@ pub(in crate::lowering) fn lower_boundary_call(
                     result.scalar(),
                     &foreign.boundary_entry_plan,
                 )?;
+                let structural_arguments =
+                    normalized_foreign::lower_normalized_foreign_structural_arguments(
+                        *boundary,
+                        function.machine,
+                        target,
+                        declaration,
+                        structural_arguments,
+                        &foreign.boundary_entry_plan,
+                        structural_types,
+                        parameters_by_place,
+                        shape_cache,
+                        active,
+                        native_callback,
+                    )?;
+                let structural_parameter_shapes = structural_arguments
+                    .iter()
+                    .map(|argument| argument.destination.shape)
+                    .collect::<Vec<_>>();
                 let scalar_arguments = lower_normalized_foreign_scalar_arguments_with_result(
                     *boundary,
                     declaration,
@@ -73,12 +93,11 @@ pub(in crate::lowering) fn lower_boundary_call(
                     scalar_values,
                     result_home.map(|home| home.shape),
                     native_callback,
+                    &structural_parameter_shapes,
                 )?;
                 if arguments.len() != declaration.scalar_parameters.len()
-                    || !structural_arguments.is_empty()
                     || !completion_claim_sources.is_empty()
                     || !completion_receipts.is_empty()
-                    || !declaration.structural_parameters.is_empty()
                     || (result_home.is_some() && function.attachment.is_none())
                     || foreign.boundary_entry_plan.call.policy
                         != calling_conventions::CallingPolicy::native_for_target(target)
@@ -111,6 +130,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     provider_execution,
                     binding: foreign.clone(),
                     scalar_arguments,
+                    structural_arguments,
                     result_home,
                 });
                 provenance.operations.push(*psi_operation);

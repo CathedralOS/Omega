@@ -3,10 +3,11 @@
 use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
-    ProviderExecutionBinding, TargetBoundaryResult, TargetDynamicDescriptorArgument,
-    TargetIeeeFloatFmaOperand, TargetStructuralArgument, TargetStructuralHomeRequirement,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
-    TargetUnitWriteOnlyPrimitiveStoreSource, TargetX86ScalarFmaSettlement,
+    NormalizedForeignStructuralArgument, ProviderExecutionBinding, TargetBoundaryResult,
+    TargetDynamicDescriptorArgument, TargetIeeeFloatFmaOperand, TargetStructuralArgument,
+    TargetStructuralHomeRequirement, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement, TargetUnitWriteOnlyPrimitiveStoreSource,
+    TargetX86ScalarFmaSettlement,
 };
 use abstract_operations::{
     AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
@@ -348,13 +349,21 @@ pub enum TargetUnitOperation {
     /// this exact carrier; lowering never accepts locator or calling-plan
     /// strings from the call site. The bounded scalar lane admits fixed-width
     /// integer constants and exact preceding scalar-result homes in the
-    /// evaluated plan's register placements.
+    /// evaluated plan's register placements. The bounded structural lane
+    /// admits source-rooted borrowed flat-record arguments whose projected
+    /// referent pointer occupies one exact plan placement.
     NormalizedForeignCall {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         provider_execution: ProviderExecutionBinding,
         binding: NormalizedForeignCallBinding,
         scalar_arguments: Vec<NormalizedForeignScalarArgument>,
+        /// Source-rooted structural arguments in evaluated boundary-plan
+        /// order. Lowering admits them only while the scalar lane is empty:
+        /// the Terminal declaration erases the authored interleave of scalar
+        /// and structural formals, so a mixed signature cannot rejoin its
+        /// exact plan positions without a wider coordinate.
+        structural_arguments: Vec<NormalizedForeignStructuralArgument>,
         /// Optional fixed-integer result retained in the attached Unit frame.
         /// The evaluated plan must place the complete 8/16/32/64-bit signed or
         /// unsigned value in one register; later calls may consume this home.
