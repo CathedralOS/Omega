@@ -13,6 +13,8 @@
 //! and slot resolution; the remaining files carry bindings, reach,
 //! intrinsics, provenance replay and receipts.
 
+pub(crate) mod selection;
+
 mod external_binding_rows;
 mod installation_reach;
 #[cfg(feature = "installed-writer")]

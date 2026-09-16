@@ -484,5 +484,4 @@ fn selected_source_boundary_entry_plan(
 }
 
 #[cfg(test)]
-#[path = "external_binding_rows/tests.rs"]
 mod tests;

@@ -1,8 +1,7 @@
 //! Provider selection keys, provenance, indices and slot resolution.
 
-use crate::{
-    DerivedProviderPlan, ProviderPlanProvenance, validate_derived_provider_plan_provenance,
-};
+use crate::provider_planning::provenance_replay::validate_derived_provider_plan_provenance;
+use crate::{DerivedProviderPlan, ProviderPlanProvenance};
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
 use typed_trees::TypedTrees;

@@ -601,7 +601,7 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
             &["normalized_foreign_locator_identity"][..],
         ),
         (
-            "omega-rust/omega/build/provider-planning/src/task_plans.rs",
+            "omega-rust/omega/build/provider-planning/src/task_plans/mod.rs",
             &[
                 "fn stack_representation_identity",
                 "fn signature_layout_identity",
@@ -614,7 +614,7 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
             &["fn callback_nominal_identity"][..],
         ),
         (
-            "omega-rust/omega/build/provider-planning/src/calling_policy_plans.rs",
+            "omega-rust/omega/build/provider-planning/src/calling_policy_plans/mod.rs",
             &["fn callback_plan_identity"][..],
         ),
     ];
@@ -717,7 +717,7 @@ fn provider_service_calling_plan_reports_retain_strong_commitments() {
         provider.contains("pub calling_plan_commitment: Option<BoundaryCallingPlanCommitment>")
     );
     let derivation = fs::read_to_string(
-        root.join("omega-rust/omega/build/provider-planning/src/service_schema.rs"),
+        root.join("omega-rust/omega/build/provider-planning/src/service_schema/mod.rs"),
     )
     .unwrap();
     assert!(derivation.contains("boundary_calling_plan_identity_for_arguments"));
