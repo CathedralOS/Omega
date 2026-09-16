@@ -43,56 +43,58 @@
 //!
 //! `admitted_build_program.rs` is the root: the admission request, the
 //! admitted program and `admit_build_program`. `execution.rs` runs an admitted
-//! program and assembles its checked result. The other modules each own one
-//! input or evidence family the two consult: configuration, declarations,
-//! filesystem scope, observations, optimization, provider settlement, replay
-//! eligibility and records, selection, target machines, vocabulary and the
-//! wire protocol.
+//! program and assembles its checked result. `admission/` owns what the build
+//! program declares and selects (selection, target machines, vocabulary,
+//! declarations, wire protocol, behavior exclusions, configuration), and
+//! `evidence/` owns the evaluation evidence execution consults (observations
+//! and their identity, filesystem scope, replay eligibility and records).
+//! `optimization` and `provider_settlement` own their own admissions.
 
+mod admission;
 mod admitted_build_program;
-mod behavior_exclusions;
-mod configuration;
-mod declarations;
+mod evidence;
 mod execution;
-mod filesystem_scope;
-mod observation_identity;
-mod observations;
 mod optimization;
 mod provider_settlement;
-mod replay_eligibility;
-mod replay_record;
-mod selection;
-pub mod target_machines;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 #[cfg(test)]
 mod tests;
-mod vocabulary;
-mod wire_protocol;
 
-pub use admitted_build_program::{
-    AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
-    AdmittedBuildTargetInputs, BuildSnapshotRequest, ComputedBuildConfig, admit_build_program,
-    reject_uncompiled_generated_sources,
-};
-pub use behavior_exclusions::{
+pub use admission::behavior_exclusions::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusion,
     BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, EvidenceGap,
     EvidenceGapKind, ProhibitedBehavior, ProhibitedSite, authored_behavior_exclusion_set,
     establish_behavior_exclusions,
 };
-pub use configuration::{ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests};
-pub use declarations::{
+pub use admission::configuration::{
+    ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests,
+};
+pub use admission::declarations::{
     WireCompatibilityDemand, harvest_behavior_exclusions, harvest_provider_selections,
     harvest_root_grants,
 };
-pub use execution::execute_admitted_build_program;
-pub use filesystem_scope::preparation::prepare_filesystem_scope;
-pub use filesystem_scope::{
+pub use admission::selection::root_bindings::RootBinding;
+pub use admission::selection::{
+    SelectedCompilerProgramEntry, SelectedProgramEntry, SelectedProgramEntryCallingPlans,
+    program_entry_semantic_binding_role, select_compiler_program_entry,
+    selected_program_entry_machine, validate_selected_program_entry_calling_plan,
+    validate_selected_program_entry_shape,
+};
+pub use admission::target_machines;
+pub use admission::vocabulary::is_build_machine;
+pub use admission::wire_protocol::validate_wire_protocol;
+pub use admitted_build_program::{
+    AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
+    AdmittedBuildTargetInputs, BuildSnapshotRequest, ComputedBuildConfig, admit_build_program,
+    reject_uncompiled_generated_sources,
+};
+pub use evidence::filesystem_scope::preparation::prepare_filesystem_scope;
+pub use evidence::filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
-pub use observation_identity::BuildObservationIdentity;
-pub use observations::{
+pub use evidence::observation_identity::BuildObservationIdentity;
+pub use evidence::observations::{
     BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION, BUILD_OBSERVATION_SCHEMA_VERSION,
     BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory, BuildEvaluationUsage,
     BuildFilesystemAuthorizedPath, BuildFilesystemByteOperand, BuildFilesystemGrantAccess,
@@ -112,19 +114,11 @@ pub use observations::{
     BuildFilesystemScalarOperandValue, BuildIncludedSourceHandoff, BuildObservationClass,
     BuildObservationSummary, BuildReplayActivation, BuildRequiredOutputSettlement,
 };
-pub use provider_settlement::{CheckedProviderSelection, settle_checked_providers};
-pub use replay_record::{
+pub use evidence::replay_record::{
     BuildFilesystemReplayRecordError, BuildFilesystemReplayRecordLimits,
     ReviewOnlyBuildFilesystemReplayRecord, capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
     rehydrate_review_only_build_filesystem_replay_record,
 };
-pub use selection::root_bindings::RootBinding;
-pub use selection::{
-    SelectedCompilerProgramEntry, SelectedProgramEntry, SelectedProgramEntryCallingPlans,
-    program_entry_semantic_binding_role, select_compiler_program_entry,
-    selected_program_entry_machine, validate_selected_program_entry_calling_plan,
-    validate_selected_program_entry_shape,
-};
-pub use vocabulary::is_build_machine;
-pub use wire_protocol::validate_wire_protocol;
+pub use execution::execute_admitted_build_program;
+pub use provider_settlement::{CheckedProviderSelection, settle_checked_providers};

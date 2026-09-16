@@ -1,8 +1,8 @@
 //! Projecting the retained filesystem attempts and generated-source handoffs
 //! of a successful run into the durable observation rows.
 
-use crate::filesystem_scope::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY};
-use crate::observations::{
+use crate::evidence::filesystem_scope::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY};
+use crate::evidence::observations::{
     BuildFilesystemAuthorizedPath, BuildFilesystemByteOperand, BuildFilesystemGrantAccess,
     BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInput, BuildFilesystemLogicalHandleOutput,

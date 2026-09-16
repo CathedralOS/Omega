@@ -1,7 +1,7 @@
 //! Recognizing the replayable shape of a measured run's filesystem
 //! observations and rebuilding the Output tree its receipts describe.
 
-use crate::replay_eligibility::{
+use crate::evidence::replay_eligibility::{
     ReceiptedOutputEntry, ReceiptedOutputFile, complete_no_output_failure_suffix_is_recognized,
     errno_tag, exact_source_write_refusal, get_last_error_tag, is_source_input_replay_record,
     operand_free_unknown_descriptor_operation_tag, source_input_replay_prefix_end,
