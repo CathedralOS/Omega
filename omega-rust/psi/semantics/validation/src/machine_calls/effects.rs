@@ -58,7 +58,7 @@ pub fn validate_behavior_plan(
         }
     }
 
-    crate::finish_diagnostics(diagnostics)
+    crate::program_validation::finish_diagnostics(diagnostics)
 }
 
 fn validate_service_reach_ceilings(

@@ -222,7 +222,6 @@ mod program_validation;
 mod proof_contracts;
 mod value_custody;
 pub use machine_calls::reference_result_custody;
-pub(crate) use program_validation::finish_diagnostics;
 pub use program_validation::{
     ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,
     OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,

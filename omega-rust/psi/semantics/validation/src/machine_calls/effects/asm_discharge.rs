@@ -41,7 +41,7 @@ pub fn validate_asm_discharge(
         }
     }
 
-    crate::finish_diagnostics(diagnostics)
+    crate::program_validation::finish_diagnostics(diagnostics)
 }
 
 /// Direct assembly emission declares its canonical service at the instruction
