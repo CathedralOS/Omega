@@ -3202,16 +3202,18 @@ Owners include
   `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources.
   Keep IEEE runtime comparison distinct from mathematical meaning equality;
   NaN payloads erase only in the meaning projection and signed zeros remain
-  distinct there. Resume: terminal-interpreter boundary dispatch now executes
+  distinct there. Landed: terminal-interpreter boundary dispatch executes
   installed scalar-result providers through the shared suspended scalar frame
   (`call_operations.rs`/`call_frames.rs`, witnessed by
-  `terminal_interpreter/scalar_provider_call_tests.rs`). Open: verifier
-  provider-result conformance still lacks a
-  `(BoundaryMachineResult::Scalar, TerminalMachineResult::Scalar)` arm
-  (`terminal-verifier` `validation/foundation/provider_result.rs`), so
-  codec representation validation and artifact
-  admission still reject scalar provider rows; kernel discharge and
-  artifact-aware proof sources remain.
+  `terminal_interpreter/scalar_provider_call_tests.rs`), and verifier
+  provider-result conformance admits
+  `(BoundaryMachineResult::Scalar, TerminalMachineResult::Scalar)` pairs with
+  the structural arm's closure (`validation/foundation/provider_result.rs`),
+  so codec representation validation and artifact admission accept scalar
+  provider rows. Open: kernel discharge and the remaining artifact-aware
+  proof sources — the checked `DirectOperationResult`/`DirectCallResult`
+  float source classes and their producer rejoin; the Terminal source
+  identities and verifier rejoins already exist.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
