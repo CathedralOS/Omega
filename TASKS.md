@@ -2554,9 +2554,16 @@ Owners include
   `fail/generics/declared_range_endpoint_boolean_result_rejected`); the
   bound position, bound arithmetic and signature bounds keep the integer
   carrier, and comparisons/negation in Boolean arguments stay outside.
-  Nominal/policy qualifications, generic calls (which need type-position
-  static demand in monomorphization and reverse a pinned rejection),
-  trait-operator owners and open symbolic endpoints remain. Omitted data
+  Fully supplied static generic applications fold at e081667381
+  (`u64[0..=identity<256>()]`, const-declaration and Boolean arguments)
+  through the prepared program's existing type-position specialization;
+  partial applications reject with the monomorphizer's "cannot be derived"
+  and inference-needing calls stay outside
+  (`generics/declared_range_endpoint_static_applications`,
+  `fail/generics/declared_range_endpoint_partial_static_application_rejected`).
+  Nominal/policy qualifications, trait-operator owners, applications with
+  type/machine/evidence binders, templates whose signature bounds carry
+  named endpoint calls, and open symbolic endpoints remain. Omitted data
   binders (`data TinyBytes<u64[0..=256]>` still reports "expected 2
   arguments but got 1") need generic-data instance synthesis in
   `syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/` to
