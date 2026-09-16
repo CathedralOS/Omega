@@ -4,7 +4,8 @@ use super::{
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, DataMember, ExpressionNode,
-    Multiplicity, PrimitiveType, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
+    Multiplicity, PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode,
+    TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::ShapeCollector;
 
@@ -439,9 +440,26 @@ fn primitive_projection(
             _ => return None,
         }
     }
-    let leaf = validation::declared_place_type_raw(program, machine, Some(state), expression)?;
-    // Constraints and quotient policies require their own write obligations.
-    // This operation replaces only an ordinary, unqualified primitive leaf.
+    let mut leaf = validation::declared_place_type_raw(program, machine, Some(state), expression)?;
+    // An arithmetic-policy shell (`i32 in Wrapping`) qualifies the element's
+    // operations, not its storage identity, so it peels here like the primitive
+    // leaf of the record-field store route. Range, named, and domain
+    // constraints carry their own write obligations and keep their own owners.
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(leaf)
+    {
+        if !program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .all(|constraint| matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
+        {
+            break;
+        }
+        leaf = *base_type;
+    }
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(leaf)
     else {
