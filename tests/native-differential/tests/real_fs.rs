@@ -17,7 +17,14 @@
 //! EACCES reading outside every root -- with the denied files verifiably
 //! absent from real disk afterwards.
 
-use checked_interpreter::{BuildMachineEvaluationFailureKind, BuildTimeValue, FilesystemAccess, FilesystemEvaluationHaltKind, FilesystemGrantRoot, FilesystemGrantRootIdentity, FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind, FilesystemOperationAttemptOutcome, FilesystemOperationResult, FilesystemSponsor, FilesystemSponsorLimits, FsGrants, InterpretOptions, InterpretOutcome, evaluate_granted_build_machine_arguments, BuildMachineEvaluationRequest, interpret_entry};
+use checked_interpreter::{
+    BuildMachineEvaluationFailureKind, BuildMachineEvaluationRequest, BuildTimeValue,
+    FilesystemAccess, FilesystemEvaluationHaltKind, FilesystemGrantRoot,
+    FilesystemGrantRootIdentity, FilesystemLogicalHandleInputResolution,
+    FilesystemLogicalHandleKind, FilesystemOperationAttemptOutcome, FilesystemOperationResult,
+    FilesystemSponsor, FilesystemSponsorLimits, FsGrants, InterpretOptions, InterpretOutcome,
+    evaluate_granted_build_machine_arguments, interpret_entry,
+};
 use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::Path;
@@ -884,7 +891,11 @@ machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
         ..InterpretOptions::default()
     };
 
-    let ignored_operand_failure = evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("IgnoredOperandProbe::run", vec![zero_build()]), options())
+    let ignored_operand_failure = evaluate_granted_build_machine_arguments(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("IgnoredOperandProbe::run", vec![zero_build()]),
+        options(),
+    )
     .expect_err("the formerly ignored create mode must be evaluated");
     assert_eq!(
         ignored_operand_failure.kind(),
@@ -910,7 +921,11 @@ machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
         "ignored ABI operands must finish preparation before create can touch disk"
     );
 
-    let failure = evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("InvalidOutputProbe::run", vec![zero_build()]), options())
+    let failure = evaluate_granted_build_machine_arguments(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("InvalidOutputProbe::run", vec![zero_build()]),
+        options(),
+    )
     .expect_err("an undersized mutable output must reject during preparation");
     assert_eq!(failure.kind(), BuildMachineEvaluationFailureKind::Trap);
     let [attempt] = failure
@@ -932,7 +947,11 @@ machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
         "mutable-output preparation must fail before path grants are consulted"
     );
 
-    let canonicalize_failure = evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("CanonicalizeOutputProbe::run", vec![zero_build()]), options())
+    let canonicalize_failure = evaluate_granted_build_machine_arguments(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("CanonicalizeOutputProbe::run", vec![zero_build()]),
+        options(),
+    )
     .expect_err("canonicalize must enforce its declared PATH_MAX carrier");
     assert_eq!(
         canonicalize_failure.kind(),
@@ -957,7 +976,11 @@ machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
         "canonicalize capacity preparation must fail before path grants are consulted"
     );
 
-    let cross_domain_failure = evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("CrossDomainProbe::run", vec![zero_build()]), options())
+    let cross_domain_failure = evaluate_granted_build_machine_arguments(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("CrossDomainProbe::run", vec![zero_build()]),
+        options(),
+    )
     .expect_err("a descriptor token cannot be used as an unborrowed native handle");
     assert_eq!(
         cross_domain_failure.kind(),
@@ -1097,16 +1120,28 @@ machine ResourceProbe::run(&mut self, build: &mut Build) {{
         ..InterpretOptions::default()
     };
 
-    evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("SourceReadProbe::run", vec![zero_build()]), options())
+    evaluate_granted_build_machine_arguments(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("SourceReadProbe::run", vec![zero_build()]),
+        options(),
+    )
     .expect("read-only source access stays outside the staging account");
     assert_eq!(sponsor.snapshot().unwrap().entries, 0);
 
-    evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("MissingParentProbe::run", vec![zero_build()]), options())
+    evaluate_granted_build_machine_arguments(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("MissingParentProbe::run", vec![zero_build()]),
+        options(),
+    )
     .expect("a missing output parent remains an ordinary errno result");
     assert_eq!(sponsor.snapshot().unwrap().entries, 0);
     assert!(!out.join("missing/artifact").exists());
 
-    let failure = evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("ResourceProbe::run", vec![zero_build()]), options())
+    let failure = evaluate_granted_build_machine_arguments(
+        &checked.typed,
+        BuildMachineEvaluationRequest::named("ResourceProbe::run", vec![zero_build()]),
+        options(),
+    )
     .expect_err("a write beyond the sponsored extent must halt before mutation");
     assert_eq!(
         failure.kind(),
