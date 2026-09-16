@@ -25,7 +25,7 @@ it unresolved, not encourage searching until something seems to agree.
    isolate different experimental arms to avoid giving one a hint from the other.
 5. Copy a sufficiently supported candidate verbatim; keep the claim unchanged.
    Verify source path, revision and literal membership before retaining the patch.
-   No suitable candidate means unresolved and eligible for normal review.
+No suitable candidate means unresolved and eligible for normal review.
 
 The current local prototype uses six candidates, a 2,400-character paragraph cap,
 and P(supported)>=.90. These are development settings, not universal confidence
@@ -37,6 +37,27 @@ Save citation replacements separately from the original answers so a reviewer ca
 see what changed. A source-support judgment is neither source truth nor compiler
 correctness. This recipe does not authorize publication, suppress checks, or turn
 an unreviewed response into a trusted answer. Do not append unchecked prose.
+
+## Owner-bound handoff repair
+
+For a structured assignment with known evidence owners, carry those owners and
+the source revision in the assignment contract. Check them before semantic review;
+similar statements about different registries are not interchangeable evidence.
+Distinguish required owners from merely allowed references. Caller-supplied owner
+bindings are additional information, not a demonstrated model-routing capability.
+
+When a handoff is held for missing evidence, another model's approval of the same
+packet does not supply the missing facts. Preserve the warning and its evidence
+identity. Acquire relevant authoritative material, then reevaluate; new evidence
+permits review but does not guarantee acceptance. If the complete pinned material
+is already present, keep unresolved cases for review rather than repeatedly fetching
+the same file. A reviewer may also resolve a warning by identifying specific support
+the first pass missed; a bare changed verdict is insufficient.
+
+Keep evidence-updated intermediate artifacts separate from ready answers. Preserve
+the original claim and show which sources changed. Owner binding and literal text
+checks do not establish truth, and conservative false warnings can erase the speed
+benefit. Compare against simply acquiring the declared owner documents without AI.
 
 ## Measure the advantage honestly
 
