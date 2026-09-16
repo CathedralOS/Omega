@@ -219,7 +219,15 @@ fn validate_report_resources(
                     )
                 })?;
                 pending.extend(report.paths.iter().map(|path| (&path.inner, depth + 1)));
-                report.paths.len()
+                report
+                    .paths
+                    .len()
+                    .checked_add(report.child_sum_layouts.len())
+                    .ok_or_else(|| {
+                        MaterializationDiagnostic(
+                            "ConstMaterializable recursive occurrence count overflows".into(),
+                        )
+                    })?
             }
         };
         occurrences = occurrences.checked_add(count).ok_or_else(|| {

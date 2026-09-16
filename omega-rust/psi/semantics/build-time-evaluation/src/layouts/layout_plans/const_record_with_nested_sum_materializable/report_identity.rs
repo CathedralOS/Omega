@@ -5,7 +5,7 @@ use super::{
     ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordSumPathsLayoutReport,
     ConventionalRecursiveRecordSumPathsLayoutReport,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
-    ValidatedConstRecordWithSumMaterialization,
+    ValidatedConstRecordSumFieldMaterialization, ValidatedConstRecordWithSumMaterialization,
     ValidatedConstRecursiveNestedSumOccurrenceMaterialization,
     conventional_sum_layout_reports_match_for_replay, field_occurrence_matches, hash_byte,
     hash_bytes, hash_text, hash_u64, hash_value, layout_plan_reports_match_for_replay,
@@ -109,6 +109,22 @@ impl RecordSumPathsReplay for ConventionalNestedRecordSumPathsLayoutReport {
 impl RecordSumPathsReplay for ConventionalRecordSumPathsLayoutReport {
     fn matches_for_replay(&self, other: &Self) -> bool {
         layout_plan_reports_match_for_replay(&self.outer_layout, &other.outer_layout)
+            && self.child_sum_layouts.len() == other.child_sum_layouts.len()
+            && self
+                .child_sum_layouts
+                .iter()
+                .zip(&other.child_sum_layouts)
+                .all(|(left, right)| {
+                    field_occurrence_matches(
+                        &left.field,
+                        left.member_identity,
+                        &right.field,
+                        right.member_identity,
+                    ) && conventional_sum_layout_reports_match_for_replay(
+                        &left.layout,
+                        &right.layout,
+                    )
+                })
             && self.paths.len() == other.paths.len()
             && self.paths.iter().zip(&other.paths).all(|(left, right)| {
                 field_occurrence_matches(
@@ -134,6 +150,7 @@ pub(super) fn record_sum_paths_materialization_report_fingerprint(
     outer_layout_report_fingerprint: u64,
     path_layout: &ConventionalRecordSumPathsLayoutReport,
     occurrences: &[ValidatedConstRecursiveNestedSumOccurrenceMaterialization],
+    nested_sums: &[ValidatedConstRecordSumFieldMaterialization],
     byte_order: ByteOrder,
     value: &BuildTimeValue,
     bytes: &[u8],
@@ -141,11 +158,41 @@ pub(super) fn record_sum_paths_materialization_report_fingerprint(
     let mut hash = 0xcbf29ce484222325u64;
     hash_bytes(
         &mut hash,
-        b"omega.const-materializable-recursive-record-sum-paths.v1",
+        b"omega.const-materializable-recursive-record-sum-paths.v2",
     );
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_report_fingerprint);
     hash_u64(&mut hash, outer_layout_report_fingerprint);
+    hash_u64(&mut hash, nested_sums.len() as u64);
+    for nested in nested_sums {
+        match nested.field_identity {
+            Some(identity) => {
+                hash_byte(&mut hash, 1);
+                hash_u64(&mut hash, identity);
+            }
+            None => {
+                hash_byte(&mut hash, 0);
+                hash_text(&mut hash, &nested.field);
+            }
+        }
+        hash_u64(
+            &mut hash,
+            nested
+                .nested_sum
+                .non_authoritative_layout_report_fingerprint(),
+        );
+        match nested.nested_sum.selected_case_identity() {
+            Some(identity) => {
+                hash_byte(&mut hash, 1);
+                hash_u64(&mut hash, identity);
+            }
+            None => hash_byte(&mut hash, 0),
+        }
+        hash_u64(
+            &mut hash,
+            u64::from(nested.nested_sum.selected_case_ordinal()),
+        );
+    }
     hash_u64(&mut hash, occurrences.len() as u64);
     for (path, occurrence) in path_layout.paths.iter().zip(occurrences) {
         match path.outer_member_identity {

@@ -457,10 +457,25 @@ impl SymbolicFieldInnerLayout {
                         "recursive record/sum path report nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
                     )));
                 }
-                report
-                    .paths
-                    .iter()
-                    .map(|path| {
+                // One record level can hold both kinds of children: the
+                // level's own direct sums bind `Sum` carriers exactly as a
+                // `Leaf` level's do, and each deeper record path binds a
+                // `Record` carrier with its own folded interiors. The
+                // carriers join the same field-keyed namespace the level's
+                // enclosing plan spells, so a symbolic path resolves each
+                // boundary independently of its sibling kinds.
+                let child_sums = report.child_sum_layouts.iter().map(|child| {
+                    Ok(match child.member_identity {
+                        Some(identity) => Self::new_sum_numbered(
+                            child.field.clone(),
+                            identity,
+                            child.layout.clone(),
+                        ),
+                        None => Self::new_sum(child.field.clone(), child.layout.clone()),
+                    })
+                });
+                child_sums
+                    .chain(report.paths.iter().map(|path| {
                         let mut carrier = match path.outer_member_identity {
                             Some(identity) => Self::new_numbered(
                                 path.outer_field.clone(),
@@ -472,11 +487,15 @@ impl SymbolicFieldInnerLayout {
                                 path.inner.outer_layout().clone(),
                             ),
                         };
-                        for nested in Self::fold_recursive_sum_paths(&path.inner, depth + 1)? {
-                            carrier = carrier.with_inner_layout(nested);
+                        let mut nested = Vec::new();
+                        for inner in Self::fold_recursive_sum_paths(&path.inner, depth + 1)? {
+                            nested.push(inner);
+                        }
+                        for inner in nested {
+                            carrier = carrier.with_inner_layout(inner);
                         }
                         Ok(carrier)
-                    })
+                    }))
                     .collect()
             }
         }

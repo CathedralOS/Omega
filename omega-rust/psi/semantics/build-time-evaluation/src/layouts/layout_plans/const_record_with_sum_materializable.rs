@@ -18,7 +18,8 @@ mod validated_materializations;
 
 pub(crate) use derived_bytes::EncodedOuterField;
 pub(crate) use outer_layouts::{
-    exact_named_data, field_occurrence_matches, validate_outer_layout, validate_outer_record_owner,
+    exact_named_data, field_occurrence_matches, nested_sum_fields_match, validate_outer_layout,
+    validate_outer_record_owner, validate_supplied_nested_rows_against_retained,
 };
 pub use validated_materializations::{
     ValidatedConstRecordSumArrayElementMaterialization,

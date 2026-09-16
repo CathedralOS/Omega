@@ -138,6 +138,9 @@ fn numbered_rename(report: &mut ConventionalRecursiveRecordSumPathsLayoutReport)
             }
         }
         ConventionalRecursiveRecordSumPathsLayoutReport::Branch(branch) => {
+            for child in &mut branch.child_sum_layouts {
+                child.field = format!("renamed_{}", child.field);
+            }
             for path in &mut branch.paths {
                 path.outer_field = format!("renamed_{}", path.outer_field);
                 numbered_rename(&mut path.inner);
@@ -435,7 +438,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
             ByteOrder::LittleEndian,
         )
         .unwrap();
-        for name in ["Direct", "Arrays", "InnerDirect", "InnerArray"] {
+        for name in ["Arrays", "InnerArray"] {
             assert!(
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
                     &checked,
@@ -443,18 +446,20 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
                     definition(name).symbol,
                 )
                 .is_err(),
-                "{name} at depth {depth} must retain its semantic fence"
+                "{name} at depth {depth} must retain its sum-array semantic fence"
             );
         }
-        // Former shallow/deep/singular-cohort fences are not semantic constraints.
-        for name in ["Layer0", "Deeper", "Unequal"] {
+        // Former shallow/deep/singular-cohort fences are not semantic
+        // constraints, and direct sums coexisting with a deeper record path
+        // are admitted by the general recursive rule.
+        for name in ["Layer0", "Deeper", "Unequal", "Direct", "InnerDirect"] {
             let result =
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
                     &checked,
                     &plan,
                     definition(name).symbol,
                 );
-            if name == "Deeper" && depth == 63 {
+            if matches!(name, "Deeper" | "InnerDirect") && depth == 63 {
                 assert!(
                     result.is_err(),
                     "one additional edge exceeds the resource limit"
@@ -632,6 +637,151 @@ fn recursive_unequal_depth_siblings_materialize_under_one_report() {
     carrier.apply(&checked, &mut destination).unwrap();
     assert_eq!(&destination[..32], &expected);
     assert_eq!(&destination[32..], &[0x5a; 4]);
+}
+
+#[test]
+fn recursive_direct_sums_coexist_with_deeper_paths_on_one_level() {
+    // `Direct { inner: LayerN, choice: Choice }` is the lifted coexistence
+    // shape: one `Branch` carries its own direct conventional sum beside the
+    // deeper record path, and `InnerDirect` nests that level one edge deeper.
+    let checked = checked(&recursive_source(2));
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let definition = |name: &str| {
+        checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == name)
+            .unwrap()
+    };
+    let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        definition("Direct").symbol,
+    )
+    .expect("a record holding a direct sum beside a deeper sum path projects");
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(root) = &paths else {
+        panic!("the coexisting record projects as a recursive branch");
+    };
+    assert_eq!(root.paths.len(), 1);
+    assert_eq!(root.paths[0].outer_field, "inner");
+    assert_eq!(root.paths[0].outer_member_identity, Some(1));
+    assert_eq!(root.child_sum_layouts.len(), 1);
+    assert_eq!(root.child_sum_layouts[0].field, "choice");
+    assert_eq!(root.child_sum_layouts[0].member_identity, Some(2));
+    assert_eq!(
+        paths
+            .outer_layout()
+            .entries
+            .iter()
+            .map(|entry| (entry.field.as_str(), entry.placement))
+            .collect::<Vec<_>>(),
+        vec![
+            ("inner", LayoutPlacementReport::At { offset: 0 }),
+            ("choice", LayoutPlacementReport::At { offset: 16 }),
+        ]
+    );
+
+    let value = BuildTimeValue::Struct {
+        type_name: "Direct".into(),
+        fields: vec![
+            ("inner".into(), recursive_value(2, Some(0x1122))),
+            (
+                "choice".into(),
+                BuildTimeValue::Case {
+                    variant: "Number".into(),
+                    payload: vec![("value".into(), BuildTimeValue::Int(0x5566))],
+                },
+            ),
+        ],
+    };
+    let carrier = validate_const_materializable_record_with_recursive_nested_sums(
+        &checked,
+        "Direct",
+        &paths,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("coexisting direct sums retain value custody beside the deeper path");
+    let ValidatedConstRecordWithRecursiveNestedSumsMaterialization::Branch(branch) = &carrier
+    else {
+        panic!("the coexisting record retains branch custody");
+    };
+    assert_eq!(branch.occurrences().len(), 1);
+    assert_eq!(branch.nested_sums().len(), 1);
+    assert_eq!(branch.nested_sums()[0].field(), "choice");
+    let mut expected = [0; 24];
+    expected[8..12].copy_from_slice(&1_u32.to_le_bytes());
+    expected[12..14].copy_from_slice(&0x1122_u16.to_le_bytes());
+    expected[16..20].copy_from_slice(&1_u32.to_le_bytes());
+    expected[20..22].copy_from_slice(&0x5566_u16.to_le_bytes());
+    assert_eq!(carrier.bytes(), expected);
+    let mut destination = [0x5a; 28];
+    carrier.apply(&checked, &mut destination).unwrap();
+    assert_eq!(&destination[..24], &expected);
+    assert_eq!(&destination[24..], &[0x5a; 4]);
+
+    // The deeper level also admits the coexisting shape one edge down.
+    let inner_paths =
+        project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            definition("InnerDirect").symbol,
+        )
+        .expect("a record nesting a coexisting level projects recursively");
+    let inner_value = BuildTimeValue::Struct {
+        type_name: "InnerDirect".into(),
+        fields: vec![("child".into(), value.clone())],
+    };
+    let inner_carrier = validate_const_materializable_record_with_recursive_nested_sums(
+        &checked,
+        "InnerDirect",
+        &inner_paths,
+        &inner_value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("the nested coexisting level retains custody");
+    assert_eq!(inner_carrier.bytes(), expected);
+
+    // Report drift on the branch level's direct-sum rows rejects on replay
+    // and on fresh validation, exactly like the path rows.
+    let rejects = |mutated: &ConventionalRecursiveRecordSumPathsLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(&checked, "Direct", mutated, &value, ByteOrder::LittleEndian)
+                .is_err(),
+            "mutated coexisting report must reject"
+        );
+        assert!(
+            validate_const_materializable_record_with_recursive_nested_sums(
+                &checked,
+                "Direct",
+                mutated,
+                &value,
+                ByteOrder::LittleEndian,
+            )
+            .is_err(),
+            "mutated coexisting report must not revalidate"
+        );
+    };
+    for mutation in 0..4 {
+        let mut changed = paths.clone();
+        let branch = branch_mut(&mut changed);
+        match mutation {
+            0 => {
+                branch.child_sum_layouts.pop();
+            }
+            1 => branch
+                .child_sum_layouts
+                .push(branch.child_sum_layouts[0].clone()),
+            2 => branch.child_sum_layouts[0].member_identity = Some(99),
+            3 => {
+                branch.child_sum_layouts[0].field = "not_a_field".into();
+                branch.child_sum_layouts[0].member_identity = None;
+            }
+            _ => unreachable!(),
+        }
+        rejects(&changed);
+    }
 }
 
 #[test]

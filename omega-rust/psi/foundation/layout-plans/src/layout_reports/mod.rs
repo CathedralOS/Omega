@@ -183,10 +183,19 @@ pub struct ConventionalRecordSumOccurrenceLayoutReport {
 /// Complete authored-order path reports below one enclosing record layout.
 ///
 /// The child report retains exact geometry and semantic occurrence identity.
+/// `child_sum_layouts` retains the record level's own direct conventional
+/// pure-sum fields beside its deeper record paths: a record that both
+/// contains a direct sum and reaches sums through a record field spells one
+/// `Branch` carrying both, rather than rejecting the direct sums the `Leaf`
+/// level already retains.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConventionalRecordSumPathsLayoutReport {
     pub outer_layout: LayoutPlanReport,
     pub paths: Vec<ConventionalRecordSumOccurrenceLayoutReport>,
+    /// The enclosing record level's own direct conventional pure-sum fields,
+    /// in authored order — the same channel `Leaf` carries, retained beside
+    /// the deeper record paths so the two child kinds coexist at one level.
+    pub child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
 }
 
 /// Recursive record-path geometry. Each occurrence retains its own exact record
@@ -213,14 +222,20 @@ impl ConventionalRecursiveRecordSumPathsLayoutReport {
         }
     }
 
+    /// The total conventional-sum leaf occurrences the report reaches: a
+    /// `Leaf` level's own direct sums, or a `Branch` level's direct sums
+    /// plus the leaf occurrences of every deeper record path.
     pub fn leaf_occurrence_count(&self) -> Option<usize> {
         match self {
             Self::Leaf {
                 child_sum_layouts, ..
             } => Some(child_sum_layouts.len()),
-            Self::Branch(report) => report.paths.iter().try_fold(0usize, |total, path| {
-                total.checked_add(path.inner.leaf_occurrence_count()?)
-            }),
+            Self::Branch(report) => report
+                .paths
+                .iter()
+                .try_fold(report.child_sum_layouts.len(), |total, path| {
+                    total.checked_add(path.inner.leaf_occurrence_count()?)
+                }),
         }
     }
 }

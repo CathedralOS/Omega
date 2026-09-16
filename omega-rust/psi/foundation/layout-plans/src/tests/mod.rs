@@ -321,12 +321,14 @@ fn sum_field_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
 }
 
 /// A recursive record/sum path report carrying record depth as data: the
-/// outer plan places `header` at 0 and `middle` at 8 (a 40-byte record);
-/// `middle`'s interior places `inner` at 0 and `tag` at 32; `inner`'s
-/// interior places the direct sum `choice` at 0 and `pad` at 24. Two `Branch`
-/// levels end in the `Leaf` holding `choice`'s complete sum overlay — the
-/// shape the recursive projection emits for `Outer { middle: Middle }` where
-/// `Middle` reaches its sum through `inner`.
+/// outer plan places `header` at 0 and `middle` at 8 (a 64-byte record);
+/// `middle`'s interior places `inner` at 0, `tag` at 32, and its own direct
+/// sum `route` at 40; `inner`'s interior places the direct sum `choice` at 0
+/// and `pad` at 24. The `middle` `Branch` level holds both child kinds — its
+/// direct sum `route` beside the deeper `inner` record path — before the
+/// `Leaf` holding `choice`'s complete sum overlay: the shape the recursive
+/// projection emits for `Outer { middle: Middle }` where `Middle` co-locates
+/// a direct sum with the record path reaching `inner`'s sum.
 fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
     fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
         LayoutPlanReport {
@@ -346,13 +348,19 @@ fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
     }
     ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
         ConventionalRecordSumPathsLayoutReport {
-            outer_layout: record(1, &[("header", 0), ("middle", 8)], 48),
+            outer_layout: record(1, &[("header", 0), ("middle", 8)], 72),
+            child_sum_layouts: Vec::new(),
             paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                 outer_field: "middle".into(),
                 outer_member_identity: None,
                 inner: ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
                     ConventionalRecordSumPathsLayoutReport {
-                        outer_layout: record(2, &[("inner", 0), ("tag", 32)], 40),
+                        outer_layout: record(2, &[("inner", 0), ("tag", 32), ("route", 40)], 64),
+                        child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
+                            field: "route".into(),
+                            member_identity: None,
+                            layout: sum_layout(),
+                        }],
                         paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                             outer_field: "inner".into(),
                             outer_member_identity: None,
