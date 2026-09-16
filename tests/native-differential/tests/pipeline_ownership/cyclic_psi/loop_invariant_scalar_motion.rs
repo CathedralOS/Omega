@@ -557,7 +557,7 @@ fn invariant_computation_hoists_rebinding_entry_parameter_to_its_representative(
             right,
             ..
         } => {
-            assert_eq!(*result, relocation.node().result());
+            assert_eq!(Some(*result), relocation.node().result().scalar_value());
             assert_eq!(*left, function_parameter);
             assert_eq!(*right, function_parameter);
         }
