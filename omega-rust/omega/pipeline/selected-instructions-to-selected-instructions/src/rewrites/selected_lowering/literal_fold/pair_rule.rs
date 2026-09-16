@@ -20,9 +20,11 @@
 //! consumer's right `Use` operand, a commutative binary consumer's left
 //! `Use` operand, a unary consumer's sole `Use` operand, or a binary
 //! consumer whose folded result is a constant of the literal alone — no
-//! `Use` operand survives and every operand past the result is a dropped
-//! `Def` scratch — at the right `Use` position or, under the annihilator
-//! grammar, the left one. Beyond the
+//! `Use` operand survives, and every operand past the result is a
+//! dropped `Def` scratch or, under the divide's auxiliary grammar, a
+//! dropped `Use` proven to read only a zero materialization — at the
+//! right `Use` position or, under the annihilator and zero-dividend
+//! grammars, the left one. Beyond the
 //! isolated machine-effect surface, [`PairMachineEffects::IndexedPointerReadFold`]
 //! declares the first non-isolated relationship — a consumer that reads
 //! memory through the folded index and a rewritten form that reads the same
@@ -279,9 +281,11 @@ pub enum PairMachineEffects {
     /// the consumer's own carried obligation rather than under the folded
     /// literal alone: `WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE` folds
     /// a dividend literal of zero, under which the quotient is zero and
-    /// cannot overflow, while the nonzero-divisor obligation the
-    /// `WrappingRemainderI64` kind carries as its accepted fact already
-    /// excludes the only reachable fault — division by zero. Declaring
+    /// cannot overflow, and `EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE` folds
+    /// the same dividend literal of an unsigned exact divide, under which
+    /// the quotient is exactly zero, while the nonzero-divisor obligation
+    /// each kind carries as its accepted fact already excludes the only
+    /// reachable fault — division by zero. Declaring
     /// this surface attests that the rewrite replaces the consumer's trap
     /// surface wholesale because every fault case was already unreachable:
     /// the literal fixes the quotient and the carried obligation fixes the
@@ -341,9 +345,9 @@ impl PairMachineEffects {
     /// discharges it. For
     /// [`FaultDischargedByObligation`](Self::FaultDischargedByObligation)
     /// the same may-fault surface is admitted because the consumer's own
-    /// carried obligation — the nonzero divisor a remainder requires —
-    /// already makes the fault unreachable; the literal fixes the folded
-    /// value, not the divisor's definedness.
+    /// carried obligation — the nonzero divisor a remainder or an exact
+    /// divide requires — already makes the fault unreachable; the literal
+    /// fixes the folded value, not the divisor's definedness.
     pub fn admits_consumer(
         self,
         declaration: &MachineEffectDeclaration,
@@ -405,16 +409,17 @@ impl PairMachineEffects {
     /// [`FaultDischargedByObligation`](Self::FaultDischargedByObligation)
     /// admits a consumer whose encoded fault is unreachable only because
     /// the obligation its kind names — the proven nonzero divisor a
-    /// `WrappingRemainderI64` carries — is in the instruction's recorded
-    /// proof custody: the folded literal alone does not discharge the
-    /// fault, so an instruction record not retaining the obligation its
-    /// kind declares cannot fold under this surface. Every other
-    /// relationship needs no carried obligation.
+    /// `WrappingRemainderI64` or an `ExactDivideU64` carries — is in the
+    /// instruction's recorded proof custody: the folded literal alone does
+    /// not discharge the fault, so an instruction record not retaining the
+    /// obligation its kind declares cannot fold under this surface. Every
+    /// other relationship needs no carried obligation.
     pub fn admits_consumer_obligation(self, consumer: &SelectedInstruction) -> bool {
         match self {
             Self::FaultDischargedByObligation => {
                 let obligation = match consumer.kind {
-                    SelectedInstructionKind::WrappingRemainderI64 { obligation, .. } => obligation,
+                    SelectedInstructionKind::WrappingRemainderI64 { obligation, .. }
+                    | SelectedInstructionKind::ExactDivideU64 { obligation, .. } => obligation,
                     _ => return false,
                 };
                 consumer.provenance.obligations.contains(&obligation)
@@ -555,7 +560,7 @@ fn isolated_alternative(alternative: &MachineAlternative) -> bool {
 /// The encoded surface a fault-discharging fold's consumer may carry: the
 /// isolated contract except that `MayArchitecturalFaultV1` is admitted —
 /// under the divisor-one grammars the folded literal is the value that
-/// makes the fault unreachable, and under the zero-dividend grammar the
+/// makes the fault unreachable, and under the zero-dividend grammars the
 /// consumer's carried nonzero-divisor obligation makes it unreachable, so
 /// either way the rewrite may retire the surface wholesale.
 fn fault_discharged_alternative(alternative: &MachineAlternative) -> bool {
@@ -646,6 +651,26 @@ pub enum PairOperandShape {
     /// or any operand at positions 0 through 2 outside this grammar —
     /// rejects.
     BinaryLeftLiteralConstantResult,
+    /// Binary left-literal consumer whose folded result is a constant of
+    /// the literal alone and whose operand list continues past its scalar
+    /// `Def` result: the literal victim is the operand-0 `Use`, operand 1
+    /// is a `Use` the fold drops because the constant result never reads
+    /// it, operand 2 is the `Def` result, and every operand past the
+    /// result is a `Use` the fold drops under the same provenance custody
+    /// [`BinaryRightLiteralAuxiliaryUses`](Self::BinaryRightLiteralAuxiliaryUses)
+    /// declares — each dropped register must be defined in the same
+    /// function only by `MaterializeI64` instructions producing
+    /// `Unsigned(0)`. Declaring this shape attests the operand-0 literal
+    /// alone fixes the result *and* that every auxiliary `Use` is an
+    /// operand the realization reads but the constant result leaves
+    /// inert: under `0 / x` the operand-0 literal is only the low half of
+    /// the dividend an x86-64 `div` reads — the auxiliary high-half
+    /// `Use` must be provably zero or the dropped operand would carry a
+    /// value the folded form silently stopped observing. An operand that
+    /// is not in its declared position and access — a `Def` past the
+    /// result, or any operand at positions 0 through 2 outside this
+    /// grammar — rejects.
+    BinaryLeftLiteralConstantResultAuxiliaryUses,
 }
 
 /// The literal values a pair's fold admits.
@@ -882,6 +907,58 @@ impl SelectedInstructionPairRule {
                 PairMachineEffects::FaultDischargedByLiteral
             ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(1)),
             "the fault discharge holds only for the divisor literal one"
+        );
+        rule
+    };
+
+    /// Eliminate `MaterializeI64` feeding the dividend operand of
+    /// `ExactDivideU64` when the literal is exactly zero: an unsigned
+    /// divide of a zero dividend is always zero — `0 / x` is `0` for
+    /// every `x` — so the rewrite is a `MaterializeI64` of the constant
+    /// zero at the consumer's result register. The declared surface
+    /// carries the dimensions a `div` realization brings, with one
+    /// distinction from the divisor-one fold: the folded dividend is not
+    /// the value that discharges the consumer's encoded architectural
+    /// fault. A quotient of zero can never overflow, but the
+    /// divide-by-zero case the encoding could still name is unreachable
+    /// only because the `ExactDivideU64` kind carries its proven nonzero
+    /// divisor as an accepted obligation — the fold declares
+    /// [`FaultDischargedByObligation`](PairMachineEffects::FaultDischargedByObligation)
+    /// so the descriptor never claims the literal did the obligation's
+    /// work. The operands may carry the register pins the pinned-operand
+    /// realization requires under
+    /// [`BoundConsumerOperands`](PairUnitEffects::BoundConsumerOperands),
+    /// the operand-1 divisor `Use` is dropped with the form because the
+    /// constant result never reads it, and every `Use` operand past the
+    /// operand-2 `Def` result — the zeroed high-half input an x86-64
+    /// `div` realization reads as the dividend's upper half — is dropped
+    /// under
+    /// [`BinaryLeftLiteralConstantResultAuxiliaryUses`](PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses),
+    /// which requires each such register to be defined only by zero
+    /// materializations: a literal of zero fixes the low dividend half,
+    /// so the fold is exact only when every auxiliary half is provably
+    /// zero as well. Targets whose divide row carries no auxiliary `Use`
+    /// — aarch64's `udiv` — admit the same rule with an empty auxiliary
+    /// tail. The family shares its consumer kind with the divisor-one
+    /// fold; the grammars stay disjoint on the folded literal's operand
+    /// position.
+    pub const EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::ExactDivideU64,
+            rewritten: MachineSemanticKind::MaterializeI64,
+            operand_shape: PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses,
+            immediate_bound: PairImmediateBound::Exactly(0),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundConsumerOperands,
+            machine_effects: PairMachineEffects::FaultDischargedByObligation,
+        };
+        assert!(
+            matches!(
+                rule.machine_effects,
+                PairMachineEffects::FaultDischargedByObligation
+            ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
+            "the obligation discharge holds only for the dividend literal zero"
         );
         rule
     };
@@ -1241,6 +1318,7 @@ impl SelectedInstructionPairRule {
             | PairOperandShape::BinaryRightLiteralConstantResult => 1,
             PairOperandShape::BinaryLeftLiteral
             | PairOperandShape::BinaryLeftLiteralConstantResult
+            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
             | PairOperandShape::UnaryLiteral => 0,
         }
     }
@@ -1269,11 +1347,13 @@ impl SelectedInstructionPairRule {
             | PairOperandShape::BinaryRightLiteralAuxiliaryUses => Some(literal),
             // The constant-result grammars record the constant the
             // rewritten `MaterializeI64` embeds: a remainder by one or of
-            // a zero dividend is always zero, whatever the folded literal
-            // was, and a bitwise-and with a zero literal is always zero at
-            // either `Use` position.
+            // a zero dividend is always zero, an unsigned divide of a
+            // zero dividend is always zero, whatever the folded literal
+            // was, and a bitwise-and with a zero literal is always zero
+            // at either `Use` position.
             PairOperandShape::BinaryRightLiteralConstantResult
-            | PairOperandShape::BinaryLeftLiteralConstantResult => Some(0),
+            | PairOperandShape::BinaryLeftLiteralConstantResult
+            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses => Some(0),
             PairOperandShape::UnaryLiteral => match self.consumer {
                 MachineSemanticKind::CopyI64 => Some(literal),
                 MachineSemanticKind::ZeroExtendU8 => Some(literal & 0xFF),
@@ -1404,20 +1484,23 @@ impl SelectedInstructionPairRule {
             ) if machine_semantic_kind(kind) == self.consumer => {
                 Some(SelectedInstructionKind::CopyI64)
             }
-            // A remainder by one or of a zero dividend is always zero, and
-            // a bitwise-and with a zero literal is always zero at either
-            // `Use` position: the `MaterializeI64` rewrite materializes the
-            // folded constant at the result register, sign-matched and
-            // admitted by its scalar type. The consumer guard keeps each
-            // rule bound to its own consumer kind — the remainder rules
-            // never rewrite an and, the and-zero rule never rewrites a
-            // remainder — while both remainder rules legitimately share
-            // the `WrappingRemainderI64` kind: admission already fixed
-            // which grammar applies by the folded literal's operand
+            // A remainder by one or of a zero dividend is always zero, an
+            // unsigned divide of a zero dividend is always zero, and a
+            // bitwise-and with a zero literal is always zero at either
+            // `Use` position: the `MaterializeI64` rewrite materializes
+            // the folded constant at the result register, sign-matched
+            // and admitted by its scalar type. The consumer guard keeps
+            // each rule bound to its own consumer kind — the remainder
+            // rules never rewrite an and or a divide, the and-zero rule
+            // never rewrites a remainder or a divide, and the divide
+            // zero-dividend rule never rewrites either — while each pair
+            // sharing a kind legitimately coexists: admission already
+            // fixed which grammar applies by the folded literal's operand
             // position, and both produce the same materialized zero.
             (
                 MachineSemanticKind::MaterializeI64,
                 kind @ (SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::ExactDivideU64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64),
             ) if machine_semantic_kind(kind) == self.consumer => {
                 scalar_materialize_value(immediate, result_scalar?)

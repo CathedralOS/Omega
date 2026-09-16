@@ -209,17 +209,37 @@ fn reconstruct_action(
             rows.address_offset,
             MachineSemanticKind::AddressOffset,
         ),
-        // The unsigned divide folds an operand-1 divisor literal of exactly
-        // one into a `CopyI64` of the operand-0 dividend, bound to the
-        // `CopyI64` row. Operands past the operand-2 `Def` result are `Use`
-        // positions the fold drops — the zeroed high-half input an x86-64
-        // `div` realization reads — each independently required to be
-        // defined only by zero materializations.
-        SelectedInstructionKind::ExactDivideU64 { .. } => (
-            SourceShape::DivideIdentity,
-            rows.divide,
-            MachineSemanticKind::CopyI64,
-        ),
+        // Two disjoint families fold `ExactDivideU64`; the folded literal's
+        // operand position names the family a fold belongs to. The
+        // divisor-one fold admits an operand-1 divisor literal of exactly
+        // one — a divide by one is the dividend — bound to the `CopyI64`
+        // row the divide policy's own gate selected; operands past the
+        // operand-2 `Def` result are `Use` positions the fold drops — the
+        // zeroed high-half input an x86-64 `div` realization reads — each
+        // independently required to be defined only by zero
+        // materializations. The zero-dividend fold admits an operand-0
+        // dividend literal of exactly zero — `0 / x` is `0` for every `x`
+        // the consumer's proven nonzero divisor admits — bound to the
+        // `MaterializeI64` row the zero-dividend policy's own gate
+        // selected, dropping the operand-1 divisor `Use` and the same
+        // provably-zero auxiliary `Use` operands. Its fault surface
+        // retires under the nonzero-divisor obligation the kind carries,
+        // not under the folded literal.
+        SelectedInstructionKind::ExactDivideU64 { .. } => {
+            if future_use.operand == 0 {
+                (
+                    SourceShape::DivideZeroDividend,
+                    rows.divide_zero,
+                    MachineSemanticKind::MaterializeI64,
+                )
+            } else {
+                (
+                    SourceShape::DivideIdentity,
+                    rows.divide,
+                    MachineSemanticKind::CopyI64,
+                )
+            }
+        }
         // Two disjoint families fold `WrappingRemainderI64`; the folded
         // literal's operand position names the family a fold belongs to.
         // The divisor-one fold admits an operand-1 literal of exactly one
@@ -335,11 +355,12 @@ fn reconstruct_action(
     // literal no enabled family admits is an unsupported immediate, a
     // position outside both grammars a future-use mismatch, and a
     // `BitwiseAndI64` with no and family enabled a consumer mismatch like
-    // any other unadmitted kind. `WrappingRemainderI64` is admitted by two
+    // any other unadmitted kind. `WrappingRemainderI64` and
+    // `ExactDivideU64` are each admitted by two
     // disjoint families on *different* operand positions — the position
     // already picked the family, so its row being unbound means no enabled
     // grammar covers the position: a future-use mismatch while either
-    // remainder family is enabled, a consumer mismatch when neither is.
+    // family of the kind is enabled, a consumer mismatch when neither is.
     let row = row.ok_or_else(|| {
         if matches!(consumer.kind, SelectedInstructionKind::BitwiseAndI64)
             && (rows.and_zero.is_some() || rows.and_ones.is_some())
@@ -353,10 +374,14 @@ fn reconstruct_action(
                     function: function_index,
                 }
             }
-        } else if matches!(
+        } else if (matches!(
             consumer.kind,
             SelectedInstructionKind::WrappingRemainderI64 { .. }
-        ) && (rows.remainder.is_some() || rows.remainder_zero.is_some())
+        ) && (rows.remainder.is_some() || rows.remainder_zero.is_some()))
+            || (matches!(
+                consumer.kind,
+                SelectedInstructionKind::ExactDivideU64 { .. }
+            ) && (rows.divide.is_some() || rows.divide_zero.is_some()))
         {
             LiteralFoldError::FutureUseMismatch {
                 function: function_index,
@@ -400,6 +425,20 @@ fn reconstruct_action(
                 });
             }
             literal_u64
+        }
+        // The divide zero-dividend fold is the constant zero only when the
+        // dividend literal is exactly zero — `0 / x` is `0` for every `x`
+        // the consumer's proven nonzero divisor admits; any other dividend
+        // is a different computation the replay must not admit. The
+        // recorded immediate is the constant the rewritten `MaterializeI64`
+        // embeds — zero.
+        SourceShape::DivideZeroDividend => {
+            if literal_u64 != 0 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            0
         }
         // The remainder fold is the constant zero only when the divisor
         // literal is exactly one; any other divisor is a different
@@ -543,6 +582,36 @@ fn reconstruct_action(
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
+                || !auxiliary.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Use
+                        && dropped_use_defined_zero(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The divide zero-dividend grammar: `[victim, divisor, result,
+        // aux...]` folds the operand-0 `Use` — the zero dividend — drops
+        // the operand-1 divisor `Use` because the constant result never
+        // reads it, and drops every `Use` operand past the operand-2 `Def`
+        // result. The validator independently re-derives the
+        // dropped-operand custody: each dropped register must be defined
+        // in this function only by `MaterializeI64` instructions producing
+        // `Unsigned(0)` — the zeroed high-half input an x86-64 `div`
+        // realization reads as the dividend's upper half — because the
+        // fold discards whatever the operand carried, and a literal of
+        // zero at operand 0 fixes only the low dividend half.
+        (SourceShape::DivideZeroDividend, [victim, right, result, auxiliary @ ..]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
                 || !auxiliary.iter().all(|operand| {
                     operand.access == RegisterOperandAccess::Use
                         && dropped_use_defined_zero(function, operand.virtual_register)
@@ -801,7 +870,7 @@ fn reconstruct_action(
     // The rebuild replaces the consumer's operands wholesale; an operand
     // carrying a unit binding would silently lose it. The validator
     // re-derives this requirement itself rather than reading the producer's
-    // declared unit-effect surface. Under the divide-identity grammar a
+    // declared unit-effect surface. Under the divide grammars a
     // `fixed_view` pin is deliberately dropped with the pinned operand
     // form — a surviving operand keeps its other uses' own constraints —
     // while `tied_to` has no carried meaning once the operand list is
@@ -812,6 +881,7 @@ fn reconstruct_action(
     let drops_fixed_views = matches!(
         shape,
         SourceShape::DivideIdentity
+            | SourceShape::DivideZeroDividend
             | SourceShape::RemainderIdentity
             | SourceShape::RemainderZeroDividend
     );
@@ -870,12 +940,21 @@ fn reconstruct_action(
             shape.victim_operand(),
         ),
         // The divide's encoded alternatives may architecturally fault; the
-        // folded divisor of one discharges that surface, so the validator
-        // requires the fault-discharging relationship rather than strict
-        // isolation on the consumer side.
-        SelectedInstructionKind::ExactDivideU64 { .. } => {
-            fault_discharged_fold_admission(consumer_declaration, rewritten_declaration)
-        }
+        // two grammars discharge that surface by different evidence the
+        // validator re-derives separately. The divisor-one fold's literal
+        // is itself the discharging value. The zero-dividend fold relies
+        // on the nonzero-divisor obligation the consumer kind carries —
+        // which must appear in the instruction's recorded provenance
+        // obligations, because the folded dividend of zero does not by
+        // itself discharge the divide-by-zero fault.
+        SelectedInstructionKind::ExactDivideU64 { obligation, .. } => match shape {
+            SourceShape::DivideZeroDividend => obligation_discharged_fold_admission(
+                consumer_declaration,
+                rewritten_declaration,
+                consumer.provenance.obligations.contains(&obligation),
+            ),
+            _ => fault_discharged_fold_admission(consumer_declaration, rewritten_declaration),
+        },
         // The remainder's encoded alternatives may architecturally fault;
         // the two grammars discharge that surface by different evidence
         // the validator re-derives separately. The divisor-one fold's
@@ -926,14 +1005,15 @@ fn reconstruct_action(
     // grammar records its folded input, and the constant-result grammars —
     // whose rewritten row binds no `Use` at all — record the dropped
     // non-victim `Use` for custody: operand 0 under the right grammars,
-    // operand 1 under the left annihilator grammar.
+    // operand 1 under the left grammars.
     let surviving = match shape {
         SourceShape::BinaryLeftImmediate
         | SourceShape::AndZeroLeft
         | SourceShape::XorZeroLeft
         | SourceShape::WrappingAddZeroLeft
         | SourceShape::AndOnesLeft
-        | SourceShape::RemainderZeroDividend => consumer.operands[1].virtual_register,
+        | SourceShape::RemainderZeroDividend
+        | SourceShape::DivideZeroDividend => consumer.operands[1].virtual_register,
         SourceShape::BinaryImmediate
         | SourceShape::UnaryExtension
         | SourceShape::UnaryCopy
@@ -967,7 +1047,11 @@ fn reconstruct_action(
 /// literal is the sole operand, the divide-identity form whose
 /// operand-1 divisor literal of one folds into a copy of the dividend and
 /// drops every `Use` operand past the operand-2 `Def` result, or the
-/// remainder-identity form whose operand-1 divisor literal of one folds
+/// divide zero-dividend form whose operand-0 dividend literal of zero
+/// folds into a materialized zero under the consumer's carried
+/// nonzero-divisor obligation and drops the operand-1 `Use` and the same
+/// provably-zero auxiliary `Use` operands, or the remainder-identity form
+/// whose operand-1 divisor literal of one folds
 /// into a materialized zero and drops the operand-0 `Use` and every `Def`
 /// operand past the operand-2 `Def` result, or the remainder
 /// zero-dividend form whose operand-0 dividend literal of zero folds into
@@ -992,6 +1076,7 @@ enum SourceShape {
     UnaryExtension,
     UnaryCopy,
     DivideIdentity,
+    DivideZeroDividend,
     RemainderIdentity,
     RemainderZeroDividend,
     AndZero,
@@ -1017,6 +1102,7 @@ impl SourceShape {
             Self::BinaryLeftImmediate
             | Self::UnaryExtension
             | Self::UnaryCopy
+            | Self::DivideZeroDividend
             | Self::RemainderZeroDividend
             | Self::AndZeroLeft
             | Self::XorZeroLeft
@@ -1413,11 +1499,50 @@ fn rebuild_function(
                 })?,
             },
         ),
-        // A divide by one is the dividend: the validator rebuilds the
-        // consumer as a `CopyI64` of the surviving operand, bound to the
-        // `CopyI64` row the divide policy gate selected.
+        // Two disjoint families fold `ExactDivideU64`; the victim
+        // register's operand position names the family a fold belongs
+        // to — operand 0 is the zero-dividend fold. The divisor-one fold
+        // rebuilds a `CopyI64` of the surviving operand bound to the
+        // `CopyI64` row the divide policy gate selected. The
+        // zero-dividend fold rebuilds a `MaterializeI64` of the constant
+        // the action payload records, recomputed against the surviving
+        // result register's scalar type and bound to the `MaterializeI64`
+        // row the zero-dividend policy gate selected.
         SelectedInstructionKind::ExactDivideU64 { .. } => {
-            (rows.divide, SelectedInstructionKind::CopyI64)
+            let victim_position = consumer
+                .operands
+                .iter()
+                .position(|operand| {
+                    operand.access == RegisterOperandAccess::Use
+                        && operand.virtual_register == action.victim
+                })
+                .ok_or(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                })?;
+            if victim_position == 0 {
+                let result = action.result.ok_or(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                })?;
+                let scalar = function
+                    .virtual_registers
+                    .iter()
+                    .find(|register| register.id == result)
+                    .map(|register| register.scalar_type)
+                    .ok_or(LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    })?;
+                let value = materialize_value(action.immediate, scalar).ok_or(
+                    LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    },
+                )?;
+                (
+                    rows.divide_zero,
+                    SelectedInstructionKind::MaterializeI64 { value },
+                )
+            } else {
+                (rows.divide, SelectedInstructionKind::CopyI64)
+            }
         }
         // An exclusive-or with a zero literal is the surviving operand:
         // the validator rebuilds the consumer as a `CopyI64` bound to the

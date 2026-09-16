@@ -52,8 +52,14 @@ pub use validate::validate_literal_fold;
 /// the constant zero — `0 % x` is `0` for every `x` — discharging the
 /// consumer's encoded fault surface under the nonzero-divisor obligation
 /// the remainder kind already carries, and dropping its divisor `Use`
-/// and dead scratch `Def` operands; disjoint on the folded literal's
-/// operand position from the divisor-one fold.
+/// and dead scratch `Def` operands — or the literal `0` at the dividend
+/// operand of an unsigned exact divide into a `MaterializeI64` of the
+/// constant zero — `0 / x` is `0` for every `x` the consumer's proven
+/// nonzero divisor admits — discharging the consumer's encoded fault
+/// surface under the nonzero-divisor obligation the divide kind already
+/// carries, and dropping its divisor `Use` and provably-zero auxiliary
+/// `Use` operands; each zero-dividend fold stays disjoint on the folded
+/// literal's operand position from its divisor-one sibling.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

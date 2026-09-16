@@ -246,6 +246,41 @@ pub(super) fn derive_action(
             }
             Some(result.virtual_register)
         }
+        // A binary left-literal consumer whose folded result is a constant
+        // of the literal alone and whose operand list continues past its
+        // `Def` result with auxiliary `Use` operands:
+        // `[victim, right, result, aux...]` folds the operand-0 `Use`,
+        // drops the operand-1 `Use`, and drops every trailing `Use` under
+        // the same provenance custody the right auxiliary grammar
+        // requires — each dropped register defined in this function only
+        // by `MaterializeI64` instructions producing `Unsigned(0)`. A
+        // literal of zero at operand 0 is only the low dividend half an
+        // x86-64 `div` reads; a dropped auxiliary `Use` carrying anything
+        // but a proven zero would silently discard the dividend's upper
+        // half the folded form stopped observing.
+        (
+            PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses,
+            PairResultDisposition::ScalarRegister,
+            [victim, right, result, auxiliary @ ..],
+        ) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !auxiliary.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Use
+                        && auxiliary_zero_defined(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // Commutative binary consumers also admit the literal as the left
         // operand: `[victim, right, result]` folds the operand-0 `Use` and
         // binds the operand-1 survivor into the rewritten row.
@@ -369,9 +404,12 @@ pub(super) fn derive_action(
     // unary fold records its folded input. The constant-result grammars
     // bind no `Use` position; they record the dropped non-victim `Use` for
     // custody — the operand-0 dividend under the right grammar, the
-    // operand-1 `Use` under the left annihilator grammar.
+    // operand-1 `Use` under the left annihilator and auxiliary-`Use`
+    // grammars.
     let surviving = match pair.rule.operand_shape() {
-        PairOperandShape::BinaryLeftLiteral | PairOperandShape::BinaryLeftLiteralConstantResult => {
+        PairOperandShape::BinaryLeftLiteral
+        | PairOperandShape::BinaryLeftLiteralConstantResult
+        | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses => {
             consumer.operands[1].virtual_register
         }
         PairOperandShape::BinaryRightLiteral

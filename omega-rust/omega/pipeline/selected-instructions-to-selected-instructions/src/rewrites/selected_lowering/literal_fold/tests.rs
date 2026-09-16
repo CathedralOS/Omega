@@ -16,8 +16,9 @@ mod wrapping_add_zero_copies;
 
 use staged_arithmetic_inputs::{
     staged_add_inputs, staged_and_inputs, staged_and_ones_inputs, staged_divide_inputs,
-    staged_remainder_inputs, staged_remainder_zero_dividend_inputs, staged_subtract_inputs,
-    staged_wrapping_add_inputs, staged_xor_inputs,
+    staged_divide_zero_dividend_inputs, staged_remainder_inputs,
+    staged_remainder_zero_dividend_inputs, staged_subtract_inputs, staged_wrapping_add_inputs,
+    staged_xor_inputs,
 };
 use staged_memory_inputs::{
     staged_byte_view_address_inputs, staged_copy_inputs, staged_extension_inputs,
@@ -646,6 +647,7 @@ fn policy_without_all(disabled: &[LiteralFoldPolicy]) -> LiteralFoldPolicy {
         LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
         LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
         LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+        LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
     ]
     .into_iter()
     .filter(|policy| !disabled.contains(policy))
