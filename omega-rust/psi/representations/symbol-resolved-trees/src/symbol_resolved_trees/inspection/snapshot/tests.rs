@@ -60,6 +60,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         attached_data: None,
         attached_data_symbol: SymbolHandle::invalid(),
         attached_data_application: None,
+        spelling: Some(language_core::operator_spelling::OperatorSpelling::Add),
         is_public: true,
         supply_mode: Default::default(),
         body_is_present: true,
@@ -108,6 +109,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
     let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);
     assert_eq!(snapshot.roots.machines.len(), 1);
     assert!(snapshot.roots.machines[0].is_public);
+    assert_eq!(snapshot.roots.machines[0].spelling, Some("+"));
     assert_eq!(
         snapshot.roots.domain_definitions[0].predicate_body,
         "present"

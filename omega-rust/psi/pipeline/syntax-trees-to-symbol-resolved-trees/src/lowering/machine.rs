@@ -3,7 +3,12 @@
 //! `lower_machine_into` sets the lowerer's current-machine context, then lowers
 //! the ranking view and termination plan, trait conformances, external
 //! binding identity, and every state. `lower_generic_conformance_bounds` is
-//! shared with trait definitions.
+//! shared with trait definitions. `token_bindings` rejects duplicate direct
+//! operator-token bindings once every selection has settled.
+
+mod token_bindings;
+
+pub(crate) use token_bindings::reject_duplicate_direct_token_bindings;
 
 use crate::lowering::data::lower_type_parameters;
 use crate::lowering::expression::lower_expression_into_table;
@@ -27,10 +32,13 @@ pub(crate) fn lower_machine_into(
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
     // OPERATOR-MACHINE-SUPPLY frontier: `machine.spelling` (the optional fixed
-    // token after `machine`) is admitted and recorded by the parser but not yet
-    // consumed here -- operand-directed selection, semantic-home ownership, and
-    // the `operator`-introducer migration are the next stages. A token-bearing
-    // machine currently lowers exactly like its tokenless named form.
+    // token after `machine`) is copied onto the symbol-resolved declaration
+    // below and flows through the typed and checked machine records;
+    // `token_bindings` rejects an owner-local duplicate token/operand shape
+    // after selection. Operand-directed selection at use sites, cross-package
+    // semantic-home ownership, the `operator`-introducer migration, and
+    // supply-mode wiring are the next stages: a token-bearing machine still
+    // lowers and executes exactly like its tokenless named form.
     let compiler_selection_partition = compiler_selection_partition(
         lowerer.symbol_resolved_trees.machines.len(),
         syntax_trees,
@@ -169,6 +177,7 @@ pub(crate) fn lower_machine_into(
         attached_data,
         attached_data_symbol: SymbolHandle::invalid(),
         attached_data_application: None,
+        spelling: machine.spelling,
         is_public: machine.is_public,
         supply_mode,
         body_is_present: !machine.bodyless,
