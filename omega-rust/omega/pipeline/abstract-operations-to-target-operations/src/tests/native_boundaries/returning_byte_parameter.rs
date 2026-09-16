@@ -17,12 +17,20 @@ fn hosted_byte_output_rejects_noncanonical_or_unsupported_targets() {
         ),
         realization: target_operations::HostedWriteByteI32Realization.into(),
     };
-    for target in [
-        NativeTarget::windows_x64(),
-        NativeTarget {
+    // x86-64 on Mach-O is not a canonical profile. Since 5213d05f76 the native
+    // callable matrix fails closed with a panic on that undeclared
+    // (architecture, object-format) pair, and `derive_fixed_scalar_function_abi`
+    // consults it before any realization check, so only the realization-level
+    // rejection is observable here; the fail-closed arm is pinned in
+    // calling-conventions. The lowering rows below all use declared pairs.
+    assert!(
+        !target_operations::HostedWriteByteI32Realization::supports_target(NativeTarget {
             architecture: target::Architecture::X86_64,
             ..NativeTarget::macos_arm64()
-        },
+        })
+    );
+    for target in [
+        NativeTarget::windows_x64(),
         NativeTarget {
             pointer_size: 4,
             ..NativeTarget::macos_arm64()
