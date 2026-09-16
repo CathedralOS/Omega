@@ -151,9 +151,11 @@ fn immediate_literal_moves_preserve_complete_caller_reference_frames() {
             Some(vec!["self.value"]),
         ),
         (
+            // The parameter's Selected payload may be absent, which traps the
+            // access; when it is present the write reaches its declared leaf.
             "unknown_parameter_payload",
             "write_outer(Outer { inner: choice.view });",
-            None,
+            Some(vec!["choice.view.body"]),
         ),
         (
             "parameter_slot_replacement",

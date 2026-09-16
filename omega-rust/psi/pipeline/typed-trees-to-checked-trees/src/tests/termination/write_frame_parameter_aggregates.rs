@@ -104,28 +104,30 @@ fn parameter_aggregate_moves_preserve_caller_reference_origins() {
             Some("input.body"),
         ),
         (
+            // A possibly-absent payload access traps when the case is not
+            // selected, so the leaf's caller origin is the only write.
             "unknown_case_payload",
             "Choice",
             "let first: View = input.view; write_view(first);",
-            None,
+            Some("input.view.body"),
         ),
         (
             "stored_unknown_case_payload",
             "Choice",
             "let first: Choice = input; let second: View = first.view; write_view(second);",
-            None,
+            Some("input.view.body"),
         ),
         (
             "fixed_unknown_case_payload",
             "[Choice; 2]",
             "let first: View = input[0].view; write_view(first);",
-            None,
+            Some("input"),
         ),
         (
             "runtime_unknown_case_payload",
             "[Choice; 2]",
             "let first: View = input[index].view; write_view(first);",
-            None,
+            Some("input"),
         ),
         (
             "wrong_nominal",

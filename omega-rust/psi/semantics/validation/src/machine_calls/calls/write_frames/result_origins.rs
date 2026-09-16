@@ -12,7 +12,7 @@ use super::{
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::state_write_walk::walk_state_write_prefix;
-use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod input_moves;
 mod input_sources;
@@ -81,23 +81,38 @@ pub(super) fn call_result_origins(
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    let (result_statement, prefix) = statements.split_last()?;
-    let result = match result_statement {
-        StatementNode::Expression(result) => *result,
-        StatementNode::Transition(transition)
-            if transition.guard == TransitionGuardNode::Always
-                && transition.exit == TransitionExit::Ordinary
-                && !transition.continuation.is_valid() =>
-        {
-            let TransitionTargetNode::Value(result) =
-                program.statement_table.transition_target(transition.target)
-            else {
-                return None;
-            };
-            *result
-        }
-        _ => return None,
-    };
+    // The result region is the trailing run of ordinary value-return arms.
+    // A guarded conditional chain returns one of several expressions, a
+    // failed guard falls through to the next statement, and a plain terminal
+    // expression is the single-arm case. Transitions append no locals or
+    // stored origins, so every arm shares the prefix context; a non-final
+    // expression is a discarded statement and never joins the region.
+    let mut result_start = statements.len();
+    let mut results = Vec::new();
+    while let Some(statement) = result_start
+        .checked_sub(1)
+        .and_then(|index| statements.get(index))
+    {
+        let result = match statement {
+            StatementNode::Expression(result) if result_start == statements.len() => *result,
+            StatementNode::Transition(transition)
+                if transition.exit == TransitionExit::Ordinary
+                    && !transition.continuation.is_valid() =>
+            {
+                let TransitionTargetNode::Value(result) =
+                    program.statement_table.transition_target(transition.target)
+                else {
+                    break;
+                };
+                *result
+            }
+            _ => break,
+        };
+        results.push(result);
+        result_start -= 1;
+    }
+    let (prefix, result_region) = statements.split_at(result_start);
+    let result_boundary = result_region.first()?;
     // Named/alternate return routes need a result relation over their graph;
     // an ordinary write summary alone cannot select their returned value.
     if prefix
@@ -179,86 +194,111 @@ pub(super) fn call_result_origins(
         for local in &context.stored {
             inference.record_local(local);
         }
-        let returned = reference_leaves_with_origins(
-            program,
-            machine,
-            result,
-            state.return_type,
-            "",
-            symbols,
-            inference,
-            include_shared,
-            &|expression, reference, implicit_borrow, inference| {
-                if include_shared {
-                    super::reference_subjects::value_origin(
-                        program,
-                        machine,
-                        expression,
-                        symbols,
-                        inference,
-                        &context.aliases,
-                        &context.stored,
-                        implicit_borrow,
-                    )
-                    .or_else(|| {
-                        super::reference_subjects::unknown_readonly_origin(program, reference, "")
-                    })
-                } else {
-                    super::reference_origins::exclusive_reference_origin(
-                        program, machine, expression, symbols, inference,
-                    )
-                }
-            },
-            &|expression, reference, _| {
-                super::stored_origins::reference_leaves_before_statement_for_query(
-                    program,
-                    state,
-                    result_statement,
-                    expression,
-                    reference,
-                    Some(&context.stored),
-                    None,
-                    include_shared,
-                )
-            },
-        )?;
         let mut relative = AggregateOrigins {
             references: Vec::new(),
-            cases: returned.cases,
-            moves: returned.moves,
+            cases: Vec::new(),
+            moves: Vec::new(),
         };
-        for leaf in returned.references {
-            for origin in canonical_reference_origins(
+        for result in &results {
+            let returned = reference_leaves_with_origins(
                 program,
-                &leaf.origin,
-                &context.aliases,
-                &context.stored,
-            ) {
-                if include_shared
-                    && parameters.iter().any(|parameter| {
-                        super::type_reference_is_reference(program, parameter.type_reference)
-                            && (parameter.symbol == origin.source.root
-                                || (parameter.is_self && machine.symbol == origin.source.root))
-                    })
-                {
-                    // Check a borrowed carrier's loaded boundary while its
-                    // complete helper-prefix evidence is available. Caller
-                    // substitution cannot reconstruct a callee's frozen slots
-                    // or establish which payload the helper selected.
-                    super::reference_subjects::validate_source_projection(
+                machine,
+                *result,
+                state.return_type,
+                "",
+                symbols,
+                inference,
+                include_shared,
+                &|expression, reference, implicit_borrow, inference| {
+                    if include_shared {
+                        super::reference_subjects::value_origin(
+                            program,
+                            machine,
+                            expression,
+                            symbols,
+                            inference,
+                            &context.aliases,
+                            &context.stored,
+                            implicit_borrow,
+                        )
+                        .or_else(|| {
+                            super::reference_subjects::unknown_readonly_origin(program, reference, "")
+                        })
+                    } else {
+                        super::reference_origins::exclusive_reference_origin(
+                            program, machine, expression, symbols, inference,
+                        )
+                    }
+                },
+                &|expression, reference, _| {
+                    super::stored_origins::reference_leaves_before_statement_for_query(
                         program,
-                        machine,
                         state,
-                        statements.len(),
-                        &origin.source,
-                        &context.stored,
-                    )?;
+                        result_boundary,
+                        expression,
+                        reference,
+                        Some(&context.stored),
+                        None,
+                        include_shared,
+                    )
+                },
+            )?;
+            for case in returned.cases {
+                if !relative.cases.contains(&case) {
+                    relative.cases.push(case);
                 }
-                relative.references.push(ReferenceLeaf {
-                    local_suffix: leaf.local_suffix.clone(),
-                    local_segments: leaf.local_segments.clone(),
-                    origin,
-                });
+            }
+            for moved in returned.moves {
+                if !relative.moves.iter().any(|existing| {
+                    existing.local_segments == moved.local_segments
+                        && existing.source == moved.source
+                        && existing.type_reference == moved.type_reference
+                }) {
+                    relative.moves.push(moved);
+                }
+            }
+            for leaf in returned.references {
+                for origin in canonical_reference_origins(
+                    program,
+                    &leaf.origin,
+                    &context.aliases,
+                    &context.stored,
+                ) {
+                    if include_shared
+                        && parameters.iter().any(|parameter| {
+                            super::type_reference_is_reference(program, parameter.type_reference)
+                                && (parameter.symbol == origin.source.root
+                                    || (parameter.is_self && machine.symbol == origin.source.root))
+                        })
+                    {
+                        // Check a borrowed carrier's loaded boundary while its
+                        // complete helper-prefix evidence is available. Caller
+                        // substitution cannot reconstruct a callee's frozen slots
+                        // or establish which payload the helper selected.
+                        super::reference_subjects::validate_source_projection(
+                            program,
+                            machine,
+                            state,
+                            statements.len(),
+                            &origin.source,
+                            &context.stored,
+                        )?;
+                    }
+                    let leaf = ReferenceLeaf {
+                        local_suffix: leaf.local_suffix.clone(),
+                        local_segments: leaf.local_segments.clone(),
+                        origin,
+                    };
+                    if !relative.references.iter().any(|existing| {
+                        existing.local_suffix == leaf.local_suffix
+                            && existing.local_segments == leaf.local_segments
+                            && existing.origin.path == leaf.origin.path
+                            && existing.origin.precision == leaf.origin.precision
+                            && existing.origin.source == leaf.origin.source
+                    }) {
+                        relative.references.push(leaf);
+                    }
+                }
             }
         }
         Some(relative)

@@ -136,9 +136,11 @@ fn immediate_payload_moves_use_the_owning_local_case_context() {
             None,
         ),
         (
+            // The runtime index may select the Empty element, which traps the
+            // payload access; the Selected element's leaf is the only write.
             "runtime_mixed",
             "let local: [Choice; 2] = [Choice::Selected { view: View { body: &mut self.value } }, Choice::Empty {}]; write_outer(Outer { inner: local[index].view });",
-            None,
+            Some(vec!["self.value"]),
         ),
         (
             "absent_owned_payload",
@@ -151,14 +153,16 @@ fn immediate_payload_moves_use_the_owning_local_case_context() {
             None,
         ),
         (
+            // The parameter's case is unknown, so the payload access is a
+            // checked partial operation: the write is only the declared leaf.
             "unknown_parameter_case",
             "write_outer(Outer { inner: input.view });",
-            None,
+            Some(vec![]),
         ),
         (
             "unknown_moved_parameter_case",
             "let local: Choice = input; write_outer(Outer { inner: local.view });",
-            None,
+            Some(vec![]),
         ),
         (
             "replaced_carrier",
@@ -250,7 +254,9 @@ fn expression_call_payload_moves_use_the_same_case_context() {
             Some(vec!["self.value".to_owned()]),
         ),
         ("absent", "let local: Choice = Choice::Empty {};", None),
-        ("unknown", "let local: Choice = input;", None),
+        // The moved parameter's case is unknown, so the payload access is a
+        // checked partial operation that traps unless Selected is active.
+        ("unknown", "let local: Choice = input;", Some(vec![])),
     ] {
         let program = contextual_case_program(&format!(
             "{prefix} let result: u64 = write_value(Outer {{ inner: local.view }});"
