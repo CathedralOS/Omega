@@ -1,6 +1,8 @@
 //! Host operations: the keyed catalog of every operation a host can be asked
 //! for, the capability each requires, and the interned custom names.
 
+pub(crate) mod external_bindings;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct HostOperationKey {
     pub capability: HostCapability,

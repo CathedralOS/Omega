@@ -470,7 +470,7 @@ fn private_authority_carriers_retain_strong_subject_commitments() {
     );
 
     let stack_path =
-        root.join("omega-rust/omega/representations/calling-conventions/src/stack_realizations.rs");
+        root.join("omega-rust/omega/representations/calling-conventions/src/stack_realizations/mod.rs");
     let stack = fs::read_to_string(&stack_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", stack_path.display()));
     let roots_path = root.join(
@@ -610,7 +610,7 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
             ][..],
         ),
         (
-            "omega-rust/omega/representations/calling-conventions/src/callback_materializations.rs",
+            "omega-rust/omega/representations/calling-conventions/src/callback_materializations/mod.rs",
             &["fn callback_nominal_identity"][..],
         ),
         (
