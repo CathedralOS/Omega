@@ -48,6 +48,7 @@ impl LiteralFoldPolicy {
     const BITWISE_AND_ZERO_BIT: u16 = 1 << 9;
     const BITWISE_XOR_ZERO_BIT: u16 = 1 << 10;
     const WRAPPING_ADD_ZERO_BIT: u16 = 1 << 11;
+    const BITWISE_AND_ONES_BIT: u16 = 1 << 12;
     const KNOWN_BITS: u16 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -59,7 +60,8 @@ impl LiteralFoldPolicy {
         | Self::WRAPPING_REMAINDER_BIT
         | Self::BITWISE_AND_ZERO_BIT
         | Self::BITWISE_XOR_ZERO_BIT
-        | Self::WRAPPING_ADD_ZERO_BIT;
+        | Self::WRAPPING_ADD_ZERO_BIT
+        | Self::BITWISE_AND_ONES_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -135,6 +137,18 @@ impl LiteralFoldPolicy {
     pub const WRAPPING_ADD_ZERO_V1: Self = Self {
         enabled_rules: Self::WRAPPING_ADD_ZERO_BIT,
     };
+    /// Bitwise-and identity fold: fold a materialized all-ones literal
+    /// (`u64::MAX`) feeding its sole `BitwiseAndI64` consumer at either
+    /// `Use` operand into a `CopyI64` of the other `Use` — all-ones is the
+    /// bitwise-and identity element, so `x & MAX` and `MAX & x` are both
+    /// `x` and the surviving operand's register moves to the result
+    /// unchanged. The all-ones grammar is disjoint from the and-zero
+    /// annihilator family on the literal's value: the producer selects
+    /// between the two `BitwiseAndI64` families by which exact literal the
+    /// enabled rules admit.
+    pub const BITWISE_AND_ONES_V1: Self = Self {
+        enabled_rules: Self::BITWISE_AND_ONES_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -196,6 +210,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_wrapping_add_zero(self) -> bool {
         self.enabled_rules & Self::WRAPPING_ADD_ZERO_BIT != 0
+    }
+
+    pub const fn enables_bitwise_and_ones(self) -> bool {
+        self.enabled_rules & Self::BITWISE_AND_ONES_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u16 {

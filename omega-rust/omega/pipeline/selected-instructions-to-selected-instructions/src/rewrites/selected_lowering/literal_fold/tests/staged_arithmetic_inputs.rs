@@ -2226,11 +2226,27 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
 /// Operands past the operand-2 `Def` result — none on either Linux target's
 /// row — would be scratch `Def` outputs the fold drops dead.
 pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
-    staged_zero_literal_binary_inputs(
+    staged_literal_binary_inputs(
         target,
         literal_operand,
         SelectedInstructionKind::BitwiseAndI64,
         LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
+        0,
+    )
+}
+
+/// The same `BitwiseAndI64` fixture with the all-ones literal: the
+/// and-ones family folds `x & MAX` and `MAX & x` into a `CopyI64` of the
+/// surviving operand — all-ones is the bitwise-and identity element,
+/// disjoint on the literal's value from the and-zero annihilator family
+/// the same consumer kind admits.
+pub(super) fn staged_and_ones_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
+    staged_literal_binary_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::BitwiseAndI64,
+        LiteralFoldPolicy::BITWISE_AND_ONES_V1,
+        u64::MAX,
     )
 }
 
@@ -2238,11 +2254,12 @@ pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> I
 /// folds `x ^ 0` and `0 ^ x` into a `CopyI64` of the surviving operand
 /// rather than materializing the annihilator constant.
 pub(super) fn staged_xor_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
-    staged_zero_literal_binary_inputs(
+    staged_literal_binary_inputs(
         target,
         literal_operand,
         SelectedInstructionKind::BitwiseXorI64,
         LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
+        0,
     )
 }
 
@@ -2250,27 +2267,29 @@ pub(super) fn staged_xor_inputs(target: NativeTarget, literal_operand: u16) -> I
 /// family folds `x + 0` and `0 + x` into a `CopyI64` of the surviving
 /// operand — zero is the additive identity under modulo-2^64 wrap.
 pub(super) fn staged_wrapping_add_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
-    staged_zero_literal_binary_inputs(
+    staged_literal_binary_inputs(
         target,
         literal_operand,
         SelectedInstructionKind::WrappingAddI64,
         LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
+        0,
     )
 }
 
-/// Shared staging for the zero-literal binary families: a `MaterializeI64`
-/// victim producing `Unsigned(0)` feeds `kind`'s `Use` operand at
-/// `literal_operand`, whose `Def` result is a scalar register, under
-/// `policy`. The consumer's constraint row comes from the semantic's own
-/// selected key: the bitwise consumers bind the flag-clobbering subtract
-/// row — x86-64 `and`/`xor` destroy `rflags`, the aarch64 forms touch no
-/// condition state — while the wrapping-add consumer binds the
-/// flag-transparent add row, which clobbers nothing.
-fn staged_zero_literal_binary_inputs(
+/// Shared staging for the exact-literal binary families: a
+/// `MaterializeI64` victim producing `Unsigned(literal)` feeds `kind`'s
+/// `Use` operand at `literal_operand`, whose `Def` result is a scalar
+/// register, under `policy`. The consumer's constraint row comes from the
+/// semantic's own selected key: the bitwise consumers bind the
+/// flag-clobbering subtract row — x86-64 `and`/`xor` destroy `rflags`,
+/// the aarch64 forms touch no condition state — while the wrapping-add
+/// consumer binds the flag-transparent add row, which clobbers nothing.
+fn staged_literal_binary_inputs(
     target: NativeTarget,
     literal_operand: u16,
     kind: SelectedInstructionKind,
     policy: LiteralFoldPolicy,
+    immediate: u64,
 ) -> Inputs {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
@@ -2310,7 +2329,7 @@ fn staged_zero_literal_binary_inputs(
     let literal = SelectedInstruction {
         id: literal_id,
         kind: SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(0),
+            value: IntegerValue::Unsigned(u128::from(immediate)),
         },
         constraint: materialize.key,
         operands: vec![SelectedOperand {
@@ -2778,7 +2797,7 @@ fn staged_zero_literal_binary_inputs(
                         RecoveryClassification::ImmediateU64RematerializationCandidate {
                             defining_instruction: literal_id,
                             source_value: literal_value,
-                            value: IntegerValue::Unsigned(0),
+                            value: IntegerValue::Unsigned(u128::from(immediate)),
                             provenance: literal_provenance,
                             future_uses: vec![RecoveryFutureUse {
                                 block: SelectedBlockId(0),

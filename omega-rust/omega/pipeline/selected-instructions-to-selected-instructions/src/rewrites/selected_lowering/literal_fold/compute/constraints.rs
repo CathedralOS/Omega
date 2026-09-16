@@ -33,11 +33,42 @@ pub(super) struct AdmittedPairs<'a> {
 
 impl<'a> AdmittedPairs<'a> {
     /// The enabled pair admitting `kind` as its consumer with the literal
-    /// victim at operand `victim_operand`. One family may declare disjoint
+    /// victim at operand `victim_operand` and the folded literal inside the
+    /// pair's declared immediate bound. One family may declare disjoint
     /// operand grammars for the same consumer kind — the exact-add selection
     /// admits the literal at either `Use` position — so a kind match alone
-    /// does not identify the grammar.
+    /// does not identify the grammar; and disjoint families may admit the
+    /// same kind at the same position under disjoint literal bounds — the
+    /// bitwise-and selections admit the zero literal (annihilator) and the
+    /// all-ones literal (identity) — so the literal's value completes the
+    /// key.
     pub(super) fn for_consumer(
+        &self,
+        kind: SelectedInstructionKind,
+        victim_operand: u16,
+        literal: u64,
+    ) -> Option<&AdmittedPair<'a>> {
+        let mut matches = self.pairs.iter().filter(|pair| {
+            pair.rule.matches_consumer(kind)
+                && pair.rule.victim_operand() == victim_operand
+                && pair.rule.admits_immediate(literal)
+        });
+        let pair = matches.next()?;
+        // The enabled rules must partition each consumer grammar on the
+        // literal's value: a second admitting pair is a catalog defect, so
+        // admission refuses rather than silently preferring catalog order.
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(pair)
+    }
+
+    /// Any enabled pair admitting `kind` as its consumer with the literal
+    /// victim at operand `victim_operand`, whatever literal bound the pair
+    /// declares. Admission-time error reporting distinguishes an admitted
+    /// operand position whose literal lies outside every enabled bound
+    /// from a position no enabled grammar covers at all.
+    pub(super) fn for_position(
         &self,
         kind: SelectedInstructionKind,
         victim_operand: u16,

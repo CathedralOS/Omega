@@ -54,6 +54,14 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// separately so a fold the selection did not enable cannot replay
     /// under another family's policy.
     pub(super) wrapping_add_zero: Option<&'a RegisterInstructionConstraint>,
+    /// The `CopyI64` row the bitwise-and identity fold rewrites into —
+    /// the same constraint row the divide, xor, and wrapping-add folds
+    /// bind, gated separately so a fold the selection did not enable
+    /// cannot replay under another family's policy. The and-ones family
+    /// shares its consumer kind and operand positions with the and-zero
+    /// family; the literal's value names which family a `BitwiseAndI64`
+    /// fold belongs to.
+    pub(super) and_ones: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -121,6 +129,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_wrapping_add_zero()
         .then(|| find(keys.copy_i64))
         .transpose()?;
+    let and_ones = policy
+        .enables_bitwise_and_ones()
+        .then(|| find(keys.copy_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -134,6 +146,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         and_zero,
         xor_zero,
         wrapping_add_zero,
+        and_ones,
     ]
     .into_iter()
     .flatten()
@@ -208,6 +221,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::CopyI64,
             isolated_rewritten_declaration,
         ),
+        (
+            and_ones,
+            MachineSemanticKind::CopyI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -229,6 +247,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         and_zero,
         xor_zero,
         wrapping_add_zero,
+        and_ones,
         catalog,
     })
 }

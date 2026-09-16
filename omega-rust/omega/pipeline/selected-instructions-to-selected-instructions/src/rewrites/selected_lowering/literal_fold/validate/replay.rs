@@ -233,23 +233,48 @@ fn reconstruct_action(
             rows.remainder,
             MachineSemanticKind::MaterializeI64,
         ),
-        // The bitwise-and annihilator fold: a literal of exactly zero at
-        // either `Use` folds `BitwiseAndI64` into a `MaterializeI64` of
-        // zero — `0 & x` and `x & 0` are both zero — bound to the
-        // `MaterializeI64` row the and-zero policy's own gate selected.
-        // The other `Use` drops because the constant result never reads
-        // it, and every `Def` operand past the operand-2 result drops
-        // under the same occurrence-free custody the remainder grammar
-        // derives. The recorded operand position picks the grammar.
-        SelectedInstructionKind::BitwiseAndI64 => (
-            if future_use.operand == 0 {
-                SourceShape::AndZeroLeft
+        // Two disjoint families fold `BitwiseAndI64` at either `Use`
+        // position; the literal's value names the family a fold belongs
+        // to. The and-zero annihilator admits exactly the literal zero —
+        // `0 & x` and `x & 0` are both zero — and folds into a
+        // `MaterializeI64` of zero bound to the `MaterializeI64` row the
+        // and-zero policy's own gate selected; the other `Use` drops
+        // because the constant result never reads it, and every `Def`
+        // operand past the operand-2 result drops under the same
+        // occurrence-free custody the remainder grammar derives. The
+        // and-ones identity admits exactly the all-ones literal —
+        // `MAX & x` and `x & MAX` are both `x` — and folds into a
+        // `CopyI64` of the surviving `Use` bound to the `CopyI64` row the
+        // and-ones policy's own gate selected. A literal neither family
+        // admits replays under the annihilator shapes so the family's
+        // exact-literal check rejects it; which policy rows bound decides
+        // whether that rejection reports the unadmitted literal or the
+        // unadmitted kind. The recorded operand position picks the
+        // grammar within each family.
+        SelectedInstructionKind::BitwiseAndI64 => {
+            let left = future_use.operand == 0;
+            if literal_u64 == u64::MAX {
+                (
+                    if left {
+                        SourceShape::AndOnesLeft
+                    } else {
+                        SourceShape::AndOnes
+                    },
+                    rows.and_ones,
+                    MachineSemanticKind::CopyI64,
+                )
             } else {
-                SourceShape::AndZero
-            },
-            rows.and_zero,
-            MachineSemanticKind::MaterializeI64,
-        ),
+                (
+                    if left {
+                        SourceShape::AndZeroLeft
+                    } else {
+                        SourceShape::AndZero
+                    },
+                    rows.and_zero,
+                    MachineSemanticKind::MaterializeI64,
+                )
+            }
+        }
         // The bitwise-xor identity fold: a literal of exactly zero at
         // either `Use` folds `BitwiseXorI64` into a `CopyI64` of the other
         // `Use` — `x ^ 0` and `0 ^ x` are both `x` — bound to the
@@ -287,8 +312,32 @@ fn reconstruct_action(
             MachineSemanticKind::MaterializeI64,
         ),
     };
-    let row = row.ok_or(LiteralFoldError::ConsumerMismatch {
-        function: function_index,
+    // `BitwiseAndI64` is the one consumer kind two disjoint families admit
+    // at the same operand positions — the literal's value names the family,
+    // so when that family's row was not bound the position may still be
+    // admitted by the other family: an admitted operand position whose
+    // literal no enabled family admits is an unsupported immediate, a
+    // position outside both grammars a future-use mismatch, and a
+    // `BitwiseAndI64` with no and family enabled a consumer mismatch like
+    // any other unadmitted kind.
+    let row = row.ok_or_else(|| {
+        if matches!(consumer.kind, SelectedInstructionKind::BitwiseAndI64)
+            && (rows.and_zero.is_some() || rows.and_ones.is_some())
+        {
+            if future_use.operand == shape.victim_operand() {
+                LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                }
+            } else {
+                LiteralFoldError::FutureUseMismatch {
+                    function: function_index,
+                }
+            }
+        } else {
+            LiteralFoldError::ConsumerMismatch {
+                function: function_index,
+            }
+        }
     })?;
     if future_use.operand != shape.victim_operand() {
         return Err(LiteralFoldError::FutureUseMismatch {
@@ -370,6 +419,19 @@ fn reconstruct_action(
         // the `CopyI64` rebuild.
         SourceShape::WrappingAddZero | SourceShape::WrappingAddZeroLeft => {
             if literal_u64 != 0 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
+        }
+        // The and-ones fold is the identity only when the folded literal
+        // is all ones — `u64::MAX` is the bitwise-and identity element at
+        // either `Use` position; any other literal is a different
+        // computation the replay must not admit. The recorded immediate
+        // is the folded literal itself, unused by the `CopyI64` rebuild.
+        SourceShape::AndOnes | SourceShape::AndOnesLeft => {
+            if literal_u64 != u64::MAX {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
                 });
@@ -608,6 +670,45 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
+        // The and-ones identity grammar: `[surviving, victim, result]`
+        // folds the operand-1 `Use`; the operand-0 `Use` survives and
+        // binds the `CopyI64` row's `Use` position. The consumer carries
+        // exactly three operands — an operand past the `Def` result has
+        // no droppable role under this grammar.
+        (SourceShape::AndOnes, [left, right, result]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The commuted and-ones identity grammar: `[victim, surviving,
+        // result]` folds the operand-0 `Use`; the operand-1 `Use`
+        // survives into the `CopyI64` row's `Use` position because
+        // bitwise and commutes — `MAX & x` is `x & MAX` is `x`.
+        (SourceShape::AndOnesLeft, [victim, right, result]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || right.class != row.operands[0].class
+                || result.class != row.operands[1].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         (SourceShape::UnaryExtension | SourceShape::UnaryCopy, [input, result]) => {
             if input.access != RegisterOperandAccess::Use
                 || input.virtual_register != candidate.victim
@@ -741,7 +842,8 @@ fn reconstruct_action(
         SourceShape::BinaryLeftImmediate
         | SourceShape::AndZeroLeft
         | SourceShape::XorZeroLeft
-        | SourceShape::WrappingAddZeroLeft => consumer.operands[1].virtual_register,
+        | SourceShape::WrappingAddZeroLeft
+        | SourceShape::AndOnesLeft => consumer.operands[1].virtual_register,
         SourceShape::BinaryImmediate
         | SourceShape::UnaryExtension
         | SourceShape::UnaryCopy
@@ -749,7 +851,8 @@ fn reconstruct_action(
         | SourceShape::RemainderIdentity
         | SourceShape::AndZero
         | SourceShape::XorZero
-        | SourceShape::WrappingAddZero => consumer.operands[0].virtual_register,
+        | SourceShape::WrappingAddZero
+        | SourceShape::AndOnes => consumer.operands[0].virtual_register,
     };
 
     Ok(LiteralFoldAction {
@@ -785,7 +888,9 @@ fn reconstruct_action(
 /// the operand-0 `Use` under the commuted left grammar that binds the
 /// operand-1 `Use` instead — or the wrapping-add identity forms whose
 /// zero literal folds `WrappingAddI64` into a copy of the surviving
-/// `Use` under the same two-position grammar.
+/// `Use` under the same two-position grammar — or the bitwise-and
+/// identity forms whose all-ones literal folds `BitwiseAndI64` into a
+/// copy of the surviving `Use` under the same two-position grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
@@ -800,6 +905,8 @@ enum SourceShape {
     XorZeroLeft,
     WrappingAddZero,
     WrappingAddZeroLeft,
+    AndOnes,
+    AndOnesLeft,
 }
 
 impl SourceShape {
@@ -810,13 +917,15 @@ impl SourceShape {
             | Self::RemainderIdentity
             | Self::AndZero
             | Self::XorZero
-            | Self::WrappingAddZero => 1,
+            | Self::WrappingAddZero
+            | Self::AndOnes => 1,
             Self::BinaryLeftImmediate
             | Self::UnaryExtension
             | Self::UnaryCopy
             | Self::AndZeroLeft
             | Self::XorZeroLeft
-            | Self::WrappingAddZeroLeft => 0,
+            | Self::WrappingAddZeroLeft
+            | Self::AndOnesLeft => 0,
         }
     }
 }
@@ -1100,8 +1209,7 @@ fn rebuild_function(
         | SelectedInstructionKind::SignExtendI16
         | SelectedInstructionKind::SignExtendI32
         | SelectedInstructionKind::CopyI64
-        | SelectedInstructionKind::WrappingRemainderI64 { .. }
-        | SelectedInstructionKind::BitwiseAndI64 => {
+        | SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             // The folded materialization must declare the exact constant the
             // result register's scalar type admits; the validator recomputes
             // it from the action payload and the surviving result register.
@@ -1122,9 +1230,8 @@ fn rebuild_function(
                 },
             )?;
             // The copy fold binds its own policy-gated row, the remainder
-            // fold binds the materialize row under its own policy bit, the
-            // and-zero fold binds the materialize row under its own policy
-            // bit, and the extension consumers bind theirs.
+            // fold binds the materialize row under its own policy bit, and
+            // the extension consumers bind theirs.
             let row = if consumer.kind == SelectedInstructionKind::CopyI64 {
                 rows.copy
             } else if matches!(
@@ -1132,12 +1239,46 @@ fn rebuild_function(
                 SelectedInstructionKind::WrappingRemainderI64 { .. }
             ) {
                 rows.remainder
-            } else if consumer.kind == SelectedInstructionKind::BitwiseAndI64 {
-                rows.and_zero
             } else {
                 rows.materialize
             };
             (row, SelectedInstructionKind::MaterializeI64 { value })
+        }
+        // A bitwise-and folds under one of two disjoint families the
+        // reconstructed immediate names: the and-zero annihilator records
+        // the constant zero its rewritten `MaterializeI64` embeds, bound
+        // to the `MaterializeI64` row the and-zero policy gate selected,
+        // while the and-ones identity records the all-ones literal itself
+        // and rebuilds a `CopyI64` of the surviving operand, bound to the
+        // `CopyI64` row the and-ones policy gate selected. Any other
+        // recorded immediate is a fold the grammar derivation already
+        // rejected; keeping the and-zero arm here preserves the
+        // consumer-mismatch refusal.
+        SelectedInstructionKind::BitwiseAndI64 => {
+            if action.immediate == u64::MAX {
+                (rows.and_ones, SelectedInstructionKind::CopyI64)
+            } else {
+                let result = action.result.ok_or(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                })?;
+                let scalar = function
+                    .virtual_registers
+                    .iter()
+                    .find(|register| register.id == result)
+                    .map(|register| register.scalar_type)
+                    .ok_or(LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    })?;
+                let value = materialize_value(action.immediate, scalar).ok_or(
+                    LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    },
+                )?;
+                (
+                    rows.and_zero,
+                    SelectedInstructionKind::MaterializeI64 { value },
+                )
+            }
         }
         SelectedInstructionKind::Load8Indexed => (
             rows.load8,

@@ -494,18 +494,33 @@ fn and_zero_fold_rejects_consumer_operands_carrying_forbidden_bindings() {
 fn and_zero_fold_rejects_consumers_the_selection_does_not_enable() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // The and's operand grammar admits the literal only under the and-zero
-    // policy: every other selected family sees no admitted consumer kind —
-    // including the strongest posture, every other rule enabled at once.
+    // A `BitwiseAndI64` consumer with the zero literal is admitted only
+    // under the and-zero policy. A selection enabling a different consumer
+    // kind's family reports the unadmitted kind as a consumer mismatch.
     let inputs = staged_and_inputs(target, 1);
     for policy in [
         LiteralFoldPolicy::EXACT_SUBTRACT_V1,
         LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
-        policy_without(LiteralFoldPolicy::BITWISE_AND_ZERO_V1),
     ] {
         assert_eq!(
             fold_with(&inputs, &environment, policy).map(|_| ()),
             Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "{policy:?}"
+        );
+    }
+    // The sibling and family admits the same kind and operand positions
+    // under a disjoint literal bound: with only the and-ones bit set the
+    // consumer kind and the `Use` position are admitted and the zero
+    // literal alone is what rejects — an unsupported immediate, not a
+    // consumer or position mismatch. The strongest disabled posture —
+    // every other family enabled at once — reports the same boundary.
+    for policy in [
+        LiteralFoldPolicy::BITWISE_AND_ONES_V1,
+        policy_without(LiteralFoldPolicy::BITWISE_AND_ZERO_V1),
+    ] {
+        assert_eq!(
+            fold_with(&inputs, &environment, policy).map(|_| ()),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
             "{policy:?}"
         );
     }
