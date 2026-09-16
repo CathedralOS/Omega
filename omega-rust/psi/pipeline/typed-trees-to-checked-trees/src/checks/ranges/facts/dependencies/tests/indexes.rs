@@ -642,3 +642,193 @@ fn a_reference_read_below_an_index_is_not_an_integer_snapshot() {
     facts.alias_integer_place_value(&program, machine, state, expression, local.symbol, "cut");
     assert!(!facts.index_upper_bound_is_proven("cut", 5));
 }
+
+/// A builtin `collection[a..b]` window is a place: its complete footprint is
+/// each present bound's operand reads plus the window place itself. Writes
+/// to the collection or either bound retire its facts; unrelated storage
+/// cannot touch them.
+#[test]
+fn a_builtin_range_window_reads_its_collection_and_both_bounds() {
+    let program = typed_source(
+        "machine window(items: &[i64; 4], low: u64, high: u64, unrelated: u64) {
+            let cut: &[i64] = items[low..high];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let mut facts = RangeFacts::new(&[]);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("builtin window reads");
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        panic!("window fixture")
+    };
+    let mut window = parameter_place(&program, state, "items");
+    window.segments.push(facts::PlaceSegment::Index {
+        expression: indexed.index,
+    });
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "low"),
+            parameter_place(&program, state, "high"),
+            window,
+        ]
+        .as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [
+        ("items", false),
+        ("low", false),
+        ("high", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// Constant bounds collapse the window to resolved `start..end` coordinates:
+/// the footprint is the window place alone, and an element write outside the
+/// extent is proven disjoint instead of retiring the window's facts.
+#[test]
+fn a_constant_range_window_keeps_its_exact_extent() {
+    let program = typed_source(
+        "machine window(items: &[i64; 4], unrelated: u64) {
+            let cut: &[i64] = items[0..2];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let mut facts = RangeFacts::new(&[]);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("constant window reads");
+    let mut window = parameter_place(&program, state, "items");
+    window
+        .segments
+        .push(facts::PlaceSegment::FixedRange { start: 0, end: 2 });
+    assert_eq!(reads.as_slice(), [window].as_slice());
+    let label = program.expression_table.display_name(expression);
+    let write_at = |index: usize| {
+        let mut place = parameter_place(&program, state, "items");
+        place
+            .segments
+            .push(facts::PlaceSegment::FixedIndex { index });
+        place
+    };
+    let write_range = |start: usize, end: usize| {
+        let mut place = parameter_place(&program, state, "items");
+        place
+            .segments
+            .push(facts::PlaceSegment::FixedRange { start, end });
+        place
+    };
+    for (write, survives) in [
+        (write_at(0), false),
+        (write_at(3), true),
+        (write_range(1, 4), false),
+        // An adjacent window is disjoint, not overlapping.
+        (write_range(2, 3), true),
+        (parameter_place(&program, state, "items"), false),
+        (parameter_place(&program, state, "unrelated"), true),
+    ] {
+        assert_eq!(
+            facts
+                .preserved_expression_labels(
+                    &program,
+                    machine,
+                    state,
+                    Some(std::slice::from_ref(&write)),
+                )
+                .contains(&label),
+            survives,
+            "write to {write:?}"
+        );
+    }
+}
+
+/// An omitted open bound reads nothing: `a..`, `..b`, and `..` keep only the
+/// bounds the syntax actually evaluates, while the window place still tracks
+/// the collection.
+#[test]
+fn an_open_builtin_window_reads_only_its_present_bounds() {
+    for (selector, bounds) in [
+        ("low..", vec!["low"]),
+        ("..high", vec!["high"]),
+        ("..", Vec::new()),
+    ] {
+        let program = typed_source(&format!(
+            "machine window(items: &[i64; 4], low: u64, high: u64, unrelated: u64) {{
+                let cut: &[i64] = items[{selector}];
+            }}"
+        ));
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        let mut facts = RangeFacts::new(&[]);
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        let reads = facts.expression_dependencies[0]
+            .reads
+            .as_ref()
+            .unwrap_or_else(|| panic!("open window {selector} reads"));
+        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        else {
+            panic!("window fixture")
+        };
+        let mut window = parameter_place(&program, state, "items");
+        window.segments.push(facts::PlaceSegment::Index {
+            expression: indexed.index,
+        });
+        let expected: Vec<CanonicalPlace> = bounds
+            .iter()
+            .map(|name| parameter_place(&program, state, name))
+            .chain(std::iter::once(window))
+            .collect();
+        assert_eq!(reads.as_slice(), expected.as_slice(), "{selector}");
+        let label = program.expression_table.display_name(expression);
+        for (name, survives) in [
+            ("items", false),
+            ("low", !bounds.contains(&"low")),
+            ("high", !bounds.contains(&"high")),
+            ("unrelated", true),
+        ] {
+            let writes = [parameter_place(&program, state, name)];
+            assert_eq!(
+                facts
+                    .preserved_expression_labels(&program, machine, state, Some(&writes))
+                    .contains(&label),
+                survives,
+                "{selector}: write to {name}"
+            );
+        }
+    }
+}
+
+/// A window bound that selects authored arithmetic is call-shaped inside the
+/// operand position: without checked call custody the operand scan cannot
+/// describe its reads, so the window stays incomplete instead of claiming
+/// only the bound's visible places.
+#[test]
+fn a_window_bound_with_authored_arithmetic_stays_incomplete() {
+    let program = typed_source(
+        "operator + u64::custom(left: u64, right: u64) -> u64;
+        machine window(items: &[i64; 4], low: u64, high: u64) {
+            let cut: &[i64] = items[low + 0u64..high];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let mut facts = RangeFacts::new(&[]);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}

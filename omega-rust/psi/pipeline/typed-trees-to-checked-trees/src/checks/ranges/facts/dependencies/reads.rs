@@ -3,7 +3,10 @@ use crate::checks::ranges::facts::RangeCallContext;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::semantic_calls::CallSite;
-use checked_trees::{CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin};
+use checked_trees::{
+    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin,
+    CheckedValueStatementRole,
+};
 use symbols::SymbolHandle;
 
 pub(super) fn collect_reads(
@@ -21,7 +24,13 @@ pub(super) fn collect_reads(
         return false;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
+        // Literal leaves read no caller storage: their bytes are immutable
+        // compile-time content, not a place a write could mutate.
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => true,
         ExpressionNode::Binary(binary) => {
             collect_reads(
                 program,
@@ -211,7 +220,14 @@ pub(super) fn collect_reads(
         // unstable selection stays incomplete rather than pretending to be
         // element storage.
         ExpressionNode::Indexed(indexed) => {
-            if has_builtin_index_meaning(program, machine, state, expression, indexed) {
+            if has_builtin_index_meaning(
+                program,
+                machine,
+                state,
+                statement_index,
+                expression,
+                indexed,
+            ) {
                 collect_place_read(
                     program,
                     machine,
@@ -237,6 +253,121 @@ pub(super) fn collect_reads(
                     depth,
                 )
             }
+        }
+        // `a..b`, `a..`, `..b`, and `..` evaluate only their present bounds.
+        // An omitted open bound reads nothing; a present bound is an operand
+        // position that must keep builtin bound meaning, exactly like the
+        // selector scan requires of a point index.
+        ExpressionNode::Range(range) => {
+            (!range.start.is_valid()
+                || collect_operand_reads(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    range.start,
+                    calls,
+                    operators,
+                    reads,
+                    depth,
+                ))
+                && (!range.end.is_valid()
+                    || collect_operand_reads(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        range.end,
+                        calls,
+                        operators,
+                        reads,
+                        depth,
+                    ))
+        }
+        // Every array literal element is evaluated at the literal site.
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .all(|element| {
+                collect_operand_reads(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    *element,
+                    calls,
+                    operators,
+                    reads,
+                    depth,
+                )
+            }),
+        // Authored and synthesized erased-field initializers alike are
+        // evaluated where the literal appears.
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .all(|field| {
+                collect_operand_reads(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    field.value,
+                    calls,
+                    operators,
+                    reads,
+                    depth,
+                )
+            }),
+        // A match reads its subject, every pattern compared against it, and
+        // the selected arm's value. Unioning all arms is the conservative
+        // footprint: an unselected arm can only shrink the storage the
+        // result depends on, never grow it.
+        ExpressionNode::Match(dispatch) => {
+            collect_operand_reads(
+                program,
+                machine,
+                state,
+                statement_index,
+                dispatch.subject,
+                calls,
+                operators,
+                reads,
+                depth,
+            ) && program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .all(|arm| {
+                    (match arm.pattern {
+                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                            collect_operand_reads(
+                                program,
+                                machine,
+                                state,
+                                statement_index,
+                                pattern,
+                                calls,
+                                operators,
+                                reads,
+                                depth,
+                            )
+                        }
+                        typed_trees::expression::MatchPattern::Wildcard => true,
+                    }) && collect_operand_reads(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        arm.value,
+                        calls,
+                        operators,
+                        reads,
+                        depth,
+                    )
+                })
         }
         // `place.load(ordering)` is the one atomic observation whose complete
         // footprint is exactly its resident place: the desugar keeps that
@@ -267,10 +398,39 @@ pub(super) fn collect_reads(
                 )
                 && reads.len() > footprint_start
         }
-        // Every writing atomic axis wraps its operand in `value`, and any
-        // other node family has no operand-described read set at all.
-        _ => false,
     }
+}
+
+/// A nested operand's reads count only when that operand subtree keeps
+/// builtin bound meaning — the same floor `record_dependencies` applies to
+/// the top-level expression — and its own read scan completes. The general
+/// bound-meaning walk does not descend through the compound nodes handled
+/// above, so each operand under them has to carry the floor independently:
+/// an authored operator inside a window bound or a literal element stays
+/// incomplete rather than pretending only its visible places were read.
+fn collect_operand_reads(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    operand: ExpressionHandle,
+    calls: Option<&RangeCallContext<'_>>,
+    operators: Option<&CheckedOperatorFacts>,
+    reads: &mut Vec<CanonicalPlace>,
+    depth: usize,
+) -> bool {
+    validation::has_builtin_bound_expression_meaning(program, machine, Some(state), operand)
+        && collect_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            operand,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+        )
 }
 
 /// A read place counts only when its root is current storage and every
@@ -304,6 +464,7 @@ fn validate_place_read(
                 facts::PlaceSegment::Field { .. }
                     | facts::PlaceSegment::Case { .. }
                     | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::FixedRange { .. }
                     | facts::PlaceSegment::Index { .. }
             )
         }))
@@ -525,35 +686,39 @@ fn collect_selector_reads(
             // The general bound-meaning query treats places as symbolic leaves.
             // Inspect each selector explicitly before syntax-based constant
             // normalization may establish distinct element coordinates.
-            has_builtin_index_meaning(program, machine, state, expression, indexed)
-                && validation::has_builtin_bound_expression_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    indexed.index,
-                )
-                && collect_selector_reads(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    indexed.collection,
-                    calls,
-                    operators,
-                    reads,
-                    depth + 1,
-                )
-                && collect_reads(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    indexed.index,
-                    calls,
-                    operators,
-                    reads,
-                    depth + 1,
-                )
+            has_builtin_index_meaning(
+                program,
+                machine,
+                state,
+                statement_index,
+                expression,
+                indexed,
+            ) && validation::has_builtin_bound_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                indexed.index,
+            ) && collect_selector_reads(
+                program,
+                machine,
+                state,
+                statement_index,
+                indexed.collection,
+                calls,
+                operators,
+                reads,
+                depth + 1,
+            ) && collect_reads(
+                program,
+                machine,
+                state,
+                statement_index,
+                indexed.index,
+                calls,
+                operators,
+                reads,
+                depth + 1,
+            )
         }
         _ => false,
     }
@@ -563,32 +728,64 @@ fn has_builtin_index_meaning(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    statement_index: usize,
     expression: ExpressionHandle,
     indexed: &typed_trees::expression::TableIndexedExpression,
 ) -> bool {
     use crate::checks::ranges::types::expression_type_reference;
     use language_core::OperatorSpelling;
 
-    // Successful projection here requires array/slice storage geometry; a
-    // nominal collection's authored index operation is not a primitive read.
-    if expression_type_reference(program, machine, state, expression).is_none() {
-        return false;
-    }
-    let operands = [
-        expression_type_reference(program, machine, state, indexed.collection),
-        validation::declared_place_type_raw(program, machine, Some(state), indexed.index),
-    ];
-    typed_trees::operator::resolve_indexed_spelling_for_operands(
+    // The occurrence's spelling follows the index shape production recorded:
+    // a range index spells `[..]` and resolves against the decomposed
+    // collection/start/end operand tuple, not a two-operand `[]` search that
+    // cannot see a declared window operator (or lets a scalar `[]`
+    // declaration masquerade as governing window syntax).
+    let spelling = if indexed.index.is_valid()
+        && matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        ) {
+        OperatorSpelling::Range
+    } else {
+        OperatorSpelling::Index
+    };
+    let operands = crate::operators::indexed_operand_types(
         program,
-        OperatorSpelling::Index,
-        &operands,
-    )
-    .is_empty()
+        indexed,
+        CheckedValueOrigin::StateStatement {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+            statement_index,
+            role: CheckedValueStatementRole::Expression,
+        },
+    );
+    // Successful builtin projection requires array/slice storage geometry; a
+    // nominal collection's authored index operation is not a primitive read.
+    // A window's result is a slice view rather than an element projection,
+    // so `[..]` judges the collection shell itself.
+    let builtin_storage = if spelling == OperatorSpelling::Range {
+        expression_type_reference(program, machine, state, indexed.collection)
+            .and_then(|collection| validation::unwrapped_type_reference(program, collection))
+            .is_some_and(|collection| {
+                matches!(
+                    program.type_reference_table.type_reference(collection),
+                    typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                        | typed_trees::types::TypeReferenceNode::Slice { .. }
+                )
+            })
+    } else {
+        expression_type_reference(program, machine, state, expression).is_some()
+    };
+    builtin_storage
+        && typed_trees::operator::resolve_indexed_spelling_for_operands(
+            program, spelling, &operands,
+        )
+        .is_empty()
         && typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
             machine.symbol,
             expression,
-            OperatorSpelling::Index,
+            spelling,
             &operands,
         )
 }

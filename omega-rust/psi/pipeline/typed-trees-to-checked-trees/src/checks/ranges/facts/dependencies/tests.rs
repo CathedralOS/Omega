@@ -192,6 +192,139 @@ fn calls_and_call_selectors_do_not_claim_an_argument_only_read_set() {
     }
 }
 
+/// A literal operand contributes no caller storage: only the parameter read
+/// remains, so a fact over `left - 2.5` survives writes the subtraction
+/// cannot observe.
+#[test]
+fn a_literal_operand_reads_nothing_but_keeps_the_expression_completable() {
+    let program = typed_source(
+        "machine window(left: f64, unrelated: f64) {
+        let cut: f64 = left - 2.5;
+    }",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let expression = initializer(&program, state);
+    let mut facts = RangeFacts::new(&[]);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("float subtraction reads");
+    assert_eq!(
+        reads.as_slice(),
+        [parameter_place(&program, state, "left")].as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [("left", false), ("unrelated", true)] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// Array and struct literals evaluate every operand where the literal
+/// appears, so their footprint is the union of element and field-value
+/// reads — nothing more and nothing less.
+#[test]
+fn compound_literals_read_each_evaluated_operand() {
+    for (declaration, statement) in [
+        ("", "let cut: [i64; 2] = [left, right];"),
+        (
+            "data Pair { a: i64; b: i64; }",
+            "let cut: Pair = Pair { a: left, b: right };",
+        ),
+    ] {
+        let program = typed_source(&format!(
+            "{declaration}
+            machine window(left: i64, right: i64, unrelated: i64) {{
+                {statement}
+            }}"
+        ));
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let expression = initializer(&program, state);
+        let mut facts = RangeFacts::new(&[]);
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        let reads = facts.expression_dependencies[0]
+            .reads
+            .as_ref()
+            .unwrap_or_else(|| panic!("literal reads for {statement}"));
+        assert_eq!(
+            reads.as_slice(),
+            [
+                parameter_place(&program, state, "left"),
+                parameter_place(&program, state, "right"),
+            ]
+            .as_slice(),
+            "{statement}"
+        );
+        let label = program.expression_table.display_name(expression);
+        for (name, survives) in [("left", false), ("right", false), ("unrelated", true)] {
+            let writes = [parameter_place(&program, state, name)];
+            assert_eq!(
+                facts
+                    .preserved_expression_labels(&program, machine, state, Some(&writes))
+                    .contains(&label),
+                survives,
+                "{statement}: write to {name}"
+            );
+        }
+    }
+}
+
+/// A match reads its subject, each compared pattern value, and whichever
+/// arm's value runs. The union footprint is conservative: a write to any
+/// possibly-read place retires the match's facts even when that arm might
+/// not have been selected.
+#[test]
+fn a_match_reads_its_subject_patterns_and_arm_values() {
+    let program = typed_source(
+        "machine window(flag: i64, left: i64, right: i64, unrelated: i64) {
+        let cut: i64 = match flag { 0 -> left, _ -> right };
+    }",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let expression = initializer(&program, state);
+    let mut facts = RangeFacts::new(&[]);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("match reads");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "flag"),
+            parameter_place(&program, state, "left"),
+            parameter_place(&program, state, "right"),
+        ]
+        .as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [
+        ("flag", false),
+        ("left", false),
+        ("right", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
 #[test]
 fn missing_typed_place_identities_cannot_be_recovered_from_display_names() {
     for source in [
