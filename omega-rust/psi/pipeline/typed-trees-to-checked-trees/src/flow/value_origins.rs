@@ -54,7 +54,7 @@ where
     let mut owned_frames = None;
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     place =
-        flow::local_reference_storage_at_call(program, &frames, machine, flow, state, call, place)?;
+        flow::local_reference_storage_at_call(program, frames, machine, flow, state, call, place)?;
     let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
     let statements = program
         .statement_table
@@ -87,7 +87,7 @@ where
                     statement,
                 )?;
                 let target = flow::local_reference_storage_before_statement(
-                    program, &frames, machine, state, index, target,
+                    program, frames, machine, state, index, target,
                 )?;
                 if let Some(suffix) = exact_suffix(&place, &target) {
                     let stored_type = validation::declared_place_type_raw(
@@ -112,7 +112,7 @@ where
                         &resolve,
                     )?;
                     place = flow::local_reference_storage_before_statement(
-                        program, &frames, machine, state, index, source,
+                        program, frames, machine, state, index, source,
                     )?;
                 } else {
                     let writes = flow::statement_storage_writes(
@@ -121,7 +121,7 @@ where
                         state.state_symbol,
                         index,
                         statement,
-                        Some(&frames),
+                        Some(frames),
                     )?;
                     if writes.iter().any(|write| overlaps(program, &place, write)) {
                         return None;
@@ -144,7 +144,7 @@ where
                     &resolve,
                 )?;
                 place = flow::local_reference_storage_before_statement(
-                    program, &frames, machine, state, index, source,
+                    program, frames, machine, state, index, source,
                 )?;
             }
             StatementNode::Call(call) => {

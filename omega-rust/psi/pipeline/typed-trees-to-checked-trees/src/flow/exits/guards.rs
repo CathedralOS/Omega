@@ -198,13 +198,13 @@ fn flatten_and_conjuncts(
 /// Recognize `subject == Type::Case` (or its commute), the tag compare a
 /// case-membership `in` test lowers to, and return the subject with the
 /// resolved variant and its data definition.
-fn case_membership_claim<'program>(
-    program: &'program typed_trees::TypedTrees,
+fn case_membership_claim(
+    program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(
     ExpressionHandle,
-    &'program typed_trees::data::DataVariant,
-    &'program typed_trees::data::DataDefinition,
+    &typed_trees::data::DataVariant,
+    &typed_trees::data::DataDefinition,
 )> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
