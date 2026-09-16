@@ -3,6 +3,7 @@
 //! `staged_memory_inputs.rs` and `staged_arithmetic_inputs.rs` hold the staged
 //! memory and arithmetic inputs.
 
+mod bitwise_and_ones_copies;
 mod bitwise_and_zero_folds;
 mod bitwise_xor_zero_copies;
 mod compare_subtract_add_folds;
@@ -14,8 +15,8 @@ mod staged_memory_inputs;
 mod wrapping_add_zero_copies;
 
 use staged_arithmetic_inputs::{
-    staged_add_inputs, staged_and_inputs, staged_divide_inputs, staged_remainder_inputs,
-    staged_subtract_inputs, staged_wrapping_add_inputs, staged_xor_inputs,
+    staged_add_inputs, staged_and_inputs, staged_and_ones_inputs, staged_divide_inputs,
+    staged_remainder_inputs, staged_subtract_inputs, staged_wrapping_add_inputs, staged_xor_inputs,
 };
 use staged_memory_inputs::{
     staged_byte_view_address_inputs, staged_copy_inputs, staged_extension_inputs,
@@ -630,6 +631,7 @@ fn policy_without(disabled: LiteralFoldPolicy) -> LiteralFoldPolicy {
         LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
         LiteralFoldPolicy::EXACT_DIVIDE_V1,
         LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+        LiteralFoldPolicy::BITWISE_AND_ONES_V1,
         LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
         LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
         LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,

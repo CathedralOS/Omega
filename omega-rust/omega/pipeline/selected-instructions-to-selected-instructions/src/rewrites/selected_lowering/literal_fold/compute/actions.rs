@@ -71,29 +71,36 @@ pub(super) fn derive_action(
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
-    // The consumer kind and the folded literal's operand position together
-    // select the grammar: a family may admit the same kind under disjoint
-    // operand shapes. An unadmitted kind is a consumer mismatch; an admitted
-    // kind whose literal sits at a position no enabled grammar covers is a
-    // future-use mismatch.
+    // The consumer kind, the folded literal's operand position, and the
+    // literal's value together select the grammar: a family may admit the
+    // same kind under disjoint operand shapes, and disjoint families may
+    // admit the same kind at the same position under disjoint literal
+    // bounds — the bitwise-and annihilator and identity selections both
+    // fold `BitwiseAndI64` at either `Use` position. An unadmitted kind is
+    // a consumer mismatch; an admitted kind whose literal sits at a
+    // position no enabled grammar covers is a future-use mismatch; an
+    // admitted position whose literal lies outside every enabled bound is
+    // an unsupported immediate.
     let pair = rows
-        .for_consumer(consumer.kind, future_use.operand)
+        .for_consumer(consumer.kind, future_use.operand, literal_u64)
         .ok_or_else(|| {
-            if rows.admits_consumer_kind(consumer.kind) {
+            if !rows.admits_consumer_kind(consumer.kind) {
+                LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                }
+            } else if rows
+                .for_position(consumer.kind, future_use.operand)
+                .is_none()
+            {
                 LiteralFoldError::FutureUseMismatch {
                     function: function_index,
                 }
             } else {
-                LiteralFoldError::ConsumerMismatch {
+                LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
                 }
             }
         })?;
-    if !pair.rule.admits_immediate(literal_u64) {
-        return Err(LiteralFoldError::UnsupportedImmediate {
-            function: function_index,
-        });
-    }
     let immediate =
         pair.rule
             .fold_immediate(literal_u64)

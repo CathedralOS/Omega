@@ -32,7 +32,12 @@
 //! architecturally fault, where the folded literal is exactly the value
 //! that makes the fault unreachable. The immediate bound carries whether
 //! any literal up to an encoding limit is admitted or the fold's
-//! correctness requires one exact literal value. When a rule needs shape
+//! correctness requires one exact literal value — and, for families that
+//! share one consumer kind and operand position, keeps the grammars
+//! disjoint on the literal's value: the bitwise-and annihilator and
+//! identity selections both fold `BitwiseAndI64` at either `Use`
+//! position, so pair selection matches the bound as well as the kind and
+//! position. When a rule needs shape
 //! data beyond those — a further non-isolated effect relationship or
 //! further operand roles — extend this struct rather than re-inlining kind
 //! matches in compute.
@@ -1007,6 +1012,62 @@ impl SelectedInstructionPairRule {
         Self::WRAPPING_ADD_ZERO_LEFT_COPY,
     ];
 
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
+    /// `BitwiseAndI64` when the literal is all ones (`u64::MAX`): all-ones
+    /// is the bitwise-and identity element — `x & MAX` is `x` for every
+    /// `x` — so the rewrite is a `CopyI64` of the surviving operand-0
+    /// register at the consumer's result register. Both forms are
+    /// effect-isolated on every target — the consumer's flag clobber,
+    /// where one is declared, dies with the folded form — and neither
+    /// side pins or binds an operand, so the ordinary
+    /// [`Isolated`](PairMachineEffects::Isolated) and
+    /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
+    /// operand-0 `Use` survives under the ordinary
+    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// grammar: the rewritten row binds it as its `Use` operand. The
+    /// family shares its consumer kind and operand grammar with the
+    /// and-zero annihilator rules; the two families stay disjoint on the
+    /// literal's value, which the producer's admission now carries as
+    /// part of pair selection.
+    pub const BITWISE_AND_ONES_COPY: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::BitwiseAndI64,
+            rewritten: MachineSemanticKind::CopyI64,
+            operand_shape: PairOperandShape::BinaryRightLiteral,
+            immediate_bound: PairImmediateBound::Exactly(u64::MAX),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::Isolated,
+            machine_effects: PairMachineEffects::Isolated,
+        };
+        assert!(
+            matches!(rule.immediate_bound, PairImmediateBound::Exactly(u64::MAX)),
+            "the identity fold holds only for the all-ones literal"
+        );
+        rule
+    };
+
+    /// The left-operand identity fold: `MaterializeI64` feeding the
+    /// operand-0 `Use` of `BitwiseAndI64` when the literal is all ones —
+    /// `MAX & x` is `x` for every `x`. Bitwise and commutes, so the
+    /// `CopyI64` of the surviving operand-1 register computes the same
+    /// value `x & MAX` does; the
+    /// [`BinaryLeftLiteral`](PairOperandShape::BinaryLeftLiteral) grammar
+    /// attests that commutation and binds operand 1 into the rewritten
+    /// row's `Use` position. The same catalog selection admits both
+    /// operand positions; the pair disambiguates by which `Use` position
+    /// the folded literal occupies.
+    pub const BITWISE_AND_ONES_LEFT_COPY: Self = Self {
+        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        ..Self::BITWISE_AND_ONES_COPY
+    };
+
+    /// The two bitwise-and identity rules, one per literal `Use` position.
+    pub const BITWISE_AND_ONES_COPIES: [Self; 2] = [
+        Self::BITWISE_AND_ONES_COPY,
+        Self::BITWISE_AND_ONES_LEFT_COPY,
+    ];
+
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
@@ -1198,17 +1259,20 @@ impl SelectedInstructionPairRule {
             (MachineSemanticKind::CopyI64, SelectedInstructionKind::ExactDivideU64 { .. }) => {
                 Some(SelectedInstructionKind::CopyI64)
             }
-            // An exclusive-or or a wrapping add with a zero literal is the
-            // other operand — `x ^ 0` and `0 ^ x` are both `x`, and `x + 0`
-            // and `0 + x` are both `x` modulo 2^64: the `CopyI64` rewrite
-            // binds the surviving register the recorded action names. The
-            // consumer guard keeps each rule bound to its own consumer
-            // kind — the xor rule never rewrites an add, the add rule
-            // never rewrites an xor.
+            // An exclusive-or or a wrapping add with a zero literal, or a
+            // bitwise-and with an all-ones literal, is the other operand —
+            // `x ^ 0` and `0 ^ x` are both `x`, `x + 0` and `0 + x` are
+            // both `x` modulo 2^64, and `x & MAX` and `MAX & x` are both
+            // `x`: the `CopyI64` rewrite binds the surviving register the
+            // recorded action names. The consumer guard keeps each rule
+            // bound to its own consumer kind — the xor rule never rewrites
+            // an add, the add rule never rewrites an and, and the and-ones
+            // rule never rewrites either.
             (
                 MachineSemanticKind::CopyI64,
                 kind @ (SelectedInstructionKind::BitwiseXorI64
-                | SelectedInstructionKind::WrappingAddI64),
+                | SelectedInstructionKind::WrappingAddI64
+                | SelectedInstructionKind::BitwiseAndI64),
             ) if machine_semantic_kind(kind) == self.consumer => {
                 Some(SelectedInstructionKind::CopyI64)
             }

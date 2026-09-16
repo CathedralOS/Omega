@@ -61,6 +61,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_bitwise_and_zero());
     assert!(policy.enables_bitwise_xor_zero());
     assert!(policy.enables_wrapping_add_zero());
+    assert!(policy.enables_bitwise_and_ones());
 }
 
 #[test]
@@ -78,6 +79,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         and_zero,
         xor_zero,
         wrapping_add_zero,
+        and_ones,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -640,6 +642,88 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         Some(SelectedInstructionKind::CopyI64)
     );
 
+    // The bitwise-and identity family declares one pair per `Use`
+    // position: the all-ones literal folds `BitwiseAndI64` into a
+    // `CopyI64` of the surviving `Use` — `x & MAX` and `MAX & x` are
+    // both `x`. The family shares its consumer kind and operand positions
+    // with the and-zero annihilator family; the exact literal bound keeps
+    // the two grammars disjoint on the literal's value. Both grammars
+    // rewrite through the same `CopyI64` row the divide, xor, and
+    // wrapping-add folds bind; the pair disambiguates by which `Use`
+    // position the folded literal occupies, and the left grammar attests
+    // the commutation the surviving-operand binding requires.
+    let &[and_ones_rule, and_ones_left_rule] = and_ones.payload().pairs() else {
+        panic!("the and-ones family declares one pair per operand grammar")
+    };
+    assert_eq!(
+        and_ones.optimization(),
+        Optimization::SelectedIncomingBitwiseAndOnesIdentityCopy
+    );
+    assert_eq!(
+        and_ones_rule,
+        SelectedInstructionPairRule::BITWISE_AND_ONES_COPY
+    );
+    assert_eq!(
+        and_ones_left_rule,
+        SelectedInstructionPairRule::BITWISE_AND_ONES_LEFT_COPY
+    );
+    for pair in [and_ones_rule, and_ones_left_rule] {
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.consumer(), MachineSemanticKind::BitwiseAndI64);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::CopyI64);
+        assert_eq!(
+            pair.immediate_bound(),
+            PairImmediateBound::Exactly(u64::MAX)
+        );
+        assert!(pair.admits_immediate(u64::MAX));
+        assert!(!pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(1));
+        assert!(!pair.admits_immediate(u64::MAX - 1));
+        // The recorded immediate is the folded literal itself — all
+        // ones — unused by the `CopyI64` rewrite.
+        assert_eq!(pair.fold_immediate(u64::MAX), Some(u64::MAX));
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+    }
+    // The same consumer kind and `Use` positions the and-zero
+    // annihilator grammar covers — the literal bound alone keeps the
+    // families disjoint.
+    assert_eq!(
+        and_ones_rule.victim_operand(),
+        and_zero_rule.victim_operand()
+    );
+    assert_eq!(
+        and_ones_left_rule.victim_operand(),
+        and_zero_left_rule.victim_operand()
+    );
+    assert_eq!(
+        and_ones_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteral
+    );
+    assert_eq!(and_ones_rule.victim_operand(), 1);
+    assert_eq!(
+        and_ones_left_rule.operand_shape(),
+        PairOperandShape::BinaryLeftLiteral
+    );
+    assert_eq!(and_ones_left_rule.victim_operand(), 0);
+    assert_eq!(
+        and_ones_rule.rewrite_consumer(and_kind, u64::MAX, Some(u64_scalar)),
+        Some(SelectedInstructionKind::CopyI64)
+    );
+    assert_eq!(
+        and_ones_left_rule.rewrite_consumer(and_kind, u64::MAX, Some(i64_scalar)),
+        Some(SelectedInstructionKind::CopyI64)
+    );
+    assert_eq!(
+        and_ones_rule.rewrite_consumer(xor_kind, u64::MAX, Some(u64_scalar)),
+        None
+    );
+    assert_eq!(
+        and_ones_rule.rewrite_consumer(and_kind, u64::MAX, None),
+        Some(SelectedInstructionKind::CopyI64)
+    );
+
     // Every landed rule's rewrite but the divide and remainder folds is
     // unit-effect isolated: no implicit unit uses or clobbers and no
     // operand unit bindings beyond the declared result channel. The divide
@@ -656,6 +740,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         and_zero,
         xor_zero,
         wrapping_add_zero,
+        and_ones,
     ] {
         for pair in entry.payload().pairs() {
             assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
@@ -717,6 +802,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1).collect::<Vec<_>>(),
         SelectedInstructionPairRule::WRAPPING_ADD_ZERO_COPIES.to_vec()
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::BITWISE_AND_ONES_V1).collect::<Vec<_>>(),
+        SelectedInstructionPairRule::BITWISE_AND_ONES_COPIES.to_vec()
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -807,6 +896,14 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         wrapping_add_zero_left_rule.immediate_constraint_key(&keys),
         Some(keys.copy_i64)
     );
+    assert_eq!(
+        and_ones_rule.immediate_constraint_key(&keys),
+        Some(keys.copy_i64)
+    );
+    assert_eq!(
+        and_ones_left_rule.immediate_constraint_key(&keys),
+        Some(keys.copy_i64)
+    );
 }
 
 #[test]
@@ -848,6 +945,9 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // row, which is likewise unit-clean.
             SelectedInstructionPairRule::WRAPPING_ADD_ZERO_COPY,
             SelectedInstructionPairRule::WRAPPING_ADD_ZERO_LEFT_COPY,
+            // Both and-ones grammars rewrite into the same copy row.
+            SelectedInstructionPairRule::BITWISE_AND_ONES_COPY,
+            SelectedInstructionPairRule::BITWISE_AND_ONES_LEFT_COPY,
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -911,6 +1011,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         .chain(SelectedInstructionPairRule::BITWISE_AND_ZERO_FOLDS)
         .chain(SelectedInstructionPairRule::BITWISE_XOR_ZERO_COPIES)
         .chain(SelectedInstructionPairRule::WRAPPING_ADD_ZERO_COPIES)
+        .chain(SelectedInstructionPairRule::BITWISE_AND_ONES_COPIES)
         {
             assert_eq!(rule.machine_effects(), PairMachineEffects::Isolated);
             let producer = declaration(rule.producer());

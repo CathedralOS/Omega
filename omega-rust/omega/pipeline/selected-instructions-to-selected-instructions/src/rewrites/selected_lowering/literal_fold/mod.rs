@@ -44,7 +44,10 @@ pub use validate::validate_literal_fold;
 /// bitwise-xor into a `CopyI64` of the surviving operand — `x ^ 0` and
 /// `0 ^ x` are both `x` — or the literal `0` at either operand of a
 /// wrapping add into a `CopyI64` of the surviving operand — `x + 0` and
-/// `0 + x` are both `x` modulo 2^64.
+/// `0 + x` are both `x` modulo 2^64 — or the all-ones literal at either
+/// operand of a bitwise-and into a `CopyI64` of the surviving operand —
+/// `x & MAX` and `MAX & x` are both `x`, disjoint on the literal's value
+/// from the bitwise-and annihilator fold.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,
