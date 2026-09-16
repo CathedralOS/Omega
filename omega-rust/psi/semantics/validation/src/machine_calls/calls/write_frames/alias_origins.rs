@@ -182,6 +182,7 @@ pub(crate) fn stable_alias_initializer_origin(
                     symbols,
                     inference,
                     parameters,
+                    isolated_local_roots,
                     aliases,
                 )
             {

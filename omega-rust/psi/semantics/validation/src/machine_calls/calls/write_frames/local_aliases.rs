@@ -10,7 +10,6 @@ use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, split_place_root,
 };
 use super::type_capabilities::type_reference_is_reference;
-use crate::proof_contracts::arithmetic_domains;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -83,14 +82,32 @@ pub(super) fn stable_alias_place_origin(
     })
 }
 
-pub(super) fn expression_reborrows_local_alias_binding(
+/// An exclusive `&mut`/`&write` borrow of a bare binding is neutral whenever
+/// the binding's referent is already established: a tracked alias carries its
+/// proven parent, a parameter or `self` spells its own storage, and an
+/// isolated local stays caller-invisible. A non-reference binding is a plain
+/// place borrow rather than a reborrow. Only a reference binding whose origin
+/// cannot be resolved at all keeps failing closed.
+pub(super) fn expression_reborrows_unresolved_reference_binding(
     program: &TypedTrees,
+    machine: &Machine,
     expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
     expression_reborrows_reference_binding(program, expression, &|target| {
-        arithmetic_domains::place_path(program, target)
-            .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias))
+        stable_alias_place_origin(
+            program,
+            target,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            true,
+        )
+        .is_none()
+            && super::caller_aliases::caller_binding_type(program, machine, target)
+                .is_none_or(|reference| type_reference_is_reference(program, reference))
     })
 }
 

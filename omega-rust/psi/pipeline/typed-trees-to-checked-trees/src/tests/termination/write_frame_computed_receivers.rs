@@ -140,7 +140,7 @@ fn computed_method_receivers_transport_proven_origins_and_all_operand_writes() {
             "binding_reborrow",
             "identity(&mut alias)",
             "let alias: &mut Cell = &mut self.cell;",
-            None,
+            Some(vec!["self.audit", "self.cell.value"]),
         ),
     ];
     let mut source = String::from(
@@ -208,7 +208,7 @@ fn computed_method_receivers_transport_proven_origins_and_all_operand_writes() {
             });
             let expected = expected.as_ref().map(|paths| {
                 let mut paths: Vec<_> = paths.iter().map(|path| (*path).to_owned()).collect();
-                if name == "local" && query == 1 {
+                if matches!(name, "local" | "binding_reborrow") && query == 1 {
                     paths.push("alias.value".to_owned());
                 }
                 paths.sort();

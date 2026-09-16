@@ -1362,6 +1362,29 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         );
     }
 
+    for (name, expected_path) in [
+        ("Main::call_rebound_alias", "self.value"),
+        ("Main::call_escaped_alias_chain", "self.value"),
+        ("Main::call_escaped_indexed_alias", "self.cells"),
+    ] {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        let entry = typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{name} entry state"));
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, entry)
+                .complete_paths(),
+            Some([expected_path.to_owned()].as_slice()),
+            "{name} must publish the proven referent behind the reborrowed binding"
+        );
+    }
+
     for name in [
         "Main::opaque_result_statement_argument",
         "opaque_parameter_result",
@@ -1433,9 +1456,6 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
 
     for name in [
         "reference_bearing_named_local_origin",
-        "Main::call_rebound_alias",
-        "Main::call_escaped_alias_chain",
-        "Main::call_escaped_indexed_alias",
         "Main::effectful_index_recast_origin",
         "Main::recursive_alias_helper_result",
         "Main::reference_scratch_helper_result",

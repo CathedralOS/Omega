@@ -1,7 +1,6 @@
 //! Worklist expression admission for stable and parameter-relative origins.
 
 use super::call_targets::call_argument_types;
-use super::local_aliases::expression_reborrows_stable_alias_binding;
 use super::value_expressions::{ValuePosition, push_value_children, value_call_result_is_admitted};
 use super::{
     ExpressionHandle, ExpressionNode, FramePlaceOrigin, Machine, MachineSymbols,
@@ -45,14 +44,17 @@ pub(super) fn receiver_expression_preserves_origin(
         symbols,
         inference,
         |expression, _, _| {
+            // An exclusive borrow of a resolvable bare binding is a reborrow
+            // of the binding's own referent; `receiver_frame_origin` spells
+            // that referent through the binding's path and the caller's alias
+            // closure expands it. Only a borrow whose binding cannot even be
+            // identified keeps failing closed.
             if super::local_aliases::expression_reborrows_reference_binding(
                 program,
                 expression,
                 &|target| {
                     super::caller_aliases::caller_binding_type(program, current_machine, target)
-                        .is_none_or(|reference| {
-                            super::type_reference_is_reference(program, reference)
-                        })
+                        .is_none()
                 },
             ) {
                 ExpressionAdmission::Reject
@@ -74,6 +76,7 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     parameters: &[StateParameter],
+    isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
     complete_expression_tree(
@@ -84,7 +87,14 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
         symbols,
         inference,
         |expression, _, _| {
-            if expression_reborrows_stable_alias_binding(program, expression, parameters, aliases) {
+            if super::local_aliases::expression_reborrows_unresolved_reference_binding(
+                program,
+                current_machine,
+                expression,
+                parameters,
+                isolated_local_roots,
+                aliases,
+            ) {
                 ExpressionAdmission::Reject
             } else if !expression_is_effectful_for_transparent_result(program, expression) {
                 ExpressionAdmission::Leaf

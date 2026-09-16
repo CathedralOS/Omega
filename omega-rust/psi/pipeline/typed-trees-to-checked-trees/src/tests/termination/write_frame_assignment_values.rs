@@ -116,7 +116,10 @@ fn finite_call_trees_preserve_deep_effects_and_reject_hostile_siblings() {
             Some(vec!["self.cells", "self.value"]),
         ),
         ("Main::reborrow", None),
-        ("Main::nested_indexed_reborrow", None),
+        (
+            "Main::nested_indexed_reborrow",
+            Some(vec!["self.cells", "self.value"]),
+        ),
         ("Main::recursive", None),
     ] {
         let machine = typed
