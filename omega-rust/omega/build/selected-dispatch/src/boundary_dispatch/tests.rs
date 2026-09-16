@@ -4,6 +4,7 @@ use super::{
     AdapterRow, Arc, BoundaryField, CheckedTrees, resolve_adapter_call,
     resolve_selected_adapter_row, settle_selected_boundary_adapter_dispatch,
 };
+use provider_planning::ProviderPlanDerivation;
 mod borrowed_parameters;
 mod finite_family;
 mod generic_requirements;
@@ -89,7 +90,13 @@ fn fixture() -> Fixture {
     .expect("resolve exact adapter-dispatch fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type exact adapter-dispatch fixture");
-    let plans = provider_planning::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     Fixture { typed, plans }
 }
 

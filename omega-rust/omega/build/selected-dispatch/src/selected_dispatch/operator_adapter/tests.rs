@@ -7,6 +7,7 @@ use super::{
     resolve_selected_operator_adapter_call, validate_selected_operator_terminal_custody,
 };
 use crate::settle_selected_execution_dispatch;
+use provider_planning::ProviderPlanDerivation;
 use std::sync::Arc;
 
 #[test]
@@ -111,7 +112,13 @@ fn fixture_from_source(source: &str) -> Fixture {
     .expect("resolve checked-operator dispatch fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type checked-operator dispatch fixture");
-    let plans = provider_planning::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let checked_plan = plans
         .iter()
         .find(|plan| {

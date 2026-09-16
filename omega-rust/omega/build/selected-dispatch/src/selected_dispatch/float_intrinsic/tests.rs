@@ -11,6 +11,7 @@ use crate::selected_dispatch::float_intrinsic::intrinsic_resolution::resolve_sel
 use crate::selected_dispatch::float_intrinsic::named_float_realizations::preflight_named_float_execution;
 use effects::provider_plan::ProviderBinding;
 use provider_planning::CompilerNumericType;
+use provider_planning::ProviderPlanDerivation;
 
 const SOURCE: &str = r#"
     data F32 {}
@@ -65,7 +66,13 @@ fn fixture() -> Fixture {
     .expect("resolve named-float dispatch fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type named-float dispatch fixture");
-    let plans = provider_planning::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let minimum_plan = plans
         .iter()
         .find(|plan| plan.schema.trait_name.contains("F32::minimum"))

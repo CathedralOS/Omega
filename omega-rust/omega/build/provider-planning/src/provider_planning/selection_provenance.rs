@@ -111,7 +111,7 @@ pub struct SelectedProviderReviewProvenance {
     pub row_compiler_intrinsic_executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
-pub fn selected_provider_plan_facts_with_provenance(
+pub fn selected_provider_plan_facts(
     typed: &TypedTrees,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     mut selected: Vec<SelectedProviderPlanWithProvenance>,

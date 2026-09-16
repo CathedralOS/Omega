@@ -6,8 +6,8 @@ use super::{
 };
 use crate::evaluated_via_bindings::binding_values::{DecodedBindingValue, decode_binding_value};
 use crate::provider_planning::{
-    derive_satisfies_plans_with_evaluated_bindings, select_provider_plans_with_provenance,
-    selected_provider_plan_facts_with_provenance, validate_derived_provider_plan_candidates,
+    ProviderPlanDerivation, derive_satisfies_plans, select_derived_provider_plans,
+    selected_provider_plan_facts, validate_derived_provider_plan_candidates,
 };
 use build_time_evaluation::BuildTimeValue;
 use effects::provider_plan::{
@@ -283,11 +283,13 @@ fn rejects_width_and_field_drift() {
 fn exact_candidate_and_selected_replay_cover_every_provider_schema_category() {
     for source in replay_sources() {
         let fixture = replay_fixture(source);
-        let derived = derive_satisfies_plans_with_evaluated_bindings(
+        let derived = ProviderPlanDerivation::evaluated(
             &fixture.typed,
             Some("windows_x86_64"),
             &fixture.table,
+            &[],
         )
+        .map(|derivation| derive_satisfies_plans(&fixture.typed, derivation))
         .expect("strict evaluated-via derivation");
         assert_eq!(derived.len(), 1);
         let diagnostics =
@@ -296,14 +298,10 @@ fn exact_candidate_and_selected_replay_cover_every_provider_schema_category() {
             diagnostics.is_empty(),
             "exact candidate provenance must replay: {diagnostics:?}"
         );
-        let selected = select_provider_plans_with_provenance(
-            &derived,
-            target::NativeTarget::windows_x64(),
-            &[],
-            &[],
-        )
-        .expect("unique exact provider candidate");
-        selected_provider_plan_facts_with_provenance(&fixture.typed, &fixture.table, selected)
+        let selected =
+            select_derived_provider_plans(&derived, target::NativeTarget::windows_x64(), &[], &[])
+                .expect("unique exact provider candidate");
+        selected_provider_plan_facts(&fixture.typed, &fixture.table, selected)
             .expect("selected provider provenance must replay");
     }
 }
@@ -312,11 +310,13 @@ fn exact_candidate_and_selected_replay_cover_every_provider_schema_category() {
 fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
     for source in replay_sources() {
         let fixture = replay_fixture(source);
-        let derived = derive_satisfies_plans_with_evaluated_bindings(
+        let derived = ProviderPlanDerivation::evaluated(
             &fixture.typed,
             Some("windows_x86_64"),
             &fixture.table,
+            &[],
         )
+        .map(|derivation| derive_satisfies_plans(&fixture.typed, derivation))
         .expect("strict evaluated-via derivation");
         let producer = fixture
             .typed
@@ -373,13 +373,9 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
             .is_empty()
         );
 
-        let selected = select_provider_plans_with_provenance(
-            &derived,
-            target::NativeTarget::windows_x64(),
-            &[],
-            &[],
-        )
-        .expect("unique exact provider candidate");
+        let selected =
+            select_derived_provider_plans(&derived, target::NativeTarget::windows_x64(), &[], &[])
+                .expect("unique exact provider candidate");
 
         let mut realization_substitution = selected.clone();
         realization_substitution[0]
@@ -387,12 +383,8 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
             .provenance
             .row_realizations[0] = fixture.producer;
         assert!(
-            selected_provider_plan_facts_with_provenance(
-                &fixture.typed,
-                &fixture.table,
-                realization_substitution,
-            )
-            .is_err()
+            selected_provider_plan_facts(&fixture.typed, &fixture.table, realization_substitution)
+                .is_err()
         );
 
         let mut requirement_substitution = selected.clone();
@@ -401,12 +393,8 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
             .provenance
             .row_requirements[0] = fixture.producer;
         assert!(
-            selected_provider_plan_facts_with_provenance(
-                &fixture.typed,
-                &fixture.table,
-                requirement_substitution,
-            )
-            .is_err()
+            selected_provider_plan_facts(&fixture.typed, &fixture.table, requirement_substitution)
+                .is_err()
         );
 
         let mut selected_binding_substitution = selected;
@@ -414,10 +402,10 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
             evaluated: retained_import(&fixture.typed, producer, b"TerminateProcess", 31),
         };
         assert!(
-            selected_provider_plan_facts_with_provenance(
+            selected_provider_plan_facts(
                 &fixture.typed,
                 &fixture.table,
-                selected_binding_substitution,
+                selected_binding_substitution
             )
             .is_err()
         );

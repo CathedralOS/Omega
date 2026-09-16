@@ -27,7 +27,7 @@ pub(crate) use requirement_identities::same_semantic_name;
 pub use requirement_identities::{satisfied_requirement_identity, satisfies_plan_name};
 
 use super::{ProviderPlan, TypedTrees};
-use crate::provider_planning::provenance_replay::plan_derivation::derive_satisfies_plans_with_optional_evaluated_bindings;
+use crate::provider_planning::provenance_replay::plan_derivation::derive_provider_plans;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderSchemaDeclaration {
@@ -70,61 +70,66 @@ pub struct DerivedProviderPlan {
     pub provenance: ProviderPlanProvenance,
 }
 
-pub fn derive_satisfies_plans_with_provenance(
+/// One provider-plan derivation request: the selected target, and when the
+/// program's `via` bindings were evaluated, that table with the target-machine
+/// origins it selected. Build the evaluated form through
+/// [`ProviderPlanDerivation::evaluated`], which validates the table against
+/// the typed program and the target before any plan is derived.
+#[derive(Clone, Copy)]
+pub struct ProviderPlanDerivation<'a> {
+    pub selected_target: Option<&'a str>,
+    pub evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
+    pub target_machine_origins: &'a [SelectedTargetMachineOrigin],
+}
+
+impl<'a> ProviderPlanDerivation<'a> {
+    /// Derive from retained conformance alone, before `via` bindings are
+    /// evaluated.
+    pub const fn unevaluated(selected_target: Option<&'a str>) -> Self {
+        Self {
+            selected_target,
+            evaluated_bindings: None,
+            target_machine_origins: &[],
+        }
+    }
+
+    /// Derive with an evaluated `via` binding table, which must belong to
+    /// this typed program and name the same target.
+    pub fn evaluated(
+        typed: &TypedTrees,
+        selected_target: Option<&'a str>,
+        evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
+        target_machine_origins: &'a [SelectedTargetMachineOrigin],
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        evaluated_bindings.validate_against_typed(typed)?;
+        let retained_target = evaluated_bindings
+            .target()
+            .map(target::TargetProfile::target_name);
+        if retained_target != selected_target {
+            return Err(vec![diagnostics::Diagnostic::error(format!(
+                "evaluated `via` binding table target `{}` does not match provider derivation target `{}`",
+                retained_target.unwrap_or("<none>"),
+                selected_target.unwrap_or("<none>"),
+            ))]);
+        }
+        Ok(Self {
+            selected_target,
+            evaluated_bindings: Some(evaluated_bindings),
+            target_machine_origins,
+        })
+    }
+}
+
+/// Derive every provider plan the typed program's retained conformance
+/// satisfies, each with its provenance. This is the one derivation entry.
+pub fn derive_satisfies_plans(
     typed: &TypedTrees,
-    selected_target: Option<&str>,
+    derivation: ProviderPlanDerivation<'_>,
 ) -> Vec<DerivedProviderPlan> {
-    derive_satisfies_plans_with_optional_evaluated_bindings(typed, selected_target, None, &[])
-}
-
-/// Strict production derivation after all ordinary `via` expressions have
-/// been evaluated. Legacy external leaves remain on their segregated carrier;
-/// an ordinary `via` row can only consume its exact table entry.
-pub fn derive_satisfies_plans_with_evaluated_bindings(
-    typed: &TypedTrees,
-    selected_target: Option<&str>,
-    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
-) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
-    evaluated_bindings.validate_against_typed(typed)?;
-    let retained_target = evaluated_bindings
-        .target()
-        .map(target::TargetProfile::target_name);
-    if retained_target != selected_target {
-        return Err(vec![diagnostics::Diagnostic::error(format!(
-            "evaluated `via` binding table target `{}` does not match provider derivation target `{}`",
-            retained_target.unwrap_or("<none>"),
-            selected_target.unwrap_or("<none>"),
-        ))]);
-    }
-    Ok(derive_satisfies_plans_with_optional_evaluated_bindings(
+    derive_provider_plans(
         typed,
-        selected_target,
-        Some(evaluated_bindings),
-        &[],
-    ))
-}
-
-pub fn derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
-    typed: &TypedTrees,
-    selected_target: Option<&str>,
-    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
-    target_machine_origins: &[SelectedTargetMachineOrigin],
-) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
-    evaluated_bindings.validate_against_typed(typed)?;
-    let retained_target = evaluated_bindings
-        .target()
-        .map(target::TargetProfile::target_name);
-    if retained_target != selected_target {
-        return Err(vec![diagnostics::Diagnostic::error(format!(
-            "evaluated `via` binding table target `{}` does not match provider derivation target `{}`",
-            retained_target.unwrap_or("<none>"),
-            selected_target.unwrap_or("<none>"),
-        ))]);
-    }
-    Ok(derive_satisfies_plans_with_optional_evaluated_bindings(
-        typed,
-        selected_target,
-        Some(evaluated_bindings),
-        target_machine_origins,
-    ))
+        derivation.selected_target,
+        derivation.evaluated_bindings,
+        derivation.target_machine_origins,
+    )
 }

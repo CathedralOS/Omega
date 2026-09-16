@@ -34,7 +34,13 @@ fn settled_selected_initializer_lowers_and_cannot_be_deleted() {
     .expect("resolve selected initializer");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type selected initializer");
-    let plans = provider_planning::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let [provider] = plans.as_slice() else {
         panic!("one authored operator realization");
     };

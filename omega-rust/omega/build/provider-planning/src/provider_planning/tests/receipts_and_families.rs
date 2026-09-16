@@ -5,7 +5,7 @@ use super::{
 };
 use crate::provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    ProviderSelectionProvenance, select_provider_plans, select_provider_plans_with_provenance,
+    ProviderSelectionProvenance, select_derived_provider_plans, select_provider_plans,
 };
 
 #[test]
@@ -600,7 +600,7 @@ fn duplicate_exact_target_defaults_do_not_conflict() {
         selected_plan_names(&selected),
         vec!["package-provider".to_owned()]
     );
-    let selected = select_provider_plans_with_provenance(
+    let selected = select_derived_provider_plans(
         &[DerivedProviderPlan {
             plan,
             provenance: ProviderPlanProvenance {

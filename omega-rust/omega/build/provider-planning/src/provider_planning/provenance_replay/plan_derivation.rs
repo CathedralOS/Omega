@@ -17,7 +17,7 @@ use crate::provider_planning::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
 };
 
-pub(crate) fn derive_satisfies_plans_with_optional_evaluated_bindings(
+pub(crate) fn derive_provider_plans(
     typed: &TypedTrees,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
@@ -224,12 +224,12 @@ pub(crate) fn derive_satisfies_plans_with_optional_evaluated_bindings(
             }
         }
     }
-    plans.extend(derive_boundary_operator_plans_with_provenance(
+    plans.extend(derive_boundary_operator_plans(
         typed,
         selected_target,
         evaluated_bindings,
     ));
-    plans.extend(derive_top_level_requirement_plans_with_provenance(
+    plans.extend(derive_top_level_requirement_plans(
         typed,
         selected_target,
         evaluated_bindings,
@@ -237,7 +237,7 @@ pub(crate) fn derive_satisfies_plans_with_optional_evaluated_bindings(
     plans
 }
 
-fn derive_top_level_requirement_plans_with_provenance(
+fn derive_top_level_requirement_plans(
     typed: &TypedTrees,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
@@ -486,7 +486,7 @@ fn provider_plan_schema_targets(
         .collect()
 }
 
-fn derive_boundary_operator_plans_with_provenance(
+fn derive_boundary_operator_plans(
     typed: &TypedTrees,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,

@@ -2,6 +2,7 @@ use super::{
     extract_external_binding_rows, extract_native_external_binding_rows,
     selected_source_boundary_entry_plan, settle_external_binding_rows,
 };
+use crate::ProviderPlanDerivation;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
@@ -419,7 +420,13 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         .expect("type top-level external ABI fixture");
     typed_trees_to_checked_trees::lower_typed_trees(typed.clone())
         .expect("check exact top-level external satisfier");
-    let plans = crate::provider_planning::derive_satisfies_plans(&typed, Some("linux_x86_64"));
+    let plans = crate::provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(Some("linux_x86_64")),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!("one top-level external provider plan")
     };
@@ -501,7 +508,13 @@ fn selected_source_boundary_entry_plan_accepts_exact_operator_custody_without_tr
     .expect("resolve operator custody fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type operator custody fixture");
-    let mut plans = crate::provider_planning::derive_satisfies_plans(&typed, None);
+    let mut plans = crate::provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let plan_index = plans
         .iter()
         .position(|plan| {

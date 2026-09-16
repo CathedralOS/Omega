@@ -1,6 +1,7 @@
 //! Fixtures shared by the task plan tests: activation fixtures, error
 //! helpers and the concrete task start fixture.
 
+use crate::ProviderPlanDerivation;
 mod activation_crossings_and_task_starts;
 mod activation_operational_and_requirements;
 mod activation_targets_and_topology;
@@ -499,7 +500,13 @@ fn concrete_task_start_fixture() -> (
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let provider_plans = crate::provider_planning::derive_satisfies_plans(&typed, None);
+    let provider_plans = crate::provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     assert_eq!(provider_plans.len(), 1);
     assert!(
         crate::provider_planning::validate_provider_plan_candidates(&typed, &provider_plans,)

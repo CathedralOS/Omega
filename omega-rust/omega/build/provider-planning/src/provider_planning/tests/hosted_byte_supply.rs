@@ -2,9 +2,8 @@
 
 use super::ProviderBinding;
 use crate::provider_planning::provenance_replay::{
-    SelectedTargetMachineOrigin,
-    derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins,
-    derive_satisfies_plans_with_provenance, validate_derived_provider_plan_candidates,
+    ProviderPlanDerivation, SelectedTargetMachineOrigin, derive_satisfies_plans,
+    validate_derived_provider_plan_candidates,
 };
 #[test]
 fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
@@ -46,13 +45,10 @@ fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
             target: "macos_arm64".to_owned(),
         })
         .collect::<Vec<_>>();
-    let candidates = derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
-        &typed,
-        Some("macos_arm64"),
-        &evaluated,
-        &origins,
-    )
-    .unwrap();
+    let candidates =
+        ProviderPlanDerivation::evaluated(&typed, Some("macos_arm64"), &evaluated, &origins)
+            .map(|derivation| derive_satisfies_plans(&typed, derivation))
+            .unwrap();
     let [candidate] = candidates.as_slice() else {
         panic!("one Console candidate");
     };
@@ -79,17 +75,24 @@ fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
             origin.target = wrong_target.to_owned();
         }
         assert!(
-            derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
+            ProviderPlanDerivation::evaluated(
                 &typed,
                 Some("macos_arm64"),
                 &evaluated,
-                &wrong_origins,
+                &wrong_origins
             )
+            .map(|derivation| derive_satisfies_plans(&typed, derivation))
             .unwrap()
             .is_empty()
         );
     }
-    assert!(derive_satisfies_plans_with_provenance(&typed, Some("macos_arm64")).is_empty());
+    assert!(
+        derive_satisfies_plans(
+            &typed,
+            ProviderPlanDerivation::unevaluated(Some("macos_arm64"))
+        )
+        .is_empty()
+    );
     let mut changed = candidate.clone();
     changed.provenance.row_target_machine_origins[0]
         .as_mut()
