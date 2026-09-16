@@ -415,18 +415,38 @@ fn resolve_family_adapter_row(
     let mut rows = Vec::new();
     let mut missing = Vec::new();
     for tuple in &tuples {
-        let specialization = typed.machine_specializations.iter().find(|specialization| {
-            specialization.template == adapter.symbol
-                && specialization.const_argument_identities.as_slice() == tuple.identities.as_ref()
-                && specialization.type_argument_identities.is_empty()
-                && specialization.machine_arguments.is_empty()
-                && specialization.conformance_arguments.is_empty()
-                && specialization.inferred_conformance_arguments.is_empty()
-        });
-        let Some(specialization) = specialization else {
+        // A roster row is filled only by a bare value-tuple specialization of
+        // the selected provider's own template: retained const identities equal
+        // the tuple exactly (wrong widths never fill), and every non-value
+        // argument coordinate stays empty (a shape-substituted record —
+        // type, machine, or conformance arguments beside the value tuple —
+        // never fills). A specialization of a sibling provider's template is
+        // ineligible even at the same tuple: one selected conformance covers
+        // the roster alone.
+        let mut specializations = typed
+            .machine_specializations
+            .iter()
+            .filter(|specialization| {
+                specialization.template == adapter.symbol
+                    && specialization.const_argument_identities.as_slice()
+                        == tuple.identities.as_ref()
+                    && specialization.type_argument_identities.is_empty()
+                    && specialization.machine_arguments.is_empty()
+                    && specialization.conformance_arguments.is_empty()
+                    && specialization.inferred_conformance_arguments.is_empty()
+                    && specialization.conformance_applications.is_empty()
+            });
+        let Some(specialization) = specializations.next() else {
             missing.push(format!("({})", tuple.display.join(", ")));
             continue;
         };
+        if specializations.next().is_some() {
+            return Err(Diagnostic::error(format!(
+                "finite family tuple `({})` of requirement `{}` resolves to multiple retained specializations of `{machine_identity}`",
+                tuple.display.join(", "),
+                method.requirement_identity,
+            )));
+        }
         let Some(instance) = typed
             .machines()
             .iter()

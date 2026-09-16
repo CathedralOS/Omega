@@ -561,3 +561,234 @@ fn statement_calls_select_the_settled_tuple() {
         "statement calls see the same normalized roster as value calls"
     );
 }
+
+/// The roster bounds only the dynamic family: `direct` may still specialize
+/// the provider at `scan<64>` for ordinary static use, but a boundary call
+/// demanding a width outside the declared roster selects no row.
+const OFF_ROSTER_WIDTH: &str = r#"
+    boundary trait Scanner {
+        machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
+    }
+    data ScanProvider {}
+    machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
+        transition { _ -> (value as u64) }
+    }
+    machine ScanProvider::direct() -> u64 {
+        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
+    }
+    data Client { service: Scanner; }
+    machine Client::run(&mut self) -> u64 reaches Scanner {
+        transition { _ -> (self.service.scan<64>(7)) }
+    }
+"#;
+
+/// Two providers conform to the same requirement. ScanProvider's demands
+/// realize only the (16) tuple; ReserveProvider's own demands realize the
+/// complete roster. A family row is filled only by the selected
+/// conformance's retained specializations — a sibling provider's record at
+/// the identical tuple can never lend coverage.
+const SIBLING_PROVIDERS: &str = r#"
+    boundary trait Scanner {
+        machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
+    }
+    data ScanProvider {}
+    machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
+        transition { _ -> (value as u64) }
+    }
+    machine ScanProvider::direct() -> u64 {
+        transition { _ -> (ScanProvider::scan<16>(7)) }
+    }
+    data ReserveProvider {}
+    machine ReserveProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
+        transition { _ -> (value as u64) }
+    }
+    machine ReserveProvider::direct() -> u64 {
+        transition { _ -> (ReserveProvider::scan<16>(7) + ReserveProvider::scan<32>(8)) }
+    }
+    data Client { service: Scanner; }
+    machine Client::run(&mut self) -> u64 reaches Scanner {
+        transition { _ -> (self.service.scan<16>(7)) }
+    }
+"#;
+
+#[test]
+fn off_roster_width_selects_no_settled_tuple() {
+    let (checked, plans) = family_fixture(OFF_ROSTER_WIDTH);
+    let selected = selected_plan(&plans, "Scanner");
+    let mut settled = Arc::new(checked);
+    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect_err("a width outside the declared roster selects no row");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not select a settled tuple")),
+        "{diagnostics:?}"
+    );
+}
+
+/// Mutating the retained specialization record exercises the row-selection
+/// guards against drifted evidence: the record's const identities are the
+/// only witness that the instance was realized at the roster tuple, so a
+/// record claiming a different width can never fill the row.
+#[test]
+fn wrong_width_specialization_never_fills_a_roster_row() {
+    let (mut checked, plans) = family_fixture(FAMILY_SETTLES);
+    checked
+        .typed
+        .machine_specializations
+        .iter_mut()
+        .find(|specialization| {
+            specialization.const_argument_identities == ["named(integer-const(32))".to_owned()]
+        })
+        .expect("the (32) specialization")
+        .const_argument_identities = vec!["named(integer-const(64))".to_owned()];
+    let selected = selected_plan(&plans, "Scanner");
+    let scan = requirement_symbol(&checked, "scan");
+    let mut settled = Arc::new(checked);
+    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect_err("a record realized at width 64 cannot fill the (32) row");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("partial provider coverage")
+            && diagnostic.message.contains("(32)")),
+        "{diagnostics:?}"
+    );
+    assert!(
+        settled
+            .facts
+            .boundary_adapter_dispatch
+            .iter()
+            .all(|row| row.requirement != scan),
+        "no dispatch row exists for the wrong-width family"
+    );
+}
+
+/// A specialization record carrying anything beside the bare value tuple —
+/// type, machine, or conformance arguments, or an over-long const tuple —
+/// is a substituted shape, not a roster member: the row stays unfilled and
+/// the family rejects rather than keying dispatch on a partial identity.
+#[test]
+fn shape_substituted_specializations_never_fill_roster_rows() {
+    for substitution in [
+        "type argument",
+        "machine argument",
+        "conformance argument",
+        "inferred conformance argument",
+        "conformance application",
+        "extra const argument",
+    ] {
+        let (mut checked, plans) = family_fixture(FAMILY_SETTLES);
+        let specialization = checked
+            .typed
+            .machine_specializations
+            .iter_mut()
+            .find(|specialization| {
+                specialization.const_argument_identities == ["named(integer-const(32))".to_owned()]
+            })
+            .expect("the (32) specialization");
+        match substitution {
+            "type argument" => specialization
+                .type_argument_identities
+                .push("named(type(u32))".to_owned()),
+            "machine argument" => specialization
+                .machine_arguments
+                .push(symbols::SymbolHandle::from_parts(7, 0)),
+            "conformance argument" => specialization
+                .conformance_arguments
+                .push(symbols::SymbolHandle::from_parts(7, 0)),
+            "inferred conformance argument" => specialization
+                .inferred_conformance_arguments
+                .push(symbols::SymbolHandle::from_parts(7, 0)),
+            "conformance application" => specialization
+                .conformance_applications
+                .push(typed_trees::typed_trees::ClosedConformanceApplication::default()),
+            "extra const argument" => specialization
+                .const_argument_identities
+                .push("named(integer-const(1))".to_owned()),
+            _ => unreachable!(),
+        }
+        let selected = selected_plan(&plans, "Scanner");
+        let mut settled = Arc::new(checked);
+        let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+            .expect_err("a substituted shape cannot fill the (32) row");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("partial provider coverage")
+                && diagnostic.message.contains("(32)")),
+            "{substitution}: {diagnostics:?}"
+        );
+    }
+}
+
+/// Two retained records claiming the same template's same tuple would make
+/// the row ambiguous; the family rejects rather than silently publishing
+/// whichever record happens to sort first.
+#[test]
+fn duplicate_tuple_specializations_reject() {
+    let (mut checked, plans) = family_fixture(FAMILY_SETTLES);
+    let duplicate = checked
+        .typed
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            specialization.const_argument_identities == ["named(integer-const(32))".to_owned()]
+        })
+        .expect("the (32) specialization")
+        .clone();
+    checked.typed.machine_specializations.push(duplicate);
+    let selected = selected_plan(&plans, "Scanner");
+    let mut settled = Arc::new(checked);
+    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect_err("two records for one tuple can never settle a row");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("multiple retained specializations")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn a_sibling_providers_specialization_never_fills_the_row() {
+    let (checked, plans) = family_fixture(SIBLING_PROVIDERS);
+    let scan_provider = plans
+        .iter()
+        .find(|plan| plan.provider_type == "ScanProvider")
+        .expect("ScanProvider plan");
+    let selected =
+        effects::SelectedProviderPlanFacts::from_selected_plans(vec![scan_provider.clone()])
+            .expect("select ScanProvider's plan");
+    let mut settled = Arc::new(checked);
+    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect_err("ScanProvider covers only (16); the sibling's (32) record cannot lend it");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("partial provider coverage")
+            && diagnostic.message.contains("(32)")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn one_boundary_slot_admits_one_selected_conformance() {
+    let (_checked, plans) = family_fixture(SIBLING_PROVIDERS);
+    let scanner_plans = plans
+        .iter()
+        .filter(|plan| plan.schema.trait_name == "Scanner")
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(
+        scanner_plans.len(),
+        2,
+        "each provider type derives its own plan for the trait"
+    );
+    let diagnostic = effects::SelectedProviderPlanFacts::from_selected_plans(scanner_plans)
+        .expect_err("two conformances for one boundary slot must reject");
+    assert!(
+        diagnostic.contains("more than one selected provider plan"),
+        "{diagnostic}"
+    );
+}
