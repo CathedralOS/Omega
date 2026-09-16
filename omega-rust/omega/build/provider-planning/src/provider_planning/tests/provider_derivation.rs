@@ -3,11 +3,9 @@ use super::{
     normalized_machine_identity, selected_operator_binding_fixture, selection_plan,
 };
 use crate::provider_planning::{
-    Arc, ProviderBinding, ProviderPlanRow, ProviderSchemaDeclaration, SelectedTargetMachineOrigin,
-    bind_selected_provider_plan_facts, derive_satisfies_plans,
-    derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins,
-    derive_satisfies_plans_with_provenance, select_provider_plans,
-    select_provider_plans_with_provenance, selected_provider_plan_facts_with_provenance,
+    Arc, ProviderBinding, ProviderPlanDerivation, ProviderPlanRow, ProviderSchemaDeclaration,
+    SelectedTargetMachineOrigin, bind_selected_provider_plan_facts, derive_satisfies_plans,
+    select_derived_provider_plans, select_provider_plans, selected_provider_plan_facts,
     validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
 };
 
@@ -105,7 +103,7 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
         .find(|definition| definition.name.as_str() == "LapicCompletion")
         .expect("nominal provider type");
 
-    let derived = derive_satisfies_plans_with_provenance(&typed, None);
+    let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
     let [derived] = derived.as_slice() else {
         panic!("one exact top-level provider plan, got {}", derived.len())
     };
@@ -213,7 +211,10 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .iter()
         .find(|definition| definition.name.as_str() == "LinuxCompletion")
         .expect("nominal external provider type");
-    let derived = derive_satisfies_plans_with_provenance(&typed, Some("linux_x86_64"));
+    let derived = derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(Some("linux_x86_64")),
+    );
     let [derived] = derived.as_slice() else {
         panic!(
             "one exact external top-level provider plan, got {}",
@@ -270,14 +271,14 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
     .expect("an explicit selection chooses the declared external candidate");
     assert_eq!(selected, std::slice::from_ref(&derived.plan));
 
-    let selected_with_provenance = select_provider_plans_with_provenance(
+    let selected_with_provenance = select_derived_provider_plans(
         std::slice::from_ref(derived),
         target::NativeTarget::linux_x64(),
         &[],
         &[],
     )
     .expect("the unique external candidate retains exact selection provenance");
-    selected_provider_plan_facts_with_provenance(
+    selected_provider_plan_facts(
         &typed,
         &evaluated_bindings,
         selected_with_provenance.clone(),
@@ -299,12 +300,9 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
     let mut drifted_binding_provenance = selected_with_provenance.clone();
     drifted_binding_provenance[0].derived.plan.rows[0].binding =
         ProviderBinding::Syscall { number: 61 };
-    let diagnostics = selected_provider_plan_facts_with_provenance(
-        &typed,
-        &evaluated_bindings,
-        drifted_binding_provenance,
-    )
-    .expect_err("selected provenance must reject substituted external binding identity");
+    let diagnostics =
+        selected_provider_plan_facts(&typed, &evaluated_bindings, drifted_binding_provenance)
+            .expect_err("selected provenance must reject substituted external binding identity");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -316,12 +314,9 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .derived
         .provenance
         .row_realizations[0] = requirement.symbol;
-    let diagnostics = selected_provider_plan_facts_with_provenance(
-        &typed,
-        &evaluated_bindings,
-        drifted_realization_provenance,
-    )
-    .expect_err("selected provenance must reject a substituted realization symbol");
+    let diagnostics =
+        selected_provider_plan_facts(&typed, &evaluated_bindings, drifted_realization_provenance)
+            .expect_err("selected provenance must reject a substituted realization symbol");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -333,12 +328,9 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .derived
         .provenance
         .row_requirements[0] = provider.symbol;
-    let diagnostics = selected_provider_plan_facts_with_provenance(
-        &typed,
-        &evaluated_bindings,
-        drifted_requirement_provenance,
-    )
-    .expect_err("selected provenance must reject a substituted requirement symbol");
+    let diagnostics =
+        selected_provider_plan_facts(&typed, &evaluated_bindings, drifted_requirement_provenance)
+            .expect_err("selected provenance must reject a substituted requirement symbol");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -379,7 +371,10 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 
     // Derivation accepts no syntax tree: the exact typed id/table is its
     // only external-binding authority.
-    let plans = derive_satisfies_plans(&typed, None);
+    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!("one external provider plan")
     };
@@ -417,7 +412,11 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
         .expect("type source-inferred catalog leaf");
 
     assert!(
-        derive_satisfies_plans_with_provenance(&typed, Some("linux_x86_64")).is_empty(),
+        derive_satisfies_plans(
+            &typed,
+            ProviderPlanDerivation::unevaluated(Some("linux_x86_64"))
+        )
+        .is_empty(),
         "an unscoped same-shaped boundary machine is not compiler-catalog authority",
     );
     let realization = typed
@@ -439,12 +438,13 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
             machine: realization.symbol,
             target: target.to_owned(),
         };
-        let derived = derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
+        let derived = ProviderPlanDerivation::evaluated(
             &typed,
             Some(target),
             &evaluated,
             std::slice::from_ref(&origin),
         )
+        .map(|derivation| derive_satisfies_plans(&typed, derivation))
         .expect("exact selected target-machine origin derives");
         let [derived] = derived.as_slice() else {
             panic!("one exact inferred Linux Console plan for {target}")
@@ -483,14 +483,10 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
             target: "windows_x86_64".to_owned(),
         };
         assert!(
-            derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
-                &typed,
-                Some(target),
-                &evaluated,
-                &[wrong_origin],
-            )
-            .expect("wrong origin is a closed candidate set")
-            .is_empty(),
+            ProviderPlanDerivation::evaluated(&typed, Some(target), &evaluated, &[wrong_origin])
+                .map(|derivation| derive_satisfies_plans(&typed, derivation))
+                .expect("wrong origin is a closed candidate set")
+                .is_empty(),
             "wrong-target declaration provenance must not infer the Linux row",
         );
 
@@ -511,19 +507,35 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
         machine: realization.symbol,
         target: "linux_x86_64".to_owned(),
     };
-    let targetless = derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
+    let targetless = ProviderPlanDerivation::evaluated(
         &typed,
         None,
         &targetless_evaluated,
         &[linux_host_origin],
     )
+    .map(|derivation| derive_satisfies_plans(&typed, derivation))
     .expect("targetless Linux-host origin derives without inventing a plan target");
     let [targetless] = targetless.as_slice() else {
         panic!("one exact inferred targetless Linux Console plan")
     };
     assert_eq!(targetless.plan.target, "");
-    assert!(derive_satisfies_plans(&typed, None).is_empty());
-    assert!(derive_satisfies_plans(&typed, Some("macos_arm64")).is_empty());
+    assert!(
+        derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+            .into_iter()
+            .map(|derived| derived.plan)
+            .collect::<Vec<_>>()
+            .is_empty()
+    );
+    assert!(
+        derive_satisfies_plans(
+            &typed,
+            ProviderPlanDerivation::unevaluated(Some("macos_arm64"))
+        )
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>()
+        .is_empty()
+    );
 }
 
 #[test]
@@ -571,7 +583,11 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
         mechanism: None,
     };
     assert!(
-        derive_satisfies_plans(&typed, None).is_empty(),
+        derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+            .into_iter()
+            .map(|derived| derived.plan)
+            .collect::<Vec<_>>()
+            .is_empty(),
         "an installed binding without its mechanism must not derive a provider plan",
     );
 
@@ -585,7 +601,11 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
         mechanism: Some(language_semantics::ExternalBindingMechanism::Import),
     };
     assert!(
-        derive_satisfies_plans(&typed, None).is_empty(),
+        derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+            .into_iter()
+            .map(|derived| derived.plan)
+            .collect::<Vec<_>>()
+            .is_empty(),
         "a mechanism that disagrees with the interned binding must not derive a provider plan",
     );
 }
@@ -617,7 +637,7 @@ fn provider_derivation_retains_every_exact_external_realization_symbol() {
     .expect("resolve two-row provider fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type two-row provider fixture");
-    let derived = derive_satisfies_plans_with_provenance(&typed, None);
+    let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
     let [derived] = derived.as_slice() else {
         panic!("one two-row external provider plan")
     };

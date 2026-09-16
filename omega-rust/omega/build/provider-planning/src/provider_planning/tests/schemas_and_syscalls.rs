@@ -1,4 +1,5 @@
 use super::{derive_provider_fixture, normalized_machine_identity, selection_plan};
+use crate::ProviderPlanDerivation;
 use crate::provider_planning::{
     ProviderBinding, ProviderPlanRow, TypedTrees, derive_satisfies_plans,
     exact_canonical_provider_schema, validate_provider_plan_candidates,
@@ -92,7 +93,10 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
     .expect("resolve adapter ownership fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type adapter ownership fixture");
-    let plan = derive_satisfies_plans(&typed, None)
+    let plan = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>()
         .into_iter()
         .find(|plan| plan.schema.trait_name == "Readable")
         .expect("Readable provider plan");
@@ -201,7 +205,10 @@ fn checked_operator_adapter_must_resolve_to_its_exact_operator_conformance() {
         })
         .expect("CheckedMath::offset_zero operator");
     let identity = typed_trees::operator::boundary_operator_requirement_identity(&typed, operator);
-    let plan = derive_satisfies_plans(&typed, None)
+    let plan = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>()
         .into_iter()
         .find(|plan| plan.schema.trait_name == identity)
         .expect("CheckedMath::offset_zero provider plan");
@@ -255,7 +262,10 @@ fn syscall_derivation_retains_exact_number_before_range_validation() {
         .expect("resolve syscall leaf");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type syscall leaf");
-        let plans = derive_satisfies_plans(&typed, None);
+        let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+            .into_iter()
+            .map(|derived| derived.plan)
+            .collect::<Vec<_>>();
         (typed, plans)
     }
 
@@ -310,7 +320,10 @@ fn checked_adapter_rejects_symbol_resolved_service_widening() {
     .expect("resolve provider");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type provider");
-    let plans = derive_satisfies_plans(&typed, None);
+    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
 
     let diagnostics = validate_provider_plan_candidates(&typed, &plans);
 

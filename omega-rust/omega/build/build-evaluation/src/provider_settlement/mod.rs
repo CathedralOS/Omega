@@ -9,6 +9,7 @@ use package_compilation::PackageCompilationInputs;
 use provider_planning::ProviderSelection;
 use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
+use provider_planning::derive_satisfies_plans;
 use provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable;
 use typed_trees::TypedTrees;
 
@@ -49,13 +50,13 @@ pub fn settle_checked_providers(
         selected_target_profile,
         package_inputs,
     )?;
-    let derived_provider_plans =
-        provider_planning::derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
-            typed,
-            target_name,
-            &evaluated_via_bindings,
-            &settled_target_machines.origins,
-        )?;
+    let derived_provider_plans = provider_planning::ProviderPlanDerivation::evaluated(
+        typed,
+        target_name,
+        &evaluated_via_bindings,
+        &settled_target_machines.origins,
+    )
+    .map(|derivation| derive_satisfies_plans(typed, derivation))?;
     let provider_plans = derived_provider_plans
         .iter()
         .map(|derived| derived.plan.clone())
@@ -68,7 +69,7 @@ pub fn settle_checked_providers(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let selected_provider_plans = provider_planning::select_provider_plans_with_provenance(
+    let selected_provider_plans = provider_planning::select_derived_provider_plans(
         &derived_provider_plans,
         provider_selection_target,
         &target_provider_defaults,
@@ -117,7 +118,7 @@ pub fn settle_checked_providers(
         opaque_representation_selections,
     )?;
     let (selected_provider_plan_facts, selected_provider_provenance) =
-        provider_planning::selected_provider_plan_facts_with_provenance(
+        provider_planning::selected_provider_plan_facts(
             typed,
             &evaluated_via_bindings,
             selected_provider_plans,

@@ -1,6 +1,7 @@
 //! Fixtures shared by the provider planning tests: bound plan facts,
 //! package selections and admitted facts.
 
+use crate::ProviderPlanDerivation;
 mod hosted_byte_supply;
 mod provider_derivation;
 mod receipts_and_families;
@@ -57,7 +58,10 @@ fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
     .expect("resolve provider fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type provider fixture");
-    let plans = derive_satisfies_plans(&typed, None);
+    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!(
             "provider fixture must derive exactly one plan, got {}",
@@ -98,7 +102,10 @@ fn selected_operator_binding_fixture() -> (checked_trees::CheckedTrees, Provider
     .expect("resolve selected-operator binding fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type selected-operator binding fixture");
-    let plans = derive_satisfies_plans(&typed, None);
+    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!("selected-operator fixture must derive one provider plan")
     };

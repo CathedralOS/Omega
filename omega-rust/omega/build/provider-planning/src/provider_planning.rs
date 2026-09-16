@@ -46,7 +46,7 @@ pub use provenance_replay::*;
 pub use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{
     ProviderSelectionProvenance, SelectedProviderPlanWithProvenance,
-    SelectedProviderReviewProvenance, selected_provider_plan_facts_with_provenance,
+    SelectedProviderReviewProvenance, selected_provider_plan_facts,
 };
 pub use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
@@ -112,29 +112,6 @@ pub fn bind_selected_provider_plan_facts(
     })
 }
 
-/// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
-/// plan per (provider type, boundary trait, target), assembled only from
-/// that provider's conformance closure. External leaves and checked adapters
-/// attached to the same provider type join one plan. External leaves may be
-/// free declarations; checked adapters must belong to a nominal provider type
-/// so execution can only dispatch through a retained whole-provider selection.
-/// Coverage never combines unrelated provider types. Coverage/signatures come from the typed schema
-/// (signature refinement is enforced by the conformance checker on each
-/// edge); the effect surface is the union of the SATISFIED requirements'
-/// declared effects -- the requirement supplies the ceiling, never the
-/// leaf. Selection v1: a slot whose (trait, target) has exactly one FULLY
-/// COVERING derived plan selects it implicitly; ambiguity or partial
-/// coverage is loud at the consumer (the trust report shows coverage).
-pub fn derive_satisfies_plans(
-    typed: &TypedTrees,
-    selected_target: Option<&str>,
-) -> Vec<ProviderPlan> {
-    derive_satisfies_plans_with_provenance(typed, selected_target)
-        .into_iter()
-        .map(|derived| derived.plan)
-        .collect()
-}
-
 /// PRV4c: select one fully covering provider type per applicable boundary
 /// slot. An explicit build-root declaration wins over the selected target
 /// package's ordinary default declaration. Without either, a unique covering
@@ -154,7 +131,7 @@ pub fn select_provider_plans(
     })
 }
 
-pub fn select_provider_plans_with_provenance(
+pub fn select_derived_provider_plans(
     derived: &[DerivedProviderPlan],
     selected_target: target::NativeTarget,
     defaults: &[crate::ProviderSelection],

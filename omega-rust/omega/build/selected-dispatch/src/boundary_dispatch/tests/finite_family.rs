@@ -1,6 +1,7 @@
 use super::{
     Arc, CheckedTrees, ProviderPlan, selected_plan, settle_selected_boundary_adapter_dispatch,
 };
+use provider_planning::ProviderPlanDerivation;
 /// A finite generic requirement whose roster is authored as one explicit
 /// disjunction of value equalities. The provider's demanded tuple
 /// specializations come from the direct calls in `direct`; the boundary calls
@@ -240,7 +241,13 @@ fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     .expect("resolve finite-family fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type finite-family fixture");
-    let plans = provider_planning::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("check finite-family fixture");
     (checked, plans)

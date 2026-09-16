@@ -3,6 +3,7 @@ use crate::{
 };
 use checked_trees::{CheckedProviderPlanCommitment, CheckedTrees, CheckedUnitEffectOperationPlan};
 use effects::SelectedProviderPlanFacts;
+use provider_planning::ProviderPlanDerivation;
 use std::sync::Arc;
 
 fn mixed_fixture() -> (CheckedTrees, SelectedProviderPlanFacts) {
@@ -38,7 +39,13 @@ fn mixed_fixture() -> (CheckedTrees, SelectedProviderPlanFacts) {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let plans = provider_planning::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     assert_eq!(plans.len(), 2);
     let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
     let uses = checked

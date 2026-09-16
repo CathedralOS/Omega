@@ -2,6 +2,7 @@ use super::{
     Arc, CheckedTrees, adapter_entry_symbol, selected_plan,
     settle_selected_boundary_adapter_dispatch,
 };
+use provider_planning::ProviderPlanDerivation;
 const BORROWED_SOURCE: &str = r#"
     boundary trait Output {
         machine emit(value: i32);
@@ -46,7 +47,13 @@ fn borrowed_fixture() -> (CheckedTrees, effects::SelectedProviderPlanFacts) {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let plans = provider_planning::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let selected = selected_plan(&plans, "Output");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
     (checked, selected)

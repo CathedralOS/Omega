@@ -45,7 +45,7 @@ pub(super) fn validate(
             selected_by: retained.selected_by.clone(),
         })
         .collect();
-    let (replayed, _) = provider_planning::selected_provider_plan_facts_with_provenance(
+    let (replayed, _) = provider_planning::selected_provider_plan_facts(
         &compilation.typed,
         compilation.custody.evaluated_via_bindings(),
         selected,

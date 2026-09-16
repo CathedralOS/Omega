@@ -2,6 +2,7 @@ use super::{
     Arc, CheckedTrees, ProviderBinding, ProviderPlan, plan, selected_plan,
     settle_selected_boundary_adapter_dispatch,
 };
+use provider_planning::ProviderPlanDerivation;
 /// A boundary trait carrying two requirement-local generic requirements beside
 /// a nongeneric one. Without an authored finite `where` roster the generic
 /// requirements are dynamically ineligible individually: `ping` still settles
@@ -71,7 +72,13 @@ fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     .expect("resolve generic-requirement fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type generic-requirement fixture");
-    let plans = provider_planning::derive_satisfies_plans(&typed, None);
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("check generic-requirement fixture");
     (checked, plans)

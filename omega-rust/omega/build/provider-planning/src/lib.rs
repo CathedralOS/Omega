@@ -39,17 +39,14 @@ pub use provider_planning::{
 };
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
+    DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
     ProviderSelectionProvenance, SelectedProviderPlanBinding, SelectedProviderPlanWithProvenance,
     SelectedProviderReviewProvenance, SelectedTargetMachineOrigin,
     bind_selected_provider_plan_facts, compiler_intrinsic_diagnostic_label, derive_satisfies_plans,
-    derive_satisfies_plans_with_evaluated_bindings,
-    derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins,
-    derive_satisfies_plans_with_provenance, exact_checked_adapter, extract_external_binding_rows,
-    extract_native_external_binding_rows, intrinsic_realization_matches_operator,
-    primitive_float_binary_intrinsic_execution_identity, satisfied_requirement_identity,
-    satisfies_plan_name, select_provider_plans, select_provider_plans_with_provenance,
-    selected_provider_plan_facts_with_provenance, settle_external_binding_rows,
+    exact_checked_adapter, extract_external_binding_rows, extract_native_external_binding_rows,
+    intrinsic_realization_matches_operator, primitive_float_binary_intrinsic_execution_identity,
+    satisfied_requirement_identity, satisfies_plan_name, select_derived_provider_plans,
+    select_provider_plans, selected_provider_plan_facts, settle_external_binding_rows,
     validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
     validate_selected_synchronous_invocation_cycles,
 };

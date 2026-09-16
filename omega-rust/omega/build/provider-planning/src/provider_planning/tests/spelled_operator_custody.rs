@@ -2,6 +2,7 @@ use super::{
     Arc, ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
     bind_selected_provider_plan_facts, derive_satisfies_plans,
 };
+use crate::ProviderPlanDerivation;
 fn fixed_token_checked_adapter_fixture() -> (checked_trees::CheckedTrees, ProviderPlan) {
     let source = r#"
         data CheckedMath {}
@@ -29,7 +30,10 @@ fn fixed_token_checked_adapter_fixture() -> (checked_trees::CheckedTrees, Provid
     .expect("resolve fixed-token checked-adapter fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type fixed-token checked-adapter fixture");
-    let plans = derive_satisfies_plans(&typed, None);
+    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!(
             "fixed-token checked-adapter fixture must derive one provider plan, got {}",
