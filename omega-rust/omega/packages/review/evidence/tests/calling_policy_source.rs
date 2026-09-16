@@ -190,12 +190,13 @@ fn inline_child_callback_paths_retain_full_calling_policy() {
             r#"
 data Envelope { entries: [FieldEntry; 64]; }
 machine Envelope::plan(&mut self, schema: Schema) -> Plan {
-    self.entries[0] = FieldEntry {
+    let mut owned_entries: [FieldEntry; 64];
+    owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
         placement: FieldPlan::At { offset: 8 },
     };
     Plan {
-        entries: self.entries,
+        entries: owned_entries,
         entry_count: 1,
         size_fixed: 32,
         size_is_dynamic: false,
