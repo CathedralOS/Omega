@@ -4494,3 +4494,280 @@ fn carried_argument_call_moved_by_hand_is_rejected_by_the_freeze_fence() {
         ) if rejected_machine == machine && block == member
     ));
 }
+
+/// A two-state cycle whose member materializes an immutable byte literal for
+/// the `sink` call's argument: the `EstablishByteSequenceLiteral` declares a
+/// fresh borrowed-view root over constant bytes every traversal — no scalar
+/// uses, no observed root, no custody events — so the whole operation
+/// relocates into the preheader byte-exact while the consuming `CallUnit`
+/// stays inside the loop still spelling the same place identity.
+const INVARIANT_LITERAL_SOURCE: &str = r#"
+    data Root {}
+    machine sink(v: &[u8]) {}
+    machine Root::scan(remaining: u32 [0..=5])
+    {
+        transition { _ -> step(remaining) }
+        state step(pending: u32 [0..=5]) {
+            sink("lit");
+            transition pending > 0 {
+                true -> scan(pending - 1)
+                _ -> finish()
+            }
+        }
+        state finish() {}
+    }
+"#;
+
+/// Same literal establishment inside `step`, but the entry state's `done` arm
+/// can leave the component before `step` ever runs: relocating the literal
+/// would perform its establishment work on traversals the source never
+/// charged, so the non-speculative gate keeps it inside.
+const BYPASSED_LITERAL_SOURCE: &str = r#"
+    data Root {}
+    machine sink(v: &[u8]) {}
+    machine Root::scan(remaining: u32 [0..=5])
+    {
+        transition remaining > 0 {
+            true -> step(remaining - 1)
+            _ -> done()
+        }
+        state step(pending: u32 [0..=5]) {
+            sink("lit");
+            transition pending > 0 {
+                true -> scan(pending - 1)
+                _ -> finish()
+            }
+        }
+        state done() {}
+        state finish() {}
+    }
+"#;
+
+/// The `EstablishByteSequenceLiteral` inside a member block and its block —
+/// the byte-literal counterpart of [`member_call`].
+fn member_literal<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> (
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+) {
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::EstablishByteSequenceLiteral { .. } = &node.operation {
+                return (block, node);
+            }
+        }
+    }
+    panic!("the byte literal establishment lives in a member block")
+}
+
+#[test]
+fn invariant_byte_literal_relocates_preserving_its_declared_place() {
+    let session = lowered_session(INVARIANT_LITERAL_SOURCE, "invariant literal loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (literal_block, literal) = member_literal(function, component);
+    let member = literal_block.id;
+    let preheader = entry.source;
+    let (place, structural_type, bytes) = match &literal.operation {
+        AbstractOperation::EstablishByteSequenceLiteral {
+            place,
+            structural_type,
+            bytes,
+            ..
+        } => (*place, structural_type.clone(), bytes.clone()),
+        operation => panic!("the member node is a byte literal: {operation:?}"),
+    };
+    assert!(crate::validation::admissible_invariant_byte_literal(
+        literal
+    ));
+    let literal_operation = operation_of(literal);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == literal_operation)
+        .expect("the byte literal is a planned relocation");
+    assert_eq!(relocation.node().location().block, member);
+    assert_eq!(relocation.destination().block, preheader);
+    assert!(
+        relocation.node().operand_rewrites().is_empty()
+            && relocation.node().root_rewrite().is_none(),
+        "the literal has no scalar operands or observed root to rebind"
+    );
+    let LoopInvariantNodeResult::LiteralPlace(declared) = relocation.node().result() else {
+        panic!("the literal relocation preserves a declared place")
+    };
+    assert_eq!(
+        *declared, place,
+        "the relocation preserves the literal's declared place identity"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let destination = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::EstablishByteSequenceLiteral {
+            place: moved_place,
+            structural_type: moved_type,
+            bytes: moved_bytes,
+            ..
+        } => {
+            assert_eq!(
+                (*moved_place, moved_type.clone(), moved_bytes.as_slice()),
+                (place, structural_type, bytes.as_slice()),
+                "the relocated literal keeps its declaration and payload byte-exact"
+            );
+        }
+        operation => panic!("relocated node keeps its literal operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    let member_block = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == member)
+        .expect("member block exists");
+    assert!(
+        member_block.nodes.iter().all(|node| !matches!(
+            node.operation,
+            AbstractOperation::EstablishByteSequenceLiteral { .. }
+        )),
+        "the literal exists once, at the destination"
+    );
+    // The consuming call stays inside the loop and still spells the same
+    // place identity: the moved declaration preserves the root the member
+    // `CallUnit` borrows.
+    assert!(
+        member_block.nodes.iter().any(|node| matches!(
+            &node.operation,
+            AbstractOperation::CallUnit {
+                structural_arguments,
+                ..
+            } if structural_arguments
+                .iter()
+                .any(|argument| argument.place == place.id)
+        )),
+        "the member call keeps borrowing the relocated literal's place"
+    );
+    assert!(
+        output_function.declared_places.contains(&place.id),
+        "the declared literal place survives the transform"
+    );
+}
+
+#[test]
+fn bypassed_member_byte_literal_stays_inside() {
+    let session = lowered_session(BYPASSED_LITERAL_SOURCE, "bypassed literal loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (literal_block, literal) = member_literal(function, component);
+    assert!(
+        !crate::validation::guaranteed_executed_member_blocks(component)
+            .contains(&literal_block.id),
+        "the bypassed member block is outside the non-speculative gate"
+    );
+    let literal_operation = operation_of(literal);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != literal_operation),
+        "the speculated literal establishment is not a planned relocation"
+    );
+}
+
+#[test]
+fn bypassed_literal_moved_by_hand_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(BYPASSED_LITERAL_SOURCE, "bypassed literal loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (literal_block, literal) = member_literal(function, component);
+    let member = literal_block.id;
+    let preheader = entry.source;
+    let literal_operation = operation_of(literal);
+    let (input, mut unit) = session.into_parts();
+    // Hand-move the literal out of a member a bypassing exit can skip: the
+    // relocation fence must reject it because the re-derived non-speculative
+    // gate never admits the move — the forged node's fuel would charge
+    // traversals the source never paid it on.
+    let moved = take_operation(&mut unit, literal_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}

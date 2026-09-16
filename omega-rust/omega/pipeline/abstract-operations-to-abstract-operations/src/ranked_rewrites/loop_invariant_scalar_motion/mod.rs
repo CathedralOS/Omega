@@ -58,7 +58,12 @@ pub use model::{
 /// `ByteSequenceSubslice` must also substitute each scalar operand under the
 /// same rule and keep its `length` operand coupled to a `ByteSequenceLength`
 /// measuring the rebound root, and a subslice preserves its structural view
-/// result and bounds obligation byte-exact inside the moved operation. A
+/// result and bounds obligation byte-exact inside the moved operation. The
+/// byte family's non-observation member, an `EstablishByteSequenceLiteral`,
+/// declares a fresh immutable view root over constant bytes: it reads no
+/// scalar or structural operand and carries no custody events, so the whole
+/// operation — declared place, type, and payload — moves byte-exact while
+/// consumers keep spelling the same place identity. A
 /// scalar-signature `Call` adds the family's first call relocation: its
 /// callee's transitive effect summary must prove no observable effect, no
 /// crash, and no suspension — the `structural_state` axis is exempt because
@@ -67,8 +72,8 @@ pub use model::{
 /// never reorder member work anyone could see. Its scalar arguments obey the
 /// same member-parameter substitution a computation obeys; discharged
 /// requirement obligations move byte-exact inside the operation.
-/// Computation
-/// and observation
+/// Computation,
+/// observation, and establishment
 /// relocation is non-speculative: every successor of the unique preheader's
 /// terminator must be an entry edge into the component — reaching the
 /// preheader guarantees entering — and only member blocks guaranteed to

@@ -8,7 +8,10 @@
 //! representative an invariant member structural parameter resolves to — an
 //! admissible byte observation (a `ByteSequenceRead`, or a
 //! `ByteSequenceSubslice` whose structural view result and bounds obligation
-//! relocate byte-exact inside the moved operation),
+//! relocate byte-exact inside the moved operation), an admissible
+//! byte-sequence-literal establishment (whose declared place, structural
+//! type, and payload relocate byte-exact inside the moved operation while
+//! consumers keep spelling the same place identity),
 //! an admissible scalar-signature call (its callee's transitive effect
 //! summary proves no observable effect, crash, or suspension, and every node
 //! inside the member roster is unobservable, so hoisting the call's possible
@@ -266,6 +269,15 @@ pub(super) fn validate(
                 Some((root, substitution)) => (substitution, Some(root)),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
+        } else if crate::validation::admissible_invariant_byte_literal(relocation.expected) {
+            // A byte-sequence-literal establishment relocates byte-exact:
+            // its declared place, structural type, and payload stay inside
+            // the moved operation, so a forged declaration or payload
+            // spelling rejects in `same_relocated_node`'s operation
+            // comparison. There is no observed root or scalar operand to
+            // re-derive; the shared non-speculative gate above already
+            // replayed because a literal is not a scalar-constant leaf.
+            (BTreeMap::new(), None)
         } else if crate::validation::admissible_invariant_scalar_call(relocation.expected).is_some()
         {
             // A scalar call replays its whole admission from the seed: the

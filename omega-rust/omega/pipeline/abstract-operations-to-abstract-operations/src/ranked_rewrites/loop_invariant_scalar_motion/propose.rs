@@ -76,7 +76,10 @@ fn component_candidate(
 /// to), a byte read or subslice (root rebound, scalar operands substituted,
 /// `length` still coupled to a `ByteSequenceLength` on the rebound root, and
 /// for a subslice the structural result preserved inside the moved
-/// operation), an invariant scalar computation (an obligated variant keeps
+/// operation), a byte-sequence-literal establishment (declared place, type,
+/// and payload all preserved byte-exact inside the moved operation while
+/// consumers keep spelling the same place identity), an invariant scalar
+/// computation (an obligated variant keeps
 /// its discharged obligation byte-exact inside the moved operation), an
 /// invariant scalar-signature call whose callee's transitive effect summary
 /// proves no observable effect, crash, or suspension and whose member roster
@@ -295,6 +298,23 @@ pub(super) fn component_plan(
                     }
                     root_rewrite = (root != source).then_some((source, root));
                     substitution.into_iter().collect()
+                } else if crate::validation::admissible_invariant_byte_literal(node) {
+                    // A byte-sequence-literal establishment is the family's
+                    // first non-observation structural relocation: it
+                    // declares a fresh immutable view root over constant
+                    // bytes, reads no scalar or structural operand, and
+                    // carries no custody events, so the whole operation —
+                    // place declaration, type, and payload — moves
+                    // byte-exact while every consumer keeps spelling the
+                    // same place identity. Establishing the view still
+                    // performs work a bypassed traversal would not, so both
+                    // halves of the non-speculative gate apply and no
+                    // observation-root or operand evidence exists to
+                    // re-derive.
+                    if !(guaranteed_entry && guaranteed.contains(member)) {
+                        continue;
+                    }
+                    Vec::new()
                 } else if crate::validation::admissible_invariant_scalar_call(node).is_some() {
                     // A scalar-signature call keeps the full non-speculative
                     // gate — it performs callee work a skipped traversal would
@@ -352,14 +372,20 @@ pub(super) fn component_plan(
                         }
                     }
                     [] => match &node.operation {
-                        // Only a shape-gated subslice reaches relocation
-                        // without a scalar definition — any other zero- or
-                        // multi-definition node cannot pass an admission gate,
-                        // so reaching one here means the plan drifted.
+                        // Only a shape-gated subslice or byte literal reaches
+                        // relocation without a scalar definition — any other
+                        // zero- or multi-definition node cannot pass an
+                        // admission gate, so reaching one here means the plan
+                        // drifted.
                         AbstractOperation::ByteSequenceSubslice { result, .. }
                             if crate::validation::admissible_invariant_subslice(node).is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
+                        }
+                        AbstractOperation::EstablishByteSequenceLiteral { place, .. }
+                            if crate::validation::admissible_invariant_byte_literal(node) =>
+                        {
+                            LoopInvariantNodeResult::LiteralPlace(*place)
                         }
                         _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                     },
