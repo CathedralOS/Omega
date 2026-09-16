@@ -7,8 +7,10 @@ use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 
-mod measure_body;
-use measure_body::{MeasureBodyShape, measure_body_shape};
+use validation::{
+    MeasureBodyShape, find_declared_measure, identity_subject_matches, measure_body_shape,
+    measure_constraints_cover_subject, unwrap_constraint_shells,
+};
 
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -399,21 +401,6 @@ fn decreasing_value_kind(
     None
 }
 
-/// Strip `Constrained` shells to the base type (ranges and arithmetic
-/// domains never change WHAT descends, only which values are legal).
-fn unwrap_constraint_shells(
-    program: &typed_trees::TypedTrees,
-    mut handle: typed_trees::types::TypeReferenceHandle,
-) -> typed_trees::types::TypeReferenceHandle {
-    use typed_trees::types::TypeReferenceNode;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(handle)
-    {
-        handle = *base_type;
-    }
-    handle
-}
-
 /// A type whose values descend through the naturals: unsigned / bounded
 /// integers. Signed integers are excluded because `value - 1` is not
 /// well-founded without a positivity interpretation, so they are treated as
@@ -466,117 +453,6 @@ fn lexicographic_component_fields(
         }
     }
     Some(fields)
-}
-
-fn find_declared_measure<'program>(
-    program: &'program typed_trees::TypedTrees,
-    order: &[&str],
-) -> Option<&'program MeasureDefinition> {
-    let mut matching = program.measures().iter().filter(|measure| {
-        let actual = program.measure_path_members(measure.name);
-        actual.len() == order.len()
-            && actual
-                .iter()
-                .zip(order.iter())
-                .all(|(actual, expected)| actual.as_str() == *expected)
-    });
-    let measure = matching.next()?;
-    matching.next().is_none().then_some(measure)
-}
-
-/// A constrained identity view applies only where its declared refinements
-/// hold: the subject's enforced bounds must fit inside every `Range` on the
-/// measure's parameter and result. Since the produced rank forwards the
-/// subject itself, one containment discharges the domain and the result claim
-/// together. Declared endpoints must be exact integers — an approximate bound
-/// cannot promise a fixed domain.
-fn measure_constraints_cover_subject(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    subject: ExpressionHandle,
-    constraints: &[(ExpressionHandle, ExpressionHandle, bool)],
-) -> bool {
-    if constraints.is_empty() {
-        return true;
-    }
-    let Some(machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == state.symbol)
-    }) else {
-        return false;
-    };
-    let Some((subject_low, subject_high)) =
-        validation::immutable_integer_expression_bounds(program, machine, state, subject)
-    else {
-        return false;
-    };
-    constraints.iter().all(|(minimum, maximum, end_inclusive)| {
-        let Some((minimum, minimum_high)) =
-            validation::immutable_integer_expression_bounds(program, machine, state, *minimum)
-        else {
-            return false;
-        };
-        let Some((maximum_low, mut maximum)) =
-            validation::immutable_integer_expression_bounds(program, machine, state, *maximum)
-        else {
-            return false;
-        };
-        // The declared endpoints must be exact integers before the exclusive
-        // end is normalized onto its greatest included value.
-        if minimum != minimum_high || maximum != maximum_low {
-            return false;
-        }
-        if !end_inclusive {
-            maximum -= 1;
-        }
-        subject_low >= minimum && subject_high <= maximum
-    })
-}
-
-fn identity_subject_matches(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    subject: ExpressionHandle,
-    carrier: symbols::BuiltinTypeAtom,
-) -> bool {
-    let reference = if let ExpressionNode::Name(path) = program.expression_table.expression(subject)
-    {
-        program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| {
-                path.symbol.is_valid()
-                    && path.head_symbol == path.symbol
-                    && program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        == 1
-                    && !parameter.is_self
-                    && parameter.symbol == path.symbol
-            })
-            .map(|parameter| parameter.type_reference)
-    } else {
-        let Some(machine) = program.machines().iter().find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-        }) else {
-            return false;
-        };
-        // Computed subjects need their selected result type; `.len` spelling
-        // or a subtraction node cannot manufacture a u64 result carrier.
-        validation::expression_result_type_reference(program, machine, state, subject)
-    };
-    let Some(reference) = reference else {
-        return false;
-    };
-    matches!(program.type_reference_table.type_reference(unwrap_constraint_shells(program, reference)),
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
-            if program.symbols.builtin_type_atom(*symbol) == Some(carrier))
 }
 
 fn expression_type_name(
