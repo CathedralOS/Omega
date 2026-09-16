@@ -1,7 +1,10 @@
 //! Assembling REX, ModRM, register and LEA bytes for one selected form.
 
 use crate::selected_form_encoding::X86_64SelectedFormEncodingError;
-use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
+use crate::selected_form_encoding::saturating_forms::SaturatingForm;
+use selected_instructions::{
+    MachineAlternativeKey, SaturatingCarrier, SaturatingOperation, SelectedInstructionKind,
+};
 use semantic_vocabulary::IntegerValue;
 
 pub(crate) fn integer_bits(value: IntegerValue) -> Result<u64, X86_64SelectedFormEncodingError> {
@@ -39,15 +42,11 @@ fn append_register_binary(bytes: &mut Vec<u8>, opcode: u8, source: u8, destinati
 }
 
 /// `movabs scratch, bound; cmp value, scratch; cmovcc value, scratch` with
-/// i32::MAX selected on G, or i32::MIN selected on L.
-fn append_i32_clamp(bytes: &mut Vec<u8>, value: u8, scratch: u8, upper: bool) {
-    let (bound, condition) = if upper {
-        (i64::from(i32::MAX), 0x4f)
-    } else {
-        (i64::from(i32::MIN), 0x4c)
-    };
+/// the carrier maximum selected on G (`upper`) or its minimum selected on L.
+fn append_clamp(bytes: &mut Vec<u8>, value: u8, scratch: u8, bound_bits: u64, upper: bool) {
+    let condition = if upper { 0x4f } else { 0x4c };
     bytes.extend([0x48 | (scratch >> 3), 0xb8 | (scratch & 7)]);
-    bytes.extend((bound as u64).to_le_bytes());
+    bytes.extend(bound_bits.to_le_bytes());
     append_register_binary(bytes, 0x39, scratch, value);
     bytes.extend([
         rex(value, 0, scratch),
@@ -55,6 +54,113 @@ fn append_i32_clamp(bytes: &mut Vec<u8>, value: u8, scratch: u8, upper: bool) {
         condition,
         modrm(3, value, scratch),
     ]);
+}
+
+/// `cmovo destination, source`.
+fn append_move_on_overflow(bytes: &mut Vec<u8>, source: u8, destination: u8) {
+    bytes.extend([
+        rex(destination, 0, source),
+        0x0f,
+        0x40,
+        modrm(3, destination, source),
+    ]);
+}
+
+/// `cqo; idiv divisor` on the fixed RAX/RDX pair.
+fn append_signed_divide(bytes: &mut Vec<u8>, divisor: u8) {
+    bytes.extend([0x48, 0x99]);
+    bytes.extend([rex(0, 0, divisor), 0xf7, modrm(3, 7, divisor)]);
+}
+
+/// One saturating operation on one carrier, with the operand layout of its
+/// `SaturatingForm`: `[left, right, result]` for the three-operand forms,
+/// `[left, right, result, scratch]` with both outputs early-clobber for the
+/// clamped and overflow-select forms, and `[rax, divisor, rax, rdx]` for
+/// every division.
+fn append_saturating(
+    bytes: &mut Vec<u8>,
+    operation: SaturatingOperation,
+    carrier: SaturatingCarrier,
+    registers: &[u8],
+) -> Result<(), X86_64SelectedFormEncodingError> {
+    let form = SaturatingForm::of(operation, carrier);
+    if !form.accepts_registers(registers) {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    let (left, right, result) = (registers[0], registers[1], registers[2]);
+    // ADD or SUB r/m64, r64; the division forms never read it.
+    let arithmetic = if operation == SaturatingOperation::Add {
+        0x01
+    } else {
+        0x29
+    };
+    match form {
+        SaturatingForm::SubtractUnsigned => {
+            append_register_binary(bytes, 0x39, right, left);
+            append_register_binary(bytes, 0x89, left, result);
+            bytes.extend([rex(result, 0, right), 0x0f, 0x42, modrm(3, result, right)]);
+            append_register_binary(bytes, 0x29, right, result);
+        }
+        SaturatingForm::AddU64 => {
+            // min(left + right, MAX) = ~max((MAX - left) - right, 0).
+            append_register_binary(bytes, 0x89, left, result);
+            bytes.extend([rex(0, 0, result), 0xf7, modrm(3, 2, result)]);
+            append_register_binary(bytes, 0x39, right, result);
+            bytes.extend([rex(result, 0, right), 0x0f, 0x42, modrm(3, result, right)]);
+            append_register_binary(bytes, 0x29, right, result);
+            bytes.extend([rex(0, 0, result), 0xf7, modrm(3, 2, result)]);
+        }
+        SaturatingForm::ClampSignedNarrow | SaturatingForm::ClampUnsignedNarrow => {
+            // The exact 64-bit result of two normalized narrow operands only
+            // needs the final clamp; an unsigned sum cannot fall below zero.
+            let scratch = registers[3];
+            append_register_binary(bytes, 0x89, left, result);
+            append_register_binary(bytes, arithmetic, right, result);
+            append_clamp(bytes, result, scratch, carrier.maximum_bits(), true);
+            if form == SaturatingForm::ClampSignedNarrow {
+                append_clamp(bytes, result, scratch, carrier.minimum_bits(), false);
+            }
+        }
+        SaturatingForm::OverflowSelectI64 => {
+            // The saturated value follows the left operand's sign for both
+            // add and subtract: an overflowed result is i64::MAX when left is
+            // non-negative and i64::MIN otherwise. It is derived before the
+            // arithmetic because SAR and BTC leave OF undefined, while MOV
+            // and CMOVO preserve it.
+            let scratch = registers[3];
+            append_register_binary(bytes, 0x89, left, scratch);
+            bytes.extend([rex(0, 0, scratch), 0xf7, modrm(3, 2, scratch)]);
+            bytes.extend([rex(0, 0, scratch), 0xc1, modrm(3, 7, scratch), 63]);
+            bytes.extend([rex(0, 0, scratch), 0x0f, 0xba, modrm(3, 7, scratch), 63]);
+            append_register_binary(bytes, 0x89, left, result);
+            append_register_binary(bytes, arithmetic, right, result);
+            append_move_on_overflow(bytes, scratch, result);
+        }
+        SaturatingForm::DivideUnsigned => {
+            bytes.extend([rex(0, 0, right), 0xf7, modrm(3, 6, right)]);
+        }
+        SaturatingForm::DivideSignedNarrow => {
+            // The 64-bit quotient of normalized narrow carriers cannot fault;
+            // only MIN / -1 exceeds the carrier and is clamped through RDX.
+            append_signed_divide(bytes, right);
+            append_clamp(bytes, 0, 2, carrier.maximum_bits(), true);
+        }
+        SaturatingForm::DivideI64 => {
+            // After `cmp right, -1`, CF is set unless right == -1, so SBB
+            // leaves RDX = -1 or 0 and OR makes it -1 or the dividend. NEG
+            // then overflows exactly for the faulting MIN / -1 pair, and the
+            // flag-preserving LEA/CMOVO replace the dividend by MIN + 1, whose
+            // quotient by -1 is i64::MAX with a zero remainder.
+            bytes.extend([rex(0, 0, right), 0x83, modrm(3, 7, right), 0xff]);
+            append_register_binary(bytes, 0x19, 2, 2);
+            append_register_binary(bytes, 0x09, 0, 2);
+            bytes.extend([rex(0, 0, 2), 0xf7, modrm(3, 3, 2)]);
+            append_lea_immediate(bytes, 0, 2, 1);
+            append_move_on_overflow(bytes, 2, 0);
+            append_signed_divide(bytes, right);
+        }
+    }
+    Ok(())
 }
 
 fn append_lea_register(bytes: &mut Vec<u8>, left: u8, right: u8, destination: u8) {
@@ -199,37 +305,6 @@ pub(crate) fn encode_unchecked(
         | SelectedInstructionKind::ExactAddI64 { .. } => {
             append_lea_register(&mut bytes, registers[0], registers[1], registers[2]);
         }
-        SelectedInstructionKind::SaturatingSubtractU64 => {
-            if registers[2] == registers[0] || registers[2] == registers[1] {
-                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            append_register_binary(&mut bytes, 0x39, registers[1], registers[0]);
-            append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
-            bytes.extend([
-                rex(registers[2], 0, registers[1]),
-                0x0f,
-                0x42,
-                modrm(3, registers[2], registers[1]),
-            ]);
-            append_register_binary(&mut bytes, 0x29, registers[1], registers[2]);
-        }
-        SelectedInstructionKind::SaturatingAddU64 => {
-            if registers[2] == registers[0] || registers[2] == registers[1] {
-                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            // min(left + right, MAX) = ~max((MAX - left) - right, 0).
-            append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
-            bytes.extend([rex(0, 0, registers[2]), 0xf7, modrm(3, 2, registers[2])]);
-            append_register_binary(&mut bytes, 0x39, registers[1], registers[2]);
-            bytes.extend([
-                rex(registers[2], 0, registers[1]),
-                0x0f,
-                0x42,
-                modrm(3, registers[2], registers[1]),
-            ]);
-            append_register_binary(&mut bytes, 0x29, registers[1], registers[2]);
-            bytes.extend([rex(0, 0, registers[2]), 0xf7, modrm(3, 2, registers[2])]);
-        }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
@@ -253,38 +328,19 @@ pub(crate) fn encode_unchecked(
             bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 7, registers[1])]);
             append_register_binary(&mut bytes, 0x89, registers[3], registers[2]);
         }
-        SelectedInstructionKind::SaturatingAddI32
-        | SelectedInstructionKind::SaturatingSubtractI32 => {
-            // The early-clobber result accumulates the exact 64-bit sum of two
-            // sign-normalized i32 carriers; the early-clobber scratch holds
-            // each bound for the CMP/CMOV clamp.
-            if registers[2..]
-                .iter()
-                .any(|late| registers[..2].contains(late))
-                || registers[2] == registers[3]
-            {
-                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
-            let opcode = if kind == SelectedInstructionKind::SaturatingAddI32 {
-                0x01
-            } else {
-                0x29
-            };
-            append_register_binary(&mut bytes, opcode, registers[1], registers[2]);
-            append_i32_clamp(&mut bytes, registers[2], registers[3], true);
-            append_i32_clamp(&mut bytes, registers[2], registers[3], false);
+        SelectedInstructionKind::SaturatingAdd { carrier } => {
+            append_saturating(&mut bytes, SaturatingOperation::Add, carrier, registers)?;
         }
-        SelectedInstructionKind::SaturatingDivideI32 { .. } => {
-            if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
-                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            // The 64-bit quotient of sign-normalized i32 carriers cannot fault;
-            // only i32::MIN / -1 exceeds the carrier and is clamped through RDX,
-            // whose explicit input value CQO discards.
-            bytes.extend([0x48, 0x99]);
-            bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 7, registers[1])]);
-            append_i32_clamp(&mut bytes, registers[2], registers[3], true);
+        SelectedInstructionKind::SaturatingSubtract { carrier } => {
+            append_saturating(
+                &mut bytes,
+                SaturatingOperation::Subtract,
+                carrier,
+                registers,
+            )?;
+        }
+        SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
+            append_saturating(&mut bytes, SaturatingOperation::Divide, carrier, registers)?;
         }
         SelectedInstructionKind::BitwiseAndI64 | SelectedInstructionKind::BitwiseXorI64 => {
             // Both operations commute, so either input may already own the

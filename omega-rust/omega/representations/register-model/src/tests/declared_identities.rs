@@ -166,13 +166,13 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         add_i64: instruction_key(6),
         add_i64_immediate: instruction_key(7),
         subtract_i64: instruction_key(8),
-        saturating_subtract_u64: instruction_key(8),
+        saturating_subtract_unsigned: instruction_key(8),
         saturating_add_u64: instruction_key(8),
         divide_u64: instruction_key(8),
         remainder_i64: instruction_key(38),
-        saturating_add_i32: instruction_key(40),
-        saturating_subtract_i32: instruction_key(41),
-        saturating_divide_i32: instruction_key(42),
+        saturating_add_clamped: instruction_key(40),
+        saturating_subtract_clamped: instruction_key(41),
+        saturating_divide_signed: instruction_key(42),
         subtract_i64_immediate: instruction_key(9),
         compare_i64_zero: instruction_key(2),
         compare_i64: instruction_key(20),
@@ -314,7 +314,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
-            saturating_subtract_u64: instruction_key(18),
+            saturating_subtract_unsigned: instruction_key(18),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
@@ -330,15 +330,15 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
-            saturating_add_i32: instruction_key(43),
+            saturating_add_clamped: instruction_key(43),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
-            saturating_subtract_i32: instruction_key(44),
+            saturating_subtract_clamped: instruction_key(44),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
-            saturating_divide_i32: instruction_key(45),
+            saturating_divide_signed: instruction_key(45),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {

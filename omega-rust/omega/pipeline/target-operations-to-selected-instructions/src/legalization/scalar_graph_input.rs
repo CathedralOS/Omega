@@ -7,6 +7,7 @@ use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan,
 };
+use legalized_operations::SaturatingCarrier;
 use optimization_unit::{
     OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     ValueDefinitionSite,
@@ -108,12 +109,11 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     }
 }
 
-/// The realized signed saturating family is the i32 carrier; wider and
-/// narrower fixed widths still report the unsupported family.
-pub(super) fn supports_signed_saturating_i32(integer: IntegerType) -> bool {
-    integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-        && integer.sign() == IntegerSign::Signed
-        && integer.bits() == 32
+/// The saturating carrier a declared integer type is realized as: every
+/// fixed 8/16/32/64-bit signed or unsigned width. Address carriers and other
+/// widths report the unsupported family.
+pub(super) fn saturating_carrier(integer: IntegerType) -> Option<SaturatingCarrier> {
+    SaturatingCarrier::from_integer(integer)
 }
 
 pub(super) fn supports_signed_wrapping_remainder(integer: IntegerType) -> bool {

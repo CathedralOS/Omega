@@ -144,13 +144,13 @@ fn terminal_selected_keys(
         bits_to_float64: keys.bits_to_float64,
         add_i64: keys.add_i64,
         subtract_i64: keys.subtract_i64,
-        saturating_subtract_u64: keys.saturating_subtract_u64,
+        saturating_subtract_unsigned: keys.saturating_subtract_unsigned,
         saturating_add_u64: keys.saturating_add_u64,
         divide_u64: keys.divide_u64,
         remainder_i64: keys.remainder_i64,
-        saturating_add_i32: keys.saturating_add_i32,
-        saturating_subtract_i32: keys.saturating_subtract_i32,
-        saturating_divide_i32: keys.saturating_divide_i32,
+        saturating_add_clamped: keys.saturating_add_clamped,
+        saturating_subtract_clamped: keys.saturating_subtract_clamped,
+        saturating_divide_signed: keys.saturating_divide_signed,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
@@ -308,20 +308,18 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::WrappingAddI64 => MachineSemanticKind::WrappingAddI64,
         SelectedInstructionKind::BitwiseAndI64 => MachineSemanticKind::BitwiseAndI64,
         SelectedInstructionKind::BitwiseXorI64 => MachineSemanticKind::BitwiseXorI64,
-        SelectedInstructionKind::SaturatingSubtractU64 => {
-            MachineSemanticKind::SaturatingSubtractU64
-        }
-        SelectedInstructionKind::SaturatingAddU64 => MachineSemanticKind::SaturatingAddU64,
         SelectedInstructionKind::ExactDivideU64 { .. } => MachineSemanticKind::ExactDivideU64,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             MachineSemanticKind::WrappingRemainderI64
         }
-        SelectedInstructionKind::SaturatingAddI32 => MachineSemanticKind::SaturatingAddI32,
-        SelectedInstructionKind::SaturatingSubtractI32 => {
-            MachineSemanticKind::SaturatingSubtractI32
+        SelectedInstructionKind::SaturatingAdd { carrier } => {
+            MachineSemanticKind::SaturatingAdd(carrier)
         }
-        SelectedInstructionKind::SaturatingDivideI32 { .. } => {
-            MachineSemanticKind::SaturatingDivideI32
+        SelectedInstructionKind::SaturatingSubtract { carrier } => {
+            MachineSemanticKind::SaturatingSubtract(carrier)
+        }
+        SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
+            MachineSemanticKind::SaturatingDivide(carrier)
         }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate

@@ -1,3 +1,4 @@
+use crate::SaturatingCarrier;
 use register_model::RegisterConstraintKey;
 
 use super::MachineSemanticKind;
@@ -47,13 +48,13 @@ impl SelectedConstraintKeys {
             self.compare_i64,
             self.jump,
             self.compare_i64_immediate,
-            self.saturating_subtract_u64,
+            self.saturating_subtract_unsigned,
             self.saturating_add_u64,
             self.divide_u64,
             self.remainder_i64,
-            self.saturating_add_i32,
-            self.saturating_subtract_i32,
-            self.saturating_divide_i32,
+            self.saturating_add_clamped,
+            self.saturating_subtract_clamped,
+            self.saturating_divide_signed,
         ])
         .collect()
     }
@@ -109,13 +110,22 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::BitwiseXorI64 => self.subtract_i64,
             MachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,
             MachineSemanticKind::ExactSubtractI64 => self.subtract_i64,
-            MachineSemanticKind::SaturatingSubtractU64 => self.saturating_subtract_u64,
-            MachineSemanticKind::SaturatingAddU64 => self.saturating_add_u64,
             MachineSemanticKind::ExactDivideU64 => self.divide_u64,
             MachineSemanticKind::WrappingRemainderI64 => self.remainder_i64,
-            MachineSemanticKind::SaturatingAddI32 => self.saturating_add_i32,
-            MachineSemanticKind::SaturatingSubtractI32 => self.saturating_subtract_i32,
-            MachineSemanticKind::SaturatingDivideI32 => self.saturating_divide_i32,
+            // Operand shape, not carrier, selects the constraint row: the u64
+            // add and every unsigned subtract are three-operand forms, unsigned
+            // division shares the exact unsigned divide row, and everything
+            // else clamps through the early-clobber bound scratch.
+            MachineSemanticKind::SaturatingAdd(SaturatingCarrier::U64) => self.saturating_add_u64,
+            MachineSemanticKind::SaturatingAdd(_) => self.saturating_add_clamped,
+            MachineSemanticKind::SaturatingSubtract(carrier) if !carrier.is_signed() => {
+                self.saturating_subtract_unsigned
+            }
+            MachineSemanticKind::SaturatingSubtract(_) => self.saturating_subtract_clamped,
+            MachineSemanticKind::SaturatingDivide(carrier) if !carrier.is_signed() => {
+                self.divide_u64
+            }
+            MachineSemanticKind::SaturatingDivide(_) => self.saturating_divide_signed,
             MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             MachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
             MachineSemanticKind::ReturnScalar => self.return_i64,

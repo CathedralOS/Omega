@@ -49,9 +49,9 @@ pub(super) fn project_integer_exact_cast(
     Ok(kind)
 }
 
-/// Saturating add/subtract select the legalized kind from the carrier: the
-/// unsigned 64-bit and signed 32-bit families are realized; every other
-/// width was already rejected as an unsupported family by node admission.
+/// Saturating add/subtract name the carrier the source operation declares.
+/// Node admission already rejected every non-carrier width as an
+/// unsupported family, so a missing carrier here is a custody mismatch.
 pub(super) fn project_saturating_integer_add_or_subtract(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -71,28 +71,26 @@ pub(super) fn project_saturating_integer_add_or_subtract(
         } => (false, *scalar_type, *left, *right),
         _ => unreachable!("dispatched project_saturating_integer_add_or_subtract"),
     };
+    let carrier =
+        scalar_graph_input::saturating_carrier(scalar_type).ok_or(Error::SourceCustodyMismatch)?;
     if [left, right].iter().any(|value| {
         scalar_graph_input::value_type(optimized, *value) != Some(ScalarType::Integer(scalar_type))
     }) {
         return Err(Error::SourceCustodyMismatch);
     }
-    Ok(
-        match (
-            scalar_type == scalar_graph_input::u64_type(),
-            scalar_graph_input::supports_signed_saturating_i32(scalar_type),
-            adds,
-        ) {
-            (true, _, true) => LegalizedScalarInstructionKind::SaturatingAddU64 { left, right },
-            (true, _, false) => {
-                LegalizedScalarInstructionKind::SaturatingSubtractU64 { left, right }
-            }
-            (_, true, true) => LegalizedScalarInstructionKind::SaturatingAddI32 { left, right },
-            (_, true, false) => {
-                LegalizedScalarInstructionKind::SaturatingSubtractI32 { left, right }
-            }
-            _ => return Err(Error::SourceCustodyMismatch),
-        },
-    )
+    Ok(if adds {
+        LegalizedScalarInstructionKind::SaturatingAdd {
+            carrier,
+            left,
+            right,
+        }
+    } else {
+        LegalizedScalarInstructionKind::SaturatingSubtract {
+            carrier,
+            left,
+            right,
+        }
+    })
 }
 
 pub(super) fn project_saturating_integer_divide(
@@ -111,19 +109,21 @@ pub(super) fn project_saturating_integer_divide(
     else {
         unreachable!("dispatched project_saturating_integer_divide")
     };
-    if !scalar_graph_input::supports_signed_saturating_i32(*scalar_type)
-        || [left, right].iter().any(|value| {
-            scalar_graph_input::value_type(optimized, **value)
-                != Some(ScalarType::Integer(*scalar_type))
-        })
-    {
+    let carrier =
+        scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::SourceCustodyMismatch)?;
+    if [left, right].iter().any(|value| {
+        scalar_graph_input::value_type(optimized, **value)
+            != Some(ScalarType::Integer(*scalar_type))
+    }) {
         return Err(Error::SourceCustodyMismatch);
     }
-    // Saturating clamps MIN / -1 to MAX; it does not define division by
-    // zero, so the accepted nonzero-divisor fact stays with the instruction.
+    // Saturating clamps signed MIN / -1 to MAX and unsigned division never
+    // overflows; neither defines division by zero, so the accepted
+    // nonzero-divisor fact stays with the instruction for every carrier.
     let accepted_fact =
         accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?;
-    Ok(LegalizedScalarInstructionKind::SaturatingDivideI32 {
+    Ok(LegalizedScalarInstructionKind::SaturatingDivide {
+        carrier,
         left: *left,
         right: *right,
         obligation: *obligation,

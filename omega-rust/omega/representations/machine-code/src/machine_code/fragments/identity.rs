@@ -11,7 +11,7 @@ use optimization_unit::{FuelSettlement, PsiProvenance};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionProvenance,
+    MachineEncodedTrapBehavior, SaturatingOperation, SelectedInstructionProvenance,
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use sha2::{Digest, Sha256};
@@ -301,14 +301,18 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::StorePacked => 50,
         MachineAlternativeFamily::BitwiseAndI64 => 51,
         MachineAlternativeFamily::BitwiseXorI64 => 52,
-        MachineAlternativeFamily::SaturatingSubtractU64 => 54,
-        MachineAlternativeFamily::SaturatingAddU64 => 55,
         MachineAlternativeFamily::ExactDivideU64 => 56,
         MachineAlternativeFamily::WrappingRemainderI64 => 57,
         MachineAlternativeFamily::WrappingAddI64 => 58,
-        MachineAlternativeFamily::SaturatingAddI32 => 60,
-        MachineAlternativeFamily::SaturatingSubtractI32 => 61,
-        MachineAlternativeFamily::SaturatingDivideI32 => 62,
+        MachineAlternativeFamily::SaturatingAdd(carrier) => {
+            selected_instructions::saturating_family_tag(SaturatingOperation::Add, carrier)
+        }
+        MachineAlternativeFamily::SaturatingSubtract(carrier) => {
+            selected_instructions::saturating_family_tag(SaturatingOperation::Subtract, carrier)
+        }
+        MachineAlternativeFamily::SaturatingDivide(carrier) => {
+            selected_instructions::saturating_family_tag(SaturatingOperation::Divide, carrier)
+        }
         MachineAlternativeFamily::Load8 => 33,
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,

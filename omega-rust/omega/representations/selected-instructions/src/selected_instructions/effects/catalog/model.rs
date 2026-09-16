@@ -1,7 +1,7 @@
 use register_model::{RegisterConstraintCatalogIdentity, RegisterConstraintKey, RegisterViewId};
 use target::NativeTarget;
 
-use crate::SelectedConstraintKeys;
+use crate::{SaturatingCarrier, SelectedConstraintKeys};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MachineEffectCatalogIdentity([u8; 32]);
@@ -48,8 +48,6 @@ pub enum MachineSemanticKind {
     ExactAddI64,
     ExactAddI64Immediate,
     ExactSubtractI64,
-    SaturatingSubtractU64,
-    SaturatingAddU64,
     ExactDivideU64,
     ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
@@ -83,13 +81,13 @@ pub enum MachineSemanticKind {
     MaterializeBooleanI64LessOrEqual,
     WrappingRemainderI64,
     WrappingAddI64,
-    SaturatingAddI32,
-    SaturatingSubtractI32,
-    SaturatingDivideI32,
+    SaturatingAdd(SaturatingCarrier),
+    SaturatingSubtract(SaturatingCarrier),
+    SaturatingDivide(SaturatingCarrier),
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 63] = [
+    pub const ALL: [Self; 82] = [
         Self::CopyBytes,
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
@@ -115,8 +113,6 @@ impl MachineSemanticKind {
         Self::ExactAddI64,
         Self::ExactAddI64Immediate,
         Self::ExactSubtractI64,
-        Self::SaturatingSubtractU64,
-        Self::SaturatingAddU64,
         Self::ExactDivideU64,
         Self::ExactSubtractI64Immediate,
         Self::ConditionalBranchNonZero,
@@ -150,9 +146,30 @@ impl MachineSemanticKind {
         Self::MaterializeBooleanI64LessOrEqual,
         Self::WrappingRemainderI64,
         Self::WrappingAddI64,
-        Self::SaturatingAddI32,
-        Self::SaturatingSubtractI32,
-        Self::SaturatingDivideI32,
+        Self::SaturatingAdd(SaturatingCarrier::I8),
+        Self::SaturatingAdd(SaturatingCarrier::I16),
+        Self::SaturatingAdd(SaturatingCarrier::I32),
+        Self::SaturatingAdd(SaturatingCarrier::I64),
+        Self::SaturatingAdd(SaturatingCarrier::U8),
+        Self::SaturatingAdd(SaturatingCarrier::U16),
+        Self::SaturatingAdd(SaturatingCarrier::U32),
+        Self::SaturatingAdd(SaturatingCarrier::U64),
+        Self::SaturatingSubtract(SaturatingCarrier::I8),
+        Self::SaturatingSubtract(SaturatingCarrier::I16),
+        Self::SaturatingSubtract(SaturatingCarrier::I32),
+        Self::SaturatingSubtract(SaturatingCarrier::I64),
+        Self::SaturatingSubtract(SaturatingCarrier::U8),
+        Self::SaturatingSubtract(SaturatingCarrier::U16),
+        Self::SaturatingSubtract(SaturatingCarrier::U32),
+        Self::SaturatingSubtract(SaturatingCarrier::U64),
+        Self::SaturatingDivide(SaturatingCarrier::I8),
+        Self::SaturatingDivide(SaturatingCarrier::I16),
+        Self::SaturatingDivide(SaturatingCarrier::I32),
+        Self::SaturatingDivide(SaturatingCarrier::I64),
+        Self::SaturatingDivide(SaturatingCarrier::U8),
+        Self::SaturatingDivide(SaturatingCarrier::U16),
+        Self::SaturatingDivide(SaturatingCarrier::U32),
+        Self::SaturatingDivide(SaturatingCarrier::U64),
     ];
 }
 
@@ -183,8 +200,6 @@ pub enum MachineAlternativeFamily {
     ExactAddI64,
     ExactAddI64Immediate,
     ExactSubtractI64,
-    SaturatingSubtractU64,
-    SaturatingAddU64,
     ExactDivideU64,
     ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
@@ -218,9 +233,9 @@ pub enum MachineAlternativeFamily {
     MaterializeBooleanI64LessOrEqual,
     WrappingRemainderI64,
     WrappingAddI64,
-    SaturatingAddI32,
-    SaturatingSubtractI32,
-    SaturatingDivideI32,
+    SaturatingAdd(SaturatingCarrier),
+    SaturatingSubtract(SaturatingCarrier),
+    SaturatingDivide(SaturatingCarrier),
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -256,14 +271,12 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactAddI64 => Self::ExactAddI64,
             MachineSemanticKind::ExactAddI64Immediate => Self::ExactAddI64Immediate,
             MachineSemanticKind::ExactSubtractI64 => Self::ExactSubtractI64,
-            MachineSemanticKind::SaturatingSubtractU64 => Self::SaturatingSubtractU64,
-            MachineSemanticKind::SaturatingAddU64 => Self::SaturatingAddU64,
             MachineSemanticKind::ExactDivideU64 => Self::ExactDivideU64,
             MachineSemanticKind::WrappingRemainderI64 => Self::WrappingRemainderI64,
             MachineSemanticKind::WrappingAddI64 => Self::WrappingAddI64,
-            MachineSemanticKind::SaturatingAddI32 => Self::SaturatingAddI32,
-            MachineSemanticKind::SaturatingSubtractI32 => Self::SaturatingSubtractI32,
-            MachineSemanticKind::SaturatingDivideI32 => Self::SaturatingDivideI32,
+            MachineSemanticKind::SaturatingAdd(carrier) => Self::SaturatingAdd(carrier),
+            MachineSemanticKind::SaturatingSubtract(carrier) => Self::SaturatingSubtract(carrier),
+            MachineSemanticKind::SaturatingDivide(carrier) => Self::SaturatingDivide(carrier),
             MachineSemanticKind::ExactSubtractI64Immediate => Self::ExactSubtractI64Immediate,
             MachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
             MachineSemanticKind::ReturnScalar => Self::ReturnScalar,

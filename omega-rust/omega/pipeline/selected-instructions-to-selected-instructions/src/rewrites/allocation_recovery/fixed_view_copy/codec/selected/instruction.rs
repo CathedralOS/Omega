@@ -1,4 +1,5 @@
 use register_model::{RegisterClassId, RegisterUnitId, RegisterViewId};
+use selected_instructions::{SaturatingCarrier, SaturatingOperation, saturating_family_tag};
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
     VirtualRegisterId,
@@ -107,14 +108,20 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CopyI64 => 4,
         SelectedInstructionKind::BitwiseAndI64 => 51,
         SelectedInstructionKind::BitwiseXorI64 => 52,
-        SelectedInstructionKind::SaturatingSubtractU64 => 54,
-        SelectedInstructionKind::SaturatingAddU64 => 55,
         SelectedInstructionKind::ExactDivideU64 { .. } => 56,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 57,
         SelectedInstructionKind::WrappingAddI64 => 58,
-        SelectedInstructionKind::SaturatingAddI32 => 60,
-        SelectedInstructionKind::SaturatingSubtractI32 => 61,
-        SelectedInstructionKind::SaturatingDivideI32 { .. } => 62,
+        // The saturating tags are the shared family tags: the u64 and i32
+        // forms keep 54, 55, 60, 61, 62 and every other carrier is appended.
+        SelectedInstructionKind::SaturatingAdd { carrier } => {
+            saturating_family_tag(SaturatingOperation::Add, carrier)
+        }
+        SelectedInstructionKind::SaturatingSubtract { carrier } => {
+            saturating_family_tag(SaturatingOperation::Subtract, carrier)
+        }
+        SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
+            saturating_family_tag(SaturatingOperation::Divide, carrier)
+        }
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -200,9 +207,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             obligation,
             accepted_fact,
         }
-        | SelectedInstructionKind::SaturatingDivideI32 {
+        | SelectedInstructionKind::SaturatingDivide {
             obligation,
             accepted_fact,
+            ..
         }
         | SelectedInstructionKind::ExactDivideU64 {
             obligation,
@@ -250,11 +258,43 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
         (SelectedInstructionKind::ZeroExtendU8, 15),
         (SelectedInstructionKind::BitwiseAndI64, 51),
         (SelectedInstructionKind::BitwiseXorI64, 52),
-        (SelectedInstructionKind::SaturatingSubtractU64, 54),
-        (SelectedInstructionKind::SaturatingAddU64, 55),
+        (
+            SelectedInstructionKind::SaturatingSubtract {
+                carrier: SaturatingCarrier::U64,
+            },
+            54,
+        ),
+        (
+            SelectedInstructionKind::SaturatingAdd {
+                carrier: SaturatingCarrier::U64,
+            },
+            55,
+        ),
         (SelectedInstructionKind::WrappingAddI64, 58),
-        (SelectedInstructionKind::SaturatingAddI32, 60),
-        (SelectedInstructionKind::SaturatingSubtractI32, 61),
+        (
+            SelectedInstructionKind::SaturatingAdd {
+                carrier: SaturatingCarrier::I32,
+            },
+            60,
+        ),
+        (
+            SelectedInstructionKind::SaturatingSubtract {
+                carrier: SaturatingCarrier::I32,
+            },
+            61,
+        ),
+        (
+            SelectedInstructionKind::SaturatingAdd {
+                carrier: SaturatingCarrier::I8,
+            },
+            63,
+        ),
+        (
+            SelectedInstructionKind::SaturatingSubtract {
+                carrier: SaturatingCarrier::U16,
+            },
+            76,
+        ),
         (SelectedInstructionKind::ZeroExtendU32, 20),
         (SelectedInstructionKind::ZeroExtendU16, 37),
         (SelectedInstructionKind::SignExtendI8, 38),
@@ -365,16 +405,21 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         4 => SelectedInstructionKind::CopyI64,
         51 => SelectedInstructionKind::BitwiseAndI64,
         52 => SelectedInstructionKind::BitwiseXorI64,
-        54 => SelectedInstructionKind::SaturatingSubtractU64,
-        55 => SelectedInstructionKind::SaturatingAddU64,
         58 => SelectedInstructionKind::WrappingAddI64,
-        60 => SelectedInstructionKind::SaturatingAddI32,
-        61 => SelectedInstructionKind::SaturatingSubtractI32,
-        62 => SelectedInstructionKind::SaturatingDivideI32 {
-            obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+        tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
+            (SaturatingOperation::Add, carrier) => {
+                SelectedInstructionKind::SaturatingAdd { carrier }
+            }
+            (SaturatingOperation::Subtract, carrier) => {
+                SelectedInstructionKind::SaturatingSubtract { carrier }
+            }
+            (SaturatingOperation::Divide, carrier) => SelectedInstructionKind::SaturatingDivide {
+                carrier,
+                obligation: decode_id(cursor, ObligationId::new)?,
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    cursor.array()?,
+                ),
+            },
         },
         56 => SelectedInstructionKind::ExactDivideU64 {
             obligation: decode_id(cursor, ObligationId::new)?,
@@ -681,11 +726,20 @@ fn wrapping_remainder_round_trips_with_distinct_tag_and_complete_proof() {
             57,
         ),
         (
-            SelectedInstructionKind::SaturatingDivideI32 {
+            SelectedInstructionKind::SaturatingDivide {
+                carrier: SaturatingCarrier::I32,
                 obligation,
                 accepted_fact,
             },
             62,
+        ),
+        (
+            SelectedInstructionKind::SaturatingDivide {
+                carrier: SaturatingCarrier::U64,
+                obligation,
+                accepted_fact,
+            },
+            86,
         ),
     ] {
         let mut expected = vec![tag];
@@ -698,4 +752,21 @@ fn wrapping_remainder_round_trips_with_distinct_tag_and_complete_proof() {
         assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
         assert_eq!(cursor.remaining(), 0);
     }
+}
+
+/// The saturating operation and carrier a tag names, inverting the shared
+/// family tag table over every realized carrier.
+fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> {
+    [
+        SaturatingOperation::Add,
+        SaturatingOperation::Subtract,
+        SaturatingOperation::Divide,
+    ]
+    .into_iter()
+    .flat_map(|operation| {
+        SaturatingCarrier::ALL
+            .into_iter()
+            .map(move |carrier| (operation, carrier))
+    })
+    .find(|(operation, carrier)| saturating_family_tag(*operation, *carrier) == tag)
 }

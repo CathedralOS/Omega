@@ -111,8 +111,9 @@ pub const AARCH64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintK
     variant: 5,
 };
 
-/// Total unsigned subtraction using SUBS followed by CSEL; defines NZCV.
-pub const AARCH64_SATURATING_SUBTRACT_U64: RegisterConstraintKey = RegisterConstraintKey {
+/// Unsigned saturating subtraction for every unsigned carrier: SUBS followed
+/// by CSEL clamps at zero on borrow; defines NZCV.
+pub const AARCH64_SATURATING_SUBTRACT_UNSIGNED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 54,
 };
@@ -135,23 +136,26 @@ pub const AARCH64_REMAINDER_I64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 57,
 };
 
-/// Signed 32-bit saturating addition: a 64-bit ADD into an early-clobber
-/// result followed by two CMP/CSEL clamps against bounds held in an
-/// early-clobber scratch; defines NZCV.
-pub const AARCH64_SATURATING_ADD_I32: RegisterConstraintKey = RegisterConstraintKey {
+/// Clamped saturating addition (every carrier but u64): arithmetic into an
+/// early-clobber result, then a bound held in an early-clobber scratch
+/// selects the saturated value (CMP/CSEL per carrier bound, or the i64
+/// overflow-flag select); defines NZCV.
+pub const AARCH64_SATURATING_ADD_CLAMPED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 58,
 };
 
-/// Signed 32-bit saturating subtraction with the same clamp as addition.
-pub const AARCH64_SATURATING_SUBTRACT_I32: RegisterConstraintKey = RegisterConstraintKey {
+/// Clamped saturating subtraction for the signed carriers, with the same
+/// operand shape as clamped addition.
+pub const AARCH64_SATURATING_SUBTRACT_CLAMPED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 59,
 };
 
-/// Signed 32-bit saturating division: a 64-bit SDIV whose only out-of-range
-/// quotient, i32::MIN / -1, is clamped through the scratch-held maximum.
-pub const AARCH64_SATURATING_DIVIDE_I32: RegisterConstraintKey = RegisterConstraintKey {
+/// Signed saturating division: SDIV whose only out-of-range quotient,
+/// MIN / -1, is clamped (narrow carriers) or recognized and replaced (i64)
+/// through the scratch-held bound; defines NZCV.
+pub const AARCH64_SATURATING_DIVIDE_SIGNED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 60,
 };
@@ -424,13 +428,13 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 85] = [
     AARCH64_ADDRESS_OFFSET,
     AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32,
     AARCH64_COMPARE_I64_IMMEDIATE,
-    AARCH64_SATURATING_SUBTRACT_U64,
+    AARCH64_SATURATING_SUBTRACT_UNSIGNED,
     AARCH64_SATURATING_ADD_U64,
     AARCH64_DIVIDE_U64,
     AARCH64_REMAINDER_I64,
-    AARCH64_SATURATING_ADD_I32,
-    AARCH64_SATURATING_SUBTRACT_I32,
-    AARCH64_SATURATING_DIVIDE_I32,
+    AARCH64_SATURATING_ADD_CLAMPED,
+    AARCH64_SATURATING_SUBTRACT_CLAMPED,
+    AARCH64_SATURATING_DIVIDE_SIGNED,
     AARCH64_FLOAT32_TO_BITS,
     AARCH64_FLOAT64_TO_BITS,
     AARCH64_BITS_TO_FLOAT32,

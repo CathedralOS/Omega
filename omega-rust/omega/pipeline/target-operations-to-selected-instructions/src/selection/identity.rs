@@ -1,4 +1,5 @@
 use super::shared::*;
+use selected_instructions::{SaturatingCarrier, SaturatingOperation};
 
 mod contracts;
 mod ordinary;
@@ -115,14 +116,18 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::BitwiseAndI64 => 48,
         SelectedInstructionKind::BitwiseXorI64 => 49,
-        SelectedInstructionKind::SaturatingSubtractU64 => 51,
-        SelectedInstructionKind::SaturatingAddU64 => 52,
         SelectedInstructionKind::ExactDivideU64 { .. } => 54,
         SelectedInstructionKind::WrappingRemainderI64 { .. } => 55,
         SelectedInstructionKind::WrappingAddI64 => 56,
-        SelectedInstructionKind::SaturatingAddI32 => 60,
-        SelectedInstructionKind::SaturatingSubtractI32 => 61,
-        SelectedInstructionKind::SaturatingDivideI32 { .. } => 62,
+        SelectedInstructionKind::SaturatingAdd { carrier } => {
+            saturating_tag(SaturatingOperation::Add, carrier)
+        }
+        SelectedInstructionKind::SaturatingSubtract { carrier } => {
+            saturating_tag(SaturatingOperation::Subtract, carrier)
+        }
+        SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
+            saturating_tag(SaturatingOperation::Divide, carrier)
+        }
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -231,9 +236,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             obligation,
             accepted_fact,
         }
-        | SelectedInstructionKind::SaturatingDivideI32 {
+        | SelectedInstructionKind::SaturatingDivide {
             obligation,
             accepted_fact,
+            ..
         }
         | SelectedInstructionKind::ExactAddI64 {
             obligation,
@@ -285,11 +291,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseXorI64
-        | SelectedInstructionKind::SaturatingSubtractU64
-        | SelectedInstructionKind::SaturatingAddU64
         | SelectedInstructionKind::WrappingAddI64
-        | SelectedInstructionKind::SaturatingAddI32
-        | SelectedInstructionKind::SaturatingSubtractI32
+        | SelectedInstructionKind::SaturatingAdd { .. }
+        | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::Float32ToBits
@@ -549,11 +553,27 @@ fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) 
     }
 }
 
+/// This plan identity's saturating tags: the u64 subtract and add keep 51
+/// and 52, the i32 forms keep 60, 61, and 62, and every other carrier takes
+/// its ordinal above a per-operation base (add 63, subtract 71, divide 79).
+const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarrier) -> u8 {
+    match (operation, carrier) {
+        (SaturatingOperation::Subtract, SaturatingCarrier::U64) => 51,
+        (SaturatingOperation::Add, SaturatingCarrier::U64) => 52,
+        (SaturatingOperation::Add, SaturatingCarrier::I32) => 60,
+        (SaturatingOperation::Subtract, SaturatingCarrier::I32) => 61,
+        (SaturatingOperation::Divide, SaturatingCarrier::I32) => 62,
+        (SaturatingOperation::Add, carrier) => 63 + carrier.ordinal(),
+        (SaturatingOperation::Subtract, carrier) => 71 + carrier.ordinal(),
+        (SaturatingOperation::Divide, carrier) => 79 + carrier.ordinal(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        RegisterConstraintKey, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-        SelectedInstructionProvenance,
+        RegisterConstraintKey, SaturatingCarrier, SelectedInstruction, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionProvenance,
     };
     use crate::selection::identity::encode_instruction;
 
@@ -566,8 +586,12 @@ mod tests {
                     [0x5a; 32],
                 ),
             },
-            SelectedInstructionKind::SaturatingSubtractU64,
-            SelectedInstructionKind::SaturatingAddU64,
+            SelectedInstructionKind::SaturatingSubtract {
+                carrier: SaturatingCarrier::U64,
+            },
+            SelectedInstructionKind::SaturatingAdd {
+                carrier: SaturatingCarrier::U64,
+            },
             SelectedInstructionKind::CompareI64Immediate {
                 immediate: semantic_vocabulary::IntegerValue::Unsigned(4095),
             },
@@ -577,9 +601,24 @@ mod tests {
                     [0x5a; 32],
                 ),
             },
-            SelectedInstructionKind::SaturatingAddI32,
-            SelectedInstructionKind::SaturatingSubtractI32,
-            SelectedInstructionKind::SaturatingDivideI32 {
+            SelectedInstructionKind::SaturatingAdd {
+                carrier: SaturatingCarrier::I32,
+            },
+            SelectedInstructionKind::SaturatingSubtract {
+                carrier: SaturatingCarrier::I32,
+            },
+            SelectedInstructionKind::SaturatingDivide {
+                carrier: SaturatingCarrier::I32,
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [0x5a; 32],
+                ),
+            },
+            SelectedInstructionKind::SaturatingAdd {
+                carrier: SaturatingCarrier::I8,
+            },
+            SelectedInstructionKind::SaturatingDivide {
+                carrier: SaturatingCarrier::U64,
                 obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
                 accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                     [0x5a; 32],
@@ -606,6 +645,6 @@ mod tests {
             assert_eq!(&bytes[..identity.len()], &identity);
             bytes[identity.len()]
         });
-        assert_eq!(discriminants, [55, 51, 52, 53, 54, 60, 61, 62]);
+        assert_eq!(discriminants, [55, 51, 52, 53, 54, 60, 61, 62, 63, 86]);
     }
 }

@@ -3,8 +3,10 @@
 //! This file carries the footprint, the validated encoding, the error and
 //! the two entry points. `branch_forms.rs` encodes and validates branch
 //! forms, `request_validation.rs` validates requests and resolves
-//! registers, `instruction_bytes.rs` assembles instruction bytes and
-//! `decoding.rs` decodes and validates the emitted bytes.
+//! registers, `instruction_bytes.rs` assembles instruction bytes,
+//! `decoding.rs` decodes and validates the emitted bytes, and
+//! `saturating_forms.rs` names the realization shape of each saturating
+//! operation and carrier that those three and the machine-effect catalog share.
 
 #[cfg(test)]
 mod boolean_materialization_tests;
@@ -24,6 +26,7 @@ mod jump;
 pub(crate) mod materialization;
 mod memory;
 mod request_validation;
+pub(crate) mod saturating_forms;
 mod scalar_call;
 #[cfg(test)]
 mod tests;
