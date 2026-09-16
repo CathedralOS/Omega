@@ -247,3 +247,169 @@ fn integer_rank_bindings_require_the_canonical_type_symbol() {
         assert_eq!(exact_integer_parameter(&program, forged), None);
     }
 }
+
+mod scalar_views {
+    //! Declared scalar views beyond identity produce their rank from the body.
+    use super::super::{
+        RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, declared_scalar_view,
+        prove_ranking_range_edge, prove_ranking_range_entry,
+    };
+    use super::typed;
+    use typed_trees::TypedTrees;
+    use typed_trees::machine::Machine;
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+    const DOUBLED: &str = r#"
+        data Countdown {}
+        measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
+        machine walk(remaining: u8 [0..=100])
+        terminates by remaining -> Countdown::Doubled in 0..=200;
+        -> u8 {
+            transition remaining > 0 {
+                true -> walk(remaining - 1)
+                false -> remaining
+            }
+        }
+    "#;
+
+    fn view(program: &TypedTrees) -> Option<super::super::DeclaredScalarView> {
+        let machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        declared_scalar_view(
+            program,
+            root,
+            custody.subjects[0],
+            &machine
+                .termination_plan
+                .implementation_witness
+                .as_ref()
+                .expect("witness")
+                .view_path,
+        )
+    }
+
+    fn computed(program: &TypedTrees) -> RankingRangeMeasure {
+        let machine = &program.machines()[0];
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        let selected = view(program).expect("computation view");
+        let computation = selected.computation.expect("computed body");
+        RankingRangeMeasure::Computed {
+            subject: custody.subjects[0],
+            parameter: computation.parameter,
+            body: computation.body,
+            carrier: selected.carrier,
+        }
+    }
+
+    fn entry(program: &TypedTrees) -> bool {
+        let machine: &Machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let range = program
+            .ranking_expression_custody_for(machine.symbol)
+            .and_then(|custody| custody.rank_range)
+            .expect("range");
+        prove_ranking_range_entry(program, machine, root, range, computed(program))
+    }
+
+    fn self_edge(program: &TypedTrees) -> Option<RankingRangeEdgeProof> {
+        let machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let range = program
+            .ranking_expression_custody_for(machine.symbol)
+            .and_then(|custody| custody.rank_range)
+            .expect("range");
+        let StatementNode::Transition(transition) =
+            &program.statement_table.statements(root.statement_nodes)[0]
+        else {
+            panic!("one transition");
+        };
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            panic!("guarded transition");
+        };
+        let TransitionTargetNode::Named { arguments, .. } =
+            program.statement_table.transition_target(transition.target)
+        else {
+            panic!("named self edge");
+        };
+        prove_ranking_range_edge(
+            program,
+            machine,
+            root,
+            range,
+            computed(program),
+            RankingRangePremises::RankInvariant,
+            &[(guard, true)],
+            &[],
+            program.statement_table.expression_handles(*arguments),
+        )
+    }
+
+    #[test]
+    fn computation_bodies_classify_only_when_strictly_increasing_and_builtin() {
+        let program = typed(DOUBLED);
+        let selected = view(&program).expect("doubled view");
+        assert!(selected.computation.is_some());
+        for body in [
+            "value + 1",
+            "value * value + 3",
+            "(value + 1) * 2",
+            "1 + value",
+        ] {
+            let program = typed(&DOUBLED.replace("value * 2", body));
+            assert!(
+                view(&program).is_some_and(|view| view.computation.is_some()),
+                "{body}"
+            );
+        }
+        // Identity stays identity; no computation is attached.
+        let identity = typed(&DOUBLED.replace("{ value * 2 }", "{ value }"));
+        assert!(view(&identity).is_some_and(|view| view.computation.is_none()));
+        // Constant, non-monotone, subtracting, or widening bodies do not apply.
+        for body in ["value * 0 + 1", "value - 1", "value * 0"] {
+            let program = typed(&DOUBLED.replace("value * 2", body));
+            assert!(view(&program).is_none(), "{body}");
+        }
+        let widened = typed(&DOUBLED.replace("(value: u8) -> u8", "(value: u16) -> u16"));
+        assert!(view(&widened).is_none());
+        // An authored operator owning the spelling removes builtin meaning.
+        let authored = typed(&format!(
+            "operator * u8::mul(left: u8, right: u8) -> u8; {DOUBLED}"
+        ));
+        assert!(view(&authored).is_none());
+    }
+
+    #[test]
+    fn computed_ranks_prove_membership_descent_and_carrier_formation() {
+        let program = typed(DOUBLED);
+        assert!(entry(&program));
+        let proof = self_edge(&program).expect("self edge");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        // The range constrains the produced rank, not the subject: the
+        // subject's own interval is too narrow for `value * 2` at entry. A
+        // cyclic edge only preserves membership under the rank invariant it
+        // assumes, so entry is where the narrow range rejects.
+        let narrow = typed(&DOUBLED.replace("in 0..=200", "in 0..=100"));
+        assert!(!entry(&narrow));
+        assert!(self_edge(&narrow).is_some_and(|proof| proof.strictly_decreases));
+        // Membership inside the authored range is not formation inside the
+        // carrier: `[0..=200] * 2` fits `0..=400` but not `u8`.
+        let overflowing = typed(
+            &DOUBLED
+                .replace("[0..=100]", "[0..=200]")
+                .replace("in 0..=200", "in 0..=400"),
+        );
+        assert!(!entry(&overflowing));
+        // An unconstrained subject proves neither membership nor formation.
+        let unbounded = typed(&DOUBLED.replace("remaining: u8 [0..=100]", "remaining: u8"));
+        assert!(!entry(&unbounded));
+        // A stalled self edge keeps its membership but proves no descent.
+        let stalled = typed(&DOUBLED.replace("walk(remaining - 1)", "walk(remaining)"));
+        let proof = self_edge(&stalled).expect("stalled edge");
+        assert!(proof.membership_and_pinning && !proof.strictly_decreases);
+    }
+}

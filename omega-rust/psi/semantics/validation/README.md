@@ -140,7 +140,16 @@ while any store into a protected slot still invalidates the entry-relative
 ranking.
 
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
-scalar ranks, slice lengths, and exact direct-field coordinates. `fields.rs`
+scalar ranks, slice lengths, and exact direct-field coordinates. A declared
+scalar view beyond identity (`identity_views.rs`: `declared_scalar_view`,
+`computation_body_shape`) admits a `+`/`*` body over its single parameter
+whose operators select builtin meaning in the selecting machine's scope and
+whose normalized polynomial is strictly increasing on the naturals; the
+judgment then produces the rank from that body with the parameter bound to
+the subject (`RankingRangeMeasure::Computed`) and proves, from the same entry
+hypotheses, that the rank forms inside the shared carrier, so `{ value * 2 }`
+on an unbounded `u8` subject rejects at entry. Subtraction, constant bodies,
+authored operators, and widening carriers keep rejecting. `fields.rs`
 binds an immutable owned parameter's selected builtin `u64` field, not its whole
 record or another same-named projection. `field_coordinates.rs` binds additional
 authored direct `u64` projections as independent coordinates, including fields

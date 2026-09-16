@@ -47,6 +47,7 @@ pub(super) fn prove<'program>(
     let mut record_subject = SymbolHandle::default();
     match measure {
         validation::RankingRangeMeasure::Single(subject)
+        | validation::RankingRangeMeasure::Computed { subject, .. }
         | validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
             preferred.extend(ranked_symbol(subject));
         }

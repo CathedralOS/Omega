@@ -58,6 +58,7 @@ pub(super) fn premise_symbols(
     let mut expressions = range.map_or_else(Vec::new, |range| vec![range.start, range.end]);
     match measure {
         RankingRangeMeasure::Single(subject)
+        | RankingRangeMeasure::Computed { subject, .. }
         | RankingRangeMeasure::SliceLength(subject)
         | RankingRangeMeasure::Field { subject, .. } => expressions.push(subject),
         RankingRangeMeasure::Distance { lower, upper }

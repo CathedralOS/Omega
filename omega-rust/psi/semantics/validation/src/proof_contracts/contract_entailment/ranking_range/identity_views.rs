@@ -6,10 +6,12 @@
 //! runtime call-component judgment read one classification here so a member
 //! admitted by either reader carries the same produced rank.
 
+use super::super::{Engine, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
+use language_core::operator_spelling::OperatorSpelling;
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
@@ -38,6 +40,235 @@ pub enum MeasureBodyShape {
 pub struct DeclaredIdentityView {
     pub measure: SymbolHandle,
     pub carrier: BuiltinTypeAtom,
+}
+
+/// A declared scalar view applied to one exact subject. The produced rank is
+/// the subject itself (`computation` is `None`) or the measure body with its
+/// parameter bound to the subject; either way the subject and the measure
+/// share `carrier`, and the rank is a natural of that carrier once the range
+/// judgment proves its formation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DeclaredScalarView {
+    pub measure: SymbolHandle,
+    pub carrier: BuiltinTypeAtom,
+    pub computation: Option<ScalarViewComputation>,
+}
+
+/// The measure parameter and body producing a computed scalar rank.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScalarViewComputation {
+    pub parameter: SymbolHandle,
+    pub body: ExpressionHandle,
+}
+
+/// A body computing over its single parameter with `+` and `*` on integer
+/// literals (`{ value + 1 }`, `{ value * 2 }`, `{ value * value + 3 }`), on
+/// one unsigned carrier shared by the parameter and the result. The shape is
+/// syntactic: operator meaning, strict monotonicity, and carrier formation
+/// are judged where the view is applied to a subject (`declared_scalar_view`).
+/// It is deliberately not a `MeasureBodyShape`: `measure_body_shape` keeps
+/// classifying only forwards and field projections, so a consumer that admits
+/// those two shapes does not admit a computation by omission.
+pub struct ComputationBodyShape {
+    pub carrier: BuiltinTypeAtom,
+    pub constraints: Vec<(ExpressionHandle, ExpressionHandle, bool)>,
+    pub parameter: SymbolHandle,
+    pub body: ExpressionHandle,
+}
+
+/// Classify a computation body; `None` for a forward, a projection, or any
+/// other body (`measure_body_shape` owns the first two).
+pub fn computation_body_shape(
+    program: &TypedTrees,
+    measure: &MeasureDefinition,
+) -> Option<ComputationBodyShape> {
+    let [body] = program.expression_table.expression_handles(measure.body) else {
+        return None;
+    };
+    let parameter = measure.parameter.as_ref()?;
+    let binder = program.symbols.get(parameter.symbol);
+    if !parameter.symbol.is_valid()
+        || program.symbols.get(measure.symbol).kind != SymbolKind::Measure
+        || binder.kind != SymbolKind::Parameter
+        || binder.parent != measure.symbol
+        || !computation_shape(program, *body, parameter.symbol, 0)
+    {
+        return None;
+    }
+    let (carrier, mut constraints) = unsigned_carrier(program, parameter.type_reference)?;
+    let (result, result_constraints) = unsigned_carrier(program, measure.return_type)?;
+    if result != carrier {
+        return None;
+    }
+    constraints.extend(result_constraints);
+    Some(ComputationBodyShape {
+        carrier,
+        constraints,
+        parameter: parameter.symbol,
+        body: *body,
+    })
+}
+
+/// Resolve `view_path` to a unique declared scalar measure and admit it for
+/// `subject` in `state`: an identity forward exactly as `declared_identity_view`,
+/// or a computation whose every operator has builtin meaning in the selecting
+/// machine's scope and whose normalized polynomial is strictly increasing on
+/// the naturals (every coefficient positive, some term of degree at least
+/// one). Strict monotonicity is what lets a subject's descent stand for the
+/// produced rank's descent; formation inside the carrier is a separate
+/// obligation the range judgment proves from the entry hypotheses, so an
+/// unbounded subject with `{ value * 2 }` still rejects there. Anything else
+/// -- a subtraction, a constant body, a non-builtin operator, an uncovered
+/// domain -- is `None`.
+pub fn declared_scalar_view(
+    program: &TypedTrees,
+    state: &State,
+    subject: ExpressionHandle,
+    view_path: &str,
+) -> Option<DeclaredScalarView> {
+    let path = view_path
+        .split("::")
+        .filter(|member| !member.is_empty())
+        .collect::<Vec<_>>();
+    let measure = find_declared_measure(program, &path)?;
+    if measure.lexicographic {
+        return None;
+    }
+    match measure_body_shape(program, measure) {
+        Some(MeasureBodyShape::ParameterForward {
+            carrier,
+            constraints,
+        }) => (identity_subject_matches(program, state, subject, carrier)
+            && measure_constraints_cover_subject(program, state, subject, &constraints))
+        .then_some(DeclaredScalarView {
+            measure: measure.symbol,
+            carrier,
+            computation: None,
+        }),
+        Some(MeasureBodyShape::FieldProjection { .. }) => None,
+        None => {
+            let ComputationBodyShape {
+                carrier,
+                constraints,
+                parameter,
+                body,
+            } = computation_body_shape(program, measure)?;
+            if !identity_subject_matches(program, state, subject, carrier)
+                || !measure_constraints_cover_subject(program, state, subject, &constraints)
+            {
+                return None;
+            }
+            let machine = owning_machine(program, state)?;
+            let parameter_type = measure
+                .parameter
+                .as_ref()
+                .filter(|binder| binder.symbol == parameter)?
+                .type_reference;
+            computation_meaning(program, machine, parameter, parameter_type, body, 0)?;
+            // The syntactic shape admits only `+`, `*`, literals and the
+            // parameter, so the polynomial has no negative coefficient unless a
+            // literal is negative; monotonicity still needs a term the
+            // parameter actually reaches.
+            let mut engine = Engine::strict_with_symbol_bindings(
+                program,
+                machine,
+                &[StrictArithmeticSymbolBinding {
+                    symbol: parameter,
+                    value: StrictArithmeticBindingValue::Atom {
+                        identity: "\0ranking:view:parameter".to_owned(),
+                        unsigned: true,
+                    },
+                }],
+            );
+            if !engine.strict_symbol_bindings_are_valid() {
+                return None;
+            }
+            let polynomial = engine.normalize(body)?;
+            let strictly_increasing = polynomial
+                .terms
+                .values()
+                .all(|coefficient| !coefficient.is_negative() && !coefficient.is_zero())
+                && polynomial.terms.keys().any(|monomial| !monomial.is_empty());
+            strictly_increasing.then_some(DeclaredScalarView {
+                measure: measure.symbol,
+                carrier,
+                computation: Some(ScalarViewComputation { parameter, body }),
+            })
+        }
+    }
+}
+
+/// Admit the computation body's operators through the same builtin-meaning
+/// owner the machine-scope readers use: `+` and `*` on the parameter, on
+/// non-negative literals, and on already-admitted subterms, selected as
+/// builtin in `machine`'s scope. Returns the subterm's carrier the way
+/// `meanings::builtin` does (literals stay wildcard operands).
+fn computation_meaning(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    parameter: SymbolHandle,
+    parameter_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<Option<TypeReferenceHandle>> {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => {
+            (!literal.value_bignum()?.is_negative()).then_some(None)
+        }
+        ExpressionNode::Name(_) => {
+            is_parameter(program, expression, parameter).then_some(Some(parameter_type))
+        }
+        ExpressionNode::Atomic(atomic) => computation_meaning(
+            program,
+            machine,
+            parameter,
+            parameter_type,
+            atomic.value,
+            depth + 1,
+        ),
+        ExpressionNode::Binary(binary) => {
+            let spelling = match binary.operator {
+                BinaryOperator::Add => OperatorSpelling::Add,
+                BinaryOperator::Multiply => OperatorSpelling::Multiply,
+                _ => return None,
+            };
+            let left = computation_meaning(
+                program,
+                machine,
+                parameter,
+                parameter_type,
+                binary.left,
+                depth + 1,
+            )?;
+            let right = computation_meaning(
+                program,
+                machine,
+                parameter,
+                parameter_type,
+                binary.right,
+                depth + 1,
+            )?;
+            if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                machine.symbol,
+                expression,
+                spelling,
+                &[left, right],
+            ) {
+                return None;
+            }
+            if left.zip(right).is_some_and(|(left, right)| {
+                program.primitive_type_reference(left) != program.primitive_type_reference(right)
+            }) {
+                return None;
+            }
+            Some(left.or(right))
+        }
+        _ => None,
+    }
 }
 
 /// Resolve `view_path` (the witness's authored `Owner::Name` spelling) to a
@@ -333,6 +564,54 @@ fn unsigned_carrier(
         BuiltinTypeAtom::U8 | BuiltinTypeAtom::U16 | BuiltinTypeAtom::U32 | BuiltinTypeAtom::U64
     )
     .then_some((carrier, constraints))
+}
+
+/// `+`/`*` trees over the parameter and integer literals, mentioning the
+/// parameter at least once. Meaning and monotonicity are judged separately.
+fn computation_shape(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    binder: SymbolHandle,
+    depth: usize,
+) -> bool {
+    fn shape(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        binder: SymbolHandle,
+        depth: usize,
+        mentions: &mut bool,
+    ) -> bool {
+        if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+            return false;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Integer(_) => true,
+            ExpressionNode::Name(_) => {
+                let parameter = is_parameter(program, expression, binder);
+                *mentions |= parameter;
+                parameter
+            }
+            ExpressionNode::Atomic(atomic) => {
+                shape(program, atomic.value, binder, depth + 1, mentions)
+            }
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Add | BinaryOperator::Multiply
+                ) =>
+            {
+                shape(program, binary.left, binder, depth + 1, mentions)
+                    && shape(program, binary.right, binder, depth + 1, mentions)
+            }
+            _ => false,
+        }
+    }
+    let mut mentions = false;
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Binary(_)
+    ) && shape(program, expression, binder, depth, &mut mentions)
+        && mentions
 }
 
 fn is_parameter(program: &TypedTrees, expression: ExpressionHandle, binder: SymbolHandle) -> bool {

@@ -20,6 +20,7 @@ pub(super) fn expressions(
     let mut expressions = vec![range.start, range.end];
     match measure {
         RankingRangeMeasure::Single(subject)
+        | RankingRangeMeasure::Computed { subject, .. }
         | RankingRangeMeasure::SliceLength(subject)
         | RankingRangeMeasure::Field { subject, .. } => expressions.push(subject),
         RankingRangeMeasure::Distance { lower, upper }
