@@ -217,9 +217,7 @@ pub(super) fn validate(
                     .ok_or(LoweringError::Unsupported(
                         "primitive reference return has no primitive referent",
                     ))?;
-            let identity = checked
-                .normalized_type_identity_with_binders(*referee, &[])
-                .into_string();
+            let identity = checked.normalized_type_identity(*referee).into_string();
             let shape = checked
                 .facts
                 .flow

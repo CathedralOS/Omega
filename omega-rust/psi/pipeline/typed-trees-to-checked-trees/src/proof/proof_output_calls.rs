@@ -7,6 +7,7 @@ use checked_trees::{
     CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
 };
 use symbols::SymbolHandle;
+use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 pub(crate) fn bind_proof_output_call_facts(
     program: &typed_trees::TypedTrees,
@@ -890,16 +891,20 @@ fn instantiate_proof_output_proposition(
             )
         })
         .collect::<Vec<_>>();
-    let normalized = program.normalize_nominal_proposition_application_with_labels(
+    let normalized = program.normalize_nominal_proposition_application(
         application,
-        &binder_labels,
-        &argument_labels,
+        Some(PropositionLabels {
+            binder_labels: &binder_labels,
+            argument_labels: &argument_labels,
+        }),
     )?;
     let identity = program
-        .normalize_proposition_application_with_labels(
+        .normalize_proposition_application(
             application,
-            &binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &binder_labels,
+                argument_labels: &argument_labels,
+            }),
         )?
         .identity_label();
     Some((lower_checked_proposition_application(normalized), identity))
@@ -978,7 +983,9 @@ pub(crate) fn intake_call_ensures_propositions(
             } else {
                 let label = arguments
                     .get(argument_index)
-                    .map(|argument| program.render_proof_expression_with_parameters(*argument, &[]))
+                    .map(|argument| {
+                        program.render_proof_expression(*argument, ProofSubstitutions::None)
+                    })
                     .unwrap_or_else(|| parameter.name.as_str().to_owned());
                 argument_index = argument_index.saturating_add(1);
                 label

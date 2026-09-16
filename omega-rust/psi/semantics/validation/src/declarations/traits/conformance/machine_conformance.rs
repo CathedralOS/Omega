@@ -16,6 +16,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
+use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 use typed_trees::signature::{SignatureContractKind, StateSignature};
 use typed_trees::state::State;
 use typed_trees::trait_definition::TraitDefinition;
@@ -941,15 +942,20 @@ fn validate_named_contract_lane(
             .expression_handles(required_application.arguments)
             .iter()
             .map(|argument| {
-                program.render_proof_expression_with_parameters(*argument, &parameter_substitutions)
+                program.render_proof_expression(
+                    *argument,
+                    ProofSubstitutions::ByParameter(&parameter_substitutions),
+                )
             })
             .collect::<Vec<_>>();
-        let expected = program.normalize_nominal_proposition_application_with_labels(
+        let expected = program.normalize_nominal_proposition_application(
             required_application,
-            &[],
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &[],
+                argument_labels: &argument_labels,
+            }),
         );
-        let observed = program.normalize_nominal_proposition_application(actual_application);
+        let observed = program.normalize_nominal_proposition_application(actual_application, None);
         if expected != observed {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies `{}::{}` but named {lane} lane {} does not retain the requirement's exact proposition and evidence interface",

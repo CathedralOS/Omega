@@ -10,6 +10,8 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use typed_trees::proposition::ProofSubstitutions;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ProofValueSubstitution {
@@ -417,8 +419,13 @@ fn membership_arguments_match(
                         .iter()
                         .map(|binding| (binding.parameter, "membership-static-b".to_owned()))
                         .collect::<Vec<_>>();
-                    program.normalized_type_identity_with_binders(argument, &first)
-                        == program.normalized_type_identity_with_binders(argument, &second)
+                    program.type_identity(TypeIdentityRequest {
+                        binders: &first,
+                        ..TypeIdentityRequest::ordinary(argument)
+                    }) == program.type_identity(TypeIdentityRequest {
+                        binders: &second,
+                        ..TypeIdentityRequest::ordinary(argument)
+                    })
                 };
                 program.type_reference_table.contains_type_reference(*left)
                     && program.type_reference_table.contains_type_reference(*right)
@@ -439,7 +446,7 @@ fn proof_expression_identity(
         .map(|value| (value.symbol, value.rendered.clone()))
         .collect::<Vec<_>>();
     (
-        program.render_proof_expression_with_symbols(expression, &rendered_values),
+        program.render_proof_expression(expression, ProofSubstitutions::BySymbol(&rendered_values)),
         expression_symbol_trace(program, expression, values),
     )
 }

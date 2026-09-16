@@ -167,10 +167,7 @@ fn validate_structural_parameter(
             TypeReferenceNode::Named { .. }
         )
         || checked.primitive_type_reference(*referee).is_none()
-        || retained.type_identity
-            != checked
-                .normalized_type_identity_with_binders(*referee, &[])
-                .into_string()
+        || retained.type_identity != checked.normalized_type_identity(*referee).into_string()
     {
         return unsupported("scalar graph primitive reference differs from its authored signature");
     }

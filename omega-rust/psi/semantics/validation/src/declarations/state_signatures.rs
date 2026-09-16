@@ -384,7 +384,8 @@ fn validate_named_evidence_binding(
         )));
         return;
     };
-    let Some(normalized) = program.normalize_nominal_proposition_application(application) else {
+    let Some(normalized) = program.normalize_nominal_proposition_application(application, None)
+    else {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} named {} evidence `{binding}` does not resolve to one nominal proposition endpoint",
             contract_kind_label(&contract.kind),

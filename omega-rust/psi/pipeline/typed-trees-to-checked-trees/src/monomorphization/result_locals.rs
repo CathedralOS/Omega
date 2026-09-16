@@ -3,6 +3,7 @@
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 pub(super) fn refresh_generic_call_results(
     program: &mut TypedTrees,
@@ -122,11 +123,10 @@ pub(super) fn refresh_generic_call_results(
         // The package-qualified identity traverses range expressions under
         // substitution; the ordinary display-oriented range identity does not.
         if program.package_qualified_type_identity(previous_type)
-            == program.package_qualified_type_identity_with_binders_and_substitutions(
-                return_type,
-                &[],
-                &substitutions,
-            )
+            == program.type_identity(TypeIdentityRequest {
+                substitutions: &substitutions,
+                ..TypeIdentityRequest::package_qualified(return_type)
+            })
         {
             continue;
         }

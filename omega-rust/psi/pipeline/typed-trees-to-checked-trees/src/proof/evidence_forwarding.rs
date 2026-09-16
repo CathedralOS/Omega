@@ -124,7 +124,7 @@ pub(crate) fn bind_evidence_projection_facts(
         let ProofFact::Proposition(application) = fact else {
             continue;
         };
-        let Some(normalized) = program.normalize_nominal_proposition_application(application)
+        let Some(normalized) = program.normalize_nominal_proposition_application(application, None)
         else {
             continue;
         };

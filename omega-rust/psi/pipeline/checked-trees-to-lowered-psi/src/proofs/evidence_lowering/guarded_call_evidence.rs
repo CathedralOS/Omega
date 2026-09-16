@@ -182,7 +182,7 @@ pub(crate) fn lower_outcome_specific_ensures(
                     };
                     let normalized = checked
                         .typed
-                        .normalize_nominal_proposition_application(application)
+                        .normalize_nominal_proposition_application(application, None)
                         .ok_or(LoweringError::Unsupported(
                             "named guarded guarantee has no normalized proposition endpoint",
                         ))?;

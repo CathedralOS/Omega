@@ -3,6 +3,7 @@
 use arena::{Handle, HandleSpan};
 use checked_trees::ContractProofFactKind;
 use symbols::SymbolHandle;
+use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 pub(crate) fn contract_proposition_labels(
     program: &typed_trees::TypedTrees,
@@ -19,7 +20,10 @@ pub(crate) fn contract_proposition_labels(
         .filter_map(|fact| match fact {
             ProofFact::Expression(expression) => Some(format!(
                 "boolean:{}",
-                program.render_proof_expression_with_parameters(*expression, substitutions)
+                program.render_proof_expression(
+                    *expression,
+                    ProofSubstitutions::ByParameter(substitutions)
+                )
             )),
             ProofFact::Proposition(application) => {
                 proposition_application_label(program, application, substitutions)
@@ -49,13 +53,18 @@ pub(crate) fn proposition_application_label(
         .expression_table
         .expression_handles(application.arguments)
         .iter()
-        .map(|argument| program.render_proof_expression_with_parameters(*argument, substitutions))
+        .map(|argument| {
+            program
+                .render_proof_expression(*argument, ProofSubstitutions::ByParameter(substitutions))
+        })
         .collect::<Vec<_>>();
     program
-        .normalize_proposition_application_with_labels(
+        .normalize_proposition_application(
             application,
-            &binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &binder_labels,
+                argument_labels: &argument_labels,
+            }),
         )
         .map(|formula| formula.identity_label())
 }
@@ -120,7 +129,8 @@ pub(crate) fn build_checked_proposition_vocabulary(
             let typed_trees::domain::ProofFact::Proposition(application) = fact else {
                 return None;
             };
-            let normalized = program.normalize_nominal_proposition_application(application)?;
+            let normalized =
+                program.normalize_nominal_proposition_application(application, None)?;
             Some(lower_checked_proposition_application(normalized))
         })
         .collect();

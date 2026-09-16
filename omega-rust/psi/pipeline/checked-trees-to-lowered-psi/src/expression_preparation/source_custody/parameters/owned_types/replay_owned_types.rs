@@ -5,6 +5,7 @@
 //! Reconstruct those restrictions from the original type and substitutions before
 //! comparing catalogs; agreement between retained catalogs cannot replace this.
 
+use checked_trees::TypeIdentityRequest;
 use checked_trees::data::{DataDefinition, DataField, DataMember};
 use checked_trees::state::State;
 use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -66,7 +67,10 @@ impl SourceTypes<'_> {
         let checked = self.checked;
         let reference = resolve(checked, reference, substitutions)?;
         let identity = checked
-            .normalized_type_identity_with_binders_and_substitutions(reference, &[], substitutions)
+            .type_identity(TypeIdentityRequest {
+                substitutions,
+                ..TypeIdentityRequest::ordinary(reference)
+            })
             .into_string();
         if self.complete.contains(&identity) {
             return Ok(identity);
@@ -190,11 +194,10 @@ impl SourceTypes<'_> {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: self
                     .checked
-                    .normalized_type_identity_with_binders_and_substitutions(
-                        field.type_reference,
-                        &[],
+                    .type_identity(TypeIdentityRequest {
                         substitutions,
-                    )
+                        ..TypeIdentityRequest::ordinary(field.type_reference)
+                    })
                     .into_string(),
             }
         } else if let Some(primitive) = self.checked.primitive_type_reference(reference) {

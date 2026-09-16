@@ -8,6 +8,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::proposition::ProofSubstitutions;
 
 /// Equality of two quotient mints is exactly the quotient relation over their
 /// carrier expressions. `Some(false)` means the goal is a well-formed quotient
@@ -111,24 +112,24 @@ fn transparent_relation_fact_matches(
     let [left_parameter, right_parameter] = program.proposition_parameters(relation) else {
         return false;
     };
-    let actual = program.render_proof_expression_with_symbols(fact, &[]);
+    let actual = program.render_proof_expression(fact, ProofSubstitutions::None);
     [(left, right), (right, left)]
         .into_iter()
         .any(|(left, right)| {
-            let expected = program.render_proof_expression_with_parameters(
+            let expected = program.render_proof_expression(
                 formula,
-                &[
+                ProofSubstitutions::ByParameter(&[
                     (
                         left_parameter.symbol,
                         left_parameter.name.as_str().to_owned(),
-                        program.render_proof_expression_with_symbols(left, &[]),
+                        program.render_proof_expression(left, ProofSubstitutions::None),
                     ),
                     (
                         right_parameter.symbol,
                         right_parameter.name.as_str().to_owned(),
-                        program.render_proof_expression_with_symbols(right, &[]),
+                        program.render_proof_expression(right, ProofSubstitutions::None),
                     ),
-                ],
+                ]),
             );
             actual == expected
         })

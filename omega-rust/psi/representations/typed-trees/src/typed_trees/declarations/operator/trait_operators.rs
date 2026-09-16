@@ -1,6 +1,7 @@
 //! Trait operator applications and selected trait operator meanings.
 
 use crate::TypedTrees;
+use crate::type_identity::TypeIdentityRequest;
 use crate::typed_trees::declarations::operator::operand_signatures::{
     TypeParameterNormalizer, collect_type_parameter_occurrences, normalized_operand_parameters,
 };
@@ -160,7 +161,10 @@ pub fn trait_operator_operand_signature(
     normalized_operand_parameters(parameters)
         .map(|parameter| {
             program
-                .normalized_type_identity_with_binders(parameter.type_reference, &binders)
+                .type_identity(TypeIdentityRequest {
+                    binders: &binders,
+                    ..TypeIdentityRequest::ordinary(parameter.type_reference)
+                })
                 .into_string()
         })
         .collect::<Vec<_>>()

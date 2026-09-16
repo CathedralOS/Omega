@@ -3,6 +3,7 @@ use numerics::literals::FloatFormat;
 use symbols::{BuiltinFunction, SymbolHandle};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn expression_type_reference_for_origin(
@@ -408,11 +409,10 @@ fn field_type_reference(
             // view. A raw telescope field cannot stand in for its substituted
             // type and exclude a genuinely applicable operator candidate.
             (program.normalized_type_identity(field)
-                == program.normalized_type_identity_with_binders_and_substitutions(
-                    field,
-                    &[],
-                    &substitutions,
-                ))
+                == program.type_identity(TypeIdentityRequest {
+                    substitutions: &substitutions,
+                    ..TypeIdentityRequest::ordinary(field)
+                }))
             .then_some(field)
         }
         TypeReferenceNode::Named {

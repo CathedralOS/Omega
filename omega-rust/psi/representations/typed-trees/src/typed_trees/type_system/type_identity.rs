@@ -35,13 +35,58 @@ use crate::TypedTrees;
 use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
 use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
 use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityContext;
-use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityQualification;
+pub use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityQualification;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_type_reference;
 use crate::typed_trees::type_system::type_identity::result_dispatch_terms::collect_result_dispatch_terms;
 use crate::types::{TypeConstraintNode, TypeReferenceHandle};
 use arena::HandleSpan;
 use std::cell::Cell;
 use symbols::SymbolHandle;
+
+/// One request for a normalized type identity: the type reference, the
+/// generic binders it may mention, the exact type-parameter substitutions
+/// to follow first, and whether nominals carry their package owner.
+#[derive(Clone, Copy)]
+pub struct TypeIdentityRequest<'a> {
+    pub type_reference: TypeReferenceHandle,
+    pub binders: &'a [(SymbolHandle, String)],
+    pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
+    pub qualification: TypeIdentityQualification,
+}
+
+impl TypeIdentityRequest<'_> {
+    /// The plain local identity of one type reference.
+    pub const fn ordinary(type_reference: TypeReferenceHandle) -> Self {
+        Self {
+            type_reference,
+            binders: &[],
+            substitutions: &[],
+            qualification: TypeIdentityQualification::Ordinary,
+        }
+    }
+
+    /// The package-graph identity of one type reference.
+    pub const fn package_qualified(type_reference: TypeReferenceHandle) -> Self {
+        Self {
+            type_reference,
+            binders: &[],
+            substitutions: &[],
+            qualification: TypeIdentityQualification::PackageQualified,
+        }
+    }
+}
+
+/// One request for an exact-owner identity: package qualification where every
+/// source-backed toolchain nominal must match one of the exact toolchain
+/// sources and every other non-binder nominal must have a managed package
+/// owner, failing closed otherwise.
+#[derive(Clone, Copy)]
+pub struct ExactOwnerTypeIdentityRequest<'a> {
+    pub type_reference: TypeReferenceHandle,
+    pub binders: &'a [(SymbolHandle, String)],
+    pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
+    pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
+}
 
 impl TypedTrees {
     /// Canonical identity for an exact resolved declaration that may cross a
@@ -79,34 +124,7 @@ impl TypedTrees {
         &self,
         type_reference: TypeReferenceHandle,
     ) -> NormalizedTypeIdentity {
-        NormalizedTypeIdentity(normalize_type_reference(
-            self,
-            type_reference,
-            &TypeIdentityContext::default(),
-        ))
-    }
-
-    /// Binder-aware form for generic template identity. A parameter symbol is
-    /// replaced before serialization, so renaming the source binder cannot
-    /// change the normalized contract while concrete declaration paths remain
-    /// fully qualified.
-    pub fn normalized_type_identity_with_binders(
-        &self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-    ) -> NormalizedTypeIdentity {
-        NormalizedTypeIdentity(normalize_type_reference(
-            self,
-            type_reference,
-            &TypeIdentityContext {
-                binders,
-                substitutions: &[],
-                active_const_substitutions: &[],
-                exact_toolchain_sources: &[],
-                missing_exact_nominal_owner: None,
-                qualification: TypeIdentityQualification::Ordinary,
-            },
-        ))
+        self.type_identity(TypeIdentityRequest::ordinary(type_reference))
     }
 
     /// Canonical type identity for a package graph. Every non-binder nominal
@@ -118,58 +136,49 @@ impl TypedTrees {
         &self,
         type_reference: TypeReferenceHandle,
     ) -> NormalizedTypeIdentity {
-        NormalizedTypeIdentity(normalize_type_reference(
-            self,
-            type_reference,
-            &TypeIdentityContext {
-                qualification: TypeIdentityQualification::PackageQualified,
-                ..TypeIdentityContext::default()
-            },
-        ))
+        self.type_identity(TypeIdentityRequest::package_qualified(type_reference))
     }
 
-    /// Binder-aware package-graph identity. Binder substitutions are applied
+    /// The one binder- and substitution-aware identity entry. A binder symbol
+    /// is replaced before serialization, so renaming the source binder cannot
+    /// change the normalized contract while concrete declaration paths remain
+    /// fully qualified; substitutions replace exact type-parameter symbols
+    /// with concrete type references first. Binder substitutions are applied
     /// before owner qualification, preserving alpha-normalization without
     /// falsely assigning a package owner to a local telescope variable.
-    pub fn package_qualified_type_identity_with_binders(
-        &self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-    ) -> NormalizedTypeIdentity {
+    pub fn type_identity(&self, request: TypeIdentityRequest<'_>) -> NormalizedTypeIdentity {
         NormalizedTypeIdentity(normalize_type_reference(
             self,
-            type_reference,
+            request.type_reference,
             &TypeIdentityContext {
-                binders,
-                substitutions: &[],
+                binders: request.binders,
+                substitutions: request.substitutions,
                 active_const_substitutions: &[],
                 exact_toolchain_sources: &[],
                 missing_exact_nominal_owner: None,
-                qualification: TypeIdentityQualification::PackageQualified,
+                qualification: request.qualification,
             },
         ))
     }
 
-    /// Package-review counterpart that replaces the generic toolchain marker
+    /// Package-review identity that replaces the generic toolchain marker
     /// with the exact compiler-validated source identity for every source-
     /// backed toolchain nominal. Every other non-binder nominal must have a
     /// managed package owner; unresolved ownership fails closed. `SourceId`
     /// remains an internal join key and never enters the normalized output.
-    pub fn package_qualified_type_identity_with_binders_and_toolchain_sources(
+    pub fn exact_owner_type_identity(
         &self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        request: ExactOwnerTypeIdentityRequest<'_>,
     ) -> Option<NormalizedTypeIdentity> {
         let missing_exact_nominal_owner = Cell::new(false);
         let identity = NormalizedTypeIdentity(normalize_type_reference(
             self,
-            type_reference,
+            request.type_reference,
             &TypeIdentityContext {
-                binders,
-                substitutions: &[],
+                binders: request.binders,
+                substitutions: request.substitutions,
                 active_const_substitutions: &[],
-                exact_toolchain_sources,
+                exact_toolchain_sources: request.exact_toolchain_sources,
                 missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
                 qualification: TypeIdentityQualification::PackageQualified,
             },
@@ -180,7 +189,7 @@ impl TypedTrees {
     /// Exact-owner identity for one already-resolved nominal declaration.
     /// Compiler builtins use their closed semantic atom; authored nominals
     /// require a managed package owner or exact toolchain source.
-    pub fn package_qualified_nominal_identity_with_toolchain_sources(
+    pub fn exact_owner_nominal_identity(
         &self,
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
@@ -204,94 +213,6 @@ impl TypedTrees {
             }
             .qualify_non_binder_name(self, symbol, path),
         );
-        (!missing_exact_nominal_owner.get()).then_some(identity)
-    }
-
-    /// Type-oriented compatibility name for the general nominal identity
-    /// projection above.
-    pub fn package_qualified_nominal_type_identity_with_toolchain_sources(
-        &self,
-        symbol: SymbolHandle,
-        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    ) -> Option<NormalizedTypeIdentity> {
-        self.package_qualified_nominal_identity_with_toolchain_sources(
-            symbol,
-            exact_toolchain_sources,
-        )
-    }
-
-    /// Binder-aware identity after replacing exact type-parameter symbols with
-    /// concrete type references. This is used when a closed structural
-    /// instance retains the semantic identity of an erased field whose type is
-    /// intentionally absent from the executable layout vocabulary.
-    pub fn normalized_type_identity_with_binders_and_substitutions(
-        &self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> NormalizedTypeIdentity {
-        NormalizedTypeIdentity(normalize_type_reference(
-            self,
-            type_reference,
-            &TypeIdentityContext {
-                binders,
-                substitutions,
-                active_const_substitutions: &[],
-                exact_toolchain_sources: &[],
-                missing_exact_nominal_owner: None,
-                qualification: TypeIdentityQualification::Ordinary,
-            },
-        ))
-    }
-
-    /// Package-qualified counterpart used by compiler-owned projections that
-    /// instantiate a public template while retaining alpha-normalized local
-    /// binders. Concrete substitutions are followed structurally; every
-    /// remaining non-binder nominal still receives its exact source owner.
-    pub fn package_qualified_type_identity_with_binders_and_substitutions(
-        &self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> NormalizedTypeIdentity {
-        NormalizedTypeIdentity(normalize_type_reference(
-            self,
-            type_reference,
-            &TypeIdentityContext {
-                binders,
-                substitutions,
-                active_const_substitutions: &[],
-                exact_toolchain_sources: &[],
-                missing_exact_nominal_owner: None,
-                qualification: TypeIdentityQualification::PackageQualified,
-            },
-        ))
-    }
-
-    /// Exact-owner counterpart for a closed structural instance with concrete
-    /// type substitutions. Source-backed toolchain nominals require an exact
-    /// source identity and every other non-binder nominal requires a managed
-    /// package owner.
-    pub fn package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
-        &self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    ) -> Option<NormalizedTypeIdentity> {
-        let missing_exact_nominal_owner = Cell::new(false);
-        let identity = NormalizedTypeIdentity(normalize_type_reference(
-            self,
-            type_reference,
-            &TypeIdentityContext {
-                binders,
-                substitutions,
-                active_const_substitutions: &[],
-                exact_toolchain_sources,
-                missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
-                qualification: TypeIdentityQualification::PackageQualified,
-            },
-        ));
         (!missing_exact_nominal_owner.get()).then_some(identity)
     }
 
@@ -454,10 +375,10 @@ impl TypedTrees {
                         atom("self", if parameter.is_self { "yes" } else { "no" }),
                         atom("mutable", if parameter.is_mutable { "yes" } else { "no" }),
                         atom("const", if parameter.is_const { "yes" } else { "no" }),
-                        self.normalized_type_identity_with_binders(
-                            parameter.type_reference,
-                            &binders,
-                        )
+                        self.type_identity(TypeIdentityRequest {
+                            binders: &binders,
+                            ..TypeIdentityRequest::ordinary(parameter.type_reference)
+                        })
                         .into_string(),
                     ],
                 )

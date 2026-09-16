@@ -6,6 +6,7 @@ use diagnostics::Diagnostic;
 use sha2::Digest;
 use sha2::Sha256;
 use task_plans::{TaskSpecializationCommitment, TaskStartOperation};
+use typed_trees::type_identity::TypeIdentityRequest;
 
 pub(crate) fn exact_task_machine_contract<'program>(
     program: &'program CheckedTrees,
@@ -91,19 +92,19 @@ pub(crate) fn task_specialization_commitment(
         strong.byte(u8::from(parameter.is_const));
         strong.string(
             program
-                .package_qualified_type_identity_with_binders(
-                    parameter.type_reference,
-                    &requirement_binders,
-                )
+                .type_identity(TypeIdentityRequest {
+                    binders: &requirement_binders,
+                    ..TypeIdentityRequest::package_qualified(parameter.type_reference)
+                })
                 .as_str(),
         );
     }
     strong.string(
         program
-            .package_qualified_type_identity_with_binders(
-                requirement.return_type,
-                &requirement_binders,
-            )
+            .type_identity(TypeIdentityRequest {
+                binders: &requirement_binders,
+                ..TypeIdentityRequest::package_qualified(requirement.return_type)
+            })
             .as_str(),
     );
     strong.byte(match selection.operation {

@@ -3,6 +3,7 @@
 use crate::facts::crash_plan_facts::{encode_signature_contract_kind, is_true_crash_route};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::proposition::PropositionLabels;
 
 /// Encode contracts as semantic sets. Crash clauses are first merged by cause:
 /// their facts are alternative routes, duplicate routes are irrelevant, and
@@ -329,10 +330,12 @@ fn encode_proposition_application_canonical(
                 .collect::<String>()
         })
         .collect::<Vec<_>>();
-    if let Some(formula) = program.normalize_proposition_application_with_labels(
+    if let Some(formula) = program.normalize_proposition_application(
         application,
-        &binder_labels,
-        &argument_labels,
+        Some(PropositionLabels {
+            binder_labels: &binder_labels,
+            argument_labels: &argument_labels,
+        }),
     ) {
         out.extend(formula.identity_label().as_bytes());
     } else {

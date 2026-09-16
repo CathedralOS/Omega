@@ -42,9 +42,7 @@ fn policy_only_integer_array_shapes_preserve_complete_array_identity() {
         let identity = collector.add_type(reference, &[], &[]).expect(spelling);
         assert_eq!(
             identity,
-            program
-                .normalized_type_identity_with_binders_and_substitutions(reference, &[], &[])
-                .into_string()
+            program.normalized_type_identity(reference).into_string()
         );
         let shape = &collector.types[&identity].shape;
         assert!(matches!(

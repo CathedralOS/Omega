@@ -6,6 +6,7 @@ use super::{
 use crate::monomorphization::conformance_symbol_identity;
 use crate::monomorphization::normalized_machine_identity;
 use sha2::Digest;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 pub(super) fn encode_bound_static_argument(
     program: &TypedTrees,
@@ -129,7 +130,10 @@ pub(super) fn canonical_template_contract_bytes(
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference } => encode_normalized_text(
                 program
-                    .normalized_type_identity_with_binders(*type_reference, &type_binders)
+                    .type_identity(TypeIdentityRequest {
+                        binders: &type_binders,
+                        ..TypeIdentityRequest::ordinary(*type_reference)
+                    })
                     .as_str(),
                 &binders,
                 &mut bytes,
@@ -171,10 +175,10 @@ pub(super) fn canonical_template_contract_bytes(
                     bytes.push(u8::from(parameter.is_self));
                     encode_normalized_text(
                         program
-                            .normalized_type_identity_with_binders(
-                                parameter.type_reference,
-                                &type_binders,
-                            )
+                            .type_identity(TypeIdentityRequest {
+                                binders: &type_binders,
+                                ..TypeIdentityRequest::ordinary(parameter.type_reference)
+                            })
                             .as_str(),
                         &binders,
                         &mut bytes,
@@ -213,7 +217,10 @@ pub(super) fn canonical_template_contract_bytes(
         for argument in &bound.arguments {
             encode_normalized_text(
                 program
-                    .normalized_type_identity_with_binders(*argument, &type_binders)
+                    .type_identity(TypeIdentityRequest {
+                        binders: &type_binders,
+                        ..TypeIdentityRequest::ordinary(*argument)
+                    })
                     .as_str(),
                 &binders,
                 &mut encoded,
@@ -728,7 +735,10 @@ pub(super) fn encode_state_signature(
     }
     encode_normalized_text(
         program
-            .normalized_type_identity_with_binders(signature.return_type, type_binders)
+            .type_identity(TypeIdentityRequest {
+                binders: type_binders,
+                ..TypeIdentityRequest::ordinary(signature.return_type)
+            })
             .as_str(),
         binders,
         output,
@@ -832,7 +842,10 @@ pub(super) fn encode_state_shape(
     }
     encode_normalized_text(
         program
-            .normalized_type_identity_with_binders(state.return_type, type_binders)
+            .type_identity(TypeIdentityRequest {
+                binders: type_binders,
+                ..TypeIdentityRequest::ordinary(state.return_type)
+            })
             .as_str(),
         binders,
         output,
@@ -864,7 +877,10 @@ pub(super) fn encode_parameter(
     output.push(u8::from(parameter.is_const));
     encode_normalized_text(
         program
-            .normalized_type_identity_with_binders(parameter.type_reference, type_binders)
+            .type_identity(TypeIdentityRequest {
+                binders: type_binders,
+                ..TypeIdentityRequest::ordinary(parameter.type_reference)
+            })
             .as_str(),
         binders,
         output,

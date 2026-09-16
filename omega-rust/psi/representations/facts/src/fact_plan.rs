@@ -175,7 +175,7 @@ impl FactPlan {
             return None;
         };
         program
-            .normalize_proposition_application(application)
+            .normalize_proposition_application(application, None)
             .map(|formula| formula.identity_label())
     }
 

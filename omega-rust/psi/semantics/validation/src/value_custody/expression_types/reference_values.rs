@@ -8,6 +8,7 @@ use super::{
     named_value_type_reference,
 };
 use language_semantics::ReferenceAccess;
+use typed_trees::type_identity::TypeIdentityRequest;
 
 /// Reference correspondence does not form a loan. Array-to-slice adaptation
 /// retains element identity and readable access; callers still establish the
@@ -35,11 +36,10 @@ pub(super) fn reference_type_matches(
         return false;
     };
     let actual_identity = |reference| {
-        program.normalized_type_identity_with_binders_and_substitutions(
-            reference,
-            &[],
+        program.type_identity(TypeIdentityRequest {
             substitutions,
-        )
+            ..TypeIdentityRequest::ordinary(reference)
+        })
     };
     if actual_identity(actual) == program.normalized_type_identity(required) {
         return true;
@@ -82,11 +82,10 @@ pub(super) fn projected_matches_reference(
         return false;
     };
     let actual_identity = |reference| {
-        program.normalized_type_identity_with_binders_and_substitutions(
-            reference,
-            &[],
-            &substitutions,
-        )
+        program.type_identity(TypeIdentityRequest {
+            substitutions: &substitutions,
+            ..TypeIdentityRequest::ordinary(reference)
+        })
     };
     let TypeReferenceNode::Reference {
         access: required_access,
@@ -142,11 +141,10 @@ fn owned_array_projects_to_slice(
         && program
             .type_reference_table
             .contains_type_reference(*required_element)
-        && program.normalized_type_identity_with_binders_and_substitutions(
-            *actual_element,
-            &[],
+        && program.type_identity(TypeIdentityRequest {
             substitutions,
-        ) == program.normalized_type_identity(*required_element)
+            ..TypeIdentityRequest::ordinary(*actual_element)
+        }) == program.normalized_type_identity(*required_element)
 }
 
 fn substituted_reference(
@@ -322,15 +320,13 @@ fn selected_value_type(
                     // Re-entering this telescope with different arguments needs
                     // scoped type views. This flat comparison cannot safely
                     // rebind earlier argument payloads, so retain rejection.
-                    if program.normalized_type_identity_with_binders_and_substitutions(
-                        *existing,
-                        &[],
+                    if program.type_identity(TypeIdentityRequest {
                         substitutions,
-                    ) != program.normalized_type_identity_with_binders_and_substitutions(
-                        *argument,
-                        &[],
+                        ..TypeIdentityRequest::ordinary(*existing)
+                    }) != program.type_identity(TypeIdentityRequest {
                         substitutions,
-                    ) {
+                        ..TypeIdentityRequest::ordinary(*argument)
+                    }) {
                         return None;
                     }
                 } else {
@@ -360,11 +356,10 @@ fn selected_value_type(
             // authored operator. This query does not materialize types.
             if !substitutions.is_empty()
                 && program.normalized_type_identity(collection)
-                    != program.normalized_type_identity_with_binders_and_substitutions(
-                        collection,
-                        &[],
+                    != program.type_identity(TypeIdentityRequest {
                         substitutions,
-                    )
+                        ..TypeIdentityRequest::ordinary(collection)
+                    })
             {
                 return None;
             }

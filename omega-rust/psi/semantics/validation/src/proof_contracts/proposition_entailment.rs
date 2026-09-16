@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -80,7 +81,7 @@ pub(crate) fn validate_proposition_entailment(
                 .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
                 .filter_map(|fact| match fact {
                     ProofFact::Proposition(application) => program
-                        .normalize_proposition_application(application)
+                        .normalize_proposition_application(application, None)
                         .map(|formula| (formula.identity_label(), application)),
                     _ => None,
                 })
@@ -179,7 +180,8 @@ fn produced_evidence_labels(
                 let ProofFact::Proposition(application) = fact else {
                     return None;
                 };
-                let normalized = program.normalize_nominal_proposition_application(application)?;
+                let normalized =
+                    program.normalize_nominal_proposition_application(application, None)?;
                 match normalized.classification {
                     typed_trees::proposition::PropositionEvidenceClassification::Witness {
                         evidence,
@@ -365,9 +367,9 @@ fn proposition_labels(
                     ProofFact::Expression(expression) if include_boolean_expressions => {
                         Some(format!(
                             "boolean:{}",
-                            program.render_proof_expression_with_parameters(
+                            program.render_proof_expression(
                                 *expression,
-                                substitutions,
+                                ProofSubstitutions::ByParameter(substitutions)
                             )
                         ))
                     }
@@ -392,14 +394,19 @@ fn proposition_labels(
                 .expression_handles(application.arguments)
                 .iter()
                 .map(|argument| {
-                    program.render_proof_expression_with_parameters(*argument, substitutions)
+                    program.render_proof_expression(
+                        *argument,
+                        ProofSubstitutions::ByParameter(substitutions),
+                    )
                 })
                 .collect::<Vec<_>>();
             program
-                .normalize_proposition_application_with_labels(
+                .normalize_proposition_application(
                     application,
-                    &binder_labels,
-                    &argument_labels,
+                    Some(PropositionLabels {
+                        binder_labels: &binder_labels,
+                        argument_labels: &argument_labels,
+                    }),
                 )
                 .map(|formula| formula.identity_label())
         })

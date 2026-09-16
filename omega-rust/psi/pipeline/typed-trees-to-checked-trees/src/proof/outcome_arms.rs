@@ -5,6 +5,7 @@ use crate::proof::proposition_vocabulary::{
 };
 use checked_trees::{CheckedEvidenceTerm, ContractProofFactOwner, ProofFacts};
 use symbols::SymbolHandle;
+use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 /// Bind outcome-specific producer guarantees to the one transition arm that
 /// tests the saved result of a direct immutable call. Broader value-origin
@@ -385,14 +386,14 @@ fn outcome_call_substitutions(
             substitutions.push((
                 parameter.symbol,
                 parameter.name.as_str().to_owned(),
-                program.render_proof_expression_with_parameters(value, &[]),
+                program.render_proof_expression(value, ProofSubstitutions::None),
             ));
         }
     }
     substitutions.push((
         SymbolHandle::invalid(),
         "result".to_owned(),
-        program.render_proof_expression_with_parameters(result_expression, &[]),
+        program.render_proof_expression(result_expression, ProofSubstitutions::None),
     ));
     substitutions
 }
@@ -409,7 +410,10 @@ fn instantiate_outcome_arm_fact(
     else {
         let identity = match program.proof_facts.get(fact) {
             typed_trees::domain::ProofFact::Expression(expression) => {
-                Some(program.render_proof_expression_with_parameters(*expression, substitutions))
+                Some(program.render_proof_expression(
+                    *expression,
+                    ProofSubstitutions::ByParameter(substitutions),
+                ))
             }
             typed_trees::domain::ProofFact::Membership(_) => None,
             typed_trees::domain::ProofFact::Proposition(_) => unreachable!(),
@@ -431,20 +435,27 @@ fn instantiate_outcome_arm_fact(
         .expression_table
         .expression_handles(application.arguments)
         .iter()
-        .map(|argument| program.render_proof_expression_with_parameters(*argument, substitutions))
+        .map(|argument| {
+            program
+                .render_proof_expression(*argument, ProofSubstitutions::ByParameter(substitutions))
+        })
         .collect::<Vec<_>>();
     let proposition = program
-        .normalize_nominal_proposition_application_with_labels(
+        .normalize_nominal_proposition_application(
             application,
-            &binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &binder_labels,
+                argument_labels: &argument_labels,
+            }),
         )
         .map(lower_checked_proposition_application);
     let identity = program
-        .normalize_proposition_application_with_labels(
+        .normalize_proposition_application(
             application,
-            &binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &binder_labels,
+                argument_labels: &argument_labels,
+            }),
         )
         .map(|formula| formula.identity_label());
     (proposition, identity)
@@ -491,7 +502,7 @@ pub(crate) fn outcome_specific_fact_is_proved(
     let Some(result) = result else {
         return false;
     };
-    let result_label = program.render_proof_expression_with_parameters(result, &[]);
+    let result_label = program.render_proof_expression(result, ProofSubstitutions::None);
     let substitutions = [(SymbolHandle::invalid(), "result".to_owned(), result_label)];
     match program.proof_facts.get(fact) {
         ProofFact::Expression(expression) => {
@@ -500,7 +511,10 @@ pub(crate) fn outcome_specific_fact_is_proved(
                 ExpressionNode::Boolean(true)
             ) || known.contains(&format!(
                 "boolean:{}",
-                program.render_proof_expression_with_parameters(*expression, &substitutions)
+                program.render_proof_expression(
+                    *expression,
+                    ProofSubstitutions::ByParameter(&substitutions)
+                )
             ))
         }
         ProofFact::Proposition(application) => {
@@ -525,7 +539,7 @@ pub(crate) fn outcome_specific_assignment_matches_result(
     else {
         return false;
     };
-    let result_label = program.render_proof_expression_with_parameters(result, &[]);
+    let result_label = program.render_proof_expression(result, ProofSubstitutions::None);
     let substitutions = [(SymbolHandle::invalid(), "result".to_owned(), result_label)];
     let binder_labels = application
         .binder_arguments
@@ -542,13 +556,18 @@ pub(crate) fn outcome_specific_assignment_matches_result(
         .expression_table
         .expression_handles(application.arguments)
         .iter()
-        .map(|argument| program.render_proof_expression_with_parameters(*argument, &substitutions))
+        .map(|argument| {
+            program
+                .render_proof_expression(*argument, ProofSubstitutions::ByParameter(&substitutions))
+        })
         .collect::<Vec<_>>();
     program
-        .normalize_nominal_proposition_application_with_labels(
+        .normalize_nominal_proposition_application(
             application,
-            &binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &binder_labels,
+                argument_labels: &argument_labels,
+            }),
         )
         .map(lower_checked_proposition_application)
         .is_some_and(|expected| proof.evidence_terms.get(source).proposition == expected)

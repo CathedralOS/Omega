@@ -9,6 +9,7 @@ use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FactRef, ProgramPoint,
     QualificationEvidence,
 };
+use typed_trees::proposition::PropositionLabels;
 mod payload;
 mod places;
 #[cfg(test)]
@@ -533,10 +534,12 @@ fn instantiate_call_contract_payload(
             )
         })
         .collect::<Vec<_>>();
-    if let Some(formula) = program.normalize_proposition_application_with_labels(
+    if let Some(formula) = program.normalize_proposition_application(
         &application,
-        &binder_labels,
-        &argument_labels,
+        Some(PropositionLabels {
+            binder_labels: &binder_labels,
+            argument_labels: &argument_labels,
+        }),
     ) {
         *instantiated = facts.append_instantiated_expression(formula.identity_label());
     }

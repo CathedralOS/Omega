@@ -3,6 +3,7 @@
 
 use assembled_syntax_to_checked_compilation::CheckedCompilation;
 use diagnostics::Diagnostic;
+use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
 pub(crate) fn project_terminal_boundary_application_coverage(
     checked: &CheckedCompilation,
@@ -397,10 +398,7 @@ fn canonical_boundary_nominal_identity(
     role: &str,
 ) -> Result<boundary_applications::BoundaryNominalIdentity, Vec<Diagnostic>> {
     let identity = checked
-        .package_qualified_nominal_identity_with_toolchain_sources(
-            symbol,
-            checked.exact_toolchain_sources(),
-        )
+        .exact_owner_nominal_identity(symbol, checked.exact_toolchain_sources())
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "Terminal boundary {role} has no exact package or toolchain owner",
@@ -415,11 +413,12 @@ fn canonical_boundary_type_identity(
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Result<boundary_applications::BoundaryTypeIdentity, Vec<Diagnostic>> {
     let identity = checked
-        .package_qualified_type_identity_with_binders_and_toolchain_sources(
+        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
-            &[],
-            checked.exact_toolchain_sources(),
-        )
+            binders: &[],
+            substitutions: &[],
+            exact_toolchain_sources: checked.exact_toolchain_sources(),
+        })
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "Terminal boundary application type has no exact package or toolchain owner",

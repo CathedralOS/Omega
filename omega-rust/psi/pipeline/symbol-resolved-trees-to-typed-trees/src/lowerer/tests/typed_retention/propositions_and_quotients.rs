@@ -106,7 +106,7 @@ fn generic_proposition_applications_remain_proof_facts_when_typed() {
     assert_eq!(application.proposition, relation.symbol);
     assert!(
         typed
-            .normalize_proposition_application(application)
+            .normalize_proposition_application(application, None)
             .is_some()
     );
 }
@@ -219,7 +219,7 @@ fn proposition_type_and_const_arguments_retain_categories_and_identity() {
     assert_eq!(application.binder_arguments[0].display_name(), "i32");
     assert_eq!(application.binder_arguments[1].display_name(), "7");
     let normalized = typed
-        .normalize_proposition_application(application)
+        .normalize_proposition_application(application, None)
         .expect("transparent application should normalize");
     assert_eq!(
         normalized.identity_label(),
@@ -319,7 +319,7 @@ fn proposition_type_and_const_arguments_forward_through_machine_binders() {
     assert_eq!(application.binder_arguments[1].symbol, parameters[1].symbol);
     assert_eq!(
         typed
-            .normalize_proposition_application(application)
+            .normalize_proposition_application(application, None)
             .expect("generic application should normalize")
             .identity_label(),
         "proposition:fact:indexed<T,N>()"

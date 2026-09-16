@@ -6,6 +6,7 @@ use crate::unit::dynamic_composed_unit::applications::{
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::DynamicCallerShape;
 use crate::unit::{CheckedTrees, LoweringError, unsupported};
+use checked_trees::TypeIdentityRequest;
 use checked_trees::{
     CheckedDynamicScalarCallPlan, CheckedDynamicSelectionPlan, CheckedStructuralAccess,
     CheckedUnitStructuralPathSegment,
@@ -128,7 +129,10 @@ pub(crate) fn validate_exact_stored_plan(
         .collect::<Vec<_>>();
     let destination_type_identity = checked
         .typed
-        .normalized_type_identity_with_binders(destination.type_reference, &binders)
+        .type_identity(TypeIdentityRequest {
+            binders: &binders,
+            ..TypeIdentityRequest::ordinary(destination.type_reference)
+        })
         .into_string();
     let destination_field_identity = field
         .identity

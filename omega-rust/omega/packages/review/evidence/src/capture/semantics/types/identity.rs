@@ -5,6 +5,7 @@ use crate::capture::semantics::encoding::framed_identity;
 use crate::record::PackageReviewTypeIdentity;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
 #[cfg(test)]
 mod tests;
@@ -16,11 +17,12 @@ pub(crate) fn review_type_identity_with_binders(
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
     let identity = compilation
-        .package_qualified_type_identity_with_binders_and_toolchain_sources(
+        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
             binders,
-            compilation.custody.exact_toolchain_sources(),
-        )
+            substitutions: &[],
+            exact_toolchain_sources: compilation.custody.exact_toolchain_sources(),
+        })
         .ok_or_else(missing_exact_toolchain_type_owner)?;
     Ok(PackageReviewTypeIdentity {
         canonical: identity.into_string(),
@@ -35,12 +37,12 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
     let identity = compilation
-        .package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
+        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
             binders,
             substitutions,
-            compilation.custody.exact_toolchain_sources(),
-        )
+            exact_toolchain_sources: compilation.custody.exact_toolchain_sources(),
+        })
         .ok_or_else(missing_exact_toolchain_type_owner)?;
     Ok(PackageReviewTypeIdentity {
         canonical: identity.into_string(),
@@ -127,12 +129,12 @@ pub(crate) fn signature_type_identity(
         const_argument,
     )?;
     let runtime = program
-        .package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
+        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
             binders,
             substitutions,
             exact_toolchain_sources,
-        )
+        })
         .ok_or_else(missing_exact_toolchain_type_owner)?
         .into_string();
     let lifetime = review_lifetime_topology_with_substitutions(

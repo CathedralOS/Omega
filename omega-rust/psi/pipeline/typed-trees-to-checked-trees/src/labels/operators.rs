@@ -1,5 +1,6 @@
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::signature::StateParameter;
 
 /// Render an operator contract expression with each formal parameter replaced
@@ -14,7 +15,7 @@ pub(crate) fn instantiate_operator_contract_expression_label(
 ) -> String {
     let operand_labels = operands
         .iter()
-        .map(|operand| program.render_proof_expression_with_symbols(*operand, &[]))
+        .map(|operand| program.render_proof_expression(*operand, ProofSubstitutions::None))
         .collect::<Vec<_>>();
     instantiate_operator_contract_expression_label_with_labels(
         program,
@@ -165,7 +166,7 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
                 }
             }
 
-            program.render_proof_expression_with_symbols(expression, &[])
+            program.render_proof_expression(expression, ProofSubstitutions::None)
         }
         ExpressionNode::StructLiteral(literal) => {
             program.render_proof_constructor_value(literal, instantiate)

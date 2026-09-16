@@ -4,6 +4,7 @@ use checked_trees::{
     ContractProofFactKind, ContractProofFactOwner,
 };
 use diagnostics::Diagnostic;
+use typed_trees::proposition::PropositionLabels;
 
 use crate::{call_site_evidence_arguments, call_target_parameters, find_call_site};
 
@@ -413,10 +414,12 @@ fn instantiate_proof_expression_parameter(
         })
         .collect::<Vec<_>>();
     program
-        .normalize_nominal_proposition_application_with_labels(
+        .normalize_nominal_proposition_application(
             application,
-            &binder_labels,
-            &argument_labels,
+            Some(PropositionLabels {
+                binder_labels: &binder_labels,
+                argument_labels: &argument_labels,
+            }),
         )
         .map(crate::proof::lower_checked_proposition_application)
 }

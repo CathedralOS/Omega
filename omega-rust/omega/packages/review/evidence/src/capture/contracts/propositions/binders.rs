@@ -59,7 +59,7 @@ pub(crate) fn project_proposition_binder_argument(
         match argument.kind {
             typed_trees::proposition::PropositionBinderArgumentKind::Type => {
                 let identity = compilation
-                    .package_qualified_nominal_type_identity_with_toolchain_sources(
+                    .exact_owner_nominal_identity(
                         argument.symbol,
                         compilation.custody.exact_toolchain_sources(),
                     )
