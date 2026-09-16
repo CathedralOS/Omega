@@ -98,10 +98,33 @@ MODULE-NAMESPACE-RESOLUTION claim.
   `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
   expectation from 2694d433d3, not bisected.
 
-The `pipeline_ownership` target still does not compile (duplicate
-`AcceptTerminalEffects`/`TerminalStructuralInputs` imports in
-`stages/allocation/register_allocation/runtime_scalar_call_chain/scalar_return_calls.rs`
-and `.../framed_rel8.rs`); it was under a live claim when recorded.
+## native-differential `pipeline_ownership`
+
+`cargo nextest run -p omega-native-differential-test --test pipeline_ownership
+--no-fail-fast` at 7a63ba8cfd plus the lint and expectation commit beside this
+row (2026-09-16, macOS arm64): 349 run, 342 passed, 7 failed. (The
+duplicate-import compile failure recorded earlier was removed upstream in
+9d4b45b0cf.)
+
+- Retired negative controls (2):
+  `coordination::abstract_operation_optimization::non_u64_expression_fails_at_ordinary_graph_legalization_boundary`
+  and `..::non_u64_conditional_fails_at_ordinary_graph_legalization_boundary`
+  assert that u8 arithmetic and a u8 conditional immediate fail legalization
+  with `UnsupportedSourceShape`; since a63284e305 `scalar_graph_input.rs::scalar_shape`
+  admits every fixed width, so both fixtures legalize. The premise is gone:
+  the owner should replace them with the positive behavior or retire them,
+  which is a re-purposing rather than a stale expectation.
+- Structural Unit fail-closed (5):
+  `stages::realization::structural_units::leaf_object::structural_extent_unit_leaf_reaches_canonical_object_artifact`,
+  `..::publication::claim_completion_prefixes_publish_as_metadata_without_instruction_spans`,
+  `..::publication::installed_structural_provider_call_reaches_shared_publication`,
+  `..::publication::structural_call_publication_preserves_owned_indirect_arguments`, and
+  `..::structural_call::structural_unit_call_reaches_post_allocation_machine_custody`
+  stop at `UnsupportedControlFlow(MachineId(..))` from
+  `abstract-operations-to-target-operations/src/lowering/control_flow.rs`,
+  the fail-closed behavior 8aac311045 documents for qualified structural
+  calls, executable cleanup, installed-provider and descriptor cases that
+  lack ordinary graph joins (**TRANSLATION-VALIDATION** area).
 
 ## checked-interpreter integration tests
 
