@@ -1,0 +1,11 @@
+// A Boolean-returning helper may be an argument of an endpoint call, but the
+// range bound itself must land as an integer: a `bool` result at the bound
+// position rejects rather than folding to a Boolean literal.
+machine is_wide() -> bool { false }
+
+machine rejected(value: u64[0..=is_wide()]) -> u64 { value }
+
+data Main {}
+
+machine Main::main(&mut self) {
+}

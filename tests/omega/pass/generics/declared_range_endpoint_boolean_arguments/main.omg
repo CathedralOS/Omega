@@ -1,0 +1,32 @@
+// A named range endpoint call may take Boolean arguments, including the
+// result of a Boolean-returning helper, through the same closed admission
+// plan. The endpoint result itself stays an exact integer carrier.
+use omega_language_std::console;
+use omega::language::core::service;
+
+machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+machine pick(wide: bool) -> u64 {
+    transition wide {
+        true -> 512
+        false -> 256
+    }
+}
+machine is_wide() -> bool { false }
+machine both(first: bool, second: bool) -> bool { first && second }
+
+machine literal_flag(value: u64[0..=pick(false)]) -> u64 { upper_bound(value) }
+machine helper_flag(value: u64[0..pick(is_wide()) + 1]) -> u64 { upper_bound(value) }
+machine composed_flag(value: u64[0..=pick(both(true, is_wide()))]) -> u64 { upper_bound(value) }
+
+data Main { console: Service<Console> in Bound; }
+machine Main::main(&mut self) reaches Console {
+    let literal: u64 = literal_flag(0);
+    let helper: u64 = helper_flag(0);
+    let composed: u64 = composed_flag(0);
+    transition literal == 256 && helper == 256 && composed == 256 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

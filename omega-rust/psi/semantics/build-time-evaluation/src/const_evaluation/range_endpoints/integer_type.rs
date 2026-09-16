@@ -24,6 +24,37 @@ use typed_trees::{
 
 use crate::BuildTimeAdmissionPlan;
 
+/// A callee parameter, or an argument-position call result, is either an
+/// integer position or a bare Boolean. The range bound itself never takes
+/// this shape: `range_endpoints` prepares its result as an `IntegerPosition`
+/// so a Boolean-returning call cannot become a range endpoint.
+pub(super) enum ScalarPosition {
+    Integer(IntegerPosition),
+    Boolean,
+}
+
+impl ScalarPosition {
+    pub(super) fn prepare(
+        program: &TypedTrees,
+        original: &TypedTrees,
+        reference: TypeReferenceHandle,
+        authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    ) -> Result<Self, String> {
+        // A qualified Boolean (`bool in Domain`) has no closed proof route
+        // here; only the bare builtin leaf is a Boolean position.
+        if program
+            .type_reference_table
+            .contains_type_reference(reference)
+            && crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+                program, reference,
+            ) == Some(PrimitiveType::Bool)
+        {
+            return Ok(Self::Boolean);
+        }
+        IntegerPosition::prepare(program, original, reference, authority).map(Self::Integer)
+    }
+}
+
 pub(super) struct IntegerPosition {
     pub(super) primitive: PrimitiveType,
     ranges: Vec<(BigInt, BigInt)>,
