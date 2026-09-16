@@ -2580,9 +2580,15 @@ Owners include
   and inference-needing calls stay outside
   (`generics/declared_range_endpoint_static_applications`,
   `fail/generics/declared_range_endpoint_partial_static_application_rejected`).
+  A template whose own signature bound carries a named endpoint call
+  rejects under explicit application as "range endpoint signature bound is
+  not closed" (40e48b67b1,
+  `fail/generics/declared_range_endpoint_template_bound_call_rejected`):
+  the instance's cloned bound is read from the once-prepared program
+  before the template bound folds, so closing it needs round-based
+  re-preparation after template bounds fold.
   Nominal/policy qualifications, trait-operator owners, applications with
-  type/machine/evidence binders, templates whose signature bounds carry
-  named endpoint calls, and open symbolic endpoints remain. Omitted data
+  type/machine/evidence binders, and open symbolic endpoints remain. Omitted data
   binders (`data TinyBytes<u64[0..=256]>` still reports "expected 2
   arguments but got 1") need generic-data instance synthesis in
   `syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/` to
