@@ -101,19 +101,12 @@ MODULE-NAMESPACE-RESOLUTION claim.
 ## native-differential `pipeline_ownership`
 
 `cargo nextest run -p omega-native-differential-test --test pipeline_ownership
---no-fail-fast` at 7a63ba8cfd plus the lint and expectation commit beside this
-row (2026-09-16, macOS arm64): 349 run, 342 passed, 7 failed. (The
-duplicate-import compile failure recorded earlier was removed upstream in
-9d4b45b0cf.)
+--no-fail-fast` at 7a63ba8cfd plus the lint, expectation, and retired-control
+commits beside this row (2026-09-16, macOS arm64): 349 run, 344 passed, 5
+failed. (The duplicate-import compile failure recorded earlier was removed
+upstream in 9d4b45b0cf; the two u8 legalization negatives whose premise
+a63284e305 retired now pin the admission instead.)
 
-- Retired negative controls (2):
-  `coordination::abstract_operation_optimization::non_u64_expression_fails_at_ordinary_graph_legalization_boundary`
-  and `..::non_u64_conditional_fails_at_ordinary_graph_legalization_boundary`
-  assert that u8 arithmetic and a u8 conditional immediate fail legalization
-  with `UnsupportedSourceShape`; since a63284e305 `scalar_graph_input.rs::scalar_shape`
-  admits every fixed width, so both fixtures legalize. The premise is gone:
-  the owner should replace them with the positive behavior or retire them,
-  which is a re-purposing rather than a stale expectation.
 - Structural Unit fail-closed (5):
   `stages::realization::structural_units::leaf_object::structural_extent_unit_leaf_reaches_canonical_object_artifact`,
   `..::publication::claim_completion_prefixes_publish_as_metadata_without_instruction_spans`,
