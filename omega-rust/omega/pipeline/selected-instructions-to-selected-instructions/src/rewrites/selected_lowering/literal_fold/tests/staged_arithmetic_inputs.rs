@@ -2215,7 +2215,7 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
     }
 }
 
-/// A `MaterializeI64` victim producing zero feeding one `Use` of a
+/// A `MaterializeI64` victim producing `Unsigned(0)` feeding one `Use` of a
 /// `BitwiseAndI64` consumer whose `Def` result is a scalar register, with
 /// the pressure-recovery classification admitted as an `Incoming`
 /// rematerialization candidate at `literal_operand`. `literal_operand`
@@ -2226,14 +2226,48 @@ pub(super) fn staged_remainder_inputs(target: NativeTarget) -> Inputs {
 /// Operands past the operand-2 `Def` result — none on either Linux target's
 /// row — would be scratch `Def` outputs the fold drops dead.
 pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
+    staged_bitwise_zero_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::BitwiseAndI64,
+        LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
+    )
+}
+
+/// The same zero-literal fixture for `BitwiseXorI64`: the xor family
+/// folds `x ^ 0` and `0 ^ x` into a `CopyI64` of the surviving operand
+/// rather than materializing the annihilator constant.
+pub(super) fn staged_xor_inputs(target: NativeTarget, literal_operand: u16) -> Inputs {
+    staged_bitwise_zero_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::BitwiseXorI64,
+        LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
+    )
+}
+
+/// Shared staging for the bitwise zero-literal families: a `MaterializeI64`
+/// victim producing `Unsigned(0)` feeds `kind`'s `Use` operand at
+/// `literal_operand`, whose `Def` result is a scalar register, under
+/// `policy`. Both bitwise consumers bind the flag-clobbering subtract
+/// constraint row — x86-64 `and`/`xor` destroy `rflags`, the aarch64 forms
+/// touch no condition state — so the staged consumer row, its implicit
+/// traffic, and its operand layout are identical across the two kinds.
+fn staged_bitwise_zero_inputs(
+    target: NativeTarget,
+    literal_operand: u16,
+    kind: SelectedInstructionKind,
+    policy: LiteralFoldPolicy,
+) -> Inputs {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
     let machine = MachineId::new(1).unwrap();
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let materialize = environment.constraint(keys.materialize_i64).unwrap();
-    // The and form binds the flag-clobbering subtract constraint row: x86-64
-    // `and` destroys `rflags`, aarch64 `and` touches no condition state.
-    let and = environment.constraint(keys.subtract_i64).unwrap();
+    // The bitwise form binds the flag-clobbering subtract constraint row:
+    // x86-64 `and`/`xor` destroy `rflags`, aarch64 `and`/`eor` touch no
+    // condition state.
+    let consumer_row = environment.constraint(keys.subtract_i64).unwrap();
     let branch = environment.constraint(keys.conditional_branch).unwrap();
     let terminal = environment.constraint(keys.return_unit).unwrap();
     let gpr = materialize.operands[0].class;
@@ -2254,7 +2288,7 @@ pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> I
     // operands and the result `Def`; every `Def` operand past the result is
     // a scratch output the fold drops, staged as a register the consumer
     // alone defines.
-    let scratch_defs = and.operands.len() - 3;
+    let scratch_defs = consumer_row.operands.len() - 3;
     let literal_id = SelectedInstructionId(0);
     let consumer_id = SelectedInstructionId(1);
     let literal = SelectedInstruction {
@@ -2283,9 +2317,9 @@ pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> I
     // `VirtualRegisterId(2)`, scratch outputs bind registers 3 and up.
     let consumer = SelectedInstruction {
         id: consumer_id,
-        kind: SelectedInstructionKind::BitwiseAndI64,
-        constraint: and.key,
-        operands: and
+        kind,
+        constraint: consumer_row.key,
+        operands: consumer_row
             .operands
             .iter()
             .map(|operand| SelectedOperand {
@@ -2304,9 +2338,9 @@ pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> I
                 early_clobber: operand.early_clobber,
             })
             .collect(),
-        implicit_uses: and.implicit_uses.clone(),
-        implicit_defs: and.implicit_defs.clone(),
-        clobbers: and.clobbers.clone(),
+        implicit_uses: consumer_row.implicit_uses.clone(),
+        implicit_defs: consumer_row.implicit_defs.clone(),
+        clobbers: consumer_row.clobbers.clone(),
         provenance: SelectedInstructionProvenance {
             operations: vec![OperationId::new(2).unwrap()],
             values: vec![ValueId::new(1).unwrap()],
@@ -2455,7 +2489,7 @@ pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> I
             machine_effect_catalog: effect_catalog_identity,
             optimization_unit: unit,
             fuel_schedule: fuel,
-            policy: LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
+            policy,
             budget: budget(),
             usage: usage(),
             functions: vec![FunctionLiteralFold {
@@ -2478,7 +2512,7 @@ pub(super) fn staged_and_inputs(target: NativeTarget, literal_operand: u16) -> I
             optimization_unit: unit,
             fuel_schedule: fuel,
             transformed_selected: selected_identity,
-            policy: LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
+            policy,
             usage: usage(),
             function_count: 1,
             applied_count: 0,

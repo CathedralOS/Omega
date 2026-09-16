@@ -40,7 +40,9 @@ pub use validate::validate_literal_fold;
 /// dividend `Use` and dead scratch `Def` operands — or the literal `0` at
 /// either operand of a bitwise-and into a `MaterializeI64` of the constant
 /// zero — `x & 0` is `0` for every `x` — dropping the other `Use` and dead
-/// scratch `Def` operands.
+/// scratch `Def` operands — or the literal `0` at either operand of a
+/// bitwise-xor into a `CopyI64` of the surviving operand — `x ^ 0` and
+/// `0 ^ x` are both `x`.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

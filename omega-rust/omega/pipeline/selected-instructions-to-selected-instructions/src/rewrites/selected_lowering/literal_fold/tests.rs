@@ -4,6 +4,7 @@
 //! memory and arithmetic inputs.
 
 mod bitwise_and_zero_folds;
+mod bitwise_xor_zero_copies;
 mod compare_subtract_add_folds;
 mod divide_and_remainder_folds;
 mod extension_and_copy_folds;
@@ -13,7 +14,7 @@ mod staged_memory_inputs;
 
 use staged_arithmetic_inputs::{
     staged_add_inputs, staged_and_inputs, staged_divide_inputs, staged_remainder_inputs,
-    staged_subtract_inputs,
+    staged_subtract_inputs, staged_xor_inputs,
 };
 use staged_memory_inputs::{
     staged_byte_view_address_inputs, staged_copy_inputs, staged_extension_inputs,
@@ -629,6 +630,7 @@ fn policy_without(disabled: LiteralFoldPolicy) -> LiteralFoldPolicy {
         LiteralFoldPolicy::EXACT_DIVIDE_V1,
         LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
         LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
+        LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
     ]
     .into_iter()
     .filter(|policy| *policy != disabled)

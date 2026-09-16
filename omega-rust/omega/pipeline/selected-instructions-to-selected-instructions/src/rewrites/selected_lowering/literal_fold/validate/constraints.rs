@@ -44,6 +44,11 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// gated separately so a fold the selection did not enable cannot
     /// replay under another family's policy.
     pub(super) and_zero: Option<&'a RegisterInstructionConstraint>,
+    /// The `CopyI64` row the bitwise-xor identity fold rewrites into — the
+    /// same constraint row the divide fold binds, gated separately so a
+    /// fold the selection did not enable cannot replay under another
+    /// family's policy.
+    pub(super) xor_zero: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -103,6 +108,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_bitwise_and_zero()
         .then(|| find(keys.materialize_i64))
         .transpose()?;
+    let xor_zero = policy
+        .enables_bitwise_xor_zero()
+        .then(|| find(keys.copy_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -114,6 +123,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         divide,
         remainder,
         and_zero,
+        xor_zero,
     ]
     .into_iter()
     .flatten()
@@ -178,6 +188,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::MaterializeI64,
             isolated_rewritten_declaration,
         ),
+        (
+            xor_zero,
+            MachineSemanticKind::CopyI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -197,6 +212,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         divide,
         remainder,
         and_zero,
+        xor_zero,
         catalog,
     })
 }

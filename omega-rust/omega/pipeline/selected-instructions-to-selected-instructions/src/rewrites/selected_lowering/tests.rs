@@ -59,6 +59,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_exact_divide());
     assert!(policy.enables_wrapping_remainder());
     assert!(policy.enables_bitwise_and_zero());
+    assert!(policy.enables_bitwise_xor_zero());
 }
 
 #[test]
@@ -74,6 +75,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         divide,
         remainder,
         and_zero,
+        xor_zero,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -504,6 +506,71 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(and_zero_rule.rewrite_consumer(and_kind, 0, None), None);
 
+    // The bitwise-xor identity family declares one pair per `Use`
+    // position: a literal of exactly zero folds `BitwiseXorI64` into a
+    // `CopyI64` of the surviving `Use` — `x ^ 0` and `0 ^ x` are both `x`.
+    // Both grammars rewrite through the same `CopyI64` row the divide fold
+    // binds; the pair disambiguates by which `Use` position the folded
+    // literal occupies, and the left grammar attests the commutation the
+    // surviving-operand binding requires.
+    let &[xor_zero_rule, xor_zero_left_rule] = xor_zero.payload().pairs() else {
+        panic!("the xor-zero family declares one pair per operand grammar")
+    };
+    assert_eq!(
+        xor_zero.optimization(),
+        Optimization::SelectedIncomingBitwiseXorZeroIdentityCopy
+    );
+    assert_eq!(
+        xor_zero_rule,
+        SelectedInstructionPairRule::BITWISE_XOR_ZERO_COPY
+    );
+    assert_eq!(
+        xor_zero_left_rule,
+        SelectedInstructionPairRule::BITWISE_XOR_ZERO_LEFT_COPY
+    );
+    for pair in [xor_zero_rule, xor_zero_left_rule] {
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.consumer(), MachineSemanticKind::BitwiseXorI64);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::CopyI64);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(0));
+        assert!(pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(1));
+        assert!(!pair.admits_immediate(u64::MAX));
+        // The recorded immediate is the folded literal itself — zero —
+        // unused by the `CopyI64` rewrite.
+        assert_eq!(pair.fold_immediate(0), Some(0));
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
+        assert_eq!(pair.machine_effects(), PairMachineEffects::Isolated);
+    }
+    assert_eq!(
+        xor_zero_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteral
+    );
+    assert_eq!(xor_zero_rule.victim_operand(), 1);
+    assert_eq!(
+        xor_zero_left_rule.operand_shape(),
+        PairOperandShape::BinaryLeftLiteral
+    );
+    assert_eq!(xor_zero_left_rule.victim_operand(), 0);
+    let xor_kind = SelectedInstructionKind::BitwiseXorI64;
+    assert_eq!(
+        xor_zero_rule.rewrite_consumer(xor_kind, 0, Some(u64_scalar)),
+        Some(SelectedInstructionKind::CopyI64)
+    );
+    assert_eq!(
+        xor_zero_left_rule.rewrite_consumer(xor_kind, 0, Some(i64_scalar)),
+        Some(SelectedInstructionKind::CopyI64)
+    );
+    assert_eq!(
+        xor_zero_rule.rewrite_consumer(and_kind, 0, Some(u64_scalar)),
+        None
+    );
+    assert_eq!(
+        xor_zero_rule.rewrite_consumer(xor_kind, 0, None),
+        Some(SelectedInstructionKind::CopyI64)
+    );
+
     // Every landed rule's rewrite but the divide and remainder folds is
     // unit-effect isolated: no implicit unit uses or clobbers and no
     // operand unit bindings beyond the declared result channel. The divide
@@ -518,6 +585,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         copy,
         address_offset,
         and_zero,
+        xor_zero,
     ] {
         for pair in entry.payload().pairs() {
             assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
@@ -571,6 +639,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::BITWISE_AND_ZERO_V1).collect::<Vec<_>>(),
         SelectedInstructionPairRule::BITWISE_AND_ZERO_FOLDS.to_vec()
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::BITWISE_XOR_ZERO_V1).collect::<Vec<_>>(),
+        SelectedInstructionPairRule::BITWISE_XOR_ZERO_COPIES.to_vec()
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -645,6 +717,14 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         and_zero_left_rule.immediate_constraint_key(&keys),
         Some(keys.materialize_i64)
     );
+    assert_eq!(
+        xor_zero_rule.immediate_constraint_key(&keys),
+        Some(keys.copy_i64)
+    );
+    assert_eq!(
+        xor_zero_left_rule.immediate_constraint_key(&keys),
+        Some(keys.copy_i64)
+    );
 }
 
 #[test]
@@ -678,6 +758,10 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // row, which is itself unit-clean.
             SelectedInstructionPairRule::BITWISE_AND_ZERO_MATERIALIZE,
             SelectedInstructionPairRule::BITWISE_AND_ZERO_LEFT_MATERIALIZE,
+            // Both xor-zero grammars rewrite into the copy row, which is
+            // likewise unit-clean.
+            SelectedInstructionPairRule::BITWISE_XOR_ZERO_COPY,
+            SelectedInstructionPairRule::BITWISE_XOR_ZERO_LEFT_COPY,
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -739,6 +823,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
         ])
         .chain(SelectedInstructionPairRule::BITWISE_AND_ZERO_FOLDS)
+        .chain(SelectedInstructionPairRule::BITWISE_XOR_ZERO_COPIES)
         {
             assert_eq!(rule.machine_effects(), PairMachineEffects::Isolated);
             let producer = declaration(rule.producer());
