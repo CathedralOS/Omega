@@ -1,6 +1,8 @@
 //! Fixtures shared by the owned result tests: the owned match sources and
 //! the membership helpers.
 
+#[path = "owned_results/call_product_arms.rs"]
+mod call_product_arms;
 #[path = "owned_results/interleaved_and_projected_sources.rs"]
 mod interleaved_and_projected_sources;
 #[path = "owned_results/membership_subjects.rs"]
@@ -32,6 +34,9 @@ const PROJECTED_FIELD_SOURCE: &str = include_str!(
 const PARAMETER_SOURCE: &str = include_str!(
     "../../../../../../tests/omega/pass/expressions/owned_match_parameter_values/main.omg"
 );
+
+const CALL_VALUE_SOURCE: &str =
+    include_str!("../../../../../../tests/omega/pass/expressions/owned_match_call_values/main.omg");
 
 const MEMBERSHIP_TYPES: &str = "data Kind { case Missing; case Other; }
     data Choice { case Empty; case Full; }";
