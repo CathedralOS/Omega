@@ -381,16 +381,195 @@ fn module_domains_and_operators_lower_under_their_namespace() {
     }
 }
 
+/// Module-owned `IntervalSet`/`CountedQuantity` declarations are ordinary
+/// user templates: the content-algebra exemption covers only the unmoduled
+/// declarations a bare algebra spelling can select, so a qualified or
+/// imported module application synthesizes its closed instance under the
+/// declaring module's logical path.
 #[test]
-fn module_generic_data_templates_remain_fenced() {
-    let syntax = parse(&["module units; data IntervalSet<T> { value: T; }"]);
-    let diagnostics = crate::resolve(crate::ResolutionRequest::new(&syntax))
-        .expect_err("fenced module declarations still reject");
+fn module_owned_algebra_leaf_names_normalize_as_templates() {
+    let syntax = parse(&[
+        "module units; pub data IntervalSet<T> { value: T; } pub data CountedQuantity<U> { magnitude: U; }",
+        "data Holder { set: units::IntervalSet<u64>; count: units::CountedQuantity<u64>; }",
+    ]);
+    let normalized = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(syntax),
+    )
+    .expect("module-owned same-leaf templates normalize");
+    let mut instances = normalized
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Data(data) if data.generic_instance.is_some() => {
+                Some(data.name.as_str().to_string())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    instances.sort();
+    assert_eq!(
+        instances,
+        [
+            "CountedQuantity<u64>".to_string(),
+            "IntervalSet<u64>".to_string()
+        ],
+        "each module template synthesizes its closed instance: {instances:?}"
+    );
+    let program = crate::resolve(crate::ResolutionRequest::new(&normalized))
+        .expect("the synthesized instances resolve");
+    for expected in ["units::IntervalSet<u64>", "units::CountedQuantity<u64>"] {
+        let instance = program
+            .data_definitions
+            .iter()
+            .find(|definition| program.symbols.display_path(definition.symbol, "::") == expected)
+            .unwrap_or_else(|| panic!("{expected} instance"));
+        assert!(
+            instance.generic_instance.is_some(),
+            "{expected} retains its authored application origin"
+        );
+    }
+}
+
+/// The exemption still pins the unmoduled algebra carriers: a root-scope
+/// `IntervalSet` application keeps its authored generic spelling instead of
+/// synthesizing a record, and an imported module leaf cannot capture it.
+#[test]
+fn unmoduled_algebra_carriers_keep_their_generic_spelling() {
+    let syntax = parse(&[
+        "module units; pub data IntervalSet<T> { value: T; }",
+        "data IntervalSet<Space> { start: u64; end: u64; } data Holder { field: IntervalSet<u64>; }",
+    ]);
+    let normalized = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(syntax),
+    )
+    .expect("the unmoduled algebra carrier is exempt from synthesis");
     assert!(
-        diagnostics[0]
-            .message
-            .contains("namespace-aware template normalization"),
-        "{diagnostics:?}"
+        normalized
+            .root_items()
+            .all(|item| !matches!(item, Item::Data(data) if data.generic_instance.is_some())),
+        "no closed instance may stand in for the unmoduled algebra"
+    );
+    use syntax_trees::types::TypeReferenceNode;
+    let holder = normalized
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(data) if data.name.as_str() == "Holder" => Some(data),
+            _ => None,
+        })
+        .expect("Holder");
+    let [syntax_trees::item::DataMember::Field(field)] =
+        normalized.tables.items.data_members(holder.members)
+    else {
+        panic!("one field")
+    };
+    assert!(
+        matches!(
+            normalized
+                .tables
+                .type_references
+                .type_reference(field.type_reference),
+            TypeReferenceNode::Generic { .. }
+        ),
+        "the root application retains its structural generic argument"
+    );
+}
+
+/// A narrow import selects the exact module template for a leaf application
+/// in a source that does not declare the leaf itself.
+#[test]
+fn imported_module_algebra_leaf_selects_the_module_template() {
+    let syntax = parse(&[
+        "module units; pub data IntervalSet<T> { value: T; }",
+        "use units::IntervalSet; data Holder { field: IntervalSet<u64>; }",
+    ]);
+    let normalized = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(syntax),
+    )
+    .expect("the imported module template synthesizes");
+    let instances = normalized
+        .root_items()
+        .filter(|item| matches!(item, Item::Data(data) if data.generic_instance.is_some()))
+        .count();
+    assert_eq!(
+        instances, 1,
+        "only the selected module template materializes"
+    );
+    let program = crate::resolve(crate::ResolutionRequest::new(&normalized))
+        .expect("the imported instance resolves");
+    let instance = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.generic_instance.is_some())
+        .expect("one instance");
+    assert_eq!(
+        program.symbols.display_path(instance.symbol, "::"),
+        "units::IntervalSet<u64>",
+        "the leaf application selects the imported module owner"
+    );
+}
+
+/// Local declarations precede imported names: a source that declares its own
+/// `IntervalSet` keeps the leaf on that unmoduled declaration even when it
+/// also imports the module's same-leaf template, so the exempt root carrier
+/// still keeps its structural generic spelling and no instance is born.
+#[test]
+fn same_source_algebra_leaf_outranks_the_module_import() {
+    let syntax = parse(&[
+        "module units; pub data IntervalSet<T> { value: T; }",
+        "use units::IntervalSet; data IntervalSet<Space> { start: u64; end: u64; } data Holder { field: IntervalSet<u64>; }",
+    ]);
+    let normalized = crate::preparation::generic_data::normalize_generic_data(
+        crate::preparation::generic_data::GenericDataRequest::new(syntax),
+    )
+    .expect("the local declaration keeps the exempt leaf");
+    assert!(
+        normalized
+            .root_items()
+            .all(|item| !matches!(item, Item::Data(data) if data.generic_instance.is_some())),
+        "the imported template cannot capture a same-source leaf"
+    );
+    use syntax_trees::types::TypeReferenceNode;
+    let holder = normalized
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(data) if data.name.as_str() == "Holder" => Some(data),
+            _ => None,
+        })
+        .expect("Holder");
+    let [syntax_trees::item::DataMember::Field(field)] =
+        normalized.tables.items.data_members(holder.members)
+    else {
+        panic!("one field")
+    };
+    assert!(
+        matches!(
+            normalized
+                .tables
+                .type_references
+                .type_reference(field.type_reference),
+            TypeReferenceNode::Generic { .. }
+        ),
+        "the leaf application retains its structural generic argument"
+    );
+    let program = crate::resolve(crate::ResolutionRequest::new(&normalized))
+        .expect("the local algebra carrier resolves");
+    let holder = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Holder")
+        .expect("Holder");
+    let [symbol_resolved_trees::data::DataMember::Field(field)] =
+        program.data_members(holder.members)
+    else {
+        panic!("one field")
+    };
+    let symbol_resolved_trees::types::TypeReference::Generic(application) = &field.type_reference
+    else {
+        panic!("the leaf application remains a generic carrier")
+    };
+    assert_eq!(
+        program.symbols.display_path(application.base_symbol, "::"),
+        "IntervalSet",
+        "the leaf selects the same-source unmoduled declaration"
     );
 }
 

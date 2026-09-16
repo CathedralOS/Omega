@@ -91,7 +91,11 @@ pub(crate) fn validate_with_const_resolution_mode(
     // generic operator selects by its qualified or imported spelling exactly
     // like a non-generic sibling.
     for item in syntax.root_items() {
-        let unsupported = match item {
+        // The `Some` arm slot is the fence for module-owned forms still
+        // awaiting namespace-aware normalization; every currently admitted
+        // form validates in place and yields `None`.
+        let unsupported: Option<(&syntax_trees::identifier::Identifier, &'static str)> = match item
+        {
             Item::Const(constant)
                 if module_sources.contains(&constant.name.source_span().source_id) =>
             {
@@ -167,16 +171,6 @@ pub(crate) fn validate_with_const_resolution_mode(
                         )).with_source_span(constant.name.source_span())])?;
                     None
                 }
-            }
-            Item::Data(data)
-                if !data.type_parameters.is_empty()
-                    && module_sources.contains(&data.name.source_span().source_id)
-                    && matches!(data.name.as_str(), "IntervalSet" | "CountedQuantity") =>
-            {
-                Some((
-                    &data.name,
-                    "module-owned generic data requires namespace-aware template normalization",
-                ))
             }
             _ => None,
         };
