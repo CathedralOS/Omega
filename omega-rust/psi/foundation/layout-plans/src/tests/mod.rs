@@ -9,7 +9,8 @@ mod writer_fragments;
 use crate::{
     ByteOrder, ConsumptionInstant, ConventionalRecordSumOccurrenceLayoutReport,
     ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ConventionalSumArrayFieldLayoutReport, ConventionalSumCaseLayoutReport,
+    ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, DataSymbolId, EntryStubId, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MaterializationContext, PlacementConstraints,
     PlacementPhase, RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInteriorLayout,
@@ -350,6 +351,7 @@ fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
         ConventionalRecordSumPathsLayoutReport {
             outer_layout: record(1, &[("header", 0), ("middle", 8)], 72),
             child_sum_layouts: Vec::new(),
+            child_sum_array_layouts: Vec::new(),
             paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                 outer_field: "middle".into(),
                 outer_member_identity: None,
@@ -361,6 +363,7 @@ fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
                             member_identity: None,
                             layout: sum_layout(),
                         }],
+                        child_sum_array_layouts: Vec::new(),
                         paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                             outer_field: "inner".into(),
                             outer_member_identity: None,
@@ -371,6 +374,92 @@ fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
                                     member_identity: None,
                                     layout: sum_layout(),
                                 }],
+                                child_sum_array_layouts: Vec::new(),
+                            },
+                        }],
+                    },
+                ),
+            }],
+        },
+    )
+}
+
+/// The same recursive record/sum shape, but both direct sum-array kind now
+/// coexist beside the other child kinds: `middle`'s interior places `inner`
+/// at 0 (an 80-byte record), `tag` at 80, its own direct sum `route` at 88,
+/// and its own `batches` array (two elements at a 24-byte stride) spanning
+/// 112..160; `inner`'s interior places `choice` at 0, `choices` (two
+/// elements at a 24-byte stride) spanning 24..72, and `pad` at 72. Each
+/// level carries every child kind, so `middle.inner.choices[i].Run.<payload>`
+/// resolves the same indexed boundary the standalone sum-array rung spells,
+/// folded through the recursive report instead of a top-level-only carrier.
+fn recursive_sum_array_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
+    fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
+        LayoutPlanReport {
+            schema_report_fingerprint: fingerprint,
+            entries: fields
+                .iter()
+                .map(|&(field, offset)| LayoutFieldEntryReport {
+                    field: field.into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset },
+                })
+                .collect(),
+            offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
+            size: Some(size),
+            align: 8,
+        }
+    }
+    ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
+        ConventionalRecordSumPathsLayoutReport {
+            outer_layout: record(1, &[("header", 0), ("middle", 8)], 168),
+            child_sum_layouts: Vec::new(),
+            child_sum_array_layouts: Vec::new(),
+            paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
+                outer_field: "middle".into(),
+                outer_member_identity: None,
+                inner: ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
+                    ConventionalRecordSumPathsLayoutReport {
+                        outer_layout: record(
+                            2,
+                            &[("inner", 0), ("tag", 80), ("route", 88), ("batches", 112)],
+                            160,
+                        ),
+                        child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
+                            field: "route".into(),
+                            member_identity: None,
+                            layout: sum_layout(),
+                        }],
+                        child_sum_array_layouts: vec![ConventionalSumArrayFieldLayoutReport {
+                            field: "batches".into(),
+                            member_identity: None,
+                            element_count: 2,
+                            element_stride: 24,
+                            element_layout: sum_layout(),
+                        }],
+                        paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
+                            outer_field: "inner".into(),
+                            outer_member_identity: None,
+                            inner: ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+                                outer_layout: record(
+                                    3,
+                                    &[("choice", 0), ("choices", 24), ("pad", 72)],
+                                    80,
+                                ),
+                                child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
+                                    field: "choice".into(),
+                                    member_identity: None,
+                                    layout: sum_layout(),
+                                }],
+                                child_sum_array_layouts: vec![
+                                    ConventionalSumArrayFieldLayoutReport {
+                                        field: "choices".into(),
+                                        member_identity: None,
+                                        element_count: 2,
+                                        element_stride: 24,
+                                        element_layout: sum_layout(),
+                                    },
+                                ],
                             },
                         }],
                     },

@@ -55,7 +55,7 @@ fn hash_sum_array_occurrence(
     }
 }
 
-fn hash_compact_sum_array_occurrence(
+pub(crate) fn hash_compact_sum_array_occurrence(
     hash: &mut u64,
     array_layout: &ConventionalSumArrayFieldLayoutReport,
     elements: &[ValidatedConstRecordSumArrayElementSelection],

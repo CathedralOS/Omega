@@ -129,22 +129,31 @@ fn numbered_rename(report: &mut ConventionalRecursiveRecordSumPathsLayoutReport)
     for entry in &mut layout_mut(report).entries {
         entry.field = format!("renamed_{}", entry.field);
     }
-    match report {
+    let (sums, arrays) = match report {
         ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-            child_sum_layouts, ..
-        } => {
-            for child in child_sum_layouts {
-                child.field = format!("renamed_{}", child.field);
-            }
-        }
+            child_sum_layouts,
+            child_sum_array_layouts,
+            ..
+        } => (child_sum_layouts, child_sum_array_layouts),
         ConventionalRecursiveRecordSumPathsLayoutReport::Branch(branch) => {
-            for child in &mut branch.child_sum_layouts {
-                child.field = format!("renamed_{}", child.field);
-            }
             for path in &mut branch.paths {
                 path.outer_field = format!("renamed_{}", path.outer_field);
-                numbered_rename(&mut path.inner);
             }
+            (
+                &mut branch.child_sum_layouts,
+                &mut branch.child_sum_array_layouts,
+            )
+        }
+    };
+    for child in sums {
+        child.field = format!("renamed_{}", child.field);
+    }
+    for child in arrays {
+        child.field = format!("renamed_{}", child.field);
+    }
+    if let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(branch) = report {
+        for path in &mut branch.paths {
+            numbered_rename(&mut path.inner);
         }
     }
 }
@@ -167,7 +176,11 @@ fn recursive_source(depth: usize) -> String {
          data Direct [copy] {{ #1 inner: Layer{inner}; #2 choice: Choice; }}
          data Arrays [copy] {{ #1 inner: Layer{inner}; #2 choices: [Choice; 1]; }}
          data InnerDirect [copy] {{ #1 child: Direct; }}
-         data InnerArray [copy] {{ #1 child: Arrays; }}",
+         data InnerArray [copy] {{ #1 child: Arrays; }}
+         data RecordArrays [copy] {{ #1 inner: Layer{inner}; #2 neighbors: [Layer0; 1]; }}
+         data NestedChoiceArray [copy] {{ #1 inner: Layer{inner}; #2 matrix: [[Choice; 1]; 1]; }}
+         data ZeroChoices [copy] {{ #1 inner: Layer{inner}; #2 none: [Choice; 0]; }}
+         data InnerRecordArrays [copy] {{ #1 child: RecordArrays; }}",
         inner = depth - 1,
     ));
     source
@@ -438,7 +451,15 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
             ByteOrder::LittleEndian,
         )
         .unwrap();
-        for name in ["Arrays", "InnerArray"] {
+        // Arrays reaching sums through more than one literal element hop —
+        // record elements, nested arrays, zero-length elements, or the same
+        // shapes one record edge down — stay fenced at every depth.
+        for name in [
+            "RecordArrays",
+            "NestedChoiceArray",
+            "ZeroChoices",
+            "InnerRecordArrays",
+        ] {
             assert!(
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
                     &checked,
@@ -446,20 +467,28 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
                     definition(name).symbol,
                 )
                 .is_err(),
-                "{name} at depth {depth} must retain its sum-array semantic fence"
+                "{name} at depth {depth} must retain its unsupported-shape fence"
             );
         }
         // Former shallow/deep/singular-cohort fences are not semantic
-        // constraints, and direct sums coexisting with a deeper record path
-        // are admitted by the general recursive rule.
-        for name in ["Layer0", "Deeper", "Unequal", "Direct", "InnerDirect"] {
+        // constraints: direct sums, direct sum arrays, and nested record
+        // paths coexist at one level under the general recursive rule.
+        for name in [
+            "Layer0",
+            "Deeper",
+            "Unequal",
+            "Direct",
+            "InnerDirect",
+            "Arrays",
+            "InnerArray",
+        ] {
             let result =
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
                     &checked,
                     &plan,
                     definition(name).symbol,
                 );
-            if matches!(name, "Deeper" | "InnerDirect") && depth == 63 {
+            if matches!(name, "Deeper" | "InnerDirect" | "InnerArray") && depth == 63 {
                 assert!(
                     result.is_err(),
                     "one additional edge exceeds the resource limit"
@@ -889,4 +918,351 @@ fn recursive_scalar_siblings_preserve_exact_padding_and_bytes() {
     let mut short = [0x6b; 43];
     assert!(carrier.apply(&checked, &mut short).is_err());
     assert_eq!(short, [0x6b; 43]);
+}
+
+#[test]
+fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
+    // `PickLeaf` ends the recursion on an array row alone, `BothLeaf` keeps a
+    // direct sum beside it, `BothBranch` carries all three child kinds, and
+    // `InnerArray` reaches `Arrays` one record edge down. The same level rule
+    // admits every one of them.
+    let checked = checked(
+        &(recursive_source(2)
+            + "data PickLeaf [copy] { #1 picks: [Choice; 2]; #2 tail: u16; }
+               data BothLeaf [copy] { #1 choice: Choice; #2 picks: [Choice; 2]; }
+               data BothBranch [copy] { #1 inner: Layer1; #2 choice: Choice; #3 picks: [Choice; 2]; }"),
+    );
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let definition = |name: &str| {
+        checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == name)
+            .unwrap()
+    };
+    let number = |value| BuildTimeValue::Case {
+        variant: "Number".into(),
+        payload: vec![("value".into(), BuildTimeValue::Int(value))],
+    };
+    let empty = || BuildTimeValue::Case {
+        variant: "Empty".into(),
+        payload: Vec::new(),
+    };
+
+    // Leaf level: one compact array row, no direct sum, no record path.
+    let pick_paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        definition("PickLeaf").symbol,
+    )
+    .expect("a leaf level carrying a direct sum array projects");
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        outer_layout,
+        child_sum_layouts,
+        child_sum_array_layouts,
+    } = &pick_paths
+    else {
+        panic!("a record ending on a direct sum array is a leaf level");
+    };
+    assert!(child_sum_layouts.is_empty());
+    assert_eq!(
+        child_sum_array_layouts
+            .iter()
+            .map(|row| (
+                row.field.as_str(),
+                row.member_identity,
+                row.element_count,
+                row.element_stride
+            ))
+            .collect::<Vec<_>>(),
+        [("picks", Some(1), 2, 8)]
+    );
+    assert_eq!(outer_layout.offsets.as_deref(), Some(&[0, 16][..]));
+    let pick_value = BuildTimeValue::Struct {
+        type_name: "PickLeaf".into(),
+        fields: vec![
+            (
+                "picks".into(),
+                BuildTimeValue::Array(vec![number(0x1122), empty()]),
+            ),
+            ("tail".into(), BuildTimeValue::Int(0x3344)),
+        ],
+    };
+    let carrier = validate_const_materializable_record_with_recursive_nested_sums(
+        &checked,
+        "PickLeaf",
+        &pick_paths,
+        &pick_value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("the leaf's array row rejoins value custody");
+    let ValidatedConstRecordWithRecursiveNestedSumsMaterialization::Leaf(leaf) = &carrier else {
+        panic!("the leaf level retains leaf custody");
+    };
+    assert!(leaf.nested_sums().is_empty());
+    assert_eq!(leaf.nested_sum_arrays().len(), 1);
+    let picks = &leaf.nested_sum_arrays()[0];
+    assert_eq!(picks.field(), "picks");
+    assert_eq!(picks.field_identity(), Some(1));
+    assert_eq!(picks.elements().len(), 2);
+    assert_eq!(picks.elements()[0].literal_index(), 0);
+    assert_eq!(picks.elements()[0].selected_case_ordinal(), 1);
+    assert_eq!(picks.elements()[1].literal_index(), 1);
+    assert_eq!(picks.elements()[1].selected_case_ordinal(), 0);
+    assert_eq!(
+        carrier.bytes(),
+        &[
+            1, 0, 0, 0, 0x22, 0x11, 0, 0, // picks[0] = Number(0x1122)
+            0, 0, 0, 0, 0, 0, 0, 0, // picks[1] = Empty
+            0x44, 0x33, 0, 0, // tail
+        ]
+    );
+    // The leaf level's own `apply` replays its retained array rows before the
+    // one atomic copy.
+    let mut leaf_destination = [0x5a; 24];
+    carrier.apply(&checked, &mut leaf_destination).unwrap();
+    assert_eq!(&leaf_destination[..20], carrier.bytes());
+    assert_eq!(&leaf_destination[20..], &[0x5a; 4]);
+    let mut leaf_short = [0x6b; 19];
+    assert!(carrier.apply(&checked, &mut leaf_short).is_err());
+    assert_eq!(leaf_short, [0x6b; 19]);
+
+    // Leaf level: a direct sum and a direct sum array coexist.
+    let both_leaf_paths =
+        project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            definition("BothLeaf").symbol,
+        )
+        .expect("a leaf level carries a direct sum beside its sum array");
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        child_sum_layouts: both_leaf_sums,
+        child_sum_array_layouts: both_leaf_arrays,
+        ..
+    } = &both_leaf_paths
+    else {
+        panic!("the coexisting leaf stays a leaf level");
+    };
+    assert_eq!(
+        both_leaf_sums
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        [("choice", Some(1))]
+    );
+    assert_eq!(
+        both_leaf_arrays
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        [("picks", Some(2))]
+    );
+
+    // Branch level: the deeper record path, the level's own direct sum, and
+    // its sum array all retain authored-order rows on one report.
+    let both_paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        definition("BothBranch").symbol,
+    )
+    .expect("a branch level carries all three child kinds");
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(both_root) = &both_paths else {
+        panic!("the coexisting record projects as a recursive branch");
+    };
+    assert_eq!(both_root.paths.len(), 1);
+    assert_eq!(both_root.paths[0].outer_field, "inner");
+    assert_eq!(both_root.paths[0].outer_member_identity, Some(1));
+    assert_eq!(
+        both_root
+            .child_sum_layouts
+            .iter()
+            .map(|row| (row.field.as_str(), row.member_identity))
+            .collect::<Vec<_>>(),
+        [("choice", Some(2))]
+    );
+    assert_eq!(
+        both_root
+            .child_sum_array_layouts
+            .iter()
+            .map(|row| (
+                row.field.as_str(),
+                row.member_identity,
+                row.element_count,
+                row.element_stride
+            ))
+            .collect::<Vec<_>>(),
+        [("picks", Some(3), 2, 8)]
+    );
+    assert_eq!(
+        both_paths.outer_layout().offsets.as_deref(),
+        Some(&[0, 16, 24][..])
+    );
+    let both_value = BuildTimeValue::Struct {
+        type_name: "BothBranch".into(),
+        fields: vec![
+            ("inner".into(), recursive_value(2, Some(0x5566))),
+            ("choice".into(), number(0x7788)),
+            (
+                "picks".into(),
+                BuildTimeValue::Array(vec![empty(), number(0x1122)]),
+            ),
+        ],
+    };
+    let carrier = validate_const_materializable_record_with_recursive_nested_sums(
+        &checked,
+        "BothBranch",
+        &both_paths,
+        &both_value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("the branch level's three child kinds rejoin value custody");
+    let ValidatedConstRecordWithRecursiveNestedSumsMaterialization::Branch(branch) = &carrier
+    else {
+        panic!("the coexisting record retains branch custody");
+    };
+    assert_eq!(branch.occurrences().len(), 1);
+    assert_eq!(branch.nested_sums().len(), 1);
+    assert_eq!(branch.nested_sums()[0].field(), "choice");
+    assert_eq!(branch.nested_sum_arrays().len(), 1);
+    assert_eq!(branch.nested_sum_arrays()[0].field(), "picks");
+    assert_eq!(branch.nested_sum_arrays()[0].elements().len(), 2);
+    assert_eq!(
+        carrier.bytes(),
+        &[
+            0, 0, 0, 0, 0, 0, 0, 0, // inner.child.first = Empty
+            1, 0, 0, 0, 0x66, 0x55, 0, 0, // inner.child.second = Number(0x5566)
+            1, 0, 0, 0, 0x88, 0x77, 0, 0, // choice = Number(0x7788)
+            0, 0, 0, 0, 0, 0, 0, 0, // picks[0] = Empty
+            1, 0, 0, 0, 0x22, 0x11, 0, 0, // picks[1] = Number(0x1122)
+        ]
+    );
+    let mut destination = [0x5a; 44];
+    carrier.apply(&checked, &mut destination).unwrap();
+    assert_eq!(&destination[..40], carrier.bytes());
+    assert_eq!(&destination[40..], &[0x5a; 4]);
+
+    // `Arrays` reaches a direct sum array one record edge above its deeper
+    // path, and `InnerArray` reaches `Arrays` one edge further down.
+    let arrays_paths =
+        project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            definition("Arrays").symbol,
+        )
+        .expect("the former top-level-only array shape projects as a branch row");
+    let ConventionalRecursiveRecordSumPathsLayoutReport::Branch(arrays_root) = &arrays_paths else {
+        panic!("a record path beside a direct sum array is a branch level");
+    };
+    assert_eq!(arrays_root.paths.len(), 1);
+    assert!(arrays_root.child_sum_layouts.is_empty());
+    assert_eq!(arrays_root.child_sum_array_layouts.len(), 1);
+    assert_eq!(arrays_root.child_sum_array_layouts[0].field, "choices");
+    let arrays_value = BuildTimeValue::Struct {
+        type_name: "Arrays".into(),
+        fields: vec![
+            ("inner".into(), recursive_value(2, Some(0x3344))),
+            (
+                "choices".into(),
+                BuildTimeValue::Array(vec![number(0x1122)]),
+            ),
+        ],
+    };
+    let arrays_carrier = validate_const_materializable_record_with_recursive_nested_sums(
+        &checked,
+        "Arrays",
+        &arrays_paths,
+        &arrays_value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("the nested sum array retains custody at the branch level");
+    assert_eq!(
+        arrays_carrier.bytes(),
+        &[
+            0, 0, 0, 0, 0, 0, 0, 0, // inner.child.first = Empty
+            1, 0, 0, 0, 0x44, 0x33, 0, 0, // inner.child.second = Number(0x3344)
+            1, 0, 0, 0, 0x22, 0x11, 0, 0, // choices[0] = Number(0x1122)
+        ]
+    );
+    let inner_paths =
+        project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            definition("InnerArray").symbol,
+        )
+        .expect("a record reaching a sum array one edge down projects recursively");
+    let inner_value = BuildTimeValue::Struct {
+        type_name: "InnerArray".into(),
+        fields: vec![("child".into(), arrays_value.clone())],
+    };
+    let inner_carrier = validate_const_materializable_record_with_recursive_nested_sums(
+        &checked,
+        "InnerArray",
+        &inner_paths,
+        &inner_value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("the nested sum-array level retains custody");
+    assert_eq!(inner_carrier.bytes(), arrays_carrier.bytes());
+
+    // Drift on a retained array row rejects on replay and on fresh
+    // validation, exactly like the direct-sum and path rows.
+    let rejects = |mutated: &ConventionalRecursiveRecordSumPathsLayoutReport| {
+        assert!(
+            carrier
+                .replay_against(
+                    &checked,
+                    "BothBranch",
+                    mutated,
+                    &both_value,
+                    ByteOrder::LittleEndian
+                )
+                .is_err(),
+            "mutated array report must reject"
+        );
+        assert!(
+            validate_const_materializable_record_with_recursive_nested_sums(
+                &checked,
+                "BothBranch",
+                mutated,
+                &both_value,
+                ByteOrder::LittleEndian,
+            )
+            .is_err(),
+            "mutated array report must not revalidate"
+        );
+    };
+    for mutation in 0..6 {
+        let mut changed = both_paths.clone();
+        let branch = branch_mut(&mut changed);
+        match mutation {
+            0 => {
+                branch.child_sum_array_layouts.pop();
+            }
+            1 => branch
+                .child_sum_array_layouts
+                .push(branch.child_sum_array_layouts[0].clone()),
+            2 => branch.child_sum_array_layouts[0].member_identity = Some(99),
+            3 => {
+                branch.child_sum_array_layouts[0].field = "not_a_field".into();
+                branch.child_sum_array_layouts[0].member_identity = None;
+            }
+            4 => branch.child_sum_array_layouts[0].element_count = 3,
+            5 => branch.child_sum_array_layouts[0].element_stride += 8,
+            _ => unreachable!(),
+        }
+        rejects(&changed);
+    }
+
+    // Numbered member spelling stays presentation-only on the array row too.
+    let mut renamed = both_paths.clone();
+    numbered_rename(&mut renamed);
+    carrier
+        .replay_against(
+            &checked,
+            "BothBranch",
+            &renamed,
+            &both_value,
+            ByteOrder::LittleEndian,
+        )
+        .expect("numbered member spelling is presentation-only on array rows");
 }
