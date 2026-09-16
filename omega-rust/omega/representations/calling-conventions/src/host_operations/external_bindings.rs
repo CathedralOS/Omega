@@ -26,12 +26,10 @@ pub enum ExternalBindingKind {
     Syscall {
         number: i64,
     },
+    /// One evaluated, target-normalized foreign locator. Raw foreign bytes are
+    /// data; a string pair authored in source never reaches this row.
     Import {
         locator: NormalizedForeignLocator,
-    },
-    StringBackedImportBootstrap {
-        module: String,
-        symbol: String,
     },
     /// Select an existing compiler-known platform lowering. The retained
     /// string is the exact normalized realization-machine overload identity.
