@@ -16,8 +16,8 @@ use proof_admission::{
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::affine_custody::{self, DefinitionIndex};
-use super::super::integer_evidence::{ProjectedFact, projected_facts};
-use super::bound;
+use super::super::integer_evidence::projected_facts;
+use super::{bound, exact};
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -35,6 +35,122 @@ pub(super) fn prove(
     proof
 }
 
+/// One order bound standing on a value term: either cited on the value itself
+/// or transported there through a cited equality. A guard fact can name a
+/// storage observation (`self.counter < 3`) while the definition chain roots
+/// at the stored value; the checked endpoint substitution keeps the bound
+/// exact instead of inventing a second citation.
+pub(super) struct RootedBound {
+    /// The bound proposition restated on `root`.
+    pub(super) proposition: Proposition,
+    pub(super) proof: ProofNode,
+    pub(super) root: ScalarTerm,
+}
+
+pub(super) fn rooted_bounds(
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<RootedBound> {
+    let mut bounds = Vec::new();
+    for fact in projected_facts(assumptions, semantic_axioms) {
+        let (fact_left, fact_right) = match fact.proposition {
+            Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => {
+                (left, right)
+            }
+            _ => continue,
+        };
+        for (endpoint, position) in [(fact_left, 0usize), (fact_right, 1)] {
+            if matches!(
+                endpoint,
+                ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
+            ) {
+                continue;
+            }
+            for (root, equality) in value_aliases(endpoint, assumptions, semantic_axioms) {
+                let (proposition, proof) = if root == *endpoint {
+                    (fact.proposition.clone(), fact.proof())
+                } else {
+                    let (left, right) = if position == 0 {
+                        (root.clone(), fact_right.clone())
+                    } else {
+                        (fact_left.clone(), root.clone())
+                    };
+                    let proposition = match fact.proposition {
+                        Proposition::LessThan(..) => Proposition::LessThan(left, right),
+                        _ => Proposition::LessOrEqual(left, right),
+                    };
+                    (
+                        proposition.clone(),
+                        ProofNode {
+                            conclusion: proposition,
+                            rule: ProofRule::IntegerOrderSubstitution {
+                                relation: Box::new(fact.proof()),
+                                equality: Box::new(equality),
+                                endpoint: position,
+                            },
+                        },
+                    )
+                };
+                bounds.push(RootedBound {
+                    proposition,
+                    proof,
+                    root,
+                });
+            }
+        }
+    }
+    bounds
+}
+
+/// The value terms one endpoint can stand on through cited equalities: itself
+/// when it already is a value, plus every cited `endpoint == value` or
+/// `value == endpoint` partner. Each alias carries the equality certificate the
+/// endpoint substitution must cite.
+fn value_aliases(
+    endpoint: &ScalarTerm,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<(ScalarTerm, ProofNode)> {
+    let mut aliases = Vec::new();
+    for fact in projected_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(left, right) = fact.proposition else {
+            continue;
+        };
+        let alias = if left == endpoint {
+            right
+        } else if right == endpoint {
+            left
+        } else {
+            continue;
+        };
+        if !matches!(alias, ScalarTerm::Value { .. })
+            || aliases.iter().any(|(root, _)| root == alias)
+        {
+            continue;
+        }
+        let Some(equality) = exact::prove(
+            &Proposition::Equal(endpoint.clone(), alias.clone()),
+            assumptions,
+            semantic_axioms,
+        ) else {
+            continue;
+        };
+        aliases.push((alias.clone(), equality));
+    }
+    if matches!(endpoint, ScalarTerm::Value { .. })
+        && !aliases.iter().any(|(root, _)| root == endpoint)
+    {
+        aliases.push((
+            endpoint.clone(),
+            ProofNode {
+                conclusion: Proposition::Equal(endpoint.clone(), endpoint.clone()),
+                rule: ProofRule::Primitive(proof_admission::PrimitiveJudgment::ReflexiveEquality),
+            },
+        ));
+    }
+    aliases
+}
+
 fn prove_uncached(
     context: &PropositionContext,
     goal: &Proposition,
@@ -46,42 +162,30 @@ fn prove_uncached(
         Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
         _ => return None,
     };
-    for fact in projected_facts(assumptions, semantic_axioms) {
-        let (fact_left, fact_right) = match fact.proposition {
-            Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => {
-                (left, right)
-            }
-            _ => continue,
-        };
-        for root in [fact_left, fact_right] {
-            if !matches!(root, ScalarTerm::Value { .. }) {
+    for bound in rooted_bounds(assumptions, semantic_axioms) {
+        for target in [goal_left, goal_right] {
+            if bound.root == *target || !matches!(target, ScalarTerm::Value { .. }) {
                 continue;
             }
-            for target in [goal_left, goal_right] {
-                if root == target || !matches!(target, ScalarTerm::Value { .. }) {
-                    continue;
-                }
-                let words = affine_custody::definition_words_to_target(
+            let words = affine_custody::definition_words_to_target(
+                context,
+                semantic_axioms,
+                definitions,
+                &bound.root,
+                target,
+            );
+            for word in words.iter() {
+                if let Some(proof) = prove_word(
                     context,
+                    goal,
+                    assumptions,
                     semantic_axioms,
                     definitions,
-                    root,
+                    &bound,
                     target,
-                );
-                for word in words.iter() {
-                    if let Some(proof) = prove_word(
-                        context,
-                        goal,
-                        assumptions,
-                        semantic_axioms,
-                        definitions,
-                        &fact,
-                        root,
-                        target,
-                        word,
-                    ) {
-                        return Some(proof);
-                    }
+                    word,
+                ) {
+                    return Some(proof);
                 }
             }
         }
@@ -96,8 +200,38 @@ fn prove_word(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
-    fact: &ProjectedFact<'_>,
-    root: &ScalarTerm,
+    bound: &RootedBound,
+    target: &ScalarTerm,
+    definition_axioms: &[usize],
+) -> Option<ProofNode> {
+    let proof = map_word(
+        context,
+        assumptions,
+        semantic_axioms,
+        definitions,
+        bound,
+        target,
+        definition_axioms,
+    )?;
+    if proof.conclusion != *goal {
+        return None;
+    }
+    check_certificate(context, goal, assumptions, semantic_axioms, &proof)
+        .is_ok()
+        .then_some(proof)
+}
+
+/// Map `bound` through `definition_axioms` to `target`, returning the
+/// transport proof whose conclusion is the mapped relation. The goal check
+/// stays with the caller so contradiction search can reuse one mapped bound
+/// that no `prove` goal names.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn map_word(
+    context: &PropositionContext,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    bound: &RootedBound,
     target: &ScalarTerm,
     definition_axioms: &[usize],
 ) -> Option<ProofNode> {
@@ -105,26 +239,26 @@ fn prove_word(
         context,
         semantic_axioms,
         definitions,
-        root,
+        &bound.root,
         definition_axioms,
         target,
     )?;
     let witness = IntegerAffineWitness {
-        root: root.clone(),
+        root: bound.root.clone(),
         target: target.clone(),
         literal_axioms,
         definition_axioms: definition_axioms.to_vec(),
     };
     let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
-    let evidence = integer_affine_wrapping_evidence(&form, fact.proposition).ok()?;
-    if evidence.is_empty() && !matches!(fact.proposition, Proposition::LessThan(_, _)) {
+    let evidence = integer_affine_wrapping_evidence(&form, &bound.proposition).ok()?;
+    if evidence.is_empty() && !matches!(bound.proposition, Proposition::LessThan(_, _)) {
         // A bare non-strict relation is already the ordinary affine path's
         // root bound. This leg exists for strict roots and for the wrapping
         // evidence conjunction the ordinary path cannot construct.
         return None;
     }
     let mut children = Vec::with_capacity(evidence.len() + 1);
-    children.push(fact.proof());
+    children.push(bound.proof.clone());
     for required in &evidence {
         children.push(bound::prove_candidate_endpoint(
             context,
@@ -150,17 +284,11 @@ fn prove_word(
         }
     };
     let mapped = map_integer_affine_bound(&form, &root_bound.conclusion).ok()?;
-    if mapped != *goal {
-        return None;
-    }
-    let proof = ProofNode {
-        conclusion: goal.clone(),
+    Some(ProofNode {
+        conclusion: mapped,
         rule: ProofRule::IntegerAffineBound {
             root_bound: Box::new(root_bound),
             witness,
         },
-    };
-    check_certificate(context, goal, assumptions, semantic_axioms, &proof)
-        .is_ok()
-        .then_some(proof)
+    })
 }
