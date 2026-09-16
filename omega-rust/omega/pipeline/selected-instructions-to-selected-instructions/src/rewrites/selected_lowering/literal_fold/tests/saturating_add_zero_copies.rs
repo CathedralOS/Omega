@@ -1,14 +1,14 @@
 use super::{
     BlockZeroTerminator, assert_budget_is_enforced, assert_deterministic_fixed_point, fold_with,
-    policy_without, restage_literal, staged_saturating_add_inputs, staged_wrapping_add_inputs,
-    staged_xor_inputs, validate,
+    policy_without, restage_literal, staged_saturating_add_carrier_inputs,
+    staged_saturating_add_inputs, staged_wrapping_add_inputs, staged_xor_inputs, validate,
 };
 use crate::RecoveryClassification;
 use crate::{LiteralFoldError, LiteralFoldPolicy, validated_machine_effect_catalog};
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    MachineEffectCatalogIdentity, SelectedInstruction, SelectedInstructionId,
+    MachineEffectCatalogIdentity, SaturatingCarrier, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlanIdentity, SelectedOperand, SelectedTerminator,
     VirtualRegisterId,
 };
@@ -28,6 +28,21 @@ fn positive_fixtures() -> [(NativeTarget, BlockZeroTerminator); 3] {
         ),
         (NativeTarget::linux_x64(), BlockZeroTerminator::Jump),
         (NativeTarget::linux_arm64(), BlockZeroTerminator::Jump),
+    ]
+}
+
+/// Every carrier but u64 binds the clamped saturating-add row — two `Use`
+/// operands, an early-clobber `Def` result, and a bound scratch `Def` at
+/// operand 3 the fold drops under occurrence-free custody.
+fn clamped_carriers() -> [SaturatingCarrier; 7] {
+    [
+        SaturatingCarrier::I8,
+        SaturatingCarrier::I16,
+        SaturatingCarrier::I32,
+        SaturatingCarrier::I64,
+        SaturatingCarrier::U8,
+        SaturatingCarrier::U16,
+        SaturatingCarrier::U32,
     ]
 }
 
@@ -145,48 +160,142 @@ fn saturating_add_zero_fold_rewrites_the_consumer_to_a_surviving_operand_copy() 
 }
 
 #[test]
+fn saturating_add_zero_fold_rewrites_every_clamped_carrier_consumer() {
+    for (target, block0) in positive_fixtures() {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let effect_catalog =
+            validated_machine_effect_catalog(environment.target(), environment.constraints())
+                .unwrap();
+        // The clamped row continues past the `Def` result with the bound
+        // scratch `Def` the realization computes its saturation bound
+        // through — operand 3, early-clobber on both targets — and its
+        // unit surface is the family's own: aarch64 defines `nzcv`,
+        // x86-64 clobbers `rflags`, and neither declares an implicit use.
+        let consumer_row = environment.constraint(keys.saturating_add_clamped).unwrap();
+        assert_eq!(consumer_row.operands.len(), 4);
+        assert_eq!(consumer_row.operands[3].access, RegisterOperandAccess::Def);
+        assert!(consumer_row.operands[2].early_clobber);
+        assert!(consumer_row.operands[3].early_clobber);
+        assert!(consumer_row.implicit_uses.is_empty());
+        if target == NativeTarget::linux_x64() {
+            assert!(consumer_row.implicit_defs.is_empty());
+            assert_eq!(consumer_row.clobbers.len(), 1);
+        } else {
+            assert_eq!(consumer_row.implicit_defs.len(), 1);
+            assert!(consumer_row.clobbers.is_empty());
+        }
+        for carrier in clamped_carriers() {
+            for literal_operand in [0u16, 1u16] {
+                let inputs =
+                    staged_saturating_add_carrier_inputs(target, carrier, literal_operand, block0);
+                let result = fold_with(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+                )
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "saturating-add-zero fold on {carrier:?} with the literal at operand \
+                         {literal_operand} on {target:?} should validate: {error:?}"
+                    )
+                });
+
+                assert_eq!(
+                    result.plan().machine_effect_catalog,
+                    effect_catalog.identity()
+                );
+                assert_eq!(result.receipt().applied_count(), 1);
+                let action = result.plan().functions[0].action.unwrap();
+                assert_eq!(action.result, Some(VirtualRegisterId(2)));
+                assert_eq!(action.immediate, 0);
+                assert_eq!(action.surviving, VirtualRegisterId(0));
+                assert_eq!(action.victim, VirtualRegisterId(1));
+                assert_eq!(action.literal_instruction, SelectedInstructionId(0));
+                assert_eq!(action.consumer_instruction, SelectedInstructionId(1));
+                assert_eq!(action.immediate_constraint, keys.copy_i64);
+
+                let function = &result.transformed().functions[0];
+                // The fold removes only the zero literal and its register:
+                // the surviving operand, the result, and the dropped
+                // scratch output stay declared, redensified past the
+                // removed victim — the scratch entry carries no operand
+                // occurrence past the rewrite.
+                assert_eq!(function.virtual_registers.len(), 3);
+                let instructions = &function.blocks[0].instructions;
+                assert_eq!(instructions.len(), 1);
+                let rewritten = &instructions[0];
+                assert_eq!(rewritten.id, SelectedInstructionId(0));
+                assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+                assert_eq!(rewritten.constraint, keys.copy_i64);
+                // The rebuilt operand list binds only the surviving `Use`
+                // and the result `Def` — the clamped row's bound scratch
+                // is gone with its early-clobber mark, and so is every
+                // unit effect the saturating form carried.
+                assert_eq!(rewritten.operands.len(), 2);
+                assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(0));
+                assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
+                assert_eq!(rewritten.operands[1].virtual_register, VirtualRegisterId(1));
+                assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Def);
+                assert!(!rewritten.operands[1].early_clobber);
+                assert!(rewritten.implicit_uses.is_empty());
+                assert!(rewritten.implicit_defs.is_empty());
+                assert!(rewritten.clobbers.is_empty());
+                assert_eq!(rewritten.provenance.operations.len(), 2);
+                assert!(rewritten.provenance.obligations.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
 fn saturating_add_zero_fold_rejects_while_a_terminator_reads_the_defined_unit() {
     // On aarch64 the conditional branch implicitly uses `nzcv`, the very
-    // unit the saturating add defines: retiring the definition would leave
-    // the branch observing stale flags, so the dead-definitions gate — the
-    // producer's `admits_dead_consumer_defs` and the replay's independent
-    // `dropped_unit_defs_dead` — refuses the fold on both paths. x86-64
-    // keeps folding under the same terminator because `rflags` is only a
-    // clobber there: removing a clobber narrows destruction and no reader
-    // can go stale.
+    // unit the saturating add defines on every carrier: retiring the
+    // definition would leave the branch observing stale flags, so the
+    // dead-definitions gate — the producer's `admits_dead_consumer_defs`
+    // and the replay's independent `dropped_unit_defs_dead` — refuses the
+    // fold on both paths. x86-64 keeps folding under the same terminator
+    // because `rflags` is only a clobber there: removing a clobber narrows
+    // destruction and no reader can go stale.
     let target = NativeTarget::linux_arm64();
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.allocation_constraint_keys();
     let branch = environment.constraint(keys.conditional_branch).unwrap();
-    assert!(
-        branch.implicit_uses.iter().any(|unit| environment
-            .constraint(keys.saturating_add_u64)
-            .unwrap()
-            .implicit_defs
-            .contains(unit)),
-        "the aarch64 branch reads the unit the saturating add defines"
-    );
-    for literal_operand in [0u16, 1u16] {
-        let inputs = staged_saturating_add_inputs(
-            target,
-            literal_operand,
-            BlockZeroTerminator::ConditionalBranch,
+    for key in [keys.saturating_add_u64, keys.saturating_add_clamped] {
+        assert!(
+            branch.implicit_uses.iter().any(|unit| environment
+                .constraint(key)
+                .unwrap()
+                .implicit_defs
+                .contains(unit)),
+            "the aarch64 branch reads the unit each saturating-add row defines"
         );
-        assert_eq!(
-            fold_with(
-                &inputs,
-                &environment,
-                LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
-            )
-            .map(|_| ()),
-            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-            "literal at operand {literal_operand} with a live nzcv reader"
-        );
-        assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-            "literal at operand {literal_operand} with a live nzcv reader, replay"
-        );
+    }
+    for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
+        for literal_operand in [0u16, 1u16] {
+            let inputs = staged_saturating_add_carrier_inputs(
+                target,
+                carrier,
+                literal_operand,
+                BlockZeroTerminator::ConditionalBranch,
+            );
+            assert_eq!(
+                fold_with(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
+                )
+                .map(|_| ()),
+                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
+                "{carrier:?} literal at operand {literal_operand} with a live nzcv reader"
+            );
+            assert_eq!(
+                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
+                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
+                "{carrier:?} literal at operand {literal_operand} with a live nzcv reader, replay"
+            );
+        }
     }
 }
 
@@ -487,55 +596,64 @@ fn saturating_add_zero_fold_rejects_tied_consumer_operands_but_keeps_the_marks_i
     // `BoundEarlyClobberConsumerOperands` admits `fixed_view` pins and
     // `early_clobber` marks — the bindings constrain only the dropped
     // operand list — while `tied_to` still rejects: a tied register would
-    // be a co-allocation the rewrite silently dissolves.
-    for literal_operand in [0u16, 1u16] {
-        let surviving_position = usize::from(1 - literal_operand);
-        for mutation in 0..3 {
-            let mut inputs =
-                staged_saturating_add_inputs(target, literal_operand, BlockZeroTerminator::Jump);
-            let mut plan = inputs.selected.transformed().clone();
-            let operand =
-                &mut plan.functions[0].blocks[0].instructions[1].operands[surviving_position];
-            match mutation {
-                0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
-                1 => operand.tied_to = Some(0),
-                _ => operand.early_clobber = true,
-            }
-            let mut selected = inputs.selected.clone();
-            selected.transformed = Arc::new(plan);
-            inputs.selected = selected;
+    // be a co-allocation the rewrite silently dissolves. The clamped row
+    // already marks both `Def`s early-clobber; the same gate applies on
+    // its surviving `Use`.
+    for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
+        for literal_operand in [0u16, 1u16] {
+            let surviving_position = usize::from(1 - literal_operand);
+            for mutation in 0..3 {
+                let mut inputs = staged_saturating_add_carrier_inputs(
+                    target,
+                    carrier,
+                    literal_operand,
+                    BlockZeroTerminator::Jump,
+                );
+                let mut plan = inputs.selected.transformed().clone();
+                let operand =
+                    &mut plan.functions[0].blocks[0].instructions[1].operands[surviving_position];
+                match mutation {
+                    0 => operand.fixed_view = Some(register_model::RegisterViewId(0)),
+                    1 => operand.tied_to = Some(0),
+                    _ => operand.early_clobber = true,
+                }
+                let mut selected = inputs.selected.clone();
+                selected.transformed = Arc::new(plan);
+                inputs.selected = selected;
 
-            if mutation == 1 {
-                assert_eq!(
-                    fold_with(
+                if mutation == 1 {
+                    assert_eq!(
+                        fold_with(
+                            &inputs,
+                            &environment,
+                            LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
+                        )
+                        .map(|_| ()),
+                        Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+                        "{carrier:?} literal at operand {literal_operand} tied surviving operand"
+                    );
+                    assert_eq!(
+                        validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
+                        Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+                        "{carrier:?} literal at operand {literal_operand} tied surviving \
+                         operand, replay"
+                    );
+                } else {
+                    let result = fold_with(
                         &inputs,
                         &environment,
-                        LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
+                        LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
                     )
-                    .map(|_| ()),
-                    Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                    "literal at operand {literal_operand} tied surviving operand"
-                );
-                assert_eq!(
-                    validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                    Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                    "literal at operand {literal_operand} tied surviving operand, replay"
-                );
-            } else {
-                let result = fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
-                )
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "literal at operand {literal_operand} mutation {mutation} is admitted: \
-                         {error:?}"
-                    )
-                });
-                assert_eq!(result.receipt().applied_count(), 1);
-                validate(&inputs, &environment, result.plan().clone())
-                    .expect("the admitted fold replays");
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "{carrier:?} literal at operand {literal_operand} mutation \
+                             {mutation} is admitted: {error:?}"
+                        )
+                    });
+                    assert_eq!(result.receipt().applied_count(), 1);
+                    validate(&inputs, &environment, result.plan().clone())
+                        .expect("the admitted fold replays");
+                }
             }
         }
     }
@@ -587,18 +705,52 @@ fn saturating_add_zero_fold_rejects_consumers_the_selection_does_not_enable() {
 }
 
 #[test]
-fn saturating_add_zero_fold_rejects_a_non_u64_carrier() {
+fn saturating_add_zero_fold_rejects_a_carrier_kind_against_another_row() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // The identity holds for the three-operand u64 carry-select form. The
-    // narrower carriers bind the clamped row — an early-clobber bound
-    // scratch at operand 3 no admitted grammar covers — so the descriptor
-    // admits only `SaturatingCarrier::U64` and a consumer kind naming
-    // another carrier mismatches before its operands are read.
+    // Each carrier's kind admits only the operand grammar its own row
+    // declares. A record whose kind names a clamped carrier but carries
+    // the u64 row's three operands passes the scratch-defs grammar's
+    // empty tail — then fails the independently re-derived effect
+    // declaration, which binds no `SaturatingAdd(I32)` form under the
+    // u64 constraint key.
     let mut inputs = staged_saturating_add_inputs(target, 1, BlockZeroTerminator::Jump);
     let mut plan = inputs.selected.transformed().clone();
     plan.functions[0].blocks[0].instructions[1].kind = SelectedInstructionKind::SaturatingAdd {
-        carrier: selected_instructions::SaturatingCarrier::I32,
+        carrier: SaturatingCarrier::I32,
+    };
+    let mut selected = inputs.selected.clone();
+    selected.transformed = Arc::new(plan);
+    inputs.selected = selected;
+
+    assert_eq!(
+        fold_with(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
+        )
+        .map(|_| ()),
+        Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 })
+    );
+    assert_eq!(
+        validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
+        Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 })
+    );
+
+    // The converse direction: a record whose kind names the u64 carrier
+    // but carries the clamped row's bound scratch `Def` fails the exact
+    // three-operand grammar both sides derive for `SaturatingAdd(U64)`
+    // — the descriptor's scratch-defs grammar belongs to the clamped
+    // carriers alone.
+    let mut inputs = staged_saturating_add_carrier_inputs(
+        target,
+        SaturatingCarrier::I32,
+        1,
+        BlockZeroTerminator::Jump,
+    );
+    let mut plan = inputs.selected.transformed().clone();
+    plan.functions[0].blocks[0].instructions[1].kind = SelectedInstructionKind::SaturatingAdd {
+        carrier: SaturatingCarrier::U64,
     };
     let mut selected = inputs.selected.clone();
     selected.transformed = Arc::new(plan);
@@ -620,63 +772,207 @@ fn saturating_add_zero_fold_rejects_a_non_u64_carrier() {
 }
 
 #[test]
+fn saturating_add_zero_fold_rejects_a_clamped_consumer_whose_scratch_is_not_custodied() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The scratch-defs grammar drops the bound scratch `Def` under
+    // occurrence-free custody: the operand list must keep it a `Def`,
+    // and its register must occur nowhere else in the function. A `Use`
+    // at the tail position has no droppable role; a tail `Def` naming a
+    // register another operand position already carries — here the
+    // surviving `Use`'s register — leaves a surviving read of a
+    // definition the rewrite would stop making.
+    for literal_operand in [0u16, 1u16] {
+        for mutation in 0..2 {
+            let mut inputs = staged_saturating_add_carrier_inputs(
+                target,
+                SaturatingCarrier::I32,
+                literal_operand,
+                BlockZeroTerminator::Jump,
+            );
+            let mut plan = inputs.selected.transformed().clone();
+            let consumer = &mut plan.functions[0].blocks[0].instructions[1];
+            match mutation {
+                0 => consumer.operands[3].access = RegisterOperandAccess::Use,
+                _ => consumer.operands[3].virtual_register = VirtualRegisterId(0),
+            }
+            let mut selected = inputs.selected.clone();
+            selected.transformed = Arc::new(plan);
+            inputs.selected = selected;
+            assert_eq!(
+                fold_with(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
+                )
+                .map(|_| ()),
+                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+                "literal at operand {literal_operand} mutation {mutation}"
+            );
+            assert_eq!(
+                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
+                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+                "literal at operand {literal_operand} mutation {mutation} replay"
+            );
+        }
+    }
+}
+
+#[test]
+fn saturating_add_zero_fold_rejects_a_clamped_consumer_whose_scratch_is_read_elsewhere() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.allocation_constraint_keys();
+    // The custody gate is whole-function: a block-1 `CopyI64` reading the
+    // bound scratch register keeps a surviving use of a definition the
+    // rewrite would stop making, so the fold refuses on both paths.
+    let copy = environment.constraint(keys.copy_i64).unwrap();
+    for literal_operand in [0u16, 1u16] {
+        let mut inputs = staged_saturating_add_carrier_inputs(
+            target,
+            SaturatingCarrier::I32,
+            literal_operand,
+            BlockZeroTerminator::Jump,
+        );
+        let mut plan = inputs.selected.transformed().clone();
+        let function = &mut plan.functions[0];
+        let scalar = function.virtual_registers[0].scalar_type;
+        let class = function.virtual_registers[0].class;
+        function
+            .virtual_registers
+            .push(selected_instructions::VirtualRegister {
+                id: VirtualRegisterId(4),
+                scalar_type: scalar,
+                class,
+                origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                    instruction: SelectedInstructionId(4),
+                    source_value: semantic_vocabulary::ValueId::new(4).unwrap(),
+                },
+                definition_site: Some(optimization_unit::ValueDefinitionSite::Node {
+                    block: semantic_vocabulary::BlockId::new(2).unwrap(),
+                    node: 0,
+                }),
+                entry_fixed_view: None,
+            });
+        function.blocks[1].instructions.push(SelectedInstruction {
+            id: SelectedInstructionId(4),
+            kind: SelectedInstructionKind::CopyI64,
+            constraint: copy.key,
+            operands: vec![
+                SelectedOperand {
+                    operand: copy.operands[0].operand,
+                    virtual_register: VirtualRegisterId(3),
+                    access: copy.operands[0].access,
+                    class,
+                    fixed_view: None,
+                    tied_to: None,
+                    early_clobber: false,
+                },
+                SelectedOperand {
+                    operand: copy.operands[1].operand,
+                    virtual_register: VirtualRegisterId(4),
+                    access: copy.operands[1].access,
+                    class,
+                    fixed_view: None,
+                    tied_to: None,
+                    early_clobber: false,
+                },
+            ],
+            implicit_uses: copy.implicit_uses.clone(),
+            implicit_defs: copy.implicit_defs.clone(),
+            clobbers: copy.clobbers.clone(),
+            provenance: Default::default(),
+        });
+        let mut selected = inputs.selected.clone();
+        selected.transformed = Arc::new(plan);
+        inputs.selected = selected;
+        assert_eq!(
+            fold_with(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
+            )
+            .map(|_| ()),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "literal at operand {literal_operand} with a live scratch reader"
+        );
+        assert_eq!(
+            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
+            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "literal at operand {literal_operand} with a live scratch reader, replay"
+        );
+    }
+}
+
+#[test]
 fn saturating_add_zero_fold_replay_rejects_every_decision_field_substitution() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // The left-literal grammar exercises the operand-0 fold.
-    let inputs = staged_saturating_add_inputs(target, 0, BlockZeroTerminator::Jump);
-    let result = fold_with(
-        &inputs,
-        &environment,
-        LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
-    )
-    .expect("the staged saturating-add-zero fold should validate");
+    // The left-literal grammar exercises the operand-0 fold on both the
+    // exact three-operand u64 row and a clamped carrier's scratch-defs
+    // row; every recorded decision field must agree with the action the
+    // validator independently reconstructs.
+    for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
+        let inputs =
+            staged_saturating_add_carrier_inputs(target, carrier, 0, BlockZeroTerminator::Jump);
+        let result = fold_with(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+        )
+        .expect("the staged saturating-add-zero fold should validate");
 
-    for mutation in 0..11 {
-        let mut plan = result.plan().clone();
-        match mutation {
-            // The recorded result register is the add's own `Def`, not the
-            // surviving `Use`.
-            0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
-            1 => plan.functions[0].action.as_mut().unwrap().result = None,
-            // The recorded immediate is the folded literal zero; any
-            // substitution replays differently.
-            2 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
-            3 => {
-                plan.functions[0]
-                    .action
-                    .as_mut()
-                    .unwrap()
-                    .consumer_instruction = SelectedInstructionId(9)
+        for mutation in 0..11 {
+            let mut plan = result.plan().clone();
+            match mutation {
+                // The recorded result register is the add's own `Def`, not
+                // the surviving `Use`.
+                0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
+                1 => plan.functions[0].action.as_mut().unwrap().result = None,
+                // The recorded immediate is the folded literal zero; any
+                // substitution replays differently.
+                2 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
+                3 => {
+                    plan.functions[0]
+                        .action
+                        .as_mut()
+                        .unwrap()
+                        .consumer_instruction = SelectedInstructionId(9)
+                }
+                // The recorded constraint is the `CopyI64` row the
+                // saturating-add-zero policy gate binds; any other key
+                // fails the rebuild's binding.
+                4 => {
+                    plan.functions[0]
+                        .action
+                        .as_mut()
+                        .unwrap()
+                        .immediate_constraint
+                        .variant += 1
+                }
+                5 => plan.functions[0].action = None,
+                6 => {
+                    plan.transformed_selected =
+                        SelectedInstructionPlanIdentity::from_bytes([99; 32])
+                }
+                7 => plan.usage.candidates += 1,
+                // A policy without the saturating-add-zero bit cannot
+                // replay the fold: no `CopyI64` row binds for this
+                // consumer and the action reconstructs nothing.
+                8 => plan.policy = LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
+                9 => {
+                    plan.machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes([98; 32])
+                }
+                // The surviving register is the non-victim `Use` the
+                // rewritten copy binds: recording the result `Def`
+                // register instead fails the re-derived action.
+                _ => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(2),
             }
-            // The recorded constraint is the `CopyI64` row the
-            // saturating-add-zero policy gate binds; any other key fails
-            // the rebuild's binding.
-            4 => {
-                plan.functions[0]
-                    .action
-                    .as_mut()
-                    .unwrap()
-                    .immediate_constraint
-                    .variant += 1
-            }
-            5 => plan.functions[0].action = None,
-            6 => plan.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([99; 32]),
-            7 => plan.usage.candidates += 1,
-            // A policy without the saturating-add-zero bit cannot replay
-            // the fold: no `CopyI64` row binds for this consumer and the
-            // action reconstructs nothing.
-            8 => plan.policy = LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
-            9 => plan.machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes([98; 32]),
-            // The surviving register is the non-victim `Use` the rewritten
-            // copy binds: recording the result `Def` register instead
-            // fails the re-derived action.
-            _ => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(2),
+            assert!(
+                validate(&inputs, &environment, plan).is_err(),
+                "{carrier:?} mutation {mutation}"
+            );
         }
-        assert!(
-            validate(&inputs, &environment, plan).is_err(),
-            "mutation {mutation}"
-        );
     }
 }
 
@@ -684,13 +980,16 @@ fn saturating_add_zero_fold_replay_rejects_every_decision_field_substitution() {
 fn saturating_add_zero_fold_reports_and_enforces_its_measured_work() {
     for (target, block0) in positive_fixtures() {
         let environment = baseline_target_register_environment(target).unwrap();
-        for literal_operand in [0u16, 1u16] {
-            let inputs = staged_saturating_add_inputs(target, literal_operand, block0);
-            assert_budget_is_enforced(
-                &inputs,
-                &environment,
-                LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
-            );
+        for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
+            for literal_operand in [0u16, 1u16] {
+                let inputs =
+                    staged_saturating_add_carrier_inputs(target, carrier, literal_operand, block0);
+                assert_budget_is_enforced(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+                );
+            }
         }
     }
 }
@@ -699,13 +998,16 @@ fn saturating_add_zero_fold_reports_and_enforces_its_measured_work() {
 fn saturating_add_zero_fold_is_deterministic_and_a_fixed_point_on_its_output() {
     for (target, block0) in positive_fixtures() {
         let environment = baseline_target_register_environment(target).unwrap();
-        for literal_operand in [0u16, 1u16] {
-            let inputs = staged_saturating_add_inputs(target, literal_operand, block0);
-            assert_deterministic_fixed_point(
-                &inputs,
-                &environment,
-                LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
-            );
+        for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
+            for literal_operand in [0u16, 1u16] {
+                let inputs =
+                    staged_saturating_add_carrier_inputs(target, carrier, literal_operand, block0);
+                assert_deterministic_fixed_point(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+                );
+            }
         }
     }
 }

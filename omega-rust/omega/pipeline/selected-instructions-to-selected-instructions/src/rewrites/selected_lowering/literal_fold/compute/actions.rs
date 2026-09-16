@@ -152,6 +152,39 @@ pub(super) fn derive_action(
             Some(result.virtual_register)
         }
         // A binary right-literal consumer whose operand list continues past
+        // its `Def` result with scratch outputs: `[left, victim, result,
+        // scratch...]` folds the operand-1 `Use`, binds the operand-0
+        // survivor into the rewritten row, and drops every `Def` operand
+        // past the result — the bound scratch a clamped saturating
+        // realization computes its saturation bound through — admitted
+        // only when each dropped register occurs nowhere else in the
+        // function. A dropped `Def` another instruction read or defined
+        // would silently leave a use of a register the rewrite stopped
+        // defining.
+        (
+            PairOperandShape::BinaryRightLiteralScratchDefs,
+            PairResultDisposition::ScalarRegister,
+            [left, right, result, scratch @ ..],
+        ) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // A binary right-literal consumer whose operand list continues past
         // its `Def` result: `[left, victim, result, aux...]` folds the
         // operand-1 `Use` and drops every trailing `Use` operand, which the
         // declared grammar admits only when each dropped register is defined
@@ -303,6 +336,35 @@ pub(super) fn derive_action(
             }
             Some(result.virtual_register)
         }
+        // A binary left-literal consumer whose operand list continues past
+        // its `Def` result with scratch outputs: `[victim, right, result,
+        // scratch...]` folds the operand-0 `Use`, binds the operand-1
+        // survivor into the rewritten row, and drops every `Def` operand
+        // past the result under the same occurrence-free custody the right
+        // scratch-defs grammar requires.
+        (
+            PairOperandShape::BinaryLeftLiteralScratchDefs,
+            PairResultDisposition::ScalarRegister,
+            [victim, right, result, scratch @ ..],
+        ) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || right.class != row.operands[0].class
+                || result.class != row.operands[1].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // Flag-defining consumers carry `[left, right]` uses and no `Def`;
         // their result is the rewritten row's implicit unit definitions.
         (
@@ -415,22 +477,22 @@ pub(super) fn derive_action(
     }
     // The action records the register every `Use` position of the rewritten
     // row binds — the source operand that survives the fold. A right-literal
-    // grammar — including the auxiliary-`Use` divide grammar — leaves
-    // operand 0, a left-literal grammar leaves operand 1, and the `Use`-free
-    // unary fold records its folded input. The constant-result grammars
-    // bind no `Use` position; they record the dropped non-victim `Use` for
-    // custody — the operand-0 dividend under the right grammar, the
-    // operand-1 `Use` under the left annihilator and auxiliary-`Use`
-    // grammars.
+    // grammar — including the auxiliary-`Use` divide grammar and the
+    // scratch-defs tail — leaves operand 0, a left-literal grammar leaves
+    // operand 1, and the `Use`-free unary fold records its folded input. The
+    // constant-result grammars bind no `Use` position; they record the
+    // dropped non-victim `Use` for custody — the operand-0 dividend under
+    // the right grammar, the operand-1 `Use` under the left annihilator and
+    // auxiliary-`Use` grammars.
     let surviving = match pair.rule.operand_shape() {
         PairOperandShape::BinaryLeftLiteral
         | PairOperandShape::BinaryLeftLiteralConstantResult
-        | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses => {
-            consumer.operands[1].virtual_register
-        }
+        | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
+        | PairOperandShape::BinaryLeftLiteralScratchDefs => consumer.operands[1].virtual_register,
         PairOperandShape::BinaryRightLiteral
         | PairOperandShape::BinaryRightLiteralAuxiliaryUses
         | PairOperandShape::BinaryRightLiteralConstantResult
+        | PairOperandShape::BinaryRightLiteralScratchDefs
         | PairOperandShape::UnaryLiteral => consumer.operands[0].virtual_register,
     };
 

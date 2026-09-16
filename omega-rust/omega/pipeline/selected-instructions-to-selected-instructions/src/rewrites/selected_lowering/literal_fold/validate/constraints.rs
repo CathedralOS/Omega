@@ -563,9 +563,9 @@ pub(super) fn obligation_discharged_fold_admission(
 }
 
 /// The relationship the validator re-derives between a consumer whose
-/// implicit unit *definitions* the rewrite retires — the u64 saturating
-/// add whose aarch64 realization writes `nzcv` and whose x86-64 row
-/// clobbers `rflags` — and the fully isolated copy form a zero literal
+/// implicit unit *definitions* the rewrite retires — a saturating add on
+/// any carrier whose aarch64 realization writes `nzcv` and whose x86-64
+/// row clobbers `rflags` — and the fully isolated copy form a zero literal
 /// rewrites into. The consumer declaration must be isolated outside its
 /// unit surface with no implicit uses: a use the rewritten form does not
 /// carry would be unit state the rewrite silently stops observing. Unlike

@@ -191,17 +191,22 @@ impl LiteralFoldPolicy {
         enabled_rules: Self::EXACT_DIVIDE_ZERO_BIT,
     };
     /// Saturating-add identity fold: fold a materialized literal `0`
-    /// feeding its sole `SaturatingAdd` u64-carrier consumer at either
+    /// feeding its sole `SaturatingAdd` consumer on any carrier at either
     /// `Use` operand into a `CopyI64` of the other `Use` — zero is the
-    /// additive identity under unsigned saturating addition, so `x +| 0`
-    /// and `0 +| x` are both `x` and the surviving operand's register
-    /// moves to the result unchanged. The u64 saturating-add consumer
-    /// implicitly defines the target condition state on aarch64 — its
-    /// `adds` realization writes `nzcv` — and clobbers `rflags` on
-    /// x86-64; the fold retires both with the folded form, admitting the
-    /// consumer only while every unit its record defines is dead in the
-    /// function: a reader of a retired definition would observe a stale
-    /// unit.
+    /// additive identity under saturating addition, so `x +| 0` and
+    /// `0 +| x` are both `x` inside the carrier's bounds and the
+    /// surviving operand's register moves to the result unchanged. The
+    /// saturating-add consumer implicitly defines the target condition
+    /// state on aarch64 — every carrier's realization is flag-setting —
+    /// and clobbers `rflags` on x86-64; the fold retires both with the
+    /// folded form, admitting the consumer only while every unit its
+    /// record defines is dead in the function: a reader of a retired
+    /// definition would observe a stale unit. The u64 carrier binds the
+    /// three-operand row; every other carrier binds the clamped row
+    /// whose operand list continues past the `Def` result with a bound
+    /// scratch `Def` the fold drops under occurrence-free custody — a
+    /// scratch output another instruction read or defined would leave a
+    /// use of a register the rewrite stopped defining.
     pub const SATURATING_ADD_ZERO_V1: Self = Self {
         enabled_rules: Self::SATURATING_ADD_ZERO_BIT,
     };

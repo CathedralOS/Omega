@@ -24,7 +24,12 @@
 //! dropped `Def` scratch or, under the divide's auxiliary grammar, a
 //! dropped `Use` proven to read only a zero materialization — at the
 //! right `Use` position or, under the annihilator and zero-dividend
-//! grammars, the left one. Beyond the
+//! grammars, the left one. The surviving-`Use` grammars also carry a
+//! scratch-tail form — [`PairOperandShape::BinaryRightLiteralScratchDefs`]
+//! and [`PairOperandShape::BinaryLeftLiteralScratchDefs`] — for a consumer
+//! whose operand list continues past its `Def` result with scratch outputs
+//! the fold drops under occurrence-free custody: the clamped saturating-add
+//! rows carry such a bound scratch at operand 3. Beyond the
 //! isolated machine-effect surface, [`PairMachineEffects::IndexedPointerReadFold`]
 //! declares the first non-isolated relationship — a consumer that reads
 //! memory through the folded index and a rewritten form that reads the same
@@ -787,6 +792,39 @@ pub enum PairOperandShape {
     /// result, or any operand at positions 0 through 2 outside this
     /// grammar — rejects.
     BinaryLeftLiteralConstantResultAuxiliaryUses,
+    /// Binary right-literal consumer whose operand list continues past its
+    /// scalar `Def` result with scratch outputs: the literal victim is the
+    /// operand-1 `Use`, operand 0 is the surviving `Use` the rewritten row
+    /// binds, operand 2 is the `Def` result, and every operand past the
+    /// result is a `Def` scratch output the fold drops — the bound scratch
+    /// a clamped saturating realization computes its saturation bound
+    /// through. Declaring this shape attests the surviving operand alone
+    /// produces the folded result — `x +| 0` is `x` inside the carrier's
+    /// bounds — and that each dropped `Def` register occurs nowhere else
+    /// in the function under the same occurrence-free custody
+    /// [`BinaryRightLiteralConstantResult`](Self::BinaryRightLiteralConstantResult)
+    /// declares: a scratch output another instruction read or defined
+    /// would leave a use of a register the rewrite stopped defining. An
+    /// operand that is not in its declared position and access — a `Use`
+    /// past the result, or any operand at positions 0 through 2 outside
+    /// this grammar — rejects.
+    BinaryRightLiteralScratchDefs,
+    /// Binary left-literal consumer whose operand list continues past its
+    /// scalar `Def` result with scratch outputs: the literal victim is the
+    /// operand-0 `Use`, operand 1 is the surviving `Use` the rewritten row
+    /// binds, operand 2 is the `Def` result, and every operand past the
+    /// result is a `Def` scratch output the fold drops under the same
+    /// occurrence-free custody
+    /// [`BinaryRightLiteralScratchDefs`](Self::BinaryRightLiteralScratchDefs)
+    /// declares. Like
+    /// [`BinaryLeftLiteral`](Self::BinaryLeftLiteral), declaring this
+    /// shape attests that the fold computes the same value under operand
+    /// exchange — `0 +| x` and `x +| 0` are both `x` inside the carrier's
+    /// bounds — so only an operation exact under commutation may declare
+    /// it. An operand that is not in its declared position and access — a
+    /// `Use` past the result, or any operand at positions 0 through 2
+    /// outside this grammar — rejects.
+    BinaryLeftLiteralScratchDefs,
 }
 
 /// The literal values a pair's fold admits.
@@ -1410,7 +1448,10 @@ impl SelectedInstructionPairRule {
     /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
     /// The operand-0 `Use` survives under the ordinary
     /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
-    /// grammar: the rewritten row binds it as its `Use` operand.
+    /// grammar: the rewritten row binds it as its `Use` operand. The u64
+    /// row carries no operand past its `Def` result; the narrower and
+    /// signed carriers bind the clamped row whose bound scratch the
+    /// scratch-`Def` grammars below drop.
     pub const SATURATING_ADD_ZERO_COPY: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
@@ -1444,11 +1485,81 @@ impl SelectedInstructionPairRule {
         ..Self::SATURATING_ADD_ZERO_COPY
     };
 
-    /// The two saturating-add identity rules, one per literal `Use`
-    /// position.
-    pub const SATURATING_ADD_ZERO_COPIES: [Self; 2] = [
+    /// The right-operand identity fold for a clamped-carrier saturating
+    /// add: `MaterializeI64` feeding the operand-1 `Use` of
+    /// `SaturatingAdd` on `carrier` — every carrier but u64 — when the
+    /// literal is exactly zero. `x +| 0` is `x` inside the carrier's
+    /// bounds under signed or unsigned saturation, so the rewrite is a
+    /// `CopyI64` of the surviving operand-0 register. Unlike the u64
+    /// row, the clamped row's operand list continues past its `Def`
+    /// result with an early-clobber bound scratch — a `Def` output the
+    /// realization writes and nothing else may observe — so the rule
+    /// declares
+    /// [`BinaryRightLiteralScratchDefs`](PairOperandShape::BinaryRightLiteralScratchDefs):
+    /// each dropped `Def` register must occur nowhere else in the
+    /// function. The unit surface is the family's own: the aarch64
+    /// clamped row still defines `nzcv` — retired under
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// only while dead in the function — both targets mark the dropped
+    /// result and scratch `early_clobber`, admitted under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// and the x86-64 row's `rflags` clobber retires unconditionally.
+    const fn saturating_add_zero_clamped(carrier: SaturatingCarrier) -> Self {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::SaturatingAdd(carrier),
+            rewritten: MachineSemanticKind::CopyI64,
+            operand_shape: PairOperandShape::BinaryRightLiteralScratchDefs,
+            immediate_bound: PairImmediateBound::Exactly(0),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+        };
+        assert!(
+            !matches!(carrier, SaturatingCarrier::U64)
+                && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
+            "the clamped identity fold holds only for a non-u64 carrier's zero literal"
+        );
+        rule
+    }
+
+    /// The left-operand identity fold for a clamped-carrier saturating
+    /// add: `0 +| x` is `x` for every `x`. Saturating addition commutes
+    /// under every carrier — its saturation bounds are symmetric around
+    /// the operation — so the `CopyI64` of the surviving operand-1
+    /// register computes the same value `x +| 0` does; the
+    /// [`BinaryLeftLiteralScratchDefs`](PairOperandShape::BinaryLeftLiteralScratchDefs)
+    /// grammar attests that commutation and drops the same bound-scratch
+    /// `Def` tail under occurrence-free custody.
+    const fn saturating_add_zero_clamped_left(carrier: SaturatingCarrier) -> Self {
+        Self {
+            operand_shape: PairOperandShape::BinaryLeftLiteralScratchDefs,
+            ..Self::saturating_add_zero_clamped(carrier)
+        }
+    }
+
+    /// The saturating-add identity rules: one pair per literal `Use`
+    /// position for the u64 carrier's three-operand row, and one pair
+    /// per position for each carrier binding the clamped row — every
+    /// other carrier — whose bound scratch `Def` drops under the
+    /// scratch-defs grammar.
+    pub const SATURATING_ADD_ZERO_COPIES: [Self; 16] = [
         Self::SATURATING_ADD_ZERO_COPY,
         Self::SATURATING_ADD_ZERO_LEFT_COPY,
+        Self::saturating_add_zero_clamped(SaturatingCarrier::I8),
+        Self::saturating_add_zero_clamped_left(SaturatingCarrier::I8),
+        Self::saturating_add_zero_clamped(SaturatingCarrier::I16),
+        Self::saturating_add_zero_clamped_left(SaturatingCarrier::I16),
+        Self::saturating_add_zero_clamped(SaturatingCarrier::I32),
+        Self::saturating_add_zero_clamped_left(SaturatingCarrier::I32),
+        Self::saturating_add_zero_clamped(SaturatingCarrier::I64),
+        Self::saturating_add_zero_clamped_left(SaturatingCarrier::I64),
+        Self::saturating_add_zero_clamped(SaturatingCarrier::U8),
+        Self::saturating_add_zero_clamped_left(SaturatingCarrier::U8),
+        Self::saturating_add_zero_clamped(SaturatingCarrier::U16),
+        Self::saturating_add_zero_clamped_left(SaturatingCarrier::U16),
+        Self::saturating_add_zero_clamped(SaturatingCarrier::U32),
+        Self::saturating_add_zero_clamped_left(SaturatingCarrier::U32),
     ];
 
     pub const fn producer(self) -> MachineSemanticKind {
@@ -1493,10 +1604,12 @@ impl SelectedInstructionPairRule {
         match self.operand_shape {
             PairOperandShape::BinaryRightLiteral
             | PairOperandShape::BinaryRightLiteralAuxiliaryUses
-            | PairOperandShape::BinaryRightLiteralConstantResult => 1,
+            | PairOperandShape::BinaryRightLiteralConstantResult
+            | PairOperandShape::BinaryRightLiteralScratchDefs => 1,
             PairOperandShape::BinaryLeftLiteral
             | PairOperandShape::BinaryLeftLiteralConstantResult
             | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
+            | PairOperandShape::BinaryLeftLiteralScratchDefs
             | PairOperandShape::UnaryLiteral => 0,
         }
     }
@@ -1522,7 +1635,9 @@ impl SelectedInstructionPairRule {
         match self.operand_shape {
             PairOperandShape::BinaryRightLiteral
             | PairOperandShape::BinaryLeftLiteral
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUses => Some(literal),
+            | PairOperandShape::BinaryRightLiteralAuxiliaryUses
+            | PairOperandShape::BinaryRightLiteralScratchDefs
+            | PairOperandShape::BinaryLeftLiteralScratchDefs => Some(literal),
             // The constant-result grammars record the constant the
             // rewritten `MaterializeI64` embeds: a remainder by one or of
             // a zero dividend is always zero, an unsigned divide of a
@@ -1646,8 +1761,8 @@ impl SelectedInstructionPairRule {
                 Some(SelectedInstructionKind::CopyI64)
             }
             // An exclusive-or or a wrapping add with a zero literal, a
-            // bitwise-and with an all-ones literal, or a u64 saturating
-            // add with a zero literal is the other operand — `x ^ 0` and
+            // bitwise-and with an all-ones literal, or a saturating add
+            // with a zero literal is the other operand — `x ^ 0` and
             // `0 ^ x` are both `x`, `x + 0` and `0 + x` are both `x`
             // modulo 2^64, `x & MAX` and `MAX & x` are both `x`, and
             // `x +| 0` and `0 +| x` are both `x` inside the carrier's
@@ -1655,8 +1770,9 @@ impl SelectedInstructionPairRule {
             // the recorded action names. The consumer guard keeps each
             // rule bound to its own consumer kind — the xor rule never
             // rewrites an add, the add rule never rewrites an and, the
-            // and-ones rule never rewrites either, and the saturating-add
-            // rule rewrites only the u64-carrier kind its pair admits.
+            // and-ones rule never rewrites either, and each
+            // saturating-add rule rewrites only the carrier kind its
+            // pair admits.
             (
                 MachineSemanticKind::CopyI64,
                 kind @ (SelectedInstructionKind::BitwiseXorI64

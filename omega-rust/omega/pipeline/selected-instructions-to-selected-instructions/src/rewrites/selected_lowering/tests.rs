@@ -919,7 +919,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
 
     // The saturating-add identity family declares one pair per `Use`
-    // position: a literal of exactly zero folds the u64-carrier
+    // position per carrier: a literal of exactly zero folds a
     // `SaturatingAdd` into a `CopyI64` of the surviving `Use` — `x +| 0`
     // and `0 +| x` are both `x`, already inside the carrier's bounds.
     // This is the first family whose consumer carries an implicit unit
@@ -927,31 +927,45 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // `DeadConsumerUnitDefs`, whose record-level half proves every
     // defined unit dead in the function, and it admits the consumer's
     // `early_clobber` operand marks under
-    // `BoundEarlyClobberConsumerOperands`, which the x86-64 row's result
-    // carries.
-    let &[saturating_add_zero_rule, saturating_add_zero_left_rule] =
-        saturating_add_zero.payload().pairs()
-    else {
-        panic!("the saturating-add-zero family declares one pair per operand grammar")
-    };
+    // `BoundEarlyClobberConsumerOperands`, which the x86-64 rows' result
+    // and bound scratch carry. The u64 carrier binds the exact
+    // three-operand row under the plain binary grammars; every other
+    // carrier binds the clamped row whose bound scratch `Def` tail drops
+    // under the scratch-defs grammars.
+    let saturating_add_zero_pairs = saturating_add_zero.payload().pairs();
+    assert_eq!(saturating_add_zero_pairs.len(), 16);
     assert_eq!(
         saturating_add_zero.optimization(),
         Optimization::SelectedIncomingSaturatingAddZeroIdentityCopy
     );
-    assert_eq!(
-        saturating_add_zero_rule,
-        SelectedInstructionPairRule::SATURATING_ADD_ZERO_COPY
-    );
-    assert_eq!(
-        saturating_add_zero_left_rule,
-        SelectedInstructionPairRule::SATURATING_ADD_ZERO_LEFT_COPY
-    );
-    for pair in [saturating_add_zero_rule, saturating_add_zero_left_rule] {
+    let clamped_carriers = [
+        SaturatingCarrier::I8,
+        SaturatingCarrier::I16,
+        SaturatingCarrier::I32,
+        SaturatingCarrier::I64,
+        SaturatingCarrier::U8,
+        SaturatingCarrier::U16,
+        SaturatingCarrier::U32,
+    ];
+    for (index, pair) in saturating_add_zero_pairs.iter().copied().enumerate() {
         assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        let carrier = if index < 2 {
+            SaturatingCarrier::U64
+        } else {
+            clamped_carriers[(index - 2) / 2]
+        };
+        assert_eq!(pair.consumer(), MachineSemanticKind::SaturatingAdd(carrier));
+        let left = index % 2 == 1;
         assert_eq!(
-            pair.consumer(),
-            MachineSemanticKind::SaturatingAdd(SaturatingCarrier::U64)
+            pair.operand_shape(),
+            match (carrier, left) {
+                (SaturatingCarrier::U64, false) => PairOperandShape::BinaryRightLiteral,
+                (SaturatingCarrier::U64, true) => PairOperandShape::BinaryLeftLiteral,
+                (_, false) => PairOperandShape::BinaryRightLiteralScratchDefs,
+                (_, true) => PairOperandShape::BinaryLeftLiteralScratchDefs,
+            }
         );
+        assert_eq!(pair.victim_operand(), u16::from(!left));
         assert_eq!(pair.rewritten(), MachineSemanticKind::CopyI64);
         assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(0));
         assert!(pair.admits_immediate(0));
@@ -969,46 +983,51 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
             pair.machine_effects(),
             PairMachineEffects::DeadConsumerUnitDefs
         );
+        // Every rule rewrites only its own carrier's kind into the
+        // surviving-operand copy; a different carrier or consumer kind
+        // never rewrites through it.
+        let saturating_add_kind = SelectedInstructionKind::SaturatingAdd { carrier };
+        assert_eq!(
+            pair.rewrite_consumer(saturating_add_kind, 0, Some(u64_scalar)),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_add_kind, 0, Some(i64_scalar)),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_add_kind, 0, None),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        let other_carrier = if carrier == SaturatingCarrier::U64 {
+            SaturatingCarrier::I32
+        } else {
+            SaturatingCarrier::U64
+        };
+        assert_eq!(
+            pair.rewrite_consumer(
+                SelectedInstructionKind::SaturatingAdd {
+                    carrier: other_carrier
+                },
+                0,
+                Some(u64_scalar)
+            ),
+            None
+        );
+        assert_eq!(
+            pair.rewrite_consumer(wrapping_add_kind, 0, Some(u64_scalar)),
+            None
+        );
     }
+    let saturating_add_zero_rule = saturating_add_zero_pairs[0];
+    let saturating_add_zero_left_rule = saturating_add_zero_pairs[1];
     assert_eq!(
-        saturating_add_zero_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
-    );
-    assert_eq!(saturating_add_zero_rule.victim_operand(), 1);
-    assert_eq!(
-        saturating_add_zero_left_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteral
-    );
-    assert_eq!(saturating_add_zero_left_rule.victim_operand(), 0);
-    let saturating_add_kind = SelectedInstructionKind::SaturatingAdd {
-        carrier: SaturatingCarrier::U64,
-    };
-    assert_eq!(
-        saturating_add_zero_rule.rewrite_consumer(saturating_add_kind, 0, Some(u64_scalar)),
-        Some(SelectedInstructionKind::CopyI64)
+        saturating_add_zero_rule,
+        SelectedInstructionPairRule::SATURATING_ADD_ZERO_COPY
     );
     assert_eq!(
-        saturating_add_zero_left_rule.rewrite_consumer(saturating_add_kind, 0, Some(i64_scalar)),
-        Some(SelectedInstructionKind::CopyI64)
-    );
-    // A non-u64 carrier binds the clamped row no admitted grammar covers.
-    assert_eq!(
-        saturating_add_zero_rule.rewrite_consumer(
-            SelectedInstructionKind::SaturatingAdd {
-                carrier: SaturatingCarrier::I32,
-            },
-            0,
-            Some(u64_scalar)
-        ),
-        None
-    );
-    assert_eq!(
-        saturating_add_zero_rule.rewrite_consumer(wrapping_add_kind, 0, Some(u64_scalar)),
-        None
-    );
-    assert_eq!(
-        saturating_add_zero_rule.rewrite_consumer(saturating_add_kind, 0, None),
-        Some(SelectedInstructionKind::CopyI64)
+        saturating_add_zero_left_rule,
+        SelectedInstructionPairRule::SATURATING_ADD_ZERO_LEFT_COPY
     );
 
     // Every landed rule's rewrite but the divide, remainder, and
@@ -1555,10 +1574,10 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             );
         }
 
-        // The saturating-add-zero pairs admit their own triple on both
-        // targets under `DeadConsumerUnitDefs`: an isolated producer, the
-        // u64 saturating add — defining `nzcv` on aarch64, clobbering
-        // `rflags` on x86-64 — and the isolated copy. The
+        // The saturating-add-zero pairs admit their own triples on both
+        // targets under `DeadConsumerUnitDefs`: an isolated producer, each
+        // carrier's saturating add — defining `nzcv` on aarch64,
+        // clobbering `rflags` on x86-64 — and the isolated copy. The
         // declaration-level requirement is the shared
         // isolated-outside-units shape with no implicit uses; the
         // distinguishing whole-function deadness of each defined unit is

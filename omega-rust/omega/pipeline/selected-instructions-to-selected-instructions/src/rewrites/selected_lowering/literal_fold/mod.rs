@@ -60,13 +60,15 @@ pub use validate::validate_literal_fold;
 /// carries, and dropping its divisor `Use` and provably-zero auxiliary
 /// `Use` operands; each zero-dividend fold stays disjoint on the folded
 /// literal's operand position from its divisor-one sibling — or the
-/// literal `0` at either operand of a u64-carrier saturating add into a
-/// `CopyI64` of the surviving operand — `x +| 0` and `0 +| x` are both
-/// `x` — retiring the consumer's implicit unit definitions under a
-/// whole-function deadness gate: the aarch64 row's `nzcv` write may
-/// retire only while no instruction or terminator in the function
-/// implicitly uses it, while the x86-64 row's `rflags` clobber retires
-/// unconditionally because dropping a clobber only narrows destruction.
+/// literal `0` at either operand of a saturating add on any carrier into
+/// a `CopyI64` of the surviving operand — `x +| 0` and `0 +| x` are both
+/// `x` inside the carrier's bounds — retiring the consumer's implicit
+/// unit definitions under a whole-function deadness gate: the aarch64
+/// rows' `nzcv` write may retire only while no instruction or terminator
+/// in the function implicitly uses it, while the x86-64 rows' `rflags`
+/// clobber retires unconditionally because dropping a clobber only
+/// narrows destruction; every clamped carrier's row also drops the bound
+/// scratch `Def` past its result under occurrence-free custody.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,
