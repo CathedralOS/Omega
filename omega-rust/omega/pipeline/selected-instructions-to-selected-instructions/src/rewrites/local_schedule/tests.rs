@@ -1,0 +1,984 @@
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_unit::{EffectLink, ValueDefinitionSite};
+use register_environment::baseline_target_register_environment;
+use register_model::RegisterInstructionConstraint;
+use selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
+    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
+    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
+};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use terminal_psi::{
+    CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint, TerminalPsiIdentity,
+    VocabularyMarker,
+};
+
+use super::{
+    LocalScheduleError, LocalScheduleReceipt, ValidatedLocalSchedule, schedule_selected_pair,
+    validate_local_schedule,
+};
+use crate::ValidatedSelectedAnalysis;
+
+fn budget() -> OptimizationWorkBudget {
+    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
+}
+
+fn instruction(
+    id: SelectedInstructionId,
+    kind: SelectedInstructionKind,
+    row: &RegisterInstructionConstraint,
+    registers: &[VirtualRegisterId],
+) -> SelectedInstruction {
+    SelectedInstruction {
+        id,
+        kind,
+        constraint: row.key,
+        operands: row
+            .operands
+            .iter()
+            .zip(registers)
+            .map(|(operand, register)| SelectedOperand {
+                operand: operand.operand,
+                virtual_register: *register,
+                access: operand.access,
+                class: operand.class,
+                fixed_view: operand.fixed_view,
+                tied_to: operand.tied_to,
+                early_clobber: operand.early_clobber,
+            })
+            .collect(),
+        implicit_uses: row.implicit_uses.clone(),
+        implicit_defs: row.implicit_defs.clone(),
+        clobbers: row.clobbers.clone(),
+        provenance: Default::default(),
+    }
+}
+
+const MAT_A: SelectedInstructionId = SelectedInstructionId(2);
+const MAT_B: SelectedInstructionId = SelectedInstructionId(3);
+const SUM: SelectedInstructionId = SelectedInstructionId(4);
+const COMPARE: SelectedInstructionId = SelectedInstructionId(5);
+const BOOLEAN: SelectedInstructionId = SelectedInstructionId(6);
+const TERMINAL: SelectedInstructionId = SelectedInstructionId(7);
+
+const POINTER: VirtualRegisterId = VirtualRegisterId(0);
+const FIRST: VirtualRegisterId = VirtualRegisterId(1);
+const SECOND: VirtualRegisterId = VirtualRegisterId(2);
+const TOTAL: VirtualRegisterId = VirtualRegisterId(3);
+const OUTCOME: VirtualRegisterId = VirtualRegisterId(4);
+
+fn register(
+    id: VirtualRegisterId,
+    class: register_model::RegisterClassId,
+    origin: VirtualRegisterOrigin,
+) -> VirtualRegister {
+    VirtualRegister {
+        id,
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        class,
+        origin,
+        definition_site: None,
+        entry_fixed_view: None,
+    }
+}
+
+fn successor(block: SelectedBlockId, source_target: BlockId, edge: u64) -> SelectedSuccessor {
+    SelectedSuccessor {
+        role: SelectedSuccessorRole::Semantic,
+        structural_case: None,
+        structural_bindings: Vec::new(),
+        psi_edge: EdgeId::new(edge).unwrap(),
+        block,
+        source_target,
+        bindings: Vec::new(),
+        fuel: Vec::new(),
+    }
+}
+
+fn settlement(position: u32, operation: u64) -> SelectedBoundarySettlement {
+    SelectedBoundarySettlement {
+        block: SelectedBlockId(0),
+        instruction_index: position,
+        settlement: SelectedBoundarySettlementPayload::HostedWriteByteI32 {
+            operation: OperationId::new(operation).unwrap(),
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            source: ValueId::new(9).unwrap(),
+        },
+    }
+}
+
+fn access(
+    instruction: SelectedInstructionId,
+    place: PlaceId,
+    role: SelectedMemoryAccessRole,
+) -> SelectedMemoryAccess {
+    SelectedMemoryAccess {
+        instruction,
+        origin: SelectedMemoryAccessOrigin::Operation(OperationId::new(31).unwrap()),
+        place,
+        byte_offset: 0,
+        byte_count: 8,
+        role,
+    }
+}
+
+/// A raw selected-stage unit fixture, not a source/Terminal admission claim:
+/// `r1 = 5; r2 = 7; r3 = r1 + r2; compare r1, r2; r4 = boolean; return`.
+/// The two materializations are independent, the sum reads both, the compare
+/// publishes condition state, and the boolean materialization reads it.
+fn fixture(target: NativeTarget) -> ValidatedLocalSchedule {
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let materialize = environment.constraint(keys.materialize_i64).unwrap();
+    let add = environment.constraint(keys.add_i64).unwrap();
+    let compare = environment.constraint(keys.compare_i64).unwrap();
+    let boolean = environment.constraint(keys.materialize_boolean).unwrap();
+    let terminal_row = environment.constraint(keys.return_unit).unwrap();
+    let class = compare.operands[0].class;
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let registers = vec![
+        VirtualRegister {
+            id: POINTER,
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::EntryParameter {
+                source_value: ValueId::new(1).unwrap(),
+                parameter_index: 0,
+            },
+            definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+            entry_fixed_view: None,
+        },
+        register(
+            FIRST,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: MAT_A,
+                source_value: ValueId::new(2).unwrap(),
+            },
+        ),
+        register(
+            SECOND,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: MAT_B,
+                source_value: ValueId::new(3).unwrap(),
+            },
+        ),
+        register(
+            TOTAL,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: SUM,
+                source_value: ValueId::new(4).unwrap(),
+            },
+        ),
+        register(
+            OUTCOME,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: BOOLEAN,
+                source_value: ValueId::new(5).unwrap(),
+            },
+        ),
+    ];
+    let instructions = vec![
+        instruction(
+            MAT_A,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(5),
+            },
+            materialize,
+            &[FIRST],
+        ),
+        instruction(
+            MAT_B,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(7),
+            },
+            materialize,
+            &[SECOND],
+        ),
+        instruction(
+            SUM,
+            SelectedInstructionKind::WrappingAddI64,
+            add,
+            &[FIRST, SECOND, TOTAL],
+        ),
+        instruction(
+            COMPARE,
+            SelectedInstructionKind::CompareI64,
+            compare,
+            &[FIRST, SECOND],
+        ),
+        instruction(
+            BOOLEAN,
+            SelectedInstructionKind::MaterializeBooleanEqual,
+            boolean,
+            &[OUTCOME],
+        ),
+    ];
+    let machine = MachineId::new(1).unwrap();
+    let plan = SelectedInstructionPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
+        },
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        target,
+        entry: machine,
+        functions: vec![SelectedFunction {
+            machine,
+            attachment: None,
+            provenance: Default::default(),
+            structural: None,
+            local_storage_slots: Vec::new(),
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+            entry_block: SelectedBlockId(0),
+            virtual_registers: registers,
+            blocks: vec![SelectedBlock {
+                id: SelectedBlockId(0),
+                origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+                instructions,
+                terminator: SelectedTerminator::Return {
+                    instruction: instruction(
+                        TERMINAL,
+                        SelectedInstructionKind::ReturnUnit,
+                        terminal_row,
+                        &[],
+                    ),
+                    psi_return_edge: EdgeId::new(1).unwrap(),
+                },
+            }],
+        }]
+        .into(),
+    };
+    let identity = selected_instruction_plan_identity(&plan);
+    ValidatedLocalSchedule {
+        receipt: LocalScheduleReceipt {
+            source_selected: identity,
+            transformed_selected: identity,
+            optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
+            fuel_schedule: plan.fuel_schedule,
+        },
+        transformed: std::sync::Arc::new(plan),
+    }
+}
+
+fn mutated(
+    target: NativeTarget,
+    edit: impl FnOnce(&mut SelectedFunction, &register_environment::ValidatedTargetRegisterEnvironment),
+) -> ValidatedLocalSchedule {
+    let environment = baseline_target_register_environment(target).unwrap();
+    let mut source = fixture(target);
+    edit(
+        &mut std::sync::Arc::make_mut(&mut source.transformed).functions[0],
+        &environment,
+    );
+    let identity = selected_instruction_plan_identity(&source.transformed);
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    source
+}
+
+fn schedule(
+    source: &ValidatedLocalSchedule,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    earlier: SelectedInstructionId,
+    later: SelectedInstructionId,
+) -> Result<ValidatedLocalSchedule, LocalScheduleError> {
+    schedule_selected_pair(source, 0, earlier, later, environment, budget())
+}
+
+/// Two materializations writing different registers exchange places on every
+/// target: each keeps its identity, kind, operands, and provenance while the
+/// block vector carries them in the opposite order.
+#[test]
+fn independent_adjacent_pair_interchanges() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let result = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+        let body = &result.transformed().functions[0].blocks[0].instructions;
+        assert_eq!(body[0].id, MAT_B);
+        assert_eq!(body[1].id, MAT_A);
+        assert_eq!(
+            body[0],
+            source.transformed().functions[0].blocks[0].instructions[1]
+        );
+        assert_eq!(
+            body[1],
+            source.transformed().functions[0].blocks[0].instructions[0]
+        );
+        assert_eq!(body.len(), 5);
+        assert_eq!(
+            result.receipt().source_selected(),
+            source.selected_identity()
+        );
+        assert_eq!(
+            result.receipt().transformed_selected(),
+            selected_instruction_plan_identity(result.transformed())
+        );
+        validate_local_schedule(
+            &source,
+            0,
+            MAT_A,
+            MAT_B,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A detached, separately allocated proposal replays by content.
+        let mut detached = result.transformed().clone();
+        detached.functions = detached.functions.iter().cloned().collect();
+        validate_local_schedule(&source, 0, MAT_A, MAT_B, &environment, budget(), detached)
+            .unwrap();
+    }
+}
+
+/// A compare followed by a pure arithmetic instruction interchanges: the sum
+/// reads the same registers and writes a third, and neither touches the
+/// condition-state units the compare publishes.
+#[test]
+fn flag_publisher_crosses_pure_register_work() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    let result = schedule(&source, &environment, SUM, COMPARE).unwrap();
+    let body = &result.transformed().functions[0].blocks[0].instructions;
+    assert_eq!(body[2].id, COMPARE);
+    assert_eq!(body[3].id, SUM);
+    assert_eq!(
+        body[2].implicit_defs,
+        source.transformed().functions[0].blocks[0].instructions[3].implicit_defs
+    );
+}
+
+/// A use of the earlier instruction's result must stay behind it: the sum
+/// reads the register the second materialization defines.
+#[test]
+fn raw_dependency_keeps_order() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    assert_eq!(
+        schedule(&source, &environment, MAT_B, SUM).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    assert_eq!(
+        schedule(&source, &environment, MAT_A, MAT_B)
+            .unwrap()
+            .receipt()
+            .source_selected(),
+        source.selected_identity()
+    );
+}
+
+/// The later instruction may not overwrite a register the earlier one reads:
+/// the compare's view of its inputs would change.
+#[test]
+fn war_dependency_keeps_order() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[4] = instruction(
+            BOOLEAN,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(9),
+            },
+            &materialize,
+            &[FIRST],
+        );
+    });
+    assert_eq!(
+        schedule(&source, &environment, COMPARE, BOOLEAN).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+}
+
+/// Two definitions of one register cannot exchange: positions after the pair
+/// observe whichever write ran last.
+#[test]
+fn waw_dependency_keeps_order() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, _| {
+        function.blocks[0].instructions[1].operands[0].virtual_register = FIRST;
+    });
+    assert_eq!(
+        schedule(&source, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+}
+
+/// Condition-state units couple exactly like registers: a flag reader never
+/// crosses its publisher, a reader never crosses a later publisher, and two
+/// flag writers never exchange — while two readers of the same flag state
+/// interchange freely.
+#[test]
+fn condition_state_hazards_keep_order() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // RAW: the boolean materialization reads the flags the compare defines.
+    let source = fixture(target);
+    assert_eq!(
+        schedule(&source, &environment, COMPARE, BOOLEAN).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // WAW on the flag unit: a second compare cannot cross the first.
+    let second_compare = mutated(target, |function, environment| {
+        let compare = environment
+            .constraint(environment.selected_keys().compare_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[4] = instruction(
+            BOOLEAN,
+            SelectedInstructionKind::CompareI64,
+            &compare,
+            &[FIRST, SECOND],
+        );
+    });
+    assert_eq!(
+        schedule(&second_compare, &environment, COMPARE, BOOLEAN).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // WAR on the flag unit: a flag reader cannot cross a later flag writer.
+    let reader_first = mutated(target, |function, _| {
+        let body = &mut function.blocks[0].instructions;
+        body.swap(3, 4);
+    });
+    assert_eq!(
+        schedule(&reader_first, &environment, BOOLEAN, COMPARE).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // Two flag readers share no written location and interchange.
+    let two_readers = mutated(target, |function, environment| {
+        let boolean = environment
+            .constraint(environment.selected_keys().materialize_boolean)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[3] = instruction(
+            COMPARE,
+            SelectedInstructionKind::MaterializeBooleanU64LessThan,
+            &boolean,
+            &[TOTAL],
+        );
+    });
+    let result = schedule(&two_readers, &environment, COMPARE, BOOLEAN).unwrap();
+    let body = &result.transformed().functions[0].blocks[0].instructions;
+    assert_eq!(body[3].id, BOOLEAN);
+    assert_eq!(body[4].id, COMPARE);
+}
+
+/// A clobber is a unit write: a flag-clobbering subtraction cannot cross the
+/// compare that publishes those flags, nor can it cross a flag reader that
+/// must observe the compare's publication.
+#[test]
+fn clobbers_couple_like_definitions() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let subtract_kind = SelectedInstructionKind::ExactSubtractI64 {
+        obligation: ObligationId::new(11).unwrap(),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([7; 32]),
+    };
+    // The subtract clobbers the flag unit the compare also defines: two
+    // writers of one location never exchange.
+    let before_compare = mutated(target, |function, environment| {
+        let subtract = environment
+            .constraint(environment.selected_keys().subtract_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[2] =
+            instruction(SUM, subtract_kind, &subtract, &[FIRST, SECOND, TOTAL]);
+    });
+    assert_eq!(
+        schedule(&before_compare, &environment, SUM, COMPARE).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // The subtract clobbers the flag unit the boolean materialization reads:
+    // moving the write ahead of the read would change the observed flags.
+    let before_reader = mutated(target, |function, environment| {
+        let subtract = environment
+            .constraint(environment.selected_keys().subtract_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[3] =
+            instruction(COMPARE, subtract_kind, &subtract, &[FIRST, SECOND, TOTAL]);
+    });
+    assert_eq!(
+        schedule(&before_reader, &environment, COMPARE, BOOLEAN).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+}
+
+/// A boundary settlement at the interior index observes the order between
+/// the pair and refuses; positions at or outside the pair's span keep the
+/// same executed set and admit.
+#[test]
+fn interior_settlement_bounds_the_interchange() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let interior = mutated(target, |function, _| {
+        function.boundary_settlements.push(settlement(1, 41));
+    });
+    assert_eq!(
+        schedule(&interior, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    for position in [0, 2, 4] {
+        let outside = mutated(target, |function, _| {
+            function.boundary_settlements.push(settlement(position, 41));
+        });
+        schedule(&outside, &environment, MAT_A, MAT_B).unwrap();
+    }
+    // A settlement at the interior index of a different pair does not bound
+    // this one: position 3 sits between the compare and the boolean, not
+    // between the two materializations.
+    let other = mutated(target, |function, _| {
+        function.boundary_settlements.push(settlement(3, 41));
+    });
+    schedule(&other, &environment, MAT_A, MAT_B).unwrap();
+}
+
+/// A roster-accounted load interchanges with a pure materialization: the
+/// materialization cannot observe memory, so the recorded access order is
+/// preserved.
+#[test]
+fn accounted_memory_actor_crosses_pure_work() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let load = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[0] = instruction(
+            MAT_A,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            &load,
+            &[POINTER, FIRST],
+        );
+        function.memory_accesses.push(access(
+            MAT_A,
+            PlaceId::new(1).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+    });
+    let result = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    let body = &result.transformed().functions[0].blocks[0].instructions;
+    assert_eq!(body[0].id, MAT_B);
+    assert_eq!(body[1].id, MAT_A);
+    assert_eq!(
+        result.transformed().functions[0].memory_accesses,
+        source.transformed().functions[0].memory_accesses
+    );
+}
+
+/// Two roster-carrying accesses would need a place-alias decision this step
+/// does not take: the pair refuses even with disjoint roles.
+#[test]
+fn two_memory_actors_keep_order() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let load = environment.constraint(keys.load8.unwrap()).unwrap().clone();
+        let store = environment.constraint(keys.store.unwrap()).unwrap().clone();
+        let body = &mut function.blocks[0].instructions;
+        body[0] = instruction(
+            MAT_A,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            &load,
+            &[POINTER, FIRST],
+        );
+        body[1] = instruction(
+            MAT_B,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            &store,
+            &[POINTER, SECOND],
+        );
+        function.memory_accesses.push(access(
+            MAT_A,
+            PlaceId::new(1).unwrap(),
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+        function.memory_accesses.push(access(
+            MAT_B,
+            PlaceId::new(2).unwrap(),
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    assert_eq!(
+        schedule(&source, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+}
+
+/// A memory-capable kind without a roster row is an unaccounted access: the
+/// interchange cannot prove what it reaches, so it refuses outright. Adding
+/// the row makes it the pair's single accounted actor and admits.
+#[test]
+fn unaccounted_memory_kind_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let bare = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[0] = instruction(
+            MAT_A,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            &store,
+            &[POINTER, FIRST],
+        );
+    });
+    assert_eq!(
+        schedule(&bare, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedInstruction
+    );
+    let accounted = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[0] = instruction(
+            MAT_A,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            &store,
+            &[POINTER, FIRST],
+        );
+        function.memory_accesses.push(access(
+            MAT_A,
+            PlaceId::new(1).unwrap(),
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    schedule(&accounted, &environment, MAT_A, MAT_B).unwrap();
+}
+
+/// Calls, hosted effects, and terminator kinds are barriers on either member
+/// of the pair, and a call-roster row makes the member a barrier even when
+/// its kind is register-pure.
+#[test]
+fn barrier_kinds_and_call_roster_reject() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for kind in [
+        SelectedInstructionKind::Jump,
+        SelectedInstructionKind::ReturnUnit,
+        SelectedInstructionKind::ConditionalBranchNonZero,
+        SelectedInstructionKind::CallUnit {
+            callee: MachineId::new(9).unwrap(),
+        },
+        SelectedInstructionKind::HostedExitProcessI32,
+    ] {
+        let source = mutated(target, |function, _| {
+            function.blocks[0].instructions[0].kind = kind;
+        });
+        assert_eq!(
+            schedule(&source, &environment, MAT_A, MAT_B).unwrap_err(),
+            LocalScheduleError::UnsupportedInstruction,
+            "{kind:?}"
+        );
+    }
+    // The barrier binds the later member identically.
+    let later_barrier = mutated(target, |function, _| {
+        function.blocks[0].instructions[1].kind = SelectedInstructionKind::Jump;
+    });
+    assert_eq!(
+        schedule(&later_barrier, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedInstruction
+    );
+    let call_row =
+        mutated(target, |function, _| {
+            function.calls.push(SelectedCallContract {
+            instruction: MAT_A,
+            operation: OperationId::new(41).unwrap(),
+            call: legalized_operations::LegalizedScalarCall {
+                source: legalized_operations::NativeCallOrigin::Authored,
+                callee: MachineId::new(42).unwrap(),
+                call_plan: calling_conventions::CallPlan {
+                    policy: calling_conventions::CallingPolicy::MicrosoftX64,
+                    parameters: Vec::new(),
+                    result: None,
+                    callback_materializations: Vec::new(),
+                    ordinary_clobbers: calling_conventions::RegisterSet::new(std::iter::empty()),
+                    stack_alignment: 16,
+                    shadow_bytes: 0,
+                    entry_control: calling_conventions::EntryControl::CallReturn,
+                },
+                arguments: Vec::new(),
+                result_placement: None,
+                structural_result: None,
+                claim_transfers: Vec::new(),
+                requirement_obligations: vec![ObligationId::new(43).unwrap()],
+                crash_continuations: vec![CrashRouteBucket {
+                    cause: CrashCause::Trap,
+                    alternatives: vec![CrashRouteGuard::Truth],
+                }],
+            },
+            effect: EffectLink { input: 0, output: 0 },
+            ownership: Vec::new(),
+        });
+        });
+    assert_eq!(
+        schedule(&call_row, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::UnsupportedInstruction
+    );
+}
+
+/// The pair must be two neighboring body instructions in the named order: a
+/// non-neighbor, the reversed order, one repeated id, a trailing member with
+/// no successor, and an unknown id all refuse.
+#[test]
+fn only_the_adjacent_named_pair_interchanges() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    // Not neighbors.
+    assert_eq!(
+        schedule(&source, &environment, MAT_A, SUM).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // Reversed order: MAT_B's successor is the sum, not MAT_A.
+    assert_eq!(
+        schedule(&source, &environment, MAT_B, MAT_A).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // The last body instruction has no successor to interchange with.
+    assert_eq!(
+        schedule(&source, &environment, BOOLEAN, MAT_A).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // One id cannot name both members.
+    assert_eq!(
+        schedule(&source, &environment, MAT_A, MAT_A).unwrap_err(),
+        LocalScheduleError::UnsupportedPair
+    );
+    // An unknown id or function index never locates the pair.
+    assert_eq!(
+        schedule(&source, &environment, SelectedInstructionId(99), MAT_B).unwrap_err(),
+        LocalScheduleError::SourceMismatch
+    );
+    assert_eq!(
+        schedule_selected_pair(&source, 1, MAT_A, MAT_B, &environment, budget()).unwrap_err(),
+        LocalScheduleError::SourceMismatch
+    );
+    // A terminator-carried instruction is not a body member.
+    assert_eq!(
+        schedule(&source, &environment, TERMINAL, MAT_A).unwrap_err(),
+        LocalScheduleError::SourceMismatch
+    );
+}
+
+/// The interchange is not confined to the entry block: the same pair
+/// exchanges in a later block, found by the function-wide scan, while the
+/// crossed block stays bit-identical.
+#[test]
+fn pair_in_a_later_block_interchanges() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let jump_row = environment.constraint(keys.jump).unwrap().clone();
+        let return_row = environment.constraint(keys.return_unit).unwrap().clone();
+        let materialize = environment
+            .constraint(keys.materialize_i64)
+            .unwrap()
+            .clone();
+        // The entry block keeps one instruction and jumps to a second block
+        // carrying the whole original body and the return.
+        let moved = std::mem::take(&mut function.blocks[0].instructions);
+        function.blocks[0].instructions = vec![instruction(
+            SelectedInstructionId(20),
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(11),
+            },
+            &materialize,
+            &[OUTCOME],
+        )];
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(21),
+                SelectedInstructionKind::Jump,
+                &jump_row,
+                &[],
+            ),
+            successor: successor(SelectedBlockId(1), BlockId::new(2).unwrap(), 2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: moved,
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(22),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    let result = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    let moved = &result.transformed().functions[0].blocks[1].instructions;
+    assert_eq!(moved[0].id, MAT_B);
+    assert_eq!(moved[1].id, MAT_A);
+    // The crossed entry block stays bit-identical.
+    assert_eq!(
+        result.transformed().functions[0].blocks[0],
+        source.transformed().functions[0].blocks[0]
+    );
+}
+
+/// A flag-reading terminator still observes the same publisher when the pair
+/// ending the body interchanges: neither member writes condition state, so
+/// the compare remains the last flag definition before the branch.
+#[test]
+fn pair_before_a_flag_reading_terminator_interchanges() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        // [mat_a, mat_b, compare, boolean, sum] with a flag-reading branch.
+        let body = &mut function.blocks[0].instructions;
+        body.swap(2, 4);
+        body.swap(2, 3);
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap()
+            .clone();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                TERMINAL,
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                &branch,
+                &[],
+            ),
+            when_nonzero: successor(SelectedBlockId(0), BlockId::new(1).unwrap(), 2),
+            when_zero: successor(SelectedBlockId(0), BlockId::new(1).unwrap(), 3),
+        };
+    });
+    let result = schedule(&source, &environment, BOOLEAN, SUM).unwrap();
+    let body = &result.transformed().functions[0].blocks[0].instructions;
+    assert_eq!(body[3].id, SUM);
+    assert_eq!(body[4].id, BOOLEAN);
+}
+
+/// Validation re-derives the admission and compares by content: a proposal
+/// that leaves the pair in place, interchanges a different pair, or carries
+/// an unrelated edit each fails replay even though each is a complete plan.
+#[test]
+fn replay_rejects_anything_but_the_interchange() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    // The source itself is not a proposal: the pair was never exchanged.
+    assert_eq!(
+        validate_local_schedule(
+            &source,
+            0,
+            MAT_A,
+            MAT_B,
+            &environment,
+            budget(),
+            source.transformed().clone(),
+        )
+        .unwrap_err(),
+        LocalScheduleError::ReplayMismatch
+    );
+    // A different interchange is not this one.
+    let mut other = source.transformed().clone();
+    other.functions[0].blocks[0].instructions.swap(2, 3);
+    assert_eq!(
+        validate_local_schedule(&source, 0, MAT_A, MAT_B, &environment, budget(), other)
+            .unwrap_err(),
+        LocalScheduleError::ReplayMismatch
+    );
+    // The right interchange plus an unrelated extra edit still fails restore.
+    let mut extra = source.transformed().clone();
+    extra.functions[0].blocks[0].instructions.swap(0, 1);
+    extra.functions[0].blocks[0].instructions[4]
+        .provenance
+        .operations = vec![OperationId::new(77).unwrap()];
+    assert_eq!(
+        validate_local_schedule(&source, 0, MAT_A, MAT_B, &environment, budget(), extra)
+            .unwrap_err(),
+        LocalScheduleError::ReplayMismatch
+    );
+    // The honest interchange replays.
+    let result = schedule(&source, &environment, MAT_A, MAT_B).unwrap();
+    validate_local_schedule(
+        &source,
+        0,
+        MAT_A,
+        MAT_B,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// The admission walk is bounded by the validation budget: a plan whose scan
+/// cost exceeds it refuses rather than running unbounded.
+#[test]
+fn work_budget_bounds_the_scan() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    assert_eq!(
+        schedule_selected_pair(
+            &source,
+            0,
+            MAT_A,
+            MAT_B,
+            &environment,
+            OptimizationWorkBudget::new(100, 100, 1, 100, 100).unwrap(),
+        )
+        .unwrap_err(),
+        LocalScheduleError::WorkBudgetExceeded
+    );
+}
+
+/// The environment's target must be the plan's target: a schedule proven for
+/// one target's constraints is not evidence on another.
+#[test]
+fn target_mismatch_rejects() {
+    let source = fixture(NativeTarget::linux_x64());
+    let environment = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
+    assert_eq!(
+        schedule(&source, &environment, MAT_A, MAT_B).unwrap_err(),
+        LocalScheduleError::SourceMismatch
+    );
+}

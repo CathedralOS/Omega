@@ -6,9 +6,9 @@ use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use crate::{
     ValidatedAddressFold, ValidatedCopyRemoval, ValidatedDeadStoreElimination,
     ValidatedFixedViewCopies, ValidatedLiteralCompare, ValidatedLiteralFold,
-    ValidatedLiteralMinuend, ValidatedPressureRematerialization, ValidatedRedundantExtension,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedStoreMutationMotion,
-    ValidatedStoredLoadForwarding,
+    ValidatedLiteralMinuend, ValidatedLocalSchedule, ValidatedPressureRematerialization,
+    ValidatedRedundantExtension, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
 };
 
 mod sealed {
@@ -158,6 +158,26 @@ impl ValidatedSelectedAnalysis for ValidatedLiteralCompare {
 impl sealed::Sealed for ValidatedLiteralMinuend {}
 
 impl ValidatedSelectedAnalysis for ValidatedLiteralMinuend {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedLocalSchedule {}
+
+impl ValidatedSelectedAnalysis for ValidatedLocalSchedule {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
