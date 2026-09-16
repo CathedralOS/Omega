@@ -14,8 +14,8 @@
 //! unchanged image rejects it with `ImageBindingMismatch`.
 
 use super::{
-    WriteExitProvider, continuation_unit_call_plan, edge_id, edge_owned_cleanup_plan, machine_id,
-    operation_id, promote_x86_cleanup_to_scalar, scalar_three_leaf_cleanup_plan,
+    WriteExitProvider, continuation_unit_call_plan, edge_id, edge_owned_cleanup_plan, identity,
+    machine_id, operation_id, promote_x86_cleanup_to_scalar, scalar_three_leaf_cleanup_plan,
     stored_dynamic_call_plan, structural_call_scalar_return_plan, windows_foreign_call_plan,
 };
 use calling_conventions::{
@@ -28,16 +28,20 @@ use image_emission::{
     installation_fingerprint, validate_installation_record,
 };
 use machine_code::{
-    StructuralCallScalarReturnEvidence, UnitAffineScalarRecordEstablishmentRecord,
-    UnitContinuationRecord, UnitIntegerConstantRecord,
+    MachineCodeFunction, MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
+    StackAdjustmentPair, StructuralCallScalarReturnEvidence, UnitAffineCleanupRecord,
+    UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord, UnitIntegerConstantRecord,
+    UnitParameterHomeRecord, UnitParameterRecord, UnitStackEvidence,
 };
 use semantic_vocabulary::{
     BlockId, IntegerSign, IntegerType, IntegerValue, PlaceId, ProfileDecisionId, ScalarType,
-    StructuralFieldId, StructuralTypeId, ValueId,
+    StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{CallSiteOwner, ScalarAbiValue};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
+use target_operations::{CallSiteOwner, ScalarAbiValue, TerminalPsiProvenance};
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralPathQualification, StructuralPathSegment,
+};
 
 fn i32_scalar() -> ScalarType {
     ScalarType::Integer(i32_integer())
@@ -65,6 +69,10 @@ fn field_id(raw: u64) -> StructuralFieldId {
 
 fn block_id(raw: u64) -> BlockId {
     BlockId::new(raw).expect("block")
+}
+
+fn domain_id(raw: u64) -> StructuralDomainId {
+    StructuralDomainId::new(raw).expect("domain")
 }
 
 fn empty_placement() -> ValuePlacement {
@@ -398,6 +406,328 @@ fn structural_scalar_return() -> StructuralCallScalarReturnEvidence {
     }
 }
 
+/// An attached Unit entry function whose two affine scalar-record
+/// establishments each feed a later owned internal Unit call. Every record
+/// names the parameter place its result settles into; the consuming call's
+/// argument materializes the record's signed immediate into the parameter
+/// register, so each record field is joined to the parameter and home
+/// declarations, the semantic code attribution, the call custody, and the
+/// closing edge cleanup.
+fn affine_scalar_record_custody_plan() -> MachineCodePlan {
+    let argument_shape = ValueShape::integer(8, 8);
+    let empty_source = ValuePlacement {
+        shape: argument_shape,
+        locations: Vec::new(),
+    };
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+        &CallSignature {
+            parameters: vec![argument_shape],
+            result: None,
+        },
+    )
+    .expect("affine scalar call plan");
+    let result = |place: u64, kind: u64| terminal_psi::StructuralOperationResult {
+        place: place_id(place),
+        structural_type: structural_type(kind),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    let record = |operation: u64, ordinal: usize, place: u64, kind: u64, field: u64, value: i64| {
+        UnitAffineScalarRecordEstablishmentRecord {
+            psi_operation: operation_id(operation),
+            result: result(place, kind),
+            field: field_id(field),
+            value: IntegerValue::Signed(i128::from(value)),
+            shape: argument_shape,
+            operation_ordinal: ordinal,
+        }
+    };
+    // The argument transfer materializes the record's signed immediate into
+    // the first parameter register; the record itself is the zero-byte
+    // establishment its consuming argument is joined to.
+    let argument = |place: u64, kind: u64, stack_offset: u32, code_offset: usize, value: i64| {
+        machine_code::InternalUnitCallArgumentRecord {
+            place: place_id(place),
+            access: StructuralAccess::Owned,
+            path: Vec::new(),
+            root_structural_type: structural_type(kind),
+            structural_type: structural_type(kind),
+            shape: argument_shape,
+            source_byte_offset: 0,
+            source_location: machine_code::StructuralSourceLocation::Stack {
+                byte_offset: stack_offset,
+            },
+            call_stack_bytes: 8,
+            fixed_array_length: None,
+            element_stride: None,
+            source: machine_code::InternalUnitStructuralArgumentSourceRecord::Placement(
+                empty_source.clone(),
+            ),
+            destination: call_plan.parameters[0].clone(),
+            code_offset,
+            byte_count: 10,
+            bytes: [0x48, 0xbf]
+                .into_iter()
+                .chain(value.to_le_bytes())
+                .collect(),
+        }
+    };
+    let unit_call = |operation: u64,
+                     ordinal: usize,
+                     code_offset: usize,
+                     argument: machine_code::InternalUnitCallArgumentRecord| {
+        machine_code::InternalUnitCallRecord {
+            source: machine_code::InternalUnitCallSource::Authored,
+            owner: CallSiteOwner::Operation(operation_id(operation)),
+            target: machine_id(2),
+            result: None,
+            semantic_result: None,
+            structural_result: None,
+            scalar_arguments: Vec::new(),
+            arguments: vec![argument],
+            claim_transfers: Vec::new(),
+            operation_ordinal: ordinal,
+            code_offset,
+            byte_count: 23,
+        }
+    };
+    let relocation = |operation: u64, allocation: usize, release: usize, offset: usize| {
+        machine_code::InternalCallRelocation {
+            owner: CallSiteOwner::Operation(operation_id(operation)),
+            target: machine_id(2),
+            unit_stack: Some(machine_code::UnitCallStackEvidence {
+                outbound: Some(StackAdjustmentPair {
+                    byte_size: 8,
+                    allocation_offset: allocation,
+                    allocation_byte_count: 4,
+                    release_offset: release,
+                    release_byte_count: 4,
+                }),
+            }),
+            scalar_stack: None,
+            offset,
+        }
+    };
+    MachineCodePlan {
+        psi: identity(),
+        target: NativeTarget::linux_x64(),
+        entry: machine_id(1),
+        functions: vec![
+            MachineCodeFunction {
+                scalar_abi: None,
+                mixed_structural_scalar_abi: None,
+                structural_call_scalar_return: None,
+                parameter_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
+                dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
+                dynamic_parameter_calls: Vec::new(),
+                forwarded_dynamic_parameter_calls: Vec::new(),
+                forwarded_dynamic_descriptor_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: vec![
+                    record(1, 0, 1, 1, 1, 5),
+                    record(2, 1, 2, 2, 2, -3),
+                ],
+                unit_structural_scalar_field_stores: Vec::new(),
+                unit_write_only_primitive_stores: Vec::new(),
+                scalar_structural_scalar_field_stores: Vec::new(),
+                machine: machine_id(1),
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: vec![
+                        operation_id(1),
+                        operation_id(2),
+                        operation_id(3),
+                        operation_id(4),
+                    ],
+                    edges: vec![edge_id(1)],
+                },
+                bytes: vec![
+                    0x48, 0x83, 0xec, 0x08, // sub rsp, 8
+                    0x48, 0xbf, 5, 0, 0, 0, 0, 0, 0, 0, // movabs rdi, 5
+                    0xe8, 0, 0, 0, 0, // call machine 2
+                    0x48, 0x83, 0xc4, 0x08, // add rsp, 8
+                    0x48, 0x83, 0xec, 0x08, // sub rsp, 8
+                    0x48, 0xbf, 0xfd, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                    0xff, // movabs rdi, -3
+                    0xe8, 0, 0, 0, 0, // call machine 2
+                    0x48, 0x83, 0xc4, 0x08, // add rsp, 8
+                    0xc3, // ret
+                ],
+                x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
+                unit_stack: Some(UnitStackEvidence {
+                    frame: None,
+                    aarch64_return_link: None,
+                    stack_alignment: 16,
+                }),
+                unit_parameter_homes: vec![
+                    UnitParameterHomeRecord {
+                        place: place_id(1),
+                        structural_type: structural_type(1),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        shape: argument_shape,
+                        source: empty_source.clone(),
+                        location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
+                        indirect: false,
+                    },
+                    UnitParameterHomeRecord {
+                        place: place_id(2),
+                        structural_type: structural_type(2),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        shape: argument_shape,
+                        source: empty_source.clone(),
+                        location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
+                        indirect: false,
+                    },
+                ],
+                unit_parameters: vec![
+                    UnitParameterRecord {
+                        place: place_id(1),
+                        structural_type: structural_type(1),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        shape: argument_shape,
+                    },
+                    UnitParameterRecord {
+                        place: place_id(2),
+                        structural_type: structural_type(2),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        shape: argument_shape,
+                    },
+                ],
+                scalar_stack: None,
+                internal_calls: vec![relocation(3, 0, 19, 15), relocation(4, 23, 42, 38)],
+                foreign_calls: Vec::new(),
+                internal_unit_calls: vec![
+                    unit_call(3, 2, 0, argument(1, 1, 0, 4, 5)),
+                    unit_call(4, 3, 23, argument(2, 2, 0, 27, -3)),
+                ],
+                unit_continuations: Vec::new(),
+                unit_affine_cleanup: Some(UnitAffineCleanupRecord {
+                    structural_types: Vec::new().into(),
+                    psi_edge: edge_id(1),
+                    locals: Vec::new(),
+                    actions: Vec::new(),
+                    code_offset: 46,
+                    byte_count: 1,
+                }),
+                semantic_code_attribution: vec![
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Operation(operation_id(1)),
+                        operation_ordinal: 0,
+                        code_offset: 4,
+                        byte_count: 0,
+                    },
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Operation(operation_id(2)),
+                        operation_ordinal: 1,
+                        code_offset: 27,
+                        byte_count: 0,
+                    },
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Operation(operation_id(3)),
+                        operation_ordinal: 2,
+                        code_offset: 0,
+                        byte_count: 23,
+                    },
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Operation(operation_id(4)),
+                        operation_ordinal: 3,
+                        code_offset: 23,
+                        byte_count: 23,
+                    },
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Edge(edge_id(1)),
+                        operation_ordinal: 4,
+                        code_offset: 46,
+                        byte_count: 1,
+                    },
+                ],
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
+                structural_return: None,
+            },
+            MachineCodeFunction {
+                scalar_abi: None,
+                mixed_structural_scalar_abi: None,
+                structural_call_scalar_return: None,
+                parameter_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
+                dynamic_calls: Vec::new(),
+                stored_dynamic_calls: Vec::new(),
+                dynamic_parameter_calls: Vec::new(),
+                forwarded_dynamic_parameter_calls: Vec::new(),
+                forwarded_dynamic_descriptor_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
+                unit_write_only_primitive_stores: Vec::new(),
+                scalar_structural_scalar_field_stores: Vec::new(),
+                machine: machine_id(2),
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: vec![edge_id(2)],
+                },
+                bytes: vec![0xc3],
+                x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
+                unit_stack: Some(UnitStackEvidence {
+                    frame: None,
+                    aarch64_return_link: None,
+                    stack_alignment: 16,
+                }),
+                unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
+                scalar_stack: None,
+                internal_calls: Vec::new(),
+                foreign_calls: Vec::new(),
+                internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
+                unit_affine_cleanup: Some(UnitAffineCleanupRecord {
+                    structural_types: Vec::new().into(),
+                    psi_edge: edge_id(2),
+                    locals: Vec::new(),
+                    actions: Vec::new(),
+                    code_offset: 0,
+                    byte_count: 1,
+                }),
+                semantic_code_attribution: vec![SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(edge_id(2)),
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 1,
+                }],
+                port_effects: Vec::new(),
+                boundary_settlements: Vec::new(),
+                scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
+                structural_return: None,
+            },
+        ],
+    }
+}
+
 fn extra_type_catalog() -> abstract_operations::StructuralTypeCatalog {
     vec![terminal_psi::StructuralTypeDeclaration {
         id: structural_type(9),
@@ -479,6 +809,85 @@ fn assert_substitution_rejected_at_encoding(
         encode_installation_record(&changed),
         Err(expected),
         "{field}: canonical encoding rejects the substitution"
+    );
+}
+
+/// Encode-side analogue for a record-roster substitution that is not
+/// independently representable: a canonical record-shape join rejects it
+/// before any identity or replay could accept it.
+fn assert_record_substitution_rejected_at_encoding(
+    field: &str,
+    record: &InstallationRecord,
+    mutate: impl Fn(&mut InstallationRecord),
+    expected: InstallationError,
+) {
+    let mut changed = record.clone();
+    mutate(&mut changed);
+    assert_ne!(changed, *record, "{field}: substitution changes the record");
+    assert_eq!(
+        encode_installation_record(&changed),
+        Err(expected),
+        "{field}: canonical encoding rejects the substitution"
+    );
+}
+
+/// Replay-side assertion for the affine scalar-record fixture: the consuming
+/// argument's source placement carries an 8-byte shape with no locations —
+/// exactly what `affine_scalar_record_source` requires — and that placement
+/// is not wire-decodable today, so the containing record cannot round-trip
+/// through `decode_installation_record`. The substitution still encodes
+/// canonically, recomputes a distinct installation identity, and independent
+/// replay against the unchanged image rejects it.
+fn assert_undecodable_row_substitution_rejected_by_replay(
+    field: &str,
+    record: &InstallationRecord,
+    image: &image_emission::ExecutableImage,
+    authentic_fingerprint: &image_emission::InstallationFingerprint,
+    index: usize,
+    mutate: impl Fn(&mut InstalledFunction),
+) {
+    let mut changed = record.clone();
+    mutate(&mut changed.functions_mut_for_test()[index]);
+    assert_ne!(changed, *record, "{field}: substitution changes the row");
+    encode_installation_record(&changed)
+        .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
+    assert_ne!(
+        installation_fingerprint(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+        *authentic_fingerprint,
+        "{field}: recomputed identity differs from the authentic record"
+    );
+    assert_eq!(
+        validate_installation_record(&changed, image),
+        Err(InstallationError::ImageBindingMismatch),
+        "{field}: independent replay rejects the substituted row"
+    );
+}
+
+/// Record-roster analogue of
+/// [`assert_undecodable_row_substitution_rejected_by_replay`].
+fn assert_undecodable_record_substitution_rejected_by_replay(
+    field: &str,
+    record: &InstallationRecord,
+    image: &image_emission::ExecutableImage,
+    authentic_fingerprint: &image_emission::InstallationFingerprint,
+    mutate: impl Fn(&mut InstallationRecord),
+) {
+    let mut changed = record.clone();
+    mutate(&mut changed);
+    assert_ne!(changed, *record, "{field}: substitution changes the record");
+    encode_installation_record(&changed)
+        .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
+    assert_ne!(
+        installation_fingerprint(&changed)
+            .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
+        *authentic_fingerprint,
+        "{field}: recomputed identity differs from the authentic record"
+    );
+    assert_eq!(
+        validate_installation_record(&changed, image),
+        Err(InstallationError::ImageBindingMismatch),
+        "{field}: independent replay rejects the substituted record"
     );
 }
 
@@ -1417,6 +1826,793 @@ fn installation_function_store_rows_reject_every_one_field_substitution() {
                 .push(scalar_field_store());
         },
     );
+}
+
+/// The affine scalar-record roster authenticates every field against an
+/// authentic emitted image: each establishment's zero-byte semantic span, its
+/// declared result place and field, and its signed immediate are joined to the
+/// parameter homes, and the single later owned internal Unit call consuming it
+/// must materialize exactly the record's bytes into the argument register.
+/// The consuming argument's source placement — an empty-location placement
+/// carrying the record's 8-byte shape — is not wire-decodable today, so the
+/// containing record encodes but does not round-trip; that gap is pinned in
+/// the test body. The identities no record-shape join reads — producer, result
+/// place and type, field, value, ordinal — still encode, recompute a distinct
+/// installation identity, and are rejected by independent replay of the
+/// mutated record. Every canonical-shape violation and every join into the
+/// parameter roster, the consuming call, or the roster itself is rejected at
+/// canonical encoding.
+#[test]
+fn installation_function_affine_scalar_records_reject_every_one_field_substitution() {
+    let plan = affine_scalar_record_custody_plan();
+    let artifact = build_object_artifact(&plan).expect("affine scalar artifact");
+    let image = emit_executable_image(&artifact, 3).expect("affine scalar image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("affine scalar installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = record.functions()[0].clone();
+    assert_eq!(authentic.unit_affine_scalar_records.len(), 2);
+    assert_eq!(record.internal_unit_calls().len(), 2);
+
+    // The authentic record encodes canonically, but the consuming argument's
+    // source placement — an empty-location placement carrying an 8-byte shape,
+    // the exact form `affine_scalar_record_source` requires — is not decodable
+    // through `decode_direct_placement` today. The wire gap is pinned here so
+    // each substitution below is authenticated by canonical encoding,
+    // identity recompute, and independent replay of the mutated record.
+    let canonical = encode_installation_record(&record).expect("canonical encoding");
+    assert_eq!(
+        decode_installation_record(&canonical),
+        Err(InstallationError::UnsupportedInternalUnitCallPlacement)
+    );
+
+    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
+        (
+            "unit_affine_scalar_records[0].psi_operation",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].psi_operation = operation_id(9);
+            }),
+        ),
+        (
+            "unit_affine_scalar_records[0].result.place",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].result.place = place_id(9);
+            }),
+        ),
+        (
+            "unit_affine_scalar_records[0].result.structural_type",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].result.structural_type = structural_type(9);
+            }),
+        ),
+        (
+            "unit_affine_scalar_records[0].field",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].field = field_id(9);
+            }),
+        ),
+        (
+            "unit_affine_scalar_records[0].value",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].value = IntegerValue::Signed(18);
+            }),
+        ),
+        (
+            "unit_affine_scalar_records[0].operation_ordinal",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].operation_ordinal += 1;
+            }),
+        ),
+        (
+            "unit_affine_scalar_records::drop",
+            Box::new(|row| {
+                row.unit_affine_scalar_records.pop();
+            }),
+        ),
+        (
+            "unit_affine_scalar_records::insert",
+            Box::new(|row| {
+                row.unit_affine_scalar_records
+                    .push(UnitAffineScalarRecordEstablishmentRecord {
+                        psi_operation: operation_id(9),
+                        result: terminal_psi::StructuralOperationResult {
+                            place: place_id(9),
+                            structural_type: structural_type(9),
+                            multiplicity: StructuralMultiplicity::Affine,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                            claims: Vec::new(),
+                        },
+                        field: field_id(9),
+                        value: IntegerValue::Signed(7),
+                        shape: ValueShape::integer(8, 8),
+                        operation_ordinal: 5,
+                    });
+            }),
+        ),
+        (
+            "unit_affine_scalar_records::insert-duplicate",
+            Box::new(|row| {
+                let duplicate = row.unit_affine_scalar_records[0].clone();
+                row.unit_affine_scalar_records.push(duplicate);
+            }),
+        ),
+        (
+            "unit_affine_scalar_records::swap",
+            Box::new(|row| {
+                row.unit_affine_scalar_records.swap(0, 1);
+            }),
+        ),
+        // The parameter home's indirection flag is authenticated by the
+        // emitted image alone: no record-shape join reads it.
+        (
+            "unit_parameter_homes[0].indirect",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].indirect = true;
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        assert_undecodable_row_substitution_rejected_by_replay(
+            field,
+            &record,
+            &image,
+            &authentic_fingerprint,
+            0,
+            mutate,
+        );
+    }
+
+    let scalar_record_error = || InstallationError::InvalidUnitAffineScalarRecord;
+    let call_error = || InstallationError::InvalidInternalUnitCall(machine_id(1));
+    let cleanup_error = || InstallationError::InvalidUnitAffineCleanup(machine_id(1));
+    let rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut InstalledFunction)>,
+        InstallationError,
+    )> = vec![
+        (
+            "unit_affine_scalar_records[0].result.multiplicity",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].result.multiplicity =
+                    StructuralMultiplicity::Linear;
+            }),
+            scalar_record_error(),
+        ),
+        (
+            "unit_affine_scalar_records[0].result.qualifications",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0]
+                    .result
+                    .qualifications
+                    .push(domain_id(3));
+            }),
+            scalar_record_error(),
+        ),
+        (
+            "unit_affine_scalar_records[0].result.projected_qualifications",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0]
+                    .result
+                    .projected_qualifications
+                    .push(StructuralPathQualification {
+                        path: vec![StructuralPathSegment::Field("gate".to_string())],
+                        domain: domain_id(3),
+                    });
+            }),
+            scalar_record_error(),
+        ),
+        (
+            "unit_affine_scalar_records[0].result.claims",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].result.claims.push(
+                    terminal_psi::StructuralResultClaimBinding {
+                        claim: semantic_vocabulary::ClaimId::new(31).expect("claim"),
+                        path: Vec::new(),
+                    },
+                );
+            }),
+            scalar_record_error(),
+        ),
+        (
+            "unit_affine_scalar_records[0].value::unsigned",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].value = IntegerValue::Unsigned(3);
+            }),
+            scalar_record_error(),
+        ),
+        (
+            "unit_affine_scalar_records[0].value::overflow",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].value =
+                    IntegerValue::Signed(i128::from(i64::MAX) + 1);
+            }),
+            scalar_record_error(),
+        ),
+        (
+            "unit_affine_scalar_records[0].shape",
+            Box::new(|row| {
+                row.unit_affine_scalar_records[0].shape = ValueShape::integer(4, 4);
+            }),
+            scalar_record_error(),
+        ),
+        (
+            "unit_affine_scalar_records::insert-noncanonical",
+            Box::new(|row| {
+                row.unit_affine_scalar_records.push(affine_scalar_record());
+            }),
+            scalar_record_error(),
+        ),
+        // The record's result place is joined through the parameter and home
+        // rosters: declaration axes are pinned pairwise, and every roster
+        // membership change upsets the cleanup's transferred-root suffix.
+        (
+            "unit_parameters[0].place",
+            Box::new(|row| {
+                row.unit_parameters[0].place = place_id(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters[0].structural_type",
+            Box::new(|row| {
+                row.unit_parameters[0].structural_type = structural_type(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters[0].multiplicity",
+            Box::new(|row| {
+                row.unit_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters[0].access",
+            Box::new(|row| {
+                row.unit_parameters[0].access = StructuralAccess::SharedBorrow;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters[0].shape",
+            Box::new(|row| {
+                row.unit_parameters[0].shape = ValueShape::integer(4, 4);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters::drop",
+            Box::new(|row| {
+                row.unit_parameters.pop();
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters::insert-duplicate",
+            Box::new(|row| {
+                let parameter = row.unit_parameters[0];
+                row.unit_parameters.push(parameter);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters::swap",
+            Box::new(|row| {
+                row.unit_parameters.swap(0, 1);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].place",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].place = place_id(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].structural_type",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].structural_type = structural_type(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].multiplicity",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].multiplicity = StructuralMultiplicity::Linear;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].access",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].access = StructuralAccess::SharedBorrow;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].shape",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].shape = ValueShape::integer(4, 4);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].source",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].source = register_placement();
+            }),
+            call_error(),
+        ),
+        (
+            "unit_parameter_homes[0].location",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].location =
+                    machine_code::StructuralSourceLocation::Stack { byte_offset: 16 };
+            }),
+            call_error(),
+        ),
+        (
+            "unit_parameter_homes::drop",
+            Box::new(|row| {
+                row.unit_parameter_homes.pop();
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes::insert-duplicate",
+            Box::new(|row| {
+                let home = row.unit_parameter_homes[0].clone();
+                row.unit_parameter_homes.push(home);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes::swap",
+            Box::new(|row| {
+                row.unit_parameter_homes.swap(0, 1);
+            }),
+            cleanup_error(),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
+    }
+
+    // The record-level call roster carries the consuming custody: each
+    // argument leaf is joined to the record's place, home, immediate bytes
+    // and span, while the roster's physical ordering is canonical.
+    let provider_source = machine_code::InternalUnitCallSource::InstalledProvider {
+        boundary: semantic_vocabulary::BoundaryMachineId::new(7).expect("boundary"),
+        provider: Box::new(terminal_psi::ProviderCandidateConformance {
+            boundary: semantic_vocabulary::BoundaryMachineId::new(7).expect("boundary"),
+            requirement_identity: "requirement".into(),
+            provider_identity: "provider".into(),
+            candidate_identity: "candidate".into(),
+            candidate: machine_id(2),
+            signature: terminal_psi::ProviderSignature {
+                parameters: Vec::new(),
+            },
+            refinement: terminal_psi::ProviderRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        }),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+    };
+    let structural_result = machine_code::InternalStructuralCallResult {
+        operation_result: terminal_psi::StructuralOperationResult {
+            place: place_id(31),
+            structural_type: structural_type(31),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        },
+        result_home: None,
+        function_result: terminal_psi::StructuralResultDeclaration {
+            place: place_id(31),
+            structural_type: structural_type(31),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            reference_sources: Vec::new(),
+        },
+        returned_claim_transfers: Vec::new(),
+        returned_claims: Vec::new(),
+        caller_result_placement: empty_placement(),
+        callee_result_placement: empty_placement(),
+    };
+    let still_encodes_calls: Vec<(&'static str, Box<dyn Fn(&mut InstallationRecord)>)> = vec![
+        // The argument's access and byte-transport axes are authenticated by
+        // the emitted image alone: no record-shape join reads them, so each
+        // substitution still encodes and replay rejects it.
+        (
+            "internal_unit_calls[0].arguments[0].access",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .access = StructuralAccess::SharedBorrow;
+            }),
+        ),
+        (
+            "internal_unit_calls[0].arguments[0].call_stack_bytes",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .call_stack_bytes = 0;
+            }),
+        ),
+        (
+            "internal_unit_calls[0].arguments[0].code_offset",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .code_offset += 1;
+            }),
+        ),
+        (
+            "internal_unit_calls[0].arguments[0].bytes",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .bytes[2] ^= 0xff;
+            }),
+        ),
+        (
+            "internal_unit_calls[0].custody.claim_transfers",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .claim_transfers
+                    .push(terminal_psi::ClaimTransfer {
+                        claim: semantic_vocabulary::ClaimId::new(31).expect("claim"),
+                        argument_index: 0,
+                    });
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes_calls {
+        assert_undecodable_record_substitution_rejected_by_replay(
+            field,
+            &record,
+            &image,
+            &authentic_fingerprint,
+            mutate,
+        );
+    }
+
+    let rejected_calls: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut InstallationRecord)>,
+        InstallationError,
+    )> = vec![
+        (
+            "internal_unit_calls[0].custody.source",
+            Box::new(move |record| {
+                record.internal_unit_calls_mut_for_test()[0].custody.source =
+                    provider_source.clone();
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.owner",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0].custody.owner =
+                    CallSiteOwner::Operation(operation_id(9));
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.target",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0].custody.target = machine_id(3);
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.result",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0].custody.result = Some(i32_scalar());
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.semantic_result",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .semantic_result = Some(abstract_operations::AbstractResult {
+                    value: value_id(31),
+                    scalar_type: ScalarType::Boolean,
+                });
+            }),
+            call_error(),
+        ),
+        // A returned structural result joins into the function's transferred
+        // affine roots, so the cleanup roster rejects it before the call.
+        (
+            "internal_unit_calls[0].custody.structural_result",
+            Box::new(move |record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .structural_result = Some(structural_result.clone());
+            }),
+            cleanup_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.operation_ordinal",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .operation_ordinal = 0;
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.code_offset",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .code_offset += 1;
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.byte_count",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .byte_count += 1;
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.scalar_arguments",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .scalar_arguments
+                    .push(machine_code::InternalUnitScalarCallArgumentRecord {
+                        parameter_index: 0,
+                        source:
+                            machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                                defining_operation: operation_id(8),
+                                source_value: value_id(55),
+                                scalar_type: i32_integer(),
+                                value: IntegerValue::Signed(3),
+                            },
+                        destination: register_placement(),
+                        code_offset: 0,
+                        byte_count: 5,
+                    });
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].place",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .place = place_id(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].path",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .path = vec![StructuralPathSegment::Field("other".to_string())];
+            }),
+            cleanup_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].root_structural_type",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .root_structural_type = structural_type(9);
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].structural_type",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .structural_type = structural_type(9);
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].shape",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .shape = ValueShape::integer(4, 4);
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].source::placement",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .source = machine_code::InternalUnitStructuralArgumentSourceRecord::Placement(
+                    register_placement(),
+                );
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].source::established",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .source =
+                    machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
+                        psi_operation: operation_id(1),
+                    };
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].source_location",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .source_location =
+                    machine_code::StructuralSourceLocation::Stack { byte_offset: 8 };
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].source_byte_offset",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .source_byte_offset = 1;
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].destination",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .destination = register_placement();
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].byte_count",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .byte_count += 1;
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].fixed_array_length",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .fixed_array_length = Some(2);
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments[0].element_stride",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .element_stride = Some(8);
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments::drop",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments
+                    .pop();
+            }),
+            cleanup_error(),
+        ),
+        (
+            "internal_unit_calls[0].custody.arguments::insert-duplicate",
+            Box::new(|record| {
+                let duplicate = record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments[0]
+                    .clone();
+                record.internal_unit_calls_mut_for_test()[0]
+                    .custody
+                    .arguments
+                    .push(duplicate);
+            }),
+            call_error(),
+        ),
+        // Retargeting the call to the callee's machine strips the consuming
+        // call from the caller's roster, so the caller's cleanup rejects it
+        // before the call's own fields are examined.
+        (
+            "internal_unit_calls[0].machine",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0].machine = machine_id(2);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "internal_unit_calls[0].text_offset",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test()[0].text_offset += 1;
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls::drop",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test().remove(0);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "internal_unit_calls::swap",
+            Box::new(|record| {
+                record.internal_unit_calls_mut_for_test().swap(0, 1);
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls::insert-duplicate",
+            Box::new(|record| {
+                let duplicate = record.internal_unit_calls_mut_for_test()[0].clone();
+                record.internal_unit_calls_mut_for_test().push(duplicate);
+            }),
+            call_error(),
+        ),
+        (
+            "internal_unit_calls::insert-distinct",
+            Box::new(|record| {
+                let mut call = record.internal_unit_calls_mut_for_test()[0].clone();
+                call.custody.owner = CallSiteOwner::Operation(operation_id(9));
+                call.custody.operation_ordinal = 9;
+                call.custody.code_offset = 40;
+                call.custody.byte_count = 6;
+                call.text_offset = 40;
+                record.internal_unit_calls_mut_for_test().push(call);
+            }),
+            call_error(),
+        ),
+    ];
+    for (field, mutate, expected) in rejected_calls {
+        assert_record_substitution_rejected_at_encoding(field, &record, mutate, expected);
+    }
 }
 
 /// Unit-body cleanup evidence is pinned leaf-for-leaf by the record-shape
