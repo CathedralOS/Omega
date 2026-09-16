@@ -43,16 +43,7 @@ pub(crate) fn resolve_signature_free_requirement<'program>(
         .collect::<Vec<_>>()
         .join("::");
     let use_span = requirement_name.source_span();
-    let matching_traits = program
-        .traits
-        .iter()
-        .filter(|definition| {
-            same_semantic_name(definition.name.as_str(), &trait_name)
-                && program
-                    .symbols
-                    .source_reference_can_see_symbol(use_span, definition.symbol)
-        })
-        .collect::<Vec<_>>();
+    let matching_traits = signature_free_trait_candidates(program, &trait_name, use_span);
     let [trait_definition] = matching_traits.as_slice() else {
         return Err(SignatureFreeRequirementResolutionError::TraitNotUnique);
     };
@@ -81,6 +72,79 @@ pub(crate) fn same_semantic_name(left: &str, right: &str) -> bool {
     left == right
         || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
         || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
+}
+
+/// Pool the trait candidates an occurrence may name under the
+/// module/dependency scope law, retaining ambiguity inside the winning scope
+/// instead of silently selecting.
+///
+/// A bare leaf spelling matches same-named traits program-wide, but only the
+/// occurrence's own scope may claim it: declarations in the occurrence's
+/// module (or its unmoduled package frontier, the flat-namespace fallback)
+/// precede imported and unrelated foreign declarations. When no local
+/// candidate exists, declarations selected by the occurrence's authored
+/// imports outrank the remaining unmoduled pool. This mirrors the
+/// precedence `SymbolTable::select_namespace_candidate` applies to ordinary
+/// top-level references — including the package boundary that separates a
+/// dependency's same-leaf trait from the importing package's own — while
+/// this path keeps `TraitNotUnique` for genuinely contested spellings.
+pub(crate) fn signature_free_trait_candidates<'program>(
+    program: &'program SymbolResolvedTrees,
+    trait_name: &str,
+    use_span: source::SourceSpan,
+) -> Vec<&'program TraitDefinition> {
+    let candidates = program
+        .traits
+        .iter()
+        .filter(|definition| {
+            same_semantic_name(definition.name.as_str(), trait_name)
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(use_span, definition.symbol)
+        })
+        .collect::<Vec<_>>();
+    if use_span.span.start == use_span.span.end {
+        return candidates;
+    }
+    let symbols = &program.symbols;
+    let occurrence_module = symbols.source_module(use_span.source_id);
+    let local = candidates
+        .iter()
+        .copied()
+        .filter(|definition| {
+            symbols.symbol_module(definition.symbol) == occurrence_module
+                && symbols
+                    .symbol_provenance_source_span(definition.symbol)
+                    .is_some_and(|declaration| symbols.same_source_package(use_span, declaration))
+        })
+        .collect::<Vec<_>>();
+    if !local.is_empty() {
+        return local;
+    }
+    let imported = candidates
+        .iter()
+        .copied()
+        .filter(|definition| {
+            symbols
+                .source_module_import_paths(use_span.source_id)
+                .any(|path| {
+                    symbols.source_module_import_target(use_span.source_id, path)
+                        == Some(definition.symbol)
+                })
+        })
+        .collect::<Vec<_>>();
+    if !imported.is_empty() {
+        return imported;
+    }
+    let unmoduled = candidates
+        .iter()
+        .copied()
+        .filter(|definition| !symbols.symbol_module(definition.symbol).is_valid())
+        .collect::<Vec<_>>();
+    if !unmoduled.is_empty() {
+        return unmoduled;
+    }
+    candidates
 }
 
 struct AmbiguousUse {
@@ -198,17 +262,8 @@ fn collect_ambiguous_use(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
-    let matching_traits = program
-        .traits
-        .iter()
-        .filter(|definition| {
-            same_semantic_name(definition.name.as_str(), &trait_name)
-                && program.symbols.source_reference_can_see_symbol(
-                    requirement_name.source_span(),
-                    definition.symbol,
-                )
-        })
-        .collect::<Vec<_>>();
+    let matching_traits =
+        signature_free_trait_candidates(program, &trait_name, requirement_name.source_span());
     let [trait_definition] = matching_traits.as_slice() else {
         return;
     };

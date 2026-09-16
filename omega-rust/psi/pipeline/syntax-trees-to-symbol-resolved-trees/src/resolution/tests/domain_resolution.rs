@@ -810,6 +810,165 @@ fn ordinary_requirement_route_rejects_parameter_domain_as_introduction() {
 }
 
 #[test]
+fn signature_free_route_selects_the_occurrence_package_scope() {
+    // A dependency's unmoduled trait must not collide with the importing
+    // package's same-leaf declaration: signature-free requirement resolution
+    // scopes its candidates to the occurrence's module/package before pooling.
+    // The route authored inside the dependency therefore keeps its own owner
+    // while the package's `reaches` row keeps the package's trait. This
+    // witnessed regression appeared when hosted package compilations seeded
+    // `core`: a package's own `ExtentRootProvider` collided with core's.
+    let dependency = r#"
+        pub data Extent { base: u64; length: u64; }
+        pub domain Extent::Granted
+        established by
+            ExtentRootProvider::grant;
+        pub boundary trait ExtentRootProvider {
+            machine grant(root: Extent) -> Extent
+            ensures
+                result in Extent::Granted;
+        }
+    "#;
+    let package = r#"
+        pub boundary trait ExtentRootProvider {}
+        pub machine exercise() reaches ExtentRootProvider {}
+    "#;
+    let mut sources = SourceMap::default();
+    let dependency_id = sources
+        .add_with_metadata(
+            PathBuf::from("dependency/extent.omg"),
+            dependency.to_owned(),
+            PathBuf::from("dependency"),
+            None,
+            SourceOrigin::User,
+        )
+        .source_id;
+    let package_id = sources
+        .add_with_metadata(
+            PathBuf::from("package/main.omg"),
+            package.to_owned(),
+            PathBuf::from("package"),
+            None,
+            SourceOrigin::User,
+        )
+        .source_id;
+    let dependency_tokens = Lexer::new(dependency)
+        .tokenize()
+        .expect("tokenize dependency");
+    let mut syntax =
+        parse_syntax_trees_with_id(dependency_id, &dependency_tokens).expect("parse dependency");
+    let package_tokens = Lexer::new(package).tokenize().expect("tokenize package");
+    let package_syntax =
+        parse_syntax_trees_with_id(package_id, &package_tokens).expect("parse package");
+    syntax.extend_from(&package_syntax);
+
+    let program = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("same-leaf traits in separate packages must not collide");
+
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Extent::Granted")
+        .expect("granted domain");
+    let [
+        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+            boundary_trait,
+            requirement,
+        },
+    ] = domain.establishment_routes.as_slice()
+    else {
+        panic!(
+            "one boundary-requirement route: {:?}",
+            domain.establishment_routes
+        )
+    };
+    assert_eq!(
+        program
+            .symbols
+            .symbol_provenance_source_span(*boundary_trait)
+            .map(|span| span.source_id),
+        Some(dependency_id),
+        "the dependency's route selects its own trait"
+    );
+    assert_eq!(
+        program
+            .symbols
+            .symbol_provenance_source_span(*requirement)
+            .map(|span| span.source_id),
+        Some(dependency_id),
+        "the requirement belongs to the dependency's trait"
+    );
+
+    let exercise = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "exercise")
+        .expect("package machine");
+    let reach_row = program
+        .authored_service_reach_rows
+        .iter()
+        .find(|row| row.owner == exercise.symbol)
+        .expect("authored reach row");
+    let [target] = reach_row.targets.as_slice() else {
+        panic!("one authored reach target: {:?}", reach_row.targets)
+    };
+    assert_eq!(
+        program
+            .symbols
+            .symbol_provenance_source_span(target.service)
+            .map(|span| span.source_id),
+        Some(package_id),
+        "the package's `reaches` selects its own trait"
+    );
+}
+
+#[test]
+fn signature_free_route_still_rejects_a_contested_same_package_leaf() {
+    // Scoping narrows the pool to the occurrence's dependency scope; it does
+    // not weaken the exact-selection contract. Two same-package declarations
+    // competing for one leaf remain ambiguous.
+    let first = "pub boundary trait Shared {}";
+    let second = "pub boundary trait Shared {}";
+    let user = r#"
+        data Token { value: u64; }
+        domain Token::Issued
+        established by Shared::issue;
+    "#;
+    let mut sources = SourceMap::default();
+    let mut syntax = syntax_trees::SyntaxTrees::default();
+    for (index, text) in [first, second, user].into_iter().enumerate() {
+        let source_id = sources
+            .add_with_metadata(
+                PathBuf::from(format!("package/{index}.omg")),
+                text.to_owned(),
+                PathBuf::from("package"),
+                None,
+                SourceOrigin::User,
+            )
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+            .expect("parse");
+    }
+    let diagnostics = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect_err("same-package leaf collision still rejects");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not resolve to one exact trait")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
 fn rejects_unresolved_authored_domain_requirement_route() {
     let source = r#"
     data Token { value: u64; }
