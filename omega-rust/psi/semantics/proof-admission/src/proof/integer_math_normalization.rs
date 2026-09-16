@@ -65,7 +65,11 @@ pub fn lower_integer_math_relation(proposition: &Proposition) -> Option<Proposit
     })
 }
 
-pub(super) fn propositions_match_under_integer_math_normalization(
+/// The premise-citation relation every bounded checker route shares:
+/// exact equality or the fixed-width↔mathematical carrier normalization
+/// above. `pub(crate)` so the mathematical-core denotation bridge applies
+/// the same relation instead of restating it.
+pub(crate) fn propositions_match_under_integer_math_normalization(
     retained: &Proposition,
     requested: &Proposition,
 ) -> bool {

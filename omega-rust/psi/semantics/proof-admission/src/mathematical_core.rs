@@ -167,6 +167,19 @@
 //! board names, with exact assumption closure over the stored
 //! signature.
 //!
+//! [`bounded_denotation`] is the bridge from the shipped certificate
+//! language: a bounded `terminal_psi::ProofNode` certificate is denoted
+//! proposition-by-proposition and rule-by-rule into this term model —
+//! atomic propositions become `Type 0` assumptions, scalar `Equal`
+//! becomes `Id` over a carrier assumption, the connectives become `Σ`,
+//! tagged sums and non-dependent `Π` — and the reconstructed judgment
+//! `Γ ⊢ t : ⟦goal⟧` is re-decided by `verify_mathematical_certificate`.
+//! The bounded checker and this route re-decide the same certificate
+//! independently; the core route is what survives the canonical
+//! certificate wire, carries the exact assumption closure, and refuses
+//! — never mis-decides — the rule families it does not cover.
+//!
+mod bounded_denotation;
 mod certificate;
 mod conversion;
 mod indexed;
@@ -180,6 +193,10 @@ mod tests;
 mod theorems;
 mod typing;
 
+pub use bounded_denotation::{
+    BoundedDenotation, BoundedDenotationError, denote_bounded_certificate,
+    verify_bounded_certificate,
+};
 pub use certificate::{
     MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
 };
