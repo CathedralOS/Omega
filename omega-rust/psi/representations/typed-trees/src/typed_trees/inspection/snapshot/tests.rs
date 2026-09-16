@@ -209,6 +209,7 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     program.push_machine(Machine {
         name: Identifier::generated("checked"),
         is_public: true,
+        spelling: Some(language_core::operator_spelling::OperatorSpelling::Multiply),
         ..Machine::default()
     });
     program.push_machine(Machine {
@@ -237,6 +238,8 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
         snapshot.roots.machines[0].supply,
         MachineSupplySnapshot::CheckedBody
     );
+    assert_eq!(snapshot.roots.machines[0].spelling, Some("*"));
+    assert_eq!(snapshot.roots.machines[1].spelling, None);
     assert_eq!(
         snapshot.roots.machines[1].supply,
         MachineSupplySnapshot::ExternalRealization {

@@ -51,6 +51,8 @@ fn lower_machine_contents(
         // `lower_machine` validates the exact clone origin before entering
         // this conversion; retain it for application-property checking.
         generic_data_template: machine.generic_data_origin.template,
+        // Copied, never re-derived from the leaf name.
+        spelling: machine.spelling,
         is_public: machine.is_public,
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,

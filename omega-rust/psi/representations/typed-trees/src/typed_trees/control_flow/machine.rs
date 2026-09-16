@@ -4,6 +4,7 @@ use crate::signature::{AuthoredInvocation, SignatureContract};
 use crate::state::State;
 use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
+use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,6 +21,10 @@ pub struct Machine {
     /// Exact authored method behind a validated generic-data clone. Invalid
     /// for authored machines; application checking retains the template bounds.
     pub generic_data_template: SymbolHandle,
+    /// The fixed operator token bound by this declaration head, copied from
+    /// symbol-resolved trees; `None` is the ordinary named form. Checked
+    /// consumers read this binding instead of guessing from the leaf name.
+    pub spelling: Option<OperatorSpelling>,
     /// Retained source-level package visibility, independent of supply mode.
     pub is_public: bool,
     /// Copied from symbol-resolved trees; semantic consumers must not
@@ -62,6 +67,7 @@ impl Default for Machine {
             attached_data_symbol: SymbolHandle::invalid(),
             attached_data_application: TypeReferenceHandle::invalid(),
             generic_data_template: SymbolHandle::invalid(),
+            spelling: None,
             is_public: false,
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
             body_is_present: true,
