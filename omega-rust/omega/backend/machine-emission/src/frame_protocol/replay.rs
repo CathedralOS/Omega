@@ -4,8 +4,9 @@
 use isa_aarch64::Aarch64FrameSlot;
 use isa_x86_64::X86_64FrameSlot;
 
-use crate::frame_layout::{FrameContinuationCustody, frame_unwind_policy};
+use crate::frame_layout::frame_unwind_policy;
 
+use super::codec::{FrameProtocolCodec, frame_protocol_codec};
 use super::{
     FrameProtocolByteSpan, TargetFrameProtocolEncodingError as Error,
     TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy, ValidatedTargetFrameLayout,
@@ -29,10 +30,12 @@ pub(super) fn validate_bytes(
     if candidate.functions.len() != frame.plan().functions.len() {
         return Err(Error::NonCanonicalEncoding);
     }
-    // The replay selects the ISA codec through the same declared unwind row
-    // the producer used: the continuation mechanism names the codec family,
-    // and the validated custody must be an instance of it. A missing row is
+    // The replay selects the ISA codec through the same declared
+    // (architecture, object-format) codec row the producer used, and the
+    // pair's declared unwind row still supplies the continuation mechanism
+    // the validated custody must be an instance of. A missing row is
     // fail-closed defense — the validated layout implies a declared pair.
+    let codec = frame_protocol_codec(environment.target()).ok_or(Error::UnsupportedTarget)?;
     let continuation = frame_unwind_policy(environment.target())
         .ok_or(Error::UnsupportedTarget)?
         .continuation;
@@ -54,16 +57,19 @@ pub(super) fn validate_bytes(
         {
             return Err(Error::NonCanonicalEncoding);
         }
+        // The recorded return-address custody must be an instance of the
+        // mechanism the pair's declared unwind row continues through; a
+        // foreign custody fails closed before the codec runs.
+        if !continuation.admits(function.return_address) {
+            return Err(Error::UnsupportedReturnAddressCustody);
+        }
         // The submitted bytes must be the encoding of exactly the validated
-        // unwind roster: the ISA codec's save list runs in reverse roster
-        // order so its epilogue restores in roster order — a saved link
-        // register first, then preservation slots in descending frame
+        // unwind roster: the declared codec's save list runs in reverse
+        // roster order so its epilogue restores in roster order — a saved
+        // link register first, then preservation slots in descending frame
         // offset.
-        let (prologue, epilogue) = match continuation {
-            FrameContinuationCustody::CallerActivationStack { .. } => {
-                if !continuation.admits(function.return_address) {
-                    return Err(Error::UnsupportedReturnAddressCustody);
-                }
+        let (prologue, epilogue) = match codec {
+            FrameProtocolCodec::X86_64 => {
                 let slots = function
                     .unwind
                     .restores
@@ -86,10 +92,7 @@ pub(super) fn validate_bytes(
                 )
                 .map_err(Error::X86)?
             }
-            FrameContinuationCustody::LinkRegister { .. } => {
-                if !continuation.admits(function.return_address) {
-                    return Err(Error::UnsupportedReturnAddressCustody);
-                }
+            FrameProtocolCodec::Aarch64 => {
                 let slots = function
                     .unwind
                     .restores

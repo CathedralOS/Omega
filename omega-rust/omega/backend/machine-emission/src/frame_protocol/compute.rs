@@ -1,9 +1,10 @@
 use isa_aarch64::Aarch64FrameSlot;
 use isa_x86_64::X86_64FrameSlot;
 
-use crate::frame_layout::{FrameContinuationCustody, frame_unwind_policy};
+use crate::frame_layout::frame_unwind_policy;
 use crate::frame_protocol::{ValidatedTargetFrameLayout, ValidatedTargetRegisterEnvironment};
 
+use super::codec::{FrameProtocolCodec, frame_protocol_codec};
 use super::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingError,
     TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy,
@@ -23,11 +24,15 @@ pub(super) fn derive(
     {
         return Err(TargetFrameProtocolEncodingError::RootMismatch);
     }
-    // The pair's declared unwind row selects the continuation mechanism the
-    // encoded protocol serves: the ISA codec follows the mechanism, and each
-    // function's recorded custody must be an instance of it. The validated
-    // layout could only exist on a declared pair, so a missing row is
-    // fail-closed defense, not a reachable target.
+    // The pair's declared codec row selects the ISA codec the protocol is
+    // encoded with: selection is an (architecture, object-format)
+    // declaration, not an inference from the pair's unwind mechanism. The
+    // pair's declared unwind row still supplies the continuation mechanism
+    // each function's recorded custody must be an instance of. The
+    // validated layout could only exist on a declared pair, so a missing
+    // row is fail-closed defense, not a reachable target.
+    let codec = frame_protocol_codec(environment.target())
+        .ok_or(TargetFrameProtocolEncodingError::UnsupportedTarget)?;
     let continuation = frame_unwind_policy(environment.target())
         .ok_or(TargetFrameProtocolEncodingError::UnsupportedTarget)?
         .continuation;
@@ -48,15 +53,18 @@ pub(super) fn derive(
         {
             return Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding);
         }
+        // The recorded return-address custody must be an instance of the
+        // mechanism the pair's declared unwind row continues through; a
+        // foreign custody fails closed before the codec runs.
+        if !continuation.admits(function.return_address) {
+            return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
+        }
         // The encoded protocol performs exactly the validated unwind roster:
-        // the ISA codec's save list runs in reverse roster order so its
+        // the declared codec's save list runs in reverse roster order so its
         // epilogue restores in roster order — a saved link register first,
         // then preservation slots in descending frame offset.
-        let (prologue_bytes, epilogue_bytes) = match continuation {
-            FrameContinuationCustody::CallerActivationStack { .. } => {
-                if !continuation.admits(function.return_address) {
-                    return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
-                }
+        let (prologue_bytes, epilogue_bytes) = match codec {
+            FrameProtocolCodec::X86_64 => {
                 let slots = function
                     .unwind
                     .restores
@@ -79,10 +87,7 @@ pub(super) fn derive(
                 )
                 .map_err(TargetFrameProtocolEncodingError::X86)?
             }
-            FrameContinuationCustody::LinkRegister { .. } => {
-                if !continuation.admits(function.return_address) {
-                    return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
-                }
+            FrameProtocolCodec::Aarch64 => {
                 let slots = function
                     .unwind
                     .restores
