@@ -310,16 +310,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `nested_diagnostics`, `print_number`, `temperature_convert`,
   `text_greeting`, `unit_converter` — the same missing checked transitive
   machine plan family as `recursive_sum`, `dutch_flag`, and `window_app`
-  above (**GENERAL-CYCLIC-EXECUTION**). `number_guess` reaches
-  `Selection(Legalization(UnsupportedScalarOperation { .. SaturatingIntegerAdd
-  { scalar_type: i32 .. } }))` in native physical staging (macOS ARM64,
-  2c234a684c): the legalized and selected instruction vocabularies carry only
-  `SaturatingAddU64`/`SaturatingSubtractU64`, so every `i32 in Saturating`
-  operation (460 uses across samples and corpus, against 6 for `u64`) has no
-  legal physical instruction. The signed 32-bit saturating add/subtract/divide
-  family (`MIN / -1` saturates to `MAX`, zero divisors keep their obligation)
-  is the owning repair across `legalized-operations`, `selected-instructions`,
-  both ISA encoders, and `target-operations-to-selected-instructions`.
+  above (**GENERAL-CYCLIC-EXECUTION**). `number_guess` now legalizes: signed
+  32-bit saturating add, subtract, and divide reach native realization on
+  all four targets (`SaturatingAddI32`/`SubtractI32`/`DivideI32`, clamped
+  through a bound scratch; `MIN / -1` yields `MAX` without a fault path;
+  the zero-divisor obligation stays proof-discharged), with
+  `tests/native-differential/tests/scalar_case_results/i32_saturating_kernels.rs`
+  as the executed regression. The sample's next first failure (macOS ARM64):
+  `macOS hosted receiver bridge lost exact contract, storage, or entry
+  custody` from `image-emission/src/hosted_receiver.rs`, which is the
+  **ENTRY-CONTENT-ROOTS** receiver bridge, not arithmetic. Other saturating
+  widths (`i8`, `i16`, `i64`, `u8`, `u16`, `u32`; 168 corpus uses) are
+  additive beside these kinds and still raise
+  `UnsupportedScalarOperation`.
   `multiplication_table` still fails checked-stage `Utf8` field proofs and
   `print_squares` still stops at `OperationProofUnavailable(ObligationId(25))`.
 
