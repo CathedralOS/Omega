@@ -77,8 +77,10 @@ fn component_candidate(
 /// `length` still coupled to a `ByteSequenceLength` on the rebound root, and
 /// for a subslice the structural result preserved inside the moved
 /// operation), an invariant scalar computation (an obligated variant keeps
-/// its discharged obligation byte-exact inside the moved operation), or
-/// a computation whose
+/// its discharged obligation byte-exact inside the moved operation), an
+/// invariant scalar-signature call whose callee's transitive effect summary
+/// proves no observable effect, crash, or suspension and whose member roster
+/// is unobservable throughout, or a computation whose
 /// member-internal operands are all defined by nodes earlier in the same run —
 /// plus the number of countdown-certificate constants already occupying the
 /// preheader tail (the dedicated countdown boundary owns their role order).
@@ -161,29 +163,37 @@ pub(super) fn component_plan(
     let mut nodes = Vec::new();
     let mut relocating = std::collections::BTreeSet::new();
     let mut admitted = std::collections::BTreeSet::new();
+    // The transitive per-function effect table a scalar-call admission
+    // consults is derived lazily — only a member carrying the call shape
+    // computes it — and always over the session's verified seed unit.
+    let mut call_effects = None;
     // Every rebound operand must already be visible where the relocated run
-    // lands: a function parameter, a preheader block parameter, or a preheader
-    // node defined ahead of the run. Representatives defined by other
-    // dominating blocks would need a dominance query this family does not run,
-    // so they stay inside the loop.
-    let representable = |substitution: &std::collections::BTreeMap<ValueId, ValueId>| {
-        substitution
-            .values()
-            .all(|representative| match sites.get(representative) {
-                Some(ValueDefinitionSite::FunctionParameter(_)) => true,
-                Some(ValueDefinitionSite::BlockParameter { block, .. })
-                    if *block == preheader_source =>
-                {
-                    true
+    // lands: a function parameter, a preheader block parameter, a preheader
+    // node defined ahead of the run, or the result of another node the same
+    // run already covers — admission order puts that producer's preheader
+    // definition ahead of the consumer spelling it. Representatives defined
+    // by other dominating blocks would need a dominance query this family
+    // does not run, so they stay inside the loop.
+    let representable = |substitution: &std::collections::BTreeMap<ValueId, ValueId>,
+                         relocating: &std::collections::BTreeSet<ValueId>| {
+        substitution.values().all(|representative| {
+            relocating.contains(representative)
+                || match sites.get(representative) {
+                    Some(ValueDefinitionSite::FunctionParameter(_)) => true,
+                    Some(ValueDefinitionSite::BlockParameter { block, .. })
+                        if *block == preheader_source =>
+                    {
+                        true
+                    }
+                    Some(ValueDefinitionSite::Node {
+                        block,
+                        node: defined,
+                    }) if *block == preheader_source => {
+                        usize::try_from(*defined).is_ok_and(|defined| defined < insertion)
+                    }
+                    _ => false,
                 }
-                Some(ValueDefinitionSite::Node {
-                    block,
-                    node: defined,
-                }) if *block == preheader_source => {
-                    usize::try_from(*defined).is_ok_and(|defined| defined < insertion)
-                }
-                _ => false,
-            })
+        })
     };
     loop {
         let mut progressed = false;
@@ -252,7 +262,7 @@ pub(super) fn component_plan(
                     else {
                         continue;
                     };
-                    if !representable(&substitution) {
+                    if !representable(&substitution, &relocating) {
                         continue;
                     }
                     root_rewrite = (root != source).then_some((source, root));
@@ -280,10 +290,39 @@ pub(super) fn component_plan(
                     else {
                         continue;
                     };
-                    if !representable(&substitution) {
+                    if !representable(&substitution, &relocating) {
                         continue;
                     }
                     root_rewrite = (root != source).then_some((source, root));
+                    substitution.into_iter().collect()
+                } else if crate::validation::admissible_invariant_scalar_call(node).is_some() {
+                    // A scalar-signature call keeps the full non-speculative
+                    // gate — it performs callee work a skipped traversal would
+                    // not — and then adds its own evidence: the callee's
+                    // transitive effect summary must prove no observable
+                    // effect, crash, or suspension, and every member node must
+                    // be unobservable so hoisting the call's possible
+                    // divergence cannot reorder member work anyone could
+                    // observe. Each scalar argument then obeys the shared
+                    // member-parameter substitution.
+                    if !(guaranteed_entry && guaranteed.contains(member)) {
+                        continue;
+                    }
+                    let effects = call_effects.get_or_insert_with(|| {
+                        crate::validation::unit_effect_summaries(session.unit())
+                    });
+                    let Some(substitution) = crate::validation::invariant_scalar_call_admission(
+                        function,
+                        component,
+                        node,
+                        &relocating,
+                        effects,
+                    ) else {
+                        continue;
+                    };
+                    if !representable(&substitution, &relocating) {
+                        continue;
+                    }
                     substitution.into_iter().collect()
                 } else {
                     if !(guaranteed_entry && guaranteed.contains(member)) {
@@ -299,7 +338,7 @@ pub(super) fn component_plan(
                     else {
                         continue;
                     };
-                    if !representable(&substitution) {
+                    if !representable(&substitution, &relocating) {
                         continue;
                     }
                     substitution.into_iter().collect()

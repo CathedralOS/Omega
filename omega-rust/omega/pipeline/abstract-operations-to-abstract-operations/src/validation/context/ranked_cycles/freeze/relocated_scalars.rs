@@ -8,7 +8,11 @@
 //! representative an invariant member structural parameter resolves to — an
 //! admissible byte observation (a `ByteSequenceRead`, or a
 //! `ByteSequenceSubslice` whose structural view result and bounds obligation
-//! relocate byte-exact inside the moved operation), or
+//! relocate byte-exact inside the moved operation),
+//! an admissible scalar-signature call (its callee's transitive effect
+//! summary proves no observable effect, crash, or suspension, and every node
+//! inside the member roster is unobservable, so hoisting the call's possible
+//! divergence reorders nothing anyone could see), or
 //! an admissible scalar
 //! computation (an obligated variant keeps its verifier-discharged
 //! obligation byte-exact inside the moved operation) whose uses are all
@@ -39,7 +43,7 @@
 
 use super::super::super::super::{
     BTreeSet, BlockId, OperationId, OptimizationBlock, OptimizationNode, PlaceId,
-    PsiOptimizationFunction, PsiProvenance, ScalarType, ValueId,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ScalarType, ValueId,
 };
 
 use super::super::CycleComponentId;
@@ -55,10 +59,17 @@ struct Moved<'function> {
 
 pub(super) fn validate(
     machine: MachineId,
-    expected: &PsiOptimizationFunction,
+    expected_unit: &PsiOptimizationUnit,
     current: &PsiOptimizationFunction,
     components: &[&OptimizerCycleComponent],
 ) -> Result<(), OptimizationUnitValidationError> {
+    let expected = expected_unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
+            machine,
+        ))?;
     // A source operation left a component's member blocks when its unique
     // current occurrence sits outside that component. Missing or duplicated
     // occurrences are never admitted moves; the frozen comparison below
@@ -131,6 +142,11 @@ pub(super) fn validate(
     // ahead of the terminator that owns every entry edge, and it must retain
     // every source-owned field.
     let mut guaranteed_members: BTreeMap<CycleComponentId, BTreeSet<BlockId>> = BTreeMap::new();
+    // The transitive per-function effect table a scalar-call relocation
+    // replays is derived lazily — only a moved node carrying the call shape
+    // computes it — and always over the reconstructed seed unit, never over
+    // the transformed unit being fenced.
+    let mut call_effects = None;
     for relocation in &moved {
         let component = relocation.home;
         let Some(preheader_source) = crate::validation::shared_entry_source(component) else {
@@ -248,6 +264,28 @@ pub(super) fn validate(
                     .unwrap_or(&no_relocated_results),
             ) {
                 Some((root, substitution)) => (substitution, Some(root)),
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::admissible_invariant_scalar_call(relocation.expected).is_some()
+        {
+            // A scalar call replays its whole admission from the seed: the
+            // callee's transitive summary must prove no observable effect,
+            // crash, or suspension, and every member node must be
+            // unobservable — the divergence-reordering custody a forged
+            // member or callee would break. Its scalar arguments then obey
+            // the same re-derived substitution a computation obeys.
+            let effects = call_effects
+                .get_or_insert_with(|| crate::validation::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_scalar_call_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                effects,
+            ) {
+                Some(substitution) => (substitution, None),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else {

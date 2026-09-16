@@ -1703,10 +1703,10 @@ fn member_view_parameters_resolve_across_member_edges() {
     );
 }
 
-fn find_member_node<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
+fn find_member_node(
+    function: &optimization_unit::PsiOptimizationFunction,
     site: NodeLocation,
-) -> &'function optimization_unit::OptimizationNode {
+) -> &optimization_unit::OptimizationNode {
     function
         .blocks
         .iter()
@@ -3887,4 +3887,610 @@ fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiO
     .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"));
     VerifiedPsiOptimizationSession::new(verified)
         .unwrap_or_else(|error| panic!("verified {label} session: {error:?}"))
+}
+
+/// A two-state cycle whose member invokes a pure internal callee on an
+/// invariant argument: `Root::bump` is a leaf machine whose transitive
+/// effect summary proves no observable effect, crash, or suspension, every
+/// member node is unobservable, and `s` resolves transitively to `scale`'s
+/// preheader anchor — so the call relocates into the preheader rebinding its
+/// argument to the anchor, and the `bumped + s` computation chained on the
+/// call's preserved result relocates behind it through the same run.
+const INVARIANT_CALL_SOURCE: &str = r#"
+    data Root {}
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let bumped: u32 in Wrapping = Root::bump(s);
+            let doubled: u32 in Wrapping = bumped + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+    machine Root::bump(x: u32 in Wrapping) -> u32 in Wrapping { x + 1 }
+"#;
+
+/// Same component shape, but the call's argument is the loop-carried
+/// countdown: the member parameter the call reads never resolves to a
+/// preheader representative, so the call stays inside even though its callee
+/// is pure and its member block is guaranteed to execute.
+const CARRIED_ARGUMENT_CALL_SOURCE: &str = r#"
+    data Root {}
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let bumped: u32 in Wrapping = Root::bump(pending);
+            let doubled: u32 in Wrapping = bumped + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+    machine Root::bump(x: u32 in Wrapping) -> u32 in Wrapping { x + 1 }
+"#;
+
+/// Same call shape inside `step`, but the entry state's `done` arm can leave
+/// the component before `step` ever runs: callee purity and argument
+/// invariance are intact, yet relocating the call would speculate callee work
+/// a bypassed traversal never performs, so the non-speculative gate keeps it
+/// inside while the header's own invariant leaves still relocate.
+const BYPASSED_CALL_SOURCE: &str = r#"
+    data Root {}
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition remaining > 0 {
+            true -> step(scale, remaining - 1)
+            _ -> done()
+        }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let bumped: u32 in Wrapping = Root::bump(s);
+            let doubled: u32 in Wrapping = bumped + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state done() {}
+        state finish(r: u32 in Wrapping) {}
+    }
+    machine Root::bump(x: u32 in Wrapping) -> u32 in Wrapping { x + 1 }
+"#;
+
+/// The callee `Root::spin` never returns: its transitive summary still proves
+/// no observable effect, crash, or suspension, and every member node is
+/// unobservable, so the relocation is admitted — moving the call's certain
+/// divergence ahead of the member run changes nothing anyone can observe.
+/// The gate is unobservability of the member roster, not a termination proof
+/// of the callee.
+const DIVERGING_CALLEE_SOURCE: &str = r#"
+    data Root {}
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let bumped: u32 in Wrapping = Root::spin(s);
+            let doubled: u32 in Wrapping = bumped + s;
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(doubled)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+    machine Root::spin(x: u32 in Wrapping) -> u32 in Wrapping {
+        transition { _ -> spin(x) }
+    }
+"#;
+
+/// The `Root::bump`/`Root::spin` scalar call inside a member block and its
+/// block — the caller-side counterpart of [`member_addition`].
+fn member_call<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> (
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+) {
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::Call { .. } = &node.operation {
+                return (block, node);
+            }
+        }
+    }
+    panic!("the scalar call lives in a member block")
+}
+
+#[test]
+fn invariant_scalar_call_relocates_rebinding_its_argument() {
+    let session = lowered_session(INVARIANT_CALL_SOURCE, "invariant call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_call(function, component);
+    let (call_operation, argument, callee) = match &call.operation {
+        AbstractOperation::Call {
+            psi_operation,
+            callee,
+            arguments,
+            ..
+        } => (*psi_operation, arguments[0], *callee),
+        operation => panic!("the member node is a scalar call: {operation:?}"),
+    };
+    let anchor = crate::validation::invariant_member_parameters(function, component)[&argument];
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the invariant scalar call is a planned relocation");
+    assert_eq!(
+        relocation.node().operand_rewrites(),
+        &[(argument, anchor)],
+        "the call's member-parameter argument rebinds to its preheader anchor"
+    );
+    assert_eq!(relocation.node().location().block, call_block.id);
+    assert_eq!(relocation.destination().block, entry.source);
+
+    // The `bumped + s` computation consumes the call's result through a block
+    // parameter every reaching edge binds to that result: once the run covers
+    // the producer, the forwarded parameter is the preserved result on every
+    // traversal, so the consumer relocates behind the call in the same
+    // candidate.
+    assert!(
+        candidate.relocations().iter().any(|relocation| {
+            let source = function
+                .blocks
+                .iter()
+                .find(|block| block.id == relocation.node().location().block)
+                .expect("source block exists");
+            matches!(
+                source.nodes[usize::try_from(relocation.node().location().node).unwrap()].operation,
+                AbstractOperation::WrappingIntegerAdd { .. }
+            )
+        }),
+        "the computation chained on the call result relocates in the same run"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::Call {
+            callee: moved_callee,
+            arguments,
+            ..
+        } => {
+            assert_eq!(arguments.as_slice(), &[anchor]);
+            assert_eq!(*moved_callee, callee, "callee identity is byte-exact");
+        }
+        operation => panic!("relocated node keeps its call operation: {operation:?}"),
+    }
+    assert!(moved.uses.iter().all(|value_use| value_use.value == anchor));
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    let [record] = applied.ledger().records() else {
+        panic!("one atomic relocation has one ledger record")
+    };
+    let row = record
+        .provenance
+        .iter()
+        .find(|row| row.input == PsiRealizationSite::Node(relocation.node().location()))
+        .expect("the relocated call has exact ledger custody");
+    assert_eq!(
+        row.disposition,
+        ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(relocation.destination()))
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 8)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn carried_argument_call_stays_inside() {
+    let session = lowered_session(CARRIED_ARGUMENT_CALL_SOURCE, "carried call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_call(function, component);
+    let (call_operation, argument) = match &call.operation {
+        AbstractOperation::Call {
+            psi_operation,
+            arguments,
+            ..
+        } => (*psi_operation, arguments[0]),
+        operation => panic!("the member node is a scalar call: {operation:?}"),
+    };
+    // Callee purity and member observability are intact — the refusal is
+    // exactly the carried argument: `pending` never resolves to a preheader
+    // representative, so no substitution exists.
+    assert!(
+        !crate::validation::invariant_member_parameters(function, component)
+            .contains_key(&argument),
+        "the back edge advances the call's argument, so it stays loop-carried"
+    );
+    let effects = crate::validation::unit_effect_summaries(session.unit());
+    assert!(
+        crate::validation::invariant_scalar_call_admission(
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_none(),
+        "the carried-argument call fails admission at the substitution half"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        !candidate.relocations().is_empty(),
+        "invariant work still relocates"
+    );
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the carried-argument call is not a planned relocation"
+    );
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().location().block != call_block.id),
+        "nothing relocates out of the call's member block"
+    );
+}
+
+#[test]
+fn bypassed_member_call_is_speculation_and_stays_inside() {
+    let session = lowered_session(BYPASSED_CALL_SOURCE, "bypassed call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_call(function, component);
+    let call_operation = operation_of(call);
+    // The call itself still qualifies under call admission — callee purity,
+    // member observability, and the invariant-argument substitution all hold.
+    // The rejection is the non-speculative gate alone: the call's member
+    // block does not dominate the entry state's own `done` exit.
+    let effects = crate::validation::unit_effect_summaries(session.unit());
+    assert!(
+        crate::validation::invariant_scalar_call_admission(
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_some(),
+        "call admission is intact; the member gate is the only rejection"
+    );
+    assert!(
+        !crate::validation::guaranteed_executed_member_blocks(component).contains(&call_block.id),
+        "the bypassed member block is outside the non-speculative gate"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the speculated call is not a planned relocation"
+    );
+}
+
+#[test]
+fn diverging_pure_callee_relocates_when_members_are_unobservable() {
+    let session = lowered_session(DIVERGING_CALLEE_SOURCE, "diverging callee loop");
+    // `Root::spin` carries its own never-exiting component; the caller's
+    // component is the one whose members contain the `Call`.
+    let caller = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .any(|node| matches!(node.operation, AbstractOperation::Call { .. }))
+        })
+        .expect("the caller machine exists");
+    let caller_components: Vec<_> = session
+        .cycle_components()
+        .components()
+        .iter()
+        .filter(|component| component.id.machine == caller.machine)
+        .collect();
+    let [component] = caller_components.as_slice() else {
+        panic!("the caller's one component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_call(function, component);
+    let call_operation = operation_of(call);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let relocation = candidates
+        .iter()
+        .flat_map(|candidate| candidate.relocations().iter())
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the diverging pure call is a planned relocation");
+    let candidate = candidates
+        .iter()
+        .find(|candidate| {
+            candidate
+                .relocations()
+                .iter()
+                .any(|relocation| relocation.node().psi_operation() == call_operation)
+        })
+        .expect("the caller's candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    assert!(
+        matches!(moved.operation, AbstractOperation::Call { .. }),
+        "the never-returning pure call occupies its preheader destination"
+    );
+}
+
+#[test]
+fn impure_callee_fails_scalar_call_admission() {
+    let session = lowered_session(INVARIANT_CALL_SOURCE, "impure callee loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_call(function, component);
+    let callee = match &call.operation {
+        AbstractOperation::Call { callee, .. } => *callee,
+        operation => panic!("the member node is a scalar call: {operation:?}"),
+    };
+    let effects = crate::validation::unit_effect_summaries(session.unit());
+    // The real summary admits the call: the refusals below isolate the
+    // callee-purity half of admission — the member roster is unchanged and
+    // the argument substitution still resolves.
+    assert!(
+        crate::validation::invariant_scalar_call_admission(
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_some(),
+        "the verified summary admits the invariant scalar call"
+    );
+    // Forge each impure axis on the callee's transitive summary in turn:
+    // observable effects, a possible crash, and a possible suspension each
+    // independently refuse the relocation. The forged table stands in for a
+    // callee performing observable work the scalar-call dialect cannot
+    // spell — a port write, an atomic event, or a boundary call.
+    for axis in 0..3 {
+        let mut forged = effects.clone();
+        let summary = forged
+            .functions
+            .iter_mut()
+            .find(|summary| summary.machine == callee)
+            .expect("the callee has a transitive effect summary");
+        match axis {
+            0 => summary.observable = crate::EffectKnowledge::May,
+            1 => summary.crash = crate::EffectKnowledge::May,
+            _ => summary.suspension = crate::EffectKnowledge::May,
+        }
+        assert!(
+            crate::validation::invariant_scalar_call_admission(
+                function,
+                component,
+                call,
+                &std::collections::BTreeSet::new(),
+                &forged,
+            )
+            .is_none(),
+            "callee effect axis {axis} refuses the relocation"
+        );
+    }
+    // An absent callee row fails closed rather than trusting a drifted table.
+    let mut absent = effects.clone();
+    absent.functions.retain(|summary| summary.machine != callee);
+    assert!(
+        crate::validation::invariant_scalar_call_admission(
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &absent,
+        )
+        .is_none(),
+        "a callee missing from the summary table refuses the relocation"
+    );
+}
+
+#[test]
+fn observable_member_keeps_the_scalar_call_inside() {
+    let session = lowered_session(INVARIANT_CALL_SOURCE, "observable member loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_call(function, component);
+    let effects = crate::validation::unit_effect_summaries(session.unit());
+    // Forge one non-call member node's summary to observable work — member
+    // calls are judged by their callee's purity, so the forged row must be a
+    // node whose own observable axis the member scan consults. Relocating
+    // the call would move its possible non-return ahead of member work the
+    // source traversal performed, so the divergence-custody half of
+    // admission refuses the whole call even though the callee is pure and
+    // the argument is invariant.
+    let (observable_block, observable_index) = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(index, node)| (*member, index, node))
+        })
+        .find(|(_, _, node)| !matches!(node.operation, AbstractOperation::Call { .. }))
+        .map(|(block, index, _)| (block, u32::try_from(index).expect("node index is u32")))
+        .expect("a non-call member node exists");
+    let mut forged = effects.clone();
+    forged
+        .nodes
+        .iter_mut()
+        .find(|summary| {
+            summary.machine == function.machine
+                && summary.block == observable_block
+                && summary.node == observable_index
+        })
+        .expect("the member node has a summary row")
+        .observable = crate::EffectKnowledge::May;
+    assert!(
+        crate::validation::invariant_scalar_call_admission(
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &forged,
+        )
+        .is_none(),
+        "an observable member node refuses the call's relocation"
+    );
+}
+
+#[test]
+fn carried_argument_call_moved_by_hand_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(CARRIED_ARGUMENT_CALL_SOURCE, "carried call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one two-state component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_call(function, component);
+    let member = call_block.id;
+    let preheader = entry.source;
+    let call_operation = operation_of(call);
+    let (input, mut unit) = session.into_parts();
+    // Hand-move the call whose argument is a loop-carried member parameter:
+    // the relocation fence must reject it because the callee-purity and
+    // member-observability replay still pass but no invariant substitution
+    // exists for the argument — the refusal is exact, not a shape artifact.
+    let moved = take_operation(&mut unit, call_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
 }
