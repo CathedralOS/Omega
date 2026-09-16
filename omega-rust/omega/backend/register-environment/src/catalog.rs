@@ -1,3 +1,6 @@
+//! The register facts each target declares: its physical register model,
+//! constraint catalog and conservative baseline reservation profile.
+
 use isa_aarch64::{
     AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
     AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH,

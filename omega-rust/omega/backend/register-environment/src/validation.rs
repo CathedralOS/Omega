@@ -1,3 +1,6 @@
+//! Joining a target's register model, constraint catalog and reservation
+//! profile into one validated environment.
+
 use isa_aarch64::validate_aarch64_register_constraint_catalog;
 use isa_x86_64::validate_x86_64_register_constraint_catalog;
 use register_model::{

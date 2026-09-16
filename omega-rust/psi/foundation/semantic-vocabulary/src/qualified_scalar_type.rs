@@ -1,3 +1,5 @@
+//! A scalar type paired with its canonical qualification set.
+
 use crate::{ScalarQualificationSetId, ScalarType};
 
 /// Scalar payload shape and immutable canonical membership set coordinate.

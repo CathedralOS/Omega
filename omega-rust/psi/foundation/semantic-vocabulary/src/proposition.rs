@@ -1,4 +1,5 @@
-//!
+//! The proposition vocabulary: integer types and values, scalar terms,
+//! propositions and their context, and the value identities they name.
 //! `integer_types.rs` holds the integer vocabulary, `scalar_terms.rs` the
 //! terms, `propositions.rs` the propositions and their context, and
 //! `value_ids.rs` the value identities they reference.

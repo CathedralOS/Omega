@@ -1,3 +1,6 @@
+//! Review of accepted compiler-intrinsic bindings: resolving the accepted
+//! service binding and retaining the selected review identities.
+
 use crate::{
     SelectedCompilerIntrinsicExecutionIdentity,
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding,

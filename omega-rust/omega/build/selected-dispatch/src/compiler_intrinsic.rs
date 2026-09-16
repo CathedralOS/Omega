@@ -1,3 +1,7 @@
+//! Selected compiler-intrinsic execution identities: deriving the identity
+//! of one settled row (console read, write and exit, process exit) and
+//! matching an accepted binding against it.
+
 use crate::{
     SelectedCompilerIntrinsicExecutionIdentity,
     derive_selected_compiler_intrinsic_execution_identity,

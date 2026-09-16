@@ -1,3 +1,6 @@
+//! Non-provider trust grants: resolving the grant a package makes to an
+//! accepted machine outside provider selection, and rejecting the rest.
+
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 

@@ -5,6 +5,12 @@
 //! Candidate producers do not participate in acceptance. The caller retains
 //! Terminal admission and supplies any independently admitted cycle roster;
 //! structural success alone grants no execution or publication authority.
+//!
+//! Start at `unit_validation`, which validates one complete optimization
+//! unit. `candidates` accepts or rejects each rewrite candidate, organized by
+//! the producer that proposed it; `current_ownership` reconstructs the
+//! ownership frontiers of the current revision and `current_value_ranges`
+//! validates its value ranges; `error` is the failure vocabulary.
 
 use std::collections::{BTreeMap, BTreeSet};
 

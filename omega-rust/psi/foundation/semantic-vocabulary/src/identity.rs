@@ -1,3 +1,8 @@
+//! The identities every terminal artifact names: machines, blocks, edges,
+//! operations, values, places, claims, obligations, contracts, services,
+//! structural types, domains and fields, plus package-key, fuel-schedule
+//! and scalar-qualification-set identities.
+
 use std::fmt;
 use std::num::NonZeroU32;
 use std::num::NonZeroU64;
