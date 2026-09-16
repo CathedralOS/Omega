@@ -2,11 +2,11 @@
 // `blocks;` promises not to occupy its worker. Calling a blocking service
 // beneath that root cannot hide the operational behavior.
 
-boundary trait WaitService {
+pub boundary trait WaitService {
     machine wait() blocks;
 }
 
-data Main {
+pub data Main {
     service: WaitService;
 }
 

@@ -1,11 +1,13 @@
-// UNMEASURED call-spelled self-recursion is REJECTED (measured-recursion
-// ruling 2026-07-18, MR1): a recursive CALL spelling (`true ->
-// self.countdown(remaining - 1)`) is legal ONLY on a measured machine
-// (`terminates by ...;`, the decrease proven across the loop
-// edge). This machine declares no measure, so the arm refuses and names
-// both fixes: measure the machine, or spell unmeasured repetition as the
-// bare loop `-> countdown(..)` (constant stack, may legally diverge).
-// The measured twin RUNS: pass/calls/runtime_measured_tail_recursion_exit.
+// UNMEASURED call-spelled self-recursion (measured-recursion ruling
+// 2026-07-18, MR1): a recursive CALL spelling (`true ->
+// self.countdown(remaining - 1)`) on an unmeasured machine used to refuse
+// with `call-spelled self-recursion WITHOUT a measure`. That checked-stage
+// fence was retired upstream: resolution now folds the self-prefixed arm
+// target onto the same bare loop-back edge `-> countdown(..)` spells
+// (constant stack, may legally diverge), so checked semantics admits the
+// machine. The native route still refuses it at the transitive Unit-plan
+// admission wall. The measured twin RUNS:
+// pass/calls/runtime_measured_tail_recursion_exit.
 use omega::language::std::console;
 data Main {
     console: Console;
@@ -17,7 +19,7 @@ machine Main::countdown(&mut self, remaining: u64) -> u64
         false -> 7
     }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let value: u64 = self.countdown(2);
     transition value == 7 {
         true -> yes()

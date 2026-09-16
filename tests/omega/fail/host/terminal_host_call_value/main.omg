@@ -1,20 +1,22 @@
 // FAIL CANARY: a host-boundary call as a machine's TERMINAL value has no
 // native value-return lowering -- before the fence it silently never ran and
 // its result slot read ZII 0 (the Filesystem::close fd-leak shape: rc 0
-// "success" while the fd stayed open). The fence turns it into this clean
-// error; the supported spelling binds to a `let` and returns the local.
-// (Free VALUE-MACHINE calls on ALWAYS arms auto-hoist into that spelling
-// since 2026-07-11 -- pass/calls/runtime_value_call_terminal_exit -- but
-// host calls stay manual: the receiver marks the boundary effect.)
+// "success" while the fd stayed open). The emission fence that turned it
+// into a clean error was retired upstream; checked semantics now admits the
+// shape, and the native route still refuses it at the transitive Unit-plan
+// admission wall. The supported spelling binds to a `let` and returns the
+// local. (Free VALUE-MACHINE calls on ALWAYS arms auto-hoist into that
+// spelling since 2026-07-11 -- pass/calls/runtime_value_call_terminal_exit
+// -- but host calls stay manual: the receiver marks the boundary effect.)
 use omega::language::std::filesystem_host;
 use omega::language::std::console;
 data Probe { host: FilesystemHost; fd: i32; }
-machine Probe::shutdown(&mut self, fd: i32) -> i32 {
+machine Probe::shutdown(&mut self, fd: i32) -> i32 reaches FilesystemHost {
     self.fd = fd;
     self.host.close(self.fd)
 }
 data Main { console: Console; probe: Probe; rc: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.rc = self.probe.shutdown(3);
     transition self.rc == 0 { true -> good() _ -> good() }
     state good(&mut self) { self.console.exit_process(0); }

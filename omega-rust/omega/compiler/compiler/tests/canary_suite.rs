@@ -337,20 +337,23 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
         "build/uefi_program_entry_wrong_calling_policy",
         "uefi_x86_64",
     ),
-    (
-        "collections/deep_nested_runtime_indexed_write_rejected",
-        "linux_x86_64",
-    ),
-    ("host/terminal_host_call_value", "linux_x86_64"),
-    ("calls/machine_self_call_recursion_rejected", "linux_x86_64"),
-    ("calls/guard_call_vs_call_rejected", "linux_x86_64"),
-    ("calls/guarded_value_call_terminal_rejected", "linux_x86_64"),
-    ("traits/runtime_dyn_varying_field_rejected", "linux_x86_64"),
+    // The retired checked-emission fences (`reached emission as an
+    // unclassified zero-width row`, `needs mutation lowering`, runtime
+    // storage write lowering, unmeasured self-recursion) were removed
+    // upstream; checked semantics now admits those six fixtures, so they
+    // cannot stay on this Check route. They remain in
+    // `ACTIVE_FAIL_CANARIES`, where the native route still refuses them at
+    // the transitive Unit-plan admission wall.
 ];
 
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
+    // Graduated from fail/: each pinned a checked-stage fence that has since
+    // lifted, so checked semantics admits the source.
+    "constants/const_computed_initializer",
+    "calls/nested_value_call_arg_compile",
+    "arithmetic/u64_literal_ordering_guard_compile",
     "float/exclusive_float_range_below_endpoint",
     "ranges/float_exclusive_supremum_discharges_finite",
     // The native differential owner publishes `observe` on all four targets.
@@ -376,10 +379,18 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "expressions/owned_match_parameter_values",
     "expressions/owned_match_projected_field",
     "expressions/owned_match_record_values",
+    "expressions/owned_match_authored_state",
+    "expressions/owned_match_interleaved_values",
+    "expressions/owned_match_values",
+    "expressions/match_fresh_owned",
+    "expressions/explicit_scalar_tag_erasure",
+    "expressions/indexed_qualified_call_argument",
+    "expressions/qualified_call_result_argument",
     "host/runtime_console_bounded_line_exit",
     "constants/free_const_explicit_field",
     "constants/free_const_local_shadowing",
     "modules/machine_constant_indices",
+    "modules/machine_constant_initializers",
     "modules/boolean_machine_indices",
     "modules/comparison_machine_indices",
     "modules/boolean_equality_indices",
@@ -392,6 +403,12 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "modules/module_array_constant_indices",
     "modules/public_float_constants",
     "modules/nominal_constant_bodies",
+    "modules/computed_nominal_constants",
+    "modules/compound_constant_indices",
+    "modules/domain_constant_indices",
+    "modules/qualified_constant_indices",
+    "modules/qualified_constants",
+    "modules/qualified_declarations",
     "arithmetic/anonymous_rational_integer_landing",
     "arithmetic/anonymous_rational_arguments",
     "slices/signed_index_and_range_lower_bounds",
@@ -514,6 +531,8 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "dependent/data_where_field_read_during_window_compile",
     "collections/std_option_storage_write",
     "collections/std_option_surface",
+    "collections/array_local_control",
+    "collections/owned_array_scalar_comparisons",
     "core/float_format_core_surface",
     "core/fixed_vec_core_surface",
     "core/arena_core_surface",
@@ -598,6 +617,8 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "effects/exported_wrapper_service_reach",
     "effects/nominal_callback_const_reach",
     "effects/nominal_callback_dependency",
+    "effects/generic_callback_schema_reach",
+    "effects/structural_callback_reach",
     "capabilities/declared_synchronous_invocation",
     "capabilities/invariant_parameterized_slice",
     "capabilities/string_domain_boundary_requirement",
@@ -658,6 +679,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "generics/closed_sum_case_membership",
     "generics/const_machine_value_params",
     "generics/declared_range_endpoint_inference",
+    "generics/declared_range_endpoint_boolean_arguments",
+    "generics/declared_range_endpoint_domain_qualified_calls",
+    "generics/declared_range_endpoint_static_applications",
     "generics/generic_data_instantiation",
     "generics/generic_data_type_param",
     "generics/generic_machine_call_monomorphization",
@@ -687,6 +711,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "borrows/borrow_disjoint_fixed_index_mut",
     "borrows/borrow_unique",
     "borrows/local_alias_boolean_transfer",
+    "borrows/bounded_integer_field_store",
     "constraints/multi_fact_contract_without_separators",
     "constraints/proof_machine_order_fact",
     "constraints/nat_proof_literal_suffix",
@@ -843,6 +868,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "constants/unused_scalar_constant_range",
     "modules/unused_scalar_constant_range",
     "expressions/match_mixed_result_domains",
+    "expressions/match_mixed_result_policies",
+    "expressions/match_result_double_move",
+    "expressions/indexed_qualified_call_argument_mismatch",
     "expressions/cast_result_range",
     "expressions/match_typed_result_before_cast",
     "expressions/match_fractional_result",
@@ -850,9 +878,14 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "modules/module_array_missing_carrier",
     "modules/module_array_private_carrier",
     "modules/module_array_unused_length",
+    "modules/array_projection_wrong_empty_carrier",
     "modules/runtime_fixed_array_index",
     "modules/runtime_boolean_index",
     "modules/runtime_aggregate_index",
+    "modules/runtime_comparison_index",
+    "modules/boolean_logic_runtime_index",
+    "modules/literal_boolean_index_type",
+    "modules/rational_boolean_index_undefined",
     "termination/unequal_computed_rank_copies",
     "termination/endpoint_folded_into_payload",
     "termination/explicit_self_without_descent",
@@ -941,7 +974,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/via_with_body_rejected",
     "providers/via_on_axiom_rejected",
     "providers/via_requires_satisfies",
-    "providers/via_binding_must_be_qualified",
     "providers/via_repeated_effects_rejected",
     "providers/via_signature_mismatch_rejected",
     "providers/via_runtime_binding_rejected",
@@ -1003,6 +1035,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "collections/triple_runtime_indexed_read_rejected",
     "collections/nested_three_level_index_rejected",
     "tasks/task_runtime_machine_selection_effect_mismatch",
+    "build/repeated_evaluated_root_binding",
     "build/static_machine_parameter_contract_mismatch",
     "build/build_machine_wrong_arity",
     "build/build_effects_undeclared",
@@ -1070,7 +1103,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/translation_borrowed_source_reclaim",
     "core/translation_borrowed_unmap_before_activation",
     "core/translation_borrowed_mapping_construction",
-    "constants/const_non_literal_initializer",
     "constants/const_free_floating_rejected",
     "constants/const_shadows_case",
     "comptime/effectful_const_array_length",
@@ -1173,6 +1205,10 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "generics/nominal_binder_structural_coincidence_rejected",
     "generics/nominal_binder_implicit_selection_rejected",
     "generics/signed_const_data_argument_out_of_range",
+    "generics/declared_range_endpoint_boolean_result_rejected",
+    "generics/declared_range_endpoint_domain_argument_rejected",
+    "generics/declared_range_endpoint_partial_static_application_rejected",
+    "generics/declared_range_endpoint_template_bound_call_rejected",
     "generics/signed_const_data_shift_overflow",
     "generics/type_parameter_array_length",
     "generics/unresolved_symbolic_array_length",
@@ -1389,7 +1425,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "calls/discarded_trait_call_result",
     "calls/terminal_return_type_mismatch_rejected",
     "calls/abs_call_argument_rejected",
-    "calls/nested_value_call_arg_rejected",
     "expressions/out_of_range_comparison_literal_rejected",
     "arithmetic/float_to_int_exact_unproven",
     "arithmetic/float_to_int_wrapping_rejected",
@@ -1405,7 +1440,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_mixed",
     "arithmetic/wrapping_target_plain_operands_rejected",
     "arithmetic/u64_literal_into_i64_rejected",
-    "arithmetic/u64_literal_ordering_guard_rejected",
     "arithmetic/narrowing_literal_wider_than_target",
     "arithmetic/narrowing_wide_local_unproven",
     "arithmetic/narrowing_signedness_rejected",
@@ -4611,6 +4645,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "build/uefi_program_entry_unqualified_image",
     "build/uefi_program_entry_local_physical_contract",
     "build/uefi_program_entry_wrong_calling_policy",
+    "providers/via_binding_must_be_qualified",
     "providers/slot_plan_ambiguous",
     "providers/provider_type_slot_ambiguous",
     "providers/provider_type_slot_unknown",
@@ -4635,10 +4670,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/repeated_text_element",
     "wire/repeated_nested_element",
     "wire/borrowed_scalar_slice_decode_requires_storage",
-    "inline_asm/asm_cli_requires_machine_authority",
-    "inline_asm/asm_popfq_requires_machine_authority",
-    "inline_asm/asm_wrmsr_requires_machine_authority",
-    "inline_asm/asm_write_cr3_requires_machine_authority",
     "traits/runtime_dyn_varying_field_rejected",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/param_receiver_method_rejected",
@@ -4650,6 +4681,11 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/proposition_relation_inherited_law_rejected",
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
+    // The freestanding-authority discharge (`validate_asm_discharge`) is not
+    // wired into the current pipeline, so the four
+    // `inline_asm/asm_*_requires_machine_authority` fixtures are not listed
+    // here; they stay registered through the inline-asm owner rosters that
+    // pin the intended contract diagnostic.
 ];
 
 #[derive(Clone, Copy)]

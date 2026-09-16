@@ -29,7 +29,7 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let cell: &mut Cell = self.bag.pick();
     // `cell` keeps ALL of `self.bag` loaned (receiver-wide elision), so even
     // the disjoint `other` field is off limits while it lives.

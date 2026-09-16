@@ -1,8 +1,6 @@
-// A machine call nested as a BOUND value-call's argument
-// (`let out = self.double(self.inc(3))`) reads a garbage inner result -- the
-// guard-consumer shape used to compile and natively bind 0 (interp right).
-// Now rejected with the bind-to-a-local teaching. Builtin outers
-// (`max(self.range(..), floor)`) and statement-call args still compose.
+// COMPILE CANARY (promoted from fail/ when the checked tree admitted
+// nested initializer calls): a machine call nested as a bound value-call's
+// argument (`let out = self.double(self.inc(3))`) checks cleanly.
 use omega::language::std::console;
 data Main {
     console: Console;
@@ -15,7 +13,7 @@ machine Main::double(&self, x: i32 [0..=20]) -> i32 {
     let r: i32 [0..=40] = x + x;
     transition { _ -> r }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let out: i32 = self.double(self.inc(3));
     transition out == 8 {
         true -> yes()

@@ -1,0 +1,15 @@
+// COMPILE CANARY (promoted from fail/): a u64-magnitude literal in an
+// ordering compare against a u64-classed operand lands EXACTLY into u64 --
+// the anonymous integer landing gives the literal its real carrier instead
+// of a sign-blind two's-complement bit pattern, so `stored < u64::MAX`
+// keeps honest unsigned ordering.
+use omega::language::std::console;
+data Main { console: Console; }
+machine Main::probe(&mut self, stored: u64) reaches Console {
+    let under: bool = stored < 18446744073709551615;
+    transition under { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+machine Main::main(&mut self) {
+}

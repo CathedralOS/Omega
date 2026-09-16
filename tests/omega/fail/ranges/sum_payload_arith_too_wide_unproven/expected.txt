@@ -1,1 +1,1 @@
-cannot prove transition argument `self.c.amount * 100` satisfies bounded parameter `target`
+argument `target` stores a value not provably within its declared range

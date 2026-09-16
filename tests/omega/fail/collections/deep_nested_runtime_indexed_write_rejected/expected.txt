@@ -1,1 +1,1 @@
-needs mutation lowering
+attached Unit closure is missing a checked transitive machine plan

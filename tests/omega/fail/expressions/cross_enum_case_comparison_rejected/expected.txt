@@ -1,1 +1,1 @@
-the operands are different data types (a case belongs to its own type only)
+cannot compare `Color` and `Direction` with `==`/`!=`: the operands are different data types

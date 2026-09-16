@@ -1,4 +1,4 @@
-data Unit {
+data Unit [copy] {
     exponent: i32;
 }
 

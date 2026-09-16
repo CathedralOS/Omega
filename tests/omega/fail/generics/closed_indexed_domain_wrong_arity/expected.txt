@@ -1,1 +1,1 @@
-requires 1 closed const argument(s)
+indexed domain `Quantity` requires 1 closed index argument(s), but 0 were supplied

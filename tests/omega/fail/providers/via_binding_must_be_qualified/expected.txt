@@ -1,1 +1,1 @@
-must construct the compiler-known Binding sum
+requires the unique compiler-owned Binding

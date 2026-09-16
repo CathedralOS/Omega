@@ -1,1 +1,1 @@
-cannot prove requires contract for call accept from Main::main: value > 0
+cannot prove requires contract for call accept from Main::main: 0 > 0

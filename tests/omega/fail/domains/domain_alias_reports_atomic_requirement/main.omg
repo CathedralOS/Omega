@@ -1,4 +1,4 @@
-data Socket {
+pub data Socket {
     connected: bool;
     authenticated: bool;
 }

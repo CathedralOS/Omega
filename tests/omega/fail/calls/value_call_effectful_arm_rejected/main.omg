@@ -1,5 +1,9 @@
 // State-BODIED arms: the selected arm mutates a field BEFORE returning the
 // struct. exit 70 = vec right AND the side effect landed exactly once.
+// REJECTED: the side-effecting arm states make the callee's Unit plan
+// unavailable; callers and the selected entry lose theirs, so the closure
+// check reports `missing a checked transitive machine plan` rather than
+// the retired `SIDE-EFFECTING arm state` emission fence.
 use omega::language::std::console;
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Main { console: Console; d: i32; hits: i32 in Wrapping; vec: Vec2; }
@@ -14,7 +18,7 @@ machine Main::delta(&mut self, d: i32) -> Vec2 {
         Vec2 { x: 7, y: 9 }
     }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.d = 1;
     self.vec = self.delta(self.d);
     transition self.vec.x == 3 { true -> chk_y() _ -> bad(71) }

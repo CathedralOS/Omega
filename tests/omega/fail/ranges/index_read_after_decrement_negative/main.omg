@@ -15,7 +15,7 @@ data Main {
     b: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.nums[0] = 1;
     self.nums[1] = 2;
     self.nums[2] = 3;

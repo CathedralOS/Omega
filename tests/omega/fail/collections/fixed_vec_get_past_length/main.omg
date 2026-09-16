@@ -6,7 +6,7 @@
 
 data FixedVecI32x4 {
     items: [i32; 4];
-    length: u64;
+    length: u64 in Wrapping;
 }
 
 machine FixedVecI32x4::clear(&mut self)
@@ -23,12 +23,12 @@ ensures
     self.length > 0
 {
     let slots: &mut [i32] = self.items.as_mut_slice();
-    let index: u64 = self.length;
+    let index: u64 in Wrapping = self.length;
     slots[index] = value;
     self.length = self.length + 1;
 }
 
-machine FixedVecI32x4::get(&self, index: u64) -> i32
+machine FixedVecI32x4::get(&self, index: u64 in Wrapping) -> i32
 requires
     self.length > index;
     index < self.items.len

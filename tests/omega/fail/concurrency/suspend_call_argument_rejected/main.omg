@@ -15,7 +15,7 @@ data Main {
     cell: Cell;
 }
 
-machine Main::main(&mut self) suspends; {
+machine Main::main(&mut self) suspends; reaches Scheduler {
     let message: Message = Message { body: &self.cell };
     suspend self.scheduler.park(message);
 }
