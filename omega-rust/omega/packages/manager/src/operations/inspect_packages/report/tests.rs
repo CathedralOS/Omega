@@ -475,6 +475,55 @@ fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_ap
 }
 
 #[test]
+fn build_snapshot_section_reports_captured_inventory_and_settled_outputs() {
+    let project = Project::new();
+    project.package(
+        "root",
+        "snapshot-inspection",
+        r#"let required: RequiredOutput = builder.output.require("artifact.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "sealed\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, artifact);"#,
+        "pub machine value() -> u64 { 7 }\n",
+    );
+    let (source, reviews, changes) = project.candidate("snapshot", None);
+    let fresh = Some((&source, &reviews, &changes));
+    let summary = super::render(TARGET, None, fresh, None, MAXIMUM_BYTES, false).unwrap();
+    let details = super::render(TARGET, None, fresh, None, MAXIMUM_BYTES, true).unwrap();
+    // root, build.omg and main.omg: the manager route binds every package
+    // build to a captured snapshot of its sealed custody.
+    let build_bytes = fs::read(project.0.join("root/build.omg")).unwrap().len();
+    let main_bytes = fs::read(project.0.join("root/main.omg")).unwrap().len();
+    let captured = format!(
+        "build-snapshot captured-entries 3 captured-file-bytes {}",
+        build_bytes + main_bytes
+    );
+    for report in [&summary, &details] {
+        assert!(report.contains(&captured), "{report}");
+        assert!(report.contains("settled-outputs 1\n"), "{report}");
+        assert!(
+            report.contains("  settled-output \"artifact.txt\"\n"),
+            "{report}"
+        );
+        assert!(!report.contains("build-snapshot none"), "{report}");
+        assert!(!report.contains("build-snapshot unbound"), "{report}");
+    }
+    assert!(
+        summary.contains("sealed-outputs 1; each sealed entry: --details\n"),
+        "{summary}"
+    );
+    assert!(!summary.contains("  sealed-output "), "{summary}");
+    assert!(details.contains("sealed-outputs 1\n"), "{details}");
+    assert!(
+        details.contains("  sealed-output \"artifact.txt\" file 7 bytes\n"),
+        "{details}"
+    );
+}
+
+#[test]
 fn pure_two_package_summary_is_bounded_and_details_append_complete_policy() {
     let project = Project::new();
     project.package(

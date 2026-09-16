@@ -167,8 +167,79 @@ fn contents(
         };
         policy::render(output, "fresh-policy", review.policy(), source, verbose)?;
         policy::observations(output, review.projection(), source)?;
+        build_snapshot(output, review.build_observation_summary(), verbose)?;
     }
     Ok(())
+}
+
+/// The build occurrence's captured-source binding and settled outputs: how
+/// many captured inventory entries the build's Source reads were narrowed
+/// to, each required output the build declared and completed against sealed
+/// staged custody, and the sealed staged entries themselves (`--details`
+/// lists every entry; the summary carries their count).
+fn build_snapshot(
+    output: &mut Output,
+    observation: Option<&build_evaluation::BuildObservationSummary>,
+    verbose: bool,
+) -> fmt::Result {
+    let Some(observation) = observation else {
+        return writeln!(output, "build-snapshot none (no build machine executed)");
+    };
+    match observation.captured_source_inventory() {
+        Some(inventory) => writeln!(
+            output,
+            "build-snapshot captured-entries {} captured-file-bytes {}",
+            inventory.entry_count(),
+            inventory.file_bytes()
+        )?,
+        None => writeln!(output, "build-snapshot unbound (live source root)")?,
+    }
+    let settlements = observation.required_output_settlements();
+    writeln!(output, "settled-outputs {}", settlements.len())?;
+    for settlement in settlements {
+        writeln!(
+            output,
+            "  settled-output {:?}",
+            String::from_utf8_lossy(settlement.relative_path())
+        )?;
+    }
+    let Some(staged) = observation.staged_output_tree() else {
+        return writeln!(output, "sealed-outputs none");
+    };
+    let entries = staged.entries();
+    if verbose {
+        writeln!(output, "sealed-outputs {}", entries.len())?;
+        for entry in entries {
+            let path = String::from_utf8_lossy(entry.relative_path());
+            match entry.kind() {
+                build_evaluation::BuildStagedOutputEntryKind::Directory => {
+                    writeln!(output, "  sealed-output {path:?} directory")?;
+                }
+                build_evaluation::BuildStagedOutputEntryKind::File { bytes, executable } => {
+                    writeln!(
+                        output,
+                        "  sealed-output {path:?} file {} bytes{}",
+                        bytes.len(),
+                        if executable { " executable" } else { "" }
+                    )?;
+                }
+                build_evaluation::BuildStagedOutputEntryKind::Symlink { target } => {
+                    writeln!(
+                        output,
+                        "  sealed-output {path:?} symlink {:?}",
+                        String::from_utf8_lossy(target)
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    } else {
+        writeln!(
+            output,
+            "sealed-outputs {}; each sealed entry: --details",
+            entries.len()
+        )
+    }
 }
 
 fn graph(output: &mut Output, label: &str, source: &CanonicalSourceClosureSubject) -> fmt::Result {
