@@ -1,0 +1,394 @@
+//! Canonical value-shape and placement codec for the current installation envelope.
+//!
+//! Owning rows retain their ordering and validation in the installation
+//! parent. This child owns only the exact shape, register, and location bytes.
+
+use calling_conventions::{MachineRegister, ValueClass, ValueLocation, ValuePlacement, ValueShape};
+
+use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u16, push_u32};
+
+pub(crate) fn encode_shape(
+    bytes: &mut Vec<u8>,
+    shape: ValueShape,
+) -> Result<(), InstallationError> {
+    bytes.push(match shape.class {
+        ValueClass::Integer => 1,
+        ValueClass::BorrowedReference => 2,
+        ValueClass::Float
+            if matches!(shape.byte_size, 4 | 8) && shape.alignment == shape.byte_size =>
+        {
+            3
+        }
+        _ => return Err(InstallationError::UnsupportedStructuralReturnShape),
+    });
+    bytes.push(0);
+    push_u16(bytes, shape.byte_size);
+    push_u16(bytes, shape.alignment);
+    push_u16(bytes, 0);
+    Ok(())
+}
+
+pub(crate) fn encode_placement(
+    bytes: &mut Vec<u8>,
+    placement: &ValuePlacement,
+) -> Result<(), InstallationError> {
+    encode_shape(bytes, placement.shape)?;
+    let [location] = placement.locations.as_slice() else {
+        return Err(InstallationError::UnsupportedStructuralReturnPlacement);
+    };
+    match location {
+        ValueLocation::Register {
+            register,
+            value_byte_offset,
+            byte_size,
+        } => {
+            bytes.push(1);
+            bytes.push(register_tag(*register)?);
+            push_u16(bytes, *value_byte_offset);
+            push_u16(bytes, *byte_size);
+            push_u16(bytes, 0);
+        }
+        ValueLocation::Stack {
+            stack_byte_offset,
+            value_byte_offset,
+            byte_size,
+            alignment,
+        } => {
+            bytes.push(2);
+            bytes.push(0);
+            push_u16(bytes, *value_byte_offset);
+            push_u16(bytes, *byte_size);
+            push_u16(bytes, *alignment);
+            push_u32(bytes, *stack_byte_offset);
+        }
+        ValueLocation::Indirect { .. } => {
+            return Err(InstallationError::UnsupportedStructuralReturnPlacement);
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn encode_direct_placement(
+    bytes: &mut Vec<u8>,
+    placement: &ValuePlacement,
+) -> Result<(), InstallationError> {
+    encode_shape(bytes, placement.shape)?;
+    push_u32(
+        bytes,
+        u32::try_from(placement.locations.len())
+            .map_err(|_| InstallationError::UnsupportedInternalUnitCallPlacement)?,
+    );
+    for location in &placement.locations {
+        match location {
+            ValueLocation::Register {
+                register,
+                value_byte_offset,
+                byte_size,
+            } => {
+                bytes.push(1);
+                bytes.push(register_tag(*register)?);
+                push_u16(bytes, *value_byte_offset);
+                push_u16(bytes, *byte_size);
+            }
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset,
+                byte_size,
+                alignment,
+            } => {
+                bytes.push(2);
+                bytes.push(0);
+                push_u16(bytes, *value_byte_offset);
+                push_u16(bytes, *byte_size);
+                push_u16(bytes, *alignment);
+                push_u32(bytes, *stack_byte_offset);
+            }
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                alignment,
+            } => {
+                bytes.push(3);
+                match pointer {
+                    calling_conventions::IndirectPointerLocation::Register(register) => {
+                        bytes.push(1);
+                        bytes.push(register_tag(*register)?);
+                        bytes.push(0);
+                    }
+                    calling_conventions::IndirectPointerLocation::Stack {
+                        stack_byte_offset,
+                        alignment,
+                    } => {
+                        bytes.push(2);
+                        bytes.push(0);
+                        bytes.push(0);
+                        push_u32(bytes, *stack_byte_offset);
+                        push_u16(bytes, *alignment);
+                    }
+                }
+                match copy_stack_byte_offset {
+                    Some(offset) => {
+                        bytes.push(1);
+                        push_u32(bytes, *offset);
+                    }
+                    None => bytes.push(0),
+                }
+                push_u16(bytes, *byte_size);
+                push_u16(bytes, *alignment);
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, InstallationError> {
+    let class = match reader.u8()? {
+        1 => ValueClass::Integer,
+        2 => ValueClass::BorrowedReference,
+        3 => ValueClass::Float,
+        _ => return Err(InstallationError::UnsupportedStructuralReturnShape),
+    };
+    if reader.u8()? != 0 {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    let byte_size = reader.u16()?;
+    let alignment = reader.u16()?;
+    if class == ValueClass::Float && (!matches!(byte_size, 4 | 8) || alignment != byte_size) {
+        return Err(InstallationError::UnsupportedStructuralReturnShape);
+    }
+    if reader.u16()? != 0 {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    Ok(ValueShape {
+        class,
+        byte_size,
+        alignment,
+    })
+}
+
+pub(crate) fn decode_placement(
+    reader: &mut Reader<'_>,
+) -> Result<ValuePlacement, InstallationError> {
+    let shape = decode_shape(reader)?;
+    let location_kind = reader.u8()?;
+    let detail = reader.u8()?;
+    let location = match location_kind {
+        1 => {
+            let value_byte_offset = reader.u16()?;
+            let byte_size = reader.u16()?;
+            if reader.u16()? != 0 {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            ValueLocation::Register {
+                register: decode_register(detail)?,
+                value_byte_offset,
+                byte_size,
+            }
+        }
+        2 => {
+            if detail != 0 {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            ValueLocation::Stack {
+                value_byte_offset: reader.u16()?,
+                byte_size: reader.u16()?,
+                alignment: reader.u16()?,
+                stack_byte_offset: reader.u32()?,
+            }
+        }
+        _ => return Err(InstallationError::UnsupportedStructuralReturnPlacement),
+    };
+    Ok(ValuePlacement {
+        shape,
+        locations: vec![location],
+    })
+}
+
+pub(crate) fn decode_direct_placement(
+    reader: &mut Reader<'_>,
+) -> Result<ValuePlacement, InstallationError> {
+    let shape = decode_shape(reader)?;
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::UnsupportedInternalUnitCallPlacement)?;
+    if count == 0 && shape.byte_size == 0 {
+        return Ok(ValuePlacement {
+            shape,
+            locations: Vec::new(),
+        });
+    }
+    if count == 0 || count > reader.remaining() / 6 {
+        return Err(InstallationError::UnsupportedInternalUnitCallPlacement);
+    }
+    let mut locations = Vec::with_capacity(count);
+    for _ in 0..count {
+        locations.push(match reader.u8()? {
+            1 => ValueLocation::Register {
+                register: decode_register(reader.u8()?)?,
+                value_byte_offset: reader.u16()?,
+                byte_size: reader.u16()?,
+            },
+            2 => {
+                if reader.u8()? != 0 {
+                    return Err(InstallationError::NonzeroReservedField);
+                }
+                ValueLocation::Stack {
+                    value_byte_offset: reader.u16()?,
+                    byte_size: reader.u16()?,
+                    alignment: reader.u16()?,
+                    stack_byte_offset: reader.u32()?,
+                }
+            }
+            3 => {
+                let pointer = match reader.u8()? {
+                    1 => {
+                        let register = decode_register(reader.u8()?)?;
+                        if reader.u8()? != 0 {
+                            return Err(InstallationError::NonzeroReservedField);
+                        }
+                        calling_conventions::IndirectPointerLocation::Register(register)
+                    }
+                    2 => {
+                        if reader.take(2)? != [0; 2] {
+                            return Err(InstallationError::NonzeroReservedField);
+                        }
+                        calling_conventions::IndirectPointerLocation::Stack {
+                            stack_byte_offset: reader.u32()?,
+                            alignment: reader.u16()?,
+                        }
+                    }
+                    _ => {
+                        return Err(InstallationError::UnsupportedInternalUnitCallPlacement);
+                    }
+                };
+                let copy_stack_byte_offset = match decode_boolean(reader.u8()?)? {
+                    true => Some(reader.u32()?),
+                    false => None,
+                };
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset,
+                    byte_size: reader.u16()?,
+                    alignment: reader.u16()?,
+                }
+            }
+            _ => return Err(InstallationError::UnsupportedInternalUnitCallPlacement),
+        });
+    }
+    Ok(ValuePlacement { shape, locations })
+}
+
+pub(crate) fn register_tag(register: MachineRegister) -> Result<u8, InstallationError> {
+    match register {
+        MachineRegister::X86Rax => Ok(1),
+        MachineRegister::X86Rcx => Ok(2),
+        MachineRegister::X86Rdi => Ok(3),
+        MachineRegister::Aarch64X(0) => Ok(4),
+        MachineRegister::X86Rsi => Ok(5),
+        MachineRegister::X86Rdx => Ok(6),
+        MachineRegister::Aarch64X(1) => Ok(7),
+        MachineRegister::X86R8 => Ok(8),
+        MachineRegister::X86R9 => Ok(9),
+        MachineRegister::Aarch64X(2) => Ok(10),
+        MachineRegister::Aarch64X(3) => Ok(11),
+        MachineRegister::Aarch64X(4) => Ok(12),
+        MachineRegister::Aarch64X(5) => Ok(13),
+        MachineRegister::Aarch64X(6) => Ok(14),
+        MachineRegister::Aarch64X(7) => Ok(15),
+        MachineRegister::X86Xmm(register @ 0..=7) => Ok(16 + register),
+        MachineRegister::Aarch64V(register @ 0..=7) => Ok(24 + register),
+        MachineRegister::Aarch64X(8) => Ok(32),
+        _ => Err(InstallationError::UnsupportedStructuralReturnRegister(
+            register,
+        )),
+    }
+}
+
+pub(crate) fn decode_register(value: u8) -> Result<MachineRegister, InstallationError> {
+    match value {
+        1 => Ok(MachineRegister::X86Rax),
+        2 => Ok(MachineRegister::X86Rcx),
+        3 => Ok(MachineRegister::X86Rdi),
+        4 => Ok(MachineRegister::Aarch64X(0)),
+        5 => Ok(MachineRegister::X86Rsi),
+        6 => Ok(MachineRegister::X86Rdx),
+        7 => Ok(MachineRegister::Aarch64X(1)),
+        8 => Ok(MachineRegister::X86R8),
+        9 => Ok(MachineRegister::X86R9),
+        10 => Ok(MachineRegister::Aarch64X(2)),
+        11 => Ok(MachineRegister::Aarch64X(3)),
+        12 => Ok(MachineRegister::Aarch64X(4)),
+        13 => Ok(MachineRegister::Aarch64X(5)),
+        14 => Ok(MachineRegister::Aarch64X(6)),
+        15 => Ok(MachineRegister::Aarch64X(7)),
+        register @ 16..=23 => Ok(MachineRegister::X86Xmm(register - 16)),
+        register @ 24..=31 => Ok(MachineRegister::Aarch64V(register - 24)),
+        32 => Ok(MachineRegister::Aarch64X(8)),
+        _ => Err(InstallationError::InvalidStructuralReturnRegister(value)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        MachineRegister, Reader, ValueLocation, ValuePlacement, ValueShape,
+        decode_direct_placement, decode_register, encode_direct_placement, register_tag,
+    };
+
+    #[test]
+    fn ieee_abi_placements_round_trip_without_integer_relabeling() {
+        for byte_size in [4, 8] {
+            for register_index in 0..8 {
+                for register in [
+                    MachineRegister::X86Xmm(register_index),
+                    MachineRegister::Aarch64V(register_index),
+                ] {
+                    let placement = ValuePlacement {
+                        shape: ValueShape::float(byte_size),
+                        locations: vec![ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size,
+                        }],
+                    };
+                    let mut bytes = Vec::new();
+                    encode_direct_placement(&mut bytes, &placement).unwrap();
+                    assert_eq!(
+                        decode_direct_placement(&mut Reader::new(&bytes)).unwrap(),
+                        placement
+                    );
+                    bytes[2..4].copy_from_slice(&2u16.to_le_bytes());
+                    assert!(decode_direct_placement(&mut Reader::new(&bytes)).is_err());
+                }
+            }
+        }
+        assert!(register_tag(MachineRegister::X86Xmm(8)).is_err());
+        assert!(register_tag(MachineRegister::Aarch64V(8)).is_err());
+        assert!(decode_register(33).is_err());
+    }
+
+    #[test]
+    fn indirect_result_pointer_retains_aarch64_dedicated_register() {
+        let placement = calling_conventions::evaluate_call_plan(
+            calling_conventions::CallingPolicy::Aapcs64,
+            &calling_conventions::CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(24, 8)),
+            },
+        )
+        .unwrap()
+        .result
+        .unwrap();
+        let mut bytes = Vec::new();
+        encode_direct_placement(&mut bytes, &placement).unwrap();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_direct_placement(&mut reader).unwrap(), placement);
+        assert_eq!(reader.remaining(), 0);
+        assert_eq!(register_tag(MachineRegister::Aarch64X(8)), Ok(32));
+        assert_eq!(decode_register(32), Ok(MachineRegister::Aarch64X(8)));
+        assert!(register_tag(MachineRegister::Aarch64X(9)).is_err());
+        for length in 0..bytes.len() {
+            assert!(decode_direct_placement(&mut Reader::new(&bytes[..length])).is_err());
+        }
+    }
+}

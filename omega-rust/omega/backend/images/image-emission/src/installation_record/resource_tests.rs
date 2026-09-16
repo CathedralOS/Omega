@@ -8,19 +8,19 @@ use super::record_shape::{
 use super::{
     CallSiteOwner, INSTALLATION_FORMAT_MARKER, InstallationError, InstalledForeignCallStack,
     InstalledFunction, InstalledInternalUnitCall, MachineId, Reader, StructuralTypeId,
-    decode_installation_record, decode_structural_types, encode_structural_types, push_u16,
-    push_u32, structural_argument_codec,
+    codec::structural_argument_codec, decode_installation_record, decode_structural_types,
+    encode_structural_types, push_u16, push_u32,
 };
 use super::{
-    function_affine_cleanup_codec::{
+    codec::function_affine_cleanup_codec::{
         decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
         encode_scalar_control_affine_cleanups,
     },
-    function_codec::{decode_functions, encode_functions},
-    function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
-    internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls},
+    codec::function_codec::{decode_functions, encode_functions},
+    codec::function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
+    codec::internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls},
 };
-use crate::installation_record::envelope_codec::MAGIC;
+use crate::installation_record::codec::envelope_codec::MAGIC;
 use crate::installation_record::record_validation::installed_scalar_control_cleanups_match_object;
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::{EdgeId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
