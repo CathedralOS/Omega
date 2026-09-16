@@ -930,16 +930,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   reader is `MaterializeBooleanEqual` or `ConditionalBranchNonZero`,
   under the same replayed restore-by-content validation (crate `nextest`:
   431 pass) — and `rewrites/local_schedule` interchanges two named
-  adjacent body instructions in one selected block when no register or
-  condition-state hazard runs in either direction, no call, hosted
-  effect, barrier kind, or interior boundary settlement bounds the
-  window, and the validated memory roster accounts for every access a
-  memory-capable member can reach — at most one member may carry rows,
-  so the row-less member observes nothing and no recorded access
-  changes order — under the same replayed restore-by-content
-  validation (crate `nextest`: 468 pass). Remaining: scheduling
-  beyond the proven adjacent interchange and compare/test selection
-  past the landed literal folds.
+  body instructions in one selected block across the bounded window
+  they span — the distance-one case is the adjacent pair — when no
+  register or condition-state hazard runs between either member and
+  any crossed position in either direction, no call, hosted effect,
+  barrier kind, or call-roster entry sits anywhere in the window, no
+  boundary settlement falls inside the window's span, and the
+  validated memory roster accounts for every access a memory-capable
+  member can reach — at most one window member may carry rows, so
+  row-less members observe nothing and no recorded access changes
+  order while an interior accounted access keeps its position between
+  two memory-inert members — under the same replayed
+  restore-by-content validation (crate `nextest`: 487 pass).
+  Remaining: scheduling past the proven bounded window interchange
+  and compare/test selection past the landed literal folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
