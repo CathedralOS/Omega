@@ -42,6 +42,7 @@ fn preserves_values(checked: &CheckedTrees) -> bool {
             numerics::bignum::BigInt::from_u64(65),
         ))],
         storage: Vec::new(),
+        fields: Vec::new(),
     };
     let call_frames = validation::CallFrameResolver::new(program);
     let state_mutation_summary_cache = crate::flow::StateMutationSummaryCache::default();

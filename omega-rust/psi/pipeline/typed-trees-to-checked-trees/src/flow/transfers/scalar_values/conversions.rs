@@ -11,9 +11,11 @@ use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::types::PrimitiveType;
 
 /// A call nested under authored integer conversions: the call itself plus the
-/// conversion steps applied to its result, innermost first.
+/// conversion steps applied to its result, innermost first. `expression` is
+/// the authored call node that identifies this exact call occurrence.
 pub(super) struct SelectedCall<'a> {
     pub call: &'a typed_trees::expression::TableCallExpression,
+    pub expression: ExpressionHandle,
     conversions: Vec<SelectedConversion>,
 }
 
@@ -55,6 +57,100 @@ impl SelectedCall<'_> {
     }
 }
 
+/// A non-call operand under authored value conversions: the operand resolves
+/// against live caller facts or its declared storage instead of a callee body.
+/// This is the same conversion fold as `SelectedCall` with a different
+/// operand source, reached only when the selected scalar plan retained no
+/// form for the statement's source — today that is exactly the policies
+/// `construct_integer_cast` cannot express, like `Saturating`.
+pub(super) struct SelectedOperand {
+    pub operand: ExpressionHandle,
+    conversions: Vec<SelectedConversion>,
+}
+
+impl SelectedOperand {
+    pub(super) fn convert<Value: super::captured::CapturedValue>(
+        &self,
+        mut value: Value,
+    ) -> Option<Value> {
+        for conversion in &self.conversions {
+            value = value.convert(conversion)?;
+        }
+        Some(value)
+    }
+}
+
+/// Peel value casts around a non-call operand. The operand must resolve to a
+/// caller place or a literal — a nested computation or a call stays with the
+/// selected plan/`selected_call` routes that own it. The operand's own
+/// carrier starts the conversion fold, mirroring the callee return type in
+/// `selected_call`.
+pub(super) fn selected_operand(
+    program: &typed_trees::TypedTrees,
+    exact_casts: &[validation::ExactIntegerCastFact],
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    source: ExpressionHandle,
+) -> Option<SelectedOperand> {
+    let mut casts = Vec::new();
+    let mut expression = source;
+    let operand = loop {
+        if !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Cast(cast)
+                if !cast.form.is_recast() && cast.semantic_domain.is_empty() =>
+            {
+                casts.push((expression, cast));
+                expression = cast.value;
+            }
+            ExpressionNode::Call(_) => return None,
+            _ => break expression,
+        }
+    };
+    if casts.is_empty() {
+        return None;
+    }
+    let mut source_type = match program.expression_table.expression(operand) {
+        ExpressionNode::Integer(literal) => match literal.landing()?.landed_type {
+            numerics::literals::LandedIntegerType::I8 => PrimitiveType::I8,
+            numerics::literals::LandedIntegerType::I16 => PrimitiveType::I16,
+            numerics::literals::LandedIntegerType::I32 => PrimitiveType::I32,
+            numerics::literals::LandedIntegerType::I64 => PrimitiveType::I64,
+            numerics::literals::LandedIntegerType::U8 => PrimitiveType::U8,
+            numerics::literals::LandedIntegerType::U16 => PrimitiveType::U16,
+            numerics::literals::LandedIntegerType::U32 => PrimitiveType::U32,
+            numerics::literals::LandedIntegerType::U64 => PrimitiveType::U64,
+            numerics::literals::LandedIntegerType::Addr => return None,
+        },
+        _ => program.primitive_type_reference(crate::flow::expression_type_reference_in_state(
+            program,
+            state,
+            statement_index,
+            operand,
+        )?)?,
+    };
+    crate::values::bounds::primitive_range(source_type)?;
+    let mut conversions = Vec::with_capacity(casts.len());
+    for (cast_expression, cast) in casts.iter().rev() {
+        let target_type = program.primitive_type_reference(cast.target_type)?;
+        let conversion = classify(
+            *cast_expression,
+            cast,
+            source_type,
+            target_type,
+            exact_casts,
+        )?;
+        source_type = conversion.target;
+        conversions.push(conversion);
+    }
+    Some(SelectedOperand {
+        operand,
+        conversions,
+    })
+}
+
 /// Peel value casts around a selected call. A borrow recast or a
 /// semantic-domain suffix retires the slice outright; a remaining non-cast,
 /// non-call operand is simply not a qualified call. Every cast between the
@@ -79,13 +175,15 @@ pub(super) fn selected_call<'a>(
                 casts.push((expression, cast));
                 expression = cast.value;
             }
-            ExpressionNode::Call(call) => break call,
+            ExpressionNode::Call(call) => break (expression, call),
             _ => return None,
         }
     };
+    let (expression, call) = call;
     if casts.is_empty() {
         return Some(SelectedCall {
             call,
+            expression,
             conversions: Vec::new(),
         });
     }
@@ -105,7 +203,11 @@ pub(super) fn selected_call<'a>(
         source_type = conversion.target;
         conversions.push(conversion);
     }
-    Some(SelectedCall { call, conversions })
+    Some(SelectedCall {
+        call,
+        expression,
+        conversions,
+    })
 }
 
 /// Classify one authored cast over the running result carrier, in
