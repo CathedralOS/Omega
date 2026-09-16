@@ -4,6 +4,8 @@ use super::carriers::StagedFixedFrameFunctionRelativeRealization;
 pub enum FixedFramePublicationCustodyFieldForTest {
     Source,
     Machine,
+    Requirements,
+    Storage,
     Frame,
     Protocol,
     ExitContract,
@@ -23,6 +25,18 @@ impl StagedFixedFrameFunctionRelativeRealization {
             }
             FixedFramePublicationCustodyFieldForTest::Machine => {
                 self.custody.machine = donor.custody.machine;
+            }
+            FixedFramePublicationCustodyFieldForTest::Requirements => {
+                self.custody.requirements =
+                    selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes(
+                        [0xa5; 32],
+                    );
+            }
+            FixedFramePublicationCustodyFieldForTest::Storage => {
+                self.custody.storage =
+                    crate::frame_layout::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(
+                        [0xa6; 32],
+                    );
             }
             FixedFramePublicationCustodyFieldForTest::Frame => {
                 self.custody.frame =

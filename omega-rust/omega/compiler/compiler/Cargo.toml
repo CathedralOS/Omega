@@ -87,6 +87,7 @@ register-environment = { path = "../../backend/register-environment" }
 native-realization = { path = "../native-realization", features = ["test-support"] }
 machine-emission = { path = "../../backend/machine-emission" }
 selected-form-encoding-to-resolved-layout = { path = "../../pipeline/selected-form-encoding-to-resolved-layout" }
+physical-instructions = { path = "../../representations/physical-instructions" }
 sha2 = "0.10.9"
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 
