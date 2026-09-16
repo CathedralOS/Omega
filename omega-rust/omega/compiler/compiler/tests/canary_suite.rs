@@ -1797,16 +1797,38 @@ fn compile_native_canary_without_output(
     canary_dir: &Path,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
-    let result = compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path: canary_dir.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: None,
-        })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report);
+    let root_path = canary_dir.join("main.omg");
+    // Match the rooted-backend route: fixtures declaring ordinary package
+    // dependencies (for example `Source::Path` on source/library/std, whose
+    // modules spell `omega_language_std::...`) only resolve when the same
+    // package inputs and terminal-authority policy accompany the request.
+    let package_inputs =
+        reviewed_repository_fixture_package_inputs(&root_path, Some(native_hosted_target()))?;
+    let mut request = CompileRequest::new(CompilerOptions {
+        root_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+    })
+    .with_requested_product(RequestedCompileProduct::NativeArtifact)
+    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    if let Some(package_inputs) = package_inputs {
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            package_inputs
+                .accepted_semantic_bindings()
+                .flat_map(|binding| binding.terminal_authority_permissions())
+                .cloned()
+                .collect(),
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot construct repository fixture terminal-authority policy: {error:?}"
+            ))]
+        })?;
+        request = request
+            .with_terminal_authority_permission_policy(permission_policy)
+            .with_package_inputs(package_inputs);
+    }
+    let result = compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report);
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -3109,34 +3131,45 @@ fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageCompilat
     )
 }
 
+fn fixture_uses_std(source: &str, package_name: &str, bundled_path: &str) -> bool {
+    source.contains(&format!("omega_language_std::{package_name}"))
+        || source.contains(&format!("omega::language::std::{bundled_path}"))
+        || source.contains(&format!("platform::{bundled_path}"))
+}
+
 fn fixture_accepts_filesystem_service(root_path: &Path) -> bool {
     fs::read_to_string(root_path).is_ok_and(|source| {
-        source.contains("omega_language_std::filesystem")
-            || source.contains("omega_language_std::filesystem_host")
+        fixture_uses_std(&source, "filesystem", "filesystem")
+            || fixture_uses_std(&source, "filesystem_host", "filesystem_host")
     })
 }
 
 fn fixture_accepts_console_exit(root_path: &Path) -> bool {
     fs::read_to_string(root_path).is_ok_and(|source| {
-        source.contains("omega_language_std::console") && source.contains(".exit_process(")
+        fixture_uses_std(&source, "console", "console") && source.contains(".exit_process(")
     })
 }
 
 fn fixture_accepts_console_output(root_path: &Path) -> bool {
     fs::read_to_string(root_path).is_ok_and(|source| {
-        source.contains("omega_language_std::console") && source.contains(".write_byte(")
+        fixture_uses_std(&source, "console", "console")
+            && (source.contains(".write_byte(")
+                || source.contains(".write_line(")
+                || source.contains(".write("))
     })
 }
 
 fn fixture_accepts_console_input(root_path: &Path) -> bool {
     fs::read_to_string(root_path).is_ok_and(|source| {
-        source.contains("omega_language_std::console") && source.contains(".read_byte(")
+        fixture_uses_std(&source, "console", "console")
+            && (source.contains(".read_byte(") || source.contains(".read_line("))
     })
 }
 
 fn fixture_accepts_process_exit(root_path: &Path) -> bool {
     fs::read_to_string(root_path).is_ok_and(|source| {
-        source.contains("omega_language_std::process_exit") && source.contains(".exit_process(")
+        fixture_uses_std(&source, "process_exit", "process_exit")
+            && source.contains(".exit_process(")
     })
 }
 
@@ -3268,6 +3301,40 @@ fn hosted_main_program_entry_build_with_std(target: &str) -> String {
     )
 }
 
+/// An entry-free application build for a fixture copied without its authored
+/// `build.omg`: keeps the ordinary standard-library dependency by absolute
+/// repository path so the source still resolves `omega_language_std`, while
+/// leaving every ProgramEntry slot unbound on purpose.
+fn entry_free_fixture_build(canary: &Path) -> String {
+    let mut build =
+        "machine build(builder: &mut Build) {\n    builder.application(\"entry-free-fixture\");\n"
+            .to_owned();
+    if fixture_declares_ordinary_std(canary) {
+        let standard_library = repo_root()
+            .join("source/library/std")
+            .to_string_lossy()
+            .replace('\\', "/");
+        build.push_str(&format!(
+            "    builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n"
+        ));
+    }
+    build.push_str("}\n");
+    build
+}
+
+/// The hosted ProgramEntry build for a fixture copied into a scratch project:
+/// fixtures whose authored `build.omg` declares the ordinary standard library
+/// keep that dependency through an absolute repository path, so module
+/// resolution finds `omega_language_std` instead of probing a sibling
+/// directory of the copied source.
+fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {
+    if fixture_declares_ordinary_std(canary) {
+        hosted_main_program_entry_build_with_std(target)
+    } else {
+        hosted_main_program_entry_build(target)
+    }
+}
+
 fn hosted_program_entry_owner(target: &str) -> &'static str {
     match target {
         "windows_x86_64" => "windows_x86_64",
@@ -3288,11 +3355,7 @@ fn compile_single_file_hosted_main(
     fs::create_dir_all(&source).expect("create exact-entry hosted source directory");
     fs::copy(canary.join("main.omg"), source.join("main.omg"))
         .expect("copy single-file hosted canary");
-    let build = if fixture_declares_ordinary_std(canary) {
-        hosted_main_program_entry_build_with_std(target)
-    } else {
-        hosted_main_program_entry_build(target)
-    };
+    let build = hosted_main_program_entry_build_for(canary, target);
     fs::write(source.join("build.omg"), build).expect("write exact hosted ProgramEntry binding");
     production_compile(CanaryCompileSpec {
         root_path: source.join("main.omg"),

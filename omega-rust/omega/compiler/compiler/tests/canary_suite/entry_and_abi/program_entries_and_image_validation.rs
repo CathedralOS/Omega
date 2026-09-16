@@ -1,8 +1,8 @@
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, compile_reviewed_repository_fixture,
-    compile_with_auxiliary_artifacts, fail_canary, fs, pass_canary, production_compile,
-    unique_no_output_build_dir,
+    compile_with_auxiliary_artifacts, entry_free_fixture_build, fail_canary, fs, pass_canary,
+    production_compile, unique_no_output_build_dir,
 };
 use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
@@ -350,13 +350,29 @@ fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
 
 #[test]
 fn production_compile_rejects_an_unrooted_legacy_entry() {
-    let canary = pass_canary(fixture_roster::ARITHMETIC_RUNTIME_CHAINED_FIELD_MUTATION_EXIT);
     let scratch = unique_no_output_build_dir();
     let source_dir = scratch.join("source");
     let build_dir = scratch.join("output");
     fs::create_dir_all(&source_dir).expect("create entry-agnostic source directory");
-    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-        .expect("copy source without its entry-selecting build companion");
+    // A `Main::main` machine that reaches no services: with no provider
+    // bindings to review, native production must stop at exact entry
+    // admission rather than failing an earlier gate.
+    fs::write(
+        source_dir.join("main.omg"),
+        r#"data Main { v: i32; }
+machine Main::main(&mut self) {
+    self.v = 24;
+}
+"#,
+    )
+    .expect("write service-free source carrying a legacy Main::main name");
+    // The companion binds no ProgramEntry, so production reaches entry
+    // selection rather than failing module resolution.
+    fs::write(
+        source_dir.join("build.omg"),
+        "machine build(builder: &mut Build) {\n    builder.application(\"entry-free-fixture\");\n}\n",
+    )
+    .expect("write entry-free build companion");
     let diagnostics = production_compile(CanaryCompileSpec {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
@@ -369,7 +385,7 @@ fn production_compile_rejects_an_unrooted_legacy_entry() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("no runtime entry point was selected")),
+            .contains("requires one exact selected program entry")),
         "missing ProgramEntry selection should fail explicitly: {diagnostics:#?}"
     );
 }
@@ -383,6 +399,13 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
     fs::create_dir_all(&source_dir).expect("create entry-agnostic source directory");
     fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
         .expect("copy source without its entry-selecting build companion");
+    // Same entry-free companion: the declared standard-library dependency
+    // keeps module resolution working while no ProgramEntry is selected.
+    fs::write(
+        source_dir.join("build.omg"),
+        entry_free_fixture_build(&canary),
+    )
+    .expect("write entry-free build companion");
     let report = production_compile(CanaryCompileSpec {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
@@ -392,7 +415,7 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
     .expect("check-only compilation must not require or infer a runtime entry");
 
     assert!(!report.wrote_output());
-    assert!(build_dir.join("04_typed_trees.json").is_file());
+    assert!(build_dir.join("05_capability_manifest.json").is_file());
     assert!(build_dir.join("05_machine_contracts.json").is_file());
     let _ = fs::remove_dir_all(scratch);
 }

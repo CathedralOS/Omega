@@ -4,7 +4,7 @@ use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile,
     compile_rooted_canary_for_native_host,
     compile_rooted_canary_for_native_host_with_auxiliary_artifacts, fs,
-    hosted_main_program_entry_build, pass_canary,
+    hosted_main_program_entry_build_for, pass_canary,
 };
 
 #[test]
@@ -59,7 +59,7 @@ fn runtime_entry_unary_result_exit_canary_runs() {
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
     fs::write(
         src_dir.join("build.omg"),
-        hosted_main_program_entry_build("linux_arm64"),
+        hosted_main_program_entry_build_for(&canary, "linux_arm64"),
     )
     .expect("write build source");
     compile(CanaryCompileSpec {
@@ -99,7 +99,7 @@ fn runtime_entry_cast_result_exit_canary_runs() {
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
     fs::write(
         src_dir.join("build.omg"),
-        hosted_main_program_entry_build("linux_arm64"),
+        hosted_main_program_entry_build_for(&canary, "linux_arm64"),
     )
     .expect("write build source");
     compile(CanaryCompileSpec {

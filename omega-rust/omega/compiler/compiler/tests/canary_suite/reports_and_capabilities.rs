@@ -6,7 +6,7 @@ use super::{
     compile_rooted_canary_for_native_host,
     compile_rooted_canary_for_native_host_with_auxiliary_artifacts,
     compile_with_auxiliary_artifacts, executable_name, fail_canary, fs,
-    hosted_main_program_entry_build, pass_canary, unique_no_output_build_dir,
+    hosted_main_program_entry_build_for, pass_canary, unique_no_output_build_dir,
 };
 use compiler::CheckedCompileRequest;
 
@@ -470,7 +470,7 @@ fn boundary_trait_canary_reports_capability_use() {
         .expect("copy boundary-trait capability canary");
     fs::write(
         source_dir.join("build.omg"),
-        hosted_main_program_entry_build("macos_arm64"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
     )
     .expect("write exact macOS AArch64 ProgramEntry binding");
     let lowered_dir = scratch.join("lowered");

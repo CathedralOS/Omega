@@ -1,9 +1,8 @@
-use super::application_build;
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, compile, compile_reviewed_repository_fixture,
-    compile_rooted_canary_for_native_host, compile_with_auxiliary_artifacts, fs, interpret,
-    pass_canary, production_compile,
+    compile_rooted_canary_for_native_host, compile_with_auxiliary_artifacts, fs,
+    hosted_main_program_entry_build_for, interpret, pass_canary, production_compile,
 };
 #[cfg(windows)]
 use crate::{compile_rooted_canary_for_target, executable_name};
@@ -21,8 +20,11 @@ fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), application_build())
-        .expect("write macos_arm64 build source");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
+    )
+    .expect("write macos_arm64 build source");
 
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -64,8 +66,11 @@ fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), application_build())
-        .expect("write macos_arm64 build source");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
+    )
+    .expect("write macos_arm64 build source");
 
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -134,8 +139,11 @@ fn cross_aarch64_small_aggregate_import_falls_wholly_to_stack() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), application_build())
-        .expect("write macos_arm64 build source");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
+    )
+    .expect("write macos_arm64 build source");
 
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -171,8 +179,11 @@ fn cross_aarch64_hfa_stack_import_copies_the_aggregate() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), application_build())
-        .expect("write macos_arm64 build source");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
+    )
+    .expect("write macos_arm64 build source");
 
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -208,8 +219,11 @@ fn cross_aarch64_hfa_result_import_spills_fragmented_result() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), application_build())
-        .expect("write macos_arm64 build source");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
+    )
+    .expect("write macos_arm64 build source");
 
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -243,8 +257,11 @@ fn cross_aarch64_erased_hfa_result_keeps_two_vector_fragments() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), application_build())
-        .expect("write macos_arm64 build source");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
+    )
+    .expect("write macos_arm64 build source");
 
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -278,8 +295,11 @@ fn cross_aarch64_small_aggregate_result_import_spills_fragmented_result() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), application_build())
-        .expect("write macos_arm64 build source");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
+    )
+    .expect("write macos_arm64 build source");
 
     compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
@@ -314,8 +334,11 @@ fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), application_build())
-        .expect("write macos_arm64 build source");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build_for(&canary, "macos_arm64"),
+    )
+    .expect("write macos_arm64 build source");
 
     compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),

@@ -9,7 +9,7 @@ use crate::{
     compile_rooted_backend_canary_without_output_for_target,
     compile_rooted_backend_canary_without_output_for_target_and_permission_policy,
     compile_rooted_canary_for_native_host, compile_rooted_canary_for_target, fs,
-    hosted_main_program_entry_build, interpret, pass_canary,
+    hosted_main_program_entry_build_for, interpret, pass_canary,
     reviewed_repository_fixture_package_inputs,
 };
 use compiler::CheckedCompileRequest;
@@ -1370,7 +1370,7 @@ fn runtime_console_line_replay_cross_target_canary_compiles() {
                 .expect("copy runtime line replay canary");
             fs::write(
                 src_dir.join("build.omg"),
-                hosted_main_program_entry_build(target),
+                hosted_main_program_entry_build_for(&canary, target),
             )
             .expect("write runtime line replay build source");
             compile(CanaryCompileSpec {
