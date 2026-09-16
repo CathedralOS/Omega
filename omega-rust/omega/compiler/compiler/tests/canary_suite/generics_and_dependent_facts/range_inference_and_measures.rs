@@ -5,6 +5,7 @@ use crate::{
     fail_canary, fs, interpret, pass_canary, unique_no_output_build_dir,
 };
 use compiler::CheckedCompileRequest;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use typed_trees::types::PrimitiveType;
 
 #[test]

@@ -11,7 +11,9 @@ use crate::{
     hosted_main_program_entry_build, interpret, pass_canary,
     reviewed_repository_fixture_package_inputs,
 };
+use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 #[test]
 fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
