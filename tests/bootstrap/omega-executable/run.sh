@@ -5,7 +5,9 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/omega/compiler_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Omega executable: skipped (python3 absent)"
@@ -20,14 +22,12 @@ esac
 
 OUTPUT_DIR=${OMEGA_EXECUTABLE_BUILD_DIR:-"$OMEGA_REPO_ROOT/build/omega-executable"}
 mkdir -p "$OUTPUT_DIR"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$OUTPUT_DIR/delta_compiler.gamma" \
-    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$OUTPUT_DIR/support.bin"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$OUTPUT_DIR/epsilon_compiler.delta"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$OUTPUT_DIR/omega_compiler.epsilon"
+# Bound materializers refuse before writing when the canonical entry,
+# manifest, members, packed closure, or composed record differ from the
+# audited edge records.
+materialize_delta_compiler "$OUTPUT_DIR/delta_compiler.gamma"
+materialize_delta_support "$OUTPUT_DIR/support.bin"
+materialize_epsilon_evaluator "$OUTPUT_DIR/epsilon_compiler.delta"
+materialize_omega_compiler "$OUTPUT_DIR/omega_compiler.epsilon"
 materialize_gamma_evaluator "$OUTPUT_DIR/evaluator.exe" >/dev/null
 python3 "$GATE_DIR/gate.py" "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" "$@"

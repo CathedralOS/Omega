@@ -5,7 +5,9 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/omega/compiler_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Interpreted D parser: skipped (python3 absent)"
@@ -20,14 +22,12 @@ esac
 
 PARSER_TMP=$(mktemp -d)
 trap 'rm -rf -- "$PARSER_TMP"' EXIT HUP INT TERM
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$PARSER_TMP/delta_compiler.gamma" \
-    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$PARSER_TMP/support.bin"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$PARSER_TMP/epsilon_compiler.delta"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$PARSER_TMP/omega_compiler.epsilon"
+# Bound materializers refuse before writing when the canonical entry,
+# manifest, members, packed closure, or composed record differ from the
+# audited edge records.
+materialize_delta_compiler "$PARSER_TMP/delta_compiler.gamma"
+materialize_delta_support "$PARSER_TMP/support.bin"
+materialize_epsilon_evaluator "$PARSER_TMP/epsilon_compiler.delta"
+materialize_omega_compiler "$PARSER_TMP/omega_compiler.epsilon"
 materialize_gamma_evaluator "$PARSER_TMP/evaluator.exe" >/dev/null
 python3 "$GATE_DIR/gate.py" "$PARSER_TMP" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER"

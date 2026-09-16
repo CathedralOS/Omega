@@ -6,6 +6,7 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/proofs/sources_env.sh"
 
 case "${1:-}" in
     '') ENCODING_GATE=gate.py ;;
@@ -27,9 +28,13 @@ esac
 
 ENCODING_TMP=$(mktemp -d)
 trap 'rm -rf -- "$ENCODING_TMP"' EXIT HUP INT TERM
+# The bound member closures are checked against their audited records; the
+# gate's own diagnostic prefix entries pack on top of those bound members.
+require_beta_encoding_theory_identity
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" \
     "$ENCODING_TMP/producer.gamma" --prefix "$GATE_DIR/main.gamma"
+require_derivation_checker_identity
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$ENCODING_TMP/checker.gamma" \

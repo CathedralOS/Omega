@@ -5,7 +5,7 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
 
 case "$*" in
     "") NORMALIZATION_FULL_WIDTH=0 ;;
@@ -20,15 +20,13 @@ command -v python3 >/dev/null 2>&1 || {
 
 NORMALIZATION_TMP=$(mktemp -d)
 trap 'rm -rf -- "$NORMALIZATION_TMP"' EXIT HUP INT TERM
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$NORMALIZATION_TMP/canonical.gamma" \
-    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+materialize_delta_compiler "$NORMALIZATION_TMP/canonical.gamma"
+# The bound member closure is checked against its audited record; the gate's
+# own driver entry packs on top of those bound members.
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$NORMALIZATION_TMP/diagnostic.gamma" \
     --prefix "$GATE_DIR/normalization_driver.gamma"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
-    "$NORMALIZATION_TMP/support.bin"
+materialize_delta_support "$NORMALIZATION_TMP/support.bin"
 materialize_gamma_evaluator "$NORMALIZATION_TMP/evaluator" >/dev/null
 
 NORMALIZATION_TMP="$NORMALIZATION_TMP" GATE_DIR="$GATE_DIR" \

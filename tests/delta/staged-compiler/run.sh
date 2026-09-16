@@ -5,7 +5,8 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Staged Delta compiler: skipped (python3 absent)"
@@ -16,12 +17,13 @@ TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 COMPILER="$TMP/development.gamma"
 CANONICAL_COMPILER="$TMP/compiler.gamma"
+# The bound member closure is checked against its audited record; the gate's
+# development driver entry packs on top of those bound members.
+require_delta_compiler_identity
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$COMPILER" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$CANONICAL_COMPILER" \
-    --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
+materialize_delta_compiler "$CANONICAL_COMPILER"
 SOURCE="$GATE_DIR/nullary_match.delta"
 EXPECTED="$GATE_DIR/nullary_match.gamma"
 PAYLOAD_SOURCE="$GATE_DIR/payload_match.delta"
@@ -35,12 +37,10 @@ BYTES_EXPECTED="$GATE_DIR/bytes_rope.gamma"
 FORWARD_SOURCE="$GATE_DIR/forward_mutual_nominals.delta"
 FORWARD_EXPECTED="$GATE_DIR/forward_mutual_nominals.gamma"
 EPSILON_SOURCE="$TMP/epsilon_compiler.delta"
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON_SOURCE"
+materialize_epsilon_evaluator "$EPSILON_SOURCE"
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" "$TMP/support.bin"
+materialize_delta_support "$TMP/support.bin"
 
 COMPILER="$COMPILER" CANONICAL_COMPILER="$CANONICAL_COMPILER" \
     SOURCE="$SOURCE" EXPECTED="$EXPECTED" \
