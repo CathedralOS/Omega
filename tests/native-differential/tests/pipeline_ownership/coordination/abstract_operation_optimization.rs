@@ -429,8 +429,12 @@ fn lower_only_suite_reaches_prephysical_custody_without_claiming_psi_work() {
     );
 }
 
+// The ordinary graph once admitted only u64 scalars, and these two cases
+// pinned that boundary as a rejection. Every fixed integer width legalizes
+// since a63284e305 (`scalar_graph_input.rs::scalar_shape`), so the same
+// fixtures now pin the admission instead.
 #[test]
-fn non_u64_expression_fails_at_ordinary_graph_legalization_boundary() {
+fn non_u64_expression_legalizes_on_the_ordinary_graph() {
     let (semantic, proof) = artifact();
     let optimized = optimize_artifact_sections(
         &semantic,
@@ -444,16 +448,12 @@ fn non_u64_expression_fails_at_ordinary_graph_legalization_boundary() {
         OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
     )
     .unwrap();
-    assert!(matches!(
-        stage_optimized_instruction_selection(target),
-        Err(OptimizedSelectionPipelineError::Legalization(
-            LegalizationError::UnsupportedSourceShape { function: 0 }
-        ))
-    ));
+    stage_optimized_instruction_selection(target)
+        .expect("a u8 expression legalizes on the ordinary graph");
 }
 
 #[test]
-fn non_u64_conditional_fails_at_ordinary_graph_legalization_boundary() {
+fn non_u64_conditional_legalizes_on_the_ordinary_graph() {
     let (semantic, proof) = conditional_immediate_artifact_with_type(
         IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
     );
@@ -469,12 +469,8 @@ fn non_u64_conditional_fails_at_ordinary_graph_legalization_boundary() {
         OptimizedTargetLoweringRequest::new(NativeTarget::linux_x64()),
     )
     .unwrap();
-    assert!(matches!(
-        stage_optimized_instruction_selection(target),
-        Err(OptimizedSelectionPipelineError::Legalization(
-            LegalizationError::UnsupportedSourceShape { function: 0 }
-        ))
-    ));
+    stage_optimized_instruction_selection(target)
+        .expect("a u8 conditional immediate legalizes on the ordinary graph");
 }
 
 #[test]
