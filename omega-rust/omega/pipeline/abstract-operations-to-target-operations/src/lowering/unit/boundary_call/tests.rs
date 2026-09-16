@@ -1,10 +1,12 @@
 //! Focused normalized foreign-scalar boundary-call lowering tests.
 use super::{
-    BTreeMap, BoundaryMachineId, CallSignature, CallingPolicy, IntegerSign, IntegerType,
-    IntegerValue, KnownUnitInteger, LoweringError, NativeTarget, OperationId, ScalarType,
+    BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, CallingPolicy, IntegerSign, IntegerType,
+    IntegerValue, KnownUnitInteger, LoweringError, MachineId, NativeTarget, OperationId, PlaceId,
+    ScalarType, StructuralTypeId, StructuralTypeLookup, TargetStructuralParameter,
     TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueId, ValueLocation,
-    ValueShape, lower_normalized_foreign_scalar_arguments,
+    ValuePlacement, ValueShape, lower_normalized_foreign_scalar_arguments,
     lower_normalized_foreign_scalar_arguments_with_result, lower_normalized_foreign_scalar_result,
+    lower_normalized_foreign_structural_arguments,
 };
 use calling_conventions::MachineRegister;
 
@@ -148,6 +150,7 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
         &scalar_values,
         None,
         Some(&callback),
+        &[],
     )
     .expect("one interleaved native-only callback argument");
     assert_eq!(arguments.len(), 2);
@@ -169,6 +172,7 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
             &scalar_values,
             None,
             Some(&wrong_ordinal),
+            &[],
         )
         .is_err()
     );
@@ -188,6 +192,7 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
             &scalar_values,
             None,
             Some(&wrong_plan),
+            &[],
         )
         .is_err()
     );
@@ -662,4 +667,444 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
             .is_err()
         );
     }
+}
+
+/// `Main { m: i64; p: Point; q: Point; }` stands in for a caller whose `self`
+/// receiver owns two flat-record fields behind one machine slot, matching the
+/// authored `self.m.shift(&self.p)` probe shape. `p` lands at byte offset 8
+/// and `q` at byte offset 16.
+fn flat_record_catalog() -> (
+    StructuralTypeId,
+    StructuralTypeId,
+    abstract_operations::StructuralTypeCatalog,
+) {
+    let point = StructuralTypeId::new(201).unwrap();
+    let main = StructuralTypeId::new(202).unwrap();
+    let i32_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    let mut next_field = 203_u64;
+    let mut field = |identity: &str, field_type: terminal_psi::StructuralFieldType| {
+        let declaration = terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(next_field).unwrap(),
+            identity: identity.to_owned(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type,
+        };
+        next_field += 1;
+        declaration
+    };
+    let catalog = abstract_operations::StructuralTypeCatalog::from(vec![
+        terminal_psi::StructuralTypeDeclaration {
+            id: point,
+            identity: "Point".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![
+                    field("x", terminal_psi::StructuralFieldType::Scalar(i32_scalar)),
+                    field("y", terminal_psi::StructuralFieldType::Scalar(i32_scalar)),
+                ],
+            },
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: main,
+            identity: "Main".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![
+                    field("m", terminal_psi::StructuralFieldType::Scalar(i64_scalar)),
+                    field("p", terminal_psi::StructuralFieldType::Structural(point)),
+                    field("q", terminal_psi::StructuralFieldType::Structural(point)),
+                ],
+            },
+        },
+    ]);
+    (point, main, catalog)
+}
+
+fn caller_receiver(place: PlaceId, root: StructuralTypeId) -> TargetStructuralParameter {
+    TargetStructuralParameter {
+        place,
+        structural_type: root,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::MutableBorrow,
+        projected_qualifications: Vec::new(),
+        shape: ValueShape::borrowed_reference(24, 8),
+        placement: ValuePlacement {
+            shape: ValueShape::integer(8, 8),
+            locations: vec![ValueLocation::Register {
+                register: MachineRegister::Aarch64X(19),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }],
+        },
+    }
+}
+
+fn structural_formal(
+    position: u32,
+    structural_type: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+) -> terminal_psi::StructuralParameterDeclaration {
+    terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(9_000 + u64::from(position)).unwrap(),
+        position,
+        is_self: false,
+        structural_type,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }
+}
+
+fn pointer_plan(target: NativeTarget, count: usize) -> calling_conventions::BoundaryEntryPlan {
+    calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![ValueShape::integer(8, 8); count],
+            result: None,
+        },
+    )
+    .expect("pointer-word entry plan")
+    .plan()
+    .clone()
+}
+
+#[test]
+fn borrowed_flat_record_arguments_preserve_source_custody_and_plan_positions() {
+    let boundary = BoundaryMachineId::new(211).unwrap();
+    let machine = MachineId::new(212).unwrap();
+    let caller_place = PlaceId::new(213).unwrap();
+    let (point, main, catalog) = flat_record_catalog();
+    let structural_types = StructuralTypeLookup::new(&catalog);
+    let receiver = caller_receiver(caller_place, main);
+    let parameters_by_place = BTreeMap::from([(caller_place, &receiver)]);
+    let mut declaration = declaration(boundary, Vec::new());
+    declaration.structural_parameters = vec![
+        structural_formal(0, point, terminal_psi::StructuralAccess::SharedBorrow),
+        structural_formal(1, point, terminal_psi::StructuralAccess::SharedBorrow),
+    ];
+    let arguments = vec![
+        terminal_psi::StructuralArgument {
+            place: caller_place,
+            path: vec![terminal_psi::StructuralPathSegment::Field("p".into())],
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        },
+        terminal_psi::StructuralArgument {
+            place: caller_place,
+            path: vec![terminal_psi::StructuralPathSegment::Field("q".into())],
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        },
+    ];
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = pointer_plan(target, 2);
+        let mut shape_cache = BTreeMap::new();
+        let mut active = BTreeSet::new();
+        let lowered = lower_normalized_foreign_structural_arguments(
+            boundary,
+            machine,
+            target,
+            &declaration,
+            &arguments,
+            &plan,
+            &structural_types,
+            &parameters_by_place,
+            &mut shape_cache,
+            &mut active,
+            None,
+        )
+        .expect("two borrowed flat-record arguments");
+        assert_eq!(lowered.len(), 2);
+        for (index, (field, offset)) in [("p", 8_u32), ("q", 16_u32)].into_iter().enumerate() {
+            let argument = &lowered[index];
+            assert_eq!(argument.place, caller_place);
+            assert_eq!(
+                argument.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+            );
+            assert_eq!(
+                argument.path.as_slice(),
+                [terminal_psi::StructuralPathSegment::Field(field.to_owned())]
+            );
+            assert_eq!(argument.root_structural_type, main);
+            assert_eq!(argument.structural_type, point);
+            assert_eq!(argument.shape, ValueShape::borrowed_reference(8, 4));
+            assert_eq!(argument.source_byte_offset, offset);
+            assert_eq!(argument.fixed_array_length, None);
+            assert_eq!(argument.element_stride, None);
+            assert_eq!(
+                argument.source,
+                target_operations::TargetStructuralArgumentSource::Placement(
+                    receiver.placement.clone()
+                )
+            );
+            assert_eq!(argument.destination, plan.call.parameters[index]);
+            assert!(matches!(
+                argument.destination.locations.as_slice(),
+                [ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    ..
+                }]
+            ));
+        }
+    }
+}
+
+#[test]
+fn normalized_foreign_structural_mutations_fail_closed() {
+    let boundary = BoundaryMachineId::new(221).unwrap();
+    let machine = MachineId::new(222).unwrap();
+    let caller_place = PlaceId::new(223).unwrap();
+    let (point, main, catalog) = flat_record_catalog();
+    let structural_types = StructuralTypeLookup::new(&catalog);
+    let target = NativeTarget::linux_x64();
+    let base_argument = || terminal_psi::StructuralArgument {
+        place: caller_place,
+        path: vec![terminal_psi::StructuralPathSegment::Field("p".into())],
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+    };
+    let base_declaration = || {
+        let mut declaration = declaration(boundary, Vec::new());
+        declaration.structural_parameters = vec![structural_formal(
+            0,
+            point,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        )];
+        declaration
+    };
+    let base_plan = pointer_plan(target, 1);
+    let receiver = caller_receiver(caller_place, main);
+    let parameters_by_place = BTreeMap::from([(caller_place, &receiver)]);
+
+    let lower =
+        |declaration: &terminal_psi::BoundaryMachineDeclaration,
+         arguments: &[terminal_psi::StructuralArgument],
+         plan: &calling_conventions::BoundaryEntryPlan,
+         parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+         callback: Option<&target_operations::TargetNativeCallbackArgument>| {
+            lower_normalized_foreign_structural_arguments(
+                boundary,
+                machine,
+                target,
+                declaration,
+                arguments,
+                plan,
+                &structural_types,
+                parameters_by_place,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                callback,
+            )
+        };
+
+    // The admitted control case must succeed before any mutation is trusted.
+    assert!(
+        lower(
+            &base_declaration(),
+            &[base_argument()],
+            &base_plan,
+            &parameters_by_place,
+            None,
+        )
+        .is_ok()
+    );
+
+    // Path shape: empty, indexed, referent-crossing, and unknown paths fail.
+    for path in [
+        Vec::new(),
+        vec![terminal_psi::StructuralPathSegment::FixedIndex(0)],
+        vec![terminal_psi::StructuralPathSegment::Referent],
+        vec![terminal_psi::StructuralPathSegment::Field("missing".into())],
+    ] {
+        let mut argument = base_argument();
+        argument.path = path.clone();
+        assert!(
+            lower(
+                &base_declaration(),
+                &[argument],
+                &base_plan,
+                &parameters_by_place,
+                None,
+            )
+            .is_err(),
+            "path {path:?} must fail closed"
+        );
+    }
+
+    // Semantic custody mismatches: access, multiplicity, qualification,
+    // projected type, formal position, and an unknown caller place.
+    let mut wrong_access_argument = base_argument();
+    wrong_access_argument.access = terminal_psi::StructuralAccess::MutableBorrow;
+    let mut owned = base_declaration();
+    owned.structural_parameters[0].access = terminal_psi::StructuralAccess::Owned;
+    let mut owned_argument = base_argument();
+    owned_argument.access = terminal_psi::StructuralAccess::Owned;
+    let mut affine = base_declaration();
+    affine.structural_parameters[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+    let mut wrong_type = base_declaration();
+    wrong_type.structural_parameters[0].structural_type = main;
+    let mut wrong_position = base_declaration();
+    wrong_position.structural_parameters[0].position = 1;
+    for (declaration, argument) in [
+        (base_declaration(), wrong_access_argument),
+        (owned, owned_argument),
+        (affine, base_argument()),
+        (wrong_type, base_argument()),
+        (wrong_position, base_argument()),
+    ] {
+        assert!(
+            lower(
+                &declaration,
+                &[argument],
+                &base_plan,
+                &parameters_by_place,
+                None,
+            )
+            .is_err()
+        );
+    }
+    assert_eq!(
+        lower(
+            &base_declaration(),
+            &[base_argument()],
+            &base_plan,
+            &BTreeMap::new(),
+            None,
+        ),
+        Err(LoweringError::UnknownStructuralArgumentPlace {
+            machine,
+            place: caller_place,
+        })
+    );
+
+    // Lane-shape mismatches: counts, a mixed scalar/structural signature, and
+    // a native callback present in the structural lane.
+    assert!(
+        lower(
+            &base_declaration(),
+            &[],
+            &base_plan,
+            &parameters_by_place,
+            None,
+        )
+        .is_err()
+    );
+    assert!(
+        lower(
+            &declaration(boundary, Vec::new()),
+            &[base_argument()],
+            &base_plan,
+            &parameters_by_place,
+            None,
+        )
+        .is_err()
+    );
+    let mut mixed = base_declaration();
+    mixed.scalar_parameters = vec![ScalarType::Integer(
+        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+    )];
+    assert!(
+        lower(
+            &mixed,
+            &[base_argument()],
+            &base_plan,
+            &parameters_by_place,
+            None,
+        )
+        .is_err()
+    );
+    let (_, callback) = interleaved_callback(boundary);
+    assert!(
+        lower(
+            &base_declaration(),
+            &[base_argument()],
+            &base_plan,
+            &parameters_by_place,
+            Some(&callback),
+        )
+        .is_err()
+    );
+
+    // Source-extent mismatch: the projected record must fit its root storage.
+    let mut shallow_receiver = caller_receiver(caller_place, main);
+    shallow_receiver.shape.byte_size = 8;
+    let shallow_map = BTreeMap::from([(caller_place, &shallow_receiver)]);
+    assert!(
+        lower(
+            &base_declaration(),
+            &[base_argument()],
+            &base_plan,
+            &shallow_map,
+            None,
+        )
+        .is_err()
+    );
+
+    // Plan mismatches: the evaluated destination must be exactly one
+    // pointer-width word at byte offset zero.
+    let mut wrong_shape = base_plan.clone();
+    wrong_shape.call.parameters[0].shape = ValueShape::integer(4, 4);
+    let mut split = base_plan.clone();
+    split.call.parameters[0].locations = vec![
+        ValueLocation::Register {
+            register: MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: 4,
+        },
+        ValueLocation::Register {
+            register: MachineRegister::X86Rsi,
+            value_byte_offset: 4,
+            byte_size: 4,
+        },
+    ];
+    let mut fragment_offset = base_plan.clone();
+    let [
+        ValueLocation::Register {
+            value_byte_offset, ..
+        },
+    ] = fragment_offset.call.parameters[0].locations.as_mut_slice()
+    else {
+        unreachable!("one register location")
+    };
+    *value_byte_offset = 1;
+    let mut fragment_size = base_plan.clone();
+    let [ValueLocation::Register { byte_size, .. }] =
+        fragment_size.call.parameters[0].locations.as_mut_slice()
+    else {
+        unreachable!("one register location")
+    };
+    *byte_size = 4;
+    let mut missing = base_plan.clone();
+    missing.call.parameters.clear();
+    for plan in [wrong_shape, split, fragment_offset, fragment_size, missing] {
+        assert!(
+            lower(
+                &base_declaration(),
+                &[base_argument()],
+                &plan,
+                &parameters_by_place,
+                None,
+            )
+            .is_err()
+        );
+    }
+
+    // A canonical stack-resident pointer word is an admitted placement.
+    let mut stack_plan = base_plan.clone();
+    stack_plan.call.parameters[0].locations = vec![ValueLocation::Stack {
+        stack_byte_offset: 0,
+        value_byte_offset: 0,
+        byte_size: 8,
+        alignment: 8,
+    }];
+    assert!(
+        lower(
+            &base_declaration(),
+            &[base_argument()],
+            &stack_plan,
+            &parameters_by_place,
+            None,
+        )
+        .is_ok()
+    );
 }

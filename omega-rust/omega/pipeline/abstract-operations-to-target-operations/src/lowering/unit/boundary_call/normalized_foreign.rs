@@ -1,11 +1,154 @@
-//! Normalized foreign scalar-call argument and result projection.
+//! Normalized foreign scalar and structural argument and result projection.
 
 use super::super::super::scalar_abi::fixed_native_integer_shape;
-use super::{
-    BTreeMap, BoundaryMachineId, CallSignature, KnownUnitInteger, LoweringError, OperationId,
-    ScalarType, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueId,
-    ValueLocation, ValueShape,
+use super::super::super::structural_layout::{
+    resolve_structural_field_path, structural_parameter_shape,
 };
+use super::{
+    BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, KnownUnitInteger, LoweringError,
+    MachineId, NativeTarget, OperationId, PlaceId, ScalarType, StructuralAccess,
+    StructuralPathSegment, StructuralTypeId, StructuralTypeLookup, TargetStructuralArgument,
+    TargetStructuralParameter, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
+    ValueId, ValueLocation, ValueShape,
+};
+
+/// Lower source-rooted borrowed structural arguments for one evaluated
+/// normalized foreign call, preserving the exact caller place, semantic field
+/// path, access mode, and projected byte offset beside the evaluated plan's
+/// destination placement.
+///
+/// The evaluated `BoundaryEntryPlan` orders `call.parameters` by the authored
+/// formal signature. The Terminal boundary declaration splits scalar and
+/// structural formals into two lane-local lists and erases their authored
+/// interleave, so a structural argument rejoins its exact plan position only
+/// while the scalar lane is empty; a mixed signature fails closed rather than
+/// guessing an ordinal the artifact cannot prove.
+///
+/// Each admitted argument must resolve to one borrowed flat-record projection:
+/// a nonempty field-only path rooted at a caller structural parameter, the
+/// projected type equal to the declared parameter type, and the evaluated plan
+/// placing the referent pointer as one pointer-width word. By-value aggregate
+/// transport needs an aggregate ABI classification this lane does not own, so
+/// owned arguments fail closed until that contract lands.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower_normalized_foreign_structural_arguments(
+    boundary: BoundaryMachineId,
+    machine: MachineId,
+    target: NativeTarget,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
+    structural_types: &StructuralTypeLookup<'_>,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
+) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
+    if structural_arguments.len() != declaration.structural_parameters.len()
+        || (!structural_arguments.is_empty()
+            && (!declaration.scalar_parameters.is_empty() || native_callback.is_some()))
+    {
+        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+    }
+    let pointer_size = u16::try_from(target.pointer_size)
+        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+    let pointer_alignment = u16::try_from(target.pointer_alignment)
+        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+    structural_arguments
+        .iter()
+        .zip(&declaration.structural_parameters)
+        .enumerate()
+        .map(|(index, (argument, parameter))| {
+            let source = parameters_by_place.get(&argument.place).copied().ok_or(
+                LoweringError::UnknownStructuralArgumentPlace {
+                    machine,
+                    place: argument.place,
+                },
+            )?;
+            if argument.path.is_empty()
+                || argument
+                    .path
+                    .iter()
+                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+                || usize::try_from(parameter.position).ok() != Some(index)
+            {
+                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+            }
+            let (projected_type, projected_shape, source_byte_offset) =
+                resolve_structural_field_path(
+                    source.structural_type,
+                    &argument.path,
+                    structural_types,
+                    shape_cache,
+                    active,
+                )
+                .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+            if projected_type != parameter.structural_type
+                || argument.access != parameter.access
+                || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || u32::from(projected_shape.byte_size)
+                    .checked_add(source_byte_offset)
+                    .is_none_or(|end| end > u32::from(source.shape.byte_size))
+            {
+                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+            }
+            let parameter_shape = structural_parameter_shape(projected_shape, parameter.access);
+            let destination = boundary_entry_plan
+                .call
+                .parameters
+                .get(index)
+                .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
+            match parameter.access {
+                StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow => {
+                    let placed_pointer_word = match destination.locations.as_slice() {
+                        [
+                            ValueLocation::Register {
+                                value_byte_offset: 0,
+                                byte_size,
+                                ..
+                            },
+                        ]
+                        | [
+                            ValueLocation::Stack {
+                                value_byte_offset: 0,
+                                byte_size,
+                                ..
+                            },
+                        ] => *byte_size,
+                        _ => {
+                            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                        }
+                    };
+                    if destination.shape != ValueShape::integer(pointer_size, pointer_alignment)
+                        || placed_pointer_word != pointer_size
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                }
+                StructuralAccess::Owned => {
+                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                }
+            }
+            Ok(TargetStructuralArgument {
+                place: argument.place,
+                access: argument.access,
+                path: argument.path.clone(),
+                root_structural_type: source.structural_type,
+                structural_type: projected_type,
+                shape: parameter_shape,
+                source_byte_offset,
+                fixed_array_length: None,
+                element_stride: None,
+                source: source.placement.clone().into(),
+                destination: destination.clone(),
+            })
+        })
+        .collect()
+}
 
 pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     boundary: BoundaryMachineId,
@@ -15,6 +158,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     result_shape: Option<ValueShape>,
     native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
+    structural_parameter_shapes: &[ValueShape],
 ) -> Result<Vec<target_operations::NormalizedForeignScalarArgument>, LoweringError> {
     let scalar_parameter_shapes = declaration
         .scalar_parameters
@@ -36,6 +180,9 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
         .map(|callback| usize::try_from(callback.application.native_ordinal))
         .transpose()
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+    // The signature lists every authored formal in evaluated-plan order.
+    // Mixed scalar/structural signatures are rejected by the structural lane
+    // before this point, so exactly one lane contributes here.
     let signature = CallSignature {
         parameters: if native_callback.is_some() {
             boundary_entry_plan
@@ -44,8 +191,10 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                 .iter()
                 .map(|placement| placement.shape)
                 .collect()
-        } else {
+        } else if structural_parameter_shapes.is_empty() {
             scalar_parameter_shapes.clone()
+        } else {
+            structural_parameter_shapes.to_vec()
         },
         result: result_shape,
     };
@@ -76,7 +225,9 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     if arguments.len() != declaration.scalar_parameters.len()
         || validated.plan() != boundary_entry_plan
         || boundary_entry_plan.call.parameters.len()
-            != scalar_parameter_shapes.len() + usize::from(native_callback.is_some())
+            != scalar_parameter_shapes.len()
+                + structural_parameter_shapes.len()
+                + usize::from(native_callback.is_some())
     {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
@@ -165,6 +316,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments(
         scalar_values,
         None,
         None,
+        &[],
     )
 }
 

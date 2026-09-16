@@ -1,6 +1,6 @@
 //! Closed target mechanisms and normalized foreign-call realizations.
 
-use crate::TargetUnitScalarCallArgument;
+use crate::{TargetStructuralArgument, TargetUnitScalarCallArgument};
 use calling_conventions::BoundaryEntryPlan;
 use semantic_vocabulary::{OperationId, ServiceId};
 
@@ -103,6 +103,15 @@ pub struct NormalizedForeignCallBinding {
 /// evaluated boundary call plan. The bounded native carrier admits the
 /// target's complete register-resident fixed-integer argument bank.
 pub type NormalizedForeignScalarArgument = TargetUnitScalarCallArgument;
+
+/// One occurrence-specific source-rooted structural value materialized for an
+/// evaluated normalized foreign call. The exact caller place, semantic field
+/// path, access mode, projected structural type, source byte offset, and
+/// source placement remain bound to the ordered placement selected by the
+/// evaluated boundary call plan. The bounded native carrier admits borrowed
+/// flat-record arguments: the evaluated plan places the projected referent's
+/// pointer in the target's argument bank without copying its storage.
+pub type NormalizedForeignStructuralArgument = TargetStructuralArgument;
 
 /// Closed native settlement choice. Keeping evaluated imports disjoint from
 /// built-in realizations prevents locator custody from being stripped into a
