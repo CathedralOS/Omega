@@ -966,11 +966,33 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `DivideZeroDividend` source shape — re-deriving the literal, result
   register, dropped-`Use` custody, and obligation custody from the
   instruction record — and never consults the pair descriptor).
-  Remaining: further unit roles, stack- and
-  control-flow-carrying relationships, and trap relationships beyond the
-  existing `FaultDischargedByLiteral` and `FaultDischargedByObligation`
-  descriptors. Those fault-discharge variants do not admit arbitrary trap
-  preservation or hosted-trap effects.
+  `PairMachineEffects::DeadConsumerUnitDefs` declares the first
+  dead-implicit-definition relationship — the producer remains
+  effect-isolated, the consumer may define implicit physical units the
+  rewrite retires only when every such unit is dead across the whole
+  function including terminator records, consumer clobbers narrow
+  destruction freely, consumer implicit uses and any non-isolated
+  rewritten form reject — and `SATURATING_ADD_ZERO_COPIES` declares one
+  pair per `Use` position, folding `MaterializeI64(0)` feeding
+  `SaturatingAdd(SaturatingCarrier::U64)` at either operand into a
+  `CopyI64` of the surviving `Use` at the result register under
+  `LiteralFoldPolicy::SATURATING_ADD_ZERO_V1` — `x +| 0` and `0 +| x`
+  are both `x` — retiring aarch64's implicit `nzcv` definition under the
+  deadness proof while x86-64's `rflags` clobber and early-clobber mark
+  drop unconditionally with the replaced operand list (549 crate tests
+  pass, including firing on both Linux targets at either operand
+  position, live-`nzcv` rejection under a conditional-branch terminator,
+  wrong-position claims, forbidden operand bindings, decision-field
+  substitution, and wrong-policy negatives; the replay restates both
+  grammars through its own `SaturatingAddZero`/`SaturatingAddZeroLeft`
+  source shapes, runs its own dead-unit scan, and never consults the
+  pair descriptor).
+  Remaining: further unit roles beyond retired implicit definitions,
+  stack- and control-flow-carrying relationships, and trap relationships
+  beyond the existing `FaultDischargedByLiteral` and
+  `FaultDischargedByObligation` descriptors. Those fault-discharge
+  variants do not admit arbitrary trap preservation or hosted-trap
+  effects.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
   removal, address folding, compare/test selection, and scheduling only where
