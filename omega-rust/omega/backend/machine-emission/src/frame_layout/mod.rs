@@ -9,6 +9,7 @@
 //! Durable plans live in `machine_code::storage::frame_layout`; only the
 //! independently validated wrappers and implementation state live here.
 
+mod call_site;
 mod compute;
 mod error;
 mod model;

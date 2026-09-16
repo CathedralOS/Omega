@@ -10,7 +10,8 @@ use crate::frame_layout::{
 use super::{
     CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore, FunctionTargetFrameLayout,
     ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutError, TargetFrameLayoutPlan,
-    TargetFrameLayoutPolicy, stack_commit::stack_commit_granule_bytes,
+    TargetFrameLayoutPolicy, call_site::call_site_stack_contract,
+    stack_commit::stack_commit_granule_bytes,
 };
 
 pub(super) fn derive(
@@ -233,6 +234,13 @@ fn function_layout(
     let used_area_bytes = callee_save_area_bytes
         .checked_add(preservation_offset)
         .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+    // The call-site stack contract is target-owned: the boundary alignment is
+    // the ABI's declared stack alignment and the entry residue is the bytes
+    // the architecture's call sequence leaves pushed at callee entry, so a
+    // frame whose body executes calls commits an extent carrying exactly that
+    // residue.
+    let call_site = call_site_stack_contract(environment, abi)
+        .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
     let (stack_pointer, frame_size_bytes, red_zone_resident_bytes, return_address) =
         match (environment.target().architecture, abi) {
             (
@@ -253,7 +261,11 @@ fn function_layout(
                     || (convention == FrameAbiPreservationConvention::MicrosoftX64
                         && used_area_bytes != 0)
                 {
-                    align_to_residue(used_area_bytes, 16, 8)?
+                    align_to_residue(
+                        used_area_bytes,
+                        u64::from(call_site.stack_alignment_bytes),
+                        call_site.entry_residue_bytes,
+                    )?
                 } else {
                     align_up(used_area_bytes, 8)?
                 };
@@ -321,7 +333,7 @@ fn function_layout(
                         .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
                     (
                         stack_pointer,
-                        align_up(used, 16)?,
+                        align_up(used, u64::from(call_site.stack_alignment_bytes))?,
                         0,
                         ReturnAddressFrameCustody::SavedLinkRegister {
                             view: link,
@@ -332,7 +344,7 @@ fn function_layout(
                 } else {
                     (
                         stack_pointer,
-                        align_up(used_area_bytes, 16)?,
+                        align_up(used_area_bytes, u64::from(call_site.stack_alignment_bytes))?,
                         0,
                         ReturnAddressFrameCustody::LiveLinkRegister { view: link },
                     )
@@ -379,10 +391,10 @@ fn function_layout(
         machine,
         contains_call,
         stack_pointer,
-        pre_call_stack_alignment: 16,
+        pre_call_stack_alignment: call_site.stack_alignment_bytes,
         frame_size_bytes,
         red_zone_resident_bytes,
-        abi_stack_alignment_bytes: 16,
+        abi_stack_alignment_bytes: call_site.stack_alignment_bytes,
         outgoing_abi_area,
         local_storage_slots,
         stable_address_loans,

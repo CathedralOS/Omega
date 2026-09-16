@@ -117,6 +117,11 @@ pub struct FunctionTargetFrameLayout {
     pub machine: MachineId,
     pub contains_call: bool,
     pub stack_pointer: RegisterViewId,
+    /// Stack-pointer alignment the ABI declares for a call boundary, resolved
+    /// through the selected preservation convention — never a frame-local
+    /// constant. A frame whose body executes calls commits an extent carrying
+    /// the call-entry residue modulo this alignment, so the post-prologue
+    /// stack pointer meets the declared boundary at every call site.
     pub pre_call_stack_alignment: u16,
     /// Addressed frame extent in bytes. Slot offsets are measured upward from
     /// the lowest addressed byte; the committed extent is
@@ -128,6 +133,9 @@ pub struct FunctionTargetFrameLayout {
     /// red-zone-resident and the prologue commits nothing). Nonzero only on
     /// leaf functions under conventions that guarantee a red zone.
     pub red_zone_resident_bytes: u64,
+    /// The ABI's declared stack alignment in bytes — the same target-owned
+    /// preservation-convention declaration `pre_call_stack_alignment` applies
+    /// at call sites.
     pub abi_stack_alignment_bytes: u16,
     pub outgoing_abi_area: OutgoingAbiFrameArea,
     pub local_storage_slots: Vec<LocalStorageFrameSlot>,

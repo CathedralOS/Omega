@@ -8,7 +8,7 @@ use crate::frame_layout::{
     StagedOptimizedPostAllocationMachinePlan, TargetFrameLayoutError as Error,
     TargetFrameLayoutPlan, TargetFrameLayoutPolicy, ValidatedAllocatedCalleeSavedRequirements,
     ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,
-    stack_commit::stack_commit_granule_bytes,
+    call_site::call_site_stack_contract, stack_commit::stack_commit_granule_bytes,
 };
 
 pub(super) fn validate_layout(
@@ -47,6 +47,13 @@ pub(super) fn validate_layout(
     if candidate.functions.len() != current.functions.len() {
         return Err(Error::NonCanonicalLayout);
     }
+    // The call-site stack contract resolves from the same target-owned
+    // declarations the producer used — the selected convention's declared
+    // stack alignment and the (architecture, convention) call-entry residue —
+    // so a submitted row cannot record a borrowed constant or an undeclared
+    // pair's geometry.
+    let call_site =
+        call_site_stack_contract(environment, required.abi).ok_or(Error::UnsupportedTarget)?;
     for (((source, requirement), storage), row) in current
         .functions
         .iter()
@@ -245,8 +252,8 @@ pub(super) fn validate_layout(
         }
         if row.machine != source.machine
             || row.contains_call != calls
-            || row.pre_call_stack_alignment != 16
-            || row.abi_stack_alignment_bytes != 16
+            || row.pre_call_stack_alignment != call_site.stack_alignment_bytes
+            || row.abi_stack_alignment_bytes != call_site.stack_alignment_bytes
             || row.outgoing_abi_area.byte_size != outgoing
             || u64::from(row.outgoing_abi_area.shadow_bytes) != shadow
             || row.callee_save_slots.len() != storage.slots.len()
@@ -286,7 +293,10 @@ pub(super) fn validate_layout(
                 let (alignment, residue) = if calls
                     || (convention == FrameAbiPreservationConvention::MicrosoftX64 && area != 0)
                 {
-                    (16, 8)
+                    (
+                        u64::from(call_site.stack_alignment_bytes),
+                        call_site.entry_residue_bytes,
+                    )
                 } else {
                     (8, 0)
                 };
@@ -335,13 +345,23 @@ pub(super) fn validate_layout(
                     if view != link
                         || size_bytes != 8
                         || !minimal_aligned_extent(area, frame_offset_bytes, 8, 0)
-                        || !minimal_aligned_extent(used, row.frame_size_bytes, 16, 0)
+                        || !minimal_aligned_extent(
+                            used,
+                            row.frame_size_bytes,
+                            u64::from(call_site.stack_alignment_bytes),
+                            0,
+                        )
                     {
                         return Err(Error::NonCanonicalLayout);
                     }
                 } else if row.return_address
                     != (ReturnAddressFrameCustody::LiveLinkRegister { view: link })
-                    || !minimal_aligned_extent(area, row.frame_size_bytes, 16, 0)
+                    || !minimal_aligned_extent(
+                        area,
+                        row.frame_size_bytes,
+                        u64::from(call_site.stack_alignment_bytes),
+                        0,
+                    )
                 {
                     return Err(Error::NonCanonicalLayout);
                 }
