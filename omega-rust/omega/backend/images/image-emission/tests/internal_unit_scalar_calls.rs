@@ -19,9 +19,10 @@ use calling_conventions::{
     evaluate_call_plan,
 };
 use image_emission::{
-    InstallationError, InstalledInternalUnitScalarCall, build_installation_record,
-    build_object_artifact, decode_installation_record, emit_executable_image,
-    encode_installation_record, installation_fingerprint, validate_installation_record,
+    InstallationError, InstalledFunction, InstalledInternalUnitScalarCall,
+    build_installation_record, build_object_artifact, decode_installation_record,
+    emit_executable_image, encode_installation_record, installation_fingerprint,
+    validate_installation_record,
 };
 use machine_code::{
     InternalCallRelocation, InternalUnitScalarArgumentSourceRecord,
@@ -647,6 +648,292 @@ fn installation_internal_unit_scalar_call_row_rejects_every_one_field_substituti
                 mutate(&mut changed.internal_unit_scalar_calls_mut_for_test()[row_index]);
             }
         }
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        assert_eq!(
+            encode_installation_record(&changed),
+            Err(expected),
+            "{field}: substituted row is rejected at canonical encoding"
+        );
+    }
+}
+
+/// Authenticated one-field mutation coverage for the caller's retained
+/// `unit_integer_constants` roster.
+///
+/// The constant both scalar calls name through `IntegerImmediate` argument
+/// sources is bound by the canonical argument-source join: every one-field
+/// substitution on it is rejected at encoding. A second retained constant no
+/// call references is bound only by canonical roster shape — each of its
+/// representable fields still encodes, recomputes a distinct installation
+/// identity, and is rejected by independent replay against the unchanged
+/// image, while non-canonical type, value, identity-collision, ordering,
+/// swap, and duplication substitutions are rejected at canonical encoding.
+#[test]
+fn installation_function_integer_constant_rows_reject_every_one_field_substitution() {
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let mut plan = attached_unit_scalar_call_plan();
+    // A second, call-unreferenced constant: one fresh provenance operation
+    // attributed to zero bytes after the return-edge row.
+    plan.functions[0]
+        .provenance
+        .operations
+        .push(operation_id(4));
+    plan.functions[0]
+        .semantic_code_attribution
+        .push(SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(operation_id(4)),
+            operation_ordinal: 4,
+            code_offset: 75,
+            byte_count: 0,
+        });
+    plan.functions[0]
+        .unit_integer_constants
+        .push(UnitIntegerConstantRecord {
+            defining_operation: operation_id(4),
+            source_value: value_id(4),
+            scalar_type: i32_type,
+            value: IntegerValue::Signed(41),
+            operation_ordinal: 4,
+        });
+    let artifact = build_object_artifact(&plan).expect("two-constant artifact");
+    let image = emit_executable_image(&artifact, 3).expect("two-constant image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("two-constant installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = &record.functions()[0];
+    assert_eq!(authentic.unit_integer_constants.len(), 2);
+    assert_eq!(
+        authentic.unit_integer_constants[0],
+        UnitIntegerConstantRecord {
+            defining_operation: operation_id(1),
+            source_value: value_id(1),
+            scalar_type: i32_type,
+            value: IntegerValue::Signed(-17),
+            operation_ordinal: 0,
+        }
+    );
+    assert_eq!(
+        authentic.unit_integer_constants[1],
+        UnitIntegerConstantRecord {
+            defining_operation: operation_id(4),
+            source_value: value_id(4),
+            scalar_type: i32_type,
+            value: IntegerValue::Signed(41),
+            operation_ordinal: 4,
+        }
+    );
+
+    // The unreferenced row and whole-roster substitutions remain canonical:
+    // each still encodes, decodes to the same record, recomputes a distinct
+    // installation identity, and is rejected by independent replay against
+    // the unchanged image.
+    type SlackMutation = (&'static str, Box<dyn Fn(&mut InstalledFunction)>);
+    let slack_mutations: Vec<SlackMutation> = vec![
+        (
+            "unreferenced.defining_operation",
+            Box::new(|row| {
+                row.unit_integer_constants[1].defining_operation = operation_id(7);
+            }),
+        ),
+        (
+            "unreferenced.source_value",
+            Box::new(|row| {
+                row.unit_integer_constants[1].source_value = value_id(7);
+            }),
+        ),
+        (
+            "unreferenced.scalar_type",
+            Box::new(|row| {
+                row.unit_integer_constants[1].scalar_type =
+                    IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+            }),
+        ),
+        (
+            "unreferenced.value",
+            Box::new(|row| {
+                row.unit_integer_constants[1].value = IntegerValue::Signed(42);
+            }),
+        ),
+        (
+            "unreferenced.operation_ordinal",
+            Box::new(|row| {
+                row.unit_integer_constants[1].operation_ordinal = 9;
+            }),
+        ),
+        (
+            "drop_unreferenced",
+            Box::new(|row| {
+                row.unit_integer_constants.remove(1);
+            }),
+        ),
+        (
+            "insert_distinct",
+            Box::new(|row| {
+                row.unit_integer_constants.push(UnitIntegerConstantRecord {
+                    defining_operation: operation_id(8),
+                    source_value: value_id(8),
+                    scalar_type: IntegerType::new(IntegerSign::Signed, 32).expect("i32"),
+                    value: IntegerValue::Signed(7),
+                    operation_ordinal: 10,
+                });
+            }),
+        ),
+    ];
+    for (field, mutate) in slack_mutations {
+        let mut changed = record.clone();
+        mutate(&mut changed.functions_mut_for_test()[0]);
+        assert_ne!(changed, record, "{field}: substitution changes the row");
+        let bytes = encode_installation_record(&changed)
+            .unwrap_or_else(|error| panic!("{field}: slack substitution encodes: {error:?}"));
+        let replayed = decode_installation_record(&bytes)
+            .unwrap_or_else(|error| panic!("{field}: slack substitution decodes: {error:?}"));
+        assert_eq!(replayed, changed, "{field}: codec round trip is exact");
+        assert_ne!(
+            installation_fingerprint(&replayed).expect("substituted fingerprint"),
+            authentic_fingerprint,
+            "{field}: recomputed identity differs from the authentic record"
+        );
+        assert_eq!(
+            validate_installation_record(&replayed, &image),
+            Err(InstallationError::ImageBindingMismatch),
+            "{field}: independent replay rejects the substituted row"
+        );
+    }
+
+    // Every field of the call-referenced row is a canonical projection the
+    // scalar-call argument sources rejoin: a one-field substitution is
+    // rejected at canonical encoding. Non-canonical shape, admission,
+    // identity-collision, and ordering substitutions on either row are
+    // rejected the same way before any identity or replay could accept them.
+    let call_join = InstallationError::InvalidInternalUnitScalarCall(machine_id(1));
+    let roster_shape = InstallationError::InvalidUnitAffineCleanup(machine_id(1));
+    type ConstantMutation = (
+        &'static str,
+        Box<dyn Fn(&mut InstalledFunction)>,
+        InstallationError,
+    );
+    let mutations: Vec<ConstantMutation> = vec![
+        (
+            "referenced.defining_operation",
+            Box::new(|row| {
+                row.unit_integer_constants[0].defining_operation = operation_id(9);
+            }),
+            call_join.clone(),
+        ),
+        (
+            "referenced.source_value",
+            Box::new(|row| {
+                row.unit_integer_constants[0].source_value = value_id(9);
+            }),
+            call_join.clone(),
+        ),
+        (
+            "referenced.scalar_type::other_fixed_integer",
+            Box::new(|row| {
+                row.unit_integer_constants[0].scalar_type =
+                    IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+            }),
+            call_join.clone(),
+        ),
+        (
+            "referenced.value",
+            Box::new(|row| {
+                row.unit_integer_constants[0].value = IntegerValue::Signed(-16);
+            }),
+            call_join.clone(),
+        ),
+        (
+            "referenced.operation_ordinal",
+            Box::new(|row| {
+                row.unit_integer_constants[0].operation_ordinal = 1;
+            }),
+            call_join.clone(),
+        ),
+        (
+            "drop_referenced",
+            Box::new(|row| {
+                row.unit_integer_constants.remove(0);
+            }),
+            call_join.clone(),
+        ),
+        (
+            "referenced.scalar_type::address_carrier",
+            Box::new(|row| {
+                row.unit_integer_constants[0].scalar_type =
+                    IntegerType::address(64).expect("address");
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "unreferenced.scalar_type::wide",
+            Box::new(|row| {
+                row.unit_integer_constants[1].scalar_type =
+                    IntegerType::new(IntegerSign::Signed, 128).expect("i128");
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "unreferenced.value::unadmitted",
+            Box::new(|row| {
+                row.unit_integer_constants[1].value = IntegerValue::Signed(1_i128 << 31);
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "unreferenced.value::sign_mismatch",
+            Box::new(|row| {
+                row.unit_integer_constants[1].value = IntegerValue::Unsigned(41);
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "unreferenced.operation_ordinal::not_increasing",
+            Box::new(|row| {
+                row.unit_integer_constants[1].operation_ordinal = 0;
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "referenced.operation_ordinal::past_successor",
+            Box::new(|row| {
+                row.unit_integer_constants[0].operation_ordinal = 5;
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "unreferenced.defining_operation::collision",
+            Box::new(|row| {
+                row.unit_integer_constants[1].defining_operation = operation_id(1);
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "unreferenced.source_value::collision",
+            Box::new(|row| {
+                row.unit_integer_constants[1].source_value = value_id(1);
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "swap_rows",
+            Box::new(|row| {
+                row.unit_integer_constants.swap(0, 1);
+            }),
+            roster_shape.clone(),
+        ),
+        (
+            "insert_duplicate",
+            Box::new(|row| {
+                let constant = row.unit_integer_constants[1];
+                row.unit_integer_constants.push(constant);
+            }),
+            roster_shape.clone(),
+        ),
+    ];
+    for (field, mutate, expected) in mutations {
+        let mut changed = record.clone();
+        mutate(&mut changed.functions_mut_for_test()[0]);
         assert_ne!(changed, record, "{field}: substitution changes the row");
         assert_eq!(
             encode_installation_record(&changed),
