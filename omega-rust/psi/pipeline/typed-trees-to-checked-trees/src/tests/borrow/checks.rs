@@ -5,11 +5,12 @@ mod mutable_overlaps;
 mod persistent_storage;
 mod view_returns;
 
+use crate::borrow::build_borrow_facts;
 use crate::checks::check_unretained_borrow_fixture_facts as check_checked_facts;
-use crate::{
-    build_borrow_facts, build_domain_facts, build_flow_facts, build_proof_facts,
-    build_semantic_facts,
-};
+use crate::flow::build_domain_facts;
+use crate::flow::build_flow_facts;
+use crate::proof::build_proof_facts;
+use crate::semantic::build_semantic_facts;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

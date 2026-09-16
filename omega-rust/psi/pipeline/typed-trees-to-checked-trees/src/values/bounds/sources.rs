@@ -70,7 +70,7 @@ impl PlaceIntegerBounds<'_> {
                 && !exclusive_reference(self.program, parameter.type_reference))
             .then_some(parameter.type_reference);
         }
-        let state = crate::find_state(self.program, self.state)?;
+        let state = crate::semantic_calls::find_state(self.program, self.state)?;
         program_statements(self.program, state)
             .iter()
             .find_map(|statement| match statement {

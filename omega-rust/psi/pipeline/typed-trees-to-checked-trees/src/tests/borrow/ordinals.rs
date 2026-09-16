@@ -2,7 +2,7 @@ use super::super::{
     Arc, CallExpression, Expression, Identifier, Machine, NamePath, State, StateParameter,
     StatementNode, SymbolHandle, TableCall, TypeReferenceNode,
 };
-use crate::build_borrow_facts;
+use crate::borrow::build_borrow_facts;
 use crate::tests::mutable_borrow;
 
 #[test]

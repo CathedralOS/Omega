@@ -13,7 +13,8 @@ impl Builder<'_, '_> {
         target: SymbolHandle,
         arguments: &[ExpressionHandle],
     ) {
-        let Some(parameters) = crate::call_target_parameters(self.program, target) else {
+        let Some(parameters) = crate::semantic_calls::call_target_parameters(self.program, target)
+        else {
             return;
         };
         let explicit_self = arguments.len()

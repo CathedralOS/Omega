@@ -118,7 +118,7 @@ pub(super) fn checked_provider_attachment_requirements(
         if !provider_requirements.contains(&call.target_symbol) {
             return None;
         }
-        let call_site = crate::find_call_site(
+        let call_site = crate::semantic_calls::find_call_site(
             program,
             machine.symbol,
             state.symbol,

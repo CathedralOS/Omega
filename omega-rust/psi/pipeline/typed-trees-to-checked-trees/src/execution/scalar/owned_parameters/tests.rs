@@ -97,7 +97,7 @@ fn affine_graph_rejoins_discard_eligibility_and_whole_transfers() {
                     }
                 }
                 let mut retained = checked.facts.flow.terminal_scalar_graphs.clone();
-                super::super::super::finalize_checked_scalar_graph_plans(
+                crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans(
                     &checked,
                     &ownership,
                     &checked.facts.values.scalar_computations,
@@ -138,7 +138,7 @@ fn affine_graph_rejects_reordered_discard_eligibility() {
     *ownership.permissions.get_mut(handles[0]) = second;
     *ownership.permissions.get_mut(handles[1]) = first;
     let mut retained = checked.facts.flow.terminal_scalar_graphs.clone();
-    super::super::super::finalize_checked_scalar_graph_plans(
+    crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans(
         &checked,
         &ownership,
         &checked.facts.values.scalar_computations,

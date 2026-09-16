@@ -232,10 +232,10 @@ impl ExitScalars<'_, '_> {
         if occurrences.next().is_some() || call.target_symbol != authored.target_symbol {
             return None;
         }
-        let Some(crate::CallSite::Expression {
+        let Some(crate::semantic_calls::CallSite::Expression {
             expression: actual,
             call: selected,
-        }) = crate::find_call_site(
+        }) = crate::semantic_calls::find_call_site(
             self.program,
             self.machine.symbol,
             state.state_symbol,
@@ -362,7 +362,8 @@ impl ExitScalars<'_, '_> {
     ) -> Option<ScalarValue> {
         let statement = u32::try_from(call.statement_index).ok()?;
         let position = u32::try_from(position).ok()?;
-        let caller_state = crate::find_state_in_machine(self.program, self.machine.symbol, state)?;
+        let caller_state =
+            crate::semantic_calls::find_state_in_machine(self.program, self.machine.symbol, state)?;
         let statements = self
             .program
             .statement_table
@@ -425,7 +426,8 @@ impl ExitScalars<'_, '_> {
             if self.facts.flow.control.calls.get(*source_call) != call {
                 continue;
             }
-            let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
+            let parameters =
+                crate::semantic_calls::call_target_parameters(self.program, call.target_symbol)?;
             let source_position = usize::try_from(position).ok()?;
             if self
                 .program

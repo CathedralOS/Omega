@@ -152,7 +152,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 state,
                                 statement_ordinal,
                                 0,
-                                &crate::CallSite::Expression {
+                                &crate::semantic_calls::CallSite::Expression {
                                     expression: local.initial_value,
                                     call,
                                 },
@@ -356,7 +356,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 state,
                                 statement_ordinal,
                                 0,
-                                &crate::CallSite::Expression {
+                                &crate::semantic_calls::CallSite::Expression {
                                     expression: *expression,
                                     call,
                                 },
@@ -470,7 +470,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 state,
                                 statement_ordinal,
                                 0,
-                                &crate::CallSite::Expression { expression, call },
+                                &crate::semantic_calls::CallSite::Expression { expression, call },
                                 &scalar_parameters,
                                 parameters,
                                 &parameter_types,
@@ -555,7 +555,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             state,
                             statement_ordinal,
                             0,
-                            &crate::CallSite::Statement(call),
+                            &crate::semantic_calls::CallSite::Statement(call),
                             &scalar_parameters,
                             parameters,
                             &parameter_types,

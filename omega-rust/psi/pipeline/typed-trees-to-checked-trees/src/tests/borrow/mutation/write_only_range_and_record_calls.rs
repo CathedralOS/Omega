@@ -1,4 +1,4 @@
-use crate::build_borrow_facts;
+use crate::borrow::build_borrow_facts;
 use crate::tests::{StateMutationSummaryCache, call_mutated_places};
 
 #[test]

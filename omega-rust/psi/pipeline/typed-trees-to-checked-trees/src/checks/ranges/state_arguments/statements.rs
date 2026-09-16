@@ -87,7 +87,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 machine,
                 context.state,
                 paths.as_deref(),
-                Some(&crate::CallSite::Statement(call)),
+                Some(&crate::semantic_calls::CallSite::Statement(call)),
             );
             // R4 witness mint in the COLLECTION pass too: boundary ensures
             // bound the &mut argument places, so a later transition can

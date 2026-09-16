@@ -2,7 +2,7 @@ use super::super::{
     BorrowAccessKind, Expression, HandleSpan, Identifier, Machine, NamePath, State, StatementNode,
     SymbolHandle, TableCall,
 };
-use crate::build_borrow_facts;
+use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
 use crate::tests::mutable_borrow;
 

@@ -1,5 +1,8 @@
+use crate::borrow::build_borrow_facts;
+use crate::lower_typed_trees;
+use crate::proof::build_proof_facts;
+use crate::semantic::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
-use crate::{build_borrow_facts, build_proof_facts, build_semantic_facts, lower_typed_trees};
 
 #[test]
 fn implicit_unit_exit_cannot_claim_an_unestablished_output_domain() {

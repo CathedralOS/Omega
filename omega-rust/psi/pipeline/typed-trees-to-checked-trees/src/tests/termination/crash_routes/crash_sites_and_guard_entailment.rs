@@ -1,8 +1,9 @@
+use crate::checking::lower_typed_trees_for_crash_fact_inspection;
+use crate::lower_typed_trees;
 use crate::tests::termination::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
     symbol_of_checked,
 };
-use crate::{lower_typed_trees, lower_typed_trees_for_crash_fact_inspection};
 
 #[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {

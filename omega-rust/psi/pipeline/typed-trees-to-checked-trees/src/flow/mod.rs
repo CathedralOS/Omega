@@ -2,7 +2,7 @@ mod borrow_lifetimes;
 mod boundaries;
 mod builder;
 mod call_phases;
-mod calls;
+pub(crate) mod calls;
 mod carried_semantic_dependencies;
 mod common;
 mod constraints;

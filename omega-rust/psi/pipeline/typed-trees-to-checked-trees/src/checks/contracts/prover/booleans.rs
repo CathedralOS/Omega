@@ -59,7 +59,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     context: &facts::FactContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call_site: &crate::CallSite<'_>,
+    call_site: &crate::semantic_calls::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {

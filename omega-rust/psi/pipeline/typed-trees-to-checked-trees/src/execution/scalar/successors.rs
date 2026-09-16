@@ -324,14 +324,14 @@ fn transition_permission_source(
         transition.target
     };
     let mut call_ordinal = 0usize;
-    while let Some(site) = crate::find_call_site(
+    while let Some(site) = crate::semantic_calls::find_call_site(
         program,
         machine_symbol,
         state.symbol,
         statement_index,
         call_ordinal,
     ) {
-        if let crate::CallSite::TransitionNamed { path, .. } = site
+        if let crate::semantic_calls::CallSite::TransitionNamed { path, .. } = site
             && crate::semantic_calls::transition_call_target(
                 program,
                 machine,

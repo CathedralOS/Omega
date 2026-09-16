@@ -1,5 +1,5 @@
 use super::{RangeCallContext, RangeFacts};
-use crate::CallSite;
+use crate::semantic_calls::CallSite;
 
 fn program() -> typed_trees::TypedTrees {
     let source = r#"
@@ -33,7 +33,7 @@ fn program() -> typed_trees::TypedTrees {
 #[test]
 fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
     let program = program();
-    let borrows = crate::build_borrow_facts(&program);
+    let borrows = crate::borrow::build_borrow_facts(&program);
     let flow = crate::checks::ranges::cache_tests::range_flow_fixture(&program, &borrows);
     let frames = validation::CallFrameResolver::new(&program);
     let mut expressions = 0;
@@ -42,7 +42,7 @@ fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
         for state in program.machine_states(machine) {
             let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
             for expected in context.borrow_calls {
-                let site = crate::find_call_site(
+                let site = crate::semantic_calls::find_call_site(
                     &program,
                     machine.symbol,
                     state.symbol,
@@ -123,12 +123,13 @@ fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
 #[test]
 fn missing_call_evidence_is_opaque_not_a_complete_empty_write_frame() {
     let program = program();
-    let borrows = crate::build_borrow_facts(&program);
+    let borrows = crate::borrow::build_borrow_facts(&program);
     let flow = crate::checks::ranges::cache_tests::range_flow_fixture(&program, &borrows);
     let frames = validation::CallFrameResolver::new(&program);
     let machine = &program.machines()[2];
     let state = &program.machine_states(machine)[0];
-    let site = crate::find_call_site(&program, machine.symbol, state.symbol, 0, 0).unwrap();
+    let site = crate::semantic_calls::find_call_site(&program, machine.symbol, state.symbol, 0, 0)
+        .unwrap();
     let empty_flow = checked_trees::FlowFacts::default();
     let empty_borrows = checked_trees::BorrowFacts::default();
     for (borrows, flow) in [(&borrows, &empty_flow), (&empty_borrows, &flow)] {

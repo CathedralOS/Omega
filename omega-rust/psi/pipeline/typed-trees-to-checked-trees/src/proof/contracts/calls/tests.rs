@@ -16,8 +16,8 @@ fn typed(source: &str) -> TypedTrees {
 
 fn proof(program: &TypedTrees) -> ProofFacts {
     let plan = proof::obligations::build_proof_plan(program);
-    let borrow = crate::build_borrow_facts(program);
-    crate::build_proof_facts(program, &plan, &borrow)
+    let borrow = crate::borrow::build_borrow_facts(program);
+    crate::proof::build_proof_facts(program, &plan, &borrow)
 }
 
 fn recursive_scalar(argument: &str) -> String {

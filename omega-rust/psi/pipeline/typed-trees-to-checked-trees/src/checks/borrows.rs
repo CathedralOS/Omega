@@ -1,4 +1,4 @@
-mod calls;
+pub(crate) mod calls;
 mod details;
 mod elision;
 mod escape;

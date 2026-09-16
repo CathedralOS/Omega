@@ -439,7 +439,7 @@ fn source_is_known_static_persistent_place(
         return false;
     };
 
-    let Some(state) = crate::find_state(program, state_symbol) else {
+    let Some(state) = crate::semantic_calls::find_state(program, state_symbol) else {
         return false;
     };
     if known_static

@@ -66,10 +66,10 @@ fn array_sequence_rejoins_every_nested_constant_projection_selection() {
             arena::Arena::new(),
             arena::Arena::new(),
         );
-        let replanned = crate::execution::build_checked_unit_effect_plans(
+        let replanned = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::execution::ScalarCalleePlans {
+            crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
@@ -164,10 +164,10 @@ fn array_sequence_requires_exact_computation_call_roots() {
                 .get_mut(state_handle)
                 .calls = arena::HandleSpan::default();
         }
-        let replanned = crate::execution::build_checked_unit_effect_plans(
+        let replanned = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::execution::ScalarCalleePlans {
+            crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
@@ -340,10 +340,10 @@ fn scalar_sequence_rejects_stale_or_duplicate_outer_initializer_calls() {
             1 => call.statement_index = 1,
             _ => call.call_ordinal = 1,
         }
-        let rebuilt = crate::execution::build_checked_unit_effect_plans(
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &changed.typed,
             &changed.facts,
-            crate::execution::ScalarCalleePlans {
+            crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },

@@ -12,8 +12,11 @@ pub(super) fn exit_return_expression(
     program: &TypedTrees,
     exit: &FlowExitFact,
 ) -> ExpressionHandle {
-    let Some(state) = crate::find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
-    else {
+    let Some(state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        exit.machine_symbol,
+        exit.state_symbol,
+    ) else {
         return Default::default();
     };
     let statements = program.statement_table.statements(state.statement_nodes);

@@ -37,7 +37,7 @@ struct CompatibilityKey {
 
 struct ResolvedStateCall<'program, 'flow> {
     fact: &'flow checked_trees::FlowCallFact,
-    site: crate::CallSite<'program>,
+    site: crate::semantic_calls::CallSite<'program>,
 }
 
 struct StateCallIndex<'program, 'flow> {
@@ -56,7 +56,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
             .span_or_empty(state_flow.calls)
             .iter()
             .filter_map(|fact| {
-                crate::find_call_site(
+                crate::semantic_calls::find_call_site(
                     program,
                     state_flow.machine_symbol,
                     state_flow.state_symbol,
@@ -79,7 +79,9 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
             .iter()
             .filter(|call| call.fact.statement_index == statement_index)
             .find_map(|call| match &call.site {
-                crate::CallSite::Expression { expression, .. } if *expression == value => {
+                crate::semantic_calls::CallSite::Expression { expression, .. }
+                    if *expression == value =>
+                {
                     Some(call.fact.exit_semantic_contexts)
                 }
                 _ => None,
@@ -106,7 +108,7 @@ pub(super) fn build_index_compatibility_facts(
         else {
             continue;
         };
-        let Some(state) = crate::find_state_in_machine(
+        let Some(state) = crate::semantic_calls::find_state_in_machine(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
@@ -117,11 +119,13 @@ pub(super) fn build_index_compatibility_facts(
         let state_calls = StateCallIndex::new(program, flow, state_flow);
         for resolved in &state_calls.calls {
             let call = resolved.fact;
-            let Some(parameters) = crate::call_target_parameters(program, call.target_symbol)
+            let Some(parameters) =
+                crate::semantic_calls::call_target_parameters(program, call.target_symbol)
             else {
                 continue;
             };
-            let arguments = crate::call_site_argument_expressions(program, &resolved.site);
+            let arguments =
+                crate::semantic_calls::call_site_argument_expressions(program, &resolved.site);
             let point = ProgramPoint::Call {
                 machine_symbol: state_flow.machine_symbol,
                 state_symbol: state_flow.state_symbol,
@@ -685,7 +689,7 @@ fn fact_substitutions<'program>(
     else {
         return Vec::new();
     };
-    let Some(call_site) = crate::find_call_site(
+    let Some(call_site) = crate::semantic_calls::find_call_site(
         program,
         machine_symbol,
         state_symbol,
@@ -695,15 +699,16 @@ fn fact_substitutions<'program>(
         return Vec::new();
     };
     let target_symbol = match &call_site {
-        crate::CallSite::Statement(call) => call.target_symbol,
-        crate::CallSite::Expression { call, .. } => call.target_symbol,
-        crate::CallSite::TransitionNamed { .. } => call_flow_at_point(flow, point)
+        crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
+        crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::semantic_calls::CallSite::TransitionNamed { .. } => call_flow_at_point(flow, point)
             .map_or_else(SymbolHandle::invalid, |call| call.target_symbol),
     };
-    let Some(parameters) = crate::call_target_parameters(program, target_symbol) else {
+    let Some(parameters) = crate::semantic_calls::call_target_parameters(program, target_symbol)
+    else {
         return Vec::new();
     };
-    let arguments = crate::call_site_argument_expressions(program, &call_site);
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &call_site);
     parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -1106,7 +1111,7 @@ fn call_return_type(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
-    if let Some(state) = crate::find_state(program, state_symbol) {
+    if let Some(state) = crate::semantic_calls::find_state(program, state_symbol) {
         return Some(state.return_type);
     }
     if let Some((_, signature)) = program.machine_parameter_signature(state_symbol) {

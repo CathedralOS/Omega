@@ -304,7 +304,7 @@ fn parameter_domain_grants(
     let PlaceRoot::Symbol(root_symbol) = resolved.root else {
         return false;
     };
-    let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
+    let Some(state) = crate::semantic_calls::find_state(program, state_flow.state_symbol) else {
         return false;
     };
     let Some(parameter) = program
@@ -386,7 +386,7 @@ fn value_call_return_domain_grants(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(target) = crate::find_state(program, call.target_symbol) else {
+    let Some(target) = crate::semantic_calls::find_state(program, call.target_symbol) else {
         return false;
     };
     if !target.return_type.is_valid() {
@@ -513,7 +513,7 @@ fn incoming_guard_proves_requires(
     else {
         return false;
     };
-    let Some(call_site) = crate::find_call_site(
+    let Some(call_site) = crate::semantic_calls::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -522,7 +522,8 @@ fn incoming_guard_proves_requires(
     ) else {
         return false;
     };
-    let Some(target_parameters) = crate::call_target_parameters(program, call_flow.target_symbol)
+    let Some(target_parameters) =
+        crate::semantic_calls::call_target_parameters(program, call_flow.target_symbol)
     else {
         return false;
     };
@@ -640,7 +641,7 @@ fn transition_guard_proves_requires(
     call_flow: &FlowCallFact,
     fact: &facts::Fact,
 ) -> bool {
-    let Some(call_site) = crate::find_call_site(
+    let Some(call_site) = crate::semantic_calls::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -649,7 +650,10 @@ fn transition_guard_proves_requires(
     ) else {
         return false;
     };
-    if !matches!(call_site, crate::CallSite::TransitionNamed { .. }) {
+    if !matches!(
+        call_site,
+        crate::semantic_calls::CallSite::TransitionNamed { .. }
+    ) {
         return false;
     }
     let Some(machine) = program
@@ -676,7 +680,8 @@ fn transition_guard_proves_requires(
     let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
         return false;
     };
-    let Some(target_parameters) = crate::call_target_parameters(program, call_flow.target_symbol)
+    let Some(target_parameters) =
+        crate::semantic_calls::call_target_parameters(program, call_flow.target_symbol)
     else {
         return false;
     };

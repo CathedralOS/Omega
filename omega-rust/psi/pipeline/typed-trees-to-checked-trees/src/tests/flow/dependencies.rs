@@ -2,11 +2,11 @@ use super::super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
 
-use crate::build_borrow_facts;
-use crate::build_domain_facts;
-use crate::build_proof_facts;
-use crate::build_semantic_facts;
+use crate::borrow::build_borrow_facts;
+use crate::flow::build_domain_facts;
 use crate::lower_typed_trees;
+use crate::proof::build_proof_facts;
+use crate::semantic::build_semantic_facts;
 
 #[test]
 fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_domains() {

@@ -1,6 +1,6 @@
 use checked_trees::BorrowFacts;
 pub(crate) mod accesses;
-mod calls;
+pub(crate) mod calls;
 mod last_uses;
 mod loans;
 mod roots;

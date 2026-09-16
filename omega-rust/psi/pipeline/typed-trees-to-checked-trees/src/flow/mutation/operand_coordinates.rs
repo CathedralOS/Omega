@@ -1,7 +1,7 @@
 //! Operation meaning required before call operands supply fixed storage coordinates.
-use crate::CallSite;
-use crate::call_site_argument_expressions;
-use crate::find_state;
+use crate::semantic_calls::CallSite;
+use crate::semantic_calls::call_site_argument_expressions;
+use crate::semantic_calls::find_state;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 

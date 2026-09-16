@@ -1,4 +1,3 @@
-use crate::CallSite;
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
@@ -9,6 +8,7 @@ use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use crate::flow::symbol_type_symbol;
 use crate::labels::semantic_contract_fact_kind;
+use crate::semantic_calls::CallSite;
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{

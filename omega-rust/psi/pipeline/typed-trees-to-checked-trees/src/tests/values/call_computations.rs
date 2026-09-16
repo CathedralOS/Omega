@@ -175,10 +175,10 @@ fn statement_call_computations_require_complete_unique_occurrence_custody() {
                     *changed = source_call;
                 }
             }
-            let rebuilt = crate::execution::build_checked_unit_effect_plans(
+            let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
                 &changed.typed,
                 &changed.facts,
-                crate::execution::ScalarCalleePlans {
+                crate::execution::terminal_unit::ScalarCalleePlans {
                     boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
                 },

@@ -11,13 +11,14 @@ use super::{
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
     calls,
 };
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
+use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::{
     ShapeCollector, checked_composed_provider_attachment_requirements, composed_control, control,
     entry_claims, free_structural_scalar_signature, machine_binders, return_unit_affine_discards,
     state_flow, structural_scalar_signature,
 };
-use crate::execution::{ScalarCalleePlans, byte_sequence_carrier};
 
 #[path = "closed_sum.rs"]
 mod closed_sum;

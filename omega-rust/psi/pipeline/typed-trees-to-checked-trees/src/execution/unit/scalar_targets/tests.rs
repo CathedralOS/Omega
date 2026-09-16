@@ -201,7 +201,7 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
         registered_structural_graph_target(
             &checked.typed,
             &checked.facts,
-            Some(crate::execution::ScalarCalleePlans {
+            Some(crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &checked.facts.flow.terminal_structural_scalar_returns
             }),
@@ -238,7 +238,7 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
             registered_structural_graph_target(
                 &checked.typed,
                 &facts,
-                Some(crate::execution::ScalarCalleePlans {
+                Some(crate::execution::terminal_unit::ScalarCalleePlans {
                     boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &facts.flow.terminal_structural_scalar_returns
                 }),
@@ -256,7 +256,7 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
         registered_structural_graph_target(
             &checked.typed,
             &facts,
-            Some(crate::execution::ScalarCalleePlans {
+            Some(crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &facts.flow.terminal_structural_scalar_returns
             }),
@@ -276,7 +276,7 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
         registered_structural_graph_target(
             &checked.typed,
             &facts,
-            Some(crate::execution::ScalarCalleePlans {
+            Some(crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &facts.flow.terminal_structural_scalar_returns
             }),

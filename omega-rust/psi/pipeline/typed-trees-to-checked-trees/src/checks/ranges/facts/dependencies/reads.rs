@@ -1,8 +1,8 @@
 use super::{ExpressionHandle, ExpressionNode, Machine, State, TypedTrees};
-use crate::CallSite;
 use crate::checks::ranges::facts::RangeCallContext;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
+use crate::semantic_calls::CallSite;
 use symbols::SymbolHandle;
 
 pub(super) fn collect_reads(
@@ -148,13 +148,15 @@ pub(super) fn collect_reads(
             // invocation while requirement, trait-signature, and conformance
             // targets resolve to symbols that own no state and stay opaque.
             let Some((target_machine_symbol, target_state_symbol)) =
-                crate::contract_target_from_state_symbol(program, borrow_call.target_symbol)
+                crate::proof::contract_target_from_state_symbol(program, borrow_call.target_symbol)
             else {
                 return false;
             };
-            let Some(target_state) =
-                crate::find_state_in_machine(program, target_machine_symbol, target_state_symbol)
-            else {
+            let Some(target_state) = crate::semantic_calls::find_state_in_machine(
+                program,
+                target_machine_symbol,
+                target_state_symbol,
+            ) else {
                 return false;
             };
             if program

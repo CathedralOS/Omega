@@ -3,7 +3,7 @@
 //! Attachment specialization can erase borrowed self. A retained callee self
 //! instead requires the caller's actual loan, including through forwarding
 //! methods whose own provisional plan erased self.
-use crate::execution::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::base_type_identity;
 use crate::execution::terminal_unit::calls;
@@ -414,7 +414,7 @@ fn result_receiver_argument(
     {
         return None;
     }
-    let source = crate::find_state(program, state)?;
+    let source = crate::semantic_calls::find_state(program, state)?;
     let mut matching = results.iter().filter_map(|result| {
         if result.statement_index >= coordinate.statement_index {
             return None;
@@ -527,14 +527,20 @@ fn receiver_place(
     if calls.next().is_some() {
         return None;
     }
-    let site = crate::find_call_site(program, machine, state, statement_index, call_ordinal)?;
+    let site = crate::semantic_calls::find_call_site(
+        program,
+        machine,
+        state,
+        statement_index,
+        call_ordinal,
+    )?;
     let mut place =
         crate::flow::canonical_receiver_place_for_call_site(program, machine, state, &site)?;
     let authored_machine = program
         .machines()
         .iter()
         .find(|candidate| candidate.symbol == machine)?;
-    let authored_state = crate::find_state_in_machine(program, machine, state)?;
+    let authored_state = crate::semantic_calls::find_state_in_machine(program, machine, state)?;
     if let Some(aliases) =
         receiver_aliases::prefix(program, facts, authored_machine, authored_state)
         && let Some(alias) = aliases
@@ -555,7 +561,7 @@ fn is_self_root(
     state: SymbolHandle,
     place: &crate::flow::CanonicalPlace,
 ) -> bool {
-    crate::find_state(program, state).is_some_and(|state| {
+    crate::semantic_calls::find_state(program, state).is_some_and(|state| {
         program.state_parameters(state).iter().any(|parameter| {
             parameter.is_self
                 && matches!(place.root, facts::PlaceRoot::Symbol(root)
@@ -576,7 +582,7 @@ fn receiver_argument(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let source = program.state_parameters(crate::find_state(program, state)?);
+    let source = program.state_parameters(crate::semantic_calls::find_state(program, state)?);
     let (position, _) = source.iter().enumerate().find(|(_, parameter)| {
         parameter.symbol == root || (parameter.is_self && root == machine)
     })?;

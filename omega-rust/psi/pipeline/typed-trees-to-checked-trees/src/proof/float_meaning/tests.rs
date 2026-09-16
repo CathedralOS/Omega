@@ -146,8 +146,8 @@ fn bind_projection_facts_without_exit_proof(program: &TypedTrees) -> ProofFacts 
     .map(|validated| validated.facts)
     .expect("validate projection facts");
     let proof_plan = proof::obligations::build_proof_plan(program);
-    let borrow = crate::build_borrow_facts(program);
-    let mut proof = crate::build_proof_facts(program, &proof_plan, &borrow);
+    let borrow = crate::borrow::build_borrow_facts(program);
+    let mut proof = crate::proof::build_proof_facts(program, &proof_plan, &borrow);
     bind_float_meaning_projection_facts(
         program,
         &mut proof,

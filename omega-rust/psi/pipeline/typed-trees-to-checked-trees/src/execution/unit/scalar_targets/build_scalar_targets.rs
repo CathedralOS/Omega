@@ -9,7 +9,7 @@ use super::{
     PermissionEventKind, PrimitiveType, SignatureContractKind, SymbolHandle, TypeReferenceNode,
     TypedTrees, returns,
 };
-use crate::execution::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::call_claim_transfers;
 use crate::execution::terminal_unit::entry_claims;

@@ -94,7 +94,7 @@ pub(super) fn check(
     contexts: &[FactContextHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(site) = crate::find_call_site(
+    let Some(site) = crate::semantic_calls::find_call_site(
         program,
         state.machine_symbol,
         state.state_symbol,
@@ -103,10 +103,12 @@ pub(super) fn check(
     ) else {
         return;
     };
-    let Some(parameters) = crate::call_target_parameters(program, call.target_symbol) else {
+    let Some(parameters) =
+        crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+    else {
         return;
     };
-    let arguments = crate::call_site_argument_expressions(program, &site);
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
     let target_machine = program.machines().iter().find(|machine| {
         machine.symbol == call.target_symbol
             || program

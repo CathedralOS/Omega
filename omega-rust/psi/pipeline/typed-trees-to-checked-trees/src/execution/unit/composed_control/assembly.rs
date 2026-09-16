@@ -5,7 +5,7 @@ use super::super::{
     CheckedProviderAttachmentRequirementPlan, MachineSupplyMode, TypedTrees,
 };
 
-use crate::execution::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
 use crate::execution::terminal_unit::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::composed_control::closed_sum;

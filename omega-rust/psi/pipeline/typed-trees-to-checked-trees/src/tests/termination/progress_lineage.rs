@@ -381,12 +381,12 @@ fn demanded_growing_projection_has_no_private_checked_guarantee() {
         "the independent local ranking must succeed"
     );
     let proof_plan = proof::obligations::build_proof_plan(&program);
-    let borrow = crate::build_borrow_facts(&program);
-    let proof = crate::build_proof_facts(&program, &proof_plan, &borrow);
-    let mut semantic = crate::build_semantic_facts(&program, &proof);
-    let domains = crate::build_domain_facts(&program, &semantic);
+    let borrow = crate::borrow::build_borrow_facts(&program);
+    let proof = crate::proof::build_proof_facts(&program, &proof_plan, &borrow);
+    let mut semantic = crate::semantic::build_semantic_facts(&program, &proof);
+    let domains = crate::flow::build_domain_facts(&program, &semantic);
     let operations = validation::infer_operational_may(&program);
-    let flow = crate::build_flow_facts(
+    let flow = crate::flow::build_flow_facts(
         &program,
         &borrow,
         &proof,

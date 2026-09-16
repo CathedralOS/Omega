@@ -4,7 +4,7 @@ use crate::flow::CanonicalPlace;
 use typed_trees::statement::StatementNode;
 
 mod atomics;
-mod calls;
+pub(crate) mod calls;
 mod indexes;
 
 fn typed_source(source: &str) -> TypedTrees {

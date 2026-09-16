@@ -1,12 +1,13 @@
 //! Which boundary scalar targets, result values, argument presentations and
 //! mutable byte-array views a structural call may admit.
 
+use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
+use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::{
     DataMember, Multiplicity, PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees,
     base_type_identity, is_reference, is_unit, type_graph_requires_nominal_drop,
 };
-use crate::execution::{ScalarCalleePlans, byte_sequence_carrier};
 
 pub(crate) fn is_registered_boundary_scalar_target(
     scalar_callees: Option<ScalarCalleePlans<'_>>,
@@ -127,11 +128,11 @@ pub(crate) fn fixed_byte_array_mutable_view_is_admitted(
 pub(crate) fn provider_attachment_receiver_matches(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
-    call_site: &crate::CallSite<'_>,
+    call_site: &crate::semantic_calls::CallSite<'_>,
     provider_symbol: SymbolHandle,
 ) -> bool {
     let (field_name, selected_field) = match call_site {
-        crate::CallSite::Statement(call) => {
+        crate::semantic_calls::CallSite::Statement(call) => {
             let [self_name, field_name] = program.statement_table.name_path_members(call.receiver)
             else {
                 return false;
@@ -141,7 +142,7 @@ pub(crate) fn provider_attachment_receiver_matches(
             }
             (field_name.clone(), None)
         }
-        crate::CallSite::Expression { call, .. } => {
+        crate::semantic_calls::CallSite::Expression { call, .. } => {
             let (_, Some(receiver)) = crate::lookup::call_receiver_parts(program, call.receiver)
             else {
                 return false;
@@ -154,7 +155,7 @@ pub(crate) fn provider_attachment_receiver_matches(
             }
             (field_name.clone(), Some(receiver.member_symbol(1)))
         }
-        crate::CallSite::TransitionNamed { .. } => return false,
+        crate::semantic_calls::CallSite::TransitionNamed { .. } => return false,
     };
     let Some(attached_name) = machine.attached_data.as_ref() else {
         return false;

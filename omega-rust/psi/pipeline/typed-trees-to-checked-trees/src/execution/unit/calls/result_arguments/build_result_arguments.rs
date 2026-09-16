@@ -218,7 +218,7 @@ pub(super) fn argument(
                 || linear
                 || owned_reference_record
             {
-                let source_state = crate::find_state(program, state)?;
+                let source_state = crate::semantic_calls::find_state(program, state)?;
                 let StatementNode::LocalData(local) = program
                     .statement_table
                     .statements(source_state.statement_nodes)
@@ -274,10 +274,11 @@ pub(super) fn argument(
                 .machines()
                 .iter()
                 .find(|candidate| candidate.symbol == machine)?;
-            let source_state = crate::find_state(program, state)?;
-            let parameter_position = crate::call_target_parameters(program, call.target_symbol)?
-                .iter()
-                .position(|candidate| candidate.symbol == parameter.symbol)?;
+            let source_state = crate::semantic_calls::find_state(program, state)?;
+            let parameter_position =
+                crate::semantic_calls::call_target_parameters(program, call.target_symbol)?
+                    .iter()
+                    .position(|candidate| candidate.symbol == parameter.symbol)?;
             let expected = checked_trees::CheckedArrayConstructionSource::CallArgument {
                 call_ordinal: u32::try_from(call.call_ordinal).ok()?,
                 parameter_position: u32::try_from(parameter_position).ok()?,

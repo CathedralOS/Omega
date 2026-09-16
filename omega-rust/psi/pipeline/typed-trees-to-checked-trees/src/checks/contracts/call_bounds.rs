@@ -59,14 +59,14 @@ fn prove(
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         _ => return None,
     };
-    let site = crate::find_call_site(
+    let site = crate::semantic_calls::find_call_site(
         program,
         caller.machine_symbol,
         caller.state_symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let crate::CallSite::Expression {
+    let crate::semantic_calls::CallSite::Expression {
         call: source_call, ..
     } = &site
     else {
@@ -88,7 +88,7 @@ fn prove(
     if parameters.iter().any(|parameter| parameter.is_self) {
         return None;
     }
-    let arguments = crate::call_site_argument_expressions(program, &site);
+    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
     if arguments.len() != parameters.len() {
         return None;
     }
@@ -96,7 +96,11 @@ fn prove(
         .machines()
         .iter()
         .find(|machine| machine.symbol == caller.machine_symbol)?;
-    let state = crate::find_state_in_machine(program, caller.machine_symbol, caller.state_symbol)?;
+    let state = crate::semantic_calls::find_state_in_machine(
+        program,
+        caller.machine_symbol,
+        caller.state_symbol,
+    )?;
     let operand = |expression| match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => literal.value_i64().map(|value| ((value, value), None)),
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {

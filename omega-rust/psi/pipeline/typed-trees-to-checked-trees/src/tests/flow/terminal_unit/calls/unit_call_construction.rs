@@ -712,10 +712,10 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
     assert!(eof.payloads.is_empty());
     let mut missing_cleanup = checked.facts.clone();
     missing_cleanup.flow.terminal_structural_control_cleanups = Default::default();
-    let rejected = crate::execution::build_checked_unit_effect_plans(
+    let rejected = crate::execution::terminal_unit::build_checked_unit_effect_plans(
         &checked.typed,
         &missing_cleanup,
-        crate::execution::ScalarCalleePlans {
+        crate::execution::terminal_unit::ScalarCalleePlans {
             boundary_returns: &missing_cleanup.flow.terminal_boundary_scalar_returns,
             structural_returns: &missing_cleanup.flow.terminal_structural_scalar_returns,
         },
@@ -754,10 +754,10 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
                 _ => unreachable!(),
             }
         }
-        let rejected = crate::execution::build_checked_unit_effect_plans(
+        let rejected = crate::execution::terminal_unit::build_checked_unit_effect_plans(
             &checked.typed,
             &changed,
-            crate::execution::ScalarCalleePlans {
+            crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
@@ -1060,10 +1060,10 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_loses_scalar_evidence()
         facts.values.scalar_expressions.expressions.len() + 1,
         before
     );
-    let plans = crate::execution::build_checked_unit_effect_plans(
+    let plans = crate::execution::terminal_unit::build_checked_unit_effect_plans(
         &checked.typed,
         &facts,
-        crate::execution::ScalarCalleePlans {
+        crate::execution::terminal_unit::ScalarCalleePlans {
             boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &facts.flow.terminal_structural_scalar_returns,
         },

@@ -111,7 +111,7 @@ fn preserve_call_prefix_storage(
         .iter()
         .filter(|prior| prior.statement_index == call.statement_index)
     {
-        let site = crate::find_call_site(
+        let site = crate::semantic_calls::find_call_site(
             program,
             machine.symbol,
             state.state_symbol,
@@ -119,19 +119,19 @@ fn preserve_call_prefix_storage(
             prior.call_ordinal,
         )?;
         let frame = match site {
-            crate::CallSite::Statement(call) => {
+            crate::semantic_calls::CallSite::Statement(call) => {
                 if !frames.call_reference_bindings_are_stable(machine, call) {
                     return None;
                 }
                 frames.may_write_frame(machine, call)
             }
-            crate::CallSite::Expression { expression, .. } => {
+            crate::semantic_calls::CallSite::Expression { expression, .. } => {
                 if !frames.expression_reference_bindings_are_stable(machine, expression) {
                     return None;
                 }
                 frames.expression_write_frame(machine, expression)
             }
-            crate::CallSite::TransitionNamed { .. } => return None,
+            crate::semantic_calls::CallSite::TransitionNamed { .. } => return None,
         };
         preserve_frame(
             program,

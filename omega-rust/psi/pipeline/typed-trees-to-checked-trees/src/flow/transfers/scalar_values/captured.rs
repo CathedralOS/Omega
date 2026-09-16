@@ -84,7 +84,7 @@ impl CapturedValue for ScalarValue {
                 program: live.program,
                 parameters: live
                     .program
-                    .state_parameters(crate::find_state(live.program, live.state)?),
+                    .state_parameters(crate::semantic_calls::find_state(live.program, live.state)?),
                 symbols,
                 value_at_place: |place: &CanonicalPlace| Self::at_place(place, live),
             },
@@ -184,7 +184,7 @@ impl CapturedValue for IntegerRange {
                 contexts: &contexts,
                 parameters: live
                     .program
-                    .state_parameters(crate::find_state(live.program, live.state)?),
+                    .state_parameters(crate::semantic_calls::find_state(live.program, live.state)?),
                 symbols,
                 state: live.state,
             },

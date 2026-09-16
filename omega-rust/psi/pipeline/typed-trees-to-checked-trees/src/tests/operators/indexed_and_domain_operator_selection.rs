@@ -2,11 +2,12 @@ use super::{
     checked_program_from_source, has_selected_domain_add, indexed_selection_fixture, named_type,
     operator_with_spelling,
 };
+use crate::lower_typed_trees;
+use crate::operators::build_operator_facts;
 use crate::tests::{
     Expression, Identifier, Lexer, Machine, NamePath, ResolutionRequest, State, StateParameter,
     SymbolHandle, TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
-use crate::{build_operator_facts, lower_typed_trees};
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
 use typed_trees::operator::{operator_operand_signature, resolve_spelling_for_operands};

@@ -67,7 +67,8 @@ pub(super) fn finite_projection_limit(
                             maximum_seed_length.max(premise.subject.projections.len());
                     }
                 }
-                if let Some(parameters) = crate::call_target_parameters(program, call.target_symbol)
+                if let Some(parameters) =
+                    crate::semantic_calls::call_target_parameters(program, call.target_symbol)
                 {
                     for parameter in parameters {
                         if let Some(subject) = call_argument_subject_with_parameters(

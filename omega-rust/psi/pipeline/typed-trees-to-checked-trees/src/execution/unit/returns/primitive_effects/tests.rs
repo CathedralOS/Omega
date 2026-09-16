@@ -1,9 +1,8 @@
 use super::{CheckedStructuralAccess, Multiplicity};
 use crate::execution::terminal_unit::CheckedStructuralScalarReturnCleanupAction;
 use crate::execution::terminal_unit::primitive_effects::is_primitive_reference_plan;
-use crate::execution::{
-    build_checked_primitive_store_scalar_return_plans, reconcile_primitive_store_scalar_returns,
-};
+use crate::execution::terminal_unit::returns::build_checked_primitive_store_scalar_return_plans;
+use crate::execution::terminal_unit::returns::reconcile_primitive_store_scalar_returns;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -56,7 +55,7 @@ fn pure_primitive_reference_returns_enter_the_independent_callee_catalog() {
             super::super::super::scalar_targets::registered_primitive_store_target(
                 &checked.typed,
                 &checked.facts,
-                Some(crate::execution::ScalarCalleePlans {
+                Some(crate::execution::terminal_unit::ScalarCalleePlans {
                     boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &checked.facts.flow.terminal_structural_scalar_returns
                 }),

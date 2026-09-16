@@ -11,11 +11,12 @@ mod indexed_and_domain_operator_selection;
 mod invocations;
 mod trait_operator_bindings;
 
+use crate::lower_typed_trees;
+use crate::operators::build_operator_facts;
 use crate::tests::{
     HandleSpan, Identifier, Lexer, ResolutionRequest, StateParameter, StatementNode, SymbolHandle,
     TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
-use crate::{build_operator_facts, lower_typed_trees};
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::TypeReferenceHandle;

@@ -118,7 +118,7 @@ use typed_trees::{
 };
 
 #[path = "calls/build_calls.rs"]
-pub(in crate::execution) mod calls;
+pub(crate) mod calls;
 #[path = "candidate_closure/build_candidate_closure.rs"]
 mod candidate_closure;
 #[path = "cleanup/build_cleanup.rs"]
@@ -155,7 +155,7 @@ mod state_graph;
 #[path = "structural_scalar_store/build_structural_scalar_store.rs"]
 mod structural_scalar_store;
 #[path = "types/build_types.rs"]
-pub(super) mod types;
+pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;

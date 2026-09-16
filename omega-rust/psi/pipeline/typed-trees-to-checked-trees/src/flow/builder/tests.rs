@@ -6,8 +6,11 @@ use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 use super::build_flow_facts;
+use crate::borrow::build_borrow_facts;
+use crate::flow::build_domain_facts;
 use crate::flow::{StateMutationSummaryCache, canonical_place_from_symbol};
-use crate::{build_borrow_facts, build_domain_facts, build_proof_facts, build_semantic_facts};
+use crate::proof::build_proof_facts;
+use crate::semantic::build_semantic_facts;
 
 thread_local! {
     pub(in crate::flow) static STATE_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };

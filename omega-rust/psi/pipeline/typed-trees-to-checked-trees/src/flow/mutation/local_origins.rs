@@ -3,7 +3,6 @@
 //! Alias transfer belongs to validation. This adapter resolves its canonical
 //! names to existing typed symbols and retains only declared, builtin fixed
 //! coordinates from its captured structural origins.
-use crate::find_state;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
@@ -13,6 +12,7 @@ use crate::flow::mutation::normalize_write_only_range_place;
 use crate::flow::push_field_place_segments;
 use crate::flow::resolve_member_symbol_from_type_symbol;
 use crate::flow::symbol_type_symbol;
+use crate::semantic_calls::find_state;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;

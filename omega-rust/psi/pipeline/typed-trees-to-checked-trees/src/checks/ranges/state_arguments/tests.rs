@@ -25,7 +25,7 @@ fn compare(source: &str) -> (Vec<StateArgumentFacts>, usize, usize) {
     .unwrap();
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let borrows = crate::build_borrow_facts(&program);
+    let borrows = crate::borrow::build_borrow_facts(&program);
     let proof_plan = proof::obligations::build_proof_plan(&program);
     let values = crate::values::build_value_facts(&program, &proof_plan);
     let operators = crate::operators::build_operator_facts(&program, &values);

@@ -140,20 +140,24 @@ fn append_one_to_one_call_carry_facts(
     {
         return;
     }
-    let Some(crate::CallSite::Expression { expression, call }) = crate::find_call_site(
-        program,
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    ) else {
+    let Some(crate::semantic_calls::CallSite::Expression { expression, call }) =
+        crate::semantic_calls::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+        )
+    else {
         return;
     };
 
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut argument_index = 0usize;
     let mut linear_inputs = Vec::new();
-    let Some(parameters) = crate::call_target_parameters(program, borrow_call.target_symbol) else {
+    let Some(parameters) =
+        crate::semantic_calls::call_target_parameters(program, borrow_call.target_symbol)
+    else {
         return;
     };
     for parameter in parameters {
@@ -275,7 +279,7 @@ pub(crate) fn call_target_return_type(
     program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    if let Some(state) = crate::find_state(program, target_state_symbol) {
+    if let Some(state) = crate::semantic_calls::find_state(program, target_state_symbol) {
         return Some(state.return_type);
     }
     if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {

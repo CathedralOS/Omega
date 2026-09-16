@@ -1,5 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
-use crate::build_borrow_facts;
+use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
 
 fn check(source: &str, accepted: bool) {

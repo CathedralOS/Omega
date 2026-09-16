@@ -867,7 +867,7 @@ fn instantiate_proof_output_proposition(
     else {
         return None;
     };
-    let call_site = crate::CallSite::Expression {
+    let call_site = crate::semantic_calls::CallSite::Expression {
         expression: package.call,
         call,
     };

@@ -1,4 +1,4 @@
-mod calls;
+pub(crate) mod calls;
 mod expressions;
 mod statements;
 #[cfg(test)]

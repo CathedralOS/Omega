@@ -152,10 +152,11 @@ fn returned_boundary_result_rejects_invalid_nested_or_outer_occurrences() {
             1 => call.call_ordinal = 0,
             _ => call.statement_index = 1,
         }
-        let rebuilt = crate::execution::build_checked_boundary_scalar_return_plans(
-            &changed.typed,
-            &changed.facts,
-        );
+        let rebuilt =
+            crate::execution::terminal_unit::returns::build_checked_boundary_scalar_return_plans(
+                &changed.typed,
+                &changed.facts,
+            );
         assert!(
             rebuilt.for_machine(machine).is_none(),
             "occurrence mutation {mutation} rejects"

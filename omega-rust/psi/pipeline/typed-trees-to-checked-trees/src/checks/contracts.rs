@@ -1,7 +1,7 @@
 mod arrivals;
 mod assembly;
 mod call_bounds;
-mod calls;
+pub(crate) mod calls;
 mod content_preservation;
 mod direct;
 mod domains;

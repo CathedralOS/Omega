@@ -1,4 +1,4 @@
-mod calls;
+pub(crate) mod calls;
 mod domain;
 
 pub(crate) use calls::{ContractTargetParameters, instantiate_call_contract_expression_label};

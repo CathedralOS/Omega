@@ -4,7 +4,6 @@ use super::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity,
     PrimitiveType, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
-use crate::execution::structural_computation_argument;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
 use crate::execution::terminal_unit::CheckedUnitEffectOperationPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralPathSegment;
@@ -13,6 +12,7 @@ use crate::execution::terminal_unit::PermissionClaimIdentity;
 use crate::execution::terminal_unit::PermissionEventKind;
 use crate::execution::terminal_unit::PermissionEventSource;
 use crate::execution::terminal_unit::calls::computation_arguments::owned_parameter_argument;
+use crate::execution::terminal_unit::structural_computation_argument;
 use crate::execution::terminal_unit::terminal_field_identity;
 
 const SOURCE: &str = r#"
@@ -729,7 +729,7 @@ fn owned_graph_receiving_check_rejects_retained_signature_tampering() {
         registered_structural_graph_target(
             &checked.typed,
             &checked.facts,
-            Some(crate::execution::ScalarCalleePlans {
+            Some(crate::execution::terminal_unit::ScalarCalleePlans {
                 boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &checked.facts.flow.terminal_structural_scalar_returns
             }),
@@ -762,7 +762,7 @@ fn owned_graph_receiving_check_rejects_retained_signature_tampering() {
             registered_structural_graph_target(
                 &checked.typed,
                 &facts,
-                Some(crate::execution::ScalarCalleePlans {
+                Some(crate::execution::terminal_unit::ScalarCalleePlans {
                     boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &facts.flow.terminal_structural_scalar_returns
                 }),

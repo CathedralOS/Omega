@@ -65,7 +65,7 @@ fn a_direct_reference_field_result_keeps_its_source_loan_active() {
                         _ => None,
                     })
                     .unwrap();
-                let facts = crate::build_borrow_facts(&program);
+                let facts = crate::borrow::build_borrow_facts(&program);
                 let loans = facts
                     .loans
                     .iter()
@@ -332,7 +332,7 @@ fn carrier_result_nested_array_sources_keep_paths_and_polarity() {
             _ => None,
         })
         .expect("held");
-    let facts = crate::build_borrow_facts(&typed);
+    let facts = crate::borrow::build_borrow_facts(&typed);
     let loans = facts
         .loans
         .iter()
@@ -403,7 +403,7 @@ fn carrier_result_write_only_source_never_gains_read_access() {
             _ => None,
         })
         .expect("held");
-    let facts = crate::build_borrow_facts(&typed);
+    let facts = crate::borrow::build_borrow_facts(&typed);
     let loans = facts
         .loans
         .iter()

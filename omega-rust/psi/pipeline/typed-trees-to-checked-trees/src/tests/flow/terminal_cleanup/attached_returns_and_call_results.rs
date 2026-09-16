@@ -293,7 +293,10 @@ fn owned_call_result_cleanup_requires_exact_transfer_on_every_edge() {
     );
     let (machine, state) = machine_and_entry_state(&checked, "route");
     let rebuild = |facts: &checked_trees::CheckFacts| {
-        crate::execution::build_checked_structural_control_cleanup_plans(&checked.typed, facts)
+        crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+            &checked.typed,
+            facts,
+        )
     };
     let plans = rebuild(&checked.facts);
     let plan = plans

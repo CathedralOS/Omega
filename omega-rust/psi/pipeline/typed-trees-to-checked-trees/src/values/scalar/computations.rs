@@ -229,7 +229,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     state,
                     statement_index,
                 ) {
-                    let crate::CallSite::Expression { call, .. } = site else {
+                    let crate::semantic_calls::CallSite::Expression { call, .. } = site else {
                         continue;
                     };
                     let Ok(call_ordinal) = u32::try_from(call_ordinal) else {
@@ -900,11 +900,14 @@ impl Builder<'_, '_> {
                             );
                             continue;
                         }
-                        let state =
-                            crate::find_state_in_machine(self.program, self.machine, self.state)?;
+                        let state = crate::semantic_calls::find_state_in_machine(
+                            self.program,
+                            self.machine,
+                            self.state,
+                        )?;
                         structural_arguments.push(
                             checked_trees::CheckedScalarComputationStructuralArgument::Place(
-                                crate::execution::structural_computation_argument(
+                                crate::execution::terminal_unit::structural_computation_argument(
                                     self.program,
                                     self.borrow,
                                     self.machine,
