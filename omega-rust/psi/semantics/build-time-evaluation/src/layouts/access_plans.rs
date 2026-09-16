@@ -7,6 +7,7 @@
 
 use access_plans::{AccessPlan, ValidatedAccessPlan};
 use checked_interpreter::BuildTimeValue;
+use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
 use layout_plans::{LayoutPlanReport, layout_plan_reports_match_for_replay};
 use typed_trees::TypedTrees;
 
@@ -78,11 +79,12 @@ fn evaluate_policy(
         .find(|machine| machine.name.as_str() == policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
     BuildTimeAdmissionPlan::infer(typed).require_common_floor(typed, machine)?;
-    checked_interpreter::evaluate_build_time_machine(typed, policy_machine, arguments).map_err(
-        |reason| {
-            format!(
-                "build-time evaluation of {policy_kind} policy `{policy_machine}` failed: {reason}"
-            )
-        },
+    checked_interpreter::evaluate_build_time_machine(
+        typed,
+        BuildMachineEvaluationRequest::named(policy_machine, arguments),
     )
+    .map(BuildTimeOperationEvaluation::into_value)
+    .map_err(|reason| {
+        format!("build-time evaluation of {policy_kind} policy `{policy_machine}` failed: {reason}")
+    })
 }

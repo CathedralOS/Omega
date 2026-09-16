@@ -8,6 +8,7 @@ use build_time_evaluation::{
     BuildMachineFilesystemMetadataLayout, BuildTimeValue, PreparedBuildMachineEntry,
     PreparedBuildMachineProgram,
 };
+use build_time_evaluation::{BuildMachineInvocation, PreparedBuildMachine};
 use checked_interpreter::{EvaluationUsage, FilesystemReplay, MeasuredBuildMachineEvaluation};
 use diagnostics::Diagnostic;
 
@@ -26,20 +27,9 @@ pub(super) fn evaluate_admitted_machine(
 ) -> Result<MeasuredBuildMachine, Vec<Diagnostic>> {
     match sponsor {
         Some(sponsor) => {
-            build_time_evaluation::evaluate_build_machine_entry_arguments_measured_with_sponsor(
-                prepared,
-                machine_entry,
-                arguments,
-                mode,
-                sponsor,
-            )
+            build_time_evaluation::evaluate_build_machine_measured(prepared, BuildMachineInvocation { machine: PreparedBuildMachine::Entry(machine_entry), arguments, mode, sponsor: Some(sponsor) })
         }
-        None => build_time_evaluation::evaluate_build_machine_entry_arguments_measured(
-            prepared,
-            machine_entry,
-            arguments,
-            mode,
-        ),
+        None => build_time_evaluation::evaluate_build_machine_measured(prepared, BuildMachineInvocation { machine: PreparedBuildMachine::Entry(machine_entry), arguments, mode, sponsor: None }),
     }
     .map_err(|reason| {
         let partial_evidence = reason
@@ -115,20 +105,23 @@ pub(super) fn replay_admitted_machine(
         filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout::default(),
     };
     let replayed = match sponsor {
-        Some(sponsor) => {
-            build_time_evaluation::evaluate_build_machine_entry_arguments_measured_with_sponsor(
-                prepared,
-                machine_entry,
-                arguments,
-                replay_mode,
-                sponsor,
-            )
-        }
-        None => build_time_evaluation::evaluate_build_machine_entry_arguments_measured(
+        Some(sponsor) => build_time_evaluation::evaluate_build_machine_measured(
             prepared,
-            machine_entry,
-            arguments,
-            replay_mode,
+            BuildMachineInvocation {
+                machine: PreparedBuildMachine::Entry(machine_entry),
+                arguments,
+                mode: replay_mode,
+                sponsor: Some(sponsor),
+            },
+        ),
+        None => build_time_evaluation::evaluate_build_machine_measured(
+            prepared,
+            BuildMachineInvocation {
+                machine: PreparedBuildMachine::Entry(machine_entry),
+                arguments,
+                mode: replay_mode,
+                sponsor: None,
+            },
         ),
     }
     .map_err(|reason| {

@@ -139,10 +139,7 @@ fn compile_with_auxiliary_artifacts(
     compile_with_artifact_policy(spec, ArtifactEmissionPolicy::Full)
 }
 
-use checked_interpreter::{
-    FilesystemServiceBinding, InterpretOptions, InterpretOutcome, interpret_entry,
-    interpret_entry_with_options,
-};
+use checked_interpreter::{FilesystemServiceBinding, InterpretOptions, InterpretOutcome, interpret_entry};
 use diagnostics::Diagnostic;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
@@ -171,19 +168,14 @@ fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     let Some(filesystem) =
         checked.resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
     else {
-        return interpret_entry(checked, "Main::main", stdin);
+        return interpret_entry(checked, "Main::main", stdin, InterpretOptions::default());
     };
     let binding = FilesystemServiceBinding::from_compiler_resolved_declaration(
         checked,
         filesystem.declaration_symbol(),
     )
     .expect("accepted filesystem fixture binding resolves one exact declaration");
-    interpret_entry_with_options(
-        checked,
-        "Main::main",
-        stdin,
-        InterpretOptions::default().with_filesystem_service_binding(binding),
-    )
+    interpret_entry(checked, "Main::main", stdin, InterpretOptions::default().with_filesystem_service_binding(binding))
 }
 
 #[path = "fixture_rosters/canary_suite.rs"]

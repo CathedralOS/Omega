@@ -974,7 +974,7 @@ invokes filesystem;
             .accepted(),
         &accepted,
     );
-    let unbound = checked_interpreter::interpret_entry(&accepted_compilation, "Main::main", &[]);
+    let unbound = checked_interpreter::interpret_entry(&accepted_compilation, "Main::main", &[], InterpretOptions::default());
     assert!(
         unbound.is_error(),
         "an ordinary package boundary cannot route from its readable operation names",
@@ -989,13 +989,8 @@ invokes filesystem;
             declaration_symbol,
         )
         .expect("compiler-resolved declaration is one exact checked boundary");
-    let bound = checked_interpreter::interpret_entry_with_options(
-        &accepted_compilation,
-        "Main::main",
-        &[],
-        checked_interpreter::InterpretOptions::default()
-            .with_filesystem_service_binding(interpreter_binding),
-    );
+    let bound = checked_interpreter::interpret_entry(&accepted_compilation, "Main::main", &[], checked_interpreter::InterpretOptions::default()
+            .with_filesystem_service_binding(interpreter_binding));
     assert_eq!(
         bound.error, None,
         "the exact accepted declaration symbol should route the filesystem provider",
@@ -1014,13 +1009,8 @@ invokes filesystem;
         ..CheckedCompileRequest::new(&root.join("main.omg"), None)
     })
     .expect("the identical source compiles into a second checked program");
-    let substituted = checked_interpreter::interpret_entry_with_options(
-        &substituted_program,
-        "Main::main",
-        &[],
-        checked_interpreter::InterpretOptions::default()
-            .with_filesystem_service_binding(interpreter_binding),
-    );
+    let substituted = checked_interpreter::interpret_entry(&substituted_program, "Main::main", &[], checked_interpreter::InterpretOptions::default()
+            .with_filesystem_service_binding(interpreter_binding));
     assert!(
         substituted
             .error

@@ -1,6 +1,9 @@
 use checked_interpreter::{
-    BuildTimeValue, InterpretOptions, evaluate_build_machine_with_filesystem,
-    evaluate_build_time_machine_arguments,
+    BuildMachineEvaluationFailure, BuildMachineEvaluationRequest, MeasuredBuildMachineEvaluation,
+};
+use checked_interpreter::{
+    BuildTimeValue, InterpretOptions, evaluate_build_machine_arguments,
+    evaluate_granted_build_machine_arguments,
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -19,15 +22,19 @@ fn initial_reference_arguments_preserve_identity_through_helper_calls() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("types");
     let checked = lower_typed_trees(typed.clone()).expect("ordinary borrows check");
     drop(checked);
-    let pure =
-        evaluate_build_time_machine_arguments(&typed, "augment", vec![BuildTimeValue::Int(0)])
-            .expect("pure build argument evaluation");
-    let granted = evaluate_build_machine_with_filesystem(
+    let pure = evaluate_build_machine_arguments(
         &typed,
-        "augment",
-        vec![BuildTimeValue::Int(0)],
+        BuildMachineEvaluationRequest::named("augment", vec![BuildTimeValue::Int(0)]),
+    )
+    .map(MeasuredBuildMachineEvaluation::into_value)
+    .expect("pure build argument evaluation");
+    let granted = evaluate_granted_build_machine_arguments(
+        &typed,
+        BuildMachineEvaluationRequest::named("augment", vec![BuildTimeValue::Int(0)]),
         InterpretOptions::default(),
     )
+    .map(MeasuredBuildMachineEvaluation::into_value)
+    .map_err(BuildMachineEvaluationFailure::into_diagnostic)
     .expect("granted build argument evaluation");
     assert_eq!(pure, vec![BuildTimeValue::Int(7)]);
     assert_eq!(granted, pure);

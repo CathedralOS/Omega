@@ -5,10 +5,7 @@
 //! struct and returning a plan-like struct -- the exact call shape the Layout
 //! machinery makes (wiki/spec/layouts/plans.md).
 
-use checked_interpreter::{
-    BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA,
-    evaluate_build_time_machine, evaluate_build_time_machine_measured, interpret_entry,
-};
+use checked_interpreter::{BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA, evaluate_build_time_machine, BuildMachineEvaluationRequest, interpret_entry};
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use std::fs;
@@ -39,11 +36,11 @@ machine Main::main(&mut self) -> i32 { 1 }
         .expect("entry probe should compile");
     assert_eq!(checked.build_evaluation_usage(), None);
 
-    let selected = interpret_entry(&checked, "Probe::start", &[]);
+    let selected = interpret_entry(&checked, "Probe::start", &[], InterpretOptions::default());
     assert_eq!(selected.error, None);
     assert_eq!(selected.exit_code, 70);
 
-    let missing = interpret_entry(&checked, "probe::start", &[]);
+    let missing = interpret_entry(&checked, "probe::start", &[], InterpretOptions::default());
     assert_eq!(missing.exit_code, 0);
     assert_eq!(
         missing.error.as_deref(),
@@ -83,7 +80,7 @@ machine Main::main(&mut self) { }
 
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("pilot program should compile");
-    let interpreted = interpret_entry(&checked, "Main::main", &[]);
+    let interpreted = interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
     assert!(interpreted.error.is_none());
     assert_eq!(interpreted.usage.schedule().marker(), 1);
     assert!(interpreted.usage.fuel_units() > 0);
@@ -97,10 +94,10 @@ machine Main::main(&mut self) { }
     };
 
     let first =
-        evaluate_build_time_machine_measured(&checked.typed, "Planner::plan", vec![schema.clone()])
+        evaluate_build_time_machine(&checked.typed, BuildMachineEvaluationRequest::named("Planner::plan", vec![schema.clone()])).map(BuildTimeOperationEvaluation::into_measured)
             .expect("plan() should evaluate with usage");
     let second =
-        evaluate_build_time_machine_measured(&checked.typed, "Planner::plan", vec![schema])
+        evaluate_build_time_machine(&checked.typed, BuildMachineEvaluationRequest::named("Planner::plan", vec![schema])).map(BuildTimeOperationEvaluation::into_measured)
             .expect("equal evaluation should reproduce usage");
     assert_eq!(first.usage(), second.usage());
     assert_eq!(first.usage().schema(), CURRENT_EVALUATION_USAGE_SCHEMA);
@@ -142,7 +139,7 @@ machine Main::main(&mut self) { }
 
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("arity program should compile");
-    let error = evaluate_build_time_machine(&checked.typed, "Planner::plan", Vec::new())
+    let error = evaluate_build_time_machine(&checked.typed, BuildMachineEvaluationRequest::named("Planner::plan", Vec::new())).map(BuildTimeOperationEvaluation::into_value)
         .expect_err("missing argument should be a clear error");
     assert!(
         error.contains("takes 1 argument"),
@@ -175,11 +172,7 @@ machine Main::main(&mut self) { }
         fields: vec![("value".to_owned(), BuildTimeValue::Int(3))],
     };
 
-    let evaluated = evaluate_build_time_machine_measured(
-        &checked.typed,
-        "Mutator::replace",
-        vec![argument.clone()],
-    )
+    let evaluated = evaluate_build_time_machine(&checked.typed, BuildMachineEvaluationRequest::named("Mutator::replace", vec![argument.clone()])).map(BuildTimeOperationEvaluation::into_measured)
     .expect("local mutation should evaluate in an isolated value graph");
 
     assert_eq!(evaluated.value(), &BuildTimeValue::Int(9));

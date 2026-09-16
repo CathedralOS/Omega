@@ -2,7 +2,7 @@ use checked_interpreter::{
     FilesystemAccess, FilesystemInputUnknownDescriptorOperationReplayKind as Kind,
     FilesystemInputUnknownDescriptorOperationReplayRecord as Record,
     FilesystemInputUnknownDescriptorOperationWithErrnoReplayRecord as PairRecord, FilesystemReplay,
-    InterpretOptions, interpret_entry_with_options,
+    InterpretOptions, interpret_entry,
 };
 use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
@@ -140,7 +140,7 @@ fn operand_free_unknown_descriptor_errno_pairs_execute_without_a_provider() {
             vec![operation_tag, 50]
         );
 
-        let outcome = interpret_entry_with_options(
+        let outcome = interpret_entry(
             &checked,
             entry,
             &[],
@@ -174,7 +174,7 @@ fn unknown_descriptor_operation_family_executes_virtually_and_tears_down_empty()
         .unwrap();
         assert_eq!(replay.attempts()[0].operation_tag(), operation_tag);
 
-        let outcome = interpret_entry_with_options(
+        let outcome = interpret_entry(
             &checked,
             entry,
             &[],

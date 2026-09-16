@@ -1,5 +1,6 @@
 //! Generated tag observations guard active payload reads during ordinary execution.
 
+use checked_interpreter::InterpretOptions;
 #[test]
 fn nested_sum_equality_executes_only_the_active_payload_comparison() {
     for (left, right, expected) in [
@@ -42,7 +43,12 @@ fn nested_sum_equality_executes_only_the_active_payload_comparison() {
             .expect("types");
         let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-        let outcome = checked_interpreter::interpret_entry(&checked, "main", &[]);
+        let outcome = checked_interpreter::interpret_entry(
+            &checked,
+            "main",
+            &[],
+            InterpretOptions::default(),
+        );
         assert_eq!(outcome.error, None, "{left} == {right}");
         assert_eq!(outcome.exit_code, expected, "{left} == {right}");
     }

@@ -31,7 +31,7 @@ fn main() {
         eprintln!("build has no exact target-owned ProgramEntry binding");
         std::process::exit(103);
     });
-    let outcome = interpret_entry(&checked, entry, &stdin);
+    let outcome = interpret_entry(&checked, entry, &stdin, InterpretOptions::default());
     std::io::stdout()
         .write_all(&outcome.stdout)
         .expect("stdout");

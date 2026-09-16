@@ -1,3 +1,4 @@
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::{InterpretOutcome, interpret_entry};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -14,7 +15,7 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 }
 
 fn execute(source: &str) -> InterpretOutcome {
-    interpret_entry(&checked(source), "main", &[])
+    interpret_entry(&checked(source), "main", &[], InterpretOptions::default())
 }
 
 fn assert_seven(source: &str) {
@@ -136,7 +137,7 @@ fn borrowed_window_execution_rejects_stale_range_proofs() {
             let mut changed = program.clone();
             *changed.typed.expression_table.expression_mut(end) =
                 ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(end_value));
-            let outcome = interpret_entry(&changed, "main", &[]);
+            let outcome = interpret_entry(&changed, "main", &[], InterpretOptions::default());
             assert!(
                 outcome
                     .error

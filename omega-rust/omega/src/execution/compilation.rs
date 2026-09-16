@@ -4,6 +4,7 @@
 //! package root, including generated inputs; rechecking the authored file would
 //! lose those inputs and could repeat build effects or acquire different sources.
 
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::InterpretOutcome;
 use compiler::CheckedCompileRequest;
 use compiler::{ArtifactEmissionPolicy, CompileOptions, CompileReport, CompileRequest};
@@ -71,5 +72,10 @@ fn interpret_checked(
     })?;
     // Default interpretation captures output and uses virtual host state. Do not
     // print or grant live host effects before native admission and publication.
-    Ok(checked_interpreter::interpret_entry(checked, entry, &[]))
+    Ok(checked_interpreter::interpret_entry(
+        checked,
+        entry,
+        &[],
+        InterpretOptions::default(),
+    ))
 }

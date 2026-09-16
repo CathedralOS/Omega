@@ -152,147 +152,60 @@ impl PreparedBuildMachineProgram {
     }
 }
 
-/// Evaluate one exact prepared entry and return its final argument values.
-///
-/// This is the compiler-facing D18 path. Entry ownership is checked before
-/// execution, and the checked interpreter resolves only the retained symbol.
-pub fn evaluate_build_machine_entry_arguments_measured(
-    program: &PreparedBuildMachineProgram,
-    entry: &PreparedBuildMachineEntry,
-    arguments: Vec<BuildTimeValue>,
-    mode: BuildMachineExecutionMode,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
-    let machine_symbol = program.validate_entry(entry)?;
-    match mode {
-        BuildMachineExecutionMode::Pure => {
-            checked_interpreter::evaluate_observed_build_time_machine_symbol_arguments_measured(
-                program.typed(),
-                machine_symbol,
-                arguments,
-            )
-            .map_err(BuildMachineEvaluationError::Pure)
-        }
-        BuildMachineExecutionMode::Granted {
-            filesystem,
-            filesystem_metadata_layout,
-        } => checked_interpreter::evaluate_build_machine_symbol_with_filesystem_measured(
-            program.typed(),
-            machine_symbol,
-            arguments,
-            checked_interpreter::InterpretOptions {
-                filesystem,
-                filesystem_metadata_layout,
-                ..Default::default()
-            },
-        )
-        .map_err(BuildMachineEvaluationError::Granted),
-    }
+/// The build machine one evaluation runs: an entry the prepared program
+/// already validated, or a machine named at the call.
+#[derive(Clone, Copy)]
+pub enum PreparedBuildMachine<'a> {
+    Entry(&'a PreparedBuildMachineEntry),
+    Name(&'a str),
 }
 
-/// Sponsored form of [`evaluate_build_machine_entry_arguments_measured`].
-pub fn evaluate_build_machine_entry_arguments_measured_with_sponsor(
-    program: &PreparedBuildMachineProgram,
-    entry: &PreparedBuildMachineEntry,
-    arguments: Vec<BuildTimeValue>,
-    mode: BuildMachineExecutionMode,
-    sponsor: &BuildEvaluationSponsor,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
-    let machine_symbol = program.validate_entry(entry)?;
-    match mode {
-        BuildMachineExecutionMode::Pure => {
-            checked_interpreter::evaluate_observed_build_time_machine_symbol_arguments_measured_with_sponsor(
-                program.typed(),
-                machine_symbol,
-                arguments,
-                sponsor,
-            )
-            .map_err(BuildMachineEvaluationError::Pure)
-        }
-        BuildMachineExecutionMode::Granted {
-            filesystem,
-            filesystem_metadata_layout,
-        } => checked_interpreter::evaluate_build_machine_symbol_with_filesystem_measured_with_sponsor(
-            program.typed(),
-            machine_symbol,
-            arguments,
-            checked_interpreter::InterpretOptions {
-                filesystem,
-                filesystem_metadata_layout,
-                ..Default::default()
-            },
-            sponsor,
-        )
-        .map_err(BuildMachineEvaluationError::Granted),
-    }
+/// One measured build-machine invocation: which machine, its arguments, the
+/// pure or granted execution mode, and the sponsor that pays for its custody.
+pub struct BuildMachineInvocation<'a> {
+    pub machine: PreparedBuildMachine<'a>,
+    pub arguments: Vec<BuildTimeValue>,
+    pub mode: BuildMachineExecutionMode,
+    pub sponsor: Option<&'a BuildEvaluationSponsor>,
 }
 
-/// Evaluate one augmenting build machine and return its final argument values
-/// together with deterministic evaluator usage and distinct host observations.
-pub fn evaluate_build_machine_arguments_measured(
+/// Evaluate one build machine and measure its evaluation. All build-machine
+/// evaluations enter here: the mode selects the pure or filesystem-granted
+/// interpreter and the sponsor, when present, is charged for result custody.
+pub fn evaluate_build_machine_measured(
     program: &PreparedBuildMachineProgram,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-    mode: BuildMachineExecutionMode,
+    invocation: BuildMachineInvocation<'_>,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
-    match mode {
+    let entry = match invocation.machine {
+        PreparedBuildMachine::Entry(entry) => {
+            checked_interpreter::BuildMachineEntry::Symbol(program.validate_entry(entry)?)
+        }
+        PreparedBuildMachine::Name(machine_name) => {
+            checked_interpreter::BuildMachineEntry::Name(machine_name)
+        }
+    };
+    let request = checked_interpreter::BuildMachineEvaluationRequest {
+        entry,
+        arguments: invocation.arguments,
+        operators: &[],
+        sponsor: invocation.sponsor,
+    };
+    match invocation.mode {
         BuildMachineExecutionMode::Pure => {
-            checked_interpreter::evaluate_observed_build_time_machine_arguments_measured(
-                program.typed(),
-                machine_name,
-                arguments,
-            )
-            .map_err(BuildMachineEvaluationError::Pure)
+            checked_interpreter::evaluate_build_machine_arguments(program.typed(), request)
+                .map_err(BuildMachineEvaluationError::Pure)
         }
         BuildMachineExecutionMode::Granted {
             filesystem,
             filesystem_metadata_layout,
-        } => checked_interpreter::evaluate_build_machine_with_filesystem_measured(
+        } => checked_interpreter::evaluate_granted_build_machine_arguments(
             program.typed(),
-            machine_name,
-            arguments,
+            request,
             checked_interpreter::InterpretOptions {
                 filesystem,
                 filesystem_metadata_layout,
                 ..Default::default()
             },
-        )
-        .map_err(BuildMachineEvaluationError::Granted),
-    }
-}
-
-/// Sponsored form of [`evaluate_build_machine_arguments_measured`]. All
-/// invocations using clones of `sponsor` charge one aggregate deterministic
-/// fuel account.
-pub fn evaluate_build_machine_arguments_measured_with_sponsor(
-    program: &PreparedBuildMachineProgram,
-    machine_name: &str,
-    arguments: Vec<BuildTimeValue>,
-    mode: BuildMachineExecutionMode,
-    sponsor: &BuildEvaluationSponsor,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
-    match mode {
-        BuildMachineExecutionMode::Pure => {
-            checked_interpreter::evaluate_observed_build_time_machine_arguments_measured_with_sponsor(
-                program.typed(),
-                machine_name,
-                arguments,
-                sponsor,
-            )
-            .map_err(BuildMachineEvaluationError::Pure)
-        }
-        BuildMachineExecutionMode::Granted {
-            filesystem,
-            filesystem_metadata_layout,
-        } => checked_interpreter::evaluate_build_machine_with_filesystem_measured_with_sponsor(
-            program.typed(),
-            machine_name,
-            arguments,
-            checked_interpreter::InterpretOptions {
-                filesystem,
-                filesystem_metadata_layout,
-                ..Default::default()
-            },
-            sponsor,
         )
         .map_err(BuildMachineEvaluationError::Granted),
     }

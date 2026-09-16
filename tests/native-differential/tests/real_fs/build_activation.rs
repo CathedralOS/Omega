@@ -6,11 +6,7 @@
 //! build authority or scratch state.
 
 use super::{grant_root, omg_path};
-use checked_interpreter::{
-    BuildTimeValue, EvaluationObservations, FilesystemAccess, FilesystemLogicalHandleOutput,
-    FsGrants, InterpretOptions, evaluate_build_machine_with_filesystem,
-    evaluate_build_machine_with_filesystem_measured,
-};
+use checked_interpreter::{BuildTimeValue, EvaluationObservations, FilesystemAccess, FilesystemLogicalHandleOutput, FsGrants, InterpretOptions, evaluate_granted_build_machine_arguments, BuildMachineEvaluationRequest};
 use compiler::CheckedCompileRequest;
 use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::Path;
@@ -136,18 +132,13 @@ fn granted_build_machine_stages_assets_and_augments_the_build() {
     );
 
     // REAL SCOPED: the asset lands on disk; the augmented Build reads back.
-    let real_evaluation = evaluate_build_machine_with_filesystem_measured(
-        &checked.typed,
-        "build",
-        vec![staging_build_argument()],
-        InterpretOptions {
+    let real_evaluation = evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("build", vec![staging_build_argument()]), InterpretOptions {
             filesystem: FilesystemAccess::RealScoped(FsGrants {
                 read_roots: vec![],
                 write_roots: vec![grant_root(2, output_root.clone())],
             }),
             ..InterpretOptions::default()
-        },
-    )
+        })
     .expect("granted build run");
     let real_logical_handles = logical_handle_lifetimes(real_evaluation.observations());
     let augmented = real_evaluation.into_value();
@@ -166,12 +157,7 @@ fn granted_build_machine_stages_assets_and_augments_the_build() {
     // HERMETIC DEFAULT: the identical free machine runs against the virtual
     // filesystem with the same observations and leaves real disk untouched.
     std::fs::remove_file(output_root.join("asset.bin")).expect("clear staged asset");
-    let hermetic_evaluation = evaluate_build_machine_with_filesystem_measured(
-        &checked.typed,
-        "build",
-        vec![staging_build_argument()],
-        InterpretOptions::default(),
-    )
+    let hermetic_evaluation = evaluate_granted_build_machine_arguments(&checked.typed, BuildMachineEvaluationRequest::named("build", vec![staging_build_argument()]), InterpretOptions::default())
     .expect("hermetic granted build run");
     assert_eq!(
         logical_handle_lifetimes(hermetic_evaluation.observations()),
@@ -260,12 +246,7 @@ fn granted_build_serves_console_and_rejects_other_boundaries() {
         "granted-build unsupported boundary",
     );
 
-    let served = evaluate_build_machine_with_filesystem(
-        &console.typed,
-        "build",
-        vec![boundary_build_argument("console", "Console")],
-        InterpretOptions::default(),
-    )
+    let served = evaluate_granted_build_machine_arguments(&console.typed, BuildMachineEvaluationRequest::named("build", vec![boundary_build_argument("console", "Console")]), InterpretOptions::default()).map(MeasuredBuildMachineEvaluation::into_value).map_err(BuildMachineEvaluationFailure::into_diagnostic)
     .expect("a console-writing build machine is served, not rejected");
     assert_eq!(
         build_integer_field(&served[0], "target_index"),
@@ -273,12 +254,7 @@ fn granted_build_serves_console_and_rejects_other_boundaries() {
         "the console-writing build's augmentation must flow"
     );
 
-    let error = evaluate_build_machine_with_filesystem(
-        &beeper.typed,
-        "build",
-        vec![boundary_build_argument("beeper", "Beeper")],
-        InterpretOptions::default(),
-    )
+    let error = evaluate_granted_build_machine_arguments(&beeper.typed, BuildMachineEvaluationRequest::named("build", vec![boundary_build_argument("beeper", "Beeper")]), InterpretOptions::default()).map(MeasuredBuildMachineEvaluation::into_value).map_err(BuildMachineEvaluationFailure::into_diagnostic)
     .expect_err("a non-console non-filesystem boundary must still be rejected");
     assert!(
         error.contains("NON-filesystem") || error.contains("not yet supported"),

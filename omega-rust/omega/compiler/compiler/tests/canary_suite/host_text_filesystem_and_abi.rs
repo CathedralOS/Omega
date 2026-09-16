@@ -1,10 +1,4 @@
-use super::{
-    AcceptedSemanticBindingRole, CanaryCompileProduct, CanaryCompileSpec, Command,
-    FilesystemServiceBinding, InterpretOptions, Path, Stdio, compile,
-    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
-    compile_with_auxiliary_artifacts, executable_name, fs, hosted_main_program_entry_build,
-    interpret, interpret_entry_with_options, pass_canary, run_canary, unique_no_output_build_dir,
-};
+use super::{AcceptedSemanticBindingRole, CanaryCompileProduct, CanaryCompileSpec, Command, FilesystemServiceBinding, InterpretOptions, Path, Stdio, compile, compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, compile_with_auxiliary_artifacts, executable_name, fs, hosted_main_program_entry_build, interpret, interpret_entry, pass_canary, run_canary, unique_no_output_build_dir};
 use compiler::CheckedCompileRequest;
 use std::io::Write;
 
@@ -1136,12 +1130,7 @@ fn windows_canonicalize_failed_open_neither_queries_nor_closes() {
         filesystem.declaration_symbol(),
     )
     .expect("fixture filesystem binding resolves");
-    let outcome = interpret_entry_with_options(
-        &checked,
-        "FailedOpen::main",
-        &[],
-        InterpretOptions::default().with_filesystem_service_binding(binding),
-    );
+    let outcome = interpret_entry(&checked, "FailedOpen::main", &[], InterpretOptions::default().with_filesystem_service_binding(binding));
     assert_eq!(outcome.error, None);
     assert_eq!(
         outcome.exit_code, 70,

@@ -1,3 +1,4 @@
+use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -52,7 +53,7 @@ fn interpreter_dispatches_fixed_token_through_selected_conformance_row() {
         }
         "#,
     );
-    let outcome = interpret_entry(&checked, "Main::main", &[]);
+    let outcome = interpret_entry(&checked, "Main::main", &[], InterpretOptions::default());
 
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);

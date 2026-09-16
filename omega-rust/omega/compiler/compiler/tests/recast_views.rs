@@ -14,13 +14,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(
-        checked,
-        checked
+    interpret_entry(checked, checked
             .selected_program_entry_machine()
-            .expect("recast fixture selects an exact ProgramEntry"),
-        stdin,
-    )
+            .expect("recast fixture selects an exact ProgramEntry"), stdin, InterpretOptions::default())
 }
 
 fn repo_root() -> PathBuf {

@@ -4,7 +4,7 @@ use super::{
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
     FilesystemOperationResult, FilesystemReplay, FilesystemScalarOperandValue, InterpretOptions,
-    Lexer, PathBuf, ResolutionRequest, SourceMap, SourceOrigin, interpret_entry_with_options,
+    Lexer, PathBuf, ResolutionRequest, SourceMap, SourceOrigin, interpret_entry,
     lower_symbol_resolved_trees, lower_typed_trees, nonempty_side_lane_attempts,
     parse_syntax_trees_into_with_id, parse_syntax_trees_with_id, resolve, source_input,
     unknown_descriptor_seek_attempt,
@@ -228,7 +228,7 @@ fn executes_exact_replay_provider_free() {
     )
     .unwrap();
     let checked = checked_unknown_descriptor_open_at();
-    let outcome = interpret_entry_with_options(
+    let outcome = interpret_entry(
         &checked,
         "Main::open_unknown",
         &[],
@@ -246,7 +246,7 @@ fn executes_exact_replay_provider_free() {
     ] {
         let replay =
             FilesystemReplay::from_input_unknown_descriptor_open_at_record(record).unwrap();
-        let changed = interpret_entry_with_options(
+        let changed = interpret_entry(
             &checked,
             "Main::open_unknown",
             &[],

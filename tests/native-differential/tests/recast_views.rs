@@ -9,7 +9,7 @@ use compiler::{CheckedCompilation, compile_to_checked};
 use std::path::{Path, PathBuf};
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin)
+    interpret_entry(checked, "Main::main", stdin, InterpretOptions::default())
 }
 
 fn repo_root() -> PathBuf {

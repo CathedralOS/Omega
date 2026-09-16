@@ -27,7 +27,7 @@ use crate::{
     FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
     FilesystemRootedPathOperandResolution, FilesystemScalarOperandValue,
     FilesystemSourceInputReplayEventRecord, FilesystemSourceInputReplayRecord,
-    FilesystemSourceReadChainReplayRecord, InterpretOptions, interpret_entry_with_options,
+    FilesystemSourceReadChainReplayRecord, InterpretOptions, interpret_entry,
 };
 use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;

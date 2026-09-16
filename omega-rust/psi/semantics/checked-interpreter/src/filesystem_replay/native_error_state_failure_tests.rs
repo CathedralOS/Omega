@@ -15,7 +15,7 @@ use super::{
 use crate::{
     EvaluationObservations, FilesystemAccess, FilesystemObservationProvider,
     FilesystemOperationAttemptOutcome, FilesystemOperationResult, FilesystemReplay,
-    InterpretOptions, interpret_entry_with_options,
+    InterpretOptions, interpret_entry,
 };
 
 #[test]
@@ -102,7 +102,7 @@ fn each_ordered_pair_executes_without_a_provider() {
                 PairRecord::new(MutationRecord::new(None, kind).unwrap()),
             )
             .unwrap();
-        let outcome = interpret_entry_with_options(
+        let outcome = interpret_entry(
             &checked,
             entry,
             &[],
@@ -190,7 +190,7 @@ fn close_and_final_path_error_pairs_execute_without_a_provider() {
         let replay = replay
             .with_immediate_last_error_after_unknown_native_handle_failure()
             .unwrap();
-        let outcome = interpret_entry_with_options(
+        let outcome = interpret_entry(
             &checked_fixture(),
             entry,
             &[],

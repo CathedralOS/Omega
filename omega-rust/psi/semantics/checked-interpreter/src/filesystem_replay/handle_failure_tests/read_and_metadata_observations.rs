@@ -20,7 +20,7 @@ use crate::{
     FilesystemLogicalHandleKind, FilesystemObservationProvider, FilesystemOperationAttempt,
     FilesystemOperationAttemptOutcome, FilesystemOperationResult, FilesystemReplay,
     FilesystemScalarOperand, FilesystemScalarOperandValue, InterpretOptions,
-    MAX_FILESYSTEM_REPLAY_RETAINED_BYTES, interpret_entry_with_options,
+    MAX_FILESYSTEM_REPLAY_RETAINED_BYTES, interpret_entry,
 };
 
 #[test]
@@ -350,7 +350,7 @@ fn unknown_descriptor_read_file_metadata_executes_provider_free_and_tears_down_e
     )
     .unwrap();
 
-    let outcome = interpret_entry_with_options(
+    let outcome = interpret_entry(
         &checked,
         "Main::read_unknown",
         &[],

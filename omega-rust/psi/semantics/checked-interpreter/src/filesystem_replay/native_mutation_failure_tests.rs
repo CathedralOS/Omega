@@ -12,7 +12,7 @@ use crate::{
     FilesystemReplayReadKind, FilesystemReplayReadRecord, FilesystemScalarOperandValue,
     FilesystemSourceInputReplayEventRecord, FilesystemSourceInputReplayRecord,
     FilesystemSourceReadChainReplayRecord, FilesystemSponsor, FsGrants, InterpretOptions,
-    MAX_FILESYSTEM_REPLAY_RETAINED_BYTES, interpret_entry_with_options,
+    MAX_FILESYSTEM_REPLAY_RETAINED_BYTES, interpret_entry,
 };
 use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
@@ -464,7 +464,7 @@ fn each_native_mutation_executes_replay_without_a_provider() {
             Record::new(None, kind).unwrap(),
         )
         .unwrap();
-        let outcome = interpret_entry_with_options(
+        let outcome = interpret_entry(
             &checked,
             entry,
             &[],
@@ -489,8 +489,7 @@ fn virtual_and_sponsored_real_evaluators_fail_unknown_handles_before_mutation() 
         "UnlockFileMain::probe",
     ];
     for entry in entries {
-        let outcome =
-            interpret_entry_with_options(&checked, entry, &[], InterpretOptions::default());
+        let outcome = interpret_entry(&checked, entry, &[], InterpretOptions::default());
         assert_eq!(outcome.error, None, "virtual {entry}");
         assert_eq!(outcome.exit_code, 6, "virtual {entry}");
     }
@@ -498,7 +497,7 @@ fn virtual_and_sponsored_real_evaluators_fail_unknown_handles_before_mutation() 
     let sponsor = FilesystemSponsor::new(std::env::temp_dir()).unwrap();
     let before = sponsor.snapshot().unwrap();
     for entry in entries {
-        let outcome = interpret_entry_with_options(
+        let outcome = interpret_entry(
             &checked,
             entry,
             &[],

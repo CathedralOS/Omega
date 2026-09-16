@@ -19,7 +19,7 @@ use crate::{
     FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
     FilesystemRootedPathOperandResolution, FilesystemScalarOperand, FilesystemScalarOperandValue,
     FilesystemSourceInputReplayEventRecord, FilesystemSourceInputReplayRecord,
-    FilesystemSourceReadChainReplayRecord, InterpretOptions, interpret_entry_with_options,
+    FilesystemSourceReadChainReplayRecord, InterpretOptions, interpret_entry,
 };
 use source::{SourceMap, SourceOrigin};
 use source_files_to_tokens::Lexer;
@@ -452,7 +452,7 @@ fn executes_exact_replay_provider_free_with_empty_teardown() {
     )
     .unwrap();
     let checked = checked_unknown_descriptor_read_dir();
-    let outcome = interpret_entry_with_options(
+    let outcome = interpret_entry(
         &checked,
         "Main::read_unknown",
         &[],
@@ -474,7 +474,7 @@ fn executes_exact_replay_provider_free_with_empty_teardown() {
     ] {
         let replay =
             FilesystemReplay::from_input_unknown_descriptor_read_dir_record(record).unwrap();
-        let changed = interpret_entry_with_options(
+        let changed = interpret_entry(
             &checked,
             "Main::read_unknown",
             &[],

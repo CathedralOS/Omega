@@ -1,4 +1,5 @@
 use super::{CheckedChildExecution, PreparedCheckedSource};
+use checked_interpreter::InterpretOptions;
 use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -134,10 +135,20 @@ machine Main::query(&mut self) -> i32 reaches Sink { self.sink.echo(35) }
             .pre_selected_dispatch_source_trees(&checked.typed)
             .unwrap();
         assert!(matches!(source, std::borrow::Cow::Borrowed(_)));
-        let outcome = checked_interpreter::interpret_entry(&checked, "Main::query", &[]);
+        let outcome = checked_interpreter::interpret_entry(
+            &checked,
+            "Main::query",
+            &[],
+            InterpretOptions::default(),
+        );
         assert_eq!(outcome.error, None);
         assert_eq!(outcome.exit_code, 35);
-        let statement_outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
+        let statement_outcome = checked_interpreter::interpret_entry(
+            &checked,
+            "Main::main",
+            &[],
+            InterpretOptions::default(),
+        );
         assert_eq!(statement_outcome.error, None);
         let produced = terminal_production::TerminalProductionRequest::new(
             checked.terminal_production_trees(),
@@ -179,7 +190,12 @@ self.arithmetic.max(7, 35)
         Some("macos_arm64"),
     ))
     .expect("named boundary source checks");
-    let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
+    let outcome = checked_interpreter::interpret_entry(
+        &checked,
+        "Main::main",
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
@@ -211,7 +227,12 @@ transition self.switch.flip(&mut self.flag) {
         Some("macos_arm64"),
     ))
     .expect("guard adapter source checks");
-    let outcome = checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
+    let outcome = checked_interpreter::interpret_entry(
+        &checked,
+        "Main::main",
+        &[],
+        InterpretOptions::default(),
+    );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 35);
 }

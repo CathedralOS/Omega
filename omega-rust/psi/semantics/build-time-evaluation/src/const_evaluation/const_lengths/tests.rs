@@ -3,6 +3,9 @@ use super::{
     evaluate_with_selected_operators, validate_folded_array_lengths,
 };
 use crate::{SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody};
+use checked_interpreter::{
+    BuildMachineEvaluationRequest, BuildTimeOperationEvaluation, InterpretOptions,
+};
 
 fn fixture(namespace: &str) -> (TypedTrees, Vec<SelectedBuildTimeBinaryOperator>) {
     fixture_with_receiver(namespace, "data Main { bytes:[u8;length()]; }")
@@ -83,12 +86,14 @@ fn selected_operator_crash_fences_cover_admission_and_direct_execution() {
         );
         let machine = rows[0].origin.machine_symbol().unwrap();
         assert!(
-            checked_interpreter::evaluate_build_time_machine_symbol_with_selected_operators(
+            checked_interpreter::evaluate_build_time_machine(
                 &typed,
-                machine,
-                Vec::new(),
-                &rows,
+                BuildMachineEvaluationRequest {
+                    operators: &rows,
+                    ..BuildMachineEvaluationRequest::symbol(machine, Vec::new())
+                }
             )
+            .map(BuildTimeOperationEvaluation::into_measured)
             .unwrap_err()
             .contains("no build-time execution support")
         );
@@ -100,10 +105,15 @@ fn selected_operator_crash_fences_cover_admission_and_direct_execution() {
             },
         );
         assert!(
-            checked_interpreter::interpret_entry(&checked, "length", &[])
-                .error
-                .unwrap()
-                .contains("no checked execution support")
+            checked_interpreter::interpret_entry(
+                &checked,
+                "length",
+                &[],
+                InterpretOptions::default()
+            )
+            .error
+            .unwrap()
+            .contains("no checked execution support")
         );
     }
 }
