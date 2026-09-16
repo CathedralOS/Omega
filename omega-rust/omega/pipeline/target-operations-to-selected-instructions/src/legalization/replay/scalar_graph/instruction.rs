@@ -1,13 +1,20 @@
+//! Replays one legalized scalar instruction against the abstract operation
+//! it legalizes: `validate` checks the short pairs here and hands the long
+//! ones to `scalar_instructions`, `storage_instructions` and
+//! `call_instructions`.
+
 use super::{
-    AbstractOperation, AbstractOperationPlan, Error, LegalizedExactIntegerOperator,
-    LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarComparison,
-    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
-    NativeCallOrigin, PsiOptimizationUnit, TargetOperationPlan,
+    AbstractOperation, AbstractOperationPlan, Error, LegalizedOperationPlan,
+    LegalizedScalarArgument, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    LegalizedValueDefinition, NativeCallOrigin, PsiOptimizationUnit, TargetOperationPlan,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 mod aggregate_results;
+mod call_instructions;
+mod scalar_instructions;
+mod storage_instructions;
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
@@ -93,25 +100,16 @@ pub(super) fn validate(
             },
         ) if left == source_left && right == source_right => {}
         (
-            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field },
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. },
             AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::BooleanStructuralField { .. },
         )
         | (
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field },
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. },
             AbstractOperation::StructuralByteSequenceFieldLength { .. },
-        ) => {
-            let (_, _, expected_source, expected_field) =
-                scalar_graph_input::structural_fields::read(
-                    optimized,
-                    &node.operation,
-                    &plan.structural_types,
-                )
-                .ok_or(invalid.clone())?;
-            if source != &expected_source || *field != expected_field {
-                return Err(invalid);
-            }
-        }
+        ) => storage_instructions::validate_structural_scalar_field_read(
+            actual, node, optimized, plan,
+        )?,
         (
             LegalizedScalarInstructionKind::BitwiseAnd { left, right },
             AbstractOperation::IntegerBitwiseAnd {
@@ -232,65 +230,13 @@ pub(super) fn validate(
                 target_operations::BoundaryRealization::HostedExitProcessI32(_)
             ) => {}
         (
-            LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
-                destination,
-                path,
-                value,
-                byte_offset,
-                byte_size,
-            },
-            AbstractOperation::WriteOnlyPrimitiveStore {
-                destination: expected,
-                path: expected_path,
-                value: expected_value,
-                ..
-            },
-        ) => {
-            if destination != expected
-                || path != expected_path
-                || value != expected_value
-                || crate::structural_inputs::structural_reference_input::primitive_store(
-                    expected,
-                    expected_path,
-                    expected_value.scalar_type,
-                    &unit.structural_types,
-                ) != Some((*byte_offset, *byte_size))
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. },
+            AbstractOperation::WriteOnlyPrimitiveStore { .. },
+        ) => storage_instructions::validate_write_only_primitive_store(actual, node, unit)?,
         (
-            LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-                destination,
-                path,
-                field,
-                value,
-                byte_offset,
-                byte_size,
-            },
-            AbstractOperation::StructuralScalarFieldStore {
-                destination: expected,
-                path: expected_path,
-                field: expected_field,
-                value: expected_value,
-                ..
-            },
-        ) => {
-            if destination != expected
-                || path != expected_path
-                || field != expected_field
-                || value != expected_value
-                || crate::structural_inputs::structural_reference_input::store(
-                    expected.structural_type,
-                    expected_path,
-                    *expected_field,
-                    expected_value.scalar_type,
-                    &unit.structural_types,
-                ) != Some((*byte_offset, *byte_size))
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. },
+            AbstractOperation::StructuralScalarFieldStore { .. },
+        ) => storage_instructions::validate_structural_scalar_field_store(actual, node, unit)?,
         (
             LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
                 destination,
@@ -309,260 +255,48 @@ pub(super) fn validate(
             }
         }
         (
-            LegalizedScalarInstructionKind::ByteSequenceSubslice {
-                result,
-                source,
-                start,
-                end,
-                length,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::ByteSequenceSubslice {
-                result: expected_result,
-                source: expected_source,
-                start: expected_start,
-                end: expected_end,
-                length: expected_length,
-                obligation: expected_obligation,
-                ..
-            },
-        ) => {
-            if result != expected_result
-                || source != expected_source
-                || start != expected_start
-                || end != expected_end
-                || length != expected_length
-                || obligation != expected_obligation
-                || !unit.accepted_obligation_facts.iter().any(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == operation
-                        && fact.obligation == *obligation
-                        && fact.identity == *accepted_fact
-                })
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::ByteSequenceSubslice { .. },
+            AbstractOperation::ByteSequenceSubslice { .. },
+        ) => storage_instructions::validate_byte_sequence_subslice(
+            actual, node, optimized, unit, operation,
+        )?,
         (
-            LegalizedScalarInstructionKind::Call(call),
-            AbstractOperation::CallUnit {
-                callee,
-                arguments: scalar_arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                ..
-            }
-            | AbstractOperation::CallStructuralScalar {
-                callee,
-                arguments: scalar_arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                ..
-            },
-        ) => {
-            let called = unit
-                .functions
-                .iter()
-                .find(|function| function.machine == *callee)
-                .ok_or(invalid.clone())?;
-            if called.parameters.len() != scalar_arguments.len()
-                || called.structural_parameters.len() != structural_arguments.len()
-            {
-                return Err(invalid);
-            }
-            let expected = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            for (position, (argument, actual)) in structural_arguments
-                .iter()
-                .zip(call.arguments.iter().skip(scalar_arguments.len()))
-                .enumerate()
-            {
-                let LegalizedScalarArgument::Structural { semantic, target } = actual else {
-                    return Err(invalid);
-                };
-                if semantic != argument {
-                    return Err(invalid);
-                }
-                if scalar_graph_input::structural_call::argument_at(
-                    argument, position, operation, optimized, called, &expected, native, plan,
-                )? != *target
-                {
-                    return Err(invalid);
-                }
-            }
-            if call.arguments.len() != scalar_arguments.len() + structural_arguments.len()
-                || expected.parameters.len() != call.arguments.len()
-                || call
-                    .arguments
-                    .iter()
-                    .zip(scalar_arguments)
-                    .zip(&expected.parameters)
-                    .any(|((actual, source), placement)| {
-                        !matches!(actual,
-                        LegalizedScalarArgument::Scalar { source: value, placement: actual }
-                        if value == source && actual == placement)
-                    })
-                || call.callee != *callee
-                || call.call_plan != expected
-                || call.result_placement != expected.result
-                || call.source != NativeCallOrigin::Authored
-                || call.claim_transfers != *claim_transfers
-                || call.requirement_obligations != *requirement_obligations
-                || call.crash_continuations != *crash_continuations
-                || proposed_plan
-                    .scalar_functions
-                    .iter()
-                    .filter(|function| function.machine == *callee)
-                    .count()
-                    != 1
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::Call(_),
+            AbstractOperation::CallUnit { .. } | AbstractOperation::CallStructuralScalar { .. },
+        ) => call_instructions::validate_call(
+            actual,
+            node,
+            optimized,
+            native,
+            plan,
+            unit,
+            proposed_plan,
+            operation,
+        )?,
         (
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
-                destination,
-                field,
-                index,
-                value,
-                length,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::StructuralByteSequenceFieldByteStore {
-                field: expected_field,
-                index: expected_index,
-                value: expected_value,
-                length: expected_length,
-                obligation: expected_obligation,
-                ..
-            },
-        ) => {
-            if Some(destination.clone())
-                != scalar_graph_input::structural_fields::replacement(
-                    optimized,
-                    &node.operation,
-                    &plan.structural_types,
-                )
-                || field != expected_field
-                || index != expected_index
-                || value != expected_value
-                || length != expected_length
-                || obligation != expected_obligation
-                || !unit.accepted_obligation_facts.iter().any(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == operation
-                        && fact.obligation == *obligation
-                        && fact.identity == *accepted_fact
-                })
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { .. },
+            AbstractOperation::StructuralByteSequenceFieldByteStore { .. },
+        ) => storage_instructions::validate_structural_byte_sequence_field_byte_store(
+            actual, node, optimized, plan, unit, operation,
+        )?,
         (
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
-                destination,
-                field,
-                source,
-                length,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::StructuralByteSequenceFieldStore {
-                field: expected_field,
-                source: expected_source,
-                length: expected_length,
-                obligation: expected_obligation,
-                ..
-            },
-        ) => {
-            if Some(destination.clone())
-                != scalar_graph_input::structural_fields::replacement(
-                    optimized,
-                    &node.operation,
-                    &plan.structural_types,
-                )
-                || field != expected_field
-                || source != expected_source
-                || length != expected_length
-                || obligation != expected_obligation
-                || !unit.accepted_obligation_facts.iter().any(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == operation
-                        && fact.obligation == *obligation
-                        && fact.identity == *accepted_fact
-                })
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. },
+            AbstractOperation::StructuralByteSequenceFieldStore { .. },
+        ) => storage_instructions::validate_structural_byte_sequence_field_store(
+            actual, node, optimized, plan, unit, operation,
+        )?,
         (
-            LegalizedScalarInstructionKind::ByteSequenceWrite {
-                destination,
-                index,
-                value,
-                length,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::ByteSequenceWrite {
-                destination: expected_destination,
-                index: expected_index,
-                value: expected_value,
-                length: expected_length,
-                obligation: expected_obligation,
-                ..
-            },
-        ) => {
-            if destination != expected_destination
-                || index != expected_index
-                || value != expected_value
-                || length != expected_length
-                || obligation != expected_obligation
-                || !unit.accepted_obligation_facts.iter().any(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == operation
-                        && fact.obligation == *obligation
-                        && fact.identity == *accepted_fact
-                })
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::ByteSequenceWrite { .. },
+            AbstractOperation::ByteSequenceWrite { .. },
+        ) => storage_instructions::validate_byte_sequence_write(
+            actual, node, optimized, unit, operation,
+        )?,
         (
-            LegalizedScalarInstructionKind::ByteSequenceRead {
-                source,
-                index,
-                length,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::ByteSequenceRead {
-                source: expected_source,
-                index: expected_index,
-                length: expected_length,
-                obligation: expected_obligation,
-                ..
-            },
-        ) => {
-            if source != expected_source
-                || index != expected_index
-                || length != expected_length
-                || obligation != expected_obligation
-                || !unit.accepted_obligation_facts.iter().any(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == operation
-                        && fact.obligation == *obligation
-                        && fact.identity == *accepted_fact
-                })
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::ByteSequenceRead { .. },
+            AbstractOperation::ByteSequenceRead { .. },
+        ) => storage_instructions::validate_byte_sequence_read(
+            actual, node, optimized, unit, operation,
+        )?,
         (
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source,
@@ -594,36 +328,9 @@ pub(super) fn validate(
             AbstractOperation::IntegerConstant { value, .. },
         ) if actual == value => {}
         (
-            LegalizedScalarInstructionKind::IntegerExactCast {
-                operand,
-                source_type,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::IntegerExactCast {
-                psi_operation,
-                operand: source,
-                source_type: source_integer,
-                obligation: source_obligation,
-                ..
-            },
-        ) => {
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *source_obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            if operand != source || source_type != source_integer || obligation != source_obligation || *accepted_fact != fact.identity
-                || !optimized.facts.iter().any(|fact| matches!(fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                    if referenced == source_obligation && support == psi_operation)) {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::IntegerExactCast { .. },
+            AbstractOperation::IntegerExactCast { .. },
+        ) => scalar_instructions::validate_integer_exact_cast(actual, node, optimized, unit)?,
         (
             LegalizedScalarInstructionKind::Constant(actual),
             AbstractOperation::IeeeFloatConstant { value, .. },
@@ -636,185 +343,26 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::Constant(actual),
             AbstractOperation::BooleanConstant { value, .. },
         ) if *actual == IntegerValue::Unsigned(u128::from(*value)) => {}
-        (
-            LegalizedScalarInstructionKind::Call(call),
-            AbstractOperation::Call {
-                callee,
-                arguments,
-                requirement_obligations,
-                crash_continuations,
-                ..
-            },
-        ) => {
-            let expected = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            if call.callee != *callee
-                || call.call_plan != expected
-                || call.result_placement != expected.result
-                || call.source != NativeCallOrigin::Authored
-                || !call.claim_transfers.is_empty()
-                || call.requirement_obligations != *requirement_obligations
-                || call.crash_continuations != *crash_continuations
-                || call.arguments.len() != arguments.len()
-                || call
-                    .arguments
-                    .iter()
-                    .zip(arguments)
-                    .zip(&expected.parameters)
-                    .any(|((actual, source), placement)| {
-                        !matches!(actual, LegalizedScalarArgument::Scalar {source: value,placement: actual} if value == source && actual == placement)
-                    })
-                || proposed_plan
-                    .scalar_functions
-                    .iter()
-                    .filter(|function| function.machine == *callee)
-                    .count()
-                    != 1
-            {
-                return Err(invalid);
-            }
+        (LegalizedScalarInstructionKind::Call(_), AbstractOperation::Call { .. }) => {
+            call_instructions::validate_call_call(actual, node, native, plan, unit, proposed_plan)?
         }
         (
-            LegalizedScalarInstructionKind::WrappingRemainder {
-                left,
-                right,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::WrappingIntegerRemainder {
-                psi_operation,
-                obligation: source_obligation,
-                scalar_type,
-                left: source_left,
-                right: source_right,
-                ..
-            },
-        ) => {
-            let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
-                fact.machine == optimized.machine
-                    && fact.operation == *psi_operation
-                    && fact.obligation == *source_obligation
-            });
-            let fact = facts.next().ok_or(invalid.clone())?;
-            if facts.next().is_some()
-                || !scalar_graph_input::supports_signed_wrapping_remainder(*scalar_type)
-                || [source_left, source_right].iter().any(|value| {
-                    scalar_graph_input::value_type(optimized, **value)
-                        != Some(ScalarType::Integer(*scalar_type))
-                })
-                || left != source_left
-                || right != source_right
-                || obligation != source_obligation
-                || *accepted_fact != fact.identity
-                || !optimized.facts.iter().any(|fact| matches!(fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                    if referenced == source_obligation && support == psi_operation))
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::WrappingRemainder { .. },
+            AbstractOperation::WrappingIntegerRemainder { .. },
+        ) => scalar_instructions::validate_wrapping_remainder(actual, node, optimized, unit)?,
         (
-            LegalizedScalarInstructionKind::ExactBinary {
-                operator,
-                left,
-                right,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::ExactIntegerAdd {
-                psi_operation,
-                obligation: source_obligation,
-                left: source_left,
-                right: source_right,
-                ..
-            }
-            | AbstractOperation::ExactIntegerSubtract {
-                psi_operation,
-                obligation: source_obligation,
-                left: source_left,
-                right: source_right,
-                ..
-            }
-            | AbstractOperation::ExactIntegerDivide {
-                psi_operation,
-                obligation: source_obligation,
-                left: source_left,
-                right: source_right,
-                ..
-            },
-        ) => {
-            let expected_operator = match node.operation {
-                AbstractOperation::ExactIntegerAdd { .. } => LegalizedExactIntegerOperator::Add,
-                AbstractOperation::ExactIntegerSubtract { .. } => {
-                    LegalizedExactIntegerOperator::Subtract
-                }
-                AbstractOperation::ExactIntegerDivide { .. } => {
-                    LegalizedExactIntegerOperator::Divide
-                }
-                _ => return Err(invalid),
-            };
-            let fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.operation == *psi_operation
-                        && fact.obligation == *source_obligation
-                })
-                .ok_or(Error::SourceCustodyMismatch)?;
-            if *operator != expected_operator || left != source_left || right != source_right
-                    || obligation != source_obligation || *accepted_fact != fact.identity
-                    || !optimized.facts.iter().any(|fact| matches!(fact,
-                        optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                        if referenced == source_obligation && support == psi_operation)) {
-                    return Err(invalid);
-                }
-        }
+            LegalizedScalarInstructionKind::ExactBinary { .. },
+            AbstractOperation::ExactIntegerAdd { .. }
+            | AbstractOperation::ExactIntegerSubtract { .. }
+            | AbstractOperation::ExactIntegerDivide { .. },
+        ) => scalar_instructions::validate_exact_binary(actual, node, optimized, unit)?,
         (
-            LegalizedScalarInstructionKind::Compare {
-                predicate,
-                operand_type,
-                left,
-                right,
-            },
-            AbstractOperation::BooleanEqual {
-                left: source_left,
-                right: source_right,
-                ..
-            }
-            | AbstractOperation::IntegerEqual {
-                left: source_left,
-                right: source_right,
-                ..
-            }
-            | AbstractOperation::IntegerLessThan {
-                left: source_left,
-                right: source_right,
-                ..
-            }
-            | AbstractOperation::IntegerLessOrEqual {
-                left: source_left,
-                right: source_right,
-                ..
-            },
-        ) => {
-            let expected = match node.operation {
-                AbstractOperation::BooleanEqual { .. } | AbstractOperation::IntegerEqual { .. } => {
-                    LegalizedScalarComparison::Equal
-                }
-                AbstractOperation::IntegerLessThan { .. } => LegalizedScalarComparison::LessThan,
-                AbstractOperation::IntegerLessOrEqual { .. } => {
-                    LegalizedScalarComparison::LessOrEqual
-                }
-                _ => return Err(invalid),
-            };
-            if *predicate != expected
-                || left != source_left
-                || right != source_right
-                || scalar_graph_input::value_type(optimized, *source_left) != Some(*operand_type)
-            {
-                return Err(invalid);
-            }
-        }
+            LegalizedScalarInstructionKind::Compare { .. },
+            AbstractOperation::BooleanEqual { .. }
+            | AbstractOperation::IntegerEqual { .. }
+            | AbstractOperation::IntegerLessThan { .. }
+            | AbstractOperation::IntegerLessOrEqual { .. },
+        ) => scalar_instructions::validate_compare(actual, node, optimized)?,
         _ => return Err(invalid),
     }
     Ok(())
