@@ -10,9 +10,13 @@ it unresolved, not encourage searching until something seems to agree.
 1. Retain the exact claim, question, source revision and permitted source paths.
 2. Group only identical claim/question/source-set/revision requests. Different
    owners or snapshots are not duplicates just because their words match.
-3. Retrieve whole source paragraphs with the existing lexical ranker. Keep the
-   deterministic top-one result as a baseline. Do not use expected labels or
-   handpicked answer anchors to select candidates.
+3. For an existing literal quote, first try its uniquely containing paragraph in
+   the same source revision/path, within the size cap. Preserve all original
+   quotes; missing or multiple matches mean no automatic expansion. This repairs
+   omitted antecedents such as "those owners" without searching or generating.
+   Containment is NOT semantic support: retain source review/checking. Otherwise
+   retrieve whole paragraphs with the existing lexical ranker. Keep deterministic
+   top-one as a baseline; never use expected labels or handpicked answer anchors.
 4. Ask whether each candidate independently supports the complete claim for the
    requested owner and conditions. Batch independent judgments within a budget;
    isolate different experimental arms to avoid giving one a hint from the other.
