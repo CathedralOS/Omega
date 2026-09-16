@@ -757,9 +757,7 @@ pub(crate) fn derive_normalized_foreign_child(
         .ok_or("normalized foreign D41 occurrence names an absent boundary")?;
     if *boundary != occurrence.boundary()
         || declaration.identity != requirement_identity
-        || !structural_arguments.is_empty()
         || !completion_receipts.is_empty()
-        || !declaration.structural_parameters.is_empty()
     {
         return Ok(None);
     }
@@ -790,6 +788,46 @@ pub(crate) fn derive_normalized_foreign_child(
             return Err("normalized foreign D41 child changed a scalar argument source");
         }
     }
+    let pointer_shape = calling_conventions::ValueShape::integer(
+        u16::try_from(target.pointer_size)
+            .map_err(|_| "normalized foreign D41 pointer size does not fit its ABI")?,
+        u16::try_from(target.pointer_alignment)
+            .map_err(|_| "normalized foreign D41 pointer alignment does not fit its ABI")?,
+    );
+    // The normalized foreign lane admits structural custody only as the exact
+    // source-rooted borrowed flat-record lane the lowering owns: each expected
+    // Terminal argument row must rejoin its declared formal and the observed
+    // evaluated plan must place each formal's referent pointer as one
+    // pointer-width word. Any other valid signature shape retains no complete
+    // physical evidence rather than claiming a custody join it cannot prove.
+    let structural_parameter_shapes =
+        if !structural_arguments.is_empty() || !declaration.structural_parameters.is_empty() {
+            let caller = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == occurrence.machine())
+                .ok_or("normalized foreign D41 child names an absent caller machine")?;
+            let Some(shapes) = normalized_foreign_structural_parameter_shapes(
+                structural_arguments,
+                &declaration.structural_parameters,
+                &caller.structural_parameters,
+                arguments.is_empty(),
+                foreign.callback_address.is_some()
+                    || !foreign
+                        .boundary_entry_plan
+                        .call
+                        .callback_materializations
+                        .is_empty(),
+                &foreign.boundary_entry_plan.call.parameters,
+                pointer_shape,
+            )?
+            else {
+                return Ok(None);
+            };
+            Some(shapes)
+        } else {
+            None
+        };
     let result_shape = match (
         &operation.result,
         &declaration.result,
@@ -832,7 +870,7 @@ pub(crate) fn derive_normalized_foreign_child(
     if callback_ordinal.is_some_and(|ordinal| ordinal > parameter_shapes.len()) {
         return Err("normalized foreign D41 callback ordinal is outside its native signature");
     }
-    let mut native_parameter_shapes = parameter_shapes;
+    let mut native_parameter_shapes = structural_parameter_shapes.unwrap_or(parameter_shapes);
     if let (Some(callback), Some(ordinal)) = (callback, callback_ordinal) {
         native_parameter_shapes.insert(ordinal, callback.target.application.shape);
     }
@@ -845,12 +883,6 @@ pub(crate) fn derive_normalized_foreign_child(
         Some(callback) => {
             let callback_ordinal = callback_ordinal
                 .expect("callback custody establishes one native parameter ordinal");
-            let pointer_shape = calling_conventions::ValueShape::integer(
-                u16::try_from(target.pointer_size)
-                    .map_err(|_| "normalized foreign D41 pointer size does not fit its ABI")?,
-                u16::try_from(target.pointer_alignment)
-                    .map_err(|_| "normalized foreign D41 pointer alignment does not fit its ABI")?,
-            );
             let expected_placement = match callback.destination {
                 machine_code::CallbackAddressDestination::Register(register) => {
                     calling_conventions::ValuePlacement {
@@ -1207,6 +1239,8 @@ pub(crate) fn derive_normalized_foreign_child(
         boundary_plan_identity,
         &foreign.locator,
         foreign.same_stack_contribution.commitment().as_bytes(),
+        structural_arguments,
+        &declaration.structural_parameters,
     );
     let parent = PhysicalChildParent::BoundaryTraitSettlement(
         BoundaryTraitSettlementParts {
@@ -1279,4 +1313,106 @@ fn fixed_integer_shape(scalar_type: ScalarType) -> Option<calling_conventions::V
     }
     let bytes = bits / 8;
     Some(calling_conventions::ValueShape::integer(bytes, bytes))
+}
+
+/// Rejoin the expected structural-argument custody of one normalized foreign
+/// Terminal boundary call against the observed evaluated-plan parameter
+/// placements.
+///
+/// Returns `Ok(Some(_))` — one pointer-width signature shape per declared
+/// structural formal — only for the exact source-rooted borrowed flat-record
+/// lane the lowering owns: every argument carries a nonempty field-only path
+/// rooted at a caller structural parameter, matches its declared formal's
+/// position and access, that formal is borrowed, unrestricted, and
+/// unqualified, and the observed plan places each formal's referent pointer
+/// as exactly one pointer-width word. `Ok(None)` names a valid signature
+/// shape this lane cannot prove — a mixed scalar/structural signature, a
+/// callback-bearing signature, an owned or qualified formal, or an argument
+/// that is not such a projection — so the artifact retains no complete
+/// physical evidence rather than claiming an unprovable custody join.
+/// `Err` names contradictory retained custody: an argument count, declared
+/// formal position, or access that changed between declaration and call, or
+/// an observed plan whose parameter rows no longer realize each formal's
+/// pointer word.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn normalized_foreign_structural_parameter_shapes(
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+    caller_structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+    scalar_lane_empty: bool,
+    callback_present: bool,
+    plan_parameters: &[calling_conventions::ValuePlacement],
+    pointer_shape: calling_conventions::ValueShape,
+) -> Result<Option<Vec<calling_conventions::ValueShape>>, &'static str> {
+    if structural_arguments.len() != structural_parameters.len() {
+        return Err("normalized foreign D41 child changed its structural call occurrence");
+    }
+    if structural_arguments.is_empty() {
+        return Ok(Some(Vec::new()));
+    }
+    // The Terminal declaration erases the authored formal interleave, so a
+    // structural argument rejoins its exact plan position only while the
+    // scalar lane is empty and no callback occupies a native parameter.
+    if !scalar_lane_empty || callback_present {
+        return Ok(None);
+    }
+    if plan_parameters.len() != structural_arguments.len() {
+        return Err("normalized foreign D41 child changed its structural call custody");
+    }
+    let mut shapes = Vec::with_capacity(structural_arguments.len());
+    for (index, ((argument, parameter), placement)) in structural_arguments
+        .iter()
+        .zip(structural_parameters)
+        .zip(plan_parameters)
+        .enumerate()
+    {
+        if usize::try_from(parameter.position).ok() != Some(index)
+            || argument.access != parameter.access
+        {
+            return Err("normalized foreign D41 child changed its structural call occurrence");
+        }
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || argument.path.is_empty()
+            || argument
+                .path
+                .iter()
+                .any(|segment| !matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
+            || !caller_structural_parameters
+                .iter()
+                .any(|source| source.place == argument.place)
+        {
+            return Ok(None);
+        }
+        let placed_pointer_word = match placement.locations.as_slice() {
+            [
+                calling_conventions::ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ]
+            | [
+                calling_conventions::ValueLocation::Stack {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] => *byte_size,
+            _ => {
+                return Err("normalized foreign D41 child changed its structural call custody");
+            }
+        };
+        if placement.shape != pointer_shape || placed_pointer_word != pointer_shape.byte_size {
+            return Err("normalized foreign D41 child changed its structural call custody");
+        }
+        shapes.push(pointer_shape);
+    }
+    Ok(Some(shapes))
 }
