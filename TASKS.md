@@ -3208,39 +3208,10 @@ Owners include
   `terminal_interpreter/scalar_provider_call_tests.rs`). Open: verifier
   provider-result conformance still lacks a
   `(BoundaryMachineResult::Scalar, TerminalMachineResult::Scalar)` arm
-  (`terminal-verifier` `validation/foundation/provider_result.rs`, owned by
-  STRICT-FLOAT-RANGES), so codec representation validation and artifact
+  (`terminal-verifier` `validation/foundation/provider_result.rs`), so
+  codec representation validation and artifact
   admission still reject scalar provider rows; kernel discharge and
   artifact-aware proof sources remain.
-
-- **STRICT-FLOAT-RANGES.** Implement exclusive floating range evidence in
-  validation's type-reference/cast readers, proof constraints and retained
-  entry predicates. Preserve the authored endpoint and IEEE order; integer
-  predecessor arithmetic is not floating range normalization. Accept values
-  below the endpoint and reject the endpoint itself and NaN, including
-  call/store delivery and independent replay. See
-  [numeric qualifications](wiki/spec/language/numeric_values.md#value-qualifications-and-policy-adapters).
-  Resume: the declaration, proof (`ProofConstraint::FloatRange::maximum_inclusive`
-  in `omega-rust/psi/semantics/proof/src/obligations.rs`) and cast readers now
-  retain the strict endpoint for call/store/return delivery
-  (`tests/omega/{pass,fail}/float/exclusive_float_range_*`), and checked
-  contracts retain each authored floating entry range as
-  `ClosedFloatRangeRequirement` -- IEEE bit-exact endpoints at the declared
-  carrier plus the authored boundary kind -- on
-  `ClosedScalarValueContractPlan::float_entry_ranges`. Lowered-psi emission
-  and independent Terminal Psi replay now retain each authored range as a
-  canonical `ScalarFloatRange` catalog row on dense terminal IDs: the codec
-  carries a fourth counted catalog section in `(machine, parameter)` order,
-  the verifier admits delivery when an `IeeeFloatConstant` is contained or a
-  caller-parameter range subsumes it (all else fails closed), and retention
-  roots keep evidence-named declarations from pruning
-  (`terminal-psi` `ScalarQualificationCatalog.float_entry_ranges`,
-  `checked-trees-to-lowered-psi` emission, `terminal-codec`
-  `scalar_qualification_wire`, `terminal-verifier`
-  `validation/scalar_qualifications.rs`; 25 integration tests under
-  `float_ranges*`/`float_entry_ranges_source`). The requires tail keeps an
-  explicit unsupported row until the scalar predicate vocabulary carries
-  IEEE comparisons — the one remaining leg.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
