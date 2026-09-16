@@ -223,6 +223,18 @@ impl PreparedCheckedSource {
             .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
             .transpose()
             .map_err(|diagnostic| vec![diagnostic])?;
+        // A packaged root binding that carries the compiler-captured canonical
+        // Source metadata index is sealed package custody. Every build
+        // activation over such custody runs against a fresh private
+        // materialization of the captured inventory with no invocation
+        // roster, exactly what the package manager's review route requests,
+        // so a retained Terminal production and the accepted review evidence
+        // it must rejoin record the same build observation identity. A
+        // binding without that index has no validated inventory to capture
+        // against and keeps the live root it names.
+        let build_snapshot = package_inputs
+            .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
+            .map(|_| build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
         self.compile_child_with_replay(CheckedChildExecution {
             selected_target_profile,
             package_inputs,
@@ -230,7 +242,7 @@ impl PreparedCheckedSource {
             filesystem_sponsor: None,
             evaluation_sponsor: None,
             replay_record: None,
-            build_snapshot: None,
+            build_snapshot: build_snapshot.as_ref(),
             optimization_rollback: optimization_rollback.clone(),
         })
     }
