@@ -17,7 +17,7 @@
 // engines now exit 77.
 use omega_language_std::console;
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let z: u64 in Wrapping = 0;
     let big: u64 in Wrapping = z - 1;
     let m: u64 in Wrapping = max(big, 5) + 0;

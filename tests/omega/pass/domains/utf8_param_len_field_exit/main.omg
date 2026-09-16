@@ -21,7 +21,7 @@ machine Main::store(&mut self, text: &[u8] in Utf8) {
     self.result = text.len;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.store("hello");
     transition self.result == 5 {
         true -> good()

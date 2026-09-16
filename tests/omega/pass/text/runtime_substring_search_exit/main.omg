@@ -34,7 +34,7 @@ data Main {
     found: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.hay = "hello world";
     self.ndl = "world";
     self.lim = self.hay.len - self.ndl.len;

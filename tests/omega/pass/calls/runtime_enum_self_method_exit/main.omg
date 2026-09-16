@@ -28,7 +28,7 @@ machine Signal::is_green(&self) -> bool {
     state no(&self) -> bool { false }
 }
 data Main { console: Console; s: Signal; v1: i32; v2: i32; v3: i32; flag: bool; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.s = Signal::Green;
     self.v1 = self.s.go_value();
     transition self.v1 == 30 { true -> leg2() _ -> bad(71) }

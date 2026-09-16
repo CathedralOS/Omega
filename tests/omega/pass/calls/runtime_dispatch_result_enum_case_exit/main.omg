@@ -23,7 +23,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
     // ENUM-case terminal with a payload from a param.
     state leaf(&mut self, acc: i32 in Wrapping) -> Verdict { Verdict::Yes { score: acc } }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.result = self.count(3, 0, 0);
     transition self.result {
         Verdict::Yes { score } -> ck(score)

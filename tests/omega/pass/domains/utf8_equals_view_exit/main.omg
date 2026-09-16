@@ -12,7 +12,7 @@ data Main {
     console: Console;
 }
 
-machine Main::cmp(&self, a: &[u8] in Utf8, b: &[u8] in Utf8) {
+machine Main::cmp(&self, a: &[u8] in Utf8, b: &[u8] in Utf8) reaches Console {
     transition a == b {
         true -> same()
         _ -> diff()

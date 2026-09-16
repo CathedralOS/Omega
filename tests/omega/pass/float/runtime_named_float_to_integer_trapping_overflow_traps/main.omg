@@ -5,7 +5,7 @@ use omega_language_std::console;
 
 data Main { console: Console; value: f64; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.value = 256.0;
     let trapped: u8 in Trapping = U8::from_f64(self.value);
     self.console.exit_process(trapped as i32);

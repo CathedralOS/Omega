@@ -20,7 +20,7 @@ data Main {
     cells: [Cell; 3];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cells[0].value = 70;
     self.cells[1].value = 42;
 

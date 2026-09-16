@@ -27,7 +27,7 @@ satisfies FormatMigration<CounterDisk, CounterV1, Counter>::migrate
     out.timestamp = 7;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let old: CounterV1 = CounterV1 { counter: 3 };
     let current: Counter = Counter { count: 0, timestamp: 0 };
     Counter::from_v1(old, &mut current);

@@ -19,7 +19,7 @@ data Main {
     widened_int: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.real_value = 9.0;
     self.real_value = self.real_value / 2.0; // 4.5
 

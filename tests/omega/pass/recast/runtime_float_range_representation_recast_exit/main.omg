@@ -11,7 +11,7 @@ data Main {
     value: f32 [0..=1];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let wide: &f32 [0..=2] = &self.value as &f32;
     let bits: &u32 = &self.value as &u32;
     transition wide == 0.0f32 && bits == 0 {

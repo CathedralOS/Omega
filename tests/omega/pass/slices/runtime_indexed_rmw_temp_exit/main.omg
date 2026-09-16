@@ -19,7 +19,7 @@ data Main {
     tmp: i32 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.counts[0] = 0;
     self.counts[1] = 0;
     self.counts[2] = 0;

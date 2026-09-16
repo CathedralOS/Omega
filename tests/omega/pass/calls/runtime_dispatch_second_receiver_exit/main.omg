@@ -20,7 +20,7 @@ terminates by n -> Nat::Descending;
     state leaf(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
 }
 data Main { console: Console; first: Tally; second: Tally; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.first.count = 100;
     self.second.count = 7;
     // 3 iterations of +7 = 21 through the SECOND receiver.

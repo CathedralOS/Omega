@@ -27,7 +27,7 @@ data Main {
     errs: i32 in Wrapping; // count of Err
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.aa = [10, 7, 20];
     self.bb = [2, 0, 4];
     self.i = 0;

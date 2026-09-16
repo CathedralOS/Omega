@@ -14,7 +14,7 @@ data Main {
     w: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.src = 5;
     self.src = self.src + 100; // src = 105 (runtime value, not a tracked constant)
     self.v = 9;                // v folds to 9

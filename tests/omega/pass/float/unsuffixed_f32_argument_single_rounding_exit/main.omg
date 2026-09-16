@@ -18,7 +18,7 @@ machine Main::produce(&self) -> f32 {
     transition { _ -> (8388609.499999999999999) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let value: f32 = self.echo(8388609.499999999999999);
     transition value == 8388609.0 { true -> return_face() _ -> bad(78) }
 

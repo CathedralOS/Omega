@@ -23,7 +23,7 @@ machine truthy(x: i32) -> bool {
 }
 
 data Main { console: Console; probe: Probe; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.probe.flag = 1;
     let a: bool = self.probe.is_set();
     transition a == true { true -> face_b() _ -> bad() }

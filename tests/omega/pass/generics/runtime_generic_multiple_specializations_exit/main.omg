@@ -17,7 +17,7 @@ machine Main::pick<T [copy]>(&self, value: &T) -> i32 in Wrapping {
     7
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let from_light: i32 in Wrapping = self.pick(&self.light);
     let from_number: i32 in Wrapping = self.pick(&self.number);
     let result: i32 in Wrapping = from_light + from_number;

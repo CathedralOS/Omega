@@ -22,7 +22,7 @@ data Main {
     x: u32 [0..=3];
     y: u32 [0..=2];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // Leg 1: READ with statically-known operands (the original pin shape).
     self.x = 3;
     self.y = 2;

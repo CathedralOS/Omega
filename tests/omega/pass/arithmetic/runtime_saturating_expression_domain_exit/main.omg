@@ -26,7 +26,7 @@ data Main {
     inc: i64 in Saturating;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // i8 add overflow, compared directly: 100 + 50 = 150 -> clamp to 127.
     self.a8 = 100;
     self.b8 = 50;

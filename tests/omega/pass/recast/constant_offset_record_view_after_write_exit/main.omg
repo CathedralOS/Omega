@@ -6,7 +6,7 @@ use omega_language_std::console;
 data Desc { a: u32; b: u64; }
 data Main { console: Console; buf: [u8; 24]; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.buf[8] = 7;
     self.buf[16] = 9;
     let d: &Desc = &self.buf[8] as &Desc;

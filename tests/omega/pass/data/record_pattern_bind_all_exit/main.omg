@@ -6,7 +6,7 @@ data Pair {
     y: i32 [0..=100];
 }
 data Main { console: Console; pair: Pair; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.pair = Pair { x: 30, y: 40 };
     let { x, y } = self.pair;
     let total: i32 = x + y;

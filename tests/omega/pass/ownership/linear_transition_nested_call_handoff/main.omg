@@ -12,7 +12,7 @@ data Main { console: Console; }
 
 machine Main::forward(&mut self, receipt: Receipt) -> Receipt { receipt }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let first: Receipt = Receipt { code: 7 };
     let second: Receipt = Receipt { code: 9 };
     transition {

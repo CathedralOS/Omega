@@ -10,7 +10,7 @@ data Main {
     copy: Item;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let index: u64 = 1;
     self.items[index].value = 23;
     self.copy = self.items[index];

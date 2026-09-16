@@ -14,7 +14,7 @@ data Main {
     message: [u8; 8] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.message = "ALERT";
     self.console.exit_process(self.message[0] as i32);
 }

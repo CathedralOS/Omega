@@ -9,7 +9,7 @@
 use omega_language_std::console;
 data Main { console: Console; }
 
-machine Main::count_down(&mut self, n: u32) {
+machine Main::count_down(&mut self, n: u32) reaches Console {
     transition n > 0 {
         true -> count_down(n - 1)
         false -> done()

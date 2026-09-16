@@ -39,7 +39,7 @@ linux_arm64 machine Helper::delta(&self) -> i32 {
 
 data Main { console: Console; helper: Helper; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 = self.helper.pick();
     let b: i32 = self.helper.delta();
     transition a == 63 { true -> check_delta(b) _ -> bad(71) }

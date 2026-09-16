@@ -5,7 +5,7 @@
 // arm, then the true arm exits 70.
 use omega_language_std::console;
 data Main { console: Console; }
-machine Main::climb(&mut self, n: i32) {
+machine Main::climb(&mut self, n: i32) reaches Console {
     transition n >= 70 {
         true -> done(n)
         false -> climb(n + 1)

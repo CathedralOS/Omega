@@ -22,7 +22,7 @@ machine Main::main(&mut self) {
     self.other = "omega";
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     let ok: bool = self.name == "omega";
     transition ok {
         true -> st_lit()

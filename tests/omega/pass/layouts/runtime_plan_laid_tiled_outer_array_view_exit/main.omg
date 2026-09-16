@@ -40,7 +40,7 @@ data Main {
     observed: u16;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let view: &mut TiledView = &mut self.bytes[0] as &mut TiledView;
     view.value.values[0] = 0x0201;
     self.index = 1;

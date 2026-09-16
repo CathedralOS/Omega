@@ -18,7 +18,7 @@ data Main {
     vk: i32 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr = [5, 2, 8, 1, 9, 3];
     self.i = 0;
     transition { _ -> outer() }

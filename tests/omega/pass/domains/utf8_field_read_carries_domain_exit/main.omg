@@ -16,7 +16,7 @@ data Main {
     out: &[u8] in Utf8;
 }
 
-machine Main::check(&self, text: &[u8] in Utf8) {
+machine Main::check(&self, text: &[u8] in Utf8) reaches Console {
     transition text == "Gate" {
         true -> good()
         _ -> bad()

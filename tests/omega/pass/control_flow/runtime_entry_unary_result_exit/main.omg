@@ -9,7 +9,7 @@ machine Main::negated(&mut self) -> bool {
     transition { _ -> (!self.flag) }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let result: bool = self.negated();
     transition result == true {
         true -> passed()

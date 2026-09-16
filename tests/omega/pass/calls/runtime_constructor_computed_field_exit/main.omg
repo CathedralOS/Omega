@@ -16,7 +16,7 @@ data Main {
 machine Pair8::make(n: u32 [0..=10000]) -> Pair8 {
     transition { _ -> Pair8 { a: n / 100, b: 7 } }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.p = Pair8::make(3500);
     transition self.p.a == 35 && self.p.b == 7 {
         true -> yes()

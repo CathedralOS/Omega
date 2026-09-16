@@ -15,7 +15,7 @@ data Main {
     u32v: u32;
     u64v: u64;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.f = 300.0;
     self.u8v = (self.f as u8 in Saturating) + (0 as u8 in Saturating);
     transition self.u8v == 255 { true -> f32_unsigned_high() _ -> bad(71) }

@@ -16,7 +16,7 @@ data Main {
     r: i32 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr = [3, 10, 20, 70, 40, 50, 60, 80, 90, 99];
     self.x = self.arr[0]; // x = 3 (runtime, from a const-index read)
     self.d = 0 - 2;

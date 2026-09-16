@@ -19,7 +19,7 @@ data Main {
     zero64: FloatClass;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let positive_zero32: f32 = 0.0f32;
     let positive_one32: f32 = 1.0f32;
     let positive_subnormal32: f32 = 1.401298464324817070923729583289916131280e-45;

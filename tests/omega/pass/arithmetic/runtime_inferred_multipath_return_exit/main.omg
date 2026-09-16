@@ -10,7 +10,7 @@ machine Main::pick(&self, b: bool) -> i32 {
         false -> 7
     }
 }
-machine Main::run(&mut self, b: bool) {
+machine Main::run(&mut self, b: bool) reaches Console {
     let s: i32 = self.pick(b) + 63;
     self.console.exit_process(s);
 }

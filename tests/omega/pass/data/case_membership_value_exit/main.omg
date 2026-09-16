@@ -16,7 +16,7 @@ data Main {
     cmd: Command;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cmd = Command::Move { dx: 3 };
 
     let hit: bool = self.cmd in Command::Move;

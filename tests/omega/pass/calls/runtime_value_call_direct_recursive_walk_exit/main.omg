@@ -37,7 +37,7 @@ machine Main::bump(&mut self, path: &[u8], i: u64) {
     }
     state skip(&mut self) { }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.n = 0;
     self.r = self.walk("a/b/c", 0, 0);
     let c: i32 = self.r;

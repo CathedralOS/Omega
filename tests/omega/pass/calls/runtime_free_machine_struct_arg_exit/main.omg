@@ -41,7 +41,7 @@ data Main {
     v: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.v = 60;
     self.v = self.v + 9; // runtime 69
     let job: Job = Job { id: self.v };

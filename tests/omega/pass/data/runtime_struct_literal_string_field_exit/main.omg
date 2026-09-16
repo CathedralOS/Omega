@@ -50,7 +50,7 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // Struct-literal form: both fields initialized by the literal, no
     // follow-up assignments.
     let msg: LabelSample = LabelSample { count: 7, label: "hi" };

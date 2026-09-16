@@ -21,7 +21,7 @@ machine Probe::fill(&mut self) -> i64 {
     state go(&mut self) -> i64 { self.buf[4 + 1] as i64 }
 }
 data Main { console: Console; probe: Probe; out: i64; ncode: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.out = self.probe.fill();
     self.ncode = narrow_i64_to_i32_trapping(self.out);
     self.console.exit_process(self.ncode);

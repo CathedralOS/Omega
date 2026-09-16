@@ -14,7 +14,7 @@ terminates by k;
         false -> a
     }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let r: u64 = self.rot(3, 1, 2, 3);
     transition r == 1 {
         true -> yes()

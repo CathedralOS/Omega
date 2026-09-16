@@ -32,7 +32,7 @@ data Main {
     q: Square;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 in Wrapping = self.dispatchc(&mut self.c);
     let b: i32 in Wrapping = self.dispatchq(&mut self.q);
     let n: i32 in Wrapping = a * 10 + b;

@@ -18,7 +18,7 @@ data Main { console: Console; never: [u8; 8] in Utf8; also_never: [u8; 8] in Utf
 machine Main::main(&mut self) {
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     self.okf = self.never == "";
     transition self.okf {
         true -> leg2()

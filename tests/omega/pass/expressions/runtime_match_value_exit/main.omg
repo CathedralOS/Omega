@@ -18,7 +18,7 @@ data Main {
     fallback: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.command = Command::Look;
     // Exhaustive enum match (no wildcard): selects Look -> 2.
     self.code = match self.command {

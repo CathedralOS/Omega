@@ -19,7 +19,7 @@ data Main {
     b: f32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 2.5;
     self.b = 1.5;
 

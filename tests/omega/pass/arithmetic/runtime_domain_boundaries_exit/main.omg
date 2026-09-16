@@ -18,7 +18,7 @@ data Main {
     u8wrap: u8 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.i32sat = 2147483647;
     self.i32sat = self.i32sat + 1;          // saturates to i32::MAX
 

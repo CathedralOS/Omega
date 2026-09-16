@@ -14,7 +14,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let real: f64 = 10.0;
     let truncated: i32 = (real as i32 in Saturating) as i32; // policy, then explicit erasure
 

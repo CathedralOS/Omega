@@ -8,7 +8,7 @@
 use omega_language_std::console;
 data Signal { case Red; case Green; }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let s: Signal = Signal::Green;
     transition s == Signal::Green { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }

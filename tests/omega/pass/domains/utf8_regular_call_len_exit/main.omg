@@ -16,7 +16,7 @@ data Main {
 
 use omega_language_std::console;
 
-machine Main::check(&self, text: &[u8] in Utf8) {
+machine Main::check(&self, text: &[u8] in Utf8) reaches Console {
     transition text.len == 5 {
         true -> ok()
         _ -> nope()

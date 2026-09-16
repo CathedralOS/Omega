@@ -14,7 +14,7 @@ data Main {
     value: u32 in Small;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let view: &mut u32 in Small = &mut self.value as &mut u32;
     transition self.value == 0 && view == 0 {
         true -> good()

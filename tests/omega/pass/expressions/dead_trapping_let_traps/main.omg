@@ -15,7 +15,7 @@
 // it) -- the program compiles and traps as requested.
 use omega_language_std::console;
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 in Trapping = 2000000000;
     let b: i32 in Trapping = a + a;
     self.console.exit_process(7);

@@ -13,7 +13,7 @@ data Main {
     i: u64 [0..=4];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr[0] = 30;
     transition { _ -> read() }
 

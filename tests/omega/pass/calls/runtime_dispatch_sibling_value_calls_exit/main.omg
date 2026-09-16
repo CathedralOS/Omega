@@ -19,7 +19,7 @@ terminates by n -> Nat::Descending;
 
 data Main { console: Console; first: Tally; second: Tally; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.first.count = 10;
     self.second.count = 25;
     let total: i32 in Wrapping = self.first.drain(2, 0) + self.second.drain(2, 0);

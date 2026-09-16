@@ -20,7 +20,7 @@ data Main {
     shv: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 0 - 7;
     self.b = 3;
     self.r1 = self.a % self.b;

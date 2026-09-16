@@ -19,7 +19,7 @@ machine Main::classify(&mut self, x: i32) -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.v = 5;
     self.v = self.v + 1; // 6 -> condition arm -> 100
     self.positive = self.classify(self.v);

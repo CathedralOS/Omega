@@ -10,7 +10,7 @@
 // promoted when the operand-position lowering landed in both ISAs.)
 use omega_language_std::console;
 data Main { console: Console; au: u8 in Trapping; bu: u8 in Trapping; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.au = 200;
     self.bu = 100;
     // TRAPS at the guard's fused add; neither state is reached.

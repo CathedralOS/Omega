@@ -20,7 +20,7 @@ data Main {
     yu: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.s = 0;
     self.s = self.s - 8;    // -8 as a runtime value
     self.ys = self.s >> 1;  // -4 via arithmetic sar

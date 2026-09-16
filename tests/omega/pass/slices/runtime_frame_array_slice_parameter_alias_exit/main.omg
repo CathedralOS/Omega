@@ -15,7 +15,7 @@ data Main {
     level: Level;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.level.rooms[0].id = 10; self.level.rooms[0].tag = 100;
     self.level.rooms[1].id = 11; self.level.rooms[1].tag = 111;
     self.level.rooms[2].id = 12; self.level.rooms[2].tag = 122;

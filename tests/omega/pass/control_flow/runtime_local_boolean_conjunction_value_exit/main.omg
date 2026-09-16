@@ -7,7 +7,7 @@ data Main {
     right: bool;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.left = true;
     self.middle = true;
     self.right = true;

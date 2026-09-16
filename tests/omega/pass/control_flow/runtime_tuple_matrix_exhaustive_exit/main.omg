@@ -10,7 +10,7 @@
 // (fail/control_flow/tuple_transition_uncovered_rejected).
 use omega_language_std::console;
 data Main { console: Console; out: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let found: bool = true;
     let has_next: bool = false;
     transition (found, has_next) {

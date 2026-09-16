@@ -29,7 +29,7 @@ machine Main::main(&mut self) {
     self.b32 = 2.5;
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     let gt: bool = self.a > self.b;
     transition gt {
         true -> st()

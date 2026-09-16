@@ -22,7 +22,7 @@ machine Calc::pick(&mut self, saturate: bool) -> u64 in Wrapping {
     }
 }
 data Main { console: Console; calc: Calc; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let ceiling: u64 in Wrapping = self.calc.pick(true);
     let floor: u64 in Wrapping = self.calc.pick(false);
     transition ceiling == 18446744073709551615 && floor == 7 { true -> good() _ -> bad() }

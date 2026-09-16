@@ -5,7 +5,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let exact: u8 = narrow_u16_to_u8_exact(250);
     let wrapping: u8 = narrow_u16_to_u8_wrapping(300);
     let saturating: u8 = narrow_u16_to_u8_saturating(300);

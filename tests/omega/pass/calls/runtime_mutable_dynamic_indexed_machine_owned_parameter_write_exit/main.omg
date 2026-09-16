@@ -15,7 +15,7 @@ machine Main::touch_tag(&mut self, item: &mut Item) {
     item.tag = 0;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.items[0].tag = 1;
     self.items[1].tag = 2;
     self.touch_tag(&mut self.items[self.index]);

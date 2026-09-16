@@ -25,7 +25,7 @@ machine Main::proc(&self, n: i32 [0..=1000]) -> i32 {
         }
     }
 }
-machine Main::run(&mut self) {
+machine Main::run(&mut self) reaches Console {
     let r: i32 = self.proc(5);
     self.console.exit_process(r);
 }

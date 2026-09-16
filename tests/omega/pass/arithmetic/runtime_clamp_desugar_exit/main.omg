@@ -9,7 +9,7 @@ data Main {
     b: i32;
     c: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = clamp(300, 0, 255);
     self.b = clamp(0 - 5, 0, 255);
     self.c = clamp(128, 0, 255);

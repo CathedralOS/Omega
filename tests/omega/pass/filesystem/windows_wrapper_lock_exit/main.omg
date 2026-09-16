@@ -22,7 +22,7 @@ data Main {
     close_rc: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.open_result = self.fs.create("omega_win_lock_probe.txt");
     transition self.open_result { OpenResult::Ok { file } -> seed(file) _ -> bad(71) }
     state seed(&mut self, file: File) {

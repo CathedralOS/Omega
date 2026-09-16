@@ -18,7 +18,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
     // Terminal returns a BINARY expression over a param.
     state leaf(&mut self, acc: i32 in Wrapping) -> i32 { acc + 100 }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let n: i32 = self.count(5, 0, 0);
     transition n == 105 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }

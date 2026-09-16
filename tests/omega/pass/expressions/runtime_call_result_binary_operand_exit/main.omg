@@ -28,7 +28,7 @@ machine Main::cell_index(&mut self, cell: CellId) -> u64 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.count = 0;
     // call result as a binary operand
     self.count = self.cell_index(CellId::R02) + 1; // 2 + 1 = 3

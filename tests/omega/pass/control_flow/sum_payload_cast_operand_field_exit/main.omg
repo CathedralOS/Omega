@@ -19,7 +19,7 @@ machine Main::main(&mut self) {
     self.k = 23;
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     let m: Msg = self.mk(23);
     transition m {
         Msg::Pong { y, z } -> chk(y, z)

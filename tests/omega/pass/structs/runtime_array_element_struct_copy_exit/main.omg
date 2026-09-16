@@ -18,7 +18,7 @@ data Main {
     f: Point;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr[1] = Point { x: 5, y: 6 };
     self.f = self.arr[1]; // copy the struct OUT of the array element
     self.f.x = 50;        // mutate the copy

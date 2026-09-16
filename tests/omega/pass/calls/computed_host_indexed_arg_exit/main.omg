@@ -8,7 +8,7 @@ data Main {
     index: u64 [0..2];
 }
 
-machine Main::emit(&mut self, view: &[i32], index: u64 [0..2]) {
+machine Main::emit(&mut self, view: &[i32], index: u64 [0..2]) reaches Console {
     transition index < view.len {
         true -> checked(view, index)
         false -> failed()

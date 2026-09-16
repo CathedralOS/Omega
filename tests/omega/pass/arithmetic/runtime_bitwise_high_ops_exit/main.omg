@@ -16,7 +16,7 @@ data Main {
     x: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 4042322160;
     self.b = 252645135;
     self.x = self.a ^ self.b;

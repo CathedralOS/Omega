@@ -27,7 +27,7 @@ machine Main::build(&mut self, random: &mut Rng) -> u32 {
         }
     }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // `&mut self.rng` spelled explicitly (2026-07-18): the borrow-mutability
     // check now rejects a bare field lend for a `&mut` param -- the backend
     // phase divergence this canary pins is unchanged.

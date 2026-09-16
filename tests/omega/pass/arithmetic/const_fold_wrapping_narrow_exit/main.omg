@@ -11,7 +11,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i8 in Wrapping = 100;
     let b: i8 in Wrapping = a + 100;     // wraps to -56
 

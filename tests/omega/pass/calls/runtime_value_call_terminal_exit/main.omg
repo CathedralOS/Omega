@@ -24,7 +24,7 @@ machine pass_through(x: i32 [0..=1000]) -> i32 {
 machine cos_via_terminal(x: f64) -> f64 {
     transition { _ -> (sin(x + 1.57079632679489656)) }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let d: i32 = dbl(35);
     transition d == 70 { true -> a() _ -> bad_d() }
     state a(&mut self) {

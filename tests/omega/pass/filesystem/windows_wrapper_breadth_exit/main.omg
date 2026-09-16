@@ -29,7 +29,7 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.wr = self.fs.write_all("omega_wb_a.txt", "abc");
     transition self.wr { UnitResult::Ok -> do_rename() _ -> bad(71) }
 

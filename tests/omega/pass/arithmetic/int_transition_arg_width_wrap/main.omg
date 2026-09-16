@@ -7,7 +7,7 @@
 
 use omega_language_std::console;
 data Main { console: Console; a: u8 in Wrapping; b: u8 in Wrapping; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 200;
     self.b = 100;
     transition { _ -> step(self.a + self.b) }   // 300 -> u8 param wraps to 44

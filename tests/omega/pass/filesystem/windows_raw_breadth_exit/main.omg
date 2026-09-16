@@ -25,7 +25,7 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.fd = self.raw.create("omega_fswin_breadth_a.txt", 438);
     transition self.fd >= 0 { true -> write_it() _ -> bad(71) }
 

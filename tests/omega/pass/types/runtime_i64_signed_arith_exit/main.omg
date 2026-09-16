@@ -10,7 +10,7 @@ data Main {
     v: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.v = -42;
     self.v = self.v - 8;
     transition self.v == -50 {

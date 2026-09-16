@@ -4,7 +4,7 @@
 // validity and value overflow are independent obligations; both hold.
 use omega_language_std::console;
 data Main { console: Console; count: u32; value: u32 [0..=1]; result: u32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.count = 5;
     self.value = 1;
     transition self.count < 32 {

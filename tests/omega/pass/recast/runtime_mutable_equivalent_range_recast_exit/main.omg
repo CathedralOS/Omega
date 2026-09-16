@@ -11,7 +11,7 @@ data Main {
     whole: i8 [-128..=127];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let view: &mut u32 [0..=100] = &mut self.value as &mut u32;
     let whole_bits: &mut u8 = &mut self.whole as &mut u8;
     whole_bits = 70;

@@ -26,7 +26,7 @@ data Main {
     idx: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.entities[0].hp = 10;
     self.entities[0].x = 100;
     self.entities[1].hp = 11;

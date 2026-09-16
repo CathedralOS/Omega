@@ -16,7 +16,7 @@ demo_target machine Helper::paradigm_internal(&self) -> i32 {
 
 data Main { console: Console; helper: Helper; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 = self.helper.seed;
     transition a == 0 { true -> good() _ -> bad(71) }
     state good(&mut self) { self.console.exit_process(70); }

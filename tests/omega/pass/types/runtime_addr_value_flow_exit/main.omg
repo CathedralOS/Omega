@@ -8,7 +8,7 @@
 use omega_language_std::console;
 data Main { console: Console; base: addr; }
 machine Main::bump(&mut self, a: addr, by: u64) -> addr { a + by }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.base = 4096;
     let p: addr = self.bump(self.base, 16);
     transition p == 4112 {

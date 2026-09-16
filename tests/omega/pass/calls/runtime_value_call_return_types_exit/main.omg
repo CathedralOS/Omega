@@ -42,7 +42,7 @@ machine Main::positive(&self, x: i32 in Trapping) -> bool {
     x > 0
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let s: i32 in Wrapping = self.add(30, 40);
     let p: Point = self.mk_point();
     let t: Tag = self.mk_tag();

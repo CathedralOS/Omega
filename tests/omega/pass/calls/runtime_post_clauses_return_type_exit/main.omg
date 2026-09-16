@@ -13,7 +13,7 @@ terminates;
         false -> 7
     }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let value: u64 = self.pick(1);
     transition value == 5 {
         true -> yes()

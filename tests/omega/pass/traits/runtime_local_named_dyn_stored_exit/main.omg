@@ -25,7 +25,7 @@ data Main {
     item: Item;
 }
 
-machine Main::main<'item>(&mut self) {
+machine Main::main<'item>(&mut self) reaches Console {
     let erased: &'item dyn Measure = &self.item as &dyn Item::Primary;
     let holder: Holder<'item> = Holder { handler: erased };
     let result: i32 = holder.handler.measure();

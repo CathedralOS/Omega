@@ -16,7 +16,7 @@ data Main {
     console: Console;
     tx: Tx;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.tx = Tx::Transfer { to: 3, amount: 40 };
     transition self.tx {
         Tx::Transfer { to, amount } -> check(to, amount)

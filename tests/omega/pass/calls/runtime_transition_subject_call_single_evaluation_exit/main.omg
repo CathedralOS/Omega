@@ -34,7 +34,7 @@ machine Main::roll(
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.tally.calls = 40;
     self.tally.pad = 0;
 

@@ -20,7 +20,7 @@ data Main {
     r: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.coins = [1, 3, 4];
     self.dp = [0, 99, 99, 99, 99, 99, 99];
     self.a = 1;

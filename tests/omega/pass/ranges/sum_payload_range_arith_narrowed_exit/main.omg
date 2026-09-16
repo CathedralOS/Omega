@@ -10,7 +10,7 @@
 use omega_language_std::console;
 data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
 data Main { console: Console; c: Cmd; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.c = Cmd::Dim { amount: 7 };
     transition self.c {
         Cmd::Dim { amount } -> apply(amount * 10)

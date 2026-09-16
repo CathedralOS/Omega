@@ -37,7 +37,7 @@ machine Loader::fill(&mut self) {
     }
 }
 
-machine Loader::run(&mut self) {
+machine Loader::run(&mut self) reaches Console {
     let observed: LineReadResult = self.console.read_line(&mut self.line);
     transition observed {
         LineReadResult::LineComplete { count } -> bounded_input(count)

@@ -10,7 +10,7 @@ data Main {
     v: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.v = 10;
     self.v += 5; // 15
     self.v -= 3; // 12

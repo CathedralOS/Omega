@@ -12,7 +12,7 @@
 use omega_language_std::console;
 data Main { console: Console; arr: [i32; 3]; idx: u64; k: i32; }
 machine Main::pick(&mut self, v: i32 [0..=100]) -> i32 { v + 1 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr = [10, 20, 30];
     self.idx = 1;
     self.k = 7;

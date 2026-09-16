@@ -16,7 +16,7 @@ data Main {
     ri: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.f = 0.0 - 2.0;
     self.g = 0.0 - 1.0;
     transition self.f < 0.0 { true -> lt_neg() _ -> bad() } // -2 < 0 : true

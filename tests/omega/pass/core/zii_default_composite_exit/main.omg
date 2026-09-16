@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
     self.i = 2;
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     transition self.never {
         Msg::Ping { x } -> chk(x)
         Msg::Pong { y, z } -> wrong_variant()

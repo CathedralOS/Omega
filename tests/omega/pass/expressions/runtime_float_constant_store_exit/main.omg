@@ -16,7 +16,7 @@ data Main {
     zero: f64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.wide = 3.5;
     self.narrow = 1.25;
     self.zero = 0.0;

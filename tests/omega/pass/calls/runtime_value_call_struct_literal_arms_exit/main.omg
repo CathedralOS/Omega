@@ -45,7 +45,7 @@ machine Main::mk(&self, b: bool) -> Token {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let e: Vec2 = self.delta(Dir::E);
     let w: Vec2 = self.delta(Dir::W);
     let t: Token = self.mk(true);

@@ -12,7 +12,7 @@ machine Gauge::next(&mut self, delta: i32 in Wrapping) -> i32 in Wrapping {
 
 data Main { console: Console; gauge: Gauge; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.gauge.value = 0;
     let total: i32 in Wrapping = 64 + self.gauge.next(0) + self.gauge.next(self.gauge.next(0));
     self.console.exit_process(total as i32);

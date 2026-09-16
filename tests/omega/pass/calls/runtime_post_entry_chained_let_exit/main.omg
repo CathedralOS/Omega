@@ -29,7 +29,7 @@ machine Main::proc(&self, total: i32 [0..=1000], freq: i32 [0..=1000]) -> i32 {
         }
     }
 }
-machine Main::run(&mut self) {
+machine Main::run(&mut self) reaches Console {
     let a: i32 = self.proc(100, 7);
     self.console.exit_process(a);
 }

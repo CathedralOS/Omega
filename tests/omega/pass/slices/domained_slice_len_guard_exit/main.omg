@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, path: &[u8] in Path) {
+machine Main::check(&mut self, path: &[u8] in Path) reaches Console {
     transition self.k < path.len {
         true -> good()
         false -> bad()

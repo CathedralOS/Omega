@@ -13,7 +13,7 @@ data Main {
     s: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.grid[0][0] = 1;
     self.grid[0][1] = 2;
     self.grid[1][0] = 3;

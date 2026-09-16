@@ -8,7 +8,7 @@ use omega_language_std::console;
 data EfiHandle { raw: addr; }
 data ConsolePtr { raw: addr; }
 data Main { console: Console; h: EfiHandle; c: ConsolePtr; r: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.h = EfiHandle { raw: 4096 };
     self.c = ConsolePtr { raw: 88 };
     self.r = (self.c.raw as i32 in Trapping) as i32;

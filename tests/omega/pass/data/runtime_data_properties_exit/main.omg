@@ -21,7 +21,7 @@ data Main {
     h: Holder;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.h.p.x = 60;
     self.h.p.y = 9;
     self.h.tag = 1;

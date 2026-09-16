@@ -28,7 +28,7 @@ machine Main::classify(&mut self, x: i32) -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.v = 0; self.v = self.v + 9; // 9 -> first arm -> 100
     self.a = self.classify(self.v);
     self.v = 0; self.v = self.v + 3; // 3 -> MIDDLE arm -> 200

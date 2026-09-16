@@ -23,7 +23,7 @@ data Main {
     masked: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.text = "abc";
     self.hash = 2166136261;
     self.i = 0;

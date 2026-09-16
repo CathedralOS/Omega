@@ -29,7 +29,7 @@ data Main {
     right: Tag;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.left = Tag { label: "amulet", weight: 3 };
     self.right = Tag { label: "amulet", weight: 3 };
     let equal: bool = self.left == self.right;

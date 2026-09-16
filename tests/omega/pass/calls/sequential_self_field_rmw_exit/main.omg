@@ -33,7 +33,7 @@ machine Main::accum(&mut self) {
     self.s.total = self.s.total + 1;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.accum();
     self.accum();
     self.accum();

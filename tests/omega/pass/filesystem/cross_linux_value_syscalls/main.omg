@@ -24,7 +24,7 @@ data Main {
     metadata: [u8; 144];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     // O_WRONLY | O_CREAT. /dev/null already exists, so this exercises the
     // four-argument openat adapter without leaving a filesystem artifact.
     self.fd = self.fs.open_create("/dev/null", 65, 438);

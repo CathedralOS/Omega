@@ -28,7 +28,7 @@ data Main {
     selected: Item;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.decoy.value = 4;
     self.decoy.enabled = false;
     self.decoy.attempts = 4;

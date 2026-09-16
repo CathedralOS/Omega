@@ -26,7 +26,7 @@ data Main {
     isum: i32 in Trapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.i = 0;
     self.sum = 0;
 

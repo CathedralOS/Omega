@@ -12,7 +12,7 @@ machine Main::make(&mut self) -> Point {
     transition { _ -> Point { x: 30, y: 40 } }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.calls = 0;
     transition self.make() {
         Point { x, y } -> check(x, y)

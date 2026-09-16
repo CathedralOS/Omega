@@ -5,7 +5,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let host_count: i64 = 32;
     transition host_count >= 0 {
         true -> convert(host_count)

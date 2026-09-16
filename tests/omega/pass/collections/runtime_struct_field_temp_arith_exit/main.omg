@@ -22,7 +22,7 @@ data Main {
     r: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.arr[0] = Pt { x: 99, y: 99 };
     self.arr[1] = Pt { x: 30, y: 40 };
     self.arr[2] = Pt { x: 99, y: 99 };

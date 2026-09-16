@@ -12,7 +12,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let neg32: i32 in Wrapping = 0 - 5;
     let wide64: i64 in Wrapping = 10;
     let sign_ext: i64 in Wrapping = neg32 + wide64; // -5 + 10 = 5

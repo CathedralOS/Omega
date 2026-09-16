@@ -8,7 +8,7 @@ data Main {
     bytes: [u8; 8];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.bytes[0] = 1;
     self.bytes[1] = 2;
     self.bytes[6] = 7;

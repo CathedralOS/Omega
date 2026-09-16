@@ -8,7 +8,7 @@ data Main { console: Console; }
 machine Main::main(&mut self) {
     self.judge(Point { x: 30, y: 40 });
 }
-machine Main::judge(&mut self, p: Point) {
+machine Main::judge(&mut self, p: Point) reaches Console {
     transition p {
         Point { x, y as vertical } if x + vertical == 70 -> good()
         _ -> bad()

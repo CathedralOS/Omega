@@ -21,7 +21,7 @@ machine Main::issue(&mut self) -> Pair {
     transition { _ -> Pair { left: left, right: right } }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let returned: Pair = self.issue();
     let left: Receipt = returned.left;
     let right: Receipt = returned.right;

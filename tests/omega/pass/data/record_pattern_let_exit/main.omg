@@ -11,7 +11,7 @@ data Point {
     z: i32 [0..=100];
 }
 data Main { console: Console; point: Point; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.point = Point { x: 30, y: 40, z: 5 };
     let { x, y as vertical, z as _ } = self.point;
     let total: i32 = x + vertical;

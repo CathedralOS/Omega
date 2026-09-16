@@ -54,7 +54,7 @@ machine Main::read_at(&mut self, idx: i32) -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.table[0] = 3;
     self.table[1] = 7;
     self.table[2] = 14;

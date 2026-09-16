@@ -19,7 +19,7 @@ machine Main::main(&mut self) {
     self.c = 2.0;
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     self.out = (self.a + self.b) * self.c;
     transition self.out == 7.5 {
         true -> argleg()

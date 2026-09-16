@@ -13,7 +13,7 @@ data Main {
     index: u64 [0..=1];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.index = 1;
     self.rooms[self.index].description = "prefix " + "omega";
 

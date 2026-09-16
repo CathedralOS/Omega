@@ -15,7 +15,7 @@ data Main {
     xor_result: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 12;
     self.b = 10;
     self.and_result = self.a & self.b; // 8

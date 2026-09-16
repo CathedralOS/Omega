@@ -21,7 +21,7 @@ data Main {
     f: f32 in Saturating;
     fr: f32 in Saturating;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 1.0e160;
     self.r = self.a * self.a; // 1e320 -> clamp to MAX_FINITE
     transition self.r == 1.7976931348623157e308 { true -> negative() _ -> bad() }

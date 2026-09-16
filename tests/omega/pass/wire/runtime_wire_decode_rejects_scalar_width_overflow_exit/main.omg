@@ -26,7 +26,7 @@ data Main {
     good_verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // 0x1_0000_0000 is one beyond u32::MAX and also zigzag-decodes to the
     // positive value one beyond i32::MAX. Both use the same LEB128 bytes.
     let bad_payload: [u8; 13] = [

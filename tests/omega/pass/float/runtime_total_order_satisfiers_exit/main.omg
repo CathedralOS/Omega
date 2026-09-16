@@ -36,7 +36,7 @@ data Main {
     f64_positive_nan_large: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.f32_negative_nan_large = 4290772994; // 0xffc00002
     self.f32_negative_nan_small = 4290772993; // 0xffc00001
     self.f32_negative_infinity = 4286578688;  // 0xff800000

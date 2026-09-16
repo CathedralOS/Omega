@@ -13,7 +13,7 @@ use omega::language::core::float_operations;
 use omega_language_std::math;
 use omega_language_std::console;
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // sin(1) = 0.841470984807896507...
     let s: f64 = sin(1.0);
     transition s > 0.84147098480 && s < 0.84147098481 { true -> a() _ -> bad_s() }

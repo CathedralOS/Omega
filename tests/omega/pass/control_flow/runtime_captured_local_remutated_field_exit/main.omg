@@ -48,7 +48,7 @@ machine Main::push(&mut self, value: i32 in Wrapping) {
     state push2(&mut self, value: i32 in Wrapping) { self.vm.stack[2] = value; }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.init();
     self.push(3);
     self.push(4);

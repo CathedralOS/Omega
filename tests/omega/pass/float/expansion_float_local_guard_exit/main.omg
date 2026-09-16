@@ -18,7 +18,7 @@ machine finite_probe(x: f64) -> bool {
     state no() -> bool { false }
 }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let ok: bool = finite_probe(3.5);
     transition ok == true { true -> good() _ -> bad() }
     state good(&self) { self.console.exit_process(70); }

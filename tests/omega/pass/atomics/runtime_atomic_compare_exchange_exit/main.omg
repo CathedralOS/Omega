@@ -38,7 +38,7 @@ data Main {
     counter: AtomicU32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // ---- SUCCESS PATH ----
     // Store 10 into the cell, then CAS(expected=10, new=99).
     self.counter.store(10, NoOrdering);

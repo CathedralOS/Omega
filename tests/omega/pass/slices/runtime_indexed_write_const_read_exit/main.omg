@@ -20,7 +20,7 @@ data Main {
     j: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cells[0] = 0;
     self.cells[1] = 0;
     self.cells[2] = 0;

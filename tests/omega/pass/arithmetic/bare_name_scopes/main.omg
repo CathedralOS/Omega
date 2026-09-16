@@ -7,7 +7,7 @@ data Light { case Off; case On; }
 
 data Main { console: Console; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let signal: Light = On; // bare enum-case constant -- must be accepted
     transition { _ -> classify(70) }
     state classify(&mut self, n: i32 [0..=100]) {

@@ -37,7 +37,7 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // Field-assignment form: struct-literal &[u8] in Utf8 field initialization does
     // not lower to a native descriptor write yet (assignments do).
     let msg: LabelSample;

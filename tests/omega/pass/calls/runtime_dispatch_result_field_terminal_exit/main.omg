@@ -18,7 +18,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
     // Terminal returns a FIELD read (self.base), not a param.
     state leaf(&mut self) -> i32 in Wrapping { self.base }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.base = 42;
     let n: i32 in Wrapping = self.count(3, 0);
     transition n == 42 { true -> good() _ -> bad() }

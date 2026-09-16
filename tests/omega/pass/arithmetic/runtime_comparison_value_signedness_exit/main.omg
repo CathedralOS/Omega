@@ -16,7 +16,7 @@ data Main {
     unsigned_gt: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.si = 0;
     self.si = self.si - 5; // -5
     self.sj = 3;

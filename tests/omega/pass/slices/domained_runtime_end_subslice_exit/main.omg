@@ -24,7 +24,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::check(&mut self, path: &[u8] in Path) {
+machine Main::check(&mut self, path: &[u8] in Path) reaches Console {
     // storage(self.k)=5 < storage(path.len)=7 -> subslice path[0..5] = "/adir".
     transition self.k < path.len {
         true -> self.verify(path[0..self.k])
@@ -35,7 +35,7 @@ machine Main::check(&mut self, path: &[u8] in Path) {
     }
 }
 
-machine Main::verify(&mut self, prefix: &[u8] in Path) {
+machine Main::verify(&mut self, prefix: &[u8] in Path) reaches Console {
     transition prefix.len == 5 {
         true -> good()
         false -> wrong()

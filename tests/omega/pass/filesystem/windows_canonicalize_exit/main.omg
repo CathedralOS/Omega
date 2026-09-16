@@ -49,7 +49,7 @@ data Main {
     canon: [u8; 1024];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("omega_wcanon_probe.txt", "canon");
     transition self.unit_result { UnitResult::Ok -> resolve() _ -> bad(71) }
     state resolve(&mut self) {

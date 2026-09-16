@@ -6,7 +6,7 @@ use omega_language_std::console;
 
 data Main { console: Console; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let signed8: i8 = -8;
     let signed16: i16 = -16;
     let signed32: i32 = -32;

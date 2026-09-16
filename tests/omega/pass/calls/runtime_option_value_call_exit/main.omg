@@ -27,7 +27,7 @@ machine Main::classify(&self, x: i32 in Wrapping) -> Opt {
     transition x > 0 { true -> Opt::Some { value: x } _ -> Opt::None }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.vals = [5, 0 - 3, 7];
     self.i = 0;
     self.acc = 0;

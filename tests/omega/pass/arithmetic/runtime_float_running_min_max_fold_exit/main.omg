@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 //
 // Over [5, 2, 8, 3]: lo folds to 2, hi folds to 8, lo + hi = 10 -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
@@ -22,7 +22,7 @@ data Main {
     total: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.nums[0] = 5.0;
     self.nums[1] = 2.0;
     self.nums[2] = 8.0;

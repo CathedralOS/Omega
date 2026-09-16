@@ -11,7 +11,7 @@ data Main {
     size: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.wide = 100i64;
     self.small = 7u32;
     self.size = 9usize;

@@ -15,7 +15,7 @@ machine Main::main(&mut self) {
     self.dispatch();
 }
 
-machine Main::dispatch(&mut self) {
+machine Main::dispatch(&mut self) reaches Console {
     transition self.stored {
         Msg::Pong { y, z } -> chk(y, z)
         Msg::Ping { x } -> bad()

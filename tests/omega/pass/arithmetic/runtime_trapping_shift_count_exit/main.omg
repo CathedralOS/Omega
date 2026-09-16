@@ -1,8 +1,8 @@
 // RUN CANARY (exit 70) + interpreter differential. Trapping shifts accept a
 // runtime count and check it dynamically; an in-range count proceeds normally.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; count: u32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.count = 3;
     let left: u32 in Trapping = (5 as u32 in Trapping);
     let a: u32 in Trapping = left << self.count;

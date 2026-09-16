@@ -21,7 +21,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let room: Room = Room {
         exits: [
             Exit { count: 10 },

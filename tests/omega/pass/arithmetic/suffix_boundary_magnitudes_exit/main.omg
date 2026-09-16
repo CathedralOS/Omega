@@ -6,7 +6,7 @@
 // 254) - 1 + 1 = 70.
 use omega_language_std::console;
 data Main { console: Console; total: i32 in Wrapping; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i8 = -128i8;
     let b: i8 = 127i8;
     let c: u8 = 255u8;

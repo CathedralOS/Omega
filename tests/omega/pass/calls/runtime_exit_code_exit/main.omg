@@ -11,7 +11,7 @@ data Main {
     v: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.v = 5;
     self.v = self.v + 65; // 70, a runtime value (not constant-folded into the call)
     self.console.exit_process(self.v);

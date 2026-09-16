@@ -9,7 +9,7 @@ data Main {
     k: u32 [0..=2];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.bytes[0] = 9;
     self.bytes[9] = 8;
     self.k = 1;

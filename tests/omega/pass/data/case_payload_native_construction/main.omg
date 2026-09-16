@@ -18,7 +18,7 @@ data Main {
     cmd: Command;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cmd = Command::Move { steps: 70 };
 
     transition self.cmd {

@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // realize `if a > b { a } else { b }`, which the interpreter's float min/max
 // matches exactly. Checks max(3,7)=7, min(3,7)=3, abs(-12)=12,
 // clamp(300,0,200)=200; sum = 7+3+12+200 = 222; exits 70 when it holds.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     mx: f64;
@@ -15,7 +15,7 @@ data Main {
     cl: f64;
     total: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.mx = max(3.0, 7.0);
     self.mn = min(3.0, 7.0);
     self.ab = abs(0.0 - 12.0);

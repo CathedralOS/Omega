@@ -23,7 +23,7 @@ machine Main::check(&mut self, r: Rec) {
     }
     state done(&mut self) { }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.check(Rec::A { v: 1 });
     transition true { true -> next() }
     state next(&mut self) {

@@ -14,7 +14,7 @@ machine Main::tpl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 3;
     transition { _ -> r }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.k = 1;
     transition self.k == 1 { true -> lit_pair(self.dbl(5), 7) _ -> bad(78) }
 

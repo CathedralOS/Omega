@@ -6,7 +6,7 @@
 // wrapped values.
 use omega_language_std::console;
 data Main { console: Console; a: i64 in Wrapping; b: i64 in Wrapping; c: i64 in Wrapping; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = 9000000000000000000 + 9000000000000000000; // add overflow
     self.b = 4000000000 * 4000000000;                   // multiply overflow
     self.c = (1 << 63) / -1;                             // i64::MIN / -1 division overflow

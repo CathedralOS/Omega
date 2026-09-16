@@ -24,7 +24,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
     state leaf_go(&mut self, s: &[i32], j: u64) -> i32 { s[j] }
     state leaf_zero(&mut self) -> i32 { 0 }
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.nums[0] = 5;
     self.nums[1] = 6;
     self.nums[2] = 7;

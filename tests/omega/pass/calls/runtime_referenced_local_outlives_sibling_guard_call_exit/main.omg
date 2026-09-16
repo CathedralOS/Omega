@@ -142,7 +142,7 @@ machine Main::run(&mut self) -> i32 {
     state probe_other(&mut self) -> i32 { 77 }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let result: i32 = self.run();
     self.console.exit_process(result);
 }

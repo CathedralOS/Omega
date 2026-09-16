@@ -15,7 +15,7 @@ data Pair {
 
 data Main { console: Console; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let left: Receipt = Receipt { code: 1 };
     let right: Receipt = Receipt { code: 2 };
     let pair: Pair = Pair { left: left, right: right };

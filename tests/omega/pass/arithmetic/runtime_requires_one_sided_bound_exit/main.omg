@@ -18,7 +18,7 @@ machine Main::inc(&mut self, x: i32) -> i32
     (x + 1) + 1
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let result: i32 = self.inc(40);
     self.console.exit_process(result);
 }

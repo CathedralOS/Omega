@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
     self.apply(Tx::Transfer { to: 3, amount: 40 });
 }
 
-machine Main::apply(&mut self, tx: Tx) {
+machine Main::apply(&mut self, tx: Tx) reaches Console {
     transition tx {
         Tx::Transfer { to, amount } -> check(to, amount)
         _ -> bad()

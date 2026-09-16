@@ -22,7 +22,7 @@ machine Main::terminal_self_call(&mut self) -> u32 {
     self.bump_and_value(7)
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.hits = 0;
     self.expected = 5;
 

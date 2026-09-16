@@ -40,7 +40,7 @@ machine fill(a: &mut Bag, b: &mut Bag) {
     cell.value = 7;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     fill(&mut self.first, &mut self.second);
 
     transition self.first.cells[2].value + self.second.cells[0].value == 8 {

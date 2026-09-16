@@ -15,7 +15,7 @@ data Main {
     name: &[u8] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition self.name == "expected" {
         true -> fail()
         false -> check_match()

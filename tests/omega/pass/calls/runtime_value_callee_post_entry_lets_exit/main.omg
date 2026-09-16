@@ -27,7 +27,7 @@ machine Main::swap_digits(&self, x: i32 [0..=99]) -> i32 {
         }
     }
 }
-machine Main::run(&mut self) {
+machine Main::run(&mut self) reaches Console {
     let r: i32 = self.swap_digits(42);
     self.console.exit_process(r);
 }

@@ -7,7 +7,7 @@ data Main {
     console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let negative: i8 = 0 - 1;
     let converted: u64 = narrow_i8_to_u64_trapping(negative);
     self.console.exit_process(7);

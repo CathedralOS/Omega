@@ -22,7 +22,7 @@ data Main {
     good_read: u64;
     good_verdict: WireVerdict;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // era 0, tag 0, value 200 (varint C8 01), tag 1, delta -20
     // (zigzag 39). Both declared ranges reject.
     self.buffer[0] = 0;

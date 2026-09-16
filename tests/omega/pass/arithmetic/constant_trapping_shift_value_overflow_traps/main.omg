@@ -3,7 +3,7 @@
 use omega_language_std::console;
 data Main { console: Console; value: u8 in Trapping; }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let left: u8 in Trapping = 200;
     self.value = left << 1;
     self.console.exit_process(70);

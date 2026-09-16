@@ -37,7 +37,7 @@ data Main {
     store: Store;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let found: Item;
     self.store.find(2, &mut found);
 

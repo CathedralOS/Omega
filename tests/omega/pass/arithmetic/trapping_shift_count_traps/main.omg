@@ -11,7 +11,7 @@
 // the count trap (the failure the suite asserts against).
 use omega_language_std::console;
 data Main { console: Console; n: u32 in Trapping; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 in Trapping = (3 as i32 in Trapping);
     let c: i32 in Trapping = (3 as i32 in Trapping);
     let r: i32 in Trapping = a << c;

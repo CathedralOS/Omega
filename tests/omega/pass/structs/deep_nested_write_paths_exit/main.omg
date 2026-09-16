@@ -24,7 +24,7 @@ data Main {
 machine Main::main(&mut self) {
     self.build();
 }
-machine Main::build(&mut self) {
+machine Main::build(&mut self) reaches Console {
     self.nested.second.b = 42;
     transition self.nested.second.b == 42 && self.nested.second.a == 0 {
         true -> leg2()

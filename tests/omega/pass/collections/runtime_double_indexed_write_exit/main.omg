@@ -29,7 +29,7 @@ data Main {
     target_line: [Triple; 4];
     line_i: u64 [0..=3];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.grid[1][3] = 9;
     self.i = 1;
     self.j = 2;

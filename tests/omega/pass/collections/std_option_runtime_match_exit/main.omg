@@ -10,7 +10,7 @@ data Main {
     b: Optional<i32>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.a = Optional::Some { value: 70 };
     transition self.a {
         Optional::Some { value } -> check_b(value)

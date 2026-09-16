@@ -23,7 +23,7 @@ data Main {
     raw: CounterHistory;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let old: CounterV1 = CounterV1 { counter: 0 };
     self.raw = CounterHistory::V1 { v1: old };
     transition self.raw {

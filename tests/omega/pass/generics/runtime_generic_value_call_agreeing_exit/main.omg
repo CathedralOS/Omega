@@ -6,7 +6,7 @@
 use omega_language_std::console;
 data Main { console: Console; }
 machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 in Wrapping = self.id(30);
     let b: i32 in Wrapping = self.id(40);
     let total: i32 in Wrapping = a + b;

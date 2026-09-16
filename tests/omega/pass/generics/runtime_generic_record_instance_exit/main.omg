@@ -8,7 +8,7 @@
 use omega_language_std::console;
 data Box<T> { val: T; tag: i32 in Wrapping; }
 data Main { console: Console; b: Box<i32 in Wrapping>; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.b.tag = 30;
     self.b.val = 40;
     transition self.b.tag + self.b.val == 70 { true -> ok() _ -> bad() }

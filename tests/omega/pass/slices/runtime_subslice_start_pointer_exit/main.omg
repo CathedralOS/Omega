@@ -12,7 +12,7 @@ machine Main::main(&mut self) {
     self.arr[1] = 10;
     transition { _ -> self.view(1, 4) }
 }
-machine Main::view(&mut self, lo: u64, hi: u64) {
+machine Main::view(&mut self, lo: u64, hi: u64) reaches Console {
     transition lo <= hi && hi <= self.arr.len {
         true -> slice_it(lo, hi)
         false -> bad()

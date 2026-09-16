@@ -12,7 +12,7 @@ data FieldPlan {
     case Skip;
 }
 data Main { console: Console; plans: [FieldPlan; 4]; i: i64 [0..=3]; a: i64 in Wrapping; b: i64 in Wrapping; r: i32; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.plans[0] = FieldPlan::At { offset: 8, width: 4 };
     self.i = 2;
     self.plans[self.i] = FieldPlan::At { offset: 16, width: 8 };

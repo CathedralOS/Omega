@@ -35,7 +35,7 @@ data Main {
     reader: Reader;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let w: &mut [Room] = self.rooms.as_mut_slice();
     w[0].label = "Gate";
     let r: &[Room] = self.rooms.as_slice();
