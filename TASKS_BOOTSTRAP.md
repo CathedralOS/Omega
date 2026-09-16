@@ -420,9 +420,11 @@ prerequisite to every lower-rung milestone.
   member closures in `tools/bootstrap/proofs/sources_env.sh`; checked by
   `tests/bootstrap/{alpha,beta,gamma,delta,epsilon,omega,proofs}-identity.sh`
   (identity and refusal coverage without executing the rungs; seed execution
-  needs macOS arm64 or Windows x64). Existing delta/epsilon test gates still
-  pack through `source_closure.py` directly; adopting the bound materializers
-  there is follow-through, not new machinery. Next: bind D's OCREQ request
+  needs macOS arm64 or Windows x64). Every test gate consuming a canonical
+  closure now reaches it through the bound materializers or their
+  `require_*_identity` checks; only gate-local diagnostic closures and
+  per-gate prefix entries still pack on top of the bound member bytes.
+  Next: bind D's OCREQ request
   entry, the omega0/omega compiler tapes, and the eventual certificate and
   disclosed admission records the same way as those artifacts land.
 
