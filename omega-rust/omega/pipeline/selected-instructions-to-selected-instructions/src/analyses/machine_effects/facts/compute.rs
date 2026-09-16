@@ -176,6 +176,13 @@ fn compute_instruction(
             instruction: instruction.id,
         });
     }
+    // The produced sidecar copies the retained provenance verbatim; refuse to
+    // carry fuel that settles sites the instruction never claimed.
+    if !instruction.provenance.fuel_settles_only_claimed_sites() {
+        return Err(MachineEffectError::FuelProvenanceMismatch {
+            instruction: instruction.id,
+        });
+    }
     let constraint = constraints
         .catalog()
         .constraints

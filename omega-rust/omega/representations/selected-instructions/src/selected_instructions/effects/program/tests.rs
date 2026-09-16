@@ -644,6 +644,7 @@ fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
     row.kind = SelectedInstructionKind::ByteViewAddress;
     row.alternatives[0].key.family = MachineAlternativeFamily::ByteViewAddress;
     row.provenance.operations = vec![OperationId::new(313).unwrap()];
+    row.provenance.fuel[0].site = PsiProvenance::Operation(OperationId::new(313).unwrap());
     source.identity = pre_allocation_machine_effect_identity(&source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
@@ -665,6 +666,46 @@ fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
         pre_allocation_machine_effect_identity(&changed),
         source.identity
     );
+}
+
+#[test]
+fn codec_rejects_fuel_settled_against_unclaimed_or_reused_sites() {
+    // The fixture settles one claimed operation and one claimed edge.
+    let source = plan();
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+
+    for corruption in 0..4 {
+        let mut changed = source.clone();
+        let provenance = &mut changed.functions[0].blocks[0].instructions[0].provenance;
+        match corruption {
+            // Settle an operation the instruction never claims.
+            0 => {
+                provenance.fuel.push(FuelSettlement {
+                    site: PsiProvenance::Operation(OperationId::new(97).unwrap()),
+                    units: 1,
+                });
+            }
+            // Settle an edge the instruction never claims.
+            1 => {
+                provenance.fuel.push(FuelSettlement {
+                    site: PsiProvenance::Edge(EdgeId::new(97).unwrap()),
+                    units: 1,
+                });
+            }
+            // Settle a claimed site twice.
+            2 => provenance.fuel.push(provenance.fuel[0]),
+            // A claimed site still owes a nonzero charge.
+            _ => provenance.fuel[0].units = 0,
+        }
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&changed.encode()),
+            Err(PreAllocationMachineEffectDecodeError::InvalidField),
+            "corruption {corruption} must be rejected at decode"
+        );
+    }
 }
 
 #[test]
