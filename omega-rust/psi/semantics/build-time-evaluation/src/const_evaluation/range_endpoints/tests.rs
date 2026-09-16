@@ -136,9 +136,11 @@ fn argument_landing_retains_nested_fractional_warnings() {
              machine bounded(value: u64[0..=endpoint({argument})]) {{}}"
         ));
         let pending = pending_endpoints(&program).unwrap();
+        let admission = crate::BuildTimeAdmissionPlan::infer(&program, None);
         let (values, warnings) = arguments::evaluate(
             &program,
             &program,
+            &admission,
             pending[0].expression,
             pending[0].machine,
             None,
@@ -301,9 +303,11 @@ fn folded_arguments_still_require_their_original_selection_authority() {
         // Test argument admission directly so the callee's separate gate cannot
         // mask failure to consult the original constant/call occurrence's
         // authority. Only the working graph contains the simulated call result.
+        let admission = crate::BuildTimeAdmissionPlan::infer(&program, None);
         let (values, _) = arguments::evaluate(
             &evaluated,
             &program,
+            &admission,
             endpoint.expression,
             endpoint.machine,
             Some(&Selection(true)),
@@ -313,6 +317,7 @@ fn folded_arguments_still_require_their_original_selection_authority() {
         let error = arguments::evaluate(
             &evaluated,
             &program,
+            &admission,
             endpoint.expression,
             endpoint.machine,
             Some(&Selection(false)),
@@ -465,6 +470,106 @@ fn generic_record_arguments_fold_endpoint_calls_before_synthesis() {
             *execution.value(),
             crate::BuildTimeValue::Int(bound),
             "{argument}"
+        );
+    }
+}
+
+#[test]
+fn domain_qualified_callee_positions_fold_members_and_reject_nonmembers() {
+    // `bounded` keeps its declared domain on both the parameter and the
+    // result. The endpoint route proves the concrete value's membership
+    // through the shared domain-fact evaluator instead of stripping `u64 in
+    // Positive` to `u64`; a non-member argument rejects before the body runs.
+    let declarations = "domain u64::Positive requires self > 0;
+         machine bounded(value: u64 in Positive) -> u64 in Positive { value }
+         machine identity(value: u64) -> u64 { value }";
+    for (endpoint, expected) in [
+        ("bounded(256)", Ok("256")),
+        ("bounded(identity(1))", Ok("1")),
+        (
+            "bounded(0)",
+            Err("range endpoint value `0` is outside domain `Positive`"),
+        ),
+        (
+            "bounded(identity(0))",
+            Err("range endpoint value `0` is outside domain `Positive`"),
+        ),
+    ] {
+        let mut program = typed(&format!(
+            "{declarations}
+             machine keep(value: u64[0..={endpoint}]) {{}}"
+        ));
+        let result = evaluate_const_range_endpoints(&mut program, None);
+        match expected {
+            Ok(bound) => {
+                result.unwrap_or_else(|errors| panic!("{endpoint}: {errors:?}"));
+                assert_eq!(
+                    folded_maximum(&program).as_deref(),
+                    Some(bound),
+                    "{endpoint}"
+                );
+            }
+            Err(fragment) => {
+                let errors = result.expect_err(endpoint);
+                assert_eq!(errors.len(), 1, "{endpoint}: {errors:?}");
+                assert!(
+                    errors[0].message.contains(fragment),
+                    "{endpoint}: {}",
+                    errors[0].message
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn domain_qualified_result_positions_check_the_returned_value() {
+    // A result domain is checked on the value the callee actually returned:
+    // `zero()` returns 0 into `u64 in Positive` and must not fold.
+    let mut program = typed(
+        "domain u64::Positive requires self > 0;
+         machine zero() -> u64 in Positive { 0 }
+         machine keep(value: u64[0..=zero()]) {}",
+    );
+    let errors = evaluate_const_range_endpoints(&mut program, None).expect_err("non-member result");
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(
+        errors[0]
+            .message
+            .contains("range endpoint value `0` is outside domain `Positive`"),
+        "{}",
+        errors[0].message
+    );
+}
+
+#[test]
+fn proved_parameter_domains_do_not_stand_down_the_fence_for_other_premises() {
+    // The membership proof discharges exactly the root's parameter-domain
+    // premises. An authored `requires` clause on the callee, or a domain
+    // premise on a nested callee the endpoint never proved, must keep the
+    // conservative closure fence rather than ride the concrete-premise route.
+    for source in [
+        "domain u64::Positive requires self > 0;
+         machine bounded(value: u64 in Positive) -> u64
+         requires
+             value <= 512;
+         { value }
+         machine keep(value: u64[0..=bounded(256)]) {}",
+        "domain u64::Positive requires self > 0;
+         machine inner(value: u64 in Positive) -> u64 { value }
+         machine outer(value: u64) -> u64 { inner(value) }
+         machine keep(value: u64[0..=outer(256)]) {}",
+    ] {
+        let mut program = typed(source);
+        let errors = evaluate_const_range_endpoints(&mut program, None)
+            .expect_err("an unproved premise keeps the closure fence");
+        assert_eq!(errors.len(), 1, "{source}: {errors:?}");
+        assert!(
+            errors[0]
+                .message
+                .contains("has an authored `requires` premise"),
+            "{source}: {}",
+            errors[0].message
         );
     }
 }

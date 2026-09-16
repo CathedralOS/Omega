@@ -86,6 +86,146 @@ pub(super) fn closure_has_authored_requires(
     false
 }
 
+/// Whether every authored `requires` premise in `root`'s call-edge closure is
+/// a parameter-domain premise on one of `root`'s own states. Such a premise
+/// is the typed lowering's `value in Domain` obligation for a domain-qualified
+/// parameter; an invocation that has already proved that exact membership for
+/// each concrete argument owes nothing else, so it may take the concrete-
+/// premise route. Any authored `requires` clause, a premise on a callee or a
+/// callable target, or a premise naming a parameter whose type does not carry
+/// that domain keeps the conservative fence. The traversal mirrors
+/// `closure_has_authored_requires`.
+pub(super) fn closure_requires_are_root_parameter_domains(
+    call_edges: &[BuildTimeCallEdge],
+    program: &TypedTrees,
+    root: SymbolHandle,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(machine_symbol) = pending.pop() {
+        if visited.contains(&machine_symbol) {
+            continue;
+        }
+        visited.push(machine_symbol);
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+        else {
+            continue;
+        };
+        if has_authored_requires(program.machine_contracts(machine)) {
+            return false;
+        }
+        for state in program.machine_states(machine) {
+            for contract in program.state_contracts(state) {
+                if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+                    continue;
+                }
+                if machine_symbol != root || !is_parameter_domain_premise(program, state, contract)
+                {
+                    return false;
+                }
+            }
+        }
+        for call in call_edges
+            .iter()
+            .filter(|call| call.source_machine_symbol == machine_symbol)
+        {
+            let target_machine_symbol = if call.target_machine_symbol.is_valid() {
+                Some(call.target_machine_symbol)
+            } else if call.target_state_symbol.is_valid()
+                && program.symbols.get(call.target_state_symbol).kind == SymbolKind::Machine
+            {
+                Some(call.target_state_symbol)
+            } else {
+                None
+            };
+            match target_machine_symbol {
+                Some(target) => pending.push(target),
+                None if callable_has_authored_requires(program, call.target_state_symbol) => {
+                    return false;
+                }
+                None => {}
+            }
+        }
+    }
+    true
+}
+
+/// A generated (keyword-less, unbound) premise whose every fact is the
+/// membership of one of `state`'s parameters in an argument-free declared
+/// domain that the parameter's own type carries.
+fn is_parameter_domain_premise(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    contract: &typed_trees::signature::SignatureContract,
+) -> bool {
+    use typed_trees::domain::ProofFact;
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
+
+    if contract.keyword_source_span.is_some() || contract.binding.is_some() {
+        return false;
+    }
+    let facts = program.proof_facts.span_or_empty(contract.facts);
+    !facts.is_empty()
+        && facts.iter().all(|fact| {
+            let ProofFact::Membership(membership) = fact else {
+                return false;
+            };
+            if !membership.domain_symbol.is_valid()
+                || !membership.domain_arguments.is_empty()
+                || !program
+                    .expression_table
+                    .expression_is_valid(membership.value)
+            {
+                return false;
+            }
+            let ExpressionNode::Name(path) = program.expression_table.expression(membership.value)
+            else {
+                return false;
+            };
+            let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol.is_valid() && parameter.symbol == path.symbol)
+            else {
+                return false;
+            };
+            let mut reference = parameter.type_reference;
+            let mut visited = Vec::new();
+            while let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = program.type_reference_table.type_reference(reference)
+            {
+                if visited.contains(&reference) {
+                    return false;
+                }
+                visited.push(reference);
+                if program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| {
+                        matches!(
+                            constraint,
+                            TypeConstraintNode::Domain(domain)
+                                if domain.subject == DomainConstraintSubject::Declared
+                                    && domain.symbol == membership.domain_symbol
+                                    && domain.arguments.is_empty()
+                        )
+                    })
+                {
+                    return true;
+                }
+                reference = *base_type;
+            }
+            false
+        })
+}
+
 fn machine_termination_violation(
     call_edges: &[BuildTimeCallEdge],
     program: &TypedTrees,

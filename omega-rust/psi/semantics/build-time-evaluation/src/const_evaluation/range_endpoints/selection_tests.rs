@@ -163,9 +163,11 @@ fn normalized_arguments_check_the_original_nested_occurrence_requester() {
                 domain: ArithmeticDomain::Exact,
             }),
     );
+    let admission = crate::BuildTimeAdmissionPlan::infer(&original, None);
     let error = arguments::evaluate(
         &evaluated,
         &original,
+        &admission,
         outer.expression,
         outer.machine,
         Some(&authority),
@@ -181,6 +183,7 @@ fn normalized_arguments_check_the_original_nested_occurrence_requester() {
     let (values, _) = arguments::evaluate(
         &evaluated,
         &original,
+        &admission,
         outer.expression,
         outer.machine,
         Some(&authority),

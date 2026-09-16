@@ -1,0 +1,15 @@
+// A named range endpoint's concrete argument must satisfy the callee
+// parameter's declared integer domain; `0` is not in `Positive`, so the
+// endpoint rejects before the callee runs instead of stripping the domain.
+domain u64::Positive
+requires
+    self > 0;
+
+machine bounded(value: u64 in Positive) -> u64 { value }
+
+machine rejected(value: u64[0..=bounded(0)]) -> u64 { value }
+
+data Main {}
+
+machine Main::main(&mut self) {
+}

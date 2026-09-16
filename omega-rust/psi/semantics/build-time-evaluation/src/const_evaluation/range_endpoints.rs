@@ -31,8 +31,12 @@
 //! snapshots erase their authored types. No runtime flow bound supplies a value.
 //! Closed range refinements use the same exact bound queries: input values must
 //! satisfy every range before invocation, and returned values before folding.
-//! This concrete check does not replace ordinary body checking or admit other
-//! domain/policy qualifications. Calls computing signature bounds are invocation
+//! A declared, argument-free integer domain on a parameter or result is proved
+//! for the same concrete value through the shared domain-fact evaluator, so
+//! `bounded(value: u64 in Positive)` admits `bounded(256)` and rejects
+//! `bounded(0)` before the callee runs. Neither concrete check replaces
+//! ordinary body checking; arithmetic policies and parameterized domains stay
+//! outside this route. Calls computing signature bounds are invocation
 //! dependencies, independent of declaration order.
 //!
 //! Walk strict integer arithmetic and call arguments in postorder. Temporary
@@ -174,6 +178,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
             arguments::evaluate(
                 typed,
                 execution,
+                &admission,
                 endpoint.expression,
                 endpoint.machine,
                 selection_authority.as_deref(),
@@ -196,16 +201,34 @@ pub(crate) fn evaluate_selected_range_endpoints(
                 selection_authority.as_deref(),
             )?;
             warnings.extend(argument_warnings);
-            let value = admission.evaluate_const_evaluable_machine_symbol_for_invocation(
-                execution,
-                endpoint.machine,
-                arguments,
-                crate::BuildTimeInvocationCustody::Source(endpoint.source_span),
-            )?;
+            // A domain-qualified parameter is a generated `requires` premise
+            // on the entry state. `arguments::evaluate` has just proved each
+            // concrete argument's membership through the shared domain-fact
+            // evaluator, which is the invocation proof the closure fence asks
+            // for; the fence stands down only when those parameter-domain
+            // premises are the closure's sole premises.
+            let custody = crate::BuildTimeInvocationCustody::Source(endpoint.source_span);
+            let value = if admission.closure_includes_authored_requires(execution, machine)
+                && admission.closure_requires_are_entry_parameter_domains(execution, machine)
+            {
+                admission.evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
+                    execution,
+                    endpoint.machine,
+                    arguments,
+                    custody,
+                )?
+            } else {
+                admission.evaluate_const_evaluable_machine_symbol_for_invocation(
+                    execution,
+                    endpoint.machine,
+                    arguments,
+                    custody,
+                )?
+            };
             let value = crate::const_evaluation::const_lengths::decode_integer_result(
                 execution, machine, value,
             )?;
-            position.require_value(&value)?;
+            position.require_value(execution, &admission, &value)?;
             let primitive = position.primitive;
             let landed_type = match primitive {
                 typed_trees::types::PrimitiveType::I8 => LandedIntegerType::I8,

@@ -34,6 +34,34 @@ pub(super) fn evaluate_membership(
     evaluate_domain_facts(typed, admission, domain, value, &mut vec![domain.symbol])
 }
 
+/// Membership of one already-evaluated closed integer in a declared domain.
+/// Range-endpoint admission proves a callee's domain-qualified input or result
+/// through this same fact evaluator, so a domain never enters an endpoint
+/// computation by base-type stripping. `None` means the domain's facts are not
+/// decidable here (a proposition, an unresolved call, a cycle); callers must
+/// treat that as unproven, not as membership. The signed boundary is the
+/// evaluator's storage limit, reported rather than truncated.
+pub(in crate::const_evaluation) fn evaluate_closed_membership(
+    typed: &TypedTrees,
+    admission: &BuildTimeAdmissionPlan,
+    domain_symbol: symbols::SymbolHandle,
+    value: &numerics::bignum::BigInt,
+) -> Result<Option<bool>, String> {
+    let Some(domain) = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return Ok(None);
+    };
+    let value = value.to_i64().ok_or_else(|| {
+        format!(
+            "the concrete value `{value}` does not fit the build-time evaluator's signed integer boundary"
+        )
+    })?;
+    evaluate_domain_facts(typed, admission, domain, value, &mut vec![domain.symbol])
+}
+
 fn evaluate_machine_fact(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
