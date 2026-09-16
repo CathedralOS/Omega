@@ -2417,6 +2417,16 @@ Owners include
   evaluation, per-use exposure under specialization and owner-local imports.
   The [source pipeline map](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization)
   owns the current probes.
+  Witnessed regression (2026-09-16, macOS ARM64, 34cc842d85):
+  `resolve_signature_free_requirement` in
+  `syntax-trees-to-symbol-resolved-trees/src/selection/signature_free_requirements.rs`
+  collects every same-named trait program-wide and filters only by
+  resolution stratum, so after 5d134569b6 seeded `core` into hosted
+  package-aware compilations a package's own `ExtentRootProvider` collides
+  with `core`'s as `TraitNotUnique`
+  (`package-evidence` `declared_hardware_service_reach_does_not_infer_physical_authority`).
+  Scope the candidates to the occurrence's module/dependency scope, as
+  `select_visible_trait_definition` already does for machines.
 
   Complete specialized generic/provider applications, aggregate-producing,
   constrained/target-dependent and floating/NaN declaration evaluation, including
