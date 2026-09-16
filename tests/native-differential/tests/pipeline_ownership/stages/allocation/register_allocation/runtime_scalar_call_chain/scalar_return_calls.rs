@@ -13,6 +13,7 @@ use crate::tests::{
     validate_fixed_frame_function_relative_realization,
     validate_optimized_relocation_free_object_container,
 };
+use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod boolean_calls;
 mod control_flow;
 mod framed_rel8;
