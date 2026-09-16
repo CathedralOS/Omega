@@ -110,7 +110,7 @@ impl LoopInvariantScalarNode {
 }
 
 /// One scalar relocation: the node's exact source node and its destination
-/// coordinate inside the component's unique-entry preheader.
+/// coordinate inside the component's unique preheader.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarRelocation {
     pub(super) node: LoopInvariantScalarNode,

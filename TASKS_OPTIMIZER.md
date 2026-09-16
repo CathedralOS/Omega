@@ -418,21 +418,31 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **GENERAL-LICM.** Implement motion only through transformations that
   invalidate and reconstruct component, loop-carried custody, ranking,
   provenance, effect, and fuel evidence. The dedicated countdown zero/one
-  relocation is not general LICM authority. The unique-entry preheader
+  relocation is not general LICM authority. The shared-source preheader
   boundary relocates scalar constant leaves, side-effect-free scalar
   computations — including exact, wrapping-divide/remainder, and
   saturating-divide/remainder variants whose verifier-discharged totality
   obligation moves byte-exact inside the relocated operation — place
   observations whose storage root rebinds to its invariant
-  representative, and `ByteSequenceRead` reads whose `index`
+  representative, `ByteSequenceRead` reads whose `index`
   operand substitutes through the same scalar rule, whose bounds
   obligation stays byte-exact, and whose `length` operand relocates with
   its `ByteSequenceLength` producer measuring the same rebound root in the
-  same run. Invariant discovery resolves member scalar and structural
+  same run, and `ByteSequenceSubslice` views whose scalar operands rebind
+  the same way while the structural result and bounds obligation stay
+  byte-exact inside the moved operation. Invariant discovery resolves
+  member scalar and structural
   parameters transitively across component-internal edges to the
   representative every reaching edge agrees on, rebinding moved operands
-  and observed roots to the preheader-visible anchor. Remaining: other
-  non-scalar families, profitability, and motion beyond the unique-entry
+  and observed roots to the preheader-visible anchor. The insertion
+  preheader is the one block every authenticated entry edge departs —
+  several entry edges of one dispatching terminator share it, while
+  entries departing different blocks decline — and non-leaf motion
+  additionally requires every terminator successor to enter the component
+  plus a member block every traversal that leaves executed; the freeze
+  fence re-derives both halves of that non-speculative gate from the
+  authenticated topology. Remaining: other
+  non-scalar families, profitability, and motion beyond the shared-source
   preheader. Structural establishments (`EstablishScalarArray`,
   `EstablishRecord`, `EstablishStructuralValue`) currently have no source
   route into a cyclic member block — scalar-graph arrays only emit as

@@ -16,14 +16,17 @@
 //! provably invariant
 //! member parameters, or are defined by another node relocated
 //! out of the same component's run, may relocate from one of its component's
-//! member blocks into the tail of that component's unique-entry preheader.
+//! member blocks into the tail of that component's unique preheader — the
+//! one block every entry edge departs, which may be several edges when a
+//! multi-arm dispatch enters the cycle through all of them.
 //! Every non-leaf relocation also replays the proposal's non-speculative
-//! custody against the authenticated topology: the entry edge must be the
-//! preheader terminator's only successor, and the source member block must
-//! be one every traversal that leaves the component executed — a forged move
-//! out of a bypassed member or past a conditional entry charges the node's
-//! fuel on traversals the source never paid it on, so this fence rejects it
-//! rather than trusting the transformed unit.
+//! custody against the authenticated topology: every successor of the
+//! preheader's terminator must be an entry edge into the roster, and the
+//! source member block must be one every traversal that leaves the component
+//! executed — a forged move out of a bypassed member or past a terminator
+//! whose successor leaves charges the node's fuel on traversals the source
+//! never paid it on, so this fence rejects it rather than trusting the
+//! transformed unit.
 //! Moved computations rebind each invariant-parameter operand to the
 //! representative every reaching edge agrees on — the substitution is
 //! re-derived here from the seed, not trusted from the transformed unit —
@@ -124,48 +127,54 @@ pub(super) fn validate(
     }
     let no_relocated_results = BTreeSet::new();
 
-    // Each relocated node must land in its own component's unique-entry
-    // preheader ahead of the terminator that owns the entry edge, and it must
-    // retain every source-owned field.
+    // Each relocated node must land in its own component's unique preheader
+    // ahead of the terminator that owns every entry edge, and it must retain
+    // every source-owned field.
     let mut guaranteed_members: BTreeMap<CycleComponentId, BTreeSet<BlockId>> = BTreeMap::new();
     for relocation in &moved {
         let component = relocation.home;
-        let [entry] = component.entries.as_slice() else {
+        let Some(preheader_source) = crate::validation::shared_entry_source(component) else {
             return Err(mismatch(machine, relocation.expected_block));
         };
-        if component.members.contains(&entry.source) || relocation.current_block != entry.source {
+        if relocation.current_block != preheader_source {
             return Err(mismatch(machine, relocation.expected_block));
         }
         let preheader =
-            block(current, entry.source).ok_or_else(|| mismatch(machine, entry.source))?;
+            block(current, preheader_source).ok_or_else(|| mismatch(machine, preheader_source))?;
         let Some(terminator) = preheader.nodes.last() else {
-            return Err(mismatch(machine, entry.source));
+            return Err(mismatch(machine, preheader_source));
         };
-        if !terminator
-            .successors
-            .iter()
-            .any(|edge| edge.psi_edge == entry.edge && edge.target == entry.target)
-        {
-            return Err(mismatch(machine, entry.source));
+        // Every entry edge the component authenticates must depart this one
+        // terminator: the shared preheader owns all of them, so a forged
+        // destination or a missing entry edge rejects here.
+        if !component.entries.iter().all(|entry| {
+            terminator
+                .successors
+                .iter()
+                .any(|edge| edge.psi_edge == entry.edge && edge.target == entry.target)
+        }) {
+            return Err(mismatch(machine, preheader_source));
         }
         let leaf = crate::validation::admissible_scalar_leaf_relocation(relocation.expected);
         if !leaf {
             // The proposal's non-speculative custody is re-derived here
             // rather than trusted from the transformed unit: a non-leaf
             // node may relocate only when reaching the preheader
-            // guarantees entering the component — the entry edge is its
-            // terminator's only successor — and only out of a member block
-            // every traversal that leaves the component executed. A forged
-            // move out of a bypassed member or past a conditional entry
-            // relocates work the source traversal could skip, so the moved
-            // node's fuel charge lands on traversals that never paid it.
-            // Scalar-constant leaves stay exempt: re-expressing a constant
-            // performs no work the traversal could have skipped.
-            let guaranteed_entry = matches!(
-                terminator.successors.as_slice(),
-                [entry_edge]
-                    if entry_edge.psi_edge == entry.edge && entry_edge.target == entry.target
-            );
+            // guarantees entering the component — every successor of its
+            // terminator is an entry edge into the roster — and only out of
+            // a member block every traversal that leaves the component
+            // executed. A forged move out of a bypassed member or past a
+            // terminator with a non-member successor relocates work the
+            // source traversal could skip, so the moved node's fuel charge
+            // lands on traversals that never paid it. Scalar-constant
+            // leaves stay exempt: re-expressing a constant performs no work
+            // the traversal could have skipped.
+            let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+            let guaranteed_entry = !terminator.successors.is_empty()
+                && terminator
+                    .successors
+                    .iter()
+                    .all(|edge| members.contains(&edge.target));
             let guaranteed = guaranteed_members
                 .entry(component.id.clone())
                 .or_insert_with(|| crate::validation::guaranteed_executed_member_blocks(component));

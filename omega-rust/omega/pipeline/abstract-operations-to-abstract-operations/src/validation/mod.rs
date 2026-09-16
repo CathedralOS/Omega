@@ -269,8 +269,8 @@ pub(crate) fn component_preserves_place_observations(
             }
         }
     }
-    // Any discard adjacent to the component — on an internal edge, the unique
-    // entry edge, or an exit — refuses the family. An entry-edge discard runs
+    // Any discard adjacent to the component — on an internal edge, an entry
+    // edge, or an exit — refuses the family. An entry-edge discard runs
     // once before the first iteration, but a place it ends could not be read
     // inside the loop at all, so the refusal is only conservative.
     let adjacent: BTreeSet<EdgeId> = component
@@ -375,7 +375,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
 }
 
 /// Whether `root`, the storage root an admitted place observation names, is
-/// visible at the component's unique-entry preheader insertion point: a
+/// visible at the component's unique preheader insertion point: a
 /// function structural parameter or result root, a provider-attachment root,
 /// a structural parameter of the preheader block itself, or a place
 /// established by a preheader node ahead of the terminator. The relocated run
@@ -449,7 +449,7 @@ fn produces_place_root(operation: &O, root: PlaceId) -> bool {
 /// shape ([`admissible_invariant_place_read`]), the component must perform no
 /// place mutation or custody movement
 /// ([`component_preserves_place_observations`]), and the root it observes must
-/// be visible at the unique-entry preheader insertion point
+/// be visible at the unique preheader insertion point
 /// ([`place_observation_root_visible`]) — either directly, or transitively
 /// when the observed root is a member structural parameter every reaching
 /// edge binds to the same preheader-visible representative
@@ -467,7 +467,7 @@ pub(crate) fn invariant_place_observation_admission(
 }
 
 /// The root an admitted observation rebinds to when it relocates: `source`
-/// itself when it is already visible at the unique-entry preheader insertion
+/// itself when it is already visible at the unique preheader insertion
 /// point, so a byte-exact move and a member-parameter rebind share one
 /// admission. The whole-component place-custody gate
 /// ([`component_preserves_place_observations`]) and the root's preheader
@@ -481,19 +481,14 @@ pub(crate) fn invariant_observation_root(
     component: &OptimizerCycleComponent,
     source: PlaceId,
 ) -> Option<PlaceId> {
-    let [entry] = component.entries.as_slice() else {
-        return None;
-    };
-    if component.members.contains(&entry.source) {
-        return None;
-    }
+    let preheader_source = shared_entry_source(component)?;
     if !component_preserves_place_observations(function, component) {
         return None;
     }
     let preheader = function
         .blocks
         .iter()
-        .find(|block| block.id == entry.source)?;
+        .find(|block| block.id == preheader_source)?;
     if place_observation_root_visible(function, preheader, source) {
         return Some(source);
     }
@@ -799,10 +794,27 @@ pub(crate) fn value_definition_sites(
         .collect()
 }
 
+/// The block every one of `component`'s entry edges departs — the unique
+/// preheader a relocation can target. Entries may arrive on several edges of
+/// that one block's terminator (a multi-arm dispatch where every arm enters
+/// the cycle); entries departing different blocks leave the component with no
+/// shared preheader, and an entry source inside the roster is not a preheader
+/// at all, so both decline.
+pub(crate) fn shared_entry_source(component: &OptimizerCycleComponent) -> Option<BlockId> {
+    let [first, rest @ ..] = component.entries.as_slice() else {
+        return None;
+    };
+    (rest.iter().all(|entry| entry.source == first.source)
+        && !component.members.contains(&first.source))
+    .then_some(first.source)
+}
+
 /// Member blocks of `component` guaranteed to execute on every traversal that
 /// leaves the component: they dominate every exit-edge source inside the
 /// subgraph the component's internal edges induce over its member roster,
-/// rooted at the unique entry target. Relocating a node out of any other
+/// rooted at the entry targets — a traversal enters through any one of them,
+/// so a member qualifies only when every path from every entry target to
+/// every exit source passes through it. Relocating a node out of any other
 /// member block would speculate executions the source traversal may never
 /// perform — a bypassing exit can leave the component before the block runs —
 /// so the scalar-motion boundary admits only these members even though every
@@ -815,10 +827,13 @@ pub(crate) fn guaranteed_executed_member_blocks(
     component: &OptimizerCycleComponent,
 ) -> BTreeSet<BlockId> {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    let [entry] = component.entries.as_slice() else {
-        return BTreeSet::new();
-    };
-    if !members.contains(&entry.target) {
+    let entry_targets: BTreeSet<BlockId> = component
+        .entries
+        .iter()
+        .map(|entry| entry.target)
+        .filter(|target| members.contains(target))
+        .collect();
+    if entry_targets.is_empty() {
         return BTreeSet::new();
     }
     let boundary: BTreeSet<BlockId> = component
@@ -839,14 +854,17 @@ pub(crate) fn guaranteed_executed_member_blocks(
                 .insert(edge.source);
         }
     }
-    let root = entry.target;
+    // Every entry target is a dominator root: a traversal can reach it on an
+    // entry edge without executing any other member. This is the usual
+    // multi-root dominance — a virtual super-root over the entry targets —
+    // with the super-root implicit since it is never itself a member.
     let mut dominators: BTreeMap<BlockId, BTreeSet<BlockId>> = members
         .iter()
         .map(|member| {
             (
                 *member,
-                if *member == root {
-                    BTreeSet::from([root])
+                if entry_targets.contains(member) {
+                    BTreeSet::from([*member])
                 } else {
                     members.clone()
                 },
@@ -855,7 +873,11 @@ pub(crate) fn guaranteed_executed_member_blocks(
         .collect();
     loop {
         let mut changed = false;
-        for member in members.iter().copied().filter(|member| *member != root) {
+        for member in members
+            .iter()
+            .copied()
+            .filter(|member| !entry_targets.contains(member))
+        {
             let mut incoming = predecessors[&member]
                 .iter()
                 .filter_map(|predecessor| dominators.get(predecessor));

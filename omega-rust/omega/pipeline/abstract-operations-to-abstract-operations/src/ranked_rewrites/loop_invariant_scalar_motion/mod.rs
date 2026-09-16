@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Exact single-entry loop-invariant scalar relocation boundary.
+//! Optimizer module role: executable entrance. Exact unique-preheader loop-invariant scalar relocation boundary.
 
 use optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
@@ -33,7 +33,7 @@ pub use model::{
     ValidatedLoopInvariantScalarMotion,
 };
 
-/// Propose every single-entry cyclic component that still retains admissible
+/// Propose every unique-preheader cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, invariant place observations, byte observations, and
 /// side-effect-free scalar
@@ -60,15 +60,17 @@ pub use model::{
 /// result and bounds obligation byte-exact inside the moved operation.
 /// Computation
 /// and observation
-/// relocation is non-speculative: the unique entry edge must be the preheader
-/// terminator's only successor, and only member blocks guaranteed to execute
-/// on every traversal that leaves the component contribute computations — a
-/// member block a bypassing exit can skip keeps its computations inside the
-/// loop. Scalar-constant leaves are exempt from both halves of the gate:
-/// materializing a constant performs no work a traversal could have skipped.
+/// relocation is non-speculative: every successor of the unique preheader's
+/// terminator must be an entry edge into the component — reaching the
+/// preheader guarantees entering — and only member blocks guaranteed to
+/// execute on every traversal that leaves the component contribute
+/// computations — a member block a bypassing exit can skip keeps its
+/// computations inside the loop. Scalar-constant leaves are exempt from both
+/// halves of the gate: materializing a constant performs no work a traversal
+/// could have skipped.
 /// Each candidate relocates the component's complete admissible set into the
 /// tail of the component's unique preheader, ahead of the terminator that
-/// owns the entry edge and ahead of any already-relocated
+/// owns the entry edges and ahead of any already-relocated
 /// countdown-certificate constants owned by the dedicated countdown boundary.
 pub fn propose_loop_invariant_scalar_motion(
     session: &VerifiedPsiOptimizationSession,

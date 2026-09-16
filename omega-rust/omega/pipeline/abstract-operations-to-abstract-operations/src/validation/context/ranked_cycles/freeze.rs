@@ -30,7 +30,7 @@ pub(super) fn validate_frozen_component_blocks(
     // and countdown cycles alike. Topology equality alone cannot preserve
     // them; the relocation normalization retains every source-owned field
     // while admitting only scalar motion into a component's own
-    // unique-entry preheader. Immutable signature/contract and accepted-fact
+    // unique preheader. Immutable signature/contract and accepted-fact
     // custody are checked separately by the enclosing context validator. The
     // bare seed has not yet acquired that verified metadata.
     for (machine, machine_components) in machines {

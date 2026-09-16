@@ -100,29 +100,32 @@ pub(super) fn component_plan(
         .iter()
         .find(|function| function.machine == machine)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
-    let [entry] = component.entries.as_slice() else {
+    // The component's entry edges may share one preheader block even when
+    // several of them exist — a multi-arm dispatch whose every arm enters the
+    // cycle. Entries departing different blocks leave no unique insertion
+    // point, so the component declines.
+    let Some(preheader_source) = crate::validation::shared_entry_source(component) else {
         return Ok(None);
     };
-    if component.members.contains(&entry.source) {
-        return Ok(None);
-    }
     let preheader = function
         .blocks
         .iter()
-        .find(|block| block.id == entry.source)
+        .find(|block| block.id == preheader_source)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
     let Some(terminator_index) = preheader.nodes.len().checked_sub(1) else {
         return Ok(None);
     };
-    // Whether reaching the preheader guarantees entering the component: the
-    // entry edge must be the preheader terminator's only successor. A
-    // computation relocated past a conditional entry would execute on
-    // traversals that never enter the loop, so the gate declines the whole
-    // component when this does not hold.
-    let guaranteed_entry = matches!(
-        preheader.nodes[terminator_index].successors.as_slice(),
-        [entry_edge] if entry_edge.psi_edge == entry.edge && entry_edge.target == entry.target
-    );
+    // Whether reaching the preheader guarantees entering the component: every
+    // successor of its terminator must be a member — each is an entry edge by
+    // construction. A relocation past a terminator with a non-member
+    // successor would execute on traversals that never enter the loop, so the
+    // gate declines non-leaf motion when this does not hold.
+    let members: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let guaranteed_entry = !preheader.nodes[terminator_index].successors.is_empty()
+        && preheader.nodes[terminator_index]
+            .successors
+            .iter()
+            .all(|edge| members.contains(&edge.target));
     let certificate_operations = certificate_operations(session, component);
     let certificate_tail = preheader.nodes[..terminator_index]
         .iter()
@@ -169,14 +172,14 @@ pub(super) fn component_plan(
             .all(|representative| match sites.get(representative) {
                 Some(ValueDefinitionSite::FunctionParameter(_)) => true,
                 Some(ValueDefinitionSite::BlockParameter { block, .. })
-                    if *block == entry.source =>
+                    if *block == preheader_source =>
                 {
                     true
                 }
                 Some(ValueDefinitionSite::Node {
                     block,
                     node: defined,
-                }) if *block == entry.source => {
+                }) if *block == preheader_source => {
                     usize::try_from(*defined).is_ok_and(|defined| defined < insertion)
                 }
                 _ => false,
