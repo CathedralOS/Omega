@@ -76,7 +76,8 @@ fn component_candidate(
 /// to), a byte read or subslice (root rebound, scalar operands substituted,
 /// `length` still coupled to a `ByteSequenceLength` on the rebound root, and
 /// for a subslice the structural result preserved inside the moved
-/// operation), an invariant scalar computation, or
+/// operation), an invariant scalar computation (an obligated variant keeps
+/// its discharged obligation byte-exact inside the moved operation), or
 /// a computation whose
 /// member-internal operands are all defined by nodes earlier in the same run —
 /// plus the number of countdown-certificate constants already occupying the

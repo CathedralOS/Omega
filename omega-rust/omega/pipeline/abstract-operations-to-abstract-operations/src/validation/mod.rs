@@ -40,13 +40,20 @@ pub(crate) fn admissible_scalar_leaf_relocation(node: &OptimizationNode) -> bool
 
 /// Side-effect-free total scalar computations are the second operation class
 /// admitted for loop-invariant motion. Every admitted variant is pure scalar
-/// (no place, claim, call, service, or control payload) and carries no
-/// verifier obligation, so executing it once in the preheader cannot
-/// introduce a crash or an observation the source node did not already own.
-/// The node must still name its own operation as the first provenance row,
-/// define exactly one result, and carry no successors or ownership events;
-/// whether its operand uses are actually loop-invariant is decided per use
-/// site by [`invariant_scalar_operand_substitution`].
+/// (no place, claim, call, service, or control payload) and either carries no
+/// verifier obligation or carries one the checker already discharged against
+/// its operand values — a range, divisor, or shift-count totality proof. The
+/// discharge stays valid after relocation because operand substitution only
+/// rebinds a member parameter to the representative every reaching edge
+/// proves equal, or keeps a run-internal operand bound to the result identity
+/// the same relocation run preserves; the obligation itself moves byte-exact
+/// inside the operation. The non-speculative gate already guarantees the
+/// moved node ran on every traversal, so executing it once in the preheader
+/// cannot introduce a crash or an observation the source node did not already
+/// own. The node must still name its own operation as the first provenance
+/// row, define exactly one result, and carry no successors or ownership
+/// events; whether its operand uses are actually loop-invariant is decided
+/// per use site by [`invariant_scalar_operand_substitution`].
 pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -> bool {
     let psi_operation = match &node.operation {
         O::BooleanNot { psi_operation, .. }
@@ -59,14 +66,26 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
         | O::IntegerBitwiseOr { psi_operation, .. }
         | O::IntegerBitwiseXor { psi_operation, .. }
         | O::IntegerWiden { psi_operation, .. }
+        | O::IntegerExactCast { psi_operation, .. }
         | O::WrappingIntegerShiftLeft { psi_operation, .. }
         | O::WrappingIntegerShiftRight { psi_operation, .. }
+        | O::ExactIntegerShiftLeft { psi_operation, .. }
+        | O::ExactIntegerShiftRight { psi_operation, .. }
         | O::WrappingIntegerAdd { psi_operation, .. }
+        | O::ExactIntegerAdd { psi_operation, .. }
         | O::SaturatingIntegerAdd { psi_operation, .. }
         | O::WrappingIntegerSubtract { psi_operation, .. }
+        | O::ExactIntegerSubtract { psi_operation, .. }
         | O::SaturatingIntegerSubtract { psi_operation, .. }
         | O::WrappingIntegerMultiply { psi_operation, .. }
+        | O::ExactIntegerMultiply { psi_operation, .. }
         | O::SaturatingIntegerMultiply { psi_operation, .. }
+        | O::WrappingIntegerDivide { psi_operation, .. }
+        | O::ExactIntegerDivide { psi_operation, .. }
+        | O::SaturatingIntegerDivide { psi_operation, .. }
+        | O::WrappingIntegerRemainder { psi_operation, .. }
+        | O::ExactIntegerRemainder { psi_operation, .. }
+        | O::SaturatingIntegerRemainder { psi_operation, .. }
         | O::IeeeFloatCompare { psi_operation, .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. } => *psi_operation,
         _ => return false,
@@ -1066,6 +1085,8 @@ fn member_scalar_operand_substitution(
 /// Rewrite the scalar operand fields of an admitted invariant computation.
 /// Only the variants [`admissible_invariant_scalar_computation`] admits carry
 /// plain `ValueId` operand positions; any other operation is left untouched.
+/// An obligated variant's `obligation` is not an operand position — it stays
+/// byte-exact inside the moved operation.
 pub(crate) fn substitute_invariant_scalar_operands(
     operation: &mut O,
     substitution: &BTreeMap<ValueId, ValueId>,
@@ -1078,7 +1099,8 @@ pub(crate) fn substitute_invariant_scalar_operands(
     match operation {
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
-        | O::IntegerWiden { operand, .. } => substitute(operand, substitution),
+        | O::IntegerWiden { operand, .. }
+        | O::IntegerExactCast { operand, .. } => substitute(operand, substitution),
         O::BooleanEqual { left, right, .. }
         | O::IntegerEqual { left, right, .. }
         | O::IntegerLessThan { left, right, .. }
@@ -1087,17 +1109,28 @@ pub(crate) fn substitute_invariant_scalar_operands(
         | O::IntegerBitwiseOr { left, right, .. }
         | O::IntegerBitwiseXor { left, right, .. }
         | O::WrappingIntegerAdd { left, right, .. }
+        | O::ExactIntegerAdd { left, right, .. }
         | O::SaturatingIntegerAdd { left, right, .. }
         | O::WrappingIntegerSubtract { left, right, .. }
+        | O::ExactIntegerSubtract { left, right, .. }
         | O::SaturatingIntegerSubtract { left, right, .. }
         | O::WrappingIntegerMultiply { left, right, .. }
+        | O::ExactIntegerMultiply { left, right, .. }
         | O::SaturatingIntegerMultiply { left, right, .. }
+        | O::WrappingIntegerDivide { left, right, .. }
+        | O::ExactIntegerDivide { left, right, .. }
+        | O::SaturatingIntegerDivide { left, right, .. }
+        | O::WrappingIntegerRemainder { left, right, .. }
+        | O::ExactIntegerRemainder { left, right, .. }
+        | O::SaturatingIntegerRemainder { left, right, .. }
         | O::IeeeFloatCompare { left, right, .. } => {
             substitute(left, substitution);
             substitute(right, substitution);
         }
         O::WrappingIntegerShiftLeft { value, count, .. }
-        | O::WrappingIntegerShiftRight { value, count, .. } => {
+        | O::WrappingIntegerShiftRight { value, count, .. }
+        | O::ExactIntegerShiftLeft { value, count, .. }
+        | O::ExactIntegerShiftRight { value, count, .. } => {
             substitute(value, substitution);
             substitute(count, substitution);
         }
