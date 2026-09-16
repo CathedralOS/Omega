@@ -51,6 +51,39 @@
 //! zero is the additive identity under modulo-2^64 wrap, so `x + 0` is
 //! `x`. The wrapping-add row is flag-transparent, so unlike the bitwise
 //! forms there is no flag clobber to retire.
+//! `SelectedIncomingBitwiseAndOnesIdentityCopy` joins them below: the
+//! provider body's `value & u64::MAX` materializes the all-ones literal
+//! into the right `Use` operand of the `BitwiseAndI64` consumer —
+//! `MaterializeI64` feeding `BitwiseAndI64`, the catalog's
+//! `BITWISE_AND_ONES_COPIES` pair rules, which rewrite the consumer to a
+//! `CopyI64` of the surviving operand register at the result register —
+//! all-ones is the bitwise-and identity element, so `x & MAX` is `x` —
+//! again dropping the flag clobber the subtract-shared constraint row
+//! carries on x86-64. The family shares its consumer kind and operand
+//! grammar with the and-zero annihilator rules; the two families stay
+//! disjoint on the literal's value.
+//! `SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization`
+//! joins them below: the provider body's guarded `0 % value` on a signed
+//! wrapping carrier materializes the zero literal into the dividend `Use`
+//! operand of the `WrappingRemainderI64` consumer — `MaterializeI64`
+//! feeding `WrappingRemainderI64`, the catalog's
+//! `WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE` pair rule, which rewrites
+//! the pair to a `MaterializeI64` of zero at the result register — `0 % x`
+//! is `0` for every `x`. Unlike the divisor-one fold, the folded literal
+//! is not the value that discharges the consumer's encoded architectural
+//! fault: the rule declares `FaultDischargedByObligation`, so the constant
+//! quotient is fixed by the literal while the consumer's carried nonzero
+//! divisor obligation already excludes the only reachable fault.
+//! `SelectedIncomingExactDivideZeroDividendZeroMaterialization` joins them
+//! below: the provider body's guarded `0 / value` on an unsigned carrier
+//! materializes the zero literal into the dividend `Use` operand of the
+//! `ExactDivideU64` consumer — `MaterializeI64` feeding `ExactDivideU64`,
+//! the catalog's `EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE` pair rule, which
+//! rewrites the pair to a `MaterializeI64` of zero at the result register
+//! under the same `FaultDischargedByObligation` surface: `0 / x` is `0`
+//! for every nonzero `x`, a quotient of zero cannot overflow, and the
+//! divide-by-zero case the encoding could still name is unreachable under
+//! the consumer's accepted nonzero-divisor obligation.
 
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
@@ -1317,6 +1350,723 @@ machine Main::main(&mut self) {
     artifact
         .validate()
         .expect("wrapping-add-zero native artifact should replay independently");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("the surviving boundary occurrence retains nonempty physical evidence");
+    let [occurrence] = physical.projection().operator_occurrences() else {
+        panic!("the checked boundary operator must survive as exactly one operator occurrence")
+    };
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    let [child] = physical.children() else {
+        panic!("the surviving occurrence must bind exactly one physical child")
+    };
+    assert_eq!(
+        child.occurrence(),
+        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+    );
+    assert_eq!(child.projection(), physical.projection().identity());
+    assert!(matches!(
+        child.parent(),
+        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+    ));
+    assert!(child.machine_span().byte_count() > 0);
+    assert!(child.object_span().byte_count() > 0);
+    assert_eq!(
+        child.relocation(),
+        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+    );
+
+    // Independent replay from the published parts alone: every mutation
+    // class must fail closed.
+    let parts = report
+        .into_retained_native_artifact()
+        .expect("owned native artifact")
+        .into_parts();
+
+    let mut missing = replay_native_artifact_parts(&parts);
+    let evidence = missing
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    missing.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: Vec::new(),
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        "a missing physical child must not replay"
+    );
+
+    let mut duplicate = replay_native_artifact_parts(&parts);
+    let evidence = duplicate
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    let [only_child] = evidence.children.as_slice() else {
+        panic!("one physical child before duplication")
+    };
+    duplicate.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: vec![only_child.clone(), only_child.clone()],
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        "a duplicate physical child must not replay"
+    );
+
+    let assert_mutated_child_rejected =
+        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+            let mut replay = replay_native_artifact_parts(&parts);
+            let evidence = replay
+                .physical_evidence
+                .take()
+                .expect("replay physical evidence")
+                .into_parts();
+            let [child] = evidence.children.as_slice() else {
+                panic!("one physical child before mutation")
+            };
+            let mut child = child.clone().into_parts();
+            mutate(&mut child);
+            replay.physical_evidence = Some(
+                native_realization::NativePhysicalEvidence::from_replayed_parts(
+                    native_realization::NativePhysicalEvidenceParts {
+                        projection: evidence.projection,
+                        children: vec![
+                            native_realization::NativePhysicalChild::from_replayed_parts(child),
+                        ],
+                        identity: evidence.identity,
+                    },
+                ),
+            );
+            assert!(
+                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                "a mutated physical child must not replay"
+            );
+        };
+    // Role-swapped: the operator occurrence cannot be re-presented as a
+    // boundary occurrence.
+    assert_mutated_child_rejected(&|child| {
+        assert!(matches!(
+            child.parent,
+            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        ));
+        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+            optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
+                child.occurrence.identity(),
+            ),
+        );
+    });
+    // Padded: the machine span must name exactly the emitted call interval.
+    assert_mutated_child_rejected(&|child| {
+        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+            child.machine_span.offset(),
+            child.machine_span.byte_count() + 1,
+        );
+    });
+    // Substituted: the child must bind the validated projection identity.
+    assert_mutated_child_rejected(&|child| {
+        child.projection =
+            optimization_core::NativeOptimizationProjectionIdentity::from_bytes([0x5A; 32]);
+    });
+    // Stale: an occurrence identity no surviving projection names cannot carry
+    // a child.
+    assert_mutated_child_rejected(&|child| {
+        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+            optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
+        );
+    });
+}
+
+#[test]
+fn selected_lowering_bitwise_and_ones_occurrence_replays_one_exact_physical_child() {
+    // An eleventh selected-lowering family carries the physical-child
+    // contract: the package-bound boundary operator program compiles under
+    // `SelectedIncomingBitwiseAndOnesIdentityCopy`, and the provider body's
+    // `value & u64::MAX` gives the catalog's `BITWISE_AND_ONES_COPIES` pair
+    // rules a real source-reachable candidate — the all-ones literal
+    // materializes and feeds the right `Use` operand of the
+    // `BitwiseAndI64` consumer, a `MaterializeI64` feeding `BitwiseAndI64`
+    // that the rule rewrites to a `CopyI64` of the surviving operand
+    // register at the consumer's result register (all-ones is the
+    // bitwise-and identity element, so `x & MAX` is `x`), again dropping
+    // the flag clobber the subtract-shared constraint row carries on
+    // x86-64. The family shares its consumer kind and operand grammar with
+    // the and-zero annihilator rules; the two families stay disjoint on
+    // the literal's value. The surviving operator occurrence still binds
+    // exactly one OperatorApplicationCoverage child through allocation,
+    // layout, and native emission; independent replay rejects every
+    // mutation class — missing, duplicate, stale, substituted, padded,
+    // and role-swapped children.
+    let root = std::env::temp_dir().join(format!(
+        "omega-physical-child-bitwise-and-ones-{}-{}",
+        std::process::id(),
+        PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("create bitwise-and-ones physical-child project");
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data CheckedMath {}
+
+boundary operator CheckedMath::mask_ones(value: u64) -> u64;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::mask_ones_impl(value: u64) -> u64
+satisfies CheckedMath::mask_ones
+{
+    transition { _ -> (value & 18446744073709551615u64) }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let picked: u64 = CheckedMath::mask_ones(7u64);
+}
+"#,
+    )
+    .expect("write bitwise-and-ones physical-child main");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-bitwise-and-ones-physical-child");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::SelectedIncomingBitwiseAndOnesIdentityCopy);
+}
+"#,
+    )
+    .expect("write bitwise-and-ones physical-child build");
+    let root_identity = package_identity(53);
+    let inputs = PackageCompilationInputs::new_package(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("bitwise-and-ones physical-child package graph should validate");
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(inputs),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the bitwise-and-ones selection must carry a boundary occurrence to native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("bitwise-and-ones compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("bitwise-and-ones native artifact should replay independently");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("the surviving boundary occurrence retains nonempty physical evidence");
+    let [occurrence] = physical.projection().operator_occurrences() else {
+        panic!("the checked boundary operator must survive as exactly one operator occurrence")
+    };
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    let [child] = physical.children() else {
+        panic!("the surviving occurrence must bind exactly one physical child")
+    };
+    assert_eq!(
+        child.occurrence(),
+        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+    );
+    assert_eq!(child.projection(), physical.projection().identity());
+    assert!(matches!(
+        child.parent(),
+        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+    ));
+    assert!(child.machine_span().byte_count() > 0);
+    assert!(child.object_span().byte_count() > 0);
+    assert_eq!(
+        child.relocation(),
+        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+    );
+
+    // Independent replay from the published parts alone: every mutation
+    // class must fail closed.
+    let parts = report
+        .into_retained_native_artifact()
+        .expect("owned native artifact")
+        .into_parts();
+
+    let mut missing = replay_native_artifact_parts(&parts);
+    let evidence = missing
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    missing.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: Vec::new(),
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        "a missing physical child must not replay"
+    );
+
+    let mut duplicate = replay_native_artifact_parts(&parts);
+    let evidence = duplicate
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    let [only_child] = evidence.children.as_slice() else {
+        panic!("one physical child before duplication")
+    };
+    duplicate.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: vec![only_child.clone(), only_child.clone()],
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        "a duplicate physical child must not replay"
+    );
+
+    let assert_mutated_child_rejected =
+        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+            let mut replay = replay_native_artifact_parts(&parts);
+            let evidence = replay
+                .physical_evidence
+                .take()
+                .expect("replay physical evidence")
+                .into_parts();
+            let [child] = evidence.children.as_slice() else {
+                panic!("one physical child before mutation")
+            };
+            let mut child = child.clone().into_parts();
+            mutate(&mut child);
+            replay.physical_evidence = Some(
+                native_realization::NativePhysicalEvidence::from_replayed_parts(
+                    native_realization::NativePhysicalEvidenceParts {
+                        projection: evidence.projection,
+                        children: vec![
+                            native_realization::NativePhysicalChild::from_replayed_parts(child),
+                        ],
+                        identity: evidence.identity,
+                    },
+                ),
+            );
+            assert!(
+                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                "a mutated physical child must not replay"
+            );
+        };
+    // Role-swapped: the operator occurrence cannot be re-presented as a
+    // boundary occurrence.
+    assert_mutated_child_rejected(&|child| {
+        assert!(matches!(
+            child.parent,
+            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        ));
+        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+            optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
+                child.occurrence.identity(),
+            ),
+        );
+    });
+    // Padded: the machine span must name exactly the emitted call interval.
+    assert_mutated_child_rejected(&|child| {
+        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+            child.machine_span.offset(),
+            child.machine_span.byte_count() + 1,
+        );
+    });
+    // Substituted: the child must bind the validated projection identity.
+    assert_mutated_child_rejected(&|child| {
+        child.projection =
+            optimization_core::NativeOptimizationProjectionIdentity::from_bytes([0x5A; 32]);
+    });
+    // Stale: an occurrence identity no surviving projection names cannot carry
+    // a child.
+    assert_mutated_child_rejected(&|child| {
+        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+            optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
+        );
+    });
+}
+
+#[test]
+fn selected_lowering_wrapping_remainder_zero_dividend_occurrence_replays_one_exact_physical_child()
+{
+    // A twelfth selected-lowering family carries the physical-child
+    // contract: the package-bound boundary operator program compiles under
+    // `SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization`,
+    // and the provider body's guarded `0 % value` on a signed wrapping
+    // carrier gives the catalog's
+    // `WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE` pair rule a real
+    // source-reachable candidate — the zero literal materializes and feeds
+    // the dividend `Use` operand of the `WrappingRemainderI64` consumer, a
+    // `MaterializeI64` feeding `WrappingRemainderI64` that the rule
+    // rewrites to a `MaterializeI64` of zero at the consumer's result
+    // register (`0 % x` is `0` for every `x`). Unlike the divisor-one
+    // fold, the folded literal is not the value that discharges the
+    // consumer's encoded architectural fault — the rule declares
+    // `FaultDischargedByObligation` because the constant quotient is fixed
+    // by the literal while the consumer's carried nonzero-divisor
+    // obligation already excludes the only reachable fault, so the guard
+    // on the provider keeps the divisor's definedness proven. The
+    // surviving operator occurrence still binds exactly one
+    // OperatorApplicationCoverage child through allocation, layout, and
+    // native emission; independent replay rejects every mutation class —
+    // missing, duplicate, stale, substituted, padded, and role-swapped
+    // children. linux_arm64 is the declared target for the same reason as
+    // the divisor-one family: the x86-64 remainder row's early-clobber
+    // RDX scratch next to the late RAX result is not yet admitted by
+    // live-range replay (`UnsupportedEarlyClobber`), while the AArch64
+    // SDIV/MSUB row carries the admitted single-definition early-clobber
+    // shape.
+    let root = std::env::temp_dir().join(format!(
+        "omega-physical-child-wrapping-remainder-zero-dividend-{}-{}",
+        std::process::id(),
+        PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root)
+        .expect("create wrapping-remainder-zero-dividend physical-child project");
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data CheckedMath {}
+
+boundary operator CheckedMath::zero_mod(value: i64 in Wrapping) -> i64 in Wrapping;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::zero_mod_impl(value: i64 in Wrapping) -> i64 in Wrapping
+satisfies CheckedMath::zero_mod
+{
+    transition value != 0 {
+        true -> (0 % value)
+        false -> 0
+    }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let picked: i64 in Wrapping = CheckedMath::zero_mod(7 as i64 in Wrapping);
+}
+"#,
+    )
+    .expect("write wrapping-remainder-zero-dividend physical-child main");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-wrapping-remainder-zero-dividend-physical-child");
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization);
+}
+"#,
+    )
+    .expect("write wrapping-remainder-zero-dividend physical-child build");
+    let root_identity = package_identity(54);
+    let inputs = PackageCompilationInputs::new_package(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("wrapping-remainder-zero-dividend physical-child package graph should validate");
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("linux_arm64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(inputs),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the wrapping-remainder-zero-dividend selection must carry a boundary occurrence to native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("wrapping-remainder-zero-dividend compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("wrapping-remainder-zero-dividend native artifact should replay independently");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("the surviving boundary occurrence retains nonempty physical evidence");
+    let [occurrence] = physical.projection().operator_occurrences() else {
+        panic!("the checked boundary operator must survive as exactly one operator occurrence")
+    };
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    let [child] = physical.children() else {
+        panic!("the surviving occurrence must bind exactly one physical child")
+    };
+    assert_eq!(
+        child.occurrence(),
+        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+    );
+    assert_eq!(child.projection(), physical.projection().identity());
+    assert!(matches!(
+        child.parent(),
+        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+    ));
+    assert!(child.machine_span().byte_count() > 0);
+    assert!(child.object_span().byte_count() > 0);
+    assert_eq!(
+        child.relocation(),
+        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+    );
+
+    // Independent replay from the published parts alone: every mutation
+    // class must fail closed.
+    let parts = report
+        .into_retained_native_artifact()
+        .expect("owned native artifact")
+        .into_parts();
+
+    let mut missing = replay_native_artifact_parts(&parts);
+    let evidence = missing
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    missing.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: Vec::new(),
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        "a missing physical child must not replay"
+    );
+
+    let mut duplicate = replay_native_artifact_parts(&parts);
+    let evidence = duplicate
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    let [only_child] = evidence.children.as_slice() else {
+        panic!("one physical child before duplication")
+    };
+    duplicate.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: vec![only_child.clone(), only_child.clone()],
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        "a duplicate physical child must not replay"
+    );
+
+    let assert_mutated_child_rejected =
+        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+            let mut replay = replay_native_artifact_parts(&parts);
+            let evidence = replay
+                .physical_evidence
+                .take()
+                .expect("replay physical evidence")
+                .into_parts();
+            let [child] = evidence.children.as_slice() else {
+                panic!("one physical child before mutation")
+            };
+            let mut child = child.clone().into_parts();
+            mutate(&mut child);
+            replay.physical_evidence = Some(
+                native_realization::NativePhysicalEvidence::from_replayed_parts(
+                    native_realization::NativePhysicalEvidenceParts {
+                        projection: evidence.projection,
+                        children: vec![
+                            native_realization::NativePhysicalChild::from_replayed_parts(child),
+                        ],
+                        identity: evidence.identity,
+                    },
+                ),
+            );
+            assert!(
+                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                "a mutated physical child must not replay"
+            );
+        };
+    // Role-swapped: the operator occurrence cannot be re-presented as a
+    // boundary occurrence.
+    assert_mutated_child_rejected(&|child| {
+        assert!(matches!(
+            child.parent,
+            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        ));
+        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+            optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
+                child.occurrence.identity(),
+            ),
+        );
+    });
+    // Padded: the machine span must name exactly the emitted call interval.
+    assert_mutated_child_rejected(&|child| {
+        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+            child.machine_span.offset(),
+            child.machine_span.byte_count() + 1,
+        );
+    });
+    // Substituted: the child must bind the validated projection identity.
+    assert_mutated_child_rejected(&|child| {
+        child.projection =
+            optimization_core::NativeOptimizationProjectionIdentity::from_bytes([0x5A; 32]);
+    });
+    // Stale: an occurrence identity no surviving projection names cannot carry
+    // a child.
+    assert_mutated_child_rejected(&|child| {
+        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+            optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
+        );
+    });
+}
+
+#[test]
+fn selected_lowering_exact_divide_zero_dividend_occurrence_replays_one_exact_physical_child() {
+    // A thirteenth selected-lowering family carries the physical-child
+    // contract: the package-bound boundary operator program compiles under
+    // `SelectedIncomingExactDivideZeroDividendZeroMaterialization`, and
+    // the provider body's guarded `0 / value` on an unsigned carrier gives
+    // the catalog's `EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE` pair rule a
+    // real source-reachable candidate — the zero literal materializes and
+    // feeds the dividend `Use` operand of the `ExactDivideU64` consumer, a
+    // `MaterializeI64` feeding `ExactDivideU64` that the rule rewrites to
+    // a `MaterializeI64` of zero at the consumer's result register (`0 / x`
+    // is `0` for every nonzero `x`, and a quotient of zero cannot
+    // overflow). Like the wrapping-remainder sibling, the folded literal
+    // is not the value that discharges the consumer's encoded
+    // architectural fault — the rule declares `FaultDischargedByObligation`
+    // because the divide-by-zero case the encoding could still name is
+    // unreachable only under the `ExactDivideU64` kind's proven nonzero
+    // divisor obligation, which the provider's own guard keeps proven.
+    // The family shares its consumer kind with the divisor-one fold; the
+    // grammars stay disjoint on the folded literal's operand position.
+    // The surviving operator occurrence still binds exactly one
+    // OperatorApplicationCoverage child through allocation, layout, and
+    // native emission; independent replay rejects every mutation class —
+    // missing, duplicate, stale, substituted, padded, and role-swapped
+    // children. linux_arm64 is the declared target here even though the
+    // divisor-one family runs x86-64: under the dividend guard the x86-64
+    // divide row's pinned-operand pressure shape is not yet admitted by
+    // spill-choice replay (`UnsupportedPressureShape`), while the AArch64
+    // `udiv` row carries no pinned scratch tail at all.
+    let root = std::env::temp_dir().join(format!(
+        "omega-physical-child-exact-divide-zero-dividend-{}-{}",
+        std::process::id(),
+        PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root)
+        .expect("create exact-divide-zero-dividend physical-child project");
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data CheckedMath {}
+
+boundary operator CheckedMath::zero_over(value: u64) -> u64;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::zero_over_impl(value: u64) -> u64
+satisfies CheckedMath::zero_over
+{
+    transition value != 0 {
+        true -> (0 / value)
+        false -> 0
+    }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let picked: u64 = CheckedMath::zero_over(7u64);
+}
+"#,
+    )
+    .expect("write exact-divide-zero-dividend physical-child main");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-exact-divide-zero-dividend-physical-child");
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::SelectedIncomingExactDivideZeroDividendZeroMaterialization);
+}
+"#,
+    )
+    .expect("write exact-divide-zero-dividend physical-child build");
+    let root_identity = package_identity(55);
+    let inputs = PackageCompilationInputs::new_package(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("exact-divide-zero-dividend physical-child package graph should validate");
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("linux_arm64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(inputs),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the exact-divide-zero-dividend selection must carry a boundary occurrence to native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("exact-divide-zero-dividend compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("exact-divide-zero-dividend native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
         native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
