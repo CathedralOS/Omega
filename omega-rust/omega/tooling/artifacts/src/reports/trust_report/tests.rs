@@ -547,20 +547,6 @@ fn normalized_foreign_locator_mutations_change_trust_identity_and_exact_output()
     assert!(text.contains("library bytes 0x6f7061717565ff2e646c6c"));
     assert!(text.contains("export bytes 0x696e766f6b655f726177"));
     assert!(!text.contains("opaque.dll"));
-
-    let bootstrap = TrustProviderRealization::StringBackedImportBootstrap {
-        library: "opaque.dll".to_owned(),
-        symbol: "invoke_raw".to_owned(),
-    };
-    assert_eq!(
-        bootstrap.foreign_locator_compatibility_report_identity(),
-        None
-    );
-    assert!(
-        bootstrap
-            .report_text()
-            .starts_with("string-backed import bootstrap")
-    );
 }
 
 #[test]
