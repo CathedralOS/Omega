@@ -10,12 +10,14 @@
 //! boundary; the remaining modules each own one runtime concern.
 
 mod block_bindings;
+mod boolean_float_operations;
 mod boundary_byte_buffers;
 mod byte_sequence_binding;
 mod byte_sequence_subslice;
 mod byte_sequence_view;
 mod byte_sequence_write;
 mod call_frames;
+mod call_operations;
 mod case_membership;
 mod custody;
 mod effect_results;
@@ -23,6 +25,7 @@ mod effects;
 mod entry;
 mod errors;
 mod execution;
+mod integer_operations;
 mod primitive_storage;
 mod record;
 mod reference;
@@ -36,6 +39,7 @@ mod structural_argument_binding_tests;
 mod structural_byte_arrays;
 mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
+mod structural_operations;
 mod structural_scalar_fields;
 mod values;
 
