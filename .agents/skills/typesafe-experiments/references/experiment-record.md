@@ -571,3 +571,34 @@ Use a neighboring recorded example that challenges the deterministic baseline
 before expanding the experiment. Request hashes, question parity, response coverage,
 sanitization checks and Python compilation passed on Windows; macOS not run.
 No production integration, worker interruption or publication.
+
+## Semantic observations composed in code
+
+`build/experiments/decision-composition/` follows the official speculative fan-out
+support-triage example (https://docs.typesafe.ai/patterns/fan-out.md, read live).
+Keep the original direct-policy question and ask two independent observations:
+meaningful diagnostic change and attempted relevant edit. Frozen code continues
+when either is affirmative, recommends review when both are negative, otherwise
+returns insufficient. Explicit unknown labels, no tuned numeric threshold.
+
+On the eight exposed recorded transitions, composition 8/8 versus current direct
+Jev 6/8 and existing rules 8/8. On four existing authored unrelated-prose controls,
+composition/direct 4/4 versus rules 0/4. Direct Jev warned incorrectly on r01's
+library-only diagnostic and r21's isolated dependency check. Composition retained
+the real redundant-rerun warning r25 and correctly continued relevant edits.
+Questions share each request, so this is not an isolated prompt-arm comparison.
+
+The twelve-case replay took 3.198s, 18,975 input / 1,400 output tokens. One fresh
+neighbor r05 was then frozen before inference, without changing questions or code:
+same command after replacing String::from_utf8 on Arc bytes with borrowed UTF-8
+conversion and to_owned. All policies correctly continued; observations same /
+relevant matched source review. Neighbor .277s, 4,690 input / 117 output. Manual
+labels, one case, no subsequent execution outcome supplied; relevance is not proof.
+
+Retain composition as a development candidate, not a big win or production gate.
+No incremental quality over rules on recorded cases, and a stronger rule ignoring
+unrelated Markdown edits could address the synthetic advantage. Next test requires
+a recorded semantic distinction beyond that baseline, not more tuning of this set.
+All 13 calls 3.475s, 23,665 input / 1,517 output, no retries. Policy self-checks,
+request hashes, response coverage, sanitization and Python compilation passed on
+Windows. No macOS runtime, worker interruption, compiler change or publication.
