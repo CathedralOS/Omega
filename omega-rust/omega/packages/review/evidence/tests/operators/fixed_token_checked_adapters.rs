@@ -1,5 +1,7 @@
 use crate::support::*;
 use compiler::CheckedCompileRequest;
+use package_evidence::{project_checked_package_policy, project_checked_package_review};
+use target::TargetProfile;
 
 const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
@@ -529,4 +531,51 @@ satisfies CheckedMath::subtract
             .message
             .contains("lifetime-parameterized fixed-token boundary operator")
     }));
+}
+
+#[test]
+fn boundary_machine_spelling_reviews_identically_to_the_operator_spelling() {
+    // `boundary machine - Owner::name(...);` is the same required operator
+    // slot as `boundary operator - Owner::name(...);`: symbol resolution
+    // lowers both to one boundary operator declaration, so the normalized
+    // policy and the checked review projection are byte-identical and a
+    // library respelling churns no retained lock row.
+    if host_target_name().is_none() {
+        return;
+    }
+    let operator_form = BINARY_SUBTRACT.replace(
+        "pub boundary operator - CheckedMath::subtract(left: i32, right: i32) -> i32;",
+        "pub boundary operator - CheckedMath::subtract(left: i32, right: i32) -> i32\nrequires 0i32 <= right;",
+    );
+    let machine_form = operator_form.replace(
+        "pub boundary operator - CheckedMath::subtract",
+        "pub boundary machine - CheckedMath::subtract",
+    );
+    let target = TargetProfile::MacosArm64;
+    let compile = |source: &str| {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write("build.omg", BUILD);
+        compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target.target_name()))
+        })
+        .unwrap_or_else(|diagnostics| panic!("spelling fixture should check: {diagnostics:?}"))
+    };
+    let operator_checked = compile(&operator_form);
+    let machine_checked = compile(&machine_form);
+    let operator_policy =
+        project_checked_package_policy(&operator_checked, target, package_identity())
+            .expect("operator spelling policy");
+    let machine_policy =
+        project_checked_package_policy(&machine_checked, target, package_identity())
+            .expect("machine spelling policy");
+    assert_eq!(
+        operator_policy.canonical_text().unwrap(),
+        machine_policy.canonical_text().unwrap()
+    );
+    assert_eq!(
+        project_checked_package_review(&operator_checked).unwrap(),
+        project_checked_package_review(&machine_checked).unwrap()
+    );
 }
