@@ -454,6 +454,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   10 declare no service reach (Automatic service reach); the remaining ~70
   are singletons named in the run log. Eight failures were fixture
   inventory drift from a checkout synced mid-run, not compiler behavior.
+  The canary_suite tests that read removed report dumps (capability flow
+  sites, the wire compatibility demand, numbered case identities) now read
+  checked facts through the compiler API, and the capability-manifest entry
+  test was deleted as renderer-only with its entry-state fact folded into the
+  checked selected-entry test.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
