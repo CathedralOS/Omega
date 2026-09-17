@@ -14,6 +14,8 @@ pub const PROOFS_RING_IDENTITY_SLOT_BRIDGE_COMPILE: &str =
     "proofs/ring_identity_slot_bridge_compile";
 pub const PROOFS_INTEGER_MEASURED_NAT_INDUCTION_COMPILE: &str =
     "proofs/integer_measured_nat_induction_compile";
+pub const PROOFS_RUNTIME_RANKED_ACCUMULATOR_GUARANTEE_EXIT: &str =
+    "proofs/runtime_ranked_accumulator_guarantee_exit";
 pub const TERMINATION_PROOF_NON_TAIL_JOINT_MACHINE_CYCLE_COMPILE: &str =
     "termination/proof_non_tail_joint_machine_cycle_compile";
 pub const FLOAT_FLOAT_TO_INT_EXACT_PROOFS_EXIT: &str = "float/float_to_int_exact_proofs_exit";
@@ -160,6 +162,7 @@ pub const PASS_CANARIES: &[&str] = &[
     PROOFS_NAT_EXACT_SUBTRACTION_COMPILE,
     PROOFS_RING_IDENTITY_SLOT_BRIDGE_COMPILE,
     PROOFS_INTEGER_MEASURED_NAT_INDUCTION_COMPILE,
+    PROOFS_RUNTIME_RANKED_ACCUMULATOR_GUARANTEE_EXIT,
     TERMINATION_PROOF_NON_TAIL_JOINT_MACHINE_CYCLE_COMPILE,
     FLOAT_FLOAT_TO_INT_EXACT_PROOFS_EXIT,
     ARITHMETIC_RUNTIME_FLOAT_MIN_MAX_ABS_CLAMP_EXIT,

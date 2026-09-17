@@ -1,0 +1,48 @@
+// RUN CANARY (exit 70). A value-returning ranked free machine whose `ensures`
+// relates the loop-carried accumulator it returns to an invocation formal the
+// loop re-enters. `previous` has no exact incoming origin at the header (the
+// backedge binds it from `n`), so no ordinary exit route can read
+// `result <= previous`; the checker proposes the header invariant that IS the
+// guarantee transported through the exit's exact return
+// (`previous <= previous@invocation`), proves it at the invocation arrival
+// from `requires` and at the backedge under the simultaneous substitution
+// `n := n - 1, previous := n` (from the conjunct, the re-established
+// `requires`, and the arm's `n > 0`), and discharges the exit by that conjunct
+// alone. Nothing is inherited from the `Nat::Descending` certificate. The
+// wrong-step twin (fail/proofs/ranked_accumulator_guarantee_wrong_step_twin)
+// forwards a constant accumulator the `requires` still admits and refuses on
+// the unchanged origin diagnostic. `descend(3, 9)` visits (3, 9), (2, 3),
+// (1, 2), (0, 1) and returns 1; the program exits 70 on that value.
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let floor: u64 = descend(3, 9);
+    transition floor == 1 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine descend(n: u64, previous: u64) -> u64
+requires n <= previous && previous <= 1000
+terminates by n -> Nat::Descending;
+ensures result <= previous
+{
+    transition n > 0 {
+        true -> descend(n - 1, n)
+        false -> previous
+    }
+}

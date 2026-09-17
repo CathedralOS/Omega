@@ -27,7 +27,7 @@ pub(crate) use evaluator::call_site_boolean_contract_expression_value;
 pub(crate) use evidence::{
     exact_target_evidence_parameters, instantiate_contract_expression_evidence_parameter,
 };
-use exits::check_exit_ensures;
+use exits::{CyclicHeaderInvariants, check_exit_ensures};
 use writes::check_domain_field_writes;
 
 pub(super) fn check_flow_call_contracts(
@@ -59,6 +59,7 @@ pub(super) fn check_flow_call_contracts(
     // add_cancel).
     let proof_only = typed_trees::proof_only::classify(program);
     let mut entailment = entailment::ProvenExitExpressions::new(program, &proof_only, call_frames);
+    let mut cyclic_headers = CyclicHeaderInvariants::new();
     // Call targets carry the callee's ENTRY-STATE symbol (sub-state targets
     // carry that state's); resolve through states as well as the machine
     // symbol itself.
@@ -111,6 +112,7 @@ pub(super) fn check_flow_call_contracts(
                 entailment.for_machine(facts, state_flow.machine_symbol),
                 &content_plans,
                 call_frames,
+                &mut cyclic_headers,
                 &mut diagnostics,
             );
             // An owned nominal result also owes its declared field predicates

@@ -2339,25 +2339,45 @@ Owners include
   `RejectedEvidence { CertificateConclusionMismatch }` on the preservation
   obligation and refuses fresh production, and a guarantee the loop does
   not establish (`result <= n`) leaves the roster empty and the guarantee
-  `OperationProofUnavailable`. The contract is injected at the Terminal
-  level in that test because the source side still refuses every such
-  program: `checks/contracts/exits.rs` reports `cannot prove ensures
-  contract for exit from descend ...; no exact incoming reference origin
-  for previous` for a re-entered entry parameter (`flow/entry_origins.rs`
-  unions the invocation and backedge origins), and `result <= limit` with a
-  stably forwarded `limit` fails without an origin complaint, so no source
-  fixture reaches the producer with a guarantee over a loop-carried value.
-  The two existing fixtures are further out: their `&mut self` machines
-  have no scalar graph and stop in the attached Unit closure at
+  `OperationProofUnavailable`. Leg (b), source half, landed on macOS ARM64:
+  for the free-loop form (a single-state machine re-entered by named
+  backedges) `checks/contracts/exits/cyclic_headers.rs` proposes, for every
+  exit and every expression guarantee, the guarantee transported through
+  the exit's returned term over the invocation formals, proves it at the
+  invocation arrival from `requires` and at every backedge from the
+  conjunction, the re-established `requires` and the arm's guard facts
+  under the arrival's simultaneous substitution, and only then discharges
+  the exit by that conjunct; any failed obligation discards every proposal
+  and the origin diagnostic stands unchanged (`flow/entry_origins.rs` is
+  untouched). The arrival proofs run on
+  `validation::scoped_arithmetic_implication`
+  (`contract_entailment/scoped_arithmetic.rs`): per-proposition rosters
+  over the strict engine, so one parameter symbol reads as the formal atom
+  in the guarantee and the header atom in the returned term.
+  `tests/contracts/cyclic_header_invariants.rs` pins acceptance of
+  `requires n <= previous`/`ensures result <= previous`, the constant-step
+  and unestablished (`result <= n`) twins, all-or-nothing on a false
+  conjunct, and the forwarded-`limit` form;
+  `pass/proofs/runtime_ranked_accumulator_guarantee_exit` (`descend(3, 9)`
+  returns 1, exit 70, `runtime_ranked_accumulator_guarantee_exit_canary_runs`)
+  with `fail/proofs/ranked_accumulator_guarantee_wrong_step_twin` is the
+  executable canary and its wrong-accumulator twin, registered in
+  `ACTIVE_PASS_CANARIES`/`ROOTED_BACKEND_PASS_CANARIES` and
+  `ACTIVE_FAIL_CANARIES`. The route reads exact fixed-integer parameters
+  and returns only; a loop-carried value in a second state, a `self`
+  transition that changes storage, or a Wrapping accumulator is not
+  proposed. The two existing fixtures are further out: their `&mut self`
+  machines have no scalar graph and stop in the attached Unit closure at
   `local construction stopped at call statement shape: call count without
   a statement sequence` (`execution/unit/control/checked_machine.rs`), and
   their arithmetic claims (`result * 2 == acc * 2 + n * (n + 1)`, `embed`
   over a two-subject `Nat::BoundedDistance` rank) need the ring evidence
-  below. Remaining acceptance: (b) the source exit prover admits a guarantee
-  over a re-entered parameter for the free-loop form (or the attached
-  value-returning cyclic route lands), so an executable proof canary with a
-  wrong-accumulator fail twin leaves
-  `CHECKED_ONLY_PASS_CANARIES`. Law normalization (`verify_normalization`
+  below. Remaining acceptance: an arithmetic accumulation claim over a
+  generated loop (the two existing fixtures, or a free-loop restatement of
+  their sums) fails its functional claim on a wrong update while the
+  unchanged cycle certificate still verifies, which needs the attached
+  value-returning cyclic route or that restatement plus the ring evidence
+  below. Law normalization (`verify_normalization`
   in `proof-admission/src/admission/normalization.rs`) has no Terminal
   consumer; routing quotient/ring-law evidence through it is shared with
   **PCC-CANONICAL-SEMANTIC-LEDGER**. Edge decrease, premise, law, and

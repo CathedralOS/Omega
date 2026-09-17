@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from descend at statement 1: result <= previous; no exact incoming reference origin for previous

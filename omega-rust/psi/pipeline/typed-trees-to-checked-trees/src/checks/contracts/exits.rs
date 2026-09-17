@@ -5,9 +5,11 @@ use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::{machine_name, semantic_fact_requirement_label};
 
 mod cases;
+mod cyclic_headers;
 mod result_domains;
 mod scalars;
 
+pub(super) use cyclic_headers::CyclicHeaderInvariants;
 pub(super) use result_domains::check_result_field_domains;
 
 fn direct_result_float_meaning_reflexivity_proves_exit(
@@ -32,6 +34,7 @@ pub(super) fn check_exit_ensures(
     entailment: &super::entailment::MachineEntailmentOutcome,
     content_plans: &[validation::ContentConservationSourcePlan],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    cyclic_headers: &mut CyclicHeaderInvariants,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let entry_contexts: Vec<_> = facts
@@ -176,7 +179,11 @@ pub(super) fn check_exit_ensures(
                         || super::entailment::transparent_proposition_proves_exit(
                             program, entailment, state_flow, fact,
                         )
-                        || (authorized_route && route_predicates_satisfied)));
+                        || (authorized_route && route_predicates_satisfied)))
+                // A re-entered parameter has no exact origin, so every route
+                // above is vetoed; a proved header invariant is the guarantee
+                // itself at the header and needs no origin.
+                || cyclic_headers.proves(program, facts, exit_flow, fact);
 
             if !satisfied {
                 let origin_diagnostic = if missing_origins.is_empty() {

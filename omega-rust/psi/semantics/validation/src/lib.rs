@@ -208,8 +208,10 @@ pub use proof_contracts::contract_entailment::{
     ranking_range_premise_symbols, ranking_range_required_symbols,
 };
 pub use proof_contracts::contract_entailment::{
-    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
-    StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
+    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+    ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticBindingValue,
+    StrictArithmeticExpressionBinding, StrictArithmeticImplicationJudgment,
+    StrictArithmeticSymbolBinding, scoped_arithmetic_implication,
     strict_arithmetic_expression_implication,
     strict_arithmetic_expression_implication_with_arguments,
 };

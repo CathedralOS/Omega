@@ -84,6 +84,7 @@ mod proof_view_tests;
 mod quotient_congruence;
 mod ranking_range;
 mod refuted_requires;
+mod scoped_arithmetic;
 mod self_induction;
 mod stand_downs;
 mod strict_arithmetic;
@@ -130,6 +131,10 @@ pub use ranking_range::{
     ranking_range_premise_symbols, ranking_range_required_symbols,
 };
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
+pub use scoped_arithmetic::{
+    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+    ScopedArithmeticHypothesis, ScopedArithmeticValue, scoped_arithmetic_implication,
+};
 pub use strict_arithmetic::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,

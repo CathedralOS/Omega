@@ -305,6 +305,10 @@ pub(super) struct Engine<'program> {
     /// back to its display spelling.
     strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
     strict_symbol_bindings_valid: bool,
+    /// The synthetic guarantee `result` has no resolved symbol. A scoped
+    /// roster may bind it to the exact term an exit returns; without a
+    /// binding the name stays outside a strict engine's language.
+    strict_result_binding: Option<Polynomial>,
     /// Exact numeric projections installed by the owning strict query after
     /// checking their builtin meaning and source custody.
     strict_projections: Vec<(ExpressionHandle, Polynomial)>,
@@ -366,6 +370,7 @@ impl<'program> Engine<'program> {
             parameter_atoms,
             strict_symbol_bindings: None,
             strict_symbol_bindings_valid: true,
+            strict_result_binding: None,
             strict_projections: Vec::new(),
             proof_integer_formation: false,
             integer_embedding_policy:
@@ -423,6 +428,81 @@ impl<'program> Engine<'program> {
 
     pub(super) fn strict_symbol_bindings_are_valid(&self) -> bool {
         self.strict_symbol_bindings_valid
+    }
+
+    /// Register a private atom of a scoped roster. Unsigned atoms carry the
+    /// same implicit `>= 0` as unsigned parameters; the matrix seeds it on the
+    /// next hypothesis installation.
+    fn declare_atom(&mut self, identity: &str, unsigned: bool) {
+        if !self.parameter_atoms.iter().any(|atom| atom == identity) {
+            self.parameter_atoms.push(identity.to_owned());
+        }
+        if unsigned && !self.unsigned_atoms.iter().any(|atom| atom == identity) {
+            self.unsigned_atoms.push(identity.to_owned());
+        }
+    }
+
+    /// Replace the strict symbol table with one scoped roster. Every bound
+    /// term is read under its own nested roster before the table changes, so
+    /// no term can see the roster it is bound into. Declared atoms, installed
+    /// hypotheses and bounds persist: the rosters of one implication share
+    /// each atom by identity. Returns false for an invalid symbol, a binder
+    /// bound twice to different values, or a term outside the language.
+    pub(super) fn install_scoped_bindings(
+        &mut self,
+        bindings: &[super::ScopedArithmeticBinding],
+    ) -> bool {
+        use super::{ScopedArithmeticBinder, ScopedArithmeticValue};
+        if !self.strict_symbol_bindings_valid {
+            return false;
+        }
+        let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
+        let mut result = None;
+        for binding in bindings {
+            let polynomial = match &binding.value {
+                ScopedArithmeticValue::Atom { identity, unsigned } => {
+                    self.declare_atom(identity, *unsigned);
+                    Polynomial::atom(identity.clone())
+                }
+                ScopedArithmeticValue::Term(term) => {
+                    if !self.install_scoped_bindings(&term.bindings) {
+                        return false;
+                    }
+                    let Some(polynomial) = self.normalize(term.expression) else {
+                        return false;
+                    };
+                    polynomial
+                }
+            };
+            match binding.binder {
+                ScopedArithmeticBinder::Symbol(symbol) => {
+                    if !symbol.is_valid() {
+                        return false;
+                    }
+                    if let Some((_, existing)) =
+                        symbols.iter().find(|(candidate, _)| *candidate == symbol)
+                    {
+                        if *existing != polynomial {
+                            return false;
+                        }
+                        continue;
+                    }
+                    symbols.push((symbol, polynomial));
+                }
+                ScopedArithmeticBinder::Result => {
+                    if result
+                        .as_ref()
+                        .is_some_and(|existing| *existing != polynomial)
+                    {
+                        return false;
+                    }
+                    result = Some(polynomial);
+                }
+            }
+        }
+        self.strict_symbol_bindings = Some(symbols);
+        self.strict_result_binding = result;
+        true
     }
 
     pub(super) fn bind_strict_projection(
@@ -509,6 +589,7 @@ impl<'program> Engine<'program> {
             parameter_atoms: Vec::new(),
             strict_symbol_bindings: Some(bindings),
             strict_symbol_bindings_valid: true,
+            strict_result_binding: None,
             strict_projections: Vec::new(),
             proof_integer_formation: true,
             integer_embedding_policy: true,
@@ -1110,18 +1191,25 @@ impl<'program> Engine<'program> {
             ExpressionNode::Borrow(inner) => self.normalize(inner.target),
             ExpressionNode::Name(path) => {
                 if let Some(bindings) = &self.strict_symbol_bindings {
-                    if self
+                    let [member] = self
                         .program
                         .expression_table
                         .name_path_members(path.members)
-                        .len()
-                        != 1
-                    {
+                    else {
                         return None;
+                    };
+                    if let Some(value) = bindings
+                        .iter()
+                        .find_map(|(symbol, value)| (*symbol == path.symbol).then(|| value.clone()))
+                    {
+                        return Some(value);
                     }
-                    return bindings.iter().find_map(|(symbol, value)| {
-                        (*symbol == path.symbol).then(|| value.clone())
-                    });
+                    // An authored binder always resolves through its symbol
+                    // above; only the synthetic guarantee result reaches here.
+                    return self
+                        .strict_result_binding
+                        .clone()
+                        .filter(|_| member.as_str() == RESULT_BINDER);
                 }
                 let members = self
                     .program
