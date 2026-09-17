@@ -2,6 +2,8 @@ use checked_interpreter::BuildTimeValue;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
 use super::PendingMembership;
@@ -62,20 +64,23 @@ pub(in crate::const_evaluation) fn evaluate_closed_membership(
     evaluate_domain_facts(typed, admission, domain, value, &mut vec![domain.symbol])
 }
 
-fn evaluate_machine_fact(
+/// The machine a direct `self` fact call invokes, or `None` when the fact
+/// expression is not such a call. Domain facts are lowered outside a machine
+/// body, where a free call currently retains its resolved target name but not
+/// its state symbol; that exact free-machine name resolves here while
+/// ordinary call validation still owns ambiguous or missing targets. Builtins
+/// and unresolved or invalid calls stay outside this route.
+fn resolve_fact_machine(
     typed: &TypedTrees,
-    admission: &BuildTimeAdmissionPlan,
     expression: ExpressionHandle,
-    self_value: i64,
-) -> Result<Option<bool>, String> {
+) -> Option<(&Machine, &State)> {
     let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
-        return Ok(None);
+        return None;
     };
     if !is_direct_self_call(typed, call) {
-        return Ok(None);
+        return None;
     }
-
-    let target = typed
+    typed
         .machines()
         .iter()
         .find_map(|machine| {
@@ -85,10 +90,6 @@ fn evaluate_machine_fact(
                 .find(|state| state.symbol == call.target_symbol)
                 .map(|state| (machine, state))
         })
-        // Domain facts are lowered outside a machine body, where a free
-        // call currently retains its resolved target name but not its state
-        // symbol. Resolve that exact free-machine name here; ordinary call
-        // validation still owns ambiguous or missing targets.
         .or_else(|| {
             typed
                 .machines()
@@ -102,10 +103,62 @@ fn evaluate_machine_fact(
                         .first()
                         .map(|state| (machine, state))
                 })
+        })
+}
+
+/// Whether evaluating one domain's fact tree would invoke a machine whose
+/// reachable closure holds a resolved boundary-operator use only exact
+/// selected execution can run. Mirrors `evaluate_domain_facts`: expression
+/// facts consult their direct self-call target, nested memberships recurse
+/// through the same visiting set, and undecidable positions never force a
+/// deferral on their own.
+pub(super) fn domain_facts_need_operator_selection(
+    typed: &TypedTrees,
+    admission: &BuildTimeAdmissionPlan,
+    facts: &checked_trees::CheckedOperatorFacts,
+    domain_symbol: symbols::SymbolHandle,
+    visiting: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    if visiting.contains(&domain_symbol) {
+        return false;
+    }
+    let Some(domain) = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    visiting.push(domain_symbol);
+    let needed = typed
+        .proof_facts
+        .span_or_empty(domain.facts)
+        .iter()
+        .any(|fact| match fact {
+            ProofFact::Expression(expression) => resolve_fact_machine(typed, *expression)
+                .is_some_and(|(machine, _)| {
+                    admission.closure_needs_operator_selection(typed, machine.symbol, facts)
+                }),
+            ProofFact::Membership(membership) => domain_facts_need_operator_selection(
+                typed,
+                admission,
+                facts,
+                membership.domain_symbol,
+                visiting,
+            ),
+            ProofFact::Proposition(_) => false,
         });
-    let Some((machine, state)) = target else {
-        // Builtins and unresolved/invalid calls remain the responsibility of
-        // normal expression validation.
+    visiting.pop();
+    needed
+}
+
+fn evaluate_machine_fact(
+    typed: &TypedTrees,
+    admission: &BuildTimeAdmissionPlan,
+    expression: ExpressionHandle,
+    self_value: i64,
+) -> Result<Option<bool>, String> {
+    let Some((machine, state)) = resolve_fact_machine(typed, expression) else {
         return Ok(None);
     };
     let machine_name = machine.name.as_str();

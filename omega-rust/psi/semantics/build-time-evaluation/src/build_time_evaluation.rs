@@ -185,6 +185,10 @@ impl PreCheckEvaluation {
                 typed,
                 self.selection_authority.clone(),
             )?
+            || const_domain_facts::pending_memberships_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+            )?
         {
             range_endpoints::defer_pending_endpoint_calls(typed)?;
             return Ok(Some(self));
@@ -207,8 +211,8 @@ impl PreCheckEvaluation {
     /// `provider_bodies` the exact selected checked provider bodies; each
     /// retained occurrence keeps its own row so a stale or substituted
     /// selection can never stand in for the current one. The remaining typed
-    /// const positions (range endpoints today) observe the same rows when the
-    /// continuation resumes.
+    /// const positions (range endpoints and concrete domain-fact memberships
+    /// today) observe the same rows when the continuation resumes.
     pub fn evaluate_selected_operators(
         mut self,
         typed: &mut typed_trees::TypedTrees,
@@ -243,7 +247,14 @@ impl PreCheckEvaluation {
                 provider_bodies: &self.provider_bodies,
             },
         )?;
-        const_domain_facts::evaluate_const_domain_facts(typed, self.selection_authority.clone())?;
+        const_domain_facts::evaluate_selected_domain_facts(
+            typed,
+            self.selection_authority.clone(),
+            SelectedBuildTimeOperators {
+                operators: &self.selected_operators,
+                provider_bodies: &self.provider_bodies,
+            },
+        )?;
         const_initializers::validate_retained_invocations(typed, self.selection_authority.clone())?;
         plan_laid::compute_plan_laid_layouts(
             typed,
