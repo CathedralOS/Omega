@@ -597,13 +597,42 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
         ..CheckedCompileRequest::new(&root_snapshot.join("main.omg"), Some("windows_x86_64"))
     })
     .expect_err("an undeclared standard-library alias must not use bundled std");
+    let messages = diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>();
+    assert_names_missing_standard_library_edge(&messages, "omega_language_std::wire");
+}
+
+/// The undeclared std import is reported as the missing dependency edge: the
+/// alias the import spelled, the package that spelling names, the importing
+/// file, and the root declaration that would add the edge. It must not be
+/// reported as an unresolvable root-relative `omega_language_std/...` path.
+fn assert_names_missing_standard_library_edge(messages: &[String], import: &str) {
+    let message = messages
+        .iter()
+        .find(|message| message.contains(&format!("import `{import}` in ")))
+        .unwrap_or_else(|| panic!("the std import must be rejected by name: {messages:#?}"));
     assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("omega_language_std")
-                && (diagnostic.message.contains("dependency")
-                    || diagnostic.message.contains("resolve"))
-        }),
-        "unexpected diagnostics: {diagnostics:#?}"
+        message.contains("main.omg names package `omega-language-std` (")
+            && message.contains("as `omega_language_std`"),
+        "{message}"
+    );
+    assert!(
+        message.contains("declares no product dependency under that alias"),
+        "{message}"
+    );
+    assert!(
+        message.contains(
+            "declare `builder.depend(...)` or `builder.depend_as(\"omega_language_std\", ...)` in its build.omg"
+        ),
+        "{message}"
+    );
+    assert!(
+        messages
+            .iter()
+            .all(|message| !message.contains("omega_language_std/")),
+        "no diagnostic may report the alias as a root-relative source path: {messages:#?}"
     );
 }
 
@@ -691,13 +720,7 @@ fn check_console_consumer(
 }
 
 fn assert_rejects_standard_library_import(messages: &[String]) {
-    assert!(
-        messages.iter().any(|message| {
-            message.contains("omega_language_std")
-                && (message.contains("dependency") || message.contains("resolve"))
-        }),
-        "the std import must be rejected by name: {messages:#?}"
-    );
+    assert_names_missing_standard_library_edge(messages, "omega_language_std::console");
 }
 
 #[test]
