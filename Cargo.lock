@@ -1788,6 +1788,7 @@ dependencies = [
 name = "representation-planning"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "diagnostics",
  "language-semantics",
  "representation-selections",
