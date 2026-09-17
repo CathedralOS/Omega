@@ -7,14 +7,11 @@
 //! anywhere in the window, and no boundary settlement inside its span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, VirtualRegisterId,
-};
+use selected_instructions::{SelectedFunction, SelectedInstructionId};
 
 use super::LocalScheduleError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -25,206 +22,6 @@ pub(super) struct Admission<'source> {
     /// `earlier_index..=later_index`, a single position when the pair is
     /// adjacent.
     pub later_index: usize,
-}
-
-/// Register locations an operand reads or writes. `UseDef` participates in
-/// both directions, matching the access marks the constraint rows publish.
-fn reads(operand_access: RegisterOperandAccess) -> bool {
-    matches!(
-        operand_access,
-        RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
-    )
-}
-
-fn writes(operand_access: RegisterOperandAccess) -> bool {
-    matches!(
-        operand_access,
-        RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-    )
-}
-
-fn register_reads(
-    instruction: &SelectedInstruction,
-) -> impl Iterator<Item = VirtualRegisterId> + '_ {
-    instruction
-        .operands
-        .iter()
-        .filter(|operand| reads(operand.access))
-        .map(|operand| operand.virtual_register)
-}
-
-fn register_writes(
-    instruction: &SelectedInstruction,
-) -> impl Iterator<Item = VirtualRegisterId> + '_ {
-    instruction
-        .operands
-        .iter()
-        .filter(|operand| writes(operand.access))
-        .map(|operand| operand.virtual_register)
-}
-
-/// Whether `writer`'s writes meet `reader`'s reads on a register or a
-/// condition-state unit. Implicit uses read units; implicit definitions and
-/// clobbers write them, so flag publishers and flag consumers couple the
-/// same way explicit operands do.
-fn writes_meet_reads(writer: &SelectedInstruction, reader: &SelectedInstruction) -> bool {
-    register_writes(writer)
-        .any(|register| register_reads(reader).any(|candidate| candidate == register))
-        || writer
-            .implicit_defs
-            .iter()
-            .chain(writer.clobbers.iter())
-            .any(|unit| reader.implicit_uses.contains(unit))
-}
-
-/// Whether two instructions can exchange order. The three hazards cover the
-/// named members and every crossed position: `earlier` defining a location
-/// `later` reads (RAW) would starve the consumer, `earlier` reading a
-/// location `later` writes (WAR) would hand it the new value, and a shared
-/// written location (WAW) would change which definition later positions
-/// observe. Units and registers participate identically.
-fn coupled(earlier: &SelectedInstruction, later: &SelectedInstruction) -> bool {
-    writes_meet_reads(earlier, later)
-        || writes_meet_reads(later, earlier)
-        || register_writes(earlier)
-            .any(|register| register_writes(later).any(|candidate| candidate == register))
-        || earlier
-            .implicit_defs
-            .iter()
-            .chain(earlier.clobbers.iter())
-            .any(|unit| later.implicit_defs.contains(unit) || later.clobbers.contains(unit))
-}
-
-/// Calls, hosted effects, and terminator kinds are always barriers: they
-/// can observe or expose reachable state regardless of roster rows, and a
-/// terminator kind never belongs in a block body. Same boundary the
-/// memory-motion rules enforce.
-fn is_barrier(instruction: &SelectedInstruction) -> bool {
-    use SelectedInstructionKind::*;
-    matches!(
-        instruction.kind,
-        CallUnit { .. }
-            | CallScalar { .. }
-            | CallAggregate { .. }
-            | HostedReadByte { .. }
-            | HostedWriteByteI32 { .. }
-            | HostedExitProcessI32
-            | ReturnScalar
-            | ReturnAggregate { .. }
-            | ReturnUnit
-            | Jump
-            | ConditionalBranchNonZero
-            | ConditionalBranchU64LessThan
-            | ConditionalBranchI64LessThan
-    )
-}
-
-/// A member without a roster row must be unable to reach any semantic or
-/// place-backed storage: private-slot frame accesses touch compiler-owned
-/// spill/boundary slots that no referent place aliases, and pure register
-/// work has no memory side at all. Any other memory-capable kind without a
-/// row is an unaccounted access whose reach the interchange cannot prove.
-fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
-    use SelectedInstructionKind::*;
-    !matches!(
-        instruction.kind,
-        Store64 {
-            slot: FrameStorageSlotId::Local(
-                LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. },
-            ),
-            ..
-        } | Load8 { .. }
-            | Load16 { .. }
-            | Load32 { .. }
-            | Load64 { .. }
-            | Load8Indexed
-            | LoadPacked { .. }
-            | FrameAddress { .. }
-            | AddressOffset { .. }
-            | ByteViewAddress
-            | CopyI64
-            | MaterializeI64 { .. }
-            | CompareI64
-            | CompareI64Zero
-            | CompareI64Immediate { .. }
-            | ExactAddI64 { .. }
-            | ExactSubtractI64 { .. }
-            | ExactAddI64Immediate { .. }
-            | ExactSubtractI64Immediate { .. }
-            | SaturatingAdd { .. }
-            | WrappingAddI64
-            | SaturatingSubtract { .. }
-            | SaturatingDivide { .. }
-            | ExactDivideU64 { .. }
-            | WrappingRemainderI64 { .. }
-            | BitwiseAndI64
-            | BitwiseXorI64
-            | ZeroExtendU8
-            | ZeroExtendU16
-            | ZeroExtendU32
-            | SignExtendI8
-            | SignExtendI16
-            | SignExtendI32
-            | Float32ToBits
-            | Float64ToBits
-            | BitsToFloat32
-            | BitsToFloat64
-            | MaterializeBooleanEqual
-            | MaterializeBooleanU64LessThan
-            | MaterializeBooleanI64LessThan
-            | MaterializeBooleanU64LessOrEqual
-            | MaterializeBooleanI64LessOrEqual
-    )
-}
-
-/// Whether the roster accounts for the member's memory reach. Rows name the
-/// instruction by identity, so the interchange retains them unchanged.
-fn has_memory_rows(function: &SelectedFunction, instruction: SelectedInstructionId) -> bool {
-    function
-        .memory_accesses
-        .iter()
-        .any(|access| access.instruction == instruction)
-}
-
-/// A call contract row makes the member an effect barrier even when its
-/// kind survived the kind check.
-fn has_call_contract(function: &SelectedFunction, instruction: SelectedInstructionId) -> bool {
-    function
-        .calls
-        .iter()
-        .any(|call| call.instruction == instruction)
-}
-
-/// A boundary settlement at `position` sits before that body ordinal: any
-/// position after the earlier member through the later member's own index
-/// observes a different executed set once the pair trades places, while
-/// positions at or outside the window's span see the same executed set on
-/// either order.
-fn interior_settlement(
-    function: &SelectedFunction,
-    block: SelectedBlockId,
-    window: std::ops::RangeInclusive<usize>,
-) -> bool {
-    function.boundary_settlements.iter().any(|settlement| {
-        settlement.block == block && window.contains(&(settlement.instruction_index as usize))
-    })
-}
-
-/// Whether one instruction may trade order with a crossed instruction at
-/// all: not a barrier kind, not named by the call roster, and either
-/// roster-accounted or unable to reach storage the roster covers.
-fn schedulable(
-    function: &SelectedFunction,
-    instruction: &SelectedInstruction,
-) -> Result<bool, LocalScheduleError> {
-    if is_barrier(instruction) || has_call_contract(function, instruction.id) {
-        return Err(LocalScheduleError::UnsupportedInstruction);
-    }
-    let accounted = has_memory_rows(function, instruction.id);
-    if !accounted && unaccounted_kind(instruction) {
-        return Err(LocalScheduleError::UnsupportedInstruction);
-    }
-    Ok(accounted)
 }
 
 pub(super) fn admit<'source>(
@@ -267,8 +64,10 @@ pub(super) fn admit<'source>(
         .ok_or(LocalScheduleError::UnsupportedPair)?;
     let earlier_instruction = &block.instructions[earlier_index];
     let later_instruction = &block.instructions[later_index];
-    let earlier_accounted = schedulable(function, earlier_instruction)?;
-    let later_accounted = schedulable(function, later_instruction)?;
+    let earlier_accounted = schedulable(function, earlier_instruction)
+        .ok_or(LocalScheduleError::UnsupportedInstruction)?;
+    let later_accounted = schedulable(function, later_instruction)
+        .ok_or(LocalScheduleError::UnsupportedInstruction)?;
     // A roster-carrying access may only cross instructions that cannot
     // observe memory: a second accounted actor anywhere in the window would
     // need a place-alias decision this step does not take.
@@ -284,7 +83,8 @@ pub(super) fn admit<'source>(
         // neither member carries any — the interior's recorded accesses
         // then keep their position while two memory-inert instructions
         // trade places around them.
-        let interior_accounted = schedulable(function, interior)?;
+        let interior_accounted =
+            schedulable(function, interior).ok_or(LocalScheduleError::UnsupportedInstruction)?;
         if interior_accounted && member_accounted {
             return Err(LocalScheduleError::UnsupportedPair);
         }

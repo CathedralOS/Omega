@@ -18,6 +18,7 @@ mod runtime_rematerialization;
 mod runtime_spill;
 mod selected_lowering;
 mod store_motion;
+mod window_hazards;
 #[cfg(feature = "test-support")]
 pub mod test_support;
 
