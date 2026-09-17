@@ -4,7 +4,7 @@
 //! residuals still die on the fresh arm's edge.
 
 use super::CALL_VALUE_SOURCE;
-use crate::{
+use crate::value_dispatch::{
     TerminalExecutionResult, TerminalScalarValue, check_source, execute_machine, unsigned,
 };
 
@@ -246,7 +246,7 @@ fn owned_match_call_product_rejects_mutated_edge_evidence() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err(),
             "call-product edge mutation {mutation}"
