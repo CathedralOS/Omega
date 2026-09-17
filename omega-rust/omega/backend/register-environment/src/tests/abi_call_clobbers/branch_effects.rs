@@ -680,9 +680,10 @@ fn every_branch_family_rejects_control_contract_corruption_on_every_target() {
             );
 
             // Declaration trap drift: a hosted trap result names its owning
-            // hosted operation and cannot be borrowed, while claiming the
-            // bare architectural fault survives admission and needs
-            // canonical replay.
+            // hosted operation and cannot be borrowed, and claiming the
+            // bare architectural fault overstates the declared surface a
+            // control-flow rule owns — its encoded trap is a separate,
+            // ISA-specific surface.
             let mut corrupted = catalog.clone();
             branch_declaration_mut(&mut corrupted, key, semantic).trap =
                 MachineTrapBehavior::HostedReadFailureV1;
@@ -698,7 +699,9 @@ fn every_branch_family_rejects_control_contract_corruption_on_every_target() {
                 MachineTrapBehavior::MayArchitecturalFaultV1;
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::SemanticMismatch),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                )),
                 "{key:?} claimed architectural fault must reject"
             );
 

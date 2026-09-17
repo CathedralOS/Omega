@@ -392,6 +392,30 @@ fn every_return_family_rejects_return_contract_corruption_on_every_target() {
                 "{key:?} lost return barrier must reject"
             );
 
+            // The return's declared surfaces claim no memory footprint and
+            // no architectural fault: the activation-stack lifecycle lives
+            // in the encoded stack surface, and the declaration cannot
+            // launder either one through it.
+            let mut corrupted = catalog.clone();
+            declaration_mut(&mut corrupted, key).memory = MachineMemoryEffect::ReadPointerV1;
+            assert_eq!(
+                validate_effects(case, environment.constraints(), corrupted),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                )),
+                "{key:?} claimed declared footprint must reject"
+            );
+            let mut corrupted = catalog.clone();
+            declaration_mut(&mut corrupted, key).trap =
+                MachineTrapBehavior::MayArchitecturalFaultV1;
+            assert_eq!(
+                validate_effects(case, environment.constraints(), corrupted),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                )),
+                "{key:?} claimed declared fault must reject"
+            );
+
             // Encoded return-mechanism drift is rejected by the layer that
             // owns it: the activation-stack pop is structural on x86-64,
             // while a same-barrier forged link-register target needs

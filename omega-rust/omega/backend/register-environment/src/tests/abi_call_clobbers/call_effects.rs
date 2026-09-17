@@ -327,6 +327,30 @@ fn every_call_family_rejects_call_contract_corruption_on_every_target() {
                 "{key:?} lost call barrier must reject"
             );
 
+            // The call's declared surfaces claim no memory footprint and no
+            // architectural fault: the return-address lifecycle lives in the
+            // encoded stack surface, and the declaration cannot launder
+            // either one through it.
+            let mut corrupted = catalog.clone();
+            declaration_mut(&mut corrupted, key).memory = MachineMemoryEffect::WritePointerV1;
+            assert_eq!(
+                validate_effects(case, environment.constraints(), corrupted),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                )),
+                "{key:?} claimed declared footprint must reject"
+            );
+            let mut corrupted = catalog.clone();
+            declaration_mut(&mut corrupted, key).trap =
+                MachineTrapBehavior::MayArchitecturalFaultV1;
+            assert_eq!(
+                validate_effects(case, environment.constraints(), corrupted),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                )),
+                "{key:?} claimed declared fault must reject"
+            );
+
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key).alternatives[0]
                 .encoded

@@ -556,10 +556,23 @@ pub struct MachineAlternative {
 pub struct MachineEffectDeclaration {
     pub semantic: MachineSemanticKind,
     pub constraint: RegisterConstraintKey,
+    /// The declared memory footprint the semantic owns. Admission binds this
+    /// exactly: a footprint class belongs to the semantics whose encoding
+    /// performs it, and every other declaration — including returns and
+    /// calls, whose activation-stack lifecycle lives in the encoded stack
+    /// and call surfaces — declares `NoneV1`.
     pub memory: MachineMemoryEffect,
+    /// The declared trap surface the semantic owns. Admission binds this
+    /// exactly: hosted trap results name their owning hosted operation,
+    /// only a semantic whose encoded work dereferences memory declares
+    /// `MayArchitecturalFaultV1`, and every other rule declares `NeverV1`
+    /// even when its ISA-specific encoded trap still admits a fault.
     pub trap: MachineTrapBehavior,
     pub barrier: MachineBarrier,
     pub call: MachineCallEffect,
+    /// The cleanup surface the declaration carries. Admission binds it
+    /// fail-closed: the vocabulary has one value today, and a second
+    /// variant must name its owning semantics before a row may carry it.
     pub cleanup: MachineCleanupEffect,
     pub alternatives: Vec<MachineAlternative>,
 }

@@ -944,7 +944,7 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
         semantic,
         constraint: key,
         memory: crate::MachineMemoryEffect::NoneV1,
-        trap: crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        trap: crate::MachineTrapBehavior::NeverV1,
         barrier: MachineBarrier::None,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
@@ -1048,6 +1048,238 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
     validate_declaration(&returned, &stack_return).unwrap();
     stack_return.alternatives[0].encoded.implicit_unit_uses = vec![unit(9)];
     assert!(validate_declaration(&returned, &stack_return).is_err());
+}
+
+#[test]
+fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
+    let constraint = |variant, accesses: &[RegisterOperandAccess]| RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant,
+        },
+        operands: accesses
+            .iter()
+            .enumerate()
+            .map(|(operand, access)| RegisterOperandConstraint {
+                operand: operand as u16,
+                access: *access,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    };
+    let declaration =
+        |semantic, key, memory, trap, barrier, call, encoded| MachineEffectDeclaration {
+            semantic,
+            constraint: key,
+            memory,
+            trap,
+            barrier,
+            call,
+            cleanup: crate::MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey {
+                    family: semantic.into(),
+                    variant: 0,
+                },
+                applicability: MachineAlternativeApplicability::Always,
+                size: MachineSizeKnowledge::ExactBytes(4),
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded,
+            }],
+        };
+    // A never-faulting rule cannot claim the bare architectural fault, and
+    // no arithmetic row carries a declared memory footprint.
+    let arithmetic = constraint(
+        61,
+        &[
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Def,
+        ],
+    );
+    let add = declaration(
+        MachineSemanticKind::ExactAddI64,
+        arithmetic.key,
+        crate::MachineMemoryEffect::NoneV1,
+        crate::MachineTrapBehavior::NeverV1,
+        MachineBarrier::None,
+        crate::MachineCallEffect::NoneV1,
+        MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]),
+    );
+    validate_declaration(&arithmetic, &add).unwrap();
+    for (memory, trap) in [
+        (
+            crate::MachineMemoryEffect::NoneV1,
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        ),
+        (
+            crate::MachineMemoryEffect::NoneV1,
+            crate::MachineTrapBehavior::HostedReadFailureV1,
+        ),
+        (
+            crate::MachineMemoryEffect::ReadPointerV1,
+            crate::MachineTrapBehavior::NeverV1,
+        ),
+        (
+            crate::MachineMemoryEffect::WriteFrameStorageV1,
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        ),
+    ] {
+        let mut forged = add.clone();
+        forged.memory = memory;
+        forged.trap = trap;
+        assert!(
+            validate_declaration(&arithmetic, &forged).is_err(),
+            "memory {memory:?} trap {trap:?}"
+        );
+    }
+    // A faulting load cannot understate its declared trap, cannot name a
+    // hosted result, and cannot borrow a sibling footprint class.
+    let load = constraint(
+        63,
+        &[RegisterOperandAccess::Use, RegisterOperandAccess::Def],
+    );
+    let mut load_encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
+    load_encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
+        pointer_operand: 0,
+        byte_count: 8,
+    };
+    load_encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    let load64 = declaration(
+        MachineSemanticKind::Load64,
+        load.key,
+        crate::MachineMemoryEffect::ReadPointerV1,
+        crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineBarrier::None,
+        crate::MachineCallEffect::NoneV1,
+        load_encoded,
+    );
+    validate_declaration(&load, &load64).unwrap();
+    for (memory, trap) in [
+        (
+            crate::MachineMemoryEffect::ReadPointerV1,
+            crate::MachineTrapBehavior::NeverV1,
+        ),
+        (
+            crate::MachineMemoryEffect::ReadPointerV1,
+            crate::MachineTrapBehavior::HostedWriteFailureV1,
+        ),
+        (
+            crate::MachineMemoryEffect::WritePointerV1,
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        ),
+        (
+            crate::MachineMemoryEffect::NoneV1,
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        ),
+    ] {
+        let mut forged = load64.clone();
+        forged.memory = memory;
+        forged.trap = trap;
+        assert!(
+            validate_declaration(&load, &forged).is_err(),
+            "memory {memory:?} trap {trap:?}"
+        );
+    }
+    // A return's activation-stack lifecycle lives in its encoded stack
+    // surface: the declaration still claims no memory footprint and no
+    // architectural fault, and its join arm cannot be borrowed to launder
+    // either one.
+    let returned = constraint(65, &[RegisterOperandAccess::Use]);
+    let stack_pointer = RegisterViewId(5);
+    let mut return_encoded = MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
+    return_encoded.memory = MachineEncodedMemoryEffect::ReadActivationStackV1 {
+        stack_pointer,
+        byte_count: 8,
+    };
+    return_encoded.stack = MachineEncodedStackEffect::PopBytesV1 {
+        stack_pointer,
+        byte_count: 8,
+    };
+    return_encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    return_encoded.control = MachineEncodedControlEffect::ReturnFromActivationStackV1;
+    let returned_row = declaration(
+        MachineSemanticKind::ReturnScalar,
+        returned.key,
+        crate::MachineMemoryEffect::NoneV1,
+        crate::MachineTrapBehavior::NeverV1,
+        MachineBarrier::ControlFlow,
+        crate::MachineCallEffect::NoneV1,
+        return_encoded,
+    );
+    validate_declaration(&returned, &returned_row).unwrap();
+    for (memory, trap) in [
+        (
+            crate::MachineMemoryEffect::ReadPointerV1,
+            crate::MachineTrapBehavior::NeverV1,
+        ),
+        (
+            crate::MachineMemoryEffect::NoneV1,
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        ),
+    ] {
+        let mut forged = returned_row.clone();
+        forged.memory = memory;
+        forged.trap = trap;
+        assert!(
+            validate_declaration(&returned, &forged).is_err(),
+            "memory {memory:?} trap {trap:?}"
+        );
+    }
+    // A call's return-address lifecycle lives in its encoded stack surface
+    // the same way: the declaration claims neither a footprint nor a fault.
+    let called = constraint(
+        67,
+        &[RegisterOperandAccess::Use, RegisterOperandAccess::Def],
+    );
+    let mut call_encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
+    call_encoded.memory = MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+        stack_pointer,
+        byte_count: 8,
+    };
+    call_encoded.stack = MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+        stack_pointer,
+        return_address_byte_count: 8,
+    };
+    call_encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    call_encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
+    let call_row = declaration(
+        MachineSemanticKind::CallScalar,
+        called.key,
+        crate::MachineMemoryEffect::NoneV1,
+        crate::MachineTrapBehavior::NeverV1,
+        MachineBarrier::Call,
+        crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+            pre_call_stack_alignment: 16,
+        },
+        call_encoded,
+    );
+    validate_declaration(&called, &call_row).unwrap();
+    for (memory, trap) in [
+        (
+            crate::MachineMemoryEffect::WritePointerV1,
+            crate::MachineTrapBehavior::NeverV1,
+        ),
+        (
+            crate::MachineMemoryEffect::NoneV1,
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        ),
+    ] {
+        let mut forged = call_row.clone();
+        forged.memory = memory;
+        forged.trap = trap;
+        assert!(
+            validate_declaration(&called, &forged).is_err(),
+            "memory {memory:?} trap {trap:?}"
+        );
+    }
 }
 
 #[test]
