@@ -2676,13 +2676,15 @@ Owners include
   and inference-needing calls stay outside
   (`generics/declared_range_endpoint_static_applications`,
   `fail/generics/declared_range_endpoint_partial_static_application_rejected`).
-  A template whose own signature bound carries a named endpoint call
-  rejects under explicit application as "range endpoint signature bound is
-  not closed" (40e48b67b1,
-  `fail/generics/declared_range_endpoint_template_bound_call_rejected`):
-  the instance's cloned bound is read from the once-prepared program
-  before the template bound folds, so closing it needs round-based
-  re-preparation after template bounds fold.
+  Named endpoint evaluation runs in rounds at 29443ddc65: a round
+  prepares the execution program from the current working tree and folds
+  what closes, and the driver re-prepares only when a static application
+  failed after progress, so templates whose own signature bounds carry
+  endpoint calls close under explicit application
+  (`generics/declared_range_endpoint_template_bound_calls`; controls
+  `fail/generics/declared_range_endpoint_template_bound_{out_of_range,
+  unclosable_rejected}`, the latter a parameter-dependent bound no round
+  can close). A round without progress restores every published fold.
   Nominal/policy qualifications, trait-operator owners, applications with
   type/machine/evidence binders, and open symbolic endpoints remain. Omitted data
   binders (`data TinyBytes<u64[0..=256]>` still reports "expected 2
