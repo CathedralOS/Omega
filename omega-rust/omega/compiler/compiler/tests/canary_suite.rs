@@ -343,6 +343,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "constants/lexical_aggregate_values",
     "operators/crash_routes",
     "memory/bump_allocator_canary",
+    "contracts/proof_fact_indexed_domain_application",
     "memory/address_translation_canary",
     "operators/operand_requires_after_effects",
     "dependent/valuation_order_cycle",
@@ -1837,7 +1838,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "memory/bump_allocator_resident_dropped",
     "memory/bump_allocator_place_into_occupied",
     "memory/bump_allocator_restated_resident_index_mismatch",
-    "contracts/proof_fact_indexed_domain_application",
+    "contracts/proof_fact_indexed_domain_application_arity",
 ];
 
 #[path = "canary_suite/entry_and_abi.rs"]

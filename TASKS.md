@@ -2964,16 +2964,39 @@ Owners include
   `flow/transfers.rs`), so `exercise_resident_restated` proves `view` and
   `retire_view` at call `requires` and restating under another index is
   refused as distinct normalized instances
-  (`fail/memory/bump_allocator_restated_resident_index_mismatch`). One
-  Psi edge remains: an indexed domain application in proof-fact position
-  (`ensures result in Granted & Resident<P, T>`) is parsed with the
-  type-position grammar and rejected by name at 5636b0fa10
-  (`fail/contracts/proof_fact_indexed_domain_application`); carrying it
-  needs an argument span on the syntax and symbol-resolved
-  `ProofMembershipFact`, resolver lowering of those type references, and
+  (`fail/memory/bump_allocator_restated_resident_index_mismatch`). An
+  indexed domain application in proof-fact position (`ensures result in
+  Granted & Resident<P, T>`) is carried by argument (macOS ARM64): the
+  syntax and symbol-resolved `ProofMembershipFact` retain the argument span
+  read with the type-position grammar
+  (`tokens-to-syntax-trees/src/contracts/facts.rs`); the resolver lowers
+  the arguments as child type references and binds them in the owning
+  machine, trait-requirement, operator, domain, or data scope
+  (`syntax-trees-to-symbol-resolved-trees/src/lowering/domain.rs`,
+  `symbols/contracts.rs`, `symbols/domain_facts.rs`); and
   `symbol-resolved-trees-to-typed-trees/src/contracts/proof_facts.rs`
-  interning `semantic_domain` as `domain_constraints.rs` does (the typed
-  node already carries the fields). Next
+  lowers the arguments, checks their count against the family's index
+  binders, and interns `semantic_domain` in a finish pass beside
+  domain-constraint normalization
+  (`lowerer/tests/machine_contracts.rs` proves the fact's identity equals
+  the return constraint's for a closed `Resident<SlotPlacement, Slot>` and
+  a generic `Quantity<To>` bound to the requirement's own binder).
+  `pass/contracts/proof_fact_indexed_domain_application` compiles the
+  shape end to end (`place` ensures the instance; the caller restates it
+  through an exactly typed `let` and proves `view`/`retire_view`);
+  `fail/contracts/proof_fact_indexed_domain_application_arity` pins the
+  count rejection; a `|` alternative and a compiler carry permission still
+  reject an application by name. Remaining on this route: the write
+  discharge of a restating `let` initialized by a call
+  (`typed-trees-to-checked-trees/src/checks/contracts/writes.rs`,
+  `value_proves_domain` via `value_call_return_domain_implies`) joins the
+  callee's `ensures` membership by family symbol only, so `let placed:
+  Extent in Granted & Resident<OtherPlacement, Slot> = storage.place(..)`
+  is admitted where `place` ensured `Resident<SlotPlacement, Slot>`; the
+  identity is on the fact (`FactPayload::ContractDomainMembership
+  .semantic_domain`) and `checks/contracts/prover.rs` already compares it
+  at a call `requires`, so the write check needs the same instance
+  comparison before a mismatch fixture can pin it. Next
   acceptance: a `Vec<T>`-style container over the chain, which still
   needs compiler-owned `Initialize`/placed-view establishment (plan
   evaluation of `P` over `T`, Stable-supply admission).

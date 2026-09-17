@@ -81,11 +81,28 @@ pub(crate) fn lower_proof_facts(
                     .source_trees
                     .domain_path_members(membership.domain)
                     .to_vec();
+                let domain_arguments =
+                    lower_membership_domain_arguments(lowerer, membership, source_span)?;
                 let expanded = expand_domain_reference(
                     lowerer.source_trees,
                     membership.domain_symbol,
                     authored_path,
                 )?;
+                if !domain_arguments.is_empty() && expanded.len() != 1 {
+                    let alias = lowerer
+                        .source_trees
+                        .domain_path_members(membership.domain)
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::");
+                    return Err(with_optional_source_span(
+                        Diagnostic::error(format!(
+                            "domain alias `{alias}` does not take index arguments"
+                        )),
+                        source_span,
+                    ));
+                }
                 for atom in expanded {
                     let mut domain = HandleSpan::empty();
                     for member in atom.path {
@@ -100,7 +117,10 @@ pub(crate) fn lower_proof_facts(
                             value,
                             domain,
                             domain_symbol: atom.symbol,
-                            domain_arguments: HandleSpan::empty(),
+                            domain_arguments,
+                            // Interned by `intern_proof_membership_instances`
+                            // once the typed symbol table exists, exactly when
+                            // domain constraints are normalized.
                             semantic_domain: language_semantics::SemanticDomainId::NULL,
                             authored_domain_selection: membership.authored_domain_selection,
                         }),
@@ -116,4 +136,122 @@ pub(crate) fn lower_proof_facts(
     }
 
     Ok(lowered)
+}
+
+fn with_optional_source_span(
+    diagnostic: Diagnostic,
+    source_span: Option<source::SourceSpan>,
+) -> Diagnostic {
+    match source_span {
+        Some(source_span) => diagnostic.with_source_span(source_span),
+        None => diagnostic,
+    }
+}
+
+/// Lower an indexed application's arguments exactly as a domain constraint's
+/// arguments are lowered, and check their count against the family's index
+/// binders when the family is already a typed declaration (every declaration
+/// is, for machine, trait, and operator contracts; a domain's own facts may
+/// name a later family, which the finish pass then checks). Empty for an
+/// unindexed membership.
+fn lower_membership_domain_arguments(
+    lowerer: &mut Lowerer,
+    membership: &resolved::domain::ProofMembershipFact,
+    source_span: Option<source::SourceSpan>,
+) -> Result<HandleSpan<typed::types::TypeReferenceHandle>, Diagnostic> {
+    if membership.domain_arguments.is_empty() {
+        return Ok(HandleSpan::empty());
+    }
+    let source_arguments = lowerer
+        .source_trees
+        .child_type_references(membership.domain_arguments)
+        .to_vec();
+    let mut arguments = Vec::with_capacity(source_arguments.len());
+    for argument in &source_arguments {
+        arguments.push(crate::type_reference::lower_type_reference_into_table(
+            lowerer, argument,
+        )?);
+    }
+    if let Some(domain) = lowerer
+        .typed_trees
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == membership.domain_symbol)
+    {
+        check_membership_argument_count(&lowerer.typed_trees, domain, arguments.len())
+            .map_err(|diagnostic| with_optional_source_span(diagnostic, source_span))?;
+    }
+    Ok(lowerer
+        .typed_trees
+        .type_reference_table
+        .insert_type_reference_handles(arguments))
+}
+
+fn check_membership_argument_count(
+    program: &typed::TypedTrees,
+    domain: &typed::domain::DomainDefinition,
+    supplied: usize,
+) -> Result<(), Diagnostic> {
+    let index_parameters = typed::domain::index_parameters(program, domain);
+    if supplied != index_parameters.len() {
+        return Err(Diagnostic::error(format!(
+            "domain family `{}` requires {} closed index argument(s), but {} were supplied",
+            domain.name,
+            index_parameters.len(),
+            supplied
+        )));
+    }
+    Ok(())
+}
+
+/// Intern the instance identity of every indexed membership fact, exactly as
+/// `type_reference::domain_constraints` interns a constrained type's: the
+/// family's semantic name applied to the normalized argument identities. This
+/// runs beside domain-constraint normalization, after the typed symbol table
+/// exists, because a direct binder's identity is spelled through its symbol
+/// path; interning during lowering would give the same binder two names. A
+/// membership whose family is not a declared domain (an unresolved path, or a
+/// compiler carry permission) has no instance and is diagnosed elsewhere.
+pub(crate) fn intern_proof_membership_instances(
+    program: &mut typed::TypedTrees,
+) -> Result<(), Diagnostic> {
+    let mut instances = Vec::new();
+    for (handle, fact) in program.proof_facts.iter() {
+        let typed::domain::ProofFact::Membership(membership) = fact else {
+            continue;
+        };
+        if membership.domain_arguments.is_empty() || !membership.domain_symbol.is_valid() {
+            continue;
+        }
+        let Some(domain) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == membership.domain_symbol)
+        else {
+            continue;
+        };
+        let source_span = program.proof_fact_source_span(handle);
+        check_membership_argument_count(program, domain, membership.domain_arguments.len())
+            .map_err(|diagnostic| with_optional_source_span(diagnostic, source_span))?;
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(membership.domain_arguments);
+        let identity = typed::domain::indexed_domain_instance_name(
+            program,
+            domain,
+            typed::domain::index_parameters(program, domain),
+            arguments,
+        )
+        .map_err(|diagnostic| with_optional_source_span(diagnostic, source_span))?;
+        instances.push((handle, identity));
+    }
+    for (handle, identity) in instances {
+        let semantic_domain = program.semantic_domains.intern(&identity);
+        if let typed::domain::ProofFact::Membership(membership) =
+            program.proof_facts.get_mut(handle)
+        {
+            membership.semantic_domain = semantic_domain;
+        }
+    }
+    Ok(())
 }

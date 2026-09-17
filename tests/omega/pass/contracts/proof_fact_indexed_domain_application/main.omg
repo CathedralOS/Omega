@@ -1,0 +1,61 @@
+// An indexed domain application in proof-fact position
+// (`ensures result in Granted & Resident<SlotPlacement, Slot>`) is read with
+// the type-position grammar and carried by argument: the syntax and
+// symbol-resolved membership facts retain the argument span, the arguments
+// resolve in the requirement's lexical scope, and the typer interns the
+// instance identity exactly as it does for a `Extent in Granted &
+// Resident<SlotPlacement, Slot>` constraint. `exercise_placed` restates the
+// requirement's result through the exact instance and proves `view` and
+// `retire_view` at their call `requires` from that restatement.
+//
+// Pinned here: the shape compiles end to end. The identity join between the
+// requirement's `ensures` fact and the caller's restating `let` is still the
+// symbol-only write discharge (`checks/contracts/writes.rs`), so restating
+// under another index is not yet refused at this route; the typed-stage
+// interning is witnessed by
+// `symbol-resolved-trees-to-typed-trees/src/lowerer/tests/machine_contracts.rs`
+// and the argument count by `fail/contracts/proof_fact_indexed_domain_application_arity`.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Slot [copy] {
+    value: u32;
+}
+
+data SlotPlacement {}
+
+data Retired {
+    storage: Extent in Granted & Vacant;
+    value: Slot;
+}
+
+boundary trait ResidentStorage {
+    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Extent
+    ensures
+        result in Granted & Resident<SlotPlacement, Slot>,
+        Granted::content(old(&storage)) == Granted::content(&result);
+
+    machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot;
+
+    machine retire_view(storage: Extent in Granted & Resident<SlotPlacement, Slot>) -> Retired
+    ensures
+        Granted::content(old(&storage)) == Granted::content(&result.storage);
+}
+
+machine exercise_placed(
+    storage: &ResidentStorage,
+    vacant: Extent in Granted & Vacant
+) -> Extent
+reaches ResidentStorage
+{
+    let placed: Extent in Granted & Resident<SlotPlacement, Slot> =
+        storage.place(vacant, Slot { value: 7 });
+    let observed: Slot = storage.view(&placed);
+    let retired: Retired = storage.retire_view(placed);
+    let released: Extent in Granted & Vacant = retired.storage;
+    released as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

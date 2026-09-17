@@ -76,6 +76,11 @@ pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<DiagnosticName>,
     pub domain_symbol: SymbolHandle,
+    /// Indexed domain application (`value in Resident<P, T>`), lowered like a
+    /// domain constraint's arguments into `child_type_references` and given
+    /// symbols in the owning declaration's lexical scope. Empty for an
+    /// unindexed membership.
+    pub domain_arguments: HandleSpan<TypeReference>,
     pub authored_domain_selection:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
 }
@@ -86,6 +91,7 @@ impl Default for ProofMembershipFact {
             value: crate::expression::ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
             domain_symbol: SymbolHandle::invalid(),
+            domain_arguments: HandleSpan::empty(),
             authored_domain_selection: None,
         }
     }

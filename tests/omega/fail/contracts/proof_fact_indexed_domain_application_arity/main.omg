@@ -1,0 +1,24 @@
+// An indexed domain application in proof-fact position reaches the typer
+// with its arguments: `Extent::Resident<P, T>` binds two invariant type
+// indices, so `Resident<SlotPlacement>` is refused by count exactly as the
+// same application is refused in a type constraint. The accepted shape is
+// `tests/omega/pass/contracts/proof_fact_indexed_domain_application`.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Slot [copy] {
+    value: u32;
+}
+
+data SlotPlacement {}
+
+boundary trait ResidentStorage {
+    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Extent
+    ensures
+        result in Granted & Resident<SlotPlacement>,
+        Granted::content(old(&storage)) == Granted::content(&result);
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

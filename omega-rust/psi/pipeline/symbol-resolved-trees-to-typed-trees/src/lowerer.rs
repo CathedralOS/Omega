@@ -398,6 +398,7 @@ impl Lowerer<'_> {
         trees.proof_output_calls = proof_output_calls;
         trees.ranking_expression_custody = ranking_expression_custody;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
+        crate::contracts::proof_facts::intern_proof_membership_instances(&mut trees)?;
         normalize_qualification_casts(self.source_trees, &mut trees)?;
         crate::expressions::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(
             &mut trees,

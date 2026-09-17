@@ -60,10 +60,15 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             constituent.domain_symbol = symbol;
         }
     });
+    // Each scope carries its declaration's generic telescope so an indexed
+    // application's arguments (`self.slot in Resident<P, T>`) resolve against
+    // the owning binders. Signature contracts resolve theirs in the machine
+    // or trait scope during contract-reference assignment, which runs first;
+    // `None` leaves that assignment untouched here.
     let mut proof_fact_scopes = program
         .domain_definitions
         .iter()
-        .map(|domain| (domain.facts, Vec::new()))
+        .map(|domain| (domain.facts, Vec::new(), Some(domain.type_parameters)))
         .collect::<Vec<_>>();
     proof_fact_scopes.extend(
         program
@@ -71,7 +76,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             .declarations
             .signature_contracts
             .iter()
-            .map(|(_, contract)| (contract.facts, Vec::new())),
+            .map(|(_, contract)| (contract.facts, Vec::new(), None)),
     );
     proof_fact_scopes.extend(program.data_definitions.iter().flat_map(|definition| {
         let mut local_symbols = program
@@ -126,20 +131,48 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         .cloned()
                         .collect::<Vec<_>>();
                     scope.extend(inherited);
-                    Some((variant.where_facts, scope))
+                    Some((variant.where_facts, scope, Some(definition.type_parameters)))
                 }
                 _ => None,
             })
             .collect::<Vec<_>>();
-        std::iter::once((definition.where_facts, local_symbols)).chain(variant_scopes)
+        std::iter::once((
+            definition.where_facts,
+            local_symbols,
+            Some(definition.type_parameters),
+        ))
+        .chain(variant_scopes)
     }));
     let domain_path_members = &program.tables.declarations.domain_path_members;
+    let data_type_parameters = &program.tables.declarations.data_type_parameters;
+    let child_type_references = &mut program.tables.declarations.child_type_references;
+    let type_constraints = &program.tables.types.constraints;
     let proof_facts = &mut program.tables.declarations.proof_facts;
 
-    for (facts, local_symbols) in proof_fact_scopes {
+    for (facts, local_symbols, type_parameters) in proof_fact_scopes {
         for fact in proof_facts.span_mut_or_empty(facts) {
             match fact {
                 symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                    if let Some(type_parameters) = type_parameters {
+                        let local_type_parameters =
+                            data_type_parameters.span_or_empty(type_parameters);
+                        for offset in 0..membership.domain_arguments.count() {
+                            let start = membership.domain_arguments.start();
+                            let handle = arena::Handle::from_parts(
+                                start.arena_index() + offset,
+                                start.generation(),
+                            );
+                            let mut argument = child_type_references.get(handle).clone();
+                            super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
+                                symbols,
+                                child_type_references,
+                                type_constraints,
+                                local_type_parameters,
+                                &mut argument,
+                            );
+                            *child_type_references.get_mut(handle) = argument;
+                        }
+                    }
                     assign_data_fact_local_symbols(
                         &local_symbols,
                         &mut program.tables.bodies.expressions,

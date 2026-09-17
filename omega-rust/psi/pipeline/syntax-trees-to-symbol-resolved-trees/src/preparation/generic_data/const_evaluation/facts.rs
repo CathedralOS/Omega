@@ -108,6 +108,12 @@ pub(in crate::preparation::generic_data) fn evaluate_const_membership_fact(
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<bool>, String> {
+    // An indexed application names one instance of a family; the family's
+    // declaration facts alone cannot discharge it, so it stays on the record
+    // for typed interning and checked membership evidence.
+    if !membership.domain_arguments.is_empty() {
+        return Ok(None);
+    }
     let ExpressionNode::Name(value_path) = syntax.expressions.expression(membership.value) else {
         return Ok(None);
     };
@@ -218,6 +224,9 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
                     warnings,
                 )?,
                 ProofFact::Membership(membership) => {
+                    if !membership.domain_arguments.is_empty() {
+                        return Ok(None);
+                    }
                     let Some(nested_value) = evaluate_const_fact_expression(
                         syntax,
                         membership.value,

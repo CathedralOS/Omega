@@ -377,6 +377,7 @@ pub enum ProofFactSnapshot {
     Membership {
         value: ExpressionSnapshot,
         domain: Vec<IdentifierSnapshot>,
+        domain_arguments: Vec<TypeReferenceSnapshot>,
     },
 }
 
@@ -993,6 +994,12 @@ fn snapshot_proof_fact(syntax_trees: &SyntaxTrees, fact: &ProofFact) -> ProofFac
                     .items
                     .identifier_path_members(membership.domain),
             ),
+            domain_arguments: syntax_trees
+                .type_references
+                .type_reference_handles(membership.domain_arguments)
+                .iter()
+                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
+                .collect(),
         },
     }
 }
