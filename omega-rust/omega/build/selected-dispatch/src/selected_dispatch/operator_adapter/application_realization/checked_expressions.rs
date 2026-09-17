@@ -62,6 +62,18 @@ fn derive_checked_expression_operator_application_realization(
             "canonical-empty boundary application has no expression use site",
         ));
     };
+    if checked
+        .typed
+        .machines()
+        .iter()
+        .any(|machine| machine.symbol == application.requirement_symbol)
+    {
+        // A direct call to a top-level `boundary requirement` realized by a
+        // checked adapter settles to an ordinary call of the adapter body and
+        // publishes no D29 occurrence; its compiler-intrinsic realization has
+        // its own projector. This operator lane manufactures no coverage.
+        return Ok(None);
+    }
     let operator = exact_operator_definition(checked, expression, application.requirement_symbol)?;
     if !operator.is_boundary {
         return Err(Diagnostic::error(format!(
