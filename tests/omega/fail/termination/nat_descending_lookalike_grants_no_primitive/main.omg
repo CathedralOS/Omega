@@ -1,0 +1,14 @@
+// OPERATOR-MACHINE-SUPPLY: `Nat::Descending` is an exact compiler primitive
+// supplied by the closed ranking-view catalog only for the sealed toolchain
+// declaration in core/nat.omg. A user package declaring the same bare bodyless
+// signature -- the same path, the same shape -- earns no primitive or ranking
+// authority: catalog identity is declaration custody, never a spelling.
+use omega::language::core::nat;
+
+machine Nat::Descending(value: u64) -> u64;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
