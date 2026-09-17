@@ -811,25 +811,21 @@ fn every_memory_family_rejects_memory_contract_corruption_on_every_target() {
                 "{key:?} declaration memory drift must reject"
             );
 
-            // Declaration-level trap drift: understating a faulting rule
-            // fails the declared trap/memory join, while overstating a pure
-            // rule survives admission and needs canonical replay.
+            // Declaration-level trap drift fails structural admission in
+            // both directions: understating a faulting rule drops the
+            // declared fault it owns, and overstating a pure rule claims a
+            // surface its semantic cannot carry.
             let mut corrupted = catalog.clone();
             memory_declaration_mut(&mut corrupted, *key, *semantic).trap = if contract.faulting {
                 MachineTrapBehavior::NeverV1
             } else {
                 MachineTrapBehavior::MayArchitecturalFaultV1
             };
-            let expected = if contract.faulting {
-                EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(*semantic),
-                )
-            } else {
-                EffectRejection::SemanticMismatch
-            };
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(expected),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(*semantic)
+                )),
                 "{key:?} declaration trap drift must reject"
             );
         }

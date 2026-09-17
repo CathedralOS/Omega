@@ -1333,9 +1333,9 @@ fn every_arithmetic_family_rejects_arithmetic_contract_corruption_on_every_targe
             );
 
             // Declaration trap drift: a hosted trap result names its owning
-            // hosted operation and cannot be borrowed, while claiming the
-            // bare architectural fault survives admission and needs
-            // canonical replay.
+            // hosted operation and cannot be borrowed, and claiming the
+            // bare architectural fault overstates the declared surface a
+            // never-faulting rule owns.
             let mut corrupted = catalog.clone();
             arithmetic_declaration_mut(&mut corrupted, *key, *semantic).trap =
                 MachineTrapBehavior::HostedReadFailureV1;
@@ -1351,7 +1351,9 @@ fn every_arithmetic_family_rejects_arithmetic_contract_corruption_on_every_targe
                 MachineTrapBehavior::MayArchitecturalFaultV1;
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::SemanticMismatch),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(*semantic)
+                )),
                 "{key:?} claimed architectural fault must reject"
             );
 

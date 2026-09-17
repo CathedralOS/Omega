@@ -47,25 +47,71 @@ pub(super) fn validate_declaration(
             semantic,
         ));
     }
-    // The declared trap surface belongs to the selected semantic: hosted trap
-    // results name their owning hosted operation, and a rule cannot claim it
-    // never faults while also declaring a memory access.
-    let declared_trap_matches = match declaration.trap {
-        crate::MachineTrapBehavior::HostedExitReturnedV1 => {
-            semantic == MachineSemanticKind::HostedExitProcessI32
+    // The declared memory and trap surfaces are functions of the selected
+    // semantic — the same contract the barrier and call surfaces already
+    // follow. A footprint class belongs to the semantics whose encoding
+    // performs it; every other declaration — including returns and calls,
+    // whose activation-stack lifecycle is described by the encoded stack
+    // and call surfaces instead — declares no memory access. A hosted trap
+    // result names its owning hosted operation, only a semantic whose
+    // encoded work dereferences memory declares the bare architectural
+    // fault, and every other rule declares that it never faults.
+    // Understating a surface the rule needs, or overstating one it cannot
+    // have, fails admission instead of reaching canonical replay.
+    let expected_memory = match semantic {
+        MachineSemanticKind::CopyBytes => crate::MachineMemoryEffect::CopyBytesV1,
+        MachineSemanticKind::HostedReadByte => crate::MachineMemoryEffect::HostedReadByteV1,
+        MachineSemanticKind::HostedWriteByteI32 => crate::MachineMemoryEffect::HostedWriteByteV1,
+        MachineSemanticKind::Load8
+        | MachineSemanticKind::Load16
+        | MachineSemanticKind::Load32
+        | MachineSemanticKind::Load64
+        | MachineSemanticKind::Load8Indexed
+        | MachineSemanticKind::LoadPacked3
+        | MachineSemanticKind::LoadPacked5
+        | MachineSemanticKind::LoadPacked6
+        | MachineSemanticKind::LoadPacked7 => crate::MachineMemoryEffect::ReadPointerV1,
+        MachineSemanticKind::Store64 => crate::MachineMemoryEffect::WriteFrameStorageV1,
+        MachineSemanticKind::Store | MachineSemanticKind::StorePacked => {
+            crate::MachineMemoryEffect::WritePointerV1
         }
-        crate::MachineTrapBehavior::HostedReadFailureV1 => {
-            semantic == MachineSemanticKind::HostedReadByte
-        }
-        crate::MachineTrapBehavior::HostedWriteFailureV1 => {
-            semantic == MachineSemanticKind::HostedWriteByteI32
-        }
-        crate::MachineTrapBehavior::NeverV1 => {
-            declaration.memory == crate::MachineMemoryEffect::NoneV1
-        }
-        crate::MachineTrapBehavior::MayArchitecturalFaultV1 => true,
+        _ => crate::MachineMemoryEffect::NoneV1,
     };
-    if !declared_trap_matches {
+    if declaration.memory != expected_memory {
+        return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+            semantic,
+        ));
+    }
+    let expected_trap = match semantic {
+        MachineSemanticKind::HostedExitProcessI32 => {
+            crate::MachineTrapBehavior::HostedExitReturnedV1
+        }
+        MachineSemanticKind::HostedReadByte => crate::MachineTrapBehavior::HostedReadFailureV1,
+        MachineSemanticKind::HostedWriteByteI32 => crate::MachineTrapBehavior::HostedWriteFailureV1,
+        MachineSemanticKind::CopyBytes
+        | MachineSemanticKind::Load8
+        | MachineSemanticKind::Load16
+        | MachineSemanticKind::Load32
+        | MachineSemanticKind::Load64
+        | MachineSemanticKind::Load8Indexed
+        | MachineSemanticKind::LoadPacked3
+        | MachineSemanticKind::LoadPacked5
+        | MachineSemanticKind::LoadPacked6
+        | MachineSemanticKind::LoadPacked7
+        | MachineSemanticKind::Store
+        | MachineSemanticKind::StorePacked
+        | MachineSemanticKind::Store64 => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        _ => crate::MachineTrapBehavior::NeverV1,
+    };
+    if declaration.trap != expected_trap {
+        return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+            semantic,
+        ));
+    }
+    // The cleanup surface binds fail-closed even though its vocabulary has
+    // one value today: a second variant must name its owning semantics here
+    // before any declaration may carry it.
+    if declaration.cleanup != crate::MachineCleanupEffect::NoneV1 {
         return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
             semantic,
         ));
