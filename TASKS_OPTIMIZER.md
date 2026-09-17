@@ -1196,14 +1196,33 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   refuse — under the same replayed restore-by-content
   validation (crate `nextest`: 685 pass). The flag walk and
   constant-operand audit both folds share now live in
-  `rewrites/condition_state`.
+  `rewrites/condition_state`. Also landed:
+  `rewrites/fork_relocation` sinks one named body
+  instruction out of its branching block through the one
+  plain branch edge the pair selects onto a named position
+  in that arm's body — the member becomes conditional on
+  the edge, and a forward dead-path fixpoint proves every
+  location it writes unread until rewritten on each path
+  the move removes — and `rewrites/join_relocation`
+  hoists one named body instruction out of a converging
+  join back through the branch diamond that feeds it onto
+  a named position in the one fork head the arms descend
+  from — the reverse burden being total supply rather
+  than partial death: every edge into the join leaves an
+  arm the head alone feeds and every edge the head names
+  reaches an arm, so each traversal into the join crossed
+  the member's new position and each traversal of the
+  head reaches the join — under the same replayed
+  restore-by-content validation (crate `nextest`: 734
+  pass).
   Remaining: scheduling past the proven bounded window
   interchange, single-member relocation, multi-member run
-  relocation, the single-edge move, and the branch-diamond
+  relocation, the single-edge move, the branch-diamond
+  move, the diverging fork move, and the converging join
   move — relocation through other converging or branching
-  control flow — and compare/test selection past the landed
-  literal folds and the constant-flag boolean materialization
-  and conditional-branch folds.
+  control flow — and compare/test selection past the
+  landed literal folds and the constant-flag boolean
+  materialization and conditional-branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
