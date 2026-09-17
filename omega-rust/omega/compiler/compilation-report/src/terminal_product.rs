@@ -562,7 +562,6 @@ impl TerminalNativeRealizationProposal {
             }
         }
         let mut placement_indices = std::collections::BTreeSet::new();
-        let mut callback_operations = std::collections::BTreeSet::new();
         let mut callback_thunk_identities = std::collections::HashSet::new();
         for occurrence in &self.callback_occurrences {
             if !placement_indices.insert(occurrence.placement_index) {
@@ -586,9 +585,11 @@ impl TerminalNativeRealizationProposal {
                 .artifact()
                 .validate()
                 .map_err(|_| "Terminal callback occurrence contains an invalid thunk artifact")?;
-            if !callback_operations.insert(occurrence.terminal_operation) {
-                return Err("Terminal native proposal repeats a callback registrar operation");
-            }
+            // One authored registrar call can materialize several private
+            // callback slots at once (one nominal binder per slot), so
+            // distinct placements legitimately join to the same Terminal
+            // operation. The join itself is still replayed per occurrence:
+            // each row must name one exact canonical boundary call.
             let matching = module
                 .machines
                 .iter()
