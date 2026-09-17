@@ -1,0 +1,30 @@
+// FAIL CANARY. `cell` arrives as the live copy of the ranked subject
+// `countdown`, whose `count` field the declared `Cell::Count` view projects.
+// The indexed store `cell.items[0] = 7` produces the collection-coarse write
+// frame `cell.items`, which overlaps the premise carrier `cell`; the proof
+// that `cell.count` still denotes its arrival value is invalidated even
+// though the stored-to element is a sibling field of the ranked coordinate.
+data Cell { count: u64; items: [u64; 4]; }
+data Main {}
+measure Cell::Count(cell: Cell) -> u64 { cell.count }
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.walk(Cell { count: 5, items: [0, 0, 0, 0] }) }
+}
+
+machine Main::walk(&mut self, countdown: Cell)
+requires countdown.count <= 5;
+terminates by countdown -> Cell::Count in 0..=5;
+-> u64 {
+    transition countdown.count > 0 {
+        true -> tick(countdown)
+        false -> countdown.count
+    }
+    state tick(&mut self, mut cell: Cell) -> u64 {
+        cell.items[0] = 7;
+        transition cell.count > 0 {
+            true -> tick(Cell { count: cell.count - 1, items: cell.items })
+            false -> cell.count
+        }
+    }
+}

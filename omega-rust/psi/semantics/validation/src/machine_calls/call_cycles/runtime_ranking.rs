@@ -473,11 +473,18 @@ fn expression_is_inert(
             .expression_handles(*items)
             .iter()
             .all(|item| inert(*item)),
-        // A builtin subslice is a pure rewindowing of its collection. Only an
-        // authored or selected index operation could hide an effect here, and
-        // its scalar bounds traverse the same inert check.
+        // A builtin indexed read or subslice is a pure projection of its
+        // collection. Only an authored or selected index operation could hide
+        // an effect here, and its scalar bounds traverse the same inert check;
+        // bound meaning deliberately treats calls as symbolic leaves, so the
+        // operands still need this structural walk.
         ExpressionNode::Indexed(indexed)
             if crate::value_custody::places::has_builtin_subslice_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) || crate::value_custody::places::place_has_builtin_coordinates(
                 program,
                 machine,
                 Some(state),
@@ -488,15 +495,16 @@ fn expression_is_inert(
                 ExpressionNode::Range(range) => [range.start, range.end]
                     .into_iter()
                     .all(|endpoint| !endpoint.is_valid() || inert(endpoint)),
-                _ => false,
+                _ => inert(indexed.index),
             };
             inert(indexed.collection) && endpoints_inert
         }
-        // A borrow can expose the ranked value; a call or an unadmitted indexed
-        // operation can have selected behavior this pure rank slice cannot see.
-        ExpressionNode::Borrow(_)
-        | ExpressionNode::Call(_)
-        | ExpressionNode::Indexed(_)
-        | ExpressionNode::Range(_) => false,
+        // Forming a reference writes nothing of its own; a later store through
+        // the alias is a separate statement whose frame is closed over the
+        // referent's origins by the write-frame owner. A call or an
+        // unadmitted indexed operation can have selected behavior this pure
+        // rank slice cannot see.
+        ExpressionNode::Borrow(borrow) => inert(borrow.target),
+        ExpressionNode::Call(_) | ExpressionNode::Indexed(_) | ExpressionNode::Range(_) => false,
     }
 }

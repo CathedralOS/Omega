@@ -1,0 +1,37 @@
+// PASS CANARY. `self.tags[0]` is an indexed store into machine storage whose
+// complete write frame is `self.tags`; it is disjoint from every premise
+// carrier and shared copy the call-site judgment reads (`left`, `right`,
+// `scratch`), so the store preserves the entry-relative ranking across the
+// `count`/`step` call component.
+data Main {
+    tags: [u64; 2];
+}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5, 1) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9], extra: u32)
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining > 0 {
+        true -> pair(remaining, remaining, extra)
+        false -> remaining
+    }
+    state pair(&mut self, left: u32 [0..=9], right: u32 [0..=9], mut scratch: u32) -> u32 {
+        self.tags[0] = scratch;
+        transition left > 0 {
+            true -> self.step(right)
+            false -> scratch
+        }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 {
+        true -> self.count(n - 1, 0)
+        false -> n
+    }
+}
