@@ -223,6 +223,48 @@ must be surfaced before relying on them.
    Until answered, the `core/nat.omg` satisfier pairs stay on `operator`
    and OPERATOR-MACHINE-SUPPLY's map marks them design-blocked.
 
+6. **Which explicit binder selects an indexed domain's index operation
+   contract?** (named decision: `open-index-operation-selection`). The
+   [executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
+   retires bodyless root `operator` slots and states that "any required
+   conformance/provider selection is explicit, never an implicit search
+   among visible satisfying machines"; [licensed normalization](wiki/spec/proofs/contracts.md)
+   requires "an explicitly selected conformance with checked operation and
+   law slots", and [domains](wiki/spec/language/domains.md) require "the
+   exact selected checked algebra". Today the PDI3 open-index operation is
+   the bodyless root slot `operator + IndexAlgebra::plus(left: u64, right:
+   u64) -> u64;` supplied by an implicit unique-satisfier search
+   (`validation/src/value_custody/type_references/open_index_expressions.rs`
+   collects every machine whose conformances name `IndexAlgebra::plus` and
+   requires exactly one, then `structural_judgment.rs` demands its proved
+   AC algebra), and `fail/generics/open_index_unlicensed_algebra` pins
+   "requires one exact proved associative/commutative algebra instance,
+   but 0 were found". `IndexAlgebra` is a bare path prefix, not a declared
+   type or domain, and the operand tuple is bare `u64`, so the operator
+   families rule gives the declaration no semantic home and the machine
+   form rejects it as a compiler-owned-family injection. Product
+   requirement: `pass/generics/{open_computed_quantity_result,
+   open_index_local_fact}` and their two fail controls, and every
+   `domain<T, const I: u64> T::Indexed<I>` computed index. Options:
+
+   - (a) A token-bearing trait requirement (`trait IndexAlgebra { machine +
+     plus(left: Self, right: Self) -> Self; }` with `u64 satisfies
+     IndexAlgebra` realized by the provider) selected by an explicit
+     conformance named on the indexed domain declaration, for example
+     `domain<T, const I: u64> T::Indexed<I> using IndexAlgebra;`, with the
+     AC law slots on the same trait. Fits the trait row of the supply table
+     and keeps selection at the declaration. Recommended default.
+   - (b) The same trait selected at each use site through an explicit
+     proof-static binder on the computed index expression. Finer-grained
+     but repeats the selection at every index.
+   - (c) Keep these slots on a retained bodyless root form with the
+     implicit search, contradicting the explicit-selection rule.
+
+   Until answered, the four `IndexAlgebra::plus` fixtures stay on
+   `operator` and OPERATOR-MACHINE-SUPPLY's map marks them design-blocked;
+   this is distinct from question 5, which concerns formation-time
+   `requires` rather than the selection binder.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required

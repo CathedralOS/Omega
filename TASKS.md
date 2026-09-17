@@ -2930,7 +2930,11 @@ Owners include
   is design-blocked on the `proof-operator-requires-formation` owner
   question (proof-to-proof calls are exempt from the `requires` prover,
   so the formation-time premise the operator prover enforced would be
-  lost); tokenless boundary requirements (155
+  lost); the four `IndexAlgebra::plus` satisfier pairs in `generics/` are
+  the PDI3 open-index operation-contract slot, supplied today by an
+  implicit unique-satisfier search over a bare `u64` tuple with no
+  semantic home, and are design-blocked on the
+  `open-index-operation-selection` owner question; tokenless boundary requirements (155
   library, 18 tests) wait on the named `boundary requirement`
   provider/interpreter/Terminal route (TOP-LEVEL-BOUNDARY-REQUIREMENTS),
   and the representation inversion (`SpelledOperator` wrapping machine
