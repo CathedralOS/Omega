@@ -1,10 +1,17 @@
-// Authored Boolean equality does not establish that its operand is true.
-// Its result therefore cannot discharge the exact subtraction's lower bound.
-operator == bool::custom(left: bool, right: bool) -> bool;
+// An authored comparison does not establish the builtin numeric ordering,
+// even when its result is wrapped in a Boolean equality: `(n > 0) == true`
+// selects the domain-family `>` for the `Custom`-bound operand, so it cannot
+// discharge the exact subtraction's lower bound. Without the binding the
+// builtin `>` narrows `n` and the same program checks.
+domain u64::Custom;
 
-machine decrement(n: u64) -> u64 {
+machine > u64::Custom::above(left: u64 in Custom, right: u64) -> bool {
+    false
+}
+
+machine decrement(n: u64 in Custom) -> u64 {
     transition (n > 0) == true {
-        true -> (n - 1)
-        false -> n
+        true -> ((n - 1) as u64)
+        false -> (n as u64)
     }
 }

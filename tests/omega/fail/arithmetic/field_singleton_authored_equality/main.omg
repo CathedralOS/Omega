@@ -1,10 +1,19 @@
-operator == u64::same(left: u64, right: u64) -> bool;
+// An authored equality does not establish the builtin singleton-range
+// equation: `amount == limit.value` selects the domain-family `==` for the
+// `Custom`-bound operand, so `limit.value`'s `[1..=1]` range never narrows
+// `amount` and the exact subtraction rejects. Without the binding the
+// builtin `==` narrows `amount` to 1 and the same program checks.
+domain u64::Custom;
+
+machine == u64::Custom::same(left: u64 in Custom, right: u64) -> bool {
+    true
+}
 
 data Limit { value: u64 [1..=1]; }
 
-machine decrement(amount: u64, limit: Limit) -> u64 {
+machine decrement(amount: u64 in Custom, limit: Limit) -> u64 {
     transition amount == limit.value {
-        true -> (amount - 1)
+        true -> ((amount - 1) as u64)
         false -> 0
     }
 }
