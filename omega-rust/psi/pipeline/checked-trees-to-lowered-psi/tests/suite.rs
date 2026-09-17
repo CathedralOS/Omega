@@ -77,6 +77,7 @@ mod scalar_unit_calls;
 mod state_local_record_lifetimes;
 mod structural_return_source;
 mod unit_boolean_requirements_source;
+mod unit_plan_omissions;
 mod unit_scalar_result_source;
 mod unit_state_graph;
 mod unit_tail_calls_source;
