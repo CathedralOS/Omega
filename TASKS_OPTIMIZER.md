@@ -1149,12 +1149,32 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   boundary settlement past the member's index in its own block
   or past the landing index in the join would observe a
   changed executed prefix, under the same replayed
-  restore-by-content validation (crate `nextest`: 636 pass).
+  restore-by-content validation (crate `nextest`: 636 pass)
+  — and `rewrites/constant_boolean` rewrites a
+  `MaterializeBooleanEqual`, `MaterializeBooleanU64LessThan`,
+  `MaterializeBooleanI64LessThan`,
+  `MaterializeBooleanU64LessOrEqual`, or
+  `MaterializeBooleanI64LessOrEqual` whose every implicit
+  condition-state use resolves to one compare — the last flag
+  event on every path reaching the materialization, found
+  in-block or by the least-fixpoint entry-event walk over the
+  backward-reachable predecessor cone, where edge transports
+  carry registers, storage payloads, case fields, and fuel but
+  no condition-state units so edges pass flag state through
+  unchanged — when that compare's operands are compile-time
+  constant, replacing the reader with the target's own
+  `MaterializeI64` of the decided predicate while the compare
+  keeps publishing flag state for other readers and branch
+  terminators — a clobber, a different definition, unknown
+  entry state, an eventless path, or paths that disagree all
+  refuse — under the same replayed restore-by-content
+  validation (crate `nextest`: 642 pass).
   Remaining: scheduling past the proven bounded window
   interchange, single-member relocation, multi-member run
   relocation, the single-edge move, and the branch-diamond
-  move — and compare/test selection past the landed literal
-  folds.
+  move — relocation through other converging or branching
+  control flow — and compare/test selection past the landed
+  literal folds and the constant-flag boolean materialization.
 
 ## Proof-, ownership-, and state-aware optimization
 
