@@ -67,7 +67,7 @@ fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
     module.suspension_call_plans = vec![plan];
 
     let bytes = encode_module(&module).expect("suspension plan encodes");
-    assert_eq!(&bytes[8..10], 97_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 98_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -97,7 +97,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 97_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 98_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -105,7 +105,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "dbc71ea5e903806f63a1dd99282d62d5209bed52bb14220752c470cb0003e485"
+        "5782c3da1c6a53629f2c827303e564dc5a1621f5098bf66b54208014f1743cd6"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -118,7 +118,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 97_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 98_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -228,7 +228,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 97_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 98_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -285,7 +285,7 @@ fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverag
     };
     module.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![cycle.clone()]));
     let bytes = encode_module(&module).expect("natural ranking representation encodes");
-    assert_eq!(&bytes[8..12], &[97, 0, 107, 0]);
+    assert_eq!(&bytes[8..12], &[98, 0, 107, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_ne!(semantic_fingerprint(&module).unwrap(), unranked_identity);
     let mut stale = bytes;
@@ -1082,7 +1082,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 97_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 98_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1095,7 +1095,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 97_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 98_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1132,7 +1132,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 97_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 98_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }

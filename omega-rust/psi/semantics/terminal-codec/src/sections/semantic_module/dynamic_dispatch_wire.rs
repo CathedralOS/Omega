@@ -47,6 +47,10 @@ pub(crate) fn encode_dynamic_descriptor_parameters(
                 "dynamic descriptor public requirement identity",
                 &requirement.public_requirement_identity,
             )?;
+            writer.strings(
+                "dynamic descriptor requirement family tuple",
+                &requirement.family_tuple,
+            )?;
             writer.u8(match requirement.result {
                 ClosedConformanceCallableResult::Unit => 1,
                 ClosedConformanceCallableResult::I32 => 2,
@@ -74,6 +78,7 @@ pub(crate) fn decode_dynamic_descriptor_parameters(
                         .string("dynamic descriptor requirement declaring trait identity")?,
                     public_requirement_identity: reader
                         .string("dynamic descriptor public requirement identity")?,
+                    family_tuple: reader.strings("dynamic descriptor requirement family tuple")?,
                     result: match reader.u8()? {
                         1 => ClosedConformanceCallableResult::Unit,
                         2 => ClosedConformanceCallableResult::I32,
@@ -206,6 +211,10 @@ pub(crate) fn encode_direct_dynamic_dispatches(
             "direct dynamic dispatch public requirement identity",
             &dispatch.public_requirement_identity,
         )?;
+        writer.strings(
+            "direct dynamic dispatch family tuple",
+            &dispatch.family_tuple,
+        )?;
         writer.string(
             "direct dynamic dispatch requirement identity",
             &dispatch.requirement_identity,
@@ -235,6 +244,7 @@ pub(crate) fn decode_direct_dynamic_dispatches(
                 .string("direct dynamic dispatch declaring trait identity")?,
             public_requirement_identity: reader
                 .string("direct dynamic dispatch public requirement identity")?,
+            family_tuple: reader.strings("direct dynamic dispatch family tuple")?,
             requirement_identity: reader.string("direct dynamic dispatch requirement identity")?,
             realization_identity: reader.string("direct dynamic dispatch realization identity")?,
             realization_callable_identity: reader
@@ -326,6 +336,10 @@ pub(crate) fn encode_indirect_dynamic_dispatches(
             "indirect dynamic dispatch public requirement identity",
             &dispatch.public_requirement_identity,
         )?;
+        writer.strings(
+            "indirect dynamic dispatch family tuple",
+            &dispatch.family_tuple,
+        )?;
         writer.string(
             "indirect dynamic dispatch requirement identity",
             &dispatch.requirement_identity,
@@ -355,6 +369,7 @@ pub(crate) fn decode_indirect_dynamic_dispatches(
                 .string("indirect dynamic dispatch declaring trait identity")?,
             public_requirement_identity: reader
                 .string("indirect dynamic dispatch public requirement identity")?,
+            family_tuple: reader.strings("indirect dynamic dispatch family tuple")?,
             requirement_identity: reader
                 .string("indirect dynamic dispatch requirement identity")?,
             realization_identity: reader
@@ -382,6 +397,10 @@ pub(crate) fn encode_stored_dynamic_dispatches(
         writer.string(
             "stored dynamic dispatch public requirement identity",
             &dispatch.public_requirement_identity,
+        )?;
+        writer.strings(
+            "stored dynamic dispatch family tuple",
+            &dispatch.family_tuple,
         )?;
         writer.string(
             "stored dynamic dispatch requirement identity",
@@ -412,6 +431,7 @@ pub(crate) fn decode_stored_dynamic_dispatches(
                 .string("stored dynamic dispatch declaring trait identity")?,
             public_requirement_identity: reader
                 .string("stored dynamic dispatch public requirement identity")?,
+            family_tuple: reader.strings("stored dynamic dispatch family tuple")?,
             requirement_identity: reader.string("stored dynamic dispatch requirement identity")?,
             realization_identity: reader.string("stored dynamic dispatch realization identity")?,
             realization_callable_identity: reader
@@ -452,16 +472,29 @@ pub(crate) fn decode_parameter_dynamic_dispatches(
 mod tests {
     use super::{
         Reader, Writer, decode_direct_dynamic_dispatches, decode_dynamic_conformance_selections,
-        decode_indirect_dynamic_dispatches, decode_rebound_dynamic_descriptors,
+        decode_dynamic_descriptor_parameters, decode_indirect_dynamic_dispatches,
+        decode_rebound_dynamic_descriptors, decode_stored_dynamic_dispatches,
         encode_direct_dynamic_dispatches, encode_dynamic_conformance_selections,
-        encode_indirect_dynamic_dispatches, encode_rebound_dynamic_descriptors,
+        encode_dynamic_descriptor_parameters, encode_indirect_dynamic_dispatches,
+        encode_rebound_dynamic_descriptors, encode_stored_dynamic_dispatches,
     };
     use semantic_vocabulary::{MachineId, OperationId, PlaceId, PsiSemanticId};
     use terminal_psi::{
-        ClosedConformanceApplicationCommitment, StructuralAccess, StructuralArgument,
-        TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
+        ClosedConformanceApplicationCommitment, ClosedConformanceCallableResult, StructuralAccess,
+        StructuralArgument, TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
+        TerminalDynamicDescriptorParameter, TerminalDynamicRequirement,
         TerminalIndirectDynamicDispatch, TerminalReboundDynamicDescriptor,
+        TerminalStoredDynamicDispatch,
     };
+
+    /// The canonical tuple a `<Width: u32, Lanes: u32>` family row retains:
+    /// const identities in binder declaration order, never display spellings.
+    fn width_lanes_tuple() -> Vec<String> {
+        vec![
+            "named(integer-const(16))".to_owned(),
+            "named(integer-const(4))".to_owned(),
+        ]
+    }
 
     fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
         Identity::new(raw).expect("test identity is nonzero")
@@ -488,6 +521,7 @@ mod tests {
             selection_ordinal: 0,
             declaring_trait_identity: "package::Measure".into(),
             public_requirement_identity: "package::Measure::measure()".into(),
+            family_tuple: width_lanes_tuple(),
             requirement_identity: "package::Measure::measure".into(),
             realization_identity: "package::Carrier::measure".into(),
             realization_callable_identity: "package::Carrier::measure#callable".into(),
@@ -505,16 +539,54 @@ mod tests {
             descriptor_ordinal: 0,
             declaring_trait_identity: "package::Measure".into(),
             public_requirement_identity: "package::Measure::measure()".into(),
+            family_tuple: Vec::new(),
             requirement_identity: "package::Measure::measure".into(),
             realization_identity: "package::Carrier::measure".into(),
             realization_callable_identity: "package::Carrier::measure#callable".into(),
             realization: id::<MachineId>(2),
+        }];
+        let stored_dispatches = vec![TerminalStoredDynamicDispatch {
+            owner: id::<MachineId>(1),
+            operation: id::<OperationId>(3),
+            descriptor_ordinal: 0,
+            declaring_trait_identity: "package::Measure".into(),
+            public_requirement_identity: "package::Measure::measure()".into(),
+            family_tuple: width_lanes_tuple(),
+            requirement_identity: "package::Measure::measure".into(),
+            realization_identity: "package::Carrier::measure".into(),
+            realization_callable_identity: "package::Carrier::measure#callable".into(),
+            realization: id::<MachineId>(2),
+        }];
+        let parameters = vec![TerminalDynamicDescriptorParameter {
+            owner: id::<MachineId>(3),
+            ordinal: 0,
+            source_position: 0,
+            trait_identity: "package::Measure".into(),
+            access: StructuralAccess::SharedBorrow,
+            requirements: vec![
+                TerminalDynamicRequirement {
+                    slot: 0,
+                    declaring_trait_identity: "package::Measure".into(),
+                    public_requirement_identity: "package::Measure::measure()".into(),
+                    family_tuple: Vec::new(),
+                    result: ClosedConformanceCallableResult::I32,
+                },
+                TerminalDynamicRequirement {
+                    slot: 1,
+                    declaring_trait_identity: "package::Measure".into(),
+                    public_requirement_identity: "package::Measure::scan()".into(),
+                    family_tuple: width_lanes_tuple(),
+                    result: ClosedConformanceCallableResult::Bool,
+                },
+            ],
         }];
         let mut writer = Writer::default();
         encode_dynamic_conformance_selections(&mut writer, &selections).unwrap();
         encode_rebound_dynamic_descriptors(&mut writer, &descriptors).unwrap();
         encode_direct_dynamic_dispatches(&mut writer, &dispatches).unwrap();
         encode_indirect_dynamic_dispatches(&mut writer, &indirect_dispatches).unwrap();
+        encode_stored_dynamic_dispatches(&mut writer, &stored_dispatches).unwrap();
+        encode_dynamic_descriptor_parameters(&mut writer, &parameters).unwrap();
         let bytes = writer.finish();
 
         let mut reader = Reader::new(&bytes);
@@ -534,6 +606,92 @@ mod tests {
             decode_indirect_dynamic_dispatches(&mut reader),
             Ok(indirect_dispatches)
         );
+        assert_eq!(
+            decode_stored_dynamic_dispatches(&mut reader),
+            Ok(stored_dispatches)
+        );
+        assert_eq!(
+            decode_dynamic_descriptor_parameters(&mut reader),
+            Ok(parameters)
+        );
         assert_eq!(reader.remaining(), 0);
+    }
+
+    fn direct_dispatch(family_tuple: Vec<String>) -> TerminalDirectDynamicDispatch {
+        TerminalDirectDynamicDispatch {
+            owner: id::<MachineId>(1),
+            operation: id::<OperationId>(1),
+            selection_ordinal: 0,
+            declaring_trait_identity: "package::Measure".into(),
+            public_requirement_identity: "package::Measure::measure()".into(),
+            family_tuple,
+            requirement_identity: "package::Measure::measure".into(),
+            realization_identity: "package::Carrier::measure".into(),
+            realization_callable_identity: "package::Carrier::measure#callable".into(),
+            realization: id::<MachineId>(2),
+        }
+    }
+
+    /// The tuple is a row coordinate: two rows equal in every identity but
+    /// the tuple encode differently, and tuple order is not normalized away.
+    #[test]
+    fn family_tuple_participates_in_dispatch_row_bytes() {
+        let encode = |dispatch: TerminalDirectDynamicDispatch| {
+            let mut writer = Writer::default();
+            encode_direct_dynamic_dispatches(&mut writer, &[dispatch]).unwrap();
+            writer.finish()
+        };
+        let nongeneric = encode(direct_dispatch(Vec::new()));
+        let width_lanes = encode(direct_dispatch(width_lanes_tuple()));
+        let mut reversed = width_lanes_tuple();
+        reversed.reverse();
+        let lanes_width = encode(direct_dispatch(reversed));
+        assert_ne!(nongeneric, width_lanes);
+        assert_ne!(width_lanes, lanes_width);
+        assert_eq!(
+            decode_direct_dynamic_dispatches(&mut Reader::new(&width_lanes)),
+            Ok(vec![direct_dispatch(width_lanes_tuple())])
+        );
+    }
+
+    /// Rows encoded before the tuple coordinate existed must reject rather
+    /// than decode as nongeneric rows: the decoder never supplies a missing
+    /// tuple. These bytes are the previous row layout written field by field.
+    #[test]
+    fn dispatch_rows_without_family_tuple_reject() {
+        let dispatch = direct_dispatch(Vec::new());
+        let mut writer = Writer::default();
+        writer.len("legacy direct dynamic dispatches", 1).unwrap();
+        writer.id(dispatch.owner);
+        writer.id(dispatch.operation);
+        writer.u32(dispatch.selection_ordinal);
+        writer
+            .string("legacy", &dispatch.declaring_trait_identity)
+            .unwrap();
+        writer
+            .string("legacy", &dispatch.public_requirement_identity)
+            .unwrap();
+        writer
+            .string("legacy", &dispatch.requirement_identity)
+            .unwrap();
+        writer
+            .string("legacy", &dispatch.realization_identity)
+            .unwrap();
+        writer
+            .string("legacy", &dispatch.realization_callable_identity)
+            .unwrap();
+        writer.id(dispatch.realization);
+        let legacy = writer.finish();
+
+        let mut reader = Reader::new(&legacy);
+        let decoded = decode_direct_dynamic_dispatches(&mut reader);
+        assert!(
+            decoded.is_err() || reader.remaining() != 0 || decoded != Ok(vec![dispatch]),
+            "previous-layout row decoded cleanly as a current row: {decoded:?}"
+        );
+
+        let mut current = Writer::default();
+        encode_direct_dynamic_dispatches(&mut current, &[direct_dispatch(Vec::new())]).unwrap();
+        assert_ne!(current.finish(), legacy);
     }
 }

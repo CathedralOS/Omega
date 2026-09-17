@@ -174,6 +174,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 selection_ordinal: 0,
                 declaring_trait_identity: "package::Measure".into(),
                 public_requirement_identity: "package::Measure::measure()".into(),
+                family_tuple: Vec::new(),
                 requirement_identity: "package::Measure::measure".into(),
                 realization_identity: "package::Carrier::measure".into(),
                 realization_callable_identity: "package::Carrier::measure#callable".into(),
@@ -306,6 +307,7 @@ fn rebound_dynamic_dispatch_module() -> TerminalModule {
         descriptor_ordinal: 0,
         declaring_trait_identity: direct.declaring_trait_identity,
         public_requirement_identity: direct.public_requirement_identity,
+        family_tuple: Vec::new(),
         requirement_identity: direct.requirement_identity,
         realization_identity: direct.realization_identity,
         realization_callable_identity: direct.realization_callable_identity,
@@ -367,6 +369,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
             slot: 0,
             declaring_trait_identity: "package::Measure".into(),
             public_requirement_identity: "package::Measure::measure()".into(),
+            family_tuple: Vec::new(),
             result: ClosedConformanceCallableResult::Bool,
         }],
     }];

@@ -152,6 +152,9 @@ pub(crate) fn lower_dynamic_call_custody(
         descriptor_ordinal,
         declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
         public_requirement_identity: selected_row.public_requirement_identity.clone(),
+        // A nongeneric requirement row (guarded when the row map was built)
+        // carries the empty family tuple.
+        family_tuple: Vec::new(),
         requirement_identity: selected_row.requirement_identity.clone(),
         realization_identity: selected_row.realization_identity.clone(),
         realization_callable_identity: callable_identity.clone(),
@@ -163,6 +166,9 @@ pub(crate) fn lower_dynamic_call_custody(
         descriptor_ordinal,
         declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
         public_requirement_identity: selected_row.public_requirement_identity.clone(),
+        // A nongeneric requirement row (guarded when the row map was built)
+        // carries the empty family tuple.
+        family_tuple: Vec::new(),
         requirement_identity: selected_row.requirement_identity.clone(),
         realization_identity: selected_row.realization_identity.clone(),
         realization_callable_identity: callable_identity.clone(),
@@ -228,6 +234,9 @@ pub(crate) fn lower_dynamic_call_custody(
                         public_requirement_identity: selected_row
                             .public_requirement_identity
                             .clone(),
+                        // A nongeneric requirement row (guarded when the row map was built)
+                        // carries the empty family tuple.
+                        family_tuple: Vec::new(),
                         requirement_identity: selected_row.requirement_identity.clone(),
                         realization_identity: selected_row.realization_identity.clone(),
                         realization_callable_identity: callable_identity,
@@ -401,6 +410,9 @@ pub(crate) fn dynamic_parameter_interface(
                 slot,
                 declaring_trait_identity: row.declaring_trait_identity.clone(),
                 public_requirement_identity: row.public_requirement_identity.clone(),
+                // A nongeneric requirement row (guarded when the row map was built)
+                // carries the empty family tuple.
+                family_tuple: Vec::new(),
                 result: callable.result,
             })
         })
