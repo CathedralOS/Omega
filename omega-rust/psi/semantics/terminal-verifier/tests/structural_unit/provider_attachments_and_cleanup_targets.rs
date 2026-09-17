@@ -7,7 +7,7 @@ use super::{
     two_root_shared_contextual_nominal_affine_module, unused_provider_attachment_module,
     write_only_primitive_store_module,
 };
-use crate::{
+use crate::structural_unit::{
     block_id, boundary_id, contract_id, domain_id, edge_id, machine_id, obligation_id,
     operation_id, place_id, structural_type_id, value_id,
 };

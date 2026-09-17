@@ -1,5 +1,6 @@
 [package]
 name = "terminal-verifier"
+autotests = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -16,3 +17,7 @@ proof-admission = { path = "../proof-admission" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../terminal-semantics" }
 sha2 = "0.10.9"
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"

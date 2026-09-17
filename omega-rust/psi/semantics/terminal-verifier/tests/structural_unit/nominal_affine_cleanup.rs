@@ -5,7 +5,7 @@ use super::{
     three_call_executable_nominal_affine_module, two_call_executable_nominal_affine_module,
     two_element_projected_unit_call_module, unit_call_mut,
 };
-use crate::{
+use crate::structural_unit::{
     block_id, claim_id, contract_id, domain_id, edge_id, machine_id, obligation_id, operation_id,
     place_id, structural_type_id, value_id,
 };

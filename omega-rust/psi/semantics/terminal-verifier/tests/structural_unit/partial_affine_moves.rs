@@ -5,7 +5,7 @@ use super::{
     partial_affine_field_module, projected_boundary_qualification_module, structural_parameter,
     unit_call_mut,
 };
-use crate::{
+use crate::structural_unit::{
     block_id, boundary_id, claim_id, contract_id, domain_id, edge_id, machine_id, obligation_id,
     operation_id, place_id, service_id, structural_type_id, value_id,
 };
