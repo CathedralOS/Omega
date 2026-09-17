@@ -2948,9 +2948,19 @@ Owners include
   signatures directly) needs the provider-planning, build-time
   `selected_operators.rs`, evidence `capture/callables/boundary_operators.rs`
   and result-domain overload dispatch owners; tokenless compiler
-  primitives (68 library, 28 tests: `Float::meaning32/64`,
-  `Nat::Descending`, ranking orders) need the catalog keyed on exact
-  declaration/signature identity; bodyless domain-family and
+  primitives (68 library, 28 tests) need the catalog keyed on exact
+  declaration/signature identity: at c1fe789968/88939ee7d6/f01d11ded7
+  the primitive form is a bare bodyless tokenless `machine` signature
+  admitted only by exact declaration custody (Toolchain-origin
+  `float_operations.omg` plus a catalog path, lowered to the sealed
+  projection declaration), `Float::meaning32/64` in core use it with the
+  float harness legs identical, and a user-package lookalike rejects
+  ("merely naming a declaration `Float::meaning32` grants no primitive",
+  `fail/float/float_meaning_lookalike_grants_no_primitive`); the
+  `FloatSemantics::*` family, `Nat::Descending` (identified by spelling
+  only in `RankingView::canonical` and `checks/termination/order.rs`) and
+  the corpus ranking/surface fixtures need per-family catalog rows before
+  the same route admits them; bodyless domain-family and
   carrier-qualified semantic declarations (5 library, 26 tests) migrate
   to declaration-owned bodies with their relational `ensures`, since the
   supply table admits no other nonboundary supply (at c74c9adcbf a
