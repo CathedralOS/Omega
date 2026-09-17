@@ -2337,14 +2337,22 @@ Owners include
   `retire` -> `Granted & Vacant`), the `ResidentContentTransfer<P,T>`
   provider-issuance route spelled as one concrete application; fail
   canaries `memory/bump_allocator_{reset_with_live_resident,
-  resident_dropped,place_into_occupied}` pin the rejections. Two Psi edges
-  keep residents record-carried: an indexed domain does not parse in a
-  proof-fact position (`ensures result in Granted & Resident<P, T>` stops
-  at `<` in the tokens-to-syntax-trees proof-fact grammar), and a
-  typed-let restatement of `Resident<P,T>` is unprovable at a call
-  `requires` because `semantic/field_domains.rs` restates with
-  `SemanticDomainId::NULL` while `checks/contracts/prover.rs` proves
-  indexed membership only against an equal valid instance. Next
+  resident_dropped,place_into_occupied}` pin the rejections. At
+  921c76263e a typed-let restating `Extent in Granted & Resident<P,T>`
+  carries the interned instance identity (`facts/field_domain.rs`,
+  `flow/transfers.rs`), so `exercise_resident_restated` proves `view` and
+  `retire_view` at call `requires` and restating under another index is
+  refused as distinct normalized instances
+  (`fail/memory/bump_allocator_restated_resident_index_mismatch`). One
+  Psi edge remains: an indexed domain application in proof-fact position
+  (`ensures result in Granted & Resident<P, T>`) is parsed with the
+  type-position grammar and rejected by name at 5636b0fa10
+  (`fail/contracts/proof_fact_indexed_domain_application`); carrying it
+  needs an argument span on the syntax and symbol-resolved
+  `ProofMembershipFact`, resolver lowering of those type references, and
+  `symbol-resolved-trees-to-typed-trees/src/contracts/proof_facts.rs`
+  interning `semantic_domain` as `domain_constraints.rs` does (the typed
+  node already carries the fields). Next
   acceptance: a `Vec<T>`-style container over the chain, which still
   needs compiler-owned `Initialize`/placed-view establishment (plan
   evaluation of `P` over `T`, Stable-supply admission).
