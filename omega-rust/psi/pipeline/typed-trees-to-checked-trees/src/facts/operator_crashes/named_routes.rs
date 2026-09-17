@@ -15,6 +15,10 @@
 //! resolve to an entry-proven operand — a `self` field, a constant, an
 //! unproven binding — keeps the route, as does a leaf that would evaluate a
 //! nested call or atomic afresh rather than re-reading captured storage.
+//! A shared-borrow operand is the referent: `entry_operand` transports the
+//! referent's provenance and the instantiated label names the referent,
+//! mirroring the call-`requires` rule that a reference formal used as a
+//! predicate value reads its referent.
 
 use checked_trees::{CrashPredicateExpression, FlowFacts};
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
@@ -22,9 +26,10 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
+use typed_trees::types::TypeReferenceNode;
 
 use crate::labels::{
-    canonical_place_label, instantiate_operator_contract_expression_label,
+    canonical_place_label, instantiate_operator_contract_expression_label_with_labels,
     semantic_boolean_fact_label,
 };
 
@@ -55,7 +60,7 @@ pub(super) fn named_route_is_false(
         semantic,
         &context_rows,
         parameters,
-        operands,
+        &operand_labels(program, parameters, operands),
         substitution,
         expression,
         false,
@@ -102,7 +107,7 @@ fn expression_has_polarity(
     semantic: &FactPlan,
     context_rows: &[Vec<FactContextHandle>],
     parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
+    operand_labels: &[String],
     substitution: &[Option<CrashPredicateExpression>],
     expression: ExpressionHandle,
     polarity: bool,
@@ -115,7 +120,7 @@ fn expression_has_polarity(
                 semantic,
                 context_rows,
                 parameters,
-                operands,
+                operand_labels,
                 substitution,
                 unary.operand,
                 !polarity,
@@ -129,7 +134,7 @@ fn expression_has_polarity(
                 semantic,
                 context_rows,
                 parameters,
-                operands,
+                operand_labels,
                 substitution,
                 binary.left,
                 polarity,
@@ -139,7 +144,7 @@ fn expression_has_polarity(
                 semantic,
                 context_rows,
                 parameters,
-                operands,
+                operand_labels,
                 substitution,
                 binary.right,
                 polarity,
@@ -157,8 +162,12 @@ fn expression_has_polarity(
     {
         return false;
     }
-    let required =
-        instantiate_operator_contract_expression_label(program, parameters, operands, expression);
+    let required = instantiate_operator_contract_expression_label_with_labels(
+        program,
+        parameters,
+        operand_labels,
+        expression,
+    );
     if polarity {
         return context_rows.iter().all(|row| {
             row.iter()
@@ -176,6 +185,45 @@ fn expression_has_polarity(
                 })
         })
     })
+}
+
+/// Operand labels for leaf instantiation. A reference formal used as a
+/// predicate value reads its referent — the borrow at the call site supplies
+/// access, not an extra operator in the predicate — so a `&x` operand names
+/// `x`, exactly as call-`requires` instantiation renders it
+/// (checks/contracts/labels/calls.rs). Other operands keep their proof
+/// spelling.
+fn operand_labels(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    operands: &[ExpressionHandle],
+) -> Vec<String> {
+    operands
+        .iter()
+        .enumerate()
+        .map(|(ordinal, operand)| {
+            let operand = match (
+                parameters.get(ordinal),
+                program.expression_table.expression(*operand),
+            ) {
+                (Some(parameter), ExpressionNode::Borrow(borrow))
+                    if matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference),
+                        TypeReferenceNode::Reference { .. }
+                    ) =>
+                {
+                    borrow.target
+                }
+                _ => *operand,
+            };
+            program.render_proof_expression(
+                operand,
+                typed_trees::proposition::ProofSubstitutions::None,
+            )
+        })
+        .collect()
 }
 
 /// Every place occurrence the leaf reads must resolve to an operator
