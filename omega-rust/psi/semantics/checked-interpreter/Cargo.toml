@@ -1,5 +1,6 @@
 [package]
 name = "checked-interpreter"
+autotests = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -26,3 +27,7 @@ symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-
 syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../pipeline/tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../pipeline/typed-trees-to-checked-trees" }
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"
