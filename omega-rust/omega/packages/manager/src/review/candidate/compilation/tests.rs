@@ -346,13 +346,61 @@ fn shared_preparation_serves_cross_target_reviews_and_still_rejects_drift() {
     ));
 }
 
+/// An ordinary Console package whose only compiler-intrinsic leaf is the
+/// exit requirement.
+const EXIT_ONLY_CONSOLE: &str = r#"pub boundary trait Console {
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider { }
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
+    defaults.select_provider<Console, ConsoleNativeProvider>();
+}
+"#;
+
+/// The same package with the hosted byte output and byte input leaves
+/// declared as compiler-intrinsic rows beside the exit leaf.
+const BYTE_CONSOLE: &str = r#"pub data ByteRead {
+    case Eof;
+    case Byte(value: i32 [0..=255]);
+}
+
+pub boundary trait Console {
+    machine read_byte() -> ByteRead
+    reaches Console
+    blocks;
+    crashes Trap;
+    machine write_byte(byte: i32)
+    reaches Console;
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider { }
+linux_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+    satisfies Console::read_byte
+    via Binding::CompilerIntrinsic
+    crashes Trap
+    blocks;
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
+    defaults.select_provider<Console, ConsoleNativeProvider>();
+}
+"#;
+
 /// An application root over an ordinary Console package whose provider also
 /// selects itself as the package's own default, so both consumers discover
 /// the Console exit binding.
 struct ConsoleApplicationFixture(PathBuf);
 
 impl ConsoleApplicationFixture {
-    fn new() -> Self {
+    fn new(console_source: &str) -> Self {
         let root = std::env::temp_dir().join(format!(
             "omega-candidate-console-permission-{}-{}",
             std::process::id(),
@@ -365,22 +413,7 @@ impl ConsoleApplicationFixture {
             "machine build(builder: &mut Build) { builder.package(\"ordinary-console\"); }\n",
         )
         .unwrap();
-        fs::write(
-            root.join("console/main.omg"),
-            r#"pub boundary trait Console {
-    machine exit_process(return_code: i32)
-    reaches Console;
-}
-
-pub data ConsoleNativeProvider { }
-linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
-    satisfies Console::exit_process;
-linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
-    defaults.select_provider<Console, ConsoleNativeProvider>();
-}
-"#,
-        )
-        .unwrap();
+        fs::write(root.join("console/main.omg"), console_source).unwrap();
         fs::write(
             root.join("application/build.omg"),
             r#"machine build(builder: &mut Build) {
@@ -435,14 +468,46 @@ impl Drop for ConsoleApplicationFixture {
 
 /// Discovery proposes the exit permission only for the closure root, and the
 /// final pass turns that proposal into one blocking review obligation rather
-/// than a silently granted permission.
+/// than a silently granted permission. A provider that declares no hosted
+/// byte leaves proposes no output or input row.
 #[test]
 fn discovery_proposes_the_root_console_exit_permission_as_a_blocking_row() {
     use effects::TerminalAuthorityClass;
+
+    assert_root_console_permissions(
+        EXIT_ONLY_CONSOLE,
+        &[("exit_process", TerminalAuthorityClass::ProcessTermination)],
+    );
+}
+
+/// The hosted byte output and input leaves of the nominated provider are
+/// proposed beside the exit leaf, one blocking row each, still root-only.
+#[test]
+fn discovery_proposes_the_root_console_output_and_input_permissions_per_declared_leaf() {
+    use effects::TerminalAuthorityClass;
+
+    assert_root_console_permissions(
+        BYTE_CONSOLE,
+        &[
+            ("exit_process", TerminalAuthorityClass::ProcessTermination),
+            ("read_byte", TerminalAuthorityClass::ProcessInput),
+            ("write_byte", TerminalAuthorityClass::ProcessOutput),
+        ],
+    );
+}
+
+/// Run discovery and the final pass over an application consuming
+/// `console_source`, asserting that the root proposal carries exactly the
+/// expected permission rows, the dependency proposal carries none, the final
+/// root policy retains them, and each is one blocking obligation.
+fn assert_root_console_permissions(
+    console_source: &str,
+    expected: &[(&str, effects::TerminalAuthorityClass)],
+) {
     use package_compilation::AcceptedSemanticBindingRole;
     use package_evidence::record::PackageReviewCanonicalRowKind;
 
-    let fixture = ConsoleApplicationFixture::new();
+    let fixture = ConsoleApplicationFixture::new(console_source);
     let closure = fixture.closure();
     let root = closure.graph().root().clone();
     let exact = closure.for_exact_target(target::TargetProfile::LinuxX64);
@@ -465,7 +530,7 @@ fn discovery_proposes_the_root_console_exit_permission_as_a_blocking_row() {
         })
         .collect::<Vec<_>>();
     assert_eq!(console_proposals.len(), 2, "{proposals:#?}");
-    let exit_requirement = discovery
+    let schema = discovery
         .review(&root)
         .unwrap()
         .projection()
@@ -474,27 +539,39 @@ fn discovery_proposes_the_root_console_exit_permission_as_a_blocking_row() {
         .find(|provider| provider.service_schema() == "Console")
         .expect("selected Console provider")
         .schema()
-        .methods
-        .iter()
-        .find(|method| method.name == "exit_process")
-        .expect("exit requirement")
-        .requirement_identity
         .clone();
+    let requirement = |name: &str| {
+        schema
+            .methods
+            .iter()
+            .find(|method| method.name == name)
+            .unwrap_or_else(|| panic!("{name} requirement"))
+            .requirement_identity
+            .clone()
+    };
     for input in console_proposals {
         let permissions = input.binding().terminal_authority_permissions();
         if input.consumer() == &root {
-            let [permission] = permissions else {
-                panic!("root proposal carries one exit permission: {permissions:?}");
-            };
-            assert_eq!(permission.requirement_identity(), exit_requirement);
             assert_eq!(
-                permission.service_schema(),
-                input.binding().normalized_schema_digest()
+                permissions.len(),
+                expected.len(),
+                "root proposal carries one permission per declared leaf: {permissions:?}"
             );
-            assert_eq!(
-                permission.permitted().classes(),
-                &[TerminalAuthorityClass::ProcessTermination]
-            );
+            for (name, class) in expected {
+                let identity = requirement(name);
+                let matching = permissions
+                    .iter()
+                    .filter(|permission| permission.requirement_identity() == identity)
+                    .collect::<Vec<_>>();
+                let [permission] = matching.as_slice() else {
+                    panic!("one {name} permission: {permissions:?}");
+                };
+                assert_eq!(
+                    permission.service_schema(),
+                    input.binding().normalized_schema_digest()
+                );
+                assert_eq!(permission.permitted().classes(), &[*class]);
+            }
         } else {
             assert!(permissions.is_empty(), "{permissions:?}");
         }
@@ -506,13 +583,13 @@ fn discovery_proposes_the_root_console_exit_permission_as_a_blocking_row() {
         SemanticBindingReview::Discover,
         &mut preparation,
     )
-    .expect("final pass consumes the proposed permission");
+    .expect("final pass consumes the proposed permissions");
     let root_review = reviews.review(&root).unwrap();
     let [service] = root_review.policy().terminal_permissions().services() else {
         panic!("root policy retains one permitted service");
     };
     assert_eq!(service.service().path(), "Console");
-    assert_eq!(service.permissions().len(), 1);
+    assert_eq!(service.permissions().len(), expected.len());
     for review in reviews.reviews() {
         if review.key() != &root {
             assert!(
@@ -535,11 +612,14 @@ fn discovery_proposes_the_root_console_exit_permission_as_a_blocking_row() {
             conflict.kind() == PackageReviewCanonicalRowKind::TerminalAuthorityPermission
         })
         .collect::<Vec<_>>();
-    let [conflict] = permission_conflicts.as_slice() else {
-        panic!(
-            "one blocking permission obligation: {}",
-            permission_conflicts.len()
-        );
-    };
-    assert!(conflict.is_blocking());
+    assert_eq!(
+        permission_conflicts.len(),
+        expected.len(),
+        "one blocking permission obligation per leaf"
+    );
+    assert!(
+        permission_conflicts
+            .iter()
+            .all(|conflict| conflict.is_blocking())
+    );
 }
