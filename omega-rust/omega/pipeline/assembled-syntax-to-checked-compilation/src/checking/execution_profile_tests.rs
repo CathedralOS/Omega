@@ -40,17 +40,31 @@ impl Drop for HelperFixture {
     }
 }
 
+/// The catalogued host profile these tests select rows against, or an
+/// explicit skip: a host no Omega profile describes cannot author a
+/// host-named row, so host-row divergence has no meaning there.
+fn host_profile() -> Option<target::TargetProfile> {
+    let host = target::TargetProfile::host_if_supported();
+    if host.is_none() {
+        eprintln!("skipping: this host admits no catalogued Omega target profile");
+    }
+    host
+}
+
 /// A product target that is not the compiler host.
-fn foreign_product_target() -> target::TargetProfile {
-    match target::TargetProfile::host() {
+fn foreign_product_target(host: target::TargetProfile) -> target::TargetProfile {
+    match host {
         target::TargetProfile::LinuxX64 => target::TargetProfile::MacosArm64,
         _ => target::TargetProfile::LinuxX64,
     }
 }
 
 /// A profile that is neither the host nor the foreign product target.
-fn third_profile() -> target::TargetProfile {
-    let taken = [target::TargetProfile::host(), foreign_product_target()];
+fn third_profile(
+    host: target::TargetProfile,
+    foreign_product: target::TargetProfile,
+) -> target::TargetProfile {
+    let taken = [host, foreign_product];
     [
         target::TargetProfile::WindowsX64,
         target::TargetProfile::LinuxArm64,
@@ -63,9 +77,11 @@ fn third_profile() -> target::TargetProfile {
 
 #[test]
 fn build_helper_selects_its_host_row_while_the_product_targets_another_profile() {
-    let host = target::TargetProfile::host();
+    let Some(host) = host_profile() else {
+        return;
+    };
     let fixture = HelperFixture::new(host.target_name());
-    let product = foreign_product_target();
+    let product = foreign_product_target(host);
     let checked = super::compile_to_checked(super::CheckedCompileRequest::new(
         &fixture.main,
         Some(product.target_name()),
@@ -78,13 +94,14 @@ fn build_helper_selects_its_host_row_while_the_product_targets_another_profile()
 
 #[test]
 fn an_admitted_execution_profile_without_a_helper_row_leaves_the_helper_inert() {
-    let host = target::TargetProfile::host();
+    let Some(host) = host_profile() else {
+        return;
+    };
     let fixture = HelperFixture::new(host.target_name());
-    let mut request = super::CheckedCompileRequest::new(
-        &fixture.main,
-        Some(foreign_product_target().target_name()),
-    );
-    request.build_execution_profile = Some(third_profile());
+    let foreign_product = foreign_product_target(host);
+    let mut request =
+        super::CheckedCompileRequest::new(&fixture.main, Some(foreign_product.target_name()));
+    request.build_execution_profile = Some(third_profile(host, foreign_product));
     let diagnostics = super::compile_to_checked(request)
         .expect_err("a helper row for the host only is inert under another execution profile");
     assert!(
@@ -266,9 +283,11 @@ const PLAIN_LIB: &str = "pub machine lib_value() -> u64 { 2 }\n";
 
 #[test]
 fn a_build_only_dependency_selects_its_host_row_under_a_foreign_product_target() {
-    let host = target::TargetProfile::host();
+    let Some(host) = host_profile() else {
+        return;
+    };
     let fixture = PackagedFixture::new(&host_probe_library(host.target_name()), PLAIN_LIB, None);
-    let product = foreign_product_target();
+    let product = foreign_product_target(host);
     let checked = super::compile_to_checked(fixture.request(product)).unwrap_or_else(|diagnostics| {
         panic!("the build-only dependency's {host:?} row must select under a {product:?} product: {diagnostics:#?}")
     });
@@ -277,7 +296,9 @@ fn a_build_only_dependency_selects_its_host_row_under_a_foreign_product_target()
 
 #[test]
 fn a_build_dependency_ordinary_dependency_selects_its_host_row_too() {
-    let host = target::TargetProfile::host();
+    let Some(host) = host_profile() else {
+        return;
+    };
     let fixture = PackagedFixture::new(
         "use tool::main;\n\npub machine kit_probe() {\n    Probe::run();\n}\n",
         PLAIN_LIB,
@@ -286,7 +307,7 @@ fn a_build_dependency_ordinary_dependency_selects_its_host_row_too() {
             host.target_name()
         )),
     );
-    let product = foreign_product_target();
+    let product = foreign_product_target(host);
     let checked = super::compile_to_checked(fixture.request(product)).unwrap_or_else(|diagnostics| {
         panic!("a build dependency's ordinary dependency is host context; its {host:?} row must select under a {product:?} product: {diagnostics:#?}")
     });
@@ -295,7 +316,10 @@ fn a_build_dependency_ordinary_dependency_selects_its_host_row_too() {
 
 #[test]
 fn a_product_dependency_host_row_stays_inert_under_a_foreign_product_target() {
-    let host = target::TargetProfile::host();
+    let Some(host) = host_profile() else {
+        return;
+    };
+    let foreign_product = foreign_product_target(host);
     // A lone foreign row is filtered silently, so `Gauge::read` carries two
     // rows, neither for the product: the loud missing-implementation edge
     // fires only when the product target is what `lib` selects against.
@@ -304,11 +328,11 @@ fn a_product_dependency_host_row_stays_inert_under_a_foreign_product_target() {
         &format!(
             "pub data Gauge {{ }}\n\npub {} machine Gauge::read() {{ }}\n\npub {} machine Gauge::read() {{ }}\n",
             host.target_name(),
-            third_profile().target_name(),
+            third_profile(host, foreign_product).target_name(),
         ),
         None,
     );
-    let diagnostics = super::compile_to_checked(fixture.request(foreign_product_target()))
+    let diagnostics = super::compile_to_checked(fixture.request(foreign_product))
         .expect_err("a product dependency's host row selects against the product target");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -326,21 +350,28 @@ fn a_product_dependency_host_row_stays_inert_under_a_foreign_product_target() {
 /// silently; two rows without a match reach the loud missing-implementation
 /// edge, so the row set exposes which target the handoff's owner selects
 /// against.
-fn two_row_handoff(owner: &str) -> String {
+fn two_row_handoff(
+    owner: &str,
+    host: target::TargetProfile,
+    foreign_product: target::TargetProfile,
+) -> String {
     format!(
         "pub data {owner} {{ }}\n\npub {} machine {owner}::read() {{ }}\n\npub {} machine {owner}::read() {{ }}\n",
-        target::TargetProfile::host().target_name(),
-        third_profile().target_name(),
+        host.target_name(),
+        third_profile(host, foreign_product).target_name(),
     )
 }
 
 #[test]
 fn a_build_only_dependency_generated_source_selects_its_host_row_under_a_foreign_product_target() {
-    let host = target::TargetProfile::host();
-    let product = foreign_product_target();
+    let Some(host) = host_profile() else {
+        return;
+    };
+    let product = foreign_product_target(host);
     let fixture = PackagedFixture::new(PLAIN_KIT, PLAIN_LIB, None);
     let kit = fixture.package("kit");
-    let fixture = fixture.with_generated_sources(product, &[(kit, &two_row_handoff("Probe"))]);
+    let fixture =
+        fixture.with_generated_sources(product, &[(kit, &two_row_handoff("Probe", host, product))]);
     let checked = super::compile_to_checked(fixture.request(product)).unwrap_or_else(|diagnostics| {
         panic!("a build-only dependency's generated source is host context; its {host:?} row must select under a {product:?} product: {diagnostics:#?}")
     });
@@ -349,10 +380,14 @@ fn a_build_only_dependency_generated_source_selects_its_host_row_under_a_foreign
 
 #[test]
 fn a_product_dependency_generated_source_host_row_stays_inert_under_a_foreign_product_target() {
-    let product = foreign_product_target();
+    let Some(host) = host_profile() else {
+        return;
+    };
+    let product = foreign_product_target(host);
     let fixture = PackagedFixture::new(PLAIN_KIT, PLAIN_LIB, None);
     let lib = fixture.package("lib");
-    let fixture = fixture.with_generated_sources(product, &[(lib, &two_row_handoff("Gauge"))]);
+    let fixture =
+        fixture.with_generated_sources(product, &[(lib, &two_row_handoff("Gauge", host, product))]);
     let diagnostics = super::compile_to_checked(fixture.request(product))
         .expect_err("a product dependency's generated source selects against the product target");
     assert!(

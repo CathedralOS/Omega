@@ -19,11 +19,12 @@ static NEXT_CAPTURED_SOURCE_SNAPSHOT: AtomicU64 = AtomicU64::new(0);
 /// scope before build admission. Replay remains review-only filesystem custody.
 /// `build_execution_profile` is the request's admitted profile for build-scope
 /// sources and the build machine; it joins the activation every replay record
-/// is bound to.
+/// is bound to. `None` records an admitted host no catalogued profile
+/// describes rather than naming one.
 pub fn prepare_filesystem_scope(
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
-    build_execution_profile: target::TargetProfile,
+    build_execution_profile: Option<target::TargetProfile>,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
     replay_record: Option<&ReviewOnlyBuildFilesystemReplayRecord>,
