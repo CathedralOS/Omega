@@ -1114,3 +1114,803 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         assert_ne!(changed, expected, "binding input mutation {mutation}");
     }
 }
+
+/// The committed child identity is the only byte string the evidence and
+/// artifact identities retain about one physical child, and the
+/// retained-vs-derived comparison is what rejects a missing, duplicate,
+/// stale, substituted, padded, or role-swapped child on replay. Every
+/// retained field — parent role and identity, projection, occurrence role
+/// and identity, all three byte spans, all three byte digests, and the
+/// relocation disposition — must move that identity or a substitution in
+/// the unbound field would replay as the same child.
+#[test]
+fn physical_child_identity_binds_every_retained_field() {
+    use boundary_applications::{
+        BoundaryApplication, BoundaryApplicationRealization,
+        BoundaryApplicationRealizationCompanion, BoundaryNominalIdentity,
+        BoundaryOperatorRequirement, TerminalBoundaryApplicationDemand,
+        TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations,
+    };
+    use semantic_vocabulary::{IntegerValue, OperationId, ValueId};
+    use target_operations::{
+        BoundaryRealization, BoundaryScalarArgument, CompilerBuiltinExecution,
+    };
+
+    use crate::physical::derivation::evidence::physical_child_identity;
+    use crate::physical::model::native_byte_span;
+    use crate::{
+        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
+        NativeCompilerBuiltinCatalogIdentity, PhysicalChildParent, PhysicalRelocationDisposition,
+    };
+
+    let terminal = terminal_psi::TerminalPsiIdentity {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
+    };
+    let machine = semantic_vocabulary::MachineId::new(1).expect("machine");
+    let operation = OperationId::new(41).expect("operation");
+    let demands = TerminalBoundaryApplicationDemands::new(
+        terminal,
+        vec![TerminalBoundaryApplicationDemand::new(
+            operation,
+            BoundaryOperatorRequirement::new(
+                BoundaryNominalIdentity::new("package:operator".to_owned()).unwrap(),
+                "operator::call()->u64".to_owned(),
+            )
+            .unwrap(),
+            BoundaryApplication::Empty,
+        )],
+    )
+    .unwrap();
+    let coverage_parent = |selected_plan_digest: [u8; 32]| {
+        let realizations = TerminalBoundaryApplicationRealizations::new(
+            &demands,
+            vec![
+                BoundaryApplicationRealizationCompanion::new(
+                    operation,
+                    selected_plan_digest,
+                    BoundaryApplicationRealization::NongenericCheckedBody {
+                        realization_machine: BoundaryNominalIdentity::new("machine".to_owned())
+                            .unwrap(),
+                        realization_state: BoundaryNominalIdentity::new(
+                            "machine::entry".to_owned(),
+                        )
+                        .unwrap(),
+                        realization_contract_commitment: [3; 32],
+                    },
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+        let mut references = realizations.coverage_references(&demands).unwrap();
+        let [reference] = references.as_mut_slice() else {
+            panic!("one D29 coverage reference")
+        };
+        PhysicalChildParent::OperatorApplicationCoverage(*reference)
+    };
+    let settlement_parent = |identity: [u8; 32]| {
+        PhysicalChildParent::BoundaryTraitSettlement(
+            BoundaryTraitSettlementParts {
+                occurrence: optimized_boundary_occurrence(
+                    terminal,
+                    machine,
+                    OperationId::new(43).expect("boundary operation"),
+                    semantic_vocabulary::BoundaryMachineId::new(44).expect("boundary"),
+                    0,
+                    OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(
+                        b"boundary settlement occurrence",
+                    ),
+                ),
+                requirement_identity: "Process::exit".to_owned(),
+                selected_plan_digest: NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                target: NativeTarget::linux_x64(),
+                role: BoundaryTraitSettlementRole::CompilerBuiltin {
+                    catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
+                    execution: CompilerBuiltinExecution::HostedExitProcessI32,
+                    realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
+                    scalar_argument: BoundaryScalarArgument {
+                        source_value: ValueId::new(45).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                        ),
+                        immediate: IntegerValue::Signed(0),
+                        destination: calling_conventions::MachineRegister::X86Rdi,
+                    },
+                },
+                identity,
+            }
+            .into(),
+        )
+    };
+
+    let parent = coverage_parent([5; 32]);
+    let projection = physical_projection().identity();
+    let occurrence = NativePhysicalOccurrence::Operator(
+        physical_projection().operator_occurrences()[0].identity(),
+    );
+    let machine_span = native_byte_span(8, 5);
+    let object_span = native_byte_span(104, 5);
+    let final_image_span = native_byte_span(232, 5);
+    let identity = |parent: &PhysicalChildParent,
+                    projection: NativeOptimizationProjectionIdentity,
+                    occurrence: NativePhysicalOccurrence,
+                    machine_span: crate::NativeByteSpan,
+                    object_span: crate::NativeByteSpan,
+                    final_image_span: crate::NativeByteSpan,
+                    machine_bytes_digest: [u8; 32],
+                    object_bytes_digest: [u8; 32],
+                    final_image_bytes_digest: [u8; 32],
+                    relocation: PhysicalRelocationDisposition| {
+        physical_child_identity(
+            parent,
+            projection,
+            occurrence,
+            machine_span,
+            object_span,
+            final_image_span,
+            machine_bytes_digest,
+            object_bytes_digest,
+            final_image_bytes_digest,
+            relocation,
+        )
+    };
+    let expected = identity(
+        &parent,
+        projection,
+        occurrence,
+        machine_span,
+        object_span,
+        final_image_span,
+        [0xA1; 32],
+        [0xA2; 32],
+        [0xA3; 32],
+        PhysicalRelocationDisposition::ResolvedInternalCall,
+    );
+
+    for mutation in 0..15 {
+        let changed = match mutation {
+            // A substituted parent: the same operation beneath a different
+            // selected-plan digest is a different D29 coverage parent.
+            0 => identity(
+                &coverage_parent([6; 32]),
+                projection,
+                occurrence,
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            // A role-swapped parent: identical identity bytes beneath the
+            // boundary-settlement role tag still cannot collide with the
+            // D29 coverage parent.
+            1 => identity(
+                &settlement_parent(parent.identity()),
+                projection,
+                occurrence,
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            // A detached projection cannot replay the same child.
+            2 => identity(
+                &parent,
+                NativeOptimizationProjectionIdentity::from_canonical_bytes(b"detached projection"),
+                occurrence,
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            // Occurrence role swap: the same identity bytes beneath the
+            // boundary tag are not the operator occurrence.
+            3 => identity(
+                &parent,
+                projection,
+                NativePhysicalOccurrence::Boundary(
+                    OptimizedBoundaryOccurrenceIdentity::from_bytes(occurrence.identity()),
+                ),
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            // A substituted occurrence identity.
+            4 => identity(
+                &parent,
+                projection,
+                NativePhysicalOccurrence::Operator(
+                    OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"stale occurrence"),
+                ),
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            5 => identity(
+                &parent,
+                projection,
+                occurrence,
+                native_byte_span(9, 5),
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            6 => identity(
+                &parent,
+                projection,
+                occurrence,
+                native_byte_span(8, 6),
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            7 => identity(
+                &parent,
+                projection,
+                occurrence,
+                machine_span,
+                native_byte_span(105, 5),
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            8 => identity(
+                &parent,
+                projection,
+                occurrence,
+                machine_span,
+                native_byte_span(104, 6),
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            9 => identity(
+                &parent,
+                projection,
+                occurrence,
+                machine_span,
+                object_span,
+                native_byte_span(233, 5),
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            10 => identity(
+                &parent,
+                projection,
+                occurrence,
+                machine_span,
+                object_span,
+                native_byte_span(232, 6),
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            11 => identity(
+                &parent,
+                projection,
+                occurrence,
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xB1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            12 => identity(
+                &parent,
+                projection,
+                occurrence,
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xB2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            13 => identity(
+                &parent,
+                projection,
+                occurrence,
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xB3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            // A different relocation disposition on identical spans and
+            // digests is a different child.
+            _ => identity(
+                &parent,
+                projection,
+                occurrence,
+                machine_span,
+                object_span,
+                final_image_span,
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::DirectInstructionBytes,
+            ),
+        };
+        assert_ne!(changed, expected, "child field mutation {mutation}");
+    }
+}
+
+/// The normalized-foreign relocation is the one physical-child custody
+/// record no emitted-code replay leg exercises: its locator, boundary
+/// plan, object symbol, relocation origin, byte geometry, addend, kind,
+/// callback custody, and final-image symbol identity must each move the
+/// committed child identity or a substituted import site would replay as
+/// the same child.
+#[test]
+fn physical_child_identity_binds_the_normalized_foreign_relocation() {
+    use function_identity::{MachineFunctionIdentity, StateKey};
+    use object_file::{ObjectSymbolHandle, RelocationKind, RelocationOrigin};
+    use semantic_vocabulary::{IntegerValue, ValueId};
+    use target_operations::{
+        BoundaryRealization, BoundaryScalarArgument, CompilerBuiltinExecution,
+    };
+
+    use crate::physical::derivation::evidence::physical_child_identity;
+    use crate::physical::model::{
+        native_byte_span, normalized_foreign_call_relocation,
+        normalized_foreign_callback_relocation,
+    };
+    use crate::{
+        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
+        NativeCompilerBuiltinCatalogIdentity, NormalizedForeignCallbackRelocations,
+        PhysicalChildParent, PhysicalRelocationDisposition,
+    };
+
+    let projection = physical_projection();
+    let parent = PhysicalChildParent::BoundaryTraitSettlement(
+        BoundaryTraitSettlementParts {
+            occurrence: projection.boundary_occurrences()[0],
+            requirement_identity: "Process::exit".to_owned(),
+            selected_plan_digest: NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            target: NativeTarget::linux_x64(),
+            role: BoundaryTraitSettlementRole::CompilerBuiltin {
+                catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
+                execution: CompilerBuiltinExecution::HostedExitProcessI32,
+                realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
+                scalar_argument: BoundaryScalarArgument {
+                    source_value: ValueId::new(45).unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                    ),
+                    immediate: IntegerValue::Signed(0),
+                    destination: calling_conventions::MachineRegister::X86Rdi,
+                },
+            },
+            identity: [21; 32],
+        }
+        .into(),
+    );
+    let occurrence =
+        NativePhysicalOccurrence::Boundary(projection.boundary_occurrences()[0].identity());
+    let machine_span = native_byte_span(8, 5);
+    let object_span = native_byte_span(104, 5);
+    let final_image_span = native_byte_span(232, 5);
+    let child_identity = |relocation: PhysicalRelocationDisposition| {
+        physical_child_identity(
+            &parent,
+            projection.identity(),
+            occurrence,
+            machine_span,
+            object_span,
+            final_image_span,
+            [0xA1; 32],
+            [0xA2; 32],
+            [0xA3; 32],
+            relocation,
+        )
+    };
+
+    let callback_relocation = |offset: usize| {
+        normalized_foreign_callback_relocation(
+            ObjectSymbolHandle::from_arena_index(17),
+            RelocationOrigin::Materialization {
+                object_symbol_handle: ObjectSymbolHandle::from_arena_index(19),
+            },
+            offset,
+            4,
+            0,
+            RelocationKind::X86_64Relative32,
+        )
+    };
+    let foreign = |locator_identity: [u8; 32],
+                   boundary_plan_identity: [u8; 32],
+                   object_symbol: ObjectSymbolHandle,
+                   origin: RelocationOrigin,
+                   offset: usize,
+                   byte_width: usize,
+                   addend: i64,
+                   kind: RelocationKind,
+                   callback: Option<NormalizedForeignCallbackRelocations>,
+                   final_image_symbol_identity: [u8; 32]| {
+        PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
+            normalized_foreign_call_relocation(
+                locator_identity,
+                boundary_plan_identity,
+                object_symbol,
+                origin,
+                offset,
+                byte_width,
+                addend,
+                kind,
+                callback,
+                final_image_symbol_identity,
+            ),
+        )
+    };
+    let origin = |operation_identity: u64| RelocationOrigin::SemanticOperation {
+        function_symbol_handle: ObjectSymbolHandle::from_arena_index(5),
+        operation_identity,
+    };
+    let callback = Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+        callback_function: MachineFunctionIdentity::default(),
+        relocation: callback_relocation(23),
+    });
+    let expected = child_identity(foreign(
+        [9; 32],
+        [11; 32],
+        ObjectSymbolHandle::from_arena_index(3),
+        origin(7),
+        13,
+        4,
+        -4,
+        RelocationKind::X86_64Relative32,
+        callback,
+        [29; 32],
+    ));
+
+    for mutation in 0..15 {
+        let changed = match mutation {
+            // Substituted locator or boundary-plan custody.
+            0 => foreign(
+                [10; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            1 => foreign(
+                [9; 32],
+                [12; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            // Substituted or regenerated object symbol.
+            2 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(4),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            3 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_parts(3, 2),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            // Origin drift: a different operation identity, a different
+            // origin namespace carrying the same coordinate, or a
+            // different owning symbol.
+            4 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(8),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            5 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                RelocationOrigin::SemanticEdge {
+                    function_symbol_handle: ObjectSymbolHandle::from_arena_index(5),
+                    edge_identity: 7,
+                },
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            6 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: ObjectSymbolHandle::from_arena_index(6),
+                    operation_identity: 7,
+                },
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            // Byte geometry, addend, and encoding kind.
+            7 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                14,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            8 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                8,
+                -4,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            9 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                4,
+                -8,
+                RelocationKind::X86_64Relative32,
+                callback,
+                [29; 32],
+            ),
+            10 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::Aarch64Branch26,
+                callback,
+                [29; 32],
+            ),
+            // Callback custody: dropped, swapped encoding, a different
+            // callback function, or a different callback relocation.
+            11 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                None,
+                [29; 32],
+            ),
+            12 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                Some(NormalizedForeignCallbackRelocations::Aarch64PageAddress {
+                    callback_function: MachineFunctionIdentity::default(),
+                    page: callback_relocation(23),
+                    page_offset: callback_relocation(23),
+                }),
+                [29; 32],
+            ),
+            13 => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                    callback_function: MachineFunctionIdentity::source(StateKey {
+                        segment_index: 1,
+                        ..Default::default()
+                    }),
+                    relocation: callback_relocation(23),
+                }),
+                [29; 32],
+            ),
+            _ => foreign(
+                [9; 32],
+                [11; 32],
+                ObjectSymbolHandle::from_arena_index(3),
+                origin(7),
+                13,
+                4,
+                -4,
+                RelocationKind::X86_64Relative32,
+                Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                    callback_function: MachineFunctionIdentity::default(),
+                    relocation: callback_relocation(24),
+                }),
+                [29; 32],
+            ),
+        };
+        let changed = child_identity(changed);
+        assert_ne!(changed, expected, "relocation custody mutation {mutation}");
+    }
+
+    // The final-image symbol identity is retained beside the relocation
+    // rather than inside it.
+    assert_ne!(
+        child_identity(foreign(
+            [9; 32],
+            [11; 32],
+            ObjectSymbolHandle::from_arena_index(3),
+            origin(7),
+            13,
+            4,
+            -4,
+            RelocationKind::X86_64Relative32,
+            callback,
+            [30; 32],
+        )),
+        expected,
+        "final-image symbol identity mutation"
+    );
+}
+
+/// A projection that repeats one surviving occurrence has already failed
+/// the survivor bijection before any child coordinate is compared, and a
+/// boundary survivor presented under the operator tag is a substituted
+/// occurrence rather than a boundary child.
+#[test]
+fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
+    let terminal = terminal_psi::TerminalPsiIdentity {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        program_fingerprint: SemanticFingerprint::from_bytes([19; 32]),
+    };
+    let machine = semantic_vocabulary::MachineId::new(1).expect("machine");
+    let operator = optimized_operator_occurrence(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(2).expect("operator"),
+        0,
+        OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"operator survivor"),
+    );
+    let boundary = optimized_boundary_occurrence(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(3).expect("boundary operation"),
+        semantic_vocabulary::BoundaryMachineId::new(4).expect("boundary"),
+        1,
+        OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"boundary survivor"),
+    );
+    let repeated = native_optimization_projection(
+        terminal,
+        vec![operator, operator],
+        vec![boundary],
+        NativeOptimizationProjectionIdentity::from_canonical_bytes(b"repeated projection"),
+    );
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&repeated, Vec::new()),
+        Err("native physical evidence projection repeats an optimized occurrence")
+    );
+
+    let projection = physical_projection();
+    let [operator_coordinate, boundary_coordinate] = exact_coordinates(&projection);
+
+    // A boundary survivor repeated as a boundary child.
+    assert_eq!(
+        validate_exact_physical_child_coordinates(
+            &projection,
+            [
+                operator_coordinate,
+                boundary_coordinate,
+                boundary_coordinate
+            ],
+        ),
+        Err("native physical evidence contains duplicate optimized occurrences")
+    );
+
+    // A boundary survivor's identity presented under the operator tag is
+    // a substituted occurrence, not the boundary child.
+    let substituted = PhysicalChildCoordinate {
+        projection: projection.identity(),
+        occurrence: NativePhysicalOccurrence::Operator(
+            OptimizedOperatorOccurrenceIdentity::from_bytes(
+                projection.boundary_occurrences()[0].identity().bytes(),
+            ),
+        ),
+        parent_role: 1,
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(
+            &projection,
+            [operator_coordinate, boundary_coordinate, substituted],
+        ),
+        Err("native physical child swapped or substituted its semantic parent role")
+    );
+
+    // A boundary child carrying the operator parent role is a role swap.
+    let swapped = PhysicalChildCoordinate {
+        parent_role: 1,
+        ..boundary_coordinate
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [operator_coordinate, swapped],),
+        Err("native physical child swapped or substituted its semantic parent role")
+    );
+}
