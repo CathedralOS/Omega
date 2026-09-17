@@ -89,6 +89,12 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// the selection did not enable cannot replay under another family's
     /// policy.
     pub(super) saturating_subtract_zero: Option<&'a RegisterInstructionConstraint>,
+    /// The `CopyI64` row the saturating-divide identity fold rewrites
+    /// into — the same constraint row the divide, xor, wrapping-add,
+    /// and-ones, saturating-add, and saturating-subtract folds bind, gated
+    /// separately so a fold the selection did not enable cannot replay
+    /// under another family's policy.
+    pub(super) saturating_divide_one: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -176,6 +182,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_saturating_subtract_zero()
         .then(|| find(keys.copy_i64))
         .transpose()?;
+    let saturating_divide_one = policy
+        .enables_saturating_divide_one()
+        .then(|| find(keys.copy_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -194,6 +204,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         divide_zero,
         saturating_add_zero,
         saturating_subtract_zero,
+        saturating_divide_one,
     ]
     .into_iter()
     .flatten()
@@ -293,6 +304,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::CopyI64,
             isolated_rewritten_declaration,
         ),
+        (
+            saturating_divide_one,
+            MachineSemanticKind::CopyI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -319,6 +335,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         divide_zero,
         saturating_add_zero,
         saturating_subtract_zero,
+        saturating_divide_one,
         catalog,
     })
 }
@@ -599,6 +616,51 @@ pub(super) fn dead_unit_defs_fold_admission(
         && consumer.alternatives.iter().all(|alternative| {
             isolated_effect_alternative(alternative)
                 && alternative.encoded.implicit_unit_uses.is_empty()
+        })
+        && isolated_rewritten_declaration(rewritten)
+}
+
+/// The relationship the validator re-derives between a consumer that both
+/// may architecturally fault and retires implicit unit *definitions* — a
+/// `SaturatingDivide` on any carrier, whose x86-64 `div`/`idiv`
+/// realizations encode `MayArchitecturalFaultV1` and whose aarch64 signed
+/// realizations define `nzcv` — and the fully isolated copy form a divisor
+/// literal of one rewrites into. The consumer declaration keeps the
+/// isolated non-unit surface except its alternatives may encode `NeverV1`
+/// or `MayArchitecturalFaultV1` trap behavior: the folded divisor of one
+/// discharges every such fault — a divide by one can neither divide by
+/// zero nor overflow, and the signed `MIN /| -1` clamp lies outside the
+/// divisor the grammar admits — so the rewrite retires the trap surface
+/// wholesale. The consumer may declare no implicit unit uses; no implicit
+/// definition needs rewritten coverage, because retiring those definitions
+/// is the relationship's own point, gated on the record-level deadness the
+/// caller re-derives from the concrete instruction and function. Clobbers
+/// retire wholesale: dropping one only narrows what may be destroyed. The
+/// rewritten declaration itself must satisfy the fully isolated surface —
+/// neither the discharged fault nor a retired definition may reappear.
+pub(super) fn fault_discharged_dead_unit_defs_fold_admission(
+    consumer: &MachineEffectDeclaration,
+    rewritten: &MachineEffectDeclaration,
+) -> bool {
+    consumer.memory == MachineMemoryEffect::NoneV1
+        && matches!(
+            consumer.trap,
+            MachineTrapBehavior::NeverV1 | MachineTrapBehavior::MayArchitecturalFaultV1
+        )
+        && consumer.barrier == MachineBarrier::None
+        && consumer.call == MachineCallEffect::NoneV1
+        && consumer.cleanup == MachineCleanupEffect::NoneV1
+        && consumer.alternatives.iter().all(|alternative| {
+            let encoded = &alternative.encoded;
+            encoded.memory == MachineEncodedMemoryEffect::NoneV1
+                && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+                && matches!(
+                    encoded.trap,
+                    MachineEncodedTrapBehavior::NeverV1
+                        | MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                )
+                && encoded.control == MachineEncodedControlEffect::FallThroughV1
+                && encoded.implicit_unit_uses.is_empty()
         })
         && isolated_rewritten_declaration(rewritten)
 }

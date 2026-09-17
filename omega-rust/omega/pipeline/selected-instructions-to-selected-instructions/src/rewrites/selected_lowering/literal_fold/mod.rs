@@ -73,7 +73,16 @@ pub use validate::validate_literal_fold;
 /// carrier into a `CopyI64` of the left operand — `x -| 0` is `x` inside
 /// the carrier's bounds — under the same retired-definition and
 /// occurrence-free-scratch gates, with no left-literal grammar because
-/// subtraction does not commute: `0 -| x` is not `x`.
+/// subtraction does not commute: `0 -| x` is not `x` — or the literal
+/// `1` at the divisor operand of a saturating divide on any carrier into
+/// a `CopyI64` of the dividend operand — `x /| 1` is `x` inside the
+/// carrier's bounds — the divisor-one literal itself discharging the
+/// consumer's encoded fault surface, with no left-literal grammar
+/// because division does not commute: `1 /| x` is not `x`; the consumer's
+/// implicit unit definitions retire under the same whole-function
+/// deadness gate, and every operand past the `Def` result drops under
+/// the mixed custody of provably-zero auxiliary `Use`s and
+/// occurrence-free scratch `Def`s.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

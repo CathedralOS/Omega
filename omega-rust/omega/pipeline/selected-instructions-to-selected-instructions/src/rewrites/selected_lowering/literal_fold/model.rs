@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 7;
+const LITERAL_FOLD_VERSION: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -53,6 +53,7 @@ impl LiteralFoldPolicy {
     const EXACT_DIVIDE_ZERO_BIT: u32 = 1 << 14;
     const SATURATING_ADD_ZERO_BIT: u32 = 1 << 15;
     const SATURATING_SUBTRACT_ZERO_BIT: u32 = 1 << 16;
+    const SATURATING_DIVIDE_ONE_BIT: u32 = 1 << 17;
     const KNOWN_BITS: u32 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -69,7 +70,8 @@ impl LiteralFoldPolicy {
         | Self::WRAPPING_REMAINDER_ZERO_BIT
         | Self::EXACT_DIVIDE_ZERO_BIT
         | Self::SATURATING_ADD_ZERO_BIT
-        | Self::SATURATING_SUBTRACT_ZERO_BIT;
+        | Self::SATURATING_SUBTRACT_ZERO_BIT
+        | Self::SATURATING_DIVIDE_ONE_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -235,6 +237,30 @@ impl LiteralFoldPolicy {
     pub const SATURATING_SUBTRACT_ZERO_V1: Self = Self {
         enabled_rules: Self::SATURATING_SUBTRACT_ZERO_BIT,
     };
+    /// Saturating-divide identity fold: fold a materialized literal `1`
+    /// feeding its sole `SaturatingDivide` consumer's divisor operand on
+    /// any carrier into a `CopyI64` of the dividend `Use` — a saturating
+    /// divide by one is the dividend, so `x /| 1` is `x` inside the
+    /// carrier's bounds and the surviving operand's register moves to the
+    /// result unchanged. The grammar is deliberately asymmetric:
+    /// `1 /| x` is not `x`, so no left-literal rule exists and a literal
+    /// at operand 0 rejects. The consumer may architecturally fault —
+    /// the x86-64 `div`/`idiv` realization encodes divide by zero and
+    /// quotient overflow — and the folded divisor of one is itself the
+    /// discharging evidence: a divide by one can do neither, so the
+    /// rewrite retires the trap surface wholesale. The signed-carrier
+    /// aarch64 consumer also implicitly defines `nzcv`; the fold retires
+    /// the definition with the folded form, admitting the consumer only
+    /// while every unit its record defines is dead in the function. The
+    /// consumer's operand list may continue past the `Def` result under
+    /// the mixed-tail grammar: a `Use` — the zeroed high-half dividend an
+    /// x86-64 `div`/`idiv` reads — drops only when defined solely by zero
+    /// materializations, and a `Def` — the bound scratch an aarch64
+    /// signed row writes — drops only when its register occurs nowhere
+    /// else in the function.
+    pub const SATURATING_DIVIDE_ONE_V1: Self = Self {
+        enabled_rules: Self::SATURATING_DIVIDE_ONE_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -316,6 +342,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_saturating_subtract_zero(self) -> bool {
         self.enabled_rules & Self::SATURATING_SUBTRACT_ZERO_BIT != 0
+    }
+
+    pub const fn enables_saturating_divide_one(self) -> bool {
+        self.enabled_rules & Self::SATURATING_DIVIDE_ONE_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u32 {
