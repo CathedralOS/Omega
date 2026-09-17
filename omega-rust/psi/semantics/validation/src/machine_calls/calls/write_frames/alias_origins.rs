@@ -154,9 +154,27 @@ pub(crate) fn stable_alias_initializer_origin(
                 },
             )
             // A boundary call has no checked body, but a single-candidate
-            // exclusive result still supplies its proven referent origin.
+            // exclusive result still supplies its proven referent origin. A
+            // resolved requirement call answers the same way through its
+            // retained signature identity.
             .or_else(|| {
                 super::boundary_calls::single_boundary_result_origin(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    call,
+                    expression,
+                    inference,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    allow_isolated_local,
+                    stored,
+                )
+            })
+            .or_else(|| {
+                super::boundary_calls::single_requirement_result_origin(
                     program,
                     current_machine,
                     machine_symbols,

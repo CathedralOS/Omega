@@ -7,7 +7,8 @@
 use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::isolation::{aggregate_storage_types_match_in, type_is_caller_isolated_local_in};
 use super::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, split_place_root,
+    FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
+    split_place_root,
 };
 use super::receiver_member_chain;
 use super::reference_origins::{exclusive_reference_origin, referent_has_only_owned_storage_in};
@@ -160,21 +161,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     site: CallerWriteSite<'_>,
     allow_type_parameters: bool,
 ) -> Option<(&'program typed_trees::signature::StateSignature, bool)> {
-    let (receiver_symbol, target_symbol) = match site {
-        CallerWriteSite::Call(call) => (call.receiver_symbol, call.target_symbol),
-        CallerWriteSite::Expression(expression) => {
-            let typed_trees::expression::ExpressionNode::Call(call) =
-                program.expression_table.expression(expression)
-            else {
-                return None;
-            };
-            (
-                expression_receiver_symbol(program, call.receiver),
-                call.target_symbol,
-            )
-        }
-        CallerWriteSite::Statement(_) => return None,
-    };
+    let (receiver_symbol, target_symbol) = call_site_symbols(program, site)?;
     let (trait_definition, has_runtime_receiver) = match receiver_members {
         [receiver] => {
             if !receiver_symbol.is_valid() {
@@ -246,7 +233,334 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     .then_some((signature, has_runtime_receiver))
 }
 
-fn receiver_type_symbol(
+/// The call's retained receiver and target identities at this write site. A
+/// statement call stores both symbols directly; a value call carries the
+/// target and rejoins the receiver symbol from its receiver expression.
+fn call_site_symbols(
+    program: &TypedTrees,
+    site: CallerWriteSite<'_>,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    match site {
+        CallerWriteSite::Call(call) => Some((call.receiver_symbol, call.target_symbol)),
+        CallerWriteSite::Expression(expression) => {
+            let typed_trees::expression::ExpressionNode::Call(call) =
+                program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            Some((
+                expression_receiver_symbol(program, call.receiver),
+                call.target_symbol,
+            ))
+        }
+        CallerWriteSite::Statement(_) => None,
+    }
+}
+
+/// The non-boundary trait requirement signature the checked call selected, or
+/// None. `target_symbol` retains that selection exactly: its parent is the
+/// declaring trait and its identity is the signature symbol, so no receiver
+/// spelling is needed to pick the signature. Boundary traits stay on their
+/// own rung, generic traits and signatures without closed `Type` binders stay
+/// opaque, and a target that names a real machine state belongs to the
+/// internal callee summary.
+pub(super) fn requirement_signature_by_target(
+    program: &TypedTrees,
+    target_symbol: SymbolHandle,
+) -> Option<&typed_trees::signature::StateSignature> {
+    if !target_symbol.is_valid()
+        || program.symbols.get(target_symbol).kind != symbols::SymbolKind::State
+        || super::machine_state_by_symbol(program, target_symbol).is_some()
+    {
+        return None;
+    }
+    let parent = program.symbols.get(target_symbol).parent;
+    let mut definitions = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == parent);
+    let definition = definitions.next()?;
+    if definitions.next().is_some() {
+        return None;
+    }
+    requirement_signature_in_trait(program, definition, |signature| {
+        signature.symbol == target_symbol
+            && program.symbols.name(target_symbol) == signature.name.as_str()
+    })
+}
+
+/// The unique requirement `choose` selects on a non-boundary, non-generic
+/// trait, or None. Signatures without closed `Type` binders stay opaque.
+fn requirement_signature_in_trait<'program>(
+    program: &'program TypedTrees,
+    definition: &'program typed_trees::trait_definition::TraitDefinition,
+    mut choose: impl FnMut(&typed_trees::signature::StateSignature) -> bool,
+) -> Option<&'program typed_trees::signature::StateSignature> {
+    if definition.is_boundary || !definition.type_parameters.is_empty() {
+        return None;
+    }
+    let mut signatures = program
+        .trait_machine_signatures(definition)
+        .iter()
+        .filter(|signature| choose(signature));
+    let signature = signatures.next()?;
+    if signatures.next().is_some() {
+        return None;
+    }
+    (signature.type_parameters.is_empty()
+        || program
+            .state_signature_type_parameters(signature)
+            .iter()
+            .all(|parameter| {
+                parameter.symbol.is_valid()
+                    && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            }))
+    .then_some(signature)
+}
+
+/// The requirement signature selected by an exact receiver place's declared
+/// leaf type plus the target name, or None. The typer does not retain call
+/// symbols on nested receiver paths (`self.group.handler.code()`), but the
+/// leaf's declared `dyn`/trait type still pins the dispatch contract: every
+/// member must resolve through concrete data fields, so the leaf's trait is
+/// proven rather than spelled, and the requirement is then unique by name.
+/// An indexed or non-place link never reaches this fallback — its receiver
+/// chain was already rejected by the caller's exact-receiver gate.
+fn requirement_signature_for_receiver_path<'program>(
+    program: &'program TypedTrees,
+    current_machine: &Machine,
+    receiver: &[String],
+    target: &str,
+) -> Option<&'program typed_trees::signature::StateSignature> {
+    let [root, members @ ..] = receiver else {
+        return None;
+    };
+    if root != "self" || members.is_empty() {
+        return None;
+    }
+    let attached = current_machine.attached_data.as_ref()?;
+    let mut data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == attached.as_str())?;
+    for (depth, member) in members.iter().enumerate() {
+        let field_type = program
+            .data_members(data)
+            .iter()
+            .find_map(|member_node| match member_node {
+                DataMember::Field(field) if field.name.as_str() == member.as_str() => {
+                    Some(field.type_reference)
+                }
+                _ => None,
+            })
+            .and_then(|reference| live_unconstrained_type(program, reference))?;
+        if depth + 1 == members.len() {
+            let trait_symbol = receiver_type_symbol(program, field_type);
+            let mut definitions = program
+                .traits()
+                .iter()
+                .filter(|definition| definition.symbol == trait_symbol);
+            let definition = definitions.next()?;
+            if definitions.next().is_some() {
+                return None;
+            }
+            return requirement_signature_in_trait(program, definition, |signature| {
+                signature.name.as_str() == target
+            });
+        }
+        data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == receiver_type_symbol(program, field_type))?;
+    }
+    None
+}
+
+/// Does the signature's `self` parameter grant exclusive reach? A `&mut self`
+/// requirement may write the whole runtime receiver object; a shared or
+/// by-value `self` cannot publish a receiver write at all.
+fn self_parameter_is_exclusive(
+    program: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+) -> bool {
+    program
+        .state_signature_parameters(signature)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .is_some_and(|parameter| {
+            live_unconstrained_type(program, parameter.type_reference).is_some_and(|reference| {
+                matches!(
+                    program.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::Reference { access, .. } if access.is_exclusive()
+                )
+            })
+        })
+}
+
+/// The resolved requirement signature plus how `self` reaches the callee, at
+/// a call write site. Value-position calls rejoin the receiver symbol from
+/// the receiver expression exactly as boundary selection does. When the
+/// retained target symbol is absent — a nested receiver path the typer did
+/// not annotate — the receiver place's declared leaf trait still selects
+/// the requirement by name.
+pub(super) fn requirement_signature_for_site<'program>(
+    program: &'program TypedTrees,
+    current_machine: &Machine,
+    receiver: &[String],
+    target: &str,
+    site: CallerWriteSite<'_>,
+) -> Option<(&'program typed_trees::signature::StateSignature, bool, bool)> {
+    let (receiver_symbol, target_symbol) = call_site_symbols(program, site)?;
+    requirement_signature_and_self(
+        program,
+        current_machine,
+        receiver,
+        target,
+        receiver_symbol,
+        target_symbol,
+    )
+}
+
+/// The resolved requirement signature plus how `self` reaches the callee. A
+/// declaration qualifier (`Issuer::issue(x)`, `Receipt::ack(v)`) is not a
+/// runtime place: the callee's `self` then arrives as an ordinary argument,
+/// exactly as the resolved-target validation rung pairs them.
+fn requirement_signature_and_self<'program>(
+    program: &'program TypedTrees,
+    current_machine: &Machine,
+    receiver: &[String],
+    target: &str,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+) -> Option<(&'program typed_trees::signature::StateSignature, bool, bool)> {
+    // The retained target is authoritative evidence: a valid symbol must name
+    // the selected signature, so a stale or foreign selection fails closed
+    // here even when the receiver's declared trait offers a same-named
+    // requirement. Only an absent annotation — a nested receiver path the
+    // typer does not decorate — falls back to the receiver's declared leaf
+    // type.
+    let signature = requirement_signature_by_target(program, target_symbol).or_else(|| {
+        (!target_symbol.is_valid())
+            .then(|| {
+                requirement_signature_for_receiver_path(program, current_machine, receiver, target)
+            })
+            .flatten()
+    })?;
+    let self_is_argument = matches!(
+        program.symbols.get(receiver_symbol).kind,
+        symbols::SymbolKind::BuiltinType
+            | symbols::SymbolKind::Data
+            | symbols::SymbolKind::Domain
+            | symbols::SymbolKind::Machine
+            | symbols::SymbolKind::Module
+            | symbols::SymbolKind::Trait
+            | symbols::SymbolKind::ConformanceParameter
+    );
+    Some((
+        signature,
+        self_is_argument,
+        self_parameter_is_exclusive(program, signature),
+    ))
+}
+
+/// The exact frame of a resolved non-boundary trait requirement call. The
+/// implementing body is selected at runtime, so the signature's declared
+/// reach is the complete caller-visible evidence: an exclusive `self` writes
+/// the receiver place (or the explicit `self` argument on a declaration-
+/// qualified call such as `Issuer::issue(self.issuer)`), and every exclusive
+/// parameter writes its argument's proven origins. A caller cannot supply a
+/// path for a receiver expression that names no place; such writes stay
+/// inside the temporary and contribute nothing.
+pub(super) fn known_requirement_call_written_paths_for_parts(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    receiver: &[String],
+    target: &str,
+    receiver_origin: Option<&FramePlaceOrigin>,
+    site: CallerWriteSite<'_>,
+    arguments: &[ExpressionHandle],
+    inference: &mut FrameInference,
+) -> Option<Vec<String>> {
+    let (signature, self_is_argument, self_exclusive) =
+        requirement_signature_for_site(program, current_machine, receiver, target, site)?;
+    let parameters = program.state_signature_parameters(signature);
+    let paired = parameters
+        .iter()
+        .filter(|parameter| self_is_argument || !parameter.is_self)
+        .collect::<Vec<_>>();
+    if paired.len() != arguments.len() {
+        return None;
+    }
+    let mut written = Vec::new();
+    if !self_is_argument && self_exclusive {
+        let path = receiver_origin
+            .map(|origin| origin.path.clone())
+            .or_else(|| (!receiver.is_empty()).then(|| receiver.join(".")))
+            .unwrap_or_else(|| "self".to_owned());
+        written.push(path);
+    }
+    let bindings = super::type_instantiation::signature_call_type_bindings_with_self(
+        program,
+        current_machine,
+        signature,
+        site,
+        arguments,
+        self_is_argument,
+    )?;
+    for (parameter, argument) in paired.into_iter().zip(arguments) {
+        if parameter.is_self {
+            if self_exclusive {
+                let path = coarse_place_path(program, *argument)?;
+                if !written.contains(&path) {
+                    written.push(path);
+                }
+            }
+            continue;
+        }
+        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let parameter_type = substituted_head(program, parameter_type, &bindings);
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program.type_reference_table.type_reference(parameter_type)
+        else {
+            if !matches!(
+                program.type_reference_table.type_reference(parameter_type),
+                TypeReferenceNode::Unit
+            ) && !type_is_caller_isolated_local_in(program, parameter_type, &bindings)
+            {
+                // A by-value carrier can still contain mutable references.
+                // Without leaf-origin transport, omitting their writes would
+                // manufacture a complete receiver-only frame.
+                return None;
+            }
+            continue;
+        };
+        if !access.is_exclusive() {
+            continue;
+        }
+        if !referent_has_only_owned_storage_in(program, *referee, &bindings) {
+            return None;
+        }
+        for origin in boundary_argument_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            *argument,
+            inference,
+        )? {
+            if !written.contains(&origin.path) {
+                written.push(origin.path);
+            }
+        }
+    }
+
+    Some(written)
+}
+
+pub(super) fn receiver_type_symbol(
     program: &TypedTrees,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
@@ -277,7 +591,10 @@ pub(super) fn expression_receiver_requires_boundary_frame(
         })
 }
 
-fn expression_receiver_symbol(program: &TypedTrees, receiver: ExpressionHandle) -> SymbolHandle {
+pub(super) fn expression_receiver_symbol(
+    program: &TypedTrees,
+    receiver: ExpressionHandle,
+) -> SymbolHandle {
     match program.expression_table.expression(receiver) {
         typed_trees::expression::ExpressionNode::Name(name)
             if program
@@ -411,18 +728,29 @@ fn boundary_argument_origins(
     argument: ExpressionHandle,
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
-    if let ExpressionNode::Call(call) = program.expression_table.expression(argument)
-        && selected_boundary_signature(program, call.target_symbol)
-    {
-        return boundary_result_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            symbols,
-            call,
-            argument,
-            inference,
-        );
+    if let ExpressionNode::Call(call) = program.expression_table.expression(argument) {
+        if selected_boundary_signature(program, call.target_symbol) {
+            return boundary_result_origins(
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                call,
+                argument,
+                inference,
+            );
+        }
+        if requirement_signature_by_target(program, call.target_symbol).is_some() {
+            return requirement_result_origins(
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                call,
+                argument,
+                inference,
+            );
+        }
     }
     exclusive_reference_origin(program, current_machine, argument, symbols, inference)
         .map(|origin| vec![origin])
@@ -585,6 +913,203 @@ pub(super) fn single_boundary_result_origin(
         expression,
         inference,
     )?;
+    single_result_origin_from_candidates(
+        origins,
+        parameters,
+        isolated_local_roots,
+        aliases,
+        allow_isolated_local,
+        stored,
+    )
+}
+
+/// The candidate caller-storage origins a resolved requirement call's
+/// exclusive result may alias — the same admitted routes as a boundary
+/// result, with the signature selected by retained `target_symbol` rather
+/// than receiver spelling. An exclusive `self` contributes the whole runtime
+/// receiver storage as a coarse candidate, whether it arrives as a place
+/// receiver or as the explicit `self` argument on a declaration-qualified
+/// call.
+fn requirement_result_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    call: &TableCallExpression,
+    expression: ExpressionHandle,
+    inference: &mut FrameInference,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let receiver = receiver_member_chain(program, call.receiver).unwrap_or_default();
+    let (signature, self_is_argument, self_exclusive) = requirement_signature_for_site(
+        program,
+        current_machine,
+        &receiver,
+        call.target.as_str(),
+        CallerWriteSite::Expression(expression),
+    )?;
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let parameters = program.state_signature_parameters(signature);
+    let paired = parameters
+        .iter()
+        .filter(|parameter| self_is_argument || !parameter.is_self)
+        .collect::<Vec<_>>();
+    if paired.len() != arguments.len() {
+        return None;
+    }
+    let mut bindings = super::type_instantiation::signature_call_type_bindings_with_self(
+        program,
+        current_machine,
+        signature,
+        CallerWriteSite::Expression(expression),
+        arguments,
+        self_is_argument,
+    )?;
+    let result_type = live_unconstrained_type(program, signature.return_type)?;
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program.type_reference_table.type_reference(result_type)
+    else {
+        return None;
+    };
+    if !access.is_exclusive() {
+        return None;
+    }
+    let referent =
+        live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?;
+
+    let mut origins = Vec::new();
+    if self_exclusive {
+        // The implementor's storage is opaque to the caller: an exclusive
+        // result may point anywhere inside it. The receiver place covers
+        // every such subpath, but a member projection must not narrow it to
+        // a fabricated subpath, so the candidate stays collection-coarse.
+        let (path, source) = if self_is_argument {
+            let actual = parameters
+                .iter()
+                .position(|parameter| parameter.is_self)
+                .and_then(|index| arguments.get(index))?;
+            (
+                coarse_place_path(program, *actual)?,
+                FrameSourcePlace::from_expression(program, *actual),
+            )
+        } else {
+            (
+                receiver.join("."),
+                FrameSourcePlace::from_expression(program, call.receiver),
+            )
+        };
+        origins.push(FramePlaceOrigin {
+            path,
+            precision: FramePathPrecision::CollectionCoarse,
+            source,
+        });
+    }
+    for (parameter, actual) in paired.into_iter().zip(arguments) {
+        if parameter.is_self {
+            continue;
+        }
+        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let parameter_type = substituted_head(program, parameter_type, &bindings);
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program.type_reference_table.type_reference(parameter_type)
+        else {
+            // A by-value carrier can still store exclusive references whose
+            // referents this frame cannot name; its route stays opaque.
+            if type_may_carry_write_in(program, parameter_type, &bindings) {
+                return None;
+            }
+            continue;
+        };
+        if !access.is_exclusive() {
+            continue;
+        }
+        match owned_storage_may_hold(program, *referee, referent, &mut bindings) {
+            Some(true) => {
+                // The admitted route places name the storage the result may
+                // reach. Unless that storage can hold the referent only at
+                // its root, the referent's offset inside stays unknown and a
+                // projected origin must not narrow beneath the root.
+                let root_only =
+                    storage_holds_referent_only_at_root(program, *referee, referent, &mut bindings);
+                for origin in boundary_argument_origins(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    *actual,
+                    inference,
+                )? {
+                    push_unique_origin(
+                        &mut origins,
+                        if root_only {
+                            origin
+                        } else {
+                            FramePlaceOrigin {
+                                precision: FramePathPrecision::CollectionCoarse,
+                                ..origin
+                            }
+                        },
+                    );
+                }
+            }
+            Some(false) => {}
+            None => return None,
+        }
+    }
+    (!origins.is_empty()).then_some(origins)
+}
+
+/// The proven referent of a resolved requirement call's exclusive result
+/// bound to a local, under the same single-candidate rule as the boundary
+/// rung: the signature's admitted routes must name exactly one caller storage
+/// place.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn single_requirement_result_origin(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    call: &TableCallExpression,
+    expression: ExpressionHandle,
+    inference: &mut FrameInference,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    allow_isolated_local: bool,
+    stored: &[StoredLocalOrigins],
+) -> Option<FramePlaceOrigin> {
+    let origins = requirement_result_origins(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        call,
+        expression,
+        inference,
+    )?;
+    single_result_origin_from_candidates(
+        origins,
+        parameters,
+        isolated_local_roots,
+        aliases,
+        allow_isolated_local,
+        stored,
+    )
+}
+
+/// Canonicalize admitted candidate origins and require them to agree on one
+/// caller storage place. Routes that agree on the place but disagree on
+/// referent position or source collapse to a coarse origin; a multi-place or
+/// unresolved result stays opaque.
+fn single_result_origin_from_candidates(
+    origins: Vec<FramePlaceOrigin>,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    allow_isolated_local: bool,
+    stored: &[StoredLocalOrigins],
+) -> Option<FramePlaceOrigin> {
     let mut merged: Option<FramePlaceOrigin> = None;
     for candidate in origins {
         let origin = caller_canonical_result_origin(

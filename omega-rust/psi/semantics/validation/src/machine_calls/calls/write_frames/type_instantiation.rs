@@ -116,6 +116,29 @@ pub(super) fn signature_call_type_bindings(
     site: CallerWriteSite<'_>,
     arguments: &[ExpressionHandle],
 ) -> Option<TypeBindings> {
+    signature_call_type_bindings_with_self(
+        program,
+        current_machine,
+        signature,
+        site,
+        arguments,
+        false,
+    )
+}
+
+/// The same binding walk with `self` retained in the formal→actual
+/// correspondence. Declaration-qualified requirement calls (`Trait::m(x)`)
+/// supply `self` as an ordinary argument, so excluding it would shift every
+/// remaining pairing. `Self` itself names no signature `Type` binder, so the
+/// extra pair still contributes no binding.
+pub(super) fn signature_call_type_bindings_with_self(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    signature: &StateSignature,
+    site: CallerWriteSite<'_>,
+    arguments: &[ExpressionHandle],
+    include_self: bool,
+) -> Option<TypeBindings> {
     let type_parameters = program.state_signature_type_parameters(signature);
     if type_parameters.is_empty() {
         return Some(Vec::new());
@@ -129,7 +152,7 @@ pub(super) fn signature_call_type_bindings(
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| include_self || !parameter.is_self)
         .collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;

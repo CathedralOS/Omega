@@ -6,7 +6,9 @@ use crate::machine_calls::calls::write_frames::assignment_targets::{
     assignment_target_type, expression_is_effectful_indexed_place,
     transparent_assignment_target_effect_is_structural,
 };
-use crate::machine_calls::calls::write_frames::boundary_calls::known_boundary_call_written_paths_for_parts;
+use crate::machine_calls::calls::write_frames::boundary_calls::{
+    known_boundary_call_written_paths_for_parts, known_requirement_call_written_paths_for_parts,
+};
 use crate::machine_calls::calls::write_frames::call_targets;
 use crate::machine_calls::calls::write_frames::call_targets::{
     discarded_primitive_internal_call_is_relationally_neutral, machine_state_by_symbol,
@@ -559,6 +561,26 @@ fn statement_call_preserves_transparent_result(
                 symbols,
                 &receiver_members,
                 call.target.as_str(),
+                CallerWriteSite::Call(call),
+                arguments,
+                inference,
+            )
+        })
+        .flatten()
+    })
+    .or_else(|| {
+        (!arguments
+            .iter()
+            .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
+        .then(|| {
+            known_requirement_call_written_paths_for_parts(
+                program,
+                current_machine,
+                &machine_symbols,
+                symbols,
+                &receiver_members,
+                call.target.as_str(),
+                None,
                 CallerWriteSite::Call(call),
                 arguments,
                 inference,

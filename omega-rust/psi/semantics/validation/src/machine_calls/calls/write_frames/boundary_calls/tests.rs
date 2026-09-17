@@ -511,3 +511,265 @@ fn static_boundary_cyclic_formal_constraints_remain_opaque() {
         );
     }
 }
+
+/// A resolved non-boundary requirement call keeps the runtime receiver's
+/// proven origin and every exclusive argument's origin: the retained
+/// `target_symbol` selects the requirement signature exactly, while the
+/// receiver place — a `dyn` field, a reference field, a nested member, a
+/// bound local, or the explicit `self` argument on a declaration-qualified
+/// call — still names caller storage. No implementor path is invented.
+#[test]
+fn requirement_receiver_calls_write_their_proven_origins() {
+    for (name, body, expected) in [
+        (
+            "dyn_field",
+            "self.handler.code();",
+            Some(&["self.handler"][..]),
+        ),
+        (
+            "dyn_field_exclusive_argument",
+            "self.handler.apply(&mut self.audit);",
+            Some(&["self.audit", "self.handler"][..]),
+        ),
+        ("shared_self", "self.handler.peek();", Some(&[][..])),
+        (
+            "shared_self_exclusive_argument",
+            "self.handler.view(&mut self.audit);",
+            Some(&["self.audit"][..]),
+        ),
+        (
+            "reference_field",
+            "self.ref_handler.code();",
+            Some(&["self.ref_handler"][..]),
+        ),
+        (
+            "nested_receiver",
+            "self.group.handler.code();",
+            Some(&["self.group.handler"][..]),
+        ),
+        (
+            "bound_local",
+            "let s: &mut dyn Shape = &mut self.handler; s.code();",
+            Some(&["self.handler"][..]),
+        ),
+        (
+            "qualified_self_argument",
+            "Shape::apply(&mut self.handler, &mut self.audit);",
+            Some(&["self.audit", "self.handler"][..]),
+        ),
+        (
+            "qualified_shared_self",
+            "Shape::peek(&self.handler);",
+            Some(&[][..]),
+        ),
+        (
+            "qualified_no_self",
+            "Shape::touch(&mut self.audit);",
+            Some(&["self.audit"][..]),
+        ),
+    ] {
+        let program = typed(&format!(
+            "trait Shape {{ machine code(&mut self) -> i32; machine apply(&mut self, value: &mut u64); machine peek(&self) -> i32; machine view(&self, value: &mut u64); machine touch(value: &mut u64); }}
+             data Group {{ handler: dyn Shape; }}
+             data Main {{ handler: dyn Shape; ref_handler: &mut dyn Shape; audit: u64; group: Group; }}
+             machine Main::inspect(&mut self) {{ {body} }}"
+        ));
+        let mut actual = frame(&program).complete_paths().map(|paths| paths.to_vec());
+        if let Some(paths) = &mut actual {
+            paths.sort();
+        }
+        let expected = expected.map(|paths| {
+            paths
+                .iter()
+                .map(|path| (*path).to_owned())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+/// A `dyn` receiver that arrives through a parameter writes the parameter's
+/// own origin, and a requirement spelled like a receiver-bearing builtin
+/// keeps its resolved signature rather than acquiring the builtin's empty
+/// frame.
+#[test]
+fn requirement_parameter_receivers_write_their_proven_origins() {
+    for (name, body, expected) in [
+        ("dyn_parameter", "s.code();", Some(&["$P0"][..])),
+        (
+            "dyn_parameter_exclusive_argument",
+            "s.apply(&mut self.audit);",
+            Some(&["$P0", "self.audit"][..]),
+        ),
+        (
+            "builtin_spelling_stays_resolved",
+            "let n: i32 = s.bytes();",
+            Some(&["$P0"][..]),
+        ),
+    ] {
+        let program = typed(&format!(
+            "trait Shape {{ machine code(&mut self) -> i32; machine apply(&mut self, value: &mut u64); machine bytes(&mut self) -> i32; }}
+             data Main {{ audit: u64; }}
+             machine Main::inspect(&mut self, s: &mut dyn Shape) {{ {body} }}"
+        ));
+        let mut actual = frame(&program).complete_paths().map(|paths| paths.to_vec());
+        if let Some(paths) = &mut actual {
+            paths.sort();
+        }
+        let expected = expected.map(|paths| {
+            paths
+                .iter()
+                .map(|path| (*path).to_owned())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+/// A requirement's exclusive result joins the caller-visible routes its
+/// retained signature admits — the runtime receiver or an exclusive
+/// argument — under the same single-candidate rule as boundary results:
+/// one proven origin forwards exactly, while disagreeing routes, a route
+/// that reaches untracked storage, or no route at all stays opaque.
+#[test]
+fn requirement_results_bound_to_locals_join_their_proven_single_origin() {
+    for (name, body, expected) in [
+        (
+            "receiver_route",
+            "let r: &mut u64 = self.handler.get(); r = 1;",
+            Some(&["self.handler"][..]),
+        ),
+        (
+            "qualified_route",
+            "let r: &mut u64 = Shape::get(&mut self.handler); r = 1;",
+            Some(&["self.handler"][..]),
+        ),
+        (
+            "forwarded",
+            "let r: &mut u64 = self.handler.get(); self.handler.consume(r);",
+            Some(&["self.handler"][..]),
+        ),
+        (
+            "nested_result_argument",
+            "self.handler.consume(self.handler.get());",
+            Some(&["self.handler"][..]),
+        ),
+        (
+            "interior_referent",
+            "let r: &mut u64 = Shape::project(&mut self.cell); r = 1;",
+            Some(&["self.cell"][..]),
+        ),
+        (
+            "aggregate_root",
+            "let r: &mut Cell = Shape::cell_ref(&mut self.cell); r.value = 1;",
+            Some(&["self.cell", "self.cell.value"][..]),
+        ),
+        (
+            "rebound",
+            "let mut r: &mut u64 = self.handler.get(); r = &mut self.other; r = 1;",
+            Some(&["self.handler", "self.other"][..]),
+        ),
+        (
+            "receiver_and_argument_routes",
+            "let r: &mut u64 = self.handler.lend(&mut self.audit); r = 1;",
+            None,
+        ),
+        (
+            "two_argument_routes",
+            "let r: &mut u64 = Shape::pick(&mut self.audit, &mut self.other); r = 1;",
+            None,
+        ),
+        ("no_route", "let r: &mut u64 = Shape::spawn(); r = 1;", None),
+        (
+            "carrier_route",
+            "let r: &mut u64 = Shape::carrier_project(&mut self.carrier); r = 1;",
+            None,
+        ),
+    ] {
+        let program = typed(&format!(
+            "data Cell {{ value: u64; }} data Carrier {{ held: &mut u64; }}
+             trait Shape {{ machine get(&mut self) -> &mut u64; machine consume(&mut self, value: &mut u64); machine project(cell: &mut Cell) -> &mut u64; machine cell_ref(cell: &mut Cell) -> &mut Cell; machine lend(&mut self, value: &mut u64) -> &mut u64; machine pick(hit: &mut u64, other: &mut u64) -> &mut u64; machine spawn() -> &mut u64; machine carrier_project(carrier: &mut Carrier) -> &mut u64; }}
+             data Main {{ handler: dyn Shape; cell: Cell; carrier: Carrier; audit: u64; other: u64; }}
+             machine Main::inspect(&mut self) {{ {body} }}"
+        ));
+        let mut actual = frame(&program).complete_paths().map(|paths| paths.to_vec());
+        if let Some(paths) = &mut actual {
+            paths.sort();
+        }
+        let expected = expected.map(|paths| {
+            paths
+                .iter()
+                .map(|path| (*path).to_owned())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+/// The requirement rung keys on the retained `target_symbol`: a stale
+/// generation is authoritative rejection and the trait-typed receiver keeps
+/// the conservative floor from manufacturing storage. An absent annotation
+/// still re-derives the requirement from the receiver's declared leaf trait
+/// — the same signature the dispatch contract names.
+#[test]
+fn requirement_wrong_and_stale_targets_stay_consistent() {
+    let program = typed(
+        "trait Shape { machine code(&mut self) -> i32; machine peek(&self) -> i32; }
+         data Main { handler: dyn Shape; }
+         machine Main::inspect(&mut self) { self.handler.code(); }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("inspect"))
+        .unwrap();
+    let statements = program.machine_states(machine)[0].statement_nodes;
+    let StatementNode::Call(call) = &program.statement_table.statements(statements)[0] else {
+        panic!("statement call");
+    };
+    let target = call.target_symbol;
+    let mut unannotated = program.clone();
+    let StatementNode::Call(call) = &mut unannotated.statement_table.statements_mut(statements)[0]
+    else {
+        unreachable!()
+    };
+    call.target_symbol = SymbolHandle::invalid();
+    assert_eq!(
+        frame(&unannotated).complete_paths(),
+        Some(["self.handler".to_owned()].as_slice())
+    );
+    let mut stale = program.clone();
+    let StatementNode::Call(call) = &mut stale.statement_table.statements_mut(statements)[0] else {
+        unreachable!()
+    };
+    call.target_symbol = SymbolHandle::from_parts(target.arena_index(), target.generation() + 1);
+    assert!(!frame(&stale).is_complete());
+}
+
+/// Requirement frames fail closed when the receiver or an argument names no
+/// proven caller storage: an indexed collection element, a computed receiver,
+/// a generic trait whose substitution cannot be closed at the call site, or
+/// an exclusive argument whose referent was never tracked all stay opaque
+/// rather than inventing a path.
+#[test]
+fn requirement_calls_without_proven_storage_stay_opaque() {
+    for (name, body) in [
+        (
+            "unproven_result_argument",
+            "let r: &mut u64 = Shape::spawn(); self.handler.apply(r);",
+        ),
+        ("indexed_receiver", "self.handlers[0].code();"),
+        ("call_receiver", "self.make().code();"),
+        ("generic_trait_receiver", "self.ghandler.gcode();"),
+        ("unrelated_requirement", "self.handler.nope();"),
+    ] {
+        let program = typed(&format!(
+            "trait Shape {{ machine code(&mut self) -> i32; machine apply(&mut self, value: &mut u64); machine spawn() -> &mut u64; }}
+             trait G<T> {{ machine gcode(&mut self) -> i32; }}
+             machine Main::make(&mut self) -> &mut dyn Shape {{ &mut self.handler }}
+             data Main {{ handler: dyn Shape; ghandler: dyn G; handlers: [dyn Shape; 2]; audit: u64; }}
+             machine Main::inspect(&mut self) {{ {body} }}"
+        ));
+        assert!(!frame(&program).is_complete(), "{name}");
+    }
+}

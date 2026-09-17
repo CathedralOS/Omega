@@ -222,15 +222,19 @@ impl<'program> CallFrameResolver<'program> {
                             inference,
                         )
                     });
+                    let receiver = self
+                        .program
+                        .statement_table
+                        .name_path_members(call.receiver)
+                        .iter()
+                        .map(|member| member.as_str().to_owned())
+                        .collect::<Vec<_>>();
+                    let arguments = self
+                        .program
+                        .statement_table
+                        .expression_handles(call.arguments);
                     known
                         .or_else(|| {
-                            let receiver = self
-                                .program
-                                .statement_table
-                                .name_path_members(call.receiver)
-                                .iter()
-                                .map(|member| member.as_str().to_owned())
-                                .collect::<Vec<_>>();
                             known_boundary_call_written_paths_for_parts(
                                 self.program,
                                 current_machine,
@@ -239,9 +243,21 @@ impl<'program> CallFrameResolver<'program> {
                                 &receiver,
                                 call.target.as_str(),
                                 CallerWriteSite::Call(call),
-                                self.program
-                                    .statement_table
-                                    .expression_handles(call.arguments),
+                                arguments,
+                                inference,
+                            )
+                        })
+                        .or_else(|| {
+                            super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                                self.program,
+                                current_machine,
+                                &machine_symbols,
+                                &self.symbols,
+                                &receiver,
+                                call.target.as_str(),
+                                None,
+                                CallerWriteSite::Call(call),
+                                arguments,
                                 inference,
                             )
                         })
@@ -609,6 +625,14 @@ pub(super) fn collect_expression_call_written_paths(
                     call.receiver,
                 )
                 && super::machine_state_by_symbol(program, call.target_symbol).is_none()
+                && super::boundary_calls::requirement_signature_for_site(
+                    program,
+                    current_machine,
+                    receiver_members.as_deref().unwrap_or(&[]),
+                    call.target.as_str(),
+                    super::caller_aliases::CallerWriteSite::Expression(expression),
+                )
+                .is_none()
                 && !receiver_members.as_deref().is_some_and(|receiver| {
                     receiver_requires_boundary_frame(machine_symbols, symbols, receiver)
                 })
@@ -618,6 +642,11 @@ pub(super) fn collect_expression_call_written_paths(
             let exact_receiver = receiver_members.is_some();
             if !exact_receiver
                 && super::machine_state_by_symbol(program, call.target_symbol).is_none()
+                && super::boundary_calls::requirement_signature_by_target(
+                    program,
+                    call.target_symbol,
+                )
+                .is_none()
             {
                 return None;
             }
@@ -665,6 +694,20 @@ pub(super) fn collect_expression_call_written_paths(
                     symbols,
                     &receiver_members,
                     call.target.as_str(),
+                    CallerWriteSite::Expression(expression),
+                    arguments,
+                    inference,
+                )
+            })
+            .or_else(|| {
+                super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    &receiver_members,
+                    call.target.as_str(),
+                    receiver_origin.as_ref(),
                     CallerWriteSite::Expression(expression),
                     arguments,
                     inference,

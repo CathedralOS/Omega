@@ -52,6 +52,26 @@ pub(super) fn call_argument_types(
                 .map(|parameter| parameter.type_reference)
                 .collect()
         })
+        .or_else(|| {
+            // A resolved requirement signature supplies the same formal
+            // context. Declaration-qualified calls keep `self` in the
+            // pairing so later formals still align with their actuals.
+            super::boundary_calls::requirement_signature_for_site(
+                program,
+                current_machine,
+                receiver,
+                target_name,
+                site,
+            )
+            .map(|(signature, self_is_argument, _)| {
+                program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .filter(|parameter| self_is_argument || !parameter.is_self)
+                    .map(|parameter| parameter.type_reference)
+                    .collect()
+            })
+        })
         .unwrap_or_default();
     };
     if receiver.is_empty() == machine.attached_data.is_some()
