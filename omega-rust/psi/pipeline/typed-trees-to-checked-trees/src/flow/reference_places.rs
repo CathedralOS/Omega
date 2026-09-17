@@ -104,9 +104,27 @@ fn preserve_call_prefix_storage(
     places: &[CanonicalPlace],
 ) -> Option<()> {
     let calls = flow.control.calls.span_or_empty(state.calls);
-    let position = calls
+    // The prefix bound is the call's own position in the state's recorded
+    // execution order. Resolve it from the row's recorded identity — the
+    // `(statement_index, call_ordinal)` coordinate plus target and receiver
+    // symbols, the same fields `build_call_entry_contexts` uses — never the
+    // address the row occupies in this arena slice. A replayed copy of the
+    // same recorded row reaches the same bound; an absent or ambiguous
+    // identity declines rather than borrowing a same-shaped row's position.
+    let mut positions = calls
         .iter()
-        .position(|candidate| std::ptr::eq(candidate, call))?;
+        .enumerate()
+        .filter_map(|(position, candidate)| {
+            (candidate.statement_index == call.statement_index
+                && candidate.call_ordinal == call.call_ordinal
+                && candidate.target_symbol == call.target_symbol
+                && candidate.receiver_symbol == call.receiver_symbol)
+                .then_some(position)
+        });
+    let position = positions.next()?;
+    if positions.next().is_some() {
+        return None;
+    }
     for prior in calls[..position]
         .iter()
         .filter(|prior| prior.statement_index == call.statement_index)
