@@ -1172,3 +1172,29 @@ fn token_bound_machine_operand_selection_exit_canary_interprets() {
         "the token call and the named call should both return the wrapped sum 260"
     );
 }
+
+#[test]
+fn declared_operator_match_result_canary_interprets_both_arms() {
+    // OPERATOR-MACHINE-SUPPLY acceptance: the selected true arm runs
+    // `machine + Wrapped::add`'s own body and yields the wrapped sum 260u64;
+    // the false arm yields 1 without invoking the operator; the named call
+    // reaches the same body. Checked-only for the same reason as the
+    // operand-selection canary: borrowed local data arguments to a free
+    // machine have no native route yet.
+    let canary = pass_canary("expressions/declared_operator_match_result");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("declared operator match result should reach checked trees");
+    for (entry, expected) in [("select_true", 260), ("select_false", 1), ("by_name", 260)] {
+        let outcome = checked_interpreter::interpret_entry(
+            &checked,
+            entry,
+            &[],
+            checked_interpreter::InterpretOptions::default(),
+        );
+        assert_eq!(outcome.error, None, "{entry}");
+        assert_eq!(outcome.exit_code, expected, "{entry}");
+    }
+}
