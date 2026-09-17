@@ -265,6 +265,79 @@ fn direct_crash_fallthrough_projects_uniform_state_arrivals() {
 }
 
 #[test]
+fn checked_call_fallthrough_projects_unselected_arm_facts() {
+    // The callee's surviving route names its own parameter while the caller's
+    // published ceiling names the negated entry operand. Only the fallthrough
+    // fact `!flag` — established when the earlier arm was not selected —
+    // activates the published guard as a path consequence over the call.
+    let source = r#"
+        machine risky(flag: bool) -> bool
+        crashes Trap
+            flag
+        { flag }
+
+        machine value(flag: bool) -> bool
+        crashes Trap
+            !flag
+        {
+            transition { flag -> true }
+            transition { risky(flag) -> true }
+            crash Trap;
+        }
+    "#;
+    let checked =
+        check_fallthrough_coverage(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(symbol_of_checked(&checked, "value"))
+        .expect("contract plan");
+    let [call] = plan.crash.checked_calls() else {
+        panic!("one checked call");
+    };
+    let [bucket] = call.surviving_buckets() else {
+        panic!("the guarded route survives operand substitution");
+    };
+    assert_eq!(bucket.cause(), checked_trees::CrashCause::Trap);
+    assert!(
+        !call.path_guard_consequences().is_empty(),
+        "the unselected arm contributes its entry-term fact at the call"
+    );
+}
+
+#[test]
+fn checked_call_fallthrough_rejects_written_entry_claims() {
+    // A write before the guarded edge ends the parameter's entry provenance:
+    // the fallthrough then reads current storage, no `!flag` entry fact
+    // survives, and the surviving `flag` route stays uncovered.
+    let source = r#"
+        machine risky(flag: bool) -> bool
+        crashes Trap
+            flag
+        { flag }
+
+        machine value(mut flag: bool) -> bool
+        crashes Trap
+            !flag
+        {
+            flag = true;
+            transition { flag -> true }
+            transition { risky(flag) -> true }
+            crash Trap;
+        }
+    "#;
+    let diagnostics = check_fallthrough_coverage(source)
+        .expect_err("a current-storage read cannot claim the published entry route");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("call from `value` to `risky`")
+                && diagnostic.message.contains("uncovered Trap crash route")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn direct_crash_fallthrough_does_not_substitute_local_aliases() {
     // `saved` holds the entry operand's value, but its own spelling claims no
     // parameter position: the published route names `flag`, and no proven
