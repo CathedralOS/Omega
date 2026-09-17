@@ -1144,6 +1144,37 @@ fn runtime_enum_struct_payload_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_copy_sum_array_receiver_exit_canary_interprets_and_establishes_its_entry() {
+    // The entry receiver holds `[Token; 16]`, a fixed array of a copy sum with
+    // common fields and payload cases (the product lexer's `[Token; 16384]`
+    // shape). Unit planning admits the array element like a copy record, so a
+    // host-target checked compile selects the attached entry and rejoins its
+    // attachment identity; the interpreter oracle folds the three elements to
+    // 70. Native production is not claimed: the element store and element
+    // load statements are separate Unit slices.
+    let canary = pass_canary(fixture_roster::RUNTIME_COPY_SUM_ARRAY_RECEIVER_EXIT);
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+        .expect("copy-sum-array receiver canary should compile to checked trees");
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should fold the copy-sum array to 70, got {} ({:?})",
+        outcome.exit_code, outcome.error
+    );
+
+    let established = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some(crate::native_hosted_target()),
+    ))
+    .expect("the host target selects the attached entry over the copy-sum array receiver");
+    assert!(
+        established.selected_program_entry_machine().is_some(),
+        "ProgramEntry establishment rejoins the receiver's attachment identity"
+    );
+}
+
+#[test]
 fn runtime_enum_classify_dispatch_exit_canary_runs() {
     // A value-machine returns an enum computed through nested runtime guards (a sign classifier),
     // dispatched by a multi-arm match. All three classifications (Pos/Neg/Zero) are checked, so a

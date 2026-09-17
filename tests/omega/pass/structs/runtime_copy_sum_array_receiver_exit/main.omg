@@ -1,0 +1,122 @@
+// INTERPRETER CANARY (exit 70) + host-target checked establishment. The
+// ENTRY RECEIVER holds a FIXED ARRAY OF A COPY SUM with common fields and
+// payload cases (`[Token; 16]`, the shape of the product lexer's
+// `[Token; 16384]`). Unit planning admitted a copy record or a primitive as
+// an array element but not a sum, so `Main::main` had no Unit plan and
+// ProgramEntry establishment rejoined no attachment identity. The machine
+// fills three elements, walks them through a bounded index witness,
+// dispatches on each element's case and its nested payload sum, and folds a
+// weighted total: Word 1 + Number 30 x Weighted 2 + Number 5 x Plain 1 +
+// base 4 = 70. Native production still stops on the element store and the
+// element load (`local data: structural call binding`), which are separate
+// Unit statement slices.
+// exits: 70 = every element read back exactly; 71 = a case, payload or
+// common field was lost inside the array.
+use omega_language_std::console;
+
+data Kind [copy] {
+    case Plain;
+    case Weighted(weight: u64 in Trapping);
+}
+
+data Token [copy] {
+    start: u64 in Trapping;
+    case Word;
+    case Number(value: u64 in Trapping, kind: Kind);
+}
+
+data Main {
+    console: Console;
+    tokens: [Token; 16] in Trapping;
+    count: u64 [0..=16];
+    total: u64 in Trapping;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.tokens[0] = Token::Word { start: 1 };
+    self.tokens[1] = Token::Number { start: 4, value: 30, kind: Kind::Weighted { weight: 2 } };
+    self.tokens[2] = Token::Number { start: 9, value: 5, kind: Kind::Plain };
+    self.count = 3;
+    self.total = 4;
+    transition { _ -> scan(0) }
+
+    state scan(&mut self, index: u64 in Trapping) {
+        transition index < self.count {
+            true -> bound(index as u64)
+            _ -> finish()
+        }
+    }
+
+    state bound(&mut self, index: u64) {
+        transition index < 16 {
+            true -> classify(index)
+            _ -> finish()
+        }
+    }
+
+    state classify(&mut self, index: u64 [0..=15]) {
+        let token: Token = self.tokens[index];
+        transition token {
+            Token::Word -> word(index, token.start)
+            Token::Number { value, kind } -> number(index, token.start, value, kind)
+        }
+    }
+
+    state word(&mut self, index: u64 [0..=15], start: u64 in Trapping) {
+        self.total = self.total + start;
+        transition { _ -> scan(index + 1) }
+    }
+
+    state number(
+        &mut self,
+        index: u64 [0..=15],
+        start: u64 in Trapping,
+        value: u64 in Trapping,
+        kind: Kind
+    ) {
+        transition kind {
+            Kind::Weighted { weight } -> weighted(index, start, value, weight)
+            _ -> plain(index, start, value)
+        }
+    }
+
+    state weighted(
+        &mut self,
+        index: u64 [0..=15],
+        start: u64 in Trapping,
+        value: u64 in Trapping,
+        weight: u64 in Trapping
+    ) {
+        transition start == 4 {
+            true -> accumulate(index, value * weight)
+            _ -> bad()
+        }
+    }
+
+    state plain(&mut self, index: u64 [0..=15], start: u64 in Trapping, value: u64 in Trapping) {
+        transition start == 9 {
+            true -> accumulate(index, value)
+            _ -> bad()
+        }
+    }
+
+    state accumulate(&mut self, index: u64 [0..=15], amount: u64 in Trapping) {
+        self.total = self.total + amount;
+        transition { _ -> scan(index + 1) }
+    }
+
+    state finish(&mut self) {
+        transition self.total == 70 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
