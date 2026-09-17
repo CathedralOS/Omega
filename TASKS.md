@@ -1628,8 +1628,28 @@ Owners include
   in `layout-plans`, and
   `recursive_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
   in `compiler/tests/layout_plans/writer_lowering.rs` (x86-64 native leg
-  executed). Next acceptance: run the `symbolic_materialization` filter on a
-  Linux aarch64 host, then open target-dependent placement.
+  executed). `382fcc833b` then lifted direct record arrays under the same
+  general recursive rule: every record level may also co-locate nonzero
+  literal `[R; N]` record fields whose element record still reaches sums
+  (`child_record_array_layouts` on `ConventionalRecordSumPathsLayoutReport`
+  and the recursive `Leaf` in
+  `omega-rust/psi/foundation/layout-plans/src/layout_reports/mod.rs`;
+  `project_record_array_row` in
+  `omega/backend/layout/src/sum_materialization.rs` retains the element
+  record's shared recursive report once beside the literal count and stride;
+  `SymbolicFieldInteriorLayout::RecordArray` carriers fold through
+  `from_recursive_sum_paths`; build-time evaluation's
+  `ValidatedConstRecordArrayFieldMaterialization` retains per-element
+  recursive custody, replay, and fingerprints under the same bounded
+  traversal). Coverage:
+  `recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths` in
+  `omega/backend/layout/src/sum_materialization/tests/recursive.rs`,
+  `symbolic_recursive_record_array_materialization_composes_element_boundaries`
+  and `symbolic_recursive_record_array_paths_stay_symbolic_until_assignment`
+  in `layout-plans`, and the record-array drift fixture in
+  `build-time-evaluation`'s recursive tests. Next acceptance: run the
+  `symbolic_materialization` filter on a Linux aarch64 host, then open
+  target-dependent placement.
 
 ## P3 - Terminal Psi, PCC, and observation
 
