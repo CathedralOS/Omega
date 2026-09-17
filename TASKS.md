@@ -2771,9 +2771,12 @@ Owners include
   when selected; the 17 `pass|fail/domains` fixtures and
   `fail/operators/duplicate_spelling_binding` author that form, with two
   expected fragments reworded; bindings whose owner is a compiler-owned
-  carrier such as `u64::custom` in `arithmetic/`, `collections/`,
-  `termination/` and `std/units.omg` cannot take the machine form as
-  authored and need a domain or declared owner); the `IndexAlgebra::plus`
+  carrier cannot take the machine form as authored, so at 929e3d5700 the
+  five `arithmetic/authored_*`, `field_singleton_authored_equality` and
+  `collections/authored_*` fixtures bind their token through a
+  fixture-local domain on the compared operand with every fragment kept,
+  while `termination/computed_measure_authored_operator` and
+  `std/units.omg` still author `operator`); the `IndexAlgebra::plus`
   satisfier pairs (4) wait on the unqualified operand-tuple home typing;
   `[]`/`[..]`/comparison positions still reject fail-closed at body
   supply.
