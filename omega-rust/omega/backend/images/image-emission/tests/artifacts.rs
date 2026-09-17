@@ -6,6 +6,8 @@
 
 #[path = "artifacts/dynamic_and_cleanup_plans.rs"]
 mod dynamic_and_cleanup_plans;
+#[path = "artifacts/dynamic_elf_route.rs"]
+mod dynamic_elf_route;
 #[path = "artifacts/hosted_exit_runtime.rs"]
 mod hosted_exit_runtime;
 #[path = "artifacts/installation_field_substitutions.rs"]
@@ -40,8 +42,9 @@ use dynamic_and_cleanup_plans::{
 use provider_and_call_plans::{
     WriteExitProvider, admitted_x86_fma_provider, artifact_symbol,
     assert_header_substitution_rejected, callback_private_plan, internal_call_plan,
-    linux_write_line_exit_plan, port_effect_plan, refresh_x86_fma_identity, structural_return_plan,
-    two_function_plan, windows_foreign_call_plan, x86_fma_plan,
+    linux_foreign_call_plan, linux_write_line_exit_plan, port_effect_plan,
+    refresh_x86_fma_identity, structural_return_plan, two_function_plan, windows_foreign_call_plan,
+    x86_fma_plan,
 };
 use scalar_plans::{
     aarch64_words, account_aarch64_unit_call, account_x86_unit_call, conditional_tree,
