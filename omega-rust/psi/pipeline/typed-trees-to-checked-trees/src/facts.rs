@@ -36,6 +36,21 @@ pub(crate) use crash_plan_facts::{
 };
 pub(crate) use dynamic_conformance::normalized_dynamic_row_identities;
 
+/// Checker-side read of the shared crash entry-provenance law. Guard
+/// admission and call-actual substitution must agree on when a source read
+/// still evaluates to the invocation-entry operand its spelling claims;
+/// `crash_entry_values` stays the only owner of that answer, so this
+/// forwards without re-deriving provenance in the check layer.
+pub(crate) fn crash_entry_operand(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    before_statement: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<checked_trees::CrashPredicateExpression> {
+    crash_entry_values::entry_operand(program, machine, state, before_statement, expression)
+}
+
 use crate::borrow::build_borrow_facts;
 use crate::facts::capabilities::build_capability_facts;
 use crate::facts::contract_plan_facts::{build_contract_plans, build_mutation_facts};

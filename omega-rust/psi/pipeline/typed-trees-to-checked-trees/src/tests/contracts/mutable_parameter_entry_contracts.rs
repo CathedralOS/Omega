@@ -214,3 +214,123 @@ fn current_mutable_guard_cannot_cover_a_call_with_a_false_entry_crash_route() {
         "{diagnostics:#?}"
     );
 }
+
+#[test]
+fn pristine_mutable_guard_covers_a_call_with_an_entry_crash_route() {
+    for source in [
+        // The read still holds the bound snapshot: no statement before or
+        // inside the guarded edge could have written `input`.
+        r#"
+        machine trigger() -> bool crashes Trap { crash Trap; }
+        machine value(mut input: bool) -> bool
+        crashes Trap input
+        {
+            transition input { true -> invoke() false -> false }
+            state invoke() -> bool { trigger() }
+        }
+    "#,
+        // A mutable parameter forwarded into a mutable slot keeps entry
+        // provenance through the edge: both storages are pristine at their
+        // reads, so `mid`'s `input` still names the entry operand.
+        r#"
+        machine trigger() -> bool crashes Trap { crash Trap; }
+        machine value(mut input: bool) -> bool
+        crashes Trap input
+        {
+            transition input { true -> mid(input) false -> false }
+            state mid(mut input: bool) -> bool {
+                transition input { true -> invoke() false -> false }
+            }
+            state invoke() -> bool { trigger() }
+        }
+    "#,
+        // An immutable parameter bound to the entry operand under the same
+        // spelling covers through its own state's guard.
+        r#"
+        machine trigger() -> bool crashes Trap { crash Trap; }
+        machine value(input: bool, other: bool) -> bool
+        crashes Trap input
+        {
+            transition other { true -> mid(input) false -> mid(input) }
+            state mid(input: bool) -> bool {
+                transition input { true -> invoke() false -> false }
+            }
+            state invoke() -> bool { trigger() }
+        }
+    "#,
+    ] {
+        lower_typed_trees(parse_typed_trees(source)).unwrap_or_else(|diagnostics| {
+            panic!("a guard that still reads the entry operand covers: {diagnostics:#?}")
+        });
+    }
+}
+
+#[test]
+fn a_clean_guard_conjunct_survives_its_mutated_sibling() {
+    // `other` was written, so it can no longer claim an entry operand; the
+    // edge still requires the pristine `input`, which covers the route.
+    let source = r#"
+        machine trigger() -> bool crashes Trap { crash Trap; }
+        machine value(mut input: bool, mut other: bool) -> bool
+        crashes Trap input
+        {
+            other = true;
+            transition input && other { true -> invoke() false -> false }
+            state invoke() -> bool { trigger() }
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source)).unwrap_or_else(|diagnostics| {
+        panic!("a pristine conjunct covers despite a spoiled sibling: {diagnostics:#?}")
+    });
+}
+
+#[test]
+fn a_mutated_guard_conjunct_does_not_survive_its_clean_sibling() {
+    // Only `other` still holds its entry operand; the route names `input`,
+    // which was written before the guard and cannot be rescued.
+    let source = r#"
+        machine trigger() -> bool crashes Trap { crash Trap; }
+        machine value(mut input: bool, mut other: bool) -> bool
+        crashes Trap input
+        {
+            input = true;
+            transition input && other { true -> invoke() false -> false }
+            state invoke() -> bool { trigger() }
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the written operand cannot claim the entry route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered Trap crash route")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn a_same_name_parameter_bound_elsewhere_cannot_impersonate_the_entry_operand() {
+    // `mid`'s `input` is bound to the entry `other` parameter, so its guard
+    // proves `other`, not `input`. The name spelling alone cannot claim the
+    // published `input` route.
+    let source = r#"
+        machine trigger() -> bool crashes Trap { crash Trap; }
+        machine value(input: bool, other: bool) -> bool
+        crashes Trap input
+        {
+            transition other { true -> mid(other) false -> mid(other) }
+            state mid(input: bool) -> bool {
+                transition input { true -> invoke() false -> false }
+            }
+            state invoke() -> bool { trigger() }
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a name-collided binding is not the named entry operand");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered Trap crash route")),
+        "{diagnostics:#?}"
+    );
+}
