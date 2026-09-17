@@ -28,4 +28,8 @@ canonical evidence uses package-qualified declarations, not arena identity.
 `provider_planning.rs` currently rejects selected Independent composition before checked
 product/review publication because component closure and the Service carrier are
 not yet constructed. Retaining a mode in provenance is not implementation of
-that mode, and the rejection must not become a Fused fallback.
+that mode, and the rejection must not become a Fused fallback. The consumer-side
+join now exists as `VerifiedComponent::realizes_selected_plan` in
+`component-candidate`, but this crate cannot consume it: the architecture test
+keeps `component-candidate` out of the ordinary compiler closure, and only the
+verifier-owned carrier may establish the join (a copied inventory cannot).

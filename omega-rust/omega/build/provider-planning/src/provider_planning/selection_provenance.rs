@@ -161,6 +161,17 @@ pub fn selected_provider_plan_facts(
                 continue;
             }
         };
+        // Component-closure fence. Closing an `Independent` edge needs the
+        // consumer to join this plan to exactly one independently verified
+        // provider component (`component_candidate::VerifiedComponent::
+        // realizes_selected_plan`, which matches the selected provider type
+        // and every checked-adapter row against the verified module's
+        // provider-candidate catalog). That carrier cannot be named here:
+        // `tests/architecture/layering.rs` keeps `component-candidate` out of
+        // this crate's closure, and a projection of its fields would be the
+        // hand-authored inventory the publication contract forbids. Until the
+        // consumer moves below that quarantine, reject rather than fall back
+        // to Fused.
         if composition_mode == crate::CompositionMode::Independent {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "selected provider plan `{}` retains independent composition, but its checked component closure and Service carrier have not yet been constructed; refusing to treat the edge as fused",
