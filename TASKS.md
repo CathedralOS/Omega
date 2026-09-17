@@ -4552,7 +4552,7 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   and production pipeline, passes the shared product suite, and publishes a
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
-  Resume (macOS ARM64, a9b8577b8c on 485327f492): `omega --check
+  Resume (macOS ARM64, dd35ac7cb9 on d0371277e3): `omega --check
   source/omega/main.omg` runs the complete Psi checked stage and the std
   calling-policy admission and stops on one diagnostic, `root slot
   alpha_bootstrap::ProgramEntry belongs to unknown target profile
@@ -4565,48 +4565,49 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   OWNER_QUESTIONS 9) and build-time member selections confine on their
   exact owner package (43ed6089a2). The generic `selected ProgramEntry
   establishment rejoins 0 Terminal attachment identities; expected one`
-  stop was a regression: bisected on origin/main with the cli_mvp library
-  test (2b4d09d833 good, 8508aec01e bad, `omega: honest blocking/crash
-  envelope for hosted byte input`), which gave std's `read_line` and
-  `read_byte` `blocks;` while the Unit builder refused every blocking
-  boundary call and requirement; a9b8577b8c admits them (only `suspends`
-  stays fenced) and `omega --check samples/cli/basics/cli_mvp/main.omg`
-  compiles again in 248.2 s. The same commit also gave the hosted read
-  `crashes Trap;`, and the native leg of that test now stops in Terminal
+  stop was a regression from 8508aec01e (std `read_line`/`read_byte`
+  gained `blocks;` while the Unit builder refused blocking boundary
+  calls); ccfa48ddae admits them and `omega --check
+  samples/cli/basics/cli_mvp/main.omg` compiles again in 248.2 s. Behind
+  it the native leg of the cli_mvp library test stops in Terminal
   verification on `CallCrashContinuationUncovered { operation:
-  OperationId(5), cause: Trap }` because a private body's inferred crash
-  interface lowers to no crash routes
-  (`checked-trees-to-lowered-psi/src/proofs/crash_routes.rs::lower_checked_crash_routes`
-  reads `CrashPlan::published()`); with `crashes Trap` authored on the
-  std `read_line` adapter and the sample entry, Terminal verification
-  passes and native lowering rejects
-  `UnsupportedBoundaryCrashContract(BoundaryMachineId(2))`, the open
-  Omega projection of boundary crash routes. Both are CRASH-CONTRACT
-  scope and neither declaration was kept. The parser gate
-  (`source/psi/gates/parser/`, harness in its own package since
-  f03f8b4dad; 5c40dd26b0 stopped counting copy cycle parameters as
-  write-capable roots, 3340.6 s kill to 174.4 s; 485327f492's harness
-  declares `reaches Console` and reads the rejection span first) completes
-  the same checked stage in 1588.2 s wall / 1434.4 s user and still stops
-  on the establishment rejoin for its own reason: `ParserHarness::main`
-  has no Unit plan because its attached receiver reaches a fixed array of
-  a copy sum (`TokenStream.tokens: [Token; 16384]`), omission `state
-  graph: state signature: parameter signature: attached data shape`
-  (`execution/unit/types/build_types.rs`, the `[Sum; N]` element is
-  neither an unrestricted primitive, a material record, a nested
-  primitive array nor linear; a nine-shape probe admits bool, ranged,
-  trapping, byte-array, copy-sum, payload-sum, copy-record-array and
-  nested-record receivers and omits only `[Kind; 16]`). The product
-  `Main { lexer; parser }` receiver carries the same array, so both
-  legs of
+  OperationId(5), cause: Trap }` (a private body's inferred crash
+  interface lowers to no crash routes,
+  `checked-trees-to-lowered-psi/src/proofs/crash_routes.rs`) and, with
+  `crashes Trap` authored on the std `read_line` adapter and the sample
+  entry, on native lowering's
+  `UnsupportedBoundaryCrashContract(BoundaryMachineId(2))`; both are
+  CRASH-CONTRACT scope and neither declaration was kept. The parser gate
+  (`source/psi/gates/parser/`; f6c762c501 harness reach/span fixes;
+  5c40dd26b0 write-frame law, 3340.6 s kill to 174.4 s) completes the
+  checked stage in 1538.3 s wall / 1402.2 s user. dd35ac7cb9 gives its
+  receiver a Unit shape: a fixed array of a copy sum with payload cases
+  (`TokenStream.tokens: [Token; 16384]`) is now a material array element
+  (`execution/unit/types/build_types.rs`, Terminal already spells
+  `FixedArray` over `Sum`/`Mixed`; `tests/flow/terminal_unit/attached_receiver_shapes.rs`
+  pins the nine-shape probe and
+  `pass/structs/runtime_copy_sum_array_receiver_exit` exits 70 in the
+  interpreter and establishes its entry under the host target). The gate
+  now stops one state later, still on the establishment rejoin:
+  `ParserHarness::main` omission `statement sequence: call: call
+  operation`, state 2 (`retain`), statement 0, the attached call through
+  a nested receiver field with a cast argument
+  `self.lexer.append_source_byte(value as u8)`; the product `Main::main`
+  `retain` state is the same statement, so both legs of
   `command_line::routed_production_entry_roots_pass_real_package_resolution`
-  wait on that Unit shape and on OWNER_QUESTIONS 8. Known baseline reds
-  met on the way (485327f492): `compiler --test calling_policy_plans`
-  fails 3 `macos_entry` tests on duplicate std declarations, `validation`
-  suite fails
+  wait on that call shape (and the product on OWNER_QUESTIONS 8). Native
+  production of the new fixture is not claimed either: its entry's
+  element store (`structural field store: scalar field type`) and element
+  load (`local data: structural call binding`) are separate Unit statement
+  slices. Known baseline reds met on the way (d0371277e3): `compiler
+  --test calling_policy_plans` fails 3 `macos_entry` tests on duplicate
+  std declarations, `validation` suite fails
   `match_values::fresh_match_containers_cannot_hide_existing_owned_inputs_or_cleanup`,
   `typed-trees-to-checked-trees --lib` fails 3 tests and carries 8 clippy
-  errors, and the `control_flow/` pass leg fails the same 23 fixtures.
+  errors, `canary_suite` fails
+  `discovered_exact_native_coverage_is_consistent` (798 against 797) and
+  carries unused-import clippy errors on macOS, and the `control_flow/`
+  pass leg fails the same 23 fixtures.
 
 ## Platform-gated verification
 
