@@ -618,6 +618,13 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "data/property_carry_declared",
     "domains/transparent_alias_expansion",
     "domains/domain_import_valid",
+    // Module-owned domain exposure through imports: a broad `use units;`
+    // exposes the declared carrier-qualified spelling `u64::Distance` as a
+    // type constraint and in executable membership, and a narrow
+    // `use units::u64::Distance;` exposes both that spelling and the bare
+    // leaf. Each entry body is empty, so checked semantics is the witness.
+    "domains/module_domain_carrier_qualified_import",
+    "domains/module_domain_narrow_import_spelling",
     "domains/explicit_domain_erasure",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
@@ -1156,6 +1163,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "domains/domain_import_cycle",
     "domains/domain_import_unknown",
     "domains/domain_import_wrong_target",
+    // A broad `use units;` exposes only the carrier-qualified `u64::Distance`;
+    // the bare leaf `Distance` is not a local name for the carrier.
+    "domains/module_domain_broad_import_hides_leaf",
     "domains/domain_alias_cycle",
     "domains/domain_alias_publishes_private_constituent",
     "domains/domain_alias_unknown",
