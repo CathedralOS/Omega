@@ -2067,11 +2067,27 @@ Owners include
   `requires n < bound` names the erased binding and Terminal contract
   propositions (`scalar_contracts.rs`, `crash_routes/scalar_terms.rs`)
   carry no proof-only value term for it ("crash predicate value position
-  is outside the selected scalar namespace"). Next acceptance: a
-  proof-only value term in Terminal contract propositions so that
-  fixture leaves `CHECKED_ONLY_PASS_CANARIES`; named transition arguments
-  still validate as runtime reads, so an erased binding cannot yet flow
-  into an erased state parameter through a transition.
+  is outside the selected scalar namespace"). At 0f162ee0b3 named
+  transition arguments follow the call rule, so an erased machine
+  parameter forwards into an erased state parameter through
+  `transition { _ -> store(n, bound) }`
+  (`pass/relevance/erased_parameter_named_transition_forward`,
+  `fail/relevance/erased_state_parameter_runtime_read`, checked-only).
+  Next acceptance: a proof-only scalar term for erased formals in
+  Terminal contracts as one vertical slice: `ScalarTerm::ErasedParameter`
+  in `semantic-vocabulary`, a contract erased-formal roster and per-call
+  `erased_arguments` in `terminal-psi` (both in the contract commitment),
+  one codec tag with old bytes rejecting per the encoding contract,
+  verifier substitution of erased formals by the caller's erased actual
+  term in `call_composition.rs`, and the producer mapping in
+  `values/scalar/contract_entry.rs` and `scalar_contracts.rs`. A
+  `requires` naming an erased binding is verifier-only (an erased
+  binding cannot determine runtime data or control, so it never becomes a
+  crash route), and an erased actual is limited to the existing
+  `ScalarTerm` closure over literals, caller values, field reads and
+  caller erased formals, with anything else rejecting at the initializer.
+  The interpreter and native lowering need no evaluation path because
+  `requires` is verifier-only today.
 
 ## P4 - ABI, borrowing, and callbacks
 
