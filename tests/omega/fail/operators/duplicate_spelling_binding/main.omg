@@ -1,10 +1,20 @@
 // Settled ambiguity rule: the same fixed token with overlapping
-// receiver/operand types is a compile error. Both operators spell `+` over the
-// same `(i32, i32)` operand types, so they are ambiguous.
+// receiver/operand types is a compile error. Both bindings spell `+` for the
+// owner `Wrapped` over the same `(&Wrapped, &Wrapped)` operand shape --
+// reference lifetimes are borrow-region tags and never distinguish shapes --
+// so the second declaration rejects. A compiler-owned carrier such as `i32`
+// accepts no direct token binding at all, so the overlap rule is pinned on a
+// declared owner.
 
-operator + i32::add(left: i32, right: i32) -> i32;
+data Wrapped { value: u8; }
 
-operator + i32::plus(left: i32, right: i32) -> i32;
+machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64 {
+    (left.value as u64) + (right.value as u64)
+}
+
+machine + Wrapped::plus<'scope>(left: &'scope Wrapped, right: &'scope Wrapped) -> u64 {
+    (right.value as u64) + (left.value as u64)
+}
 
 data Main {
 }
