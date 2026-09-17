@@ -204,7 +204,9 @@ fn scalar_boundary_wrapper_does_not_erase_scalar_requirements() {
             .requires(),
         [Some(checked_trees::ClosedScalarContractValue::Predicate(_))]
     ));
-    let unsupported = checked(&source.replace("1 <= value", "value + 0 <= 100"));
+    // Exact `+`/`-`/`*` arithmetic is closed contract vocabulary; a bitwise
+    // operand is not.
+    let unsupported = checked(&source.replace("1 <= value", "value & 1 <= 100"));
     let target = machine_named(&unsupported, "Scalar::measure");
     assert!(
         unsupported

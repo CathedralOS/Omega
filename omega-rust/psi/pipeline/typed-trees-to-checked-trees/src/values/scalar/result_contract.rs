@@ -108,6 +108,109 @@ impl ContractPredicates<'_, '_> {
         })
     }
 
+    /// One comparison operand as a typed scalar term: an exact entry/result
+    /// subject, or exact integer arithmetic (`+`, `-`, `*` with builtin
+    /// meaning) over such subjects and contextual integer literals. The
+    /// carrier must be an exact-domain integer; a wrapping/saturating/
+    /// trapping operand or any other spelling stays outside the closed
+    /// language and lowers to `None`.
+    fn integer_term(
+        &self,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
+        let program = self.program;
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(_) => {
+                let (position, reference) = self.subject(expression)?;
+                Some((
+                    CheckedScalarExpression::Parameter {
+                        position,
+                        primitive_type: program.primitive_type_reference(reference)?,
+                    },
+                    reference,
+                ))
+            }
+            ExpressionNode::Binary(binary)
+                if depth < 64 && operator_is_builtin(self.operators, expression) =>
+            {
+                use checked_trees::CheckedIntegerBinaryKind;
+                let kind = match binary.operator {
+                    BinaryOperator::Add => CheckedIntegerBinaryKind::ExactAdd,
+                    BinaryOperator::Subtract => CheckedIntegerBinaryKind::ExactSubtract,
+                    BinaryOperator::Multiply => CheckedIntegerBinaryKind::ExactMultiply,
+                    _ => return None,
+                };
+                let terms = [binary.left, binary.right]
+                    .map(|operand| self.integer_term(operand, depth + 1));
+                // The typed peer supplies the carrier; a literal peer lands on
+                // it. Two literals have no carrier and stay unsupported here.
+                let (carrier_type, reference) =
+                    terms.iter().flatten().find_map(|(term, reference)| {
+                        Some((scalar_expression_type(term)?, *reference))
+                    })?;
+                if !is_integer(carrier_type)
+                    || program.arithmetic_domain_for_type_reference(reference)
+                        != ArithmeticDomain::Exact
+                {
+                    return None;
+                }
+                let operand_types = [Some(reference), Some(reference)];
+                if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    self.machine.symbol,
+                    expression,
+                    match binary.operator {
+                        BinaryOperator::Add => language_core::OperatorSpelling::Add,
+                        BinaryOperator::Subtract => language_core::OperatorSpelling::Subtract,
+                        _ => language_core::OperatorSpelling::Multiply,
+                    },
+                    &operand_types,
+                ) {
+                    return None;
+                }
+                let [left, right] = [
+                    (binary.left, terms[0].clone()),
+                    (binary.right, terms[1].clone()),
+                ]
+                .map(|(operand, term)| match term {
+                    Some((term, _)) => {
+                        (scalar_expression_type(&term) == Some(carrier_type)).then_some(term)
+                    }
+                    None => {
+                        if !matches!(
+                            program.expression_table.expression(operand),
+                            ExpressionNode::Integer(_)
+                        ) {
+                            return None;
+                        }
+                        lower_return_expression(
+                            program,
+                            self.operators,
+                            operand,
+                            &[],
+                            &[],
+                            &[],
+                            &[],
+                            carrier_type,
+                            &[],
+                        )
+                    }
+                });
+                Some((
+                    CheckedScalarExpression::IntegerBinary {
+                        kind,
+                        primitive_type: carrier_type,
+                        left: Box::new(left?),
+                        right: Box::new(right?),
+                    },
+                    reference,
+                ))
+            }
+            _ => None,
+        }
+    }
+
     fn boolean_type(&self, expression: ExpressionHandle) -> Option<TypeReferenceHandle> {
         if matches!(
             self.program.expression_table.expression(expression),
@@ -157,16 +260,8 @@ impl ContractPredicates<'_, '_> {
                 )))
             }
             ExpressionNode::Binary(binary) if operator_is_builtin(self.operators, expression) => {
-                let subjects = [binary.left, binary.right].map(|expression| {
-                    let (position, reference) = self.subject(expression)?;
-                    Some((
-                        CheckedScalarExpression::Parameter {
-                            position,
-                            primitive_type: program.primitive_type_reference(reference)?,
-                        },
-                        reference,
-                    ))
-                });
+                let subjects =
+                    [binary.left, binary.right].map(|expression| self.integer_term(expression, 0));
                 if let Some(comparison) = lower_integer_contract_comparison(
                     program,
                     self.operators,
