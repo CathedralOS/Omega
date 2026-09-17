@@ -1,7 +1,9 @@
-//! Exact scalar entry-rank preservation through direct disjoint stores. The
-//! shared write-frame owner closes aliases; an opaque frame is not evidence.
+//! Exact scalar entry-rank preservation through direct disjoint stores and
+//! statement calls whose complete write frames stay disjoint. The shared
+//! write-frame owner closes aliases; an opaque frame is not evidence.
 
 use crate::machine_calls::calls::{CallFrameResolver, frame_paths_overlap};
+use facts::NormalizedWriteFrame;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
@@ -34,14 +36,6 @@ pub(super) fn preserves_rank(
             | RankOrder::DeclaredIdentity { .. }
             | RankOrder::DeclaredComputation { .. }
     ) {
-        return false;
-    }
-    let StatementNode::Assignment(assignment) = statement else {
-        return false;
-    };
-    if !super::expression_is_inert(program, machine, state, assignment.target)
-        || !super::expression_is_inert(program, machine, state, assignment.value)
-    {
         return false;
     }
     let Some(premises) = premises else {
@@ -81,15 +75,48 @@ pub(super) fn preserves_rank(
         })
         .map(|(parameter, _)| parameter.name.as_str())
         .collect::<Vec<_>>();
-    frames
-        .and_then(|frames| {
-            frames
-                .assignment_write_frame(machine, statement)
-                .into_complete_paths()
-        })
-        .is_some_and(|paths| {
+    let disjoint = |frame: NormalizedWriteFrame| {
+        frame.into_complete_paths().is_some_and(|paths| {
             protected
                 .iter()
                 .all(|input| paths.iter().all(|path| !frame_paths_overlap(path, input)))
         })
+    };
+    match statement {
+        StatementNode::Assignment(assignment) => {
+            if !super::expression_is_inert(program, machine, state, assignment.target)
+                || !super::expression_is_inert(program, machine, state, assignment.value)
+            {
+                return false;
+            }
+            frames.is_some_and(|frames| disjoint(frames.assignment_write_frame(machine, statement)))
+        }
+        StatementNode::Call(call) => {
+            // A statement-position call keeps the transition-actuals bar:
+            // inert arguments, then complete write-frame evidence disjoint
+            // from every protected carrier -- the call's own frame plus the
+            // aggregated frame of any value calls nested in its arguments.
+            // An authored operator or index selection inside an argument
+            // could hide a write no frame sees, so the inertness check is
+            // structural rather than delegated to the frames. Only a
+            // checked-body callee's frame is admitted: boundary, requirement,
+            // and admitted declarations resolve a signature state whose empty
+            // body summary would claim an exclusive argument write never
+            // happened.
+            let callee_machine = program.symbols.get(call.target_symbol).parent;
+            program.machines().iter().any(|candidate| {
+                (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
+                    && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            }) && program
+                .statement_table
+                .expression_handles(call.arguments)
+                .iter()
+                .all(|argument| super::expression_is_inert(program, machine, state, *argument))
+                && frames.is_some_and(|frames| {
+                    disjoint(frames.may_write_frame(machine, call))
+                        && disjoint(frames.statement_value_write_frame(machine, statement))
+                })
+        }
+        _ => false,
+    }
 }

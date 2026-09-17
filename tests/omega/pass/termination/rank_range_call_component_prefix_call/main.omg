@@ -1,0 +1,34 @@
+// PASS CANARY. `scan_a` issues `self.audit(index)` before its component edge.
+// The checked-body callee's complete write frame is empty, so no protected
+// premise carrier -- the ranked pair `index`/`limit` or the requires fact --
+// is written; the entry-relative bounded distance still describes the call's
+// actual arguments.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(0, 4) }
+}
+
+machine Main::audit(&mut self, value: u64) {
+}
+
+machine Main::scan_a(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
+requires index <= limit;
+terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
+-> u64 {
+    self.audit(index);
+    transition index < limit {
+        true -> self.scan_b(index + 1, limit)
+        false -> index
+    }
+}
+
+machine Main::scan_b(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
+requires index <= limit;
+terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
+-> u64 {
+    transition index < limit {
+        true -> self.scan_a(index + 1, limit)
+        false -> index
+    }
+}

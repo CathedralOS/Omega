@@ -311,6 +311,75 @@ fn ranged_call_arithmetic_proves_a_variable_positive_step() {
     assert_eq!(admitted(&program).len(), 1);
 }
 
+const PREFIX_CALL: &str = "data Main {}
+    machine Main::audit(&mut self, value: u64) -> u64 { value }
+    machine Main::scan_a(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
+    requires index <= limit;
+    terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
+    -> u64 {
+        self.audit(index);
+        transition index < limit {
+            true -> self.scan_b(index + 1, limit)
+            false -> index
+        }
+    }
+    machine Main::scan_b(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
+    requires index <= limit;
+    terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
+    -> u64 {
+        transition index < limit {
+            true -> self.scan_a(index + 1, limit)
+            false -> index
+        }
+    }";
+
+#[test]
+fn prefix_call_with_a_disjoint_write_frame_preserves_the_component_ranking() {
+    assert_eq!(admitted(&typed_source(PREFIX_CALL)).len(), 1);
+    // The callee may write its own storage; only premise carriers matter.
+    let storage_write = PREFIX_CALL
+        .replace("data Main {}", "data Main { audits: u64 }")
+        .replace("{ value }", "{ self.audits = self.audits + 1; value }");
+    assert_eq!(admitted(&typed_source(&storage_write)).len(), 1);
+}
+
+#[test]
+fn prefix_call_writing_a_premise_carrier_rejects_the_component() {
+    // The callee writes through its mutable borrow into the ranked subject.
+    let written = PREFIX_CALL
+        .replace(
+            "machine Main::audit(&mut self, value: u64) -> u64 { value }",
+            "machine Main::audit(&mut self, value: &mut u64) -> u64 { value = value + 1; 0 }",
+        )
+        .replace("self.audit(index);", "self.audit(&mut index);")
+        .replace(
+            "machine Main::scan_a(&mut self, index: u64 [0..=4], limit",
+            "machine Main::scan_a(&mut self, mut index: u64 [0..=4], limit",
+        );
+    assert_ne!(written, PREFIX_CALL);
+    assert!(admitted(&typed_source(&written)).is_empty());
+    // An argument hiding an authored operator has no frame evidence at all.
+    let authored = format!(
+        "operator - u64::sub(left: u64, right: u64) -> u64; {}",
+        PREFIX_CALL.replace("self.audit(index);", "self.audit(index - 1);")
+    );
+    assert!(admitted(&typed_source(&authored)).is_empty());
+    // A boundary callee's signature state has no body to summarize: its
+    // exclusive-argument reach must not be assumed empty.
+    let boundary = PREFIX_CALL
+        .replace(
+            "machine Main::scan_a(&mut self, index: u64 [0..=4], limit",
+            "machine Main::scan_a(&mut self, mut index: u64 [0..=4], limit",
+        )
+        .replace("self.audit(index);", "reset(&mut index);");
+    assert!(
+        admitted(&typed_source(&format!(
+            "boundary machine reset(value: &mut u64) -> u64 [1..=2]; {boundary}"
+        )))
+        .is_empty()
+    );
+}
+
 #[test]
 fn ranged_call_prefix_cannot_change_an_endpoint() {
     let source = RANGED.replace("lower: u64", "mut lower: u64").replace(
