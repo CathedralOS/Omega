@@ -455,7 +455,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   (**WRITE-ONLY-BORROW** / selected legalization); 11 lower with
   `OperationProofUnavailable` (**BORROW-PROOF-CONVERGENCE** obligations);
   10 declare no service reach (Automatic service reach); the remaining ~70
-  are singletons named in the run log. Eight failures were fixture
+  are singletons named in the run log. Read-only split of the 80 bridge
+  declines (plus the cross-target `runtime_console_byte_echo_exit` compile) at
+  914fad6e23 (2026-09-17 UTC): all 81 declare a bare `console: Console;` as the
+  first `data Main` field, so every decline is the bridge's
+  missing-Fused-establishment-row guard (`hosted_receiver.rs:600`,
+  [owner question 1](OWNER_QUESTIONS.md)) and none reaches a storage guard;
+  with that row, only `runtime_float_constant_store_exit` (f32/f64 leaves)
+  would trip the storage-shape guard (`hosted_receiver.rs:632`), while the
+  other 80 already fit the admitted shapes (per fixture: 14 console-only, 23
+  plain ints/bools, 19 `in Wrapping`/`in Saturating` ints, 3 zero-containing
+  ranges, 3 `[u8; N]`/`[i64; N]` arrays, 21 nested zero-valid records of which
+  4 are generic instantiations). Eight failures were fixture
   inventory drift from a checkout synced mid-run, not compiler behavior.
   The canary_suite tests that read removed report dumps (capability flow
   sites, the wire compatibility demand, numbered case identities, the
@@ -1210,7 +1221,14 @@ Owners include
   Remaining: realize retained receivers on both Linux targets and Windows;
   support executable nominal cleanup and callback/signal occupancy through the
   actual activation/completion contract; extend receiver storage beyond the
-  admitted plain-record/primitive-array shapes. The private-resolver-storage
+  admitted plain-record/primitive-array shapes. Corpus demand at 914fad6e23
+  (2026-09-17 UTC, the 81 bridge-declined canaries read only): every one is
+  blocked first by the row-less bare `console: Console;` field
+  ([owner question 1](OWNER_QUESTIONS.md)), not by storage; after that the
+  corpus needs IEEE float leaves (`runtime_float_constant_store_exit`, f32/f64)
+  and nothing else new, since the other 80 fit plain/domain/range integers,
+  `[u8; N]`/`[i64; N]` arrays and nested zero-valid records (generic
+  instantiations such as `Pair<bool>` and `FixedBuffer<4>` included). The private-resolver-storage
   Linux leg of the nominal machine-parameter witness
   (`tests/omega/pass/generics/runtime_nominal_machine_parameter_satisfaction_exit`,
   exit 70 on macOS ARM64 through
