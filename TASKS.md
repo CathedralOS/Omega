@@ -2918,12 +2918,19 @@ Owners include
   `boundary machine <token> Owner::name(...);` with identical check and
   harness outcomes and a normalized std review policy byte-identical
   modulo core's content digest (`evidence/tests/operators/fixed_token_checked_adapters.rs`
-  pins that both spellings project identically); the last two fixtures
-  wait on one-line gaps, the machine-head `crashes Cause;` terminator in
-  `tokens-to-syntax-trees/src/contracts/parse_contract_clauses.rs` and
+  pins that both spellings project identically); a bodyless machine head
+  parses a fact-free `crashes Cause;` at b3658b99b9 so
+  `fail/operators/selected_crash_invocation` spells the slot too;
+  `fail/generics/authored_const_operator_requires_selection` waits on
   `has_no_authored_spelling` in
   `preparation/generic_data/const_evaluation/anonymous.rs` ignoring a
-  token-bearing `Item::Machine`; tokenless boundary requirements (155
+  token-bearing `Item::Machine`; `core/nat.omg`'s
+  `Nat::{subtract,less_or_equal}` satisfier pairs are ordinary
+  proof-number operators with no catalog identity whose bodied migration
+  is design-blocked on the `proof-operator-requires-formation` owner
+  question (proof-to-proof calls are exempt from the `requires` prover,
+  so the formation-time premise the operator prover enforced would be
+  lost); tokenless boundary requirements (155
   library, 18 tests) wait on the named `boundary requirement`
   provider/interpreter/Terminal route (TOP-LEVEL-BOUNDARY-REQUIREMENTS),
   and the representation inversion (`SpelledOperator` wrapping machine
