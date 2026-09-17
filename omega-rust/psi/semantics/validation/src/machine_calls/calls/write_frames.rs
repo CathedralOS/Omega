@@ -9,8 +9,10 @@
 //! state write prefixes, `alias_origins.rs` propagates stable alias origins,
 //! `transparent_results.rs` follows transparent call results,
 //! `parameter_relative_origins.rs` resolves parameter-relative origins and
-//! `permuted_cycle_frames.rs` solves transition-cycle frame equations; the
-//! remaining files carry the demand, alias, path and topology vocabulary.
+//! `permuted_cycle_frames.rs` solves transition-cycle frame equations and
+//! `wire_codecs.rs` frames synthesized wire codec calls from their argument
+//! access; the remaining files carry the demand, alias, path and topology
+//! vocabulary.
 
 mod alias_bindings;
 mod alias_origins;
@@ -42,6 +44,7 @@ mod transparent_results;
 mod type_capabilities;
 mod type_instantiation;
 mod value_expressions;
+mod wire_codecs;
 
 pub use alias_bindings::state_reference_parameter_binding_is_stable;
 pub(crate) use boundary_calls::boundary_trait_signature;

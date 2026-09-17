@@ -211,6 +211,15 @@ impl<'program> CallFrameResolver<'program> {
                 &self.symbols,
                 CallerWriteSite::Call(call),
                 |inference| {
+                    // A synthesized wire codec frames from its borrowed
+                    // arguments; its type-name receiver is not a place the
+                    // ownership floor may poison.
+                    if super::wire_codecs::is_wire_codec_call(self.program, call) {
+                        return super::wire_codecs::known_wire_codec_call_written_paths(
+                            self.program,
+                            call,
+                        );
+                    }
                     let known = self.with_complete_state_summaries(|complete_state_summaries| {
                         known_call_written_paths_with_summaries(
                             self.program,
