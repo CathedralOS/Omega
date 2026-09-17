@@ -511,15 +511,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   for the source and destination rank at every call and for the initial
   rank at entry; `pass/termination/computed_measure_call_component` plus
   three fail canaries), and every termination-lane fixture from these
-  slices is registered in the canary rosters. A ranged slice member
-  calling from a subordinate state still rejects ("rank range membership,
-  pinned endpoints, or nonincrease is unproven at a call site") because
-  the call judgment does not consume the member's own proven range
-  invariant at internal arrivals; the checked stage's state-edge judgment
-  already re-establishes membership there, so consuming it is the next
-  slice once `src/tests` (which pins the conservative rule in
-  `mixed_component_conserves_endpoints_through_internal_state_calls`) is
-  free to update.
+  slices is registered in the canary rosters. Runtime call components
+  consume a ranged member's own range invariant at subordinate call sites
+  (`prove_ranking_range_call` installs the membership and
+  carrier-formation facts the member's state-edge judgment proves at each
+  internal arrival; the checked stage runs that judgment for every ranged
+  member with internal arrivals). Requires clauses remain entry-site
+  evidence: a ranged callee's public `requires` at a subordinate site
+  still needs the site's own proof because the ranking-to-requires bridge
+  in `checks/contracts/call_bounds/context.rs` covers self-calls only;
+  extending it is an open leg of this item.
   Struct-view rankings admit nested projection paths and borrowed subjects
   at 49d6f9e87e (`MeasureBodyShape::FieldProjection` carries the exact
   field chain; `order.rs` accepts a subject reaching the root record
