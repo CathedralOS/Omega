@@ -754,6 +754,9 @@ fn lower_unit_call_custody(
                         public_requirement_identity: selected_row
                             .public_requirement_identity
                             .clone(),
+                        // A nongeneric requirement row (guarded when the row map was built)
+                        // carries the empty family tuple.
+                        family_tuple: Vec::new(),
                         requirement_identity: selected_row.requirement_identity.clone(),
                         realization_identity: selected_row.realization_identity.clone(),
                         realization_callable_identity: callable_identity,
@@ -856,6 +859,9 @@ fn lower_unit_call_custody(
                         public_requirement_identity: selected_row
                             .public_requirement_identity
                             .clone(),
+                        // A nongeneric requirement row (guarded when the row map was built)
+                        // carries the empty family tuple.
+                        family_tuple: Vec::new(),
                         requirement_identity: selected_row.requirement_identity.clone(),
                         realization_identity: selected_row.realization_identity.clone(),
                         realization_callable_identity: callable_identity,
@@ -1222,6 +1228,11 @@ pub(super) fn lower_exact_unit_application(
         let realization_identity = evidence_lowering::checked_evidence_machine_identity(
             checked,
             closed.realization_machine,
+        )?;
+        evidence_lowering::checked_dynamic_requirement_is_nongeneric(
+            checked,
+            closed.declaring_trait,
+            closed.requirement,
         )?;
         if closed.declaring_trait != retained.declaring_trait
             || closed.requirement != retained.requirement

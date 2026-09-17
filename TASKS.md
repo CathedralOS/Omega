@@ -3411,10 +3411,20 @@ Owners include
   template's declared carriers so a runtime-bound provider body still
   satisfies its requirement without becoming roster evidence. A runtime
   boundary argument and a roster filled only by carrier-keyed records both
-  still reject. Remaining open slice: retain `family_tuple` rows through
-  Terminal dynamic-call/descriptor
-  (`terminal_module/boundary/dynamic_dispatch.rs` has no tuple coordinate)
-  and Omega native table replay; boundary calls never demand provider
+  still reject. The Terminal half landed (macOS ARM64): requirement slots and
+  direct/indirect/stored dispatch rows in
+  `terminal_module/boundary/dynamic_dispatch.rs` carry `family_tuple` (the
+  producer's canonical const identities in binder declaration order, empty
+  for a nongeneric requirement), `terminal-codec` encodes it under format
+  marker 98 with round-trip, byte-identity, and previous-layout rejection
+  tests in `dynamic_dispatch_wire.rs`, and `checked-trees-to-lowered-psi`
+  rejects a dynamic row whose requirement declares local binders rather than
+  lowering it as an empty-tuple row. Remaining open slice: Omega native table
+  replay of tuple rows, including the tuple on `ClosedConformanceRow` table
+  rows so the verifier can rejoin dispatch tuples to the table, and a Psi
+  producer admitting a finite family into the local `dyn` surface (the
+  `selected-dispatch` roster settles only boundary adapter dispatch, which
+  that surface excludes); boundary calls never demand provider
   specializations, so every roster tuple needs one static call site until
   a dynamic selection generates the complete family.
 

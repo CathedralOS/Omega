@@ -393,6 +393,7 @@ pub(super) fn rebound_dynamic_scalar_call_module() -> TerminalModule {
             descriptor_ordinal: 0,
             declaring_trait_identity: "test::Measure".into(),
             public_requirement_identity: "test::Measure::measure()".into(),
+            family_tuple: Vec::new(),
             requirement_identity: "test::Measure::measure".into(),
             realization_identity: "test::Item::measure".into(),
             realization_callable_identity: "test::Item::measure#callable".into(),
@@ -426,6 +427,7 @@ pub(super) fn parameter_dynamic_scalar_call_module() -> TerminalModule {
             slot: 0,
             declaring_trait_identity: "test::Measure".into(),
             public_requirement_identity: "test::Measure::measure()".into(),
+            family_tuple: Vec::new(),
             result: ClosedConformanceCallableResult::I32,
         }],
     }];

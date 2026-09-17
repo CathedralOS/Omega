@@ -84,6 +84,11 @@ pub(crate) fn lower_initial_rebound_application(
                 checked,
                 closed.realization_machine,
             )?;
+            evidence_lowering::checked_dynamic_requirement_is_nongeneric(
+                checked,
+                closed.declaring_trait,
+                closed.requirement,
+            )?;
             if closed.declaring_trait != retained.declaring_trait
                 || closed.requirement != retained.requirement
                 || closed.realization_machine != retained.realization_machine
@@ -188,6 +193,11 @@ pub(crate) fn lower_exact_application(
         let realization_identity = evidence_lowering::checked_evidence_machine_identity(
             checked,
             closed.realization_machine,
+        )?;
+        evidence_lowering::checked_dynamic_requirement_is_nongeneric(
+            checked,
+            closed.declaring_trait,
+            closed.requirement,
         )?;
         if closed.declaring_trait != retained.declaring_trait
             || closed.requirement != retained.requirement

@@ -116,6 +116,49 @@ pub(crate) fn checked_evidence_requirement_identity(
     declaring_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
 ) -> Result<String, LoweringError> {
+    Ok(exact_trait_requirement(checked, declaring_trait, requirement)?.overload_identity)
+}
+
+/// Establish that a dynamic row's requirement carries the nongeneric empty
+/// family tuple.
+///
+/// A Terminal dynamic row names `(declaring trait, complete requirement
+/// overload, canonical value tuple)`. The local dynamic surface admits only
+/// requirements without local generic binders
+/// (`DynamicSignatureIneligibility::RequirementLocalGenerics`), so the only
+/// tuple this lowering can retain is the empty one. A requirement that
+/// declares binders has no Terminal tuple producer yet and rejects here rather
+/// than lowering as an unbound row that merely looks nongeneric.
+pub(crate) fn checked_dynamic_requirement_is_nongeneric(
+    checked: &CheckedTrees,
+    declaring_trait: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+) -> Result<(), LoweringError> {
+    if exact_trait_requirement(checked, declaring_trait, requirement)?
+        .declares_local_generic_binders
+    {
+        return unsupported(
+            "dynamic requirement declares requirement-local generic binders without a family \
+             tuple producer",
+        );
+    }
+    Ok(())
+}
+
+/// The exact typed requirement one `(declaring trait, requirement)` symbol
+/// pair names, projected to the facts evidence and dynamic rows consume.
+struct ExactTraitRequirement {
+    /// Canonical normalized overload identity; never empty.
+    overload_identity: String,
+    /// Whether the signature declares requirement-local generic binders.
+    declares_local_generic_binders: bool,
+}
+
+fn exact_trait_requirement(
+    checked: &CheckedTrees,
+    declaring_trait: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+) -> Result<ExactTraitRequirement, LoweringError> {
     let mut matches = checked
         .typed
         .traits()
@@ -135,14 +178,20 @@ pub(crate) fn checked_evidence_requirement_identity(
     if matches.next().is_some() {
         return unsupported("evidence producer row has an ambiguous trait requirement");
     }
-    let identity = checked
+    let overload_identity = checked
         .typed
         .normalized_trait_requirement_overload_identity(definition, signature)
         .identity();
-    if identity.is_empty() {
+    if overload_identity.is_empty() {
         return unsupported("evidence producer row has an empty requirement identity");
     }
-    Ok(identity)
+    Ok(ExactTraitRequirement {
+        overload_identity,
+        declares_local_generic_binders: !checked
+            .typed
+            .state_signature_type_parameters(signature)
+            .is_empty(),
+    })
 }
 
 pub(crate) fn checked_evidence_machine_identity(

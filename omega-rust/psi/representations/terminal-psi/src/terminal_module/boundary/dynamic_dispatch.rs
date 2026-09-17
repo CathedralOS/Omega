@@ -61,6 +61,13 @@ pub struct TerminalDynamicRequirement {
     pub slot: u32,
     pub declaring_trait_identity: String,
     pub public_requirement_identity: String,
+    /// Canonical value tuple of the finite generic method family row this
+    /// slot names: one canonical const identity per requirement value binder,
+    /// in the requirement's binder declaration order. These are the exact
+    /// strings a typed `MachineSpecialization` retains in
+    /// `const_argument_identities`; readable spellings are diagnostic payload
+    /// and never appear here. A nongeneric requirement carries the empty tuple.
+    pub family_tuple: Vec<String>,
     pub result: ClosedConformanceCallableResult,
 }
 
@@ -118,6 +125,13 @@ pub struct TerminalDirectDynamicDispatch {
     pub selection_ordinal: u32,
     pub declaring_trait_identity: String,
     pub public_requirement_identity: String,
+    /// Canonical value tuple of the selected finite-family row, in the
+    /// requirement's value-binder declaration order; see
+    /// [`TerminalDynamicRequirement::family_tuple`]. Together with the two
+    /// identities above it names the exact `(declaring trait, complete
+    /// requirement overload, canonical value tuple)` row. A nongeneric
+    /// requirement carries the empty tuple.
+    pub family_tuple: Vec<String>,
     pub requirement_identity: String,
     pub realization_identity: String,
     pub realization_callable_identity: String,
@@ -164,6 +178,13 @@ pub struct TerminalIndirectDynamicDispatch {
     pub descriptor_ordinal: u32,
     pub declaring_trait_identity: String,
     pub public_requirement_identity: String,
+    /// Canonical value tuple of the selected finite-family row, in the
+    /// requirement's value-binder declaration order; see
+    /// [`TerminalDynamicRequirement::family_tuple`]. Together with the two
+    /// identities above it names the exact `(declaring trait, complete
+    /// requirement overload, canonical value tuple)` row. A nongeneric
+    /// requirement carries the empty tuple.
+    pub family_tuple: Vec<String>,
     pub requirement_identity: String,
     pub realization_identity: String,
     pub realization_callable_identity: String,
@@ -179,6 +200,13 @@ pub struct TerminalStoredDynamicDispatch {
     pub descriptor_ordinal: u32,
     pub declaring_trait_identity: String,
     pub public_requirement_identity: String,
+    /// Canonical value tuple of the selected finite-family row, in the
+    /// requirement's value-binder declaration order; see
+    /// [`TerminalDynamicRequirement::family_tuple`]. Together with the two
+    /// identities above it names the exact `(declaring trait, complete
+    /// requirement overload, canonical value tuple)` row. A nongeneric
+    /// requirement carries the empty tuple.
+    pub family_tuple: Vec<String>,
     pub requirement_identity: String,
     pub realization_identity: String,
     pub realization_callable_identity: String,
