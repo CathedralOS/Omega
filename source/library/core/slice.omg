@@ -11,11 +11,12 @@
 // - mutable views carry the same overlap and borrow obligations as their
 //   source owner.
 //
-// Fixed operator tokens are written directly in the declaration head.
+// Fixed operator tokens are written directly after `boundary machine`: the
+// token identifies the required operator slot of that signature.
 
 boundary operator Slice::Length<T>(items: &[T]) -> u64;
 
-boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
+boundary machine [] Slice::index<T>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
@@ -47,7 +48,7 @@ boundary operator Slice::to_mut<T>(items: &mut [T], end: u64) -> &mut [T]
 requires
     end <= items.len;
 
-boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
     start <= end && end <= items.len;
 
