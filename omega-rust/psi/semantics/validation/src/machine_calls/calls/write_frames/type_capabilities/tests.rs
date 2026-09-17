@@ -49,6 +49,7 @@ fn reference_free_values_cannot_carry_caller_writes() {
             data Token [copy] { kind: Kind; span: Span; }
             data Stream { tokens: [Token; 4]; count: u64; flag: bool; }
             data Shape { case Scalar; case Record(first: Span, count: u64); }
+            data Counter { seed: u64; calls: UInt; }
             machine probe(
                 kind: Kind,
                 token: Token,
@@ -56,7 +57,9 @@ fn reference_free_values_cannot_carry_caller_writes() {
                 shape: Shape,
                 words: [u64; 3],
                 count: u64,
-                fixed: u64 [0..=7]
+                fixed: u64 [0..=7],
+                counter: Counter,
+                total: Int
             ) {}
             "#
         ),
@@ -68,6 +71,8 @@ fn reference_free_values_cannot_carry_caller_writes() {
             ("words", false),
             ("count", false),
             ("fixed", false),
+            ("counter", false),
+            ("total", false),
         ]
         .map(|(name, capable)| (name.to_owned(), capable))
     );
