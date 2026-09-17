@@ -7,6 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 mod evidence;
 #[path = "inspect_terminal/owned_scalar_cycles.rs"]
 mod owned_scalar_cycles;
+#[path = "inspect_terminal/package_projects.rs"]
+mod package_projects;
 
 fn temporary_source(name: &str, source: &str) -> PathBuf {
     let stamp = SystemTime::now()
