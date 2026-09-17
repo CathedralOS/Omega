@@ -2260,12 +2260,35 @@ Owners include
   none for windows), while selected authored range operators keep exact
   checked-occurrence custody. Incomplete read sets are preserved for
   missing or foreign custody, unresolved or ambiguous selection, absent
-  or invalid range operands, authored bound arithmetic, and writing
-  atomics. Evidence only — disjointness and preservation still run
-  through the existing place algebra and loan checks. Witnessed by
+  or invalid range operands, and authored bound arithmetic. Evidence
+  only — disjointness and preservation still run through the existing
+  place algebra and loan checks. Witnessed by
   `facts/dependencies/tests/indexes.rs`: 34 focused dependency tests, 79
   range-checker tests, and 231 range integration tests pass; the crate
-  suite's 14 failures reproduce identically at base 5006b9314c.
+  suite's 14 failures reproduce identically at base 5006b9314c. Ninth
+  slice landed at 74836aa638: `collect_reads` now admits every writing
+  atomic axis through its assignment-carrier footprint. `place.store(v,
+  ord)` and the `let r = place.op(..)` forms desugar to `target = Atomic
+  { .. }`, so `collect_atomic_write_reads`
+  (`checks/ranges/facts/dependencies/reads.rs`) reads the carrier
+  statement's target as the resident place, each stored operand through
+  the operand gate (`value` for store and swap, the fetch operand for
+  read-modify-write, the expected and replacement operands for a
+  decisive compare-exchange whose `value` is the exact `prior + (prior ==
+  expected) * (replacement - prior)` model), and the current local
+  `result` destination; ordering legality, scalar result custody, and
+  result shape are rechecked per axis, and the model's prior placeholders
+  are pinned to the result symbol rather than scanned as reads.
+  Incomplete read sets are preserved for a missing carrier, an illegal
+  ordering plan, non-scalar custody, a missing or non-current result
+  destination, a substituted update model, and the single-attempt
+  observing form (`CompareExchangeOnce`). Evidence only — witnessed by
+  `facts/dependencies/tests/atomics.rs` (8 tests) and
+  `tests/range_atomic_dependencies.rs`
+  (`writing_atomic_axes_retire_only_the_resident_place_premise`): a
+  `requires` premise on `self.counter.load(NoOrdering)` survives a store,
+  swap, `fetch_add`, or `compare_exchange` on `self.other` and is retired
+  by the same axis on `self.counter`.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
