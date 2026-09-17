@@ -1,0 +1,22 @@
+// PASS CANARY. Both the rank and its ceiling are read through nested
+// projections: the ranked field lives in `inner`, the limit in the sibling
+// record `bounds`. The self edge rebuilds `inner` down to the ranked field and
+// forwards `bounds` unchanged, so the endpoint stays pinned through that
+// exact chain.
+data Inner { remaining: u64 [0..=5]; }
+data Bounds { limit: u64 [0..=5]; }
+data Countdown { inner: Inner; bounds: Bounds; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown)
+requires countdown.inner.remaining <= countdown.bounds.limit;
+terminates by countdown -> Countdown::Remaining in 0..=countdown.bounds.limit;
+-> u64 {
+    transition countdown.inner.remaining > 0 {
+        true -> walk(Countdown {
+            inner: Inner { remaining: countdown.inner.remaining - 1 },
+            bounds: countdown.bounds
+        })
+        false -> countdown.inner.remaining
+    }
+}

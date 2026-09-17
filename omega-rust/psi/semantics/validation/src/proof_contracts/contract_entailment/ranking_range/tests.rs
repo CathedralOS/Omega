@@ -413,3 +413,152 @@ mod scalar_views {
         assert!(proof.membership_and_pinning && !proof.strictly_decreases);
     }
 }
+
+mod field_views {
+    //! A declared field view's coordinate follows the measure body's exact
+    //! projection chain and reads a borrowed subject's referent.
+    use super::super::{
+        RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, prove_ranking_range_edge,
+        prove_ranking_range_entry,
+    };
+    use super::typed;
+    use typed_trees::TypedTrees;
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+    const NESTED: &str = r#"
+        data Inner { remaining: u64 [0..=5]; }
+        data Bounds { limit: u64 [0..=5]; }
+        data Countdown { inner: Inner; bounds: Bounds; }
+        measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+        machine walk(countdown: Countdown)
+        requires countdown.inner.remaining <= countdown.bounds.limit;
+        terminates by countdown -> Countdown::Remaining in 0..=countdown.bounds.limit;
+        -> u64 {
+            transition countdown.inner.remaining > 0 {
+                true -> walk(Countdown { inner: Inner { remaining: countdown.inner.remaining - 1 }, bounds: countdown.bounds })
+                false -> countdown.inner.remaining
+            }
+        }
+    "#;
+
+    const BORROWED: &str = r#"
+        data Card { power: u64; }
+        measure Card::PowerOrder(card: Card) -> u64 { card.power }
+        machine walk(card: &Card, ceiling: u64 [0..=5])
+        requires card.power <= ceiling;
+        terminates by card -> Card::PowerOrder in 0..=ceiling;
+        -> u64 {
+            transition card.power > 0 {
+                true -> walk(&Card { power: card.power - 1 }, ceiling)
+                false -> card.power
+            }
+        }
+    "#;
+
+    fn field(program: &TypedTrees) -> RankingRangeMeasure {
+        let machine = &program.machines()[0];
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        RankingRangeMeasure::Field {
+            subject: custody.subjects[0],
+            measure: program.measures()[0].symbol,
+        }
+    }
+
+    fn entry(program: &TypedTrees) -> bool {
+        let machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let range = program
+            .ranking_expression_custody_for(machine.symbol)
+            .and_then(|custody| custody.rank_range)
+            .expect("range");
+        prove_ranking_range_entry(program, machine, root, range, field(program))
+    }
+
+    fn self_edge(program: &TypedTrees) -> Option<RankingRangeEdgeProof> {
+        let machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let range = program
+            .ranking_expression_custody_for(machine.symbol)
+            .and_then(|custody| custody.rank_range)
+            .expect("range");
+        let StatementNode::Transition(transition) =
+            &program.statement_table.statements(root.statement_nodes)[0]
+        else {
+            panic!("one transition");
+        };
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            panic!("guarded transition");
+        };
+        let TransitionTargetNode::Named { arguments, .. } =
+            program.statement_table.transition_target(transition.target)
+        else {
+            panic!("named self edge");
+        };
+        prove_ranking_range_edge(
+            program,
+            machine,
+            root,
+            range,
+            field(program),
+            RankingRangePremises::EntryInvariant,
+            &[(guard, true)],
+            &[],
+            program.statement_table.expression_handles(*arguments),
+        )
+    }
+
+    #[test]
+    fn nested_projection_ranks_and_pins_through_the_exact_chain() {
+        let program = typed(NESTED);
+        assert!(entry(&program));
+        let proof = self_edge(&program).expect("self edge");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        // Rebuilding the sibling record with a literal limit still contains
+        // every next rank, but it is not the pinned endpoint.
+        let written =
+            typed(&NESTED.replace("bounds: countdown.bounds", "bounds: Bounds { limit: 5 }"));
+        assert!(entry(&written));
+        assert!(self_edge(&written).is_none());
+        // Forwarding the ranked sub-record keeps membership without descent.
+        let stalled = typed(&NESTED.replace(
+            "inner: Inner { remaining: countdown.inner.remaining - 1 }",
+            "inner: countdown.inner",
+        ));
+        let proof = self_edge(&stalled).expect("stalled edge");
+        assert!(proof.membership_and_pinning && !proof.strictly_decreases);
+        // Entry evidence must name the exact path.
+        let unrelated = typed(&NESTED.replace(
+            "requires countdown.inner.remaining <= countdown.bounds.limit;",
+            "requires countdown.bounds.limit <= countdown.bounds.limit;",
+        ));
+        assert!(!entry(&unrelated));
+        // A same-spelled field of another declaration is a foreign owner.
+        let foreign = typed(&format!(
+            "data Twin {{ remaining: u64 [0..=5]; }} {}",
+            NESTED.replace("inner: Inner { remaining", "inner: Twin { remaining")
+        ));
+        assert!(self_edge(&foreign).is_none());
+    }
+
+    #[test]
+    fn borrowed_subject_reads_its_referent_and_arrives_as_a_borrow() {
+        let program = typed(BORROWED);
+        assert!(entry(&program));
+        let proof = self_edge(&program).expect("self edge");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        let replaced = typed(&BORROWED.replace("}, ceiling)", "}, 5)"));
+        assert!(self_edge(&replaced).is_none());
+        // The formal itself forwarded keeps the referent, so no descent.
+        let forwarded = typed(&BORROWED.replace("&Card { power: card.power - 1 }", "card"));
+        let proof = self_edge(&forwarded).expect("forwarded edge");
+        assert!(proof.membership_and_pinning && !proof.strictly_decreases);
+        // An owned literal is not an arrival of the borrowed formal.
+        let owned = typed(&BORROWED.replace("walk(&Card {", "walk(Card {"));
+        assert!(self_edge(&owned).is_none());
+        // Without the entry fact nothing bounds the unconstrained field.
+        let unbounded = typed(&BORROWED.replace("requires card.power <= ceiling;", ""));
+        assert!(!entry(&unbounded));
+    }
+}

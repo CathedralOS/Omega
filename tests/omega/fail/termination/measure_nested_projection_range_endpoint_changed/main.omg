@@ -1,0 +1,16 @@
+// FAIL CANARY. The replacement ceiling contains every next value of the
+// nested ranked field, but it is not the invocation-fixed endpoint the entry
+// requirement established, so the relational range does not transport.
+data Inner { remaining: u64 [0..=5]; }
+data Countdown { label: u64; inner: Inner; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown, ceiling: u64 [0..=5], amount: u64 [1..=2])
+requires countdown.inner.remaining <= ceiling;
+terminates by countdown -> Countdown::Remaining in 0..=ceiling;
+-> u64 {
+    transition countdown.inner.remaining >= amount {
+        true -> walk(Countdown { label: countdown.label, inner: Inner { remaining: countdown.inner.remaining - amount } }, 5, amount)
+        false -> countdown.inner.remaining
+    }
+}

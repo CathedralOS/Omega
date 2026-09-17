@@ -35,6 +35,9 @@ pub(super) fn builtin(
         }
         ExpressionNode::Atomic(atomic) => builtin(program, machine, state, atomic.value, depth + 1),
         ExpressionNode::Member(_) => {
+            // An exact declared projection chain, rooted at a formal that
+            // names its record directly or through a reference, has builtin
+            // meaning at every step, whatever its leaf's carrier.
             if let Some(reference) = fields::projected_type(program, state, expression) {
                 return Some(Some(reference));
             }
@@ -86,6 +89,12 @@ pub(super) fn builtin(
             Some(Some(
                 lengths::parameter(program, state, indexed.collection)?.type_reference,
             ))
+        }
+        ExpressionNode::Borrow(borrow) => {
+            // A borrow performs no operation of its own; the referent's
+            // meaning is what the edge substitutes into a borrowed formal.
+            builtin(program, machine, state, borrow.target, depth + 1)?;
+            Some(None)
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             builtin(program, machine, state, unary.operand, depth + 1)?;

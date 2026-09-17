@@ -1,0 +1,18 @@
+// PASS CANARY. The relational range route transports the ranked field
+// through the nested projection `countdown.inner.remaining`: the entry
+// requirement relates that exact path to an invocation-fixed ceiling, and
+// every self edge rebuilds the literal chain down to the ranked field while
+// the ceiling and the step stay pinned.
+data Inner { remaining: u64 [0..=5]; }
+data Countdown { label: u64; inner: Inner; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown, ceiling: u64 [0..=5], amount: u64 [1..=2])
+requires countdown.inner.remaining <= ceiling;
+terminates by countdown -> Countdown::Remaining in 0..=ceiling;
+-> u64 {
+    transition countdown.inner.remaining >= amount {
+        true -> walk(Countdown { label: countdown.label, inner: Inner { remaining: countdown.inner.remaining - amount } }, ceiling, amount)
+        false -> countdown.inner.remaining
+    }
+}
