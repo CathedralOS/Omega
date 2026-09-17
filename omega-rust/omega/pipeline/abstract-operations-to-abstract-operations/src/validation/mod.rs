@@ -338,10 +338,11 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 }
 
 /// Whether `component`'s member blocks perform no place mutation or custody
-/// movement at all: no store, record establishment, atomic event, or
-/// custody-moving ownership event inside a member, no call that could reach a
-/// caller place through a mutating structural argument or a transferred
-/// claim, and no
+/// movement visible to a member observation: no store, record establishment,
+/// atomic event, or custody-moving ownership event inside a member, no call
+/// that could reach a caller place through a mutating structural argument or
+/// a transferred claim unless every such argument's root is exclusively the
+/// call's own, and no
 /// affine discard on any component-adjacent edge. A `ByteSequenceSubslice`,
 /// an `EstablishByteSequenceLiteral`, and an `EstablishPrimitiveLocal` are
 /// the only establishments this bound tolerates: the subslice reads its
@@ -356,14 +357,20 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// member call node always carries one `ClaimTransfer` ownership row — the
 /// custody mirror of its `claim_transfers` roster — so the bound reads the
 /// row rather than requiring an empty list: only a row actually moving a
-/// claim refuses. When
+/// claim refuses. A member call carrying mutable or write-only borrows is
+/// tolerated only when every root those borrows name is exclusive to the
+/// call ([`exclusive_borrow_call_preserves_place_observations`]): the callee
+/// can write a caller place only through those borrows — verified call
+/// bindings hand a mutating parameter exactly the argument root — so its
+/// writes land in a place no other member reads, borrows, or moves, which
+/// leaves every member observation of every other root loop-invariant.
+/// When
 /// this holds, every member place observation is loop-invariant — no
 /// traversal can change what it observes — so an admitted read relocates
 /// without a per-root write analysis. That whole-component bound is
-/// deliberately conservative: the first non-scalar slice refuses every place
-/// read in a component containing any place-writing node rather than
-/// resolving member structural parameters to decide which roots a store
-/// could reach.
+/// deliberately conservative: it refuses every place read in a component
+/// containing any other place-writing node rather than resolving member
+/// structural parameters to decide which roots a store could reach.
 pub(crate) fn component_preserves_place_observations(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -381,7 +388,12 @@ pub(crate) fn component_preserves_place_observations(
             let custody_quiet = node.ownership.iter().all(
                 |event| matches!(event, OwnershipEvent::ClaimTransfer(claims) if claims.is_empty()),
             );
-            if !custody_quiet || !node_preserves_place_observations(&node.operation) {
+            if !custody_quiet
+                || !(node_preserves_place_observations(&node.operation)
+                    || exclusive_borrow_call_preserves_place_observations(
+                        function, component, node,
+                    ))
+            {
                 return false;
             }
         }
@@ -496,6 +508,297 @@ fn node_preserves_place_observations(operation: &O) -> bool {
     }
 }
 
+/// The second-tier member tolerance [`component_preserves_place_observations`]
+/// applies to a call node the strict whitelist refuses: a `CallUnit` or
+/// `CallStructuralScalar` that moves no claims and passes only borrow
+/// arguments — `SharedBorrow`, `MutableBorrow`, or `WriteOnlyBorrow`, never
+/// `Owned` — whose mutating borrows each name a root no other member can
+/// observe. The callee's caller-visible write authority is exactly its
+/// mutable and write-only parameter roots — verified call bindings cannot
+/// hand it another place — so confining those roots to the one call leaves
+/// the bound's guarantee intact: no member observation of any place another
+/// member wrote changes across traversals, and no custody moves.
+fn exclusive_borrow_call_preserves_place_observations(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+) -> bool {
+    let (structural_arguments, claim_transfers) = match &node.operation {
+        O::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            ..
+        }
+        | O::CallStructuralScalar {
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => (structural_arguments, claim_transfers),
+        _ => return false,
+    };
+    if !claim_transfers.is_empty() {
+        return false;
+    }
+    let mut borrowed = BTreeSet::new();
+    for argument in structural_arguments {
+        match argument.access {
+            terminal_psi::StructuralAccess::SharedBorrow => {}
+            terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
+                borrowed.insert(argument.place);
+            }
+            // An owned argument moves the caller's place into the callee —
+            // custody movement the bound never tolerates.
+            terminal_psi::StructuralAccess::Owned => return false,
+        }
+    }
+    // A mutating root must appear on exactly one argument in the borrower's
+    // own roster: a second spelling — at any access — would alias the cell
+    // the callee writes through, and this bound does not lean on the source
+    // verifier's anti-aliasing rules to rule that roster out.
+    if structural_arguments
+        .iter()
+        .filter(|argument| borrowed.contains(&argument.place))
+        .count()
+        != borrowed.len()
+    {
+        return false;
+    }
+    borrowed_roots_exclusive(function, component, node, &borrowed)
+}
+
+/// Whether every place in `roots` is referenced inside `component`'s member
+/// roster only by `borrower` itself and, for a member-produced root, by the
+/// one node that declares it. "Referenced" covers every place field a member
+/// node can spell — an observed `source`, a store `destination`, a call's
+/// structural-argument root at any access, a case-inspection root — and every
+/// member structural parameter an edge landing inside the roster binds to a
+/// borrowed root (or to another tainted parameter): the binding carries the
+/// root's contents into the member, so a member spelling that parameter
+/// observes the borrowed root even though it never names it directly. A
+/// member node's own produced root is not a reference — declaring a fresh
+/// place observes nothing. Member-adjacent edge discards spelling a tainted
+/// place count as references too, even though the edge-discard half of
+/// [`component_preserves_place_observations`] already refuses them.
+///
+/// Exclusivity is what makes a member's mutating borrow custody-preserving:
+/// the callee's writes through the borrow land in a place no member read,
+/// second borrow, store, case inspection, or moved node could observe, so
+/// the only member that can ever see the root's contents is the borrowing
+/// call itself — which relocation then reasons about directly.
+fn borrowed_roots_exclusive(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    borrower: &OptimizationNode,
+    roots: &BTreeSet<PlaceId>,
+) -> bool {
+    if roots.is_empty() {
+        return true;
+    }
+    let Some(PsiProvenance::Operation(borrower_operation)) = borrower.provenance.first().copied()
+    else {
+        return false;
+    };
+    let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+    // Member structural parameters that can carry a borrowed root: a fixed
+    // point over the bindings of every edge landing inside the roster — a
+    // binding whose argument spells a tainted place (at any projection
+    // depth) makes its parameter an alias member nodes can observe through.
+    let mut tainted: BTreeSet<PlaceId> = roots.clone();
+    loop {
+        let mut progressed = false;
+        for edge in function
+            .blocks
+            .iter()
+            .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+            .filter(|edge| members.contains(&edge.target))
+        {
+            for binding in &edge.structural_bindings {
+                if tainted.contains(&binding.argument.place) && tainted.insert(binding.parameter) {
+                    progressed = true;
+                }
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    for member in &component.members {
+        let Some(block) = function.blocks.iter().find(|block| block.id == *member) else {
+            return false;
+        };
+        for node in &block.nodes {
+            if node.provenance.first() == Some(&PsiProvenance::Operation(borrower_operation)) {
+                continue;
+            }
+            let mut references = BTreeSet::new();
+            if !member_place_references(&node.operation, &mut references) {
+                return false;
+            }
+            if let Some(produced) = produced_place_root(&node.operation) {
+                references.remove(&produced);
+            }
+            if references.iter().any(|place| tainted.contains(place)) {
+                return false;
+            }
+            // A member terminator's own successor edges: a discard spelling a
+            // tainted place is custody movement the exclusive-borrower
+            // reading cannot allow, and a binding carrying one into a member
+            // parameter is already accounted by the taint fixpoint.
+            for edge in &node.successors {
+                if edge
+                    .trivial_affine_discards
+                    .iter()
+                    .any(|place| tainted.contains(place))
+                    || edge
+                        .residual_affine_discards
+                        .iter()
+                        .any(|discard| tainted.contains(&discard.place))
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
+/// Collect every place `operation` can read, write, borrow, or move into
+/// `references`, excluding the place it produces — the caller removes that
+/// separately. Returns `false` for a variant whose place surface this scan
+/// does not model, so the exclusivity check fails closed rather than
+/// undercounting a member's references. Only place-free scalar work,
+/// observations, stores, calls, and control variants are modeled; every
+/// establishment's produced root is collected as well so the caller can
+/// distinguish declaration from observation.
+fn member_place_references(operation: &O, references: &mut BTreeSet<PlaceId>) -> bool {
+    match operation {
+        O::PrimitiveScalarRead { source, .. }
+        | O::StructuralCaseMembership { source, .. }
+        | O::ByteSequenceRead { source, .. }
+        | O::ByteSequenceSubslice { source, .. }
+        | O::ByteSequenceLength { source, .. }
+        | O::StructuralByteSequenceFieldLength { source, .. }
+        | O::BooleanStructuralField { source, .. }
+        | O::IntegerStructuralField { source, .. }
+        | O::StructuralCase { source, .. } => {
+            references.insert(*source);
+        }
+        O::PrimitiveLocalStore { destination, .. }
+        | O::ByteSequenceWrite { destination, .. }
+        | O::StructuralByteSequenceFieldByteStore { destination, .. } => {
+            references.insert(*destination);
+        }
+        O::StructuralByteSequenceFieldStore {
+            destination,
+            source,
+            ..
+        } => {
+            references.insert(*destination);
+            references.insert(*source);
+        }
+        O::WriteOnlyPrimitiveStore { destination, .. }
+        | O::StructuralScalarFieldStore { destination, .. } => {
+            references.insert(destination.place);
+        }
+        // The three structural-signature call variants whose complete place
+        // surface is `structural_arguments`: a dynamic-argument sibling's
+        // descriptor arguments and a boundary call's completion claim
+        // sources carry place surfaces this scan does not model, and a
+        // `ReturnStructural` spells its returned place plus owned
+        // declaration and discard rosters — all of those fail closed below.
+        O::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructural {
+            structural_arguments,
+            ..
+        } => {
+            for argument in structural_arguments {
+                references.insert(argument.place);
+            }
+        }
+        // Establishments and scalar work: the establishment's declared place
+        // is a production, not a reference; the caller removes it. A record
+        // establishment's field initializers can embed a whole structural
+        // argument — a borrowed or owned place moved into the record — so
+        // each structural field value's root counts as a reference.
+        // Constants,
+        // scalar computations, plain scalar calls, port writes, descriptor
+        // parameters, and non-structural terminators name no place at all.
+        O::EstablishScalarArray { result, .. }
+        | O::EstablishPrimitiveLocal { result, .. }
+        | O::EstablishScalarCase { result, .. } => {
+            references.insert(result.place);
+        }
+        O::EstablishRecord { result, fields, .. } => {
+            references.insert(result.place);
+            for field in fields {
+                if let terminal_psi::RecordFieldValue::Structural(argument) = &field.value {
+                    references.insert(argument.place);
+                }
+            }
+        }
+        O::EstablishByteSequenceLiteral { place, .. }
+        | O::EstablishTrivialAffineLocal { place, .. } => {
+            references.insert(place.id);
+        }
+        O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
+        | O::BooleanConstant { .. }
+        | O::BooleanNot { .. }
+        | O::BooleanEqual { .. }
+        | O::IntegerEqual { .. }
+        | O::IntegerLessThan { .. }
+        | O::IntegerLessOrEqual { .. }
+        | O::IntegerBitwiseNot { .. }
+        | O::IntegerBitwiseAnd { .. }
+        | O::IntegerBitwiseOr { .. }
+        | O::IntegerBitwiseXor { .. }
+        | O::IntegerWiden { .. }
+        | O::IntegerExactCast { .. }
+        | O::WrappingIntegerShiftLeft { .. }
+        | O::WrappingIntegerShiftRight { .. }
+        | O::ExactIntegerShiftLeft { .. }
+        | O::ExactIntegerShiftRight { .. }
+        | O::WrappingIntegerAdd { .. }
+        | O::ExactIntegerAdd { .. }
+        | O::SaturatingIntegerAdd { .. }
+        | O::WrappingIntegerSubtract { .. }
+        | O::ExactIntegerSubtract { .. }
+        | O::SaturatingIntegerSubtract { .. }
+        | O::WrappingIntegerMultiply { .. }
+        | O::ExactIntegerMultiply { .. }
+        | O::SaturatingIntegerMultiply { .. }
+        | O::WrappingIntegerDivide { .. }
+        | O::ExactIntegerDivide { .. }
+        | O::SaturatingIntegerDivide { .. }
+        | O::WrappingIntegerRemainder { .. }
+        | O::ExactIntegerRemainder { .. }
+        | O::SaturatingIntegerRemainder { .. }
+        | O::IeeeFloatCompare { .. }
+        | O::NearestIeeeFloatFusedMultiplyAdd { .. }
+        | O::Call { .. }
+        | O::PortWrite { .. }
+        | O::DynamicDescriptorParameter { .. }
+        | O::Jump { .. }
+        | O::Conditional { .. }
+        | O::Return { .. }
+        | O::ReturnUnit { .. }
+        | O::Crash { .. } => {}
+        // Atomic events, dynamic calls, descriptor stores, and any variant
+        // not modeled above fail closed: the exclusivity scan refuses rather
+        // than guesses which fields carry places.
+        _ => return false,
+    }
+    true
+}
+
 /// Whether `root`, the storage root an admitted place observation names, is
 /// visible at the component's unique preheader insertion point: a
 /// function structural parameter or result root, a provider-attachment root,
@@ -575,6 +878,69 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
         } => Some(outcome.place),
         _ => None,
     }
+}
+
+/// The place roots `operation` mutably borrows through its structural
+/// arguments — the set the producer's move-together coupling and the
+/// freeze's independent coverage replay both read. A mutable borrower can
+/// read the cell it writes, so a relocated establishment would leave a
+/// staying mutable borrower reading accumulated post-write contents where
+/// the source traversal re-initialized the cell. Write-only borrows are not
+/// collected: their callee cannot read the cell, so a staying write-only
+/// borrower keeps writing deterministic contents no member observes.
+pub(crate) fn mutable_borrow_roots(operation: &O) -> BTreeSet<PlaceId> {
+    let structural_arguments = match operation {
+        O::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | O::CallUnitWithDynamicArguments {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructuralScalarWithDynamicArguments {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | O::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return BTreeSet::new(),
+    };
+    structural_arguments
+        .iter()
+        .filter(|argument| argument.access == terminal_psi::StructuralAccess::MutableBorrow)
+        .map(|argument| argument.place)
+        .collect()
+}
+
+/// The number of member nodes that produce `root` inside `component`'s
+/// roster. A verified unit declares a fresh place per establishment, so an
+/// admitted relocation expects exactly one; a roster producing a mut-borrowed
+/// or run-consumed root twice would let a staying producer re-initialize the
+/// cell a relocated consumer reads once, so the call admission and the
+/// exclusivity scan both refuse every multi-producer spelling.
+fn member_root_producer_count(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    root: PlaceId,
+) -> usize {
+    component
+        .members
+        .iter()
+        .filter_map(|member| function.blocks.iter().find(|block| block.id == *member))
+        .flat_map(|block| block.nodes.iter())
+        .filter(|node| produced_place_root(&node.operation) == Some(root))
+        .count()
 }
 
 /// The complete invariant place-read admission shared by the proposal and the
@@ -1350,14 +1716,17 @@ pub(crate) fn admissible_invariant_scalar_call(node: &OptimizationNode) -> Optio
 /// Unit-result machine calls — `CallUnit` — are the structural-signature
 /// member of the call family admitted for loop-invariant motion: an exact
 /// internal callee invocation whose scalar arguments ride the shared
-/// substitution and whose structural arguments are all shared borrows. The
+/// substitution and whose structural arguments are borrows. The
 /// node must keep its own operation identity as the first provenance row,
 /// define no scalar (`CallUnit` produces no result — the relocated node
 /// preserves the invocation itself), use exactly its scalar `arguments` in
 /// operand order, carry no successors, and keep no crash-route custody. A
-/// structural argument with `MutableBorrow`, `WriteOnlyBorrow`, or `Owned`
-/// access would hand the callee authority over a caller place — mutation or
-/// movement this boundary cannot re-express — so only shared borrows admit.
+/// structural argument with `MutableBorrow` or `WriteOnlyBorrow` access hands
+/// the callee write authority over a caller place — admitted only through
+/// [`invariant_unit_call_admission`]'s exclusive member-produced-root
+/// evidence — while `Owned` access would move the caller's place into the
+/// callee outright, custody movement this boundary cannot re-express, so it
+/// stays refused.
 /// `claim_transfers` must be empty: the node then carries exactly one
 /// vacuous `ClaimTransfer` ownership row — the custody mirror of the empty
 /// roster — which relocates byte-exact inside the moved operation.
@@ -1394,7 +1763,7 @@ pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<
         && crash_continuations.is_empty()
         && structural_arguments
             .iter()
-            .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow))
+            .all(|argument| argument.access != terminal_psi::StructuralAccess::Owned))
     .then_some(*callee)
 }
 
@@ -1406,9 +1775,12 @@ pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<
 /// as the first provenance row, define exactly its spelled `result`, use
 /// exactly its scalar `arguments` in operand order, carry no successors, and
 /// keep no crash-route custody. The structural side obeys the unit call's
-/// whitelist verbatim: only shared borrows admit — a `MutableBorrow`,
-/// `WriteOnlyBorrow`, or `Owned` argument would hand the callee authority
-/// over a caller place — and `claim_transfers` must be empty, so the node
+/// whitelist verbatim: borrow arguments admit — a `MutableBorrow` or
+/// `WriteOnlyBorrow` argument still needs
+/// [`invariant_structural_scalar_call_admission`]'s exclusive
+/// member-produced-root evidence, and `Owned` access moves the caller's place
+/// into the callee outright so it stays refused — and `claim_transfers` must
+/// be empty, so the node
 /// carries exactly one vacuous `ClaimTransfer` ownership row that relocates
 /// byte-exact inside the moved operation. `requirement_obligations` move
 /// byte-exact exactly like the other call variants': they were discharged
@@ -1449,7 +1821,7 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
         && crash_continuations.is_empty()
         && structural_arguments
             .iter()
-            .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow))
+            .all(|argument| argument.access != terminal_psi::StructuralAccess::Owned))
     .then_some(*callee)
 }
 
@@ -1459,37 +1831,42 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
 /// callee — the callee's transitive effect summary must prove no observable
 /// effect, no crash, and no suspension, every node inside the component's
 /// member roster must be unobservable under the same summaries, and the
-/// component must perform no place mutation or custody movement
+/// component must preserve member-visible place contents and custody
 /// ([`component_preserves_place_observations`]) — the whole-component bound
 /// the byte family already replays, required here because the callee can
-/// observe caller places through its shared borrows: only when no member
-/// mutates any place does the relocated call observe, on every traversal,
-/// exactly what the in-loop invocation observed.
+/// observe caller places through its borrows: only when no member mutates a
+/// place any member could observe does the relocated call observe, on every
+/// traversal, exactly what the in-loop invocation observed.
 ///
 /// The callee's `structural_state` axis stays exempt under the same argument
-/// the scalar call uses, tightened by the shared-borrow whitelist: every
-/// place the callee could mutate is either activation-internal or reached
-/// through a shared borrow — verified call bindings cannot hand a shared
-/// borrow to a mutable parameter — so no caller-visible place moves, and a
-/// `May` there reflects callee-internal structural work or control edges
-/// carrying structural bindings, not caller custody.
+/// the scalar call uses, tightened by the borrow whitelist: every place the
+/// callee could mutate is either activation-internal or reached through a
+/// borrow the admission already gated — a shared borrow hands it no write
+/// authority, and a mutable or write-only borrow may only name a
+/// member-produced root the same run relocates and no other member observes —
+/// so no member-visible place moves, and a `May` there reflects
+/// callee-internal structural work or control edges carrying structural
+/// bindings, not caller custody.
 ///
 /// Each scalar `arguments` operand then obeys the shared use-site invariance
-/// rule ([`member_scalar_operand_substitution`]). Each structural argument's
-/// root must land somewhere the relocated run can see it: already visible at
-/// the unique preheader insertion point, the representative an invariant
-/// member structural parameter resolves to
+/// rule ([`member_scalar_operand_substitution`]). Each shared-borrow
+/// structural argument's root must land somewhere the relocated run can see
+/// it: already visible at the unique preheader insertion point, the
+/// representative an invariant member structural parameter resolves to
 /// ([`invariant_member_place_parameters`]), or a root a node earlier in the
 /// same run produced — `relocating_roots` — because the run preserves the
 /// producer's declared place identity and orders it ahead of the call. A
 /// member parameter the fixed point resolves rebinds on the moved node; a
 /// member-produced root the run does not cover — or any other invisible root
-/// — refuses the relocation.
+/// — refuses the relocation. A mutable or write-only borrow's root instead
+/// must be member-produced and already relocated by the same run: the callee
+/// may write — and for a mutable borrow read — the cell, so only a fresh
+/// per-traversal initializer keeps the invocation's view identical.
 ///
 /// Returns the scalar substitution plus the `(member parameter or
 /// member-produced root, preheader-visible root)` rewrites the relocated
 /// call performs on its structural arguments — empty when every argument
-/// already names a visible root.
+/// already names a visible or run-produced root.
 pub(crate) fn invariant_unit_call_admission(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -1506,7 +1883,7 @@ pub(crate) fn invariant_unit_call_admission(
     else {
         return None;
     };
-    shared_borrow_call_admission(
+    borrow_call_admission(
         function,
         component,
         node,
@@ -1548,7 +1925,7 @@ pub(crate) fn invariant_structural_scalar_call_admission(
     else {
         return None;
     };
-    shared_borrow_call_admission(
+    borrow_call_admission(
         function,
         component,
         node,
@@ -1560,25 +1937,33 @@ pub(crate) fn invariant_structural_scalar_call_admission(
     )
 }
 
-/// The shared evidence every admitted shared-borrow structural-signature
-/// call replays once its shape gate has yielded the exact internal callee
-/// and its `structural_arguments` roster: the callee's transitive effect
+/// The shared evidence every admitted structural-signature call replays once
+/// its shape gate has yielded the exact internal callee and its
+/// `structural_arguments` roster: the callee's transitive effect
 /// summary must prove no observable effect, no crash, and no suspension
-/// (the `structural_state` axis stays exempt — every reachable caller place
-/// arrives through a shared borrow, which verified bindings cannot hand to
-/// a mutable parameter), every node inside the component's member roster
+/// (the `structural_state` axis stays exempt — every caller place the callee
+/// can write arrives through a borrow the place-custody bound already
+/// accounted), every node inside the component's member roster
 /// must be unobservable under the same summaries, and the component must
-/// perform no place mutation or custody movement
+/// preserve member-visible place contents and custody
 /// ([`component_preserves_place_observations`]) — only then does the
 /// relocated call observe and return on every traversal exactly what the
-/// in-loop invocation did. Each scalar `arguments` operand obeys the shared
-/// use-site invariance rule ([`member_scalar_operand_substitution`]), and
-/// each structural argument's root must be already visible at the unique
-/// preheader insertion point, the representative an invariant member
-/// structural parameter resolves to
+/// in-loop invocation did. That bound is also what confines a mutating
+/// borrow's authority: the call is tolerated inside the roster only when
+/// every root its `MutableBorrow` or `WriteOnlyBorrow` arguments name is
+/// exclusive to it, so no member read, second borrow, or store could observe
+/// the callee's writes — and a `MutableBorrow` argument's root must be a
+/// member-produced place a node earlier in the same run already relocated,
+/// which is the only way the callee still reads the fresh initializer every
+/// source traversal established. Each scalar `arguments` operand obeys the
+/// shared use-site invariance rule
+/// ([`member_scalar_operand_substitution`]), and
+/// each shared-borrow structural argument's root must be already visible at
+/// the unique preheader insertion point, the representative an invariant
+/// member structural parameter resolves to
 /// ([`invariant_member_place_parameters`]), or a root a node earlier in the
 /// same run produced — `relocating_roots`.
-fn shared_borrow_call_admission(
+fn borrow_call_admission(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     node: &OptimizationNode,
@@ -1606,18 +1991,58 @@ fn shared_borrow_call_admission(
     let representatives = invariant_member_place_parameters(function, component);
     let mut rewrites = Vec::new();
     for argument in structural_arguments {
-        let resolved = if place_observation_root_visible(function, preheader, argument.place)
-            || relocating_roots.contains(&argument.place)
-        {
-            argument.place
-        } else {
-            let representative = *representatives.get(&argument.place)?;
-            (place_observation_root_visible(function, preheader, representative)
-                || relocating_roots.contains(&representative))
-            .then_some(representative)?
-        };
-        if resolved != argument.place {
-            rewrites.push((argument.place, resolved));
+        match argument.access {
+            // A mutating borrow hands the callee write — and for a mutable
+            // borrow, read — authority over the argument's root. The only
+            // admitted root is a member-produced place whose unique member
+            // producer relocates in the same run ahead of the call: the
+            // producer's declared place identity moves byte-exact, so the
+            // argument keeps spelling it and no rewrite is needed. A second
+            // member producer would let a staying establishment
+            // re-initialize the cell behind the relocated call's single
+            // invocation, so the producer count must be exactly one. A
+            // caller root under
+            // `MutableBorrow` is genuinely inadmissible — the callee may
+            // read it, and its contents evolve across traversals as the
+            // callee's own writes accumulate, so the relocated invocation
+            // could not reproduce the per-traversal reads; under
+            // `WriteOnlyBorrow` a caller root would be consistent in
+            // principle — the callee cannot read it — but no admitted cyclic
+            // source shape produces one today, so both take the single
+            // member-produced rule. A member structural parameter cannot
+            // carry a member-produced root, so the spelled place is the root
+            // itself.
+            terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
+                if !(relocating_roots.contains(&argument.place)
+                    && member_root_producer_count(function, component, argument.place) == 1)
+                {
+                    return None;
+                }
+            }
+            terminal_psi::StructuralAccess::SharedBorrow => {
+                let resolved =
+                    if place_observation_root_visible(function, preheader, argument.place)
+                        || (relocating_roots.contains(&argument.place)
+                            && member_root_producer_count(function, component, argument.place) == 1)
+                    {
+                        argument.place
+                    } else {
+                        let representative = *representatives.get(&argument.place)?;
+                        (place_observation_root_visible(function, preheader, representative)
+                            || (relocating_roots.contains(&representative)
+                                && member_root_producer_count(function, component, representative)
+                                    == 1))
+                            .then_some(representative)?
+                    };
+                if resolved != argument.place {
+                    rewrites.push((argument.place, resolved));
+                }
+            }
+            // `Owned` moves the caller's place into the callee — the shape
+            // gate already refused it; reaching one here means the plan
+            // drifted.
+            terminal_psi::StructuralAccess::Owned => return None,
         }
     }
     Some((substitution, rewrites))
