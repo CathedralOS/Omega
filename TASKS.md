@@ -1898,56 +1898,32 @@ Owners include
   routes, and reject retired spellings. Candidate naming syntax is not a
   prerequisite. Do not claim full mathematical coverage from these controls.
 
-- **PROOF-CERTIFICATION-BRIDGE.** Turn source automation into an untrusted
-  producer for the common `PROOF-KERNEL-CORE` checker, not a second authority.
-  Retire superseded trusted success-only paths as their certificate route lands;
-  do not keep legacy and general proof routes selected by source shape.
-  Recursive certificates own one SCC and cite ranking and
-  well-foundedness evidence once; normalization names exact laws and preserves
-  transitive trust. Acceptance: changing an edge decrease, premise, law, or
-  component identity rejects or changes the trust closure. For separately
-  compiled dependencies, reconstruct the exact obligations and recheck retained
-  certificates locally; propagate unresolved assumptions with their original
-  owner. Missing or stale evidence cannot silently discharge an obligation or
-  inherit a producer's admission decision.
-
-  Bounded current-rule production and the selected kernel profile are actionable.
-  General certificates depend on `PROOF-KERNEL-CORE`'s rule and encoding evidence,
-  including the selected typed-eta conversion justification. Common checking
-  authority is settled in the [publication contract](wiki/spec/proofs/publication.md).
-  Retain closure over complete checked declaration dependencies,
-  including statement/type references surviving neither erasure nor final normal
-  forms. Acceptance also checks a well-founded denotation against a generated
-  loop: measure decrease must not certify an incorrect accumulator update.
-
-  Witnessed at `ecc041a1c7`: `TerminalRankedScc::UnsignedCountdown` was the
-  remaining shape-selected trusted route. A structural-unit countdown
-  (`transition remaining > 0 { true -> countdown(token, remaining - 1) … }`
-  whose owned `Token` the composed builders reject) verified with an empty
-  `proof_bundle.control_cycles`: `terminal-verifier/src/control_cycles/reconstruction.rs`
-  reconstructed obligations only for `Natural`, so `validation/ranked_scc.rs`
-  shape recognition alone discharged the ranking and `fixed_fuel` inherited it.
-  The same machine with a plain-owned token took the composed route and
-  carried a `RecursiveComponentCertificate`.
-
-  Closed: `checked-trees-to-lowered-psi/src/unit/structural_unit_control.rs`
-  now emits `TerminalRankedScc::Natural` rows through `control_cycle_proofs`
-  for countdown-shaped machines, `finalize_operation_proofs` runs one common
-  validate-then-reconstruct route for every machine, and the `UnsignedCountdown`
-  variant, its codec tag (tag 1 is a rejected tombstone), its validator
-  (`terminal-verifier/src/validation/ranked_scc.rs`), the fixed-fuel
-  `fuel_certification/ranked_countdown.rs` reader, the abstract-operations
-  `lowering/ranked_countdown.rs`, the `machine-emission` countdown path, and the
-  `NativeArtifactOperationPlan` execution fork are deleted. Native publication
-  goes through `terminal_verifier::verify_module` alone (see
-  `native_publication_has_no_countdown_execution_fork`). The optimizer's
-  `countdown_ranking` validation context survives only as an optional
-  recognizer that projects the unsigned-countdown idiom out of
-  verifier-admitted `Natural` components; it confers no trust by itself.
-  Acceptance is met: the countdown program rejects when its certificate is
-  absent or its decrease, successor rank, component roster, or topology is
-  altered, and safe-point/entry fuel derives from the shared
-  `Natural`-component bound (`rank_maximum + 1` member-block visits).
+- **PROOF-CERTIFICATION-BRIDGE.** A well-founded denotation must be checked
+  against the generated loop, not inherited from termination: a ranked
+  `Natural` component whose accumulator update is wrong must fail its
+  functional claim (post-loop `ensures` or scalar block invariant) while its
+  unchanged control-cycle certificate still verifies, under the
+  [publication contract](wiki/spec/proofs/publication.md). Today the
+  source-level twins (`fail/proofs/inductive_climbing_sum_step_false_twin`,
+  `inductive_gauss_sum_step_false_twin`) refute the wrong update in Psi
+  validation only; both positive fixtures are checked-only, and
+  `checked-trees-to-lowered-psi` does not lower a value-returning ranked
+  machine ("has no admitted body (local construction stopped at call
+  statement shape)"), so no generated loop carries a functional claim.
+  Acceptance: (a) a terminal-verifier replay control in
+  `tests/ranked_scc/scalar_block_invariants.rs` that keeps a valid `Natural`
+  certificate and rejects a wrong accumulator arrival; (b) the producer
+  lowers a value-returning ranked machine with an `ensures` so an executable
+  proof canary with a wrong-accumulator fail twin leaves
+  `CHECKED_ONLY_PASS_CANARIES`. Law normalization (`verify_normalization`
+  in `proof-admission/src/admission/normalization.rs`) has no Terminal
+  consumer; routing quotient/ring-law evidence through it is shared with
+  **PCC-CANONICAL-SEMANTIC-LEDGER**. Edge decrease, premise, law, and
+  component identity changes, separately compiled dependency recheck, the
+  absence of shape-selected trust routes, and one-SCC certificates are
+  pinned by `terminal-verifier/tests/ranked_scc.rs`, `pcc_publication.rs`
+  (including `receiver_replay_never_inherits_the_producer_admission_profile`),
+  and `tests/architecture/layering.rs`.
 
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted Rust fusion of artifact
   traversal and proof search with a small total canonical-ledger generator plus

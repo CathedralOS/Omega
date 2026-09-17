@@ -52,6 +52,38 @@ three, with the production site each needs:
   by 0ad7edc425); `src/execution` is under the live
   **PROOF-RELEVANCE-MIGRATION/abi-stripping** claim.
 
+## terminal-verifier
+
+`cargo nextest run -p terminal-verifier --no-fail-fast` at e62b4ae06f
+(2026-09-17, macOS arm64, dependency crates rebuilt from the same tree):
+713 run, 706 passed, 7 failed.
+
+- `trusted_surface::recorded_digests_match_the_working_tree` (and its
+  `source_coverage_fires_on_a_changed_implementation` sibling): the ledger
+  in `trusted_surface/sites.rs` records digests for twelve implementations
+  (`semantic-vocabulary/src/content.rs` and `proposition`, terminal-psi
+  proof-bundle admission and nodes, proof-admission `integer_rules/*`,
+  `kernel.rs`, `lib.rs`, `evidence.rs`) that have since changed; the ledger
+  needs re-recording by the lane that changed them, after review.
+- `unranked_bindings::cyclic_scalar_targets_and_reachability_are_checked_before_dominance`,
+  `unranked_views::every_cyclic_view_jump_checks_exact_arity`,
+  `owned_reads::block_parameters::owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`,
+  and three `structural_unit::boundary_buffers::*` tests now see
+  `InvalidPartialAffineCleanup` before the error they expect (for example
+  `UnknownTargetBlock(99)`): a check-ordering change in the verifier lane,
+  not bisected.
+
+## compiler canary suite (pass canaries)
+
+`OMEGA_PASS_CANARY_FILTER=proofs/proof_inductive_climbing_sum cargo nextest
+run -p compiler --test canary_suite -E 'test(pass_canaries_compile)'` at
+e62b4ae06f fails: "exact arithmetic in `Main::climb` transition argument may
+overflow `u64`" (`acc + 1`). The fixture is unchanged since 8db00a06de
+(2026-08-28); the rank-range and arithmetic engine changed on 2026-09-15/16
+(19ab91c175, 0accda3754, 7635bad190, d7e36ec39c, 84e6ba3682, 2ec8875792).
+`proofs/proof_inductive_gauss_sum` and `proofs/runtime_decreases_u64_measure_exit`
+still compile.
+
 ## checked-trees-to-lowered-psi
 
 `cargo test -p checked-trees-to-lowered-psi --test unit_scalar_result_source
