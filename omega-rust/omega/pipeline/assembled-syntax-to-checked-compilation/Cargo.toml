@@ -44,3 +44,6 @@ trust-model = { path = "../../build/trust-model" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
 validation = { path = "../../../psi/semantics/validation" }
+
+[dev-dependencies]
+package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }

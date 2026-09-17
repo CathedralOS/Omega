@@ -761,10 +761,17 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   target-scoped rows still select against the product target, and a file
   imported by both scopes is rejected rather than checked twice (the
   cross-scope import diagnostic names the `builder.depend_as`/`build_depend_as`
-  declaration that would close the gap); generated dependency source keeps
-  product scope even under a build-only package; and non-root packages
-  cannot author build rows, so cross-purpose cycles and per-helper build
-  activations stay unexercised.
+  declaration that would close the gap); and non-root packages cannot author
+  build rows, so cross-purpose cycles and per-helper build activations stay
+  unexercised. A build-only package's generated dependency source now joins
+  `build_scope_sources` beside that package's physical files
+  (`source_assembly.rs::assemble_syntax` reads package ownership from the
+  mounted logical path for both), so its target-scoped rows select against
+  the build execution profile while a product package's generated source
+  keeps the product target; witnessed by the two generated-source tests in
+  `execution_profile_tests.rs` and
+  `checkpoint/tests.rs::generated_source_joins_the_build_scope_with_its_build_only_owner`,
+  macOS ARM64.
 
 - **BUILD-PRODUCT-REFERENCES.** In Psi source selection and the existing Build
   root/provider owners, implement designated product operands and qualified
