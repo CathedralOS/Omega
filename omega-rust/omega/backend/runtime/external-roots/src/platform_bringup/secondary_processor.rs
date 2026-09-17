@@ -21,9 +21,15 @@
 //! `complete_secondary_processor_startup` accepts only a receipt naming that
 //! exact carrier: a refusal returns the account to pending custody so a fresh
 //! invocation can retry, while a started processor keeps its stack and state
-//! account held until a later quiescence edge can retire it. Withdrawal is
-//! permitted only for a processor that has never been invoked, returning its
-//! state extent and account intact.
+//! account held. `retire_secondary_processor` is the quiescence edge that
+//! releases that hold: it consumes the started evidence together with a
+//! provider quiescence receipt naming it exactly, and returns the complete
+//! account only when the provider attests the processor no longer executes
+//! on the accounted stack or private state. An incomplete drain keeps the
+//! account held and hands the started evidence back for a later attempt.
+//! Withdrawal is permitted only for a processor that has never been invoked,
+//! returning its state extent and account intact. Neither edge retires the
+//! trampoline: the ledger's borrow keeps the installed code unretirable.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -33,8 +39,9 @@ use extents::Extent;
 use layout_plans::{EntryStubId, MachineRegimeId};
 
 use crate::{
-    ExternalRootDiagnostic, SecondaryProcessorOccurrenceId, SecondaryProcessorStartupInvocationId,
-    SecondaryProcessorStartupProfileId, SecondaryProcessorStartupReceiptId,
+    ExternalRootDiagnostic, SecondaryProcessorOccurrenceId, SecondaryProcessorQuiescenceReceiptId,
+    SecondaryProcessorStartupInvocationId, SecondaryProcessorStartupProfileId,
+    SecondaryProcessorStartupReceiptId,
 };
 
 /// Normalized compiler- or target-authored plan for one secondary-processor
@@ -438,7 +445,7 @@ impl SecondaryProcessorRecord {
 
     /// Whether this processor completed its startup invocation. A started
     /// processor's account stays held: its stack and state remain occupied
-    /// until a later quiescence edge can retire them.
+    /// until `retire_secondary_processor` consumes a quiescence receipt.
     pub fn is_started(&self) -> bool {
         matches!(self.phase, SecondaryProcessorPhase::Started { .. })
     }
@@ -517,7 +524,10 @@ impl SecondaryProcessorStartupReceipt {
 }
 
 /// Evidence that one processor completed its startup invocation on the
-/// verified vector and regime transition.
+/// verified vector and regime transition. It binds the installed-code
+/// identity, context, and artifact the carrier was issued under, so the
+/// quiescence edge can tell this ledger's started processor from a foreign
+/// ledger's. It is the only input that can open retirement.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecondaryProcessorStarted {
     processor: SecondaryProcessorOccurrenceId,
@@ -526,6 +536,9 @@ pub struct SecondaryProcessorStarted {
     startup_vector: u64,
     startup_entry: EntryStubId,
     transition: SecondaryProcessorRegimeTransition,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
 }
 
 impl SecondaryProcessorStarted {
@@ -578,6 +591,130 @@ impl SecondaryProcessorStartupRefusal {
 pub enum SecondaryProcessorStartupOutcome {
     Started(SecondaryProcessorStarted),
     Refused(SecondaryProcessorStartupRefusal),
+}
+
+/// Provider attestation answering one started processor's retirement. The
+/// provider owns how the processor is halted or parked; the ledger only
+/// replays that the receipt names the exact started evidence and, when
+/// `quiescent`, that no execution still reaches the account's dedicated
+/// stack or private state.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SecondaryProcessorQuiescenceReceipt {
+    identity: SecondaryProcessorQuiescenceReceiptId,
+    processor: SecondaryProcessorOccurrenceId,
+    invocation: SecondaryProcessorStartupInvocationId,
+    startup_receipt: SecondaryProcessorStartupReceiptId,
+    startup_vector: u64,
+    quiescent: bool,
+}
+
+impl SecondaryProcessorQuiescenceReceipt {
+    pub fn from_provider(
+        identity: SecondaryProcessorQuiescenceReceiptId,
+        started: &SecondaryProcessorStarted,
+        quiescent: bool,
+    ) -> Self {
+        Self {
+            identity,
+            processor: started.processor,
+            invocation: started.invocation,
+            startup_receipt: started.receipt,
+            startup_vector: started.startup_vector,
+            quiescent,
+        }
+    }
+
+    pub const fn identity(&self) -> SecondaryProcessorQuiescenceReceiptId {
+        self.identity
+    }
+
+    pub const fn quiescent(&self) -> bool {
+        self.quiescent
+    }
+}
+
+/// Returned custody for a retired processor: the complete account plus its
+/// state extent, bound to the startup and quiescence evidence that closed
+/// it, so nothing provisioned for the AP is dropped silently.
+#[derive(Debug)]
+pub struct SecondaryProcessorRetirement {
+    processor: SecondaryProcessorOccurrenceId,
+    invocation: SecondaryProcessorStartupInvocationId,
+    startup_receipt: SecondaryProcessorStartupReceiptId,
+    quiescence_receipt: SecondaryProcessorQuiescenceReceiptId,
+    boundary: ValidatedBoundaryEntryPlan,
+    stack_class: u16,
+    wcsu_bytes: u64,
+    wcsu_alignment: u64,
+    state: Extent,
+    transition: SecondaryProcessorRegimeTransition,
+}
+
+impl SecondaryProcessorRetirement {
+    pub const fn processor(&self) -> SecondaryProcessorOccurrenceId {
+        self.processor
+    }
+
+    pub const fn invocation(&self) -> SecondaryProcessorStartupInvocationId {
+        self.invocation
+    }
+
+    pub const fn startup_receipt(&self) -> SecondaryProcessorStartupReceiptId {
+        self.startup_receipt
+    }
+
+    pub const fn quiescence_receipt(&self) -> SecondaryProcessorQuiescenceReceiptId {
+        self.quiescence_receipt
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        ValidatedBoundaryEntryPlan,
+        u16,
+        u64,
+        u64,
+        Extent,
+        SecondaryProcessorRegimeTransition,
+    ) {
+        (
+            self.boundary,
+            self.stack_class,
+            self.wcsu_bytes,
+            self.wcsu_alignment,
+            self.state,
+            self.transition,
+        )
+    }
+}
+
+/// An incomplete drain. The provider accepted the retirement request but
+/// could not attest quiescence, so the account stays held exactly as it was
+/// and the started evidence returns for a later attempt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecondaryProcessorQuiescenceRefusal {
+    started: SecondaryProcessorStarted,
+    receipt: SecondaryProcessorQuiescenceReceiptId,
+}
+
+impl SecondaryProcessorQuiescenceRefusal {
+    pub const fn processor(&self) -> SecondaryProcessorOccurrenceId {
+        self.started.processor
+    }
+
+    pub const fn receipt(&self) -> SecondaryProcessorQuiescenceReceiptId {
+        self.receipt
+    }
+
+    pub fn into_started(self) -> SecondaryProcessorStarted {
+        self.started
+    }
+}
+
+#[derive(Debug)]
+pub enum SecondaryProcessorQuiescenceOutcome {
+    Retired(SecondaryProcessorRetirement),
+    Held(SecondaryProcessorQuiescenceRefusal),
 }
 
 /// Returned custody for a never-invoked processor: the complete account plus
@@ -858,6 +995,9 @@ impl<'code> SecondaryProcessorStartupLedger<'code> {
                     startup_vector: carrier.startup_vector,
                     startup_entry: carrier.startup_entry,
                     transition: record.transition,
+                    installed_code: carrier.installed_code,
+                    installed_code_context: carrier.installed_code_context,
+                    artifact: carrier.artifact,
                 },
             ))
         } else {
@@ -907,6 +1047,112 @@ impl<'code> SecondaryProcessorStartupLedger<'code> {
             state: record.state,
             transition: record.transition,
         })
+    }
+
+    /// Retire one started processor on a provider quiescence receipt,
+    /// returning its complete account and state extent.
+    ///
+    /// The started evidence must be this ledger's own — same installed
+    /// occurrence, vector, and entry — and must name the account's current
+    /// startup: a pending or invoked account has nothing to retire, and
+    /// evidence from an earlier startup of a re-admitted processor is stale.
+    /// The receipt must bind that exact started evidence. Every check runs
+    /// before any ledger state changes; a rejection returns both inputs. A
+    /// receipt that does not attest quiescence leaves the account held and
+    /// hands the started evidence back.
+    pub fn retire_secondary_processor(
+        &mut self,
+        started: SecondaryProcessorStarted,
+        receipt: SecondaryProcessorQuiescenceReceipt,
+    ) -> Result<SecondaryProcessorQuiescenceOutcome, Box<SecondaryProcessorRetirementError>> {
+        let reject = |diagnostic: &str,
+                      started: SecondaryProcessorStarted,
+                      receipt: SecondaryProcessorQuiescenceReceipt| {
+            Err(Box::new(SecondaryProcessorRetirementError {
+                started,
+                receipt,
+                diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+            }))
+        };
+
+        let exact_started = started.installed_code == self.trampoline.installed_code.identity()
+            && started.installed_code_context == self.trampoline.installed_code.receipt_context()
+            && started.artifact == self.trampoline.installed_code.artifact()
+            && started.startup_vector == self.trampoline.startup_vector
+            && started.startup_entry == self.trampoline.profile.startup_entry;
+        if !exact_started {
+            return reject(
+                "secondary-processor started evidence is foreign, stale, or drifted",
+                started,
+                receipt,
+            );
+        }
+        let Some(record) = self.records.get(&started.processor) else {
+            return reject(
+                "secondary-processor started evidence names no admitted processor",
+                started,
+                receipt,
+            );
+        };
+        let SecondaryProcessorPhase::Started {
+            invocation,
+            receipt: startup_receipt,
+        } = record.phase
+        else {
+            return reject(
+                "secondary-processor retirement requires a started account",
+                started,
+                receipt,
+            );
+        };
+        let names_current_startup = invocation == started.invocation
+            && startup_receipt == started.receipt
+            && record.transition == started.transition;
+        if !names_current_startup {
+            return reject(
+                "secondary-processor started evidence does not name the account's current startup",
+                started,
+                receipt,
+            );
+        }
+        let exact_receipt = receipt.processor == started.processor
+            && receipt.invocation == started.invocation
+            && receipt.startup_receipt == started.receipt
+            && receipt.startup_vector == started.startup_vector;
+        if !exact_receipt {
+            return reject(
+                "secondary-processor quiescence receipt does not bind the exact started evidence",
+                started,
+                receipt,
+            );
+        }
+
+        if !receipt.quiescent {
+            return Ok(SecondaryProcessorQuiescenceOutcome::Held(
+                SecondaryProcessorQuiescenceRefusal {
+                    started,
+                    receipt: receipt.identity,
+                },
+            ));
+        }
+        let record = self
+            .records
+            .remove(&started.processor)
+            .expect("validated secondary-processor record remains retained");
+        Ok(SecondaryProcessorQuiescenceOutcome::Retired(
+            SecondaryProcessorRetirement {
+                processor: record.processor,
+                invocation: started.invocation,
+                startup_receipt: started.receipt,
+                quiescence_receipt: receipt.identity,
+                boundary: record.boundary,
+                stack_class: record.stack_class,
+                wcsu_bytes: record.wcsu_bytes,
+                wcsu_alignment: record.wcsu_alignment,
+                state: record.state,
+                transition: record.transition,
+            },
+        ))
     }
 }
 
@@ -982,6 +1228,28 @@ impl SecondaryProcessorWithdrawError {
 
     pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
         &self.diagnostic
+    }
+}
+
+#[derive(Debug)]
+pub struct SecondaryProcessorRetirementError {
+    started: SecondaryProcessorStarted,
+    receipt: SecondaryProcessorQuiescenceReceipt,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl SecondaryProcessorRetirementError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        SecondaryProcessorStarted,
+        SecondaryProcessorQuiescenceReceipt,
+    ) {
+        (self.started, self.receipt)
     }
 }
 

@@ -1,6 +1,8 @@
 use super::{
     EntryStack, EntryStubId, InstalledCode, MachineRegime, MachineRegimeId,
-    SecondaryProcessorAccount, SecondaryProcessorOccurrenceId, SecondaryProcessorStartupInvocation,
+    SecondaryProcessorAccount, SecondaryProcessorOccurrenceId, SecondaryProcessorQuiescenceOutcome,
+    SecondaryProcessorQuiescenceReceipt, SecondaryProcessorQuiescenceReceiptId,
+    SecondaryProcessorStarted, SecondaryProcessorStartupInvocation,
     SecondaryProcessorStartupInvocationId, SecondaryProcessorStartupLedger,
     SecondaryProcessorStartupOutcome, SecondaryProcessorStartupProfile,
     SecondaryProcessorStartupProfileId, SecondaryProcessorStartupReceipt,
@@ -38,6 +40,11 @@ fn invocation_id(identity: u64) -> SecondaryProcessorStartupInvocationId {
 fn receipt_id(identity: u64) -> SecondaryProcessorStartupReceiptId {
     SecondaryProcessorStartupReceiptId::from_normalized_identity(identity)
         .expect("normalized startup receipt identity")
+}
+
+fn quiescence_receipt_id(identity: u64) -> SecondaryProcessorQuiescenceReceiptId {
+    SecondaryProcessorQuiescenceReceiptId::from_normalized_identity(identity)
+        .expect("normalized quiescence receipt identity")
 }
 
 fn startup_entry() -> EntryStubId {
@@ -843,5 +850,434 @@ fn withdrawal_returns_the_complete_never_invoked_account() {
     assert!(matches!(
         outcome,
         SecondaryProcessorStartupOutcome::Started(_)
+    ));
+}
+
+/// Drive one admitted processor through issuance and a started receipt,
+/// returning the minted started evidence the quiescence edge consumes.
+fn start_processor(
+    ledger: &mut SecondaryProcessorStartupLedger<'_>,
+    processor: u64,
+    invocation: u64,
+    receipt: u64,
+) -> SecondaryProcessorStarted {
+    let carrier = ledger
+        .begin_secondary_processor_startup(processor_id(processor), invocation_id(invocation))
+        .expect("startup invocation issues");
+    let started_receipt =
+        SecondaryProcessorStartupReceipt::from_provider(receipt_id(receipt), &carrier, true);
+    match ledger
+        .complete_secondary_processor_startup(carrier, started_receipt)
+        .expect("started startup completes")
+    {
+        SecondaryProcessorStartupOutcome::Started(started) => started,
+        SecondaryProcessorStartupOutcome::Refused(_) => {
+            panic!("a started receipt must mint started evidence")
+        }
+    }
+}
+
+#[test]
+fn retirement_returns_the_exact_started_account_and_frees_its_resources() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("first secondary processor admits");
+    ledger
+        .admit_secondary_processor(processor_account(0x11, 10, 0x3_0000, 0x1000))
+        .expect("second secondary processor admits");
+    let started = start_processor(&mut ledger, 0x10, 0x20, 0x30);
+    start_processor(&mut ledger, 0x11, 0x21, 0x31);
+
+    let quiescent = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x40),
+        &started,
+        true,
+    );
+    assert!(quiescent.quiescent());
+    let outcome = ledger
+        .retire_secondary_processor(started, quiescent)
+        .expect("a quiescent started processor retires");
+    let SecondaryProcessorQuiescenceOutcome::Retired(retirement) = outcome else {
+        panic!("a quiescent receipt must retire the account");
+    };
+    assert_eq!(retirement.processor(), processor_id(0x10));
+    assert_eq!(retirement.invocation(), invocation_id(0x20));
+    assert_eq!(retirement.startup_receipt(), receipt_id(0x30));
+    assert_eq!(retirement.quiescence_receipt(), quiescence_receipt_id(0x40));
+    let (boundary, stack_class, wcsu_bytes, wcsu_alignment, state, transition) =
+        retirement.into_parts();
+    assert_eq!(stack_class, 9);
+    assert_eq!(wcsu_bytes, WCSU_BYTES);
+    assert_eq!(wcsu_alignment, WCSU_ALIGNMENT);
+    assert_eq!(state.base(), 0x2_0000);
+    assert_eq!(state.length(), 0x1000);
+    assert_eq!(transition.arrival_regime(), arrival_regime());
+    assert_eq!(transition.installed_regime(), MachineRegime::X86Long64);
+    assert_eq!(
+        boundary.plan().state.stack,
+        EntryStack::Dedicated { class: 9 }
+    );
+
+    // Only the retired account left the ledger; the other started processor
+    // keeps its hold untouched.
+    assert!(ledger.record(processor_id(0x10)).is_none());
+    assert!(
+        ledger
+            .record(processor_id(0x11))
+            .expect("second record")
+            .is_started()
+    );
+    assert_eq!(ledger.records().count(), 1);
+
+    // Custody actually returned: the retired stack class and state backing
+    // are accountable to a fresh processor again.
+    let readmitted = ledger
+        .admit_secondary_processor(processor_account(0x12, 9, 0x2_0000, 0x1000))
+        .expect("the retired stack class and state backing admit again");
+    assert_eq!(readmitted.stack_class(), 9);
+    assert!(!readmitted.is_started());
+}
+
+#[test]
+fn quiescence_refusal_keeps_the_started_account_held_for_retry() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+    let started = start_processor(&mut ledger, 0x10, 0x20, 0x30);
+    let expected = started.clone();
+
+    let incomplete_drain = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x40),
+        &started,
+        false,
+    );
+    let outcome = ledger
+        .retire_secondary_processor(started, incomplete_drain)
+        .expect("an accepted receipt without quiescence is held, not rejected");
+    let SecondaryProcessorQuiescenceOutcome::Held(refusal) = outcome else {
+        panic!("an incomplete drain must not retire the account");
+    };
+    assert_eq!(refusal.processor(), processor_id(0x10));
+    assert_eq!(refusal.receipt(), quiescence_receipt_id(0x40));
+
+    // The account stays exactly as it was: started, unwithdrawable, and the
+    // stack class and state backing still accounted.
+    assert!(
+        ledger
+            .record(processor_id(0x10))
+            .expect("record")
+            .is_started()
+    );
+    let withdrawal = ledger
+        .withdraw_secondary_processor(processor_id(0x10))
+        .expect_err("a held processor's account stays unwithdrawable");
+    assert!(withdrawal.diagnostic().0.contains("pending"));
+    let shared_class = ledger
+        .admit_secondary_processor(processor_account(0x11, 9, 0x3_0000, 0x1000))
+        .expect_err("a held stack class is still accounted");
+    assert!(shared_class.diagnostic().0.contains("already accounted"));
+
+    // The returned started evidence is the exact one minted at startup, and
+    // a later quiescent receipt retires on it.
+    let started = refusal.into_started();
+    assert_eq!(started, expected);
+    let quiescent = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x41),
+        &started,
+        true,
+    );
+    let outcome = ledger
+        .retire_secondary_processor(started, quiescent)
+        .expect("the retried quiescence receipt retires");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorQuiescenceOutcome::Retired(_)
+    ));
+    assert!(ledger.record(processor_id(0x10)).is_none());
+}
+
+#[test]
+fn retirement_rejects_never_started_accounts() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("pending secondary processor admits");
+    ledger
+        .admit_secondary_processor(processor_account(0x11, 10, 0x3_0000, 0x1000))
+        .expect("invoked secondary processor admits");
+    let carrier = ledger
+        .begin_secondary_processor_startup(processor_id(0x11), invocation_id(0x21))
+        .expect("startup invocation issues");
+
+    // Forged started evidence citing this ledger's exact trampoline still
+    // cannot retire an account the provider never acknowledged as started.
+    let pending_transition = ledger
+        .record(processor_id(0x10))
+        .expect("pending record")
+        .transition();
+    let invoked_transition = ledger
+        .record(processor_id(0x11))
+        .expect("invoked record")
+        .transition();
+    let forged = |processor: u64, invocation: u64, transition| SecondaryProcessorStarted {
+        processor: processor_id(processor),
+        invocation: invocation_id(invocation),
+        receipt: receipt_id(0x30),
+        startup_vector: TRAMPOLINE_BASE / STARTUP_ALIGNMENT,
+        startup_entry: startup_entry(),
+        transition,
+        installed_code: code.identity(),
+        installed_code_context: code.receipt_context(),
+        artifact: code.artifact(),
+    };
+
+    let pending = forged(0x10, 0x20, pending_transition);
+    let pending_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x40),
+        &pending,
+        true,
+    );
+    let error = ledger
+        .retire_secondary_processor(pending, pending_receipt)
+        .expect_err("a pending account must not retire");
+    assert!(error.diagnostic().0.contains("requires a started account"));
+
+    // An outstanding invocation is not a start: the provider has not
+    // acknowledged it, so there is nothing quiescence could release.
+    let invoked = forged(0x11, 0x21, invoked_transition);
+    let invoked_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x41),
+        &invoked,
+        true,
+    );
+    let error = ledger
+        .retire_secondary_processor(invoked, invoked_receipt)
+        .expect_err("an invoked account must not retire");
+    assert!(error.diagnostic().0.contains("requires a started account"));
+
+    let unknown = forged(0x12, 0x22, pending_transition);
+    let unknown_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x42),
+        &unknown,
+        true,
+    );
+    let error = ledger
+        .retire_secondary_processor(unknown, unknown_receipt)
+        .expect_err("an unadmitted processor has nothing to retire");
+    assert!(error.diagnostic().0.contains("names no admitted processor"));
+
+    // Nothing moved: both accounts remain, and the outstanding invocation
+    // still lands on its own receipt.
+    assert_eq!(ledger.records().count(), 2);
+    let landed_receipt =
+        SecondaryProcessorStartupReceipt::from_provider(receipt_id(0x31), &carrier, true);
+    let outcome = ledger
+        .complete_secondary_processor_startup(carrier, landed_receipt)
+        .expect("the outstanding invocation still completes");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorStartupOutcome::Started(_)
+    ));
+}
+
+#[test]
+fn retirement_rejects_stale_foreign_or_replayed_started_evidence() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+    let started = start_processor(&mut ledger, 0x10, 0x20, 0x30);
+
+    // Started evidence naming drifted vector geometry is foreign even when
+    // it cites the same installed occurrence.
+    let mut drifted = started.clone();
+    drifted.startup_vector += 1;
+    let drifted_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x40),
+        &drifted,
+        true,
+    );
+    let error = ledger
+        .retire_secondary_processor(drifted, drifted_receipt)
+        .expect_err("drifted started evidence must not retire");
+    assert!(error.diagnostic().0.contains("foreign, stale, or drifted"));
+
+    // Started evidence minted under a different installed occurrence is
+    // foreign.
+    let foreign_code = crate::tests::installed_code_in_placement(
+        0x610,
+        startup_entry(),
+        vec![0xCC; 96],
+        0x611,
+        Architecture::X86_64,
+        trampoline_constraints(
+            Some(arrival_regime()),
+            TRAMPOLINE_RANGE_END,
+            STARTUP_ALIGNMENT,
+        ),
+        TRAMPOLINE_BASE,
+        TRAMPOLINE_LENGTH,
+    );
+    let mut foreign = started.clone();
+    foreign.installed_code = foreign_code.identity();
+    foreign.installed_code_context = foreign_code.receipt_context();
+    foreign.artifact = foreign_code.artifact();
+    let foreign_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x41),
+        &foreign,
+        true,
+    );
+    let error = ledger
+        .retire_secondary_processor(foreign, foreign_receipt)
+        .expect_err("foreign started evidence must not retire");
+    assert!(error.diagnostic().0.contains("foreign, stale, or drifted"));
+
+    // Every rejection returned both inputs and left the account held.
+    let (returned, _) = error.into_parts();
+    assert_eq!(returned.installed_code, foreign_code.identity());
+    assert!(
+        ledger
+            .record(processor_id(0x10))
+            .expect("record")
+            .is_started()
+    );
+
+    // The exact evidence retires once; replaying it afterwards finds no
+    // account.
+    let quiescent = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x42),
+        &started,
+        true,
+    );
+    let outcome = ledger
+        .retire_secondary_processor(started.clone(), quiescent)
+        .expect("exact started evidence retires");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorQuiescenceOutcome::Retired(_)
+    ));
+    let replayed_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x43),
+        &started,
+        true,
+    );
+    let error = ledger
+        .retire_secondary_processor(started.clone(), replayed_receipt)
+        .expect_err("a replayed retirement must not land");
+    assert!(error.diagnostic().0.contains("names no admitted processor"));
+
+    // Once the same processor is admitted and started again, the earlier
+    // startup's evidence is stale against the account's current startup.
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("the retired processor admits again");
+    let restarted = start_processor(&mut ledger, 0x10, 0x21, 0x31);
+    let stale_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x44),
+        &started,
+        true,
+    );
+    let error = ledger
+        .retire_secondary_processor(started, stale_receipt)
+        .expect_err("stale started evidence must not retire the re-admitted account");
+    assert!(error.diagnostic().0.contains("current startup"));
+    assert!(
+        ledger
+            .record(processor_id(0x10))
+            .expect("re-admitted record")
+            .is_started()
+    );
+    let current_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x45),
+        &restarted,
+        true,
+    );
+    let outcome = ledger
+        .retire_secondary_processor(restarted, current_receipt)
+        .expect("the current startup's evidence retires");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorQuiescenceOutcome::Retired(_)
+    ));
+    assert_eq!(ledger.records().count(), 0);
+}
+
+#[test]
+fn retirement_rejects_receipts_off_the_exact_started_evidence() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+    let started = start_processor(&mut ledger, 0x10, 0x20, 0x30);
+
+    let mut other_invocation = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x40),
+        &started,
+        true,
+    );
+    other_invocation.invocation = invocation_id(0x99);
+    let mut other_processor = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x41),
+        &started,
+        true,
+    );
+    other_processor.processor = processor_id(0x11);
+    let mut other_startup_receipt = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x42),
+        &started,
+        true,
+    );
+    other_startup_receipt.startup_receipt = receipt_id(0x99);
+    let mut other_vector = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x43),
+        &started,
+        true,
+    );
+    other_vector.startup_vector += 1;
+
+    let mut started = started;
+    for (receipt, label) in [
+        (other_invocation, "another invocation"),
+        (other_processor, "another processor"),
+        (other_startup_receipt, "another startup receipt"),
+        (other_vector, "another vector"),
+    ] {
+        let Err(error) = ledger.retire_secondary_processor(started, receipt) else {
+            panic!("a receipt naming {label} must not retire");
+        };
+        assert!(
+            error.diagnostic().0.contains("does not bind"),
+            "{label}: {}",
+            error.diagnostic().0
+        );
+        let (returned, _) = error.into_parts();
+        started = returned;
+        assert!(
+            ledger
+                .record(processor_id(0x10))
+                .expect("record")
+                .is_started(),
+            "{label} left the account held"
+        );
+    }
+
+    let exact = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x44),
+        &started,
+        true,
+    );
+    let outcome = ledger
+        .retire_secondary_processor(started, exact)
+        .expect("the exact receipt retires");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorQuiescenceOutcome::Retired(_)
     ));
 }

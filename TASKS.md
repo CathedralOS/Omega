@@ -1428,10 +1428,30 @@ Owners include
   that exact carrier, refusals return pending custody for retry, and a started
   processor's account stays held for a later quiescence edge. Witnessed on
   macOS arm64 by `mbx nextest run -p external-roots --lib` (152/152, including
-  22 secondary-processor tests over real installed-code custody). Remaining: a
-  provider edge issuing the vector to the target boot protocol, a quiescence
-  edge retiring started accounts, and an authored Omega surface invoking the
-  entry.
+  22 secondary-processor tests over real installed-code custody). The
+  quiescence edge landed as
+  `SecondaryProcessorStartupLedger::retire_secondary_processor` in
+  `omega-rust/omega/backend/runtime/external-roots/src/platform_bringup/secondary_processor.rs`
+  (the module moved under `platform_bringup/`): it consumes the
+  `SecondaryProcessorStarted` evidence — which now binds installed-code
+  identity, context, and artifact — with a provider
+  `SecondaryProcessorQuiescenceReceipt` naming it exactly, and returns the
+  complete account (boundary, stack class, WCSU, state extent, transition)
+  as `SecondaryProcessorRetirement` only when the receipt attests
+  quiescence. Foreign, drifted, stale (an earlier startup of a re-admitted
+  processor), replayed, unadmitted, pending, and invoked inputs all reject
+  transactionally with both inputs returned; a non-quiescent receipt keeps
+  the account held and hands the started evidence back. The ledger's
+  trampoline borrow is untouched by retirement. Witnessed on macOS arm64 by
+  `cargo nextest run -p external-roots --no-fail-fast` (224/224, including
+  27 secondary-processor tests:
+  `retirement_returns_the_exact_started_account_and_frees_its_resources`,
+  `quiescence_refusal_keeps_the_started_account_held_for_retry`,
+  `retirement_rejects_never_started_accounts`,
+  `retirement_rejects_stale_foreign_or_replayed_started_evidence`, and
+  `retirement_rejects_receipts_off_the_exact_started_evidence`). Remaining: a
+  provider edge issuing the vector to the target boot protocol and an
+  authored Omega surface invoking the entry.
 
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Carry one real
   content-bearing program through checked source, Terminal Psi, provider

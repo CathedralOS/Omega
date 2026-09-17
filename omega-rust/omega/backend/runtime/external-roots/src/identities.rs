@@ -173,6 +173,10 @@ normalized_id!(
     SecondaryProcessorStartupReceiptId,
     "secondary-processor startup receipt"
 );
+normalized_id!(
+    SecondaryProcessorQuiescenceReceiptId,
+    "secondary-processor quiescence receipt"
+);
 normalized_id!(InterruptTableProfileId, "interrupt-table profile");
 normalized_id!(
     InterruptTableEstablishmentId,
