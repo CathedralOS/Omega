@@ -1,7 +1,9 @@
 data Math {}
 boundary machine % Math::remainder(left: u64, right: u64) -> u64;
 data Provider {}
+data Other {}
 machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { 0 }
+machine Other::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { 1 }
 machine count() -> u64 { 7u64 % 2 }
 data Buffer<const N: u64> { values: [u8; N]; }
 data Main { value: Buffer<count()>; }
