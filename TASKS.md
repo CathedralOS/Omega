@@ -1066,7 +1066,12 @@ Owners include
   Remaining: realize retained receivers on both Linux targets and Windows;
   support executable nominal cleanup and callback/signal occupancy through the
   actual activation/completion contract; extend receiver storage beyond the
-  admitted plain-record/primitive-array shapes. Keep the current unsupported
+  admitted plain-record/primitive-array shapes. The private-resolver-storage
+  Linux leg of the nominal machine-parameter witness
+  (`tests/omega/pass/generics/runtime_nominal_machine_parameter_satisfaction_exit`,
+  exit 70 on macOS ARM64 through
+  `generics_and_dependent_facts::runtime_nominal_machine_parameter_satisfaction_exit_canary_runs`)
+  stops at this receiver bridge on Linux x86-64 and belongs here. Keep the current unsupported
   cases rejecting. These are implementation dependencies under the settled
   contract, not unanswered language decisions.
 
@@ -2228,29 +2233,6 @@ Owners include
   `facts/dependencies/tests/indexes.rs`: 34 focused dependency tests, 79
   range-checker tests, and 231 range integration tests pass; the crate
   suite's 14 failures reproduce identically at base 5006b9314c.
-
-- **CALLBACK-PARAMETER-REQUIREMENT.** Checked admission of the nominal
-  `where machine Selected satisfies Trait::requirement` binder is pinned by
-  `tests/omega/pass/generics/nominal_machine_parameter_satisfaction_compile`
-  and the `fail/generics/*nominal_binder*` canaries (structural coincidence,
-  overloaded requirement, implicit selection). The native run witness
-  `tests/omega/pass/generics/runtime_nominal_machine_parameter_satisfaction_exit`
-  now proves each retained selected entry, its envelope refinement receipt,
-  and the rewritten `Selected(value)` call site reach the target entry
-  recipe: two `register<machine Selected>` specializations dispatch to
-  distinct selected entries and the hosted executable exits 70 on macOS
-  ARM64 (`generics_and_dependent_facts::runtime_nominal_machine_parameter_satisfaction_exit_canary_runs`).
-  The slice also corrected scalar legalization custody to treat
-  provider-attachment places as specialization witnesses rather than
-  declared storage, matching the `aggregate_results::roster` contract.
-  Platform note re-checked on Linux x86-64 kernel 7.1.5 (linw1,
-  verification-only): cap-std opens resolver storage
-  capability-relative, so the `O_PATH` `fchmod`/`EBADF` failure is not
-  hit on 6.6+ kernels; the Linux run leg instead stops at the
-  ENTRY-CONTENT-ROOTS receiver bridge. Acceptance was already met on
-  macOS ARM64 — this item is a closure candidate; suggested
-  replacement: the private-resolver-storage Linux leg under
-  ENTRY-CONTENT-ROOTS.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
@@ -3472,17 +3454,17 @@ Owners include
   uninstall/replacement joins. Keep arbitrary runtime bytes-to-code, JIT, and
   raw executable addresses unsupported.
 
-  Close imported-image placement before admitting imported installed runnables.
-  Source inspection at `0fef6890cb`: `image-emission/src/installed_artifact.rs`
-  projects only compiler-authored text/data prefixes, excluding image-writer
-  import thunks and binding slots. The Mach-O import regression in
-  `compiler/tests/source_evaluated_native_realization.rs` checks installation
-  records, not complete installed-code custody. Bind every exercised thunk,
-  slot, relocation destination, and loader/provider lifetime to real placement;
-  reject omitted regions. A matching prefix and a resolver returning an
-  uninstalled thunk address cannot establish that closure. Acceptance: a
-  source-imported component reaches installed publication with complete custody,
-  and missing or substituted thunk/slot placement rejects independently.
+  Imported-image placement closed at `2a89f2e039` and `84b9582b78`: the final
+  image carries placed executable and initialized-data inventories from every
+  writer, Mach-O import lowering records each thunk and binding slot with a
+  pairing replay, and `image-emission/src/installed_artifact.rs` rejects
+  unclassified gaps, a truncated compiler prefix, and a resolver-claimed
+  uninstalled thunk address (`source_evaluated_native_realization/macho_and_terminal_imports.rs`
+  and `image-emission/tests/artifacts/installed_artifact.rs`, macOS ARM64).
+  Remaining: consumed placement authority, W^X/coherence, physical invocation,
+  and the uninstall/replacement joins over that custody; loader/provider
+  lifetimes still bind only through installation records, not a live
+  installed occurrence.
 
 ## Omega-written compiler (after Rust completion)
 

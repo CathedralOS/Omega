@@ -1,4 +1,5 @@
-// CALLBACK-PARAMETER-REQUIREMENT native witness: the nominal
+// Native witness for the nominal callable binder (language guide chapter 13,
+// Machine Parameters): the nominal
 // `where machine Selected satisfies Trait::requirement` binder must carry its
 // selected entry through specialization to the target call recipe. `chosen`
 // returns its argument and `doubled` returns a distinct constant; both are
