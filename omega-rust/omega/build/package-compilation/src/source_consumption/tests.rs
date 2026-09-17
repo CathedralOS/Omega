@@ -503,3 +503,323 @@ fn toolchain_source_identity_binds_namespace_path_and_exact_bytes() {
         toolchain_source_identity_digest(&changed_bytes).unwrap()
     );
 }
+
+/// One-field mutation matrix over the retained source-consumption receipt:
+/// each `ConsumedSourceUnit` row field and each reconciled package-graph
+/// axis the commitment hashes. Every representable substitution either
+/// keeps the canonical roster order and recomputes a divergent commitment,
+/// or cannot keep the order and rejects at derivation as non-canonical.
+/// Build-purpose edges are compilation-local nameability, never bound by
+/// this commitment -- the durable closure projection is product-only.
+#[test]
+fn source_consumption_commitment_rejects_every_one_field_substitution() {
+    use super::super::{
+        BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding,
+        PackageSourceBinding,
+    };
+    use build_declarations::DependencyPurpose;
+
+    let units = canonical_row_fixture();
+    let package = units[0].package().expect("authored owner");
+    let root = std::env::temp_dir().join(format!(
+        "omega-source-consumption-substitution-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    for name in ["root", "middle", "leaf"] {
+        std::fs::create_dir_all(root.join(name)).expect("create package source root");
+    }
+    let binding = |identity: PackageKeyIdentity, name: &'static str| {
+        PackageSourceBinding::new(identity, name, root.join(name))
+    };
+    let inputs = PackageCompilationInputs::new(
+        package,
+        BuildDeclarationKind::Package,
+        vec![
+            binding(package, "root"),
+            binding(PackageKeyIdentity::from_digest([8; 32]).unwrap(), "middle"),
+            binding(PackageKeyIdentity::from_digest([9; 32]).unwrap(), "leaf"),
+        ],
+        vec![
+            PackageDependencyBinding::new(
+                package,
+                "middle",
+                PackageKeyIdentity::from_digest([8; 32]).unwrap(),
+            ),
+            PackageDependencyBinding::new(
+                PackageKeyIdentity::from_digest([8; 32]).unwrap(),
+                "leaf",
+                PackageKeyIdentity::from_digest([9; 32]).unwrap(),
+            ),
+        ],
+    )
+    .expect("three-package chain graph");
+    let baseline =
+        derive_source_consumption_commitment(&units, &inputs).expect("baseline commitment");
+    let baseline_rows: Vec<Vec<u8>> = units.iter().map(canonical_consumed_unit_bytes).collect();
+
+    // Every representable ConsumedSourceUnit field: the canonical row bytes
+    // must diverge, and the recomputed commitment must diverge -- unless the
+    // substitution cannot keep the strictly ordered roster, which rejects at
+    // derivation as non-canonical.
+    let other_package = PackageKeyIdentity::from_digest([77; 32]).expect("other package");
+    let field_cases: Vec<(&'static str, usize, Box<dyn Fn(&mut ConsumedSourceUnit)>)> = vec![
+        (
+            "kind",
+            0,
+            Box::new(|unit| unit.kind = ConsumedSourceUnitKind::ToolchainOwned),
+        ),
+        (
+            "package",
+            0,
+            Box::new(move |unit| unit.package = Some(other_package)),
+        ),
+        ("package::cleared", 1, Box::new(|unit| unit.package = None)),
+        (
+            "toolchain_namespace",
+            3,
+            Box::new(|unit| unit.toolchain_namespace = Some("std".to_owned())),
+        ),
+        (
+            "toolchain_namespace::cleared",
+            3,
+            Box::new(|unit| unit.toolchain_namespace = None),
+        ),
+        (
+            "relative_path component",
+            0,
+            Box::new(|unit| unit.relative_path[0] = "other.omg".to_owned()),
+        ),
+        (
+            "relative_path::extend",
+            0,
+            Box::new(|unit| unit.relative_path.push("extra.omg".to_owned())),
+        ),
+        (
+            "relative_path::drop",
+            1,
+            Box::new(|unit| {
+                unit.relative_path.pop();
+            }),
+        ),
+        ("byte_count", 2, Box::new(|unit| unit.byte_count += 1)),
+        (
+            "content_digest",
+            0,
+            Box::new(|unit| unit.content_digest = [14; 32]),
+        ),
+    ];
+    for (name, index, mutate) in field_cases {
+        let mut mutated = units.clone();
+        mutate(&mut mutated[index]);
+        assert_ne!(
+            canonical_consumed_unit_bytes(&mutated[index]),
+            baseline_rows[index],
+            "{name}: the canonical row bytes must diverge"
+        );
+        match derive_source_consumption_commitment(&mutated, &inputs) {
+            Ok(commitment) => assert_ne!(
+                commitment, baseline,
+                "{name}: an order-preserving substitution must diverge the commitment"
+            ),
+            Err(diagnostics) => {
+                assert!(
+                    mutated.windows(2).any(|pair| pair[0] >= pair[1]),
+                    "{name}: derivation may only reject a non-canonical roster"
+                );
+                assert!(
+                    diagnostics[0]
+                        .message
+                        .contains("strictly ordered unique consumed units"),
+                    "{name}: expected the canonical-order rejection: {diagnostics:?}"
+                );
+            }
+        }
+    }
+
+    // Roster mutations: drops and canonical-position inserts recompute a
+    // divergent identity; duplicates and reorderings reject at derivation.
+    let mut dropped = units.clone();
+    dropped.remove(0);
+    assert_ne!(
+        derive_source_consumption_commitment(&dropped, &inputs).expect("dropped roster"),
+        baseline,
+        "a dropped row must diverge the commitment"
+    );
+    assert!(
+        derive_source_consumption_commitment(&[], &inputs).is_err(),
+        "an empty roster rejects at derivation"
+    );
+    let mut duplicated = units.clone();
+    duplicated.insert(1, units[0].clone());
+    assert!(
+        derive_source_consumption_commitment(&duplicated, &inputs).is_err(),
+        "a duplicated row rejects at derivation"
+    );
+    let mut swapped = units.clone();
+    swapped.swap(0, 1);
+    assert!(
+        derive_source_consumption_commitment(&swapped, &inputs).is_err(),
+        "a reordered roster rejects at derivation"
+    );
+    let reversed: Vec<ConsumedSourceUnit> = units.iter().cloned().rev().collect();
+    assert!(
+        derive_source_consumption_commitment(&reversed, &inputs).is_err(),
+        "a reversed roster rejects at derivation"
+    );
+    let mut forged = units[0].clone();
+    forged.relative_path = vec!["zzz.omg".to_owned()];
+    let mut inserted = units.clone();
+    inserted.insert(1, forged);
+    assert_ne!(
+        derive_source_consumption_commitment(&inserted, &inputs).expect("inserted roster"),
+        baseline,
+        "an inserted forged row must diverge the commitment"
+    );
+
+    // Every reconciled package-graph axis the commitment binds: root,
+    // role, the package roster, and the product-edge coordinates.
+    let middle = PackageKeyIdentity::from_digest([8; 32]).unwrap();
+    let leaf = PackageKeyIdentity::from_digest([9; 32]).unwrap();
+    let graph_cases: Vec<(&'static str, PackageCompilationInputs)> = vec![
+        (
+            "root identity",
+            PackageCompilationInputs::new_package(
+                middle,
+                vec![binding(middle, "root"), binding(leaf, "leaf")],
+                vec![PackageDependencyBinding::new(middle, "leaf", leaf)],
+            )
+            .expect("substituted root graph"),
+        ),
+        (
+            "root role",
+            PackageCompilationInputs::new(
+                package,
+                BuildDeclarationKind::Application,
+                vec![
+                    binding(package, "root"),
+                    binding(middle, "middle"),
+                    binding(leaf, "leaf"),
+                ],
+                vec![
+                    PackageDependencyBinding::new(package, "middle", middle),
+                    PackageDependencyBinding::new(middle, "leaf", leaf),
+                ],
+            )
+            .expect("application-role graph"),
+        ),
+        (
+            "package roster::drop",
+            PackageCompilationInputs::new_package(
+                package,
+                vec![binding(package, "root"), binding(middle, "middle")],
+                vec![PackageDependencyBinding::new(package, "middle", middle)],
+            )
+            .expect("leaf-dropped graph"),
+        ),
+        (
+            "package identity",
+            PackageCompilationInputs::new_package(
+                package,
+                vec![
+                    binding(package, "root"),
+                    binding(middle, "middle"),
+                    binding(other_package, "leaf"),
+                ],
+                vec![
+                    PackageDependencyBinding::new(package, "middle", middle),
+                    PackageDependencyBinding::new(middle, "leaf", other_package),
+                ],
+            )
+            .expect("substituted package graph"),
+        ),
+        (
+            "edge alias",
+            PackageCompilationInputs::new_package(
+                package,
+                vec![
+                    binding(package, "root"),
+                    binding(middle, "middle"),
+                    binding(leaf, "leaf"),
+                ],
+                vec![
+                    PackageDependencyBinding::new(package, "middle", middle),
+                    PackageDependencyBinding::new(middle, "other", leaf),
+                ],
+            )
+            .expect("renamed-alias graph"),
+        ),
+        (
+            "edge requester",
+            PackageCompilationInputs::new_package(
+                package,
+                vec![
+                    binding(package, "root"),
+                    binding(middle, "middle"),
+                    binding(leaf, "leaf"),
+                ],
+                vec![
+                    PackageDependencyBinding::new(package, "middle", middle),
+                    PackageDependencyBinding::new(package, "leaf", leaf),
+                ],
+            )
+            .expect("root-requested leaf graph"),
+        ),
+        (
+            "edge roster::drop",
+            PackageCompilationInputs::new_package(
+                package,
+                vec![
+                    binding(package, "root"),
+                    binding(middle, "middle"),
+                    binding(leaf, "leaf"),
+                ],
+                vec![
+                    PackageDependencyBinding::new(package, "middle", middle),
+                    PackageDependencyBinding::new(package, "leaf", leaf),
+                    PackageDependencyBinding::new(middle, "leaf", leaf),
+                ],
+            )
+            .expect("extra-edge graph"),
+        ),
+    ];
+    for (name, mutated_inputs) in graph_cases {
+        assert_ne!(
+            derive_source_consumption_commitment(&units, &mutated_inputs)
+                .expect("mutated graph commitment"),
+            baseline,
+            "{name}: a substituted package-graph axis must diverge the commitment"
+        );
+    }
+
+    // Bounded slack: a build-purpose edge is compilation-local nameability
+    // for the root's build entry. It never joins the durable product
+    // closure this commitment binds, so it cannot diverge the identity.
+    let with_build_edge = PackageCompilationInputs::new_package(
+        package,
+        vec![
+            binding(package, "root"),
+            binding(middle, "middle"),
+            binding(leaf, "leaf"),
+        ],
+        vec![
+            PackageDependencyBinding::new(package, "middle", middle),
+            PackageDependencyBinding::new(middle, "leaf", leaf),
+            PackageDependencyBinding::for_purpose(
+                package,
+                "build_tools",
+                leaf,
+                DependencyPurpose::Build,
+            ),
+        ],
+    )
+    .expect("build-edge graph");
+    assert_eq!(
+        derive_source_consumption_commitment(&units, &with_build_edge)
+            .expect("build-edge commitment"),
+        baseline,
+        "a build-purpose edge must not enter the product-consumption commitment"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
