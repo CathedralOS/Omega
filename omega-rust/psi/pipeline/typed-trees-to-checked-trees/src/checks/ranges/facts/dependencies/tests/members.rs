@@ -724,3 +724,108 @@ fn a_match_receiver_member_with_an_untyped_arm_stays_incomplete() {
     record_label(&mut facts, &program, machine, state);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
+
+/// A deeper member chain through a `match` receiver names no storage either:
+/// `match .. .inner.a` still reads exactly the dispatch footprint. The outer
+/// member's identity is recovered the same way the direct match member's is —
+/// the arms agree on `Outer`, `inner` is its declared field, and `a` is a
+/// declared field of `inner`'s declared type — so each hop resolves on the
+/// previous hop's declaration leaf without a place position.
+#[test]
+fn a_match_receiver_member_chain_reads_the_match_footprint() {
+    let program = typed_source(
+        "data Inner { a: i64; b: i64; }
+        data Outer { inner: Inner; other: i64; }
+        machine window(flag: i64, left: Outer, right: Outer, unrelated: i64) {
+            let cut: i64 = match flag { 0 -> left, _ -> right }.inner.a;
+        }",
+    );
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    let label = record_label(&mut facts, &program, machine, state);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("match-receiver member-chain footprint");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "flag"),
+            parameter_place(&program, state, "left"),
+            parameter_place(&program, state, "right"),
+        ]
+        .as_slice(),
+        "{reads:?}"
+    );
+    for (name, survives) in [
+        ("flag", false),
+        ("left", false),
+        ("right", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// An intermediate hop that names no field of the arms' agreed declaration
+/// breaks the chain: `match .. .missing.a` cannot establish which declaration
+/// `.a` belongs to, so the read set stays incomplete.
+#[test]
+fn a_match_receiver_member_chain_with_an_unresolved_hop_stays_incomplete() {
+    let mut program = typed_source(
+        "data Inner { a: i64; b: i64; }
+        data Outer { inner: Inner; other: i64; }
+        machine window(flag: i64, left: Outer, right: Outer, unrelated: i64) {
+            let cut: i64 = match flag { 0 -> left, _ -> right }.inner.a;
+        }",
+    );
+    let expression = {
+        let (_, state) = window(&program);
+        initializer(&program, state)
+    };
+    let ExpressionNode::Member(outer) = program.expression_table.expression(expression) else {
+        panic!("member-chain fixture")
+    };
+    let receiver = outer.receiver;
+    let ExpressionNode::Member(inner) = program.expression_table.expression_mut(receiver) else {
+        panic!("member-chain receiver fixture")
+    };
+    inner.member = "missing".into();
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    record_label(&mut facts, &program, machine, state);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+/// The leaf hop is judged on the intermediate field's declared type:
+/// `match .. .inner.missing` names no field of `Inner`, so no honest identity
+/// exists even though every earlier hop resolved.
+#[test]
+fn a_match_receiver_member_chain_with_an_unresolved_leaf_stays_incomplete() {
+    let mut program = typed_source(
+        "data Inner { a: i64; b: i64; }
+        data Outer { inner: Inner; other: i64; }
+        machine window(flag: i64, left: Outer, right: Outer, unrelated: i64) {
+            let cut: i64 = match flag { 0 -> left, _ -> right }.inner.a;
+        }",
+    );
+    let expression = {
+        let (_, state) = window(&program);
+        initializer(&program, state)
+    };
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(expression) else {
+        panic!("member-chain fixture")
+    };
+    member.member = "missing".into();
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    record_label(&mut facts, &program, machine, state);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}

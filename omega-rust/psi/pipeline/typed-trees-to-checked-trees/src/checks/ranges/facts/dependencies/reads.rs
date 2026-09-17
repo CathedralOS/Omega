@@ -1039,47 +1039,99 @@ fn collect_member_reads(
 /// place position — names, calls, literals, indexed chains — plus any
 /// binder-stamped `member_symbol`. A `match` receiver has neither: value
 /// dispatch is a control-flow join the member binder never walked, so the
-/// identity must come from the arms' declared result types instead. The
-/// checker's own result oracle is what `validate_match_dispatch` consults for
-/// arm compatibility, so requiring every arm's recovered leaf to name the
-/// same declaration is the member-level statement of that agreement — judged
-/// on leaf symbols rather than type handles, because separately authored
-/// references to one declaration intern separately. An arm whose result type
-/// cannot be recovered, leaves that disagree, a case-qualified member (whose
-/// variant disambiguation the leaf alone cannot supply), or a member name no
-/// field of the agreed declaration owns all stay unproven. The footprint
-/// itself still comes from the receiver's own read scan — this answers only
-/// which field the projection selects.
+/// identity must come from the arms' declared result types instead, and the
+/// same holds for a member receiver whose own receiver bottoms out below the
+/// binder's reach — `match { .. }.inner.a` resolves `a` on the declared type
+/// of the `inner` field the arm agreement supplied, so deeper chains keep
+/// resolving while each hop names a declared field of the previous hop's
+/// leaf. An arm whose result type cannot be recovered, leaves that disagree,
+/// a case-qualified hop (whose variant disambiguation the leaf alone cannot
+/// supply), or a member name no field of the agreed declaration owns all stay
+/// unproven. The footprint itself still comes from the receiver's own read
+/// scan — this answers only which field the projection selects.
 fn temporary_member_symbol(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
+    temporary_member_symbol_at(program, machine, state, member, 0)
+}
+
+fn temporary_member_symbol_at(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    member: &typed_trees::expression::TableMemberExpression,
+    depth: usize,
+) -> SymbolHandle {
+    if depth >= 128 {
+        return SymbolHandle::invalid();
+    }
     let direct = crate::flow::effective_member_symbol(program, member.receiver, member);
     if direct.is_valid() || member.case_variant.is_some() {
         return direct;
     }
-    let ExpressionNode::Match(dispatch) = program.expression_table.expression(member.receiver)
+    let Some(leaf) = temporary_receiver_leaf(program, machine, state, member.receiver, depth + 1)
     else {
         return direct;
     };
-    let mut leaf = SymbolHandle::invalid();
-    for arm in program.expression_table.match_arms(dispatch.arms) {
-        let Some(symbol) =
-            validation::expression_result_type_reference(program, machine, state, arm.value)
-                .map(|reference| program.type_reference_table.type_symbol(reference))
-                .filter(|symbol| symbol.is_valid())
-        else {
-            return SymbolHandle::invalid();
-        };
-        if leaf.is_valid() && leaf != symbol {
-            return SymbolHandle::invalid();
-        }
-        leaf = symbol;
-    }
     crate::flow::resolve_member_symbol_from_type_symbol(program, leaf, member.member.as_str())
         .unwrap_or_else(SymbolHandle::invalid)
+}
+
+/// The declaration leaf a temporary-producing receiver's value stands on when
+/// the member binder's contextual walk cannot type it. A `match` receiver's
+/// leaf is the arm agreement: the checker's own result oracle is what
+/// `validate_match_dispatch` consults for arm compatibility, so requiring
+/// every arm's recovered leaf to name the same declaration is the
+/// member-level statement of that agreement — judged on leaf symbols rather
+/// than type handles, because separately authored references to one
+/// declaration intern separately. A member receiver whose own receiver is
+/// temporary recurses through the hop's declared type: `match { .. }.inner`
+/// stands on the leaf of the `inner` field the agreement supplied. Receivers
+/// the ordinary walk already types never reach this scan — the caller's
+/// `effective_member_symbol` answer came first — and every other kind keeps
+/// the leaf unproven.
+fn temporary_receiver_leaf(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    receiver: ExpressionHandle,
+    depth: usize,
+) -> Option<SymbolHandle> {
+    if depth >= 128 || !program.expression_table.expression_is_valid(receiver) {
+        return None;
+    }
+    match program.expression_table.expression(receiver) {
+        ExpressionNode::Match(dispatch) => {
+            let mut leaf = SymbolHandle::invalid();
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let symbol = validation::expression_result_type_reference(
+                    program, machine, state, arm.value,
+                )
+                .map(|reference| program.type_reference_table.type_symbol(reference))
+                .filter(|symbol| symbol.is_valid())?;
+                if leaf.is_valid() && leaf != symbol {
+                    return None;
+                }
+                leaf = symbol;
+            }
+            leaf.is_valid().then_some(leaf)
+        }
+        // An intermediate member hop carries the same honest-identity floor
+        // as the leaf member, then stands on that field's declared type. A
+        // case-qualified hop cannot be disambiguated by a leaf alone, so the
+        // chain stays unproven rather than guessing at a variant.
+        ExpressionNode::Member(inner) => {
+            let field = temporary_member_symbol_at(program, machine, state, inner, depth + 1);
+            if !field.is_valid() {
+                return None;
+            }
+            crate::flow::symbol_type_symbol(program, field)
+        }
+        _ => None,
+    }
 }
 
 /// A selected `[]`/`[..]` application is a checked occurrence, not a place:
