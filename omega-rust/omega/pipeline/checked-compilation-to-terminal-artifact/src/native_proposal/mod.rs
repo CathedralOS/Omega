@@ -194,28 +194,32 @@ pub(crate) fn project_terminal_native_realization_proposal(
         .collect();
     compilation_report::TerminalNativeRealizationProposal::new(
         artifact,
-        target_profile,
-        native_target,
-        checked.subsystem(),
-        checked.application_intent(),
-        checked.application_identifier().cloned(),
-        checked
-            .application_name()
-            .map(|name| name.as_str().to_owned()),
-        selections.project_post_terminal(),
-        program_entry,
-        checked_program_entry,
-        checked.selected_provider_plans().clone(),
-        external_binding_rows,
-        package_terminal_authority_permissions,
-        builtin_proposals,
-        callback_occurrences,
-        ieee_float_fma_occurrences,
-        ieee_float_comparison_occurrences,
-        boundary_application_demands,
-        boundary_application_realizations,
-        checked_boundary_operator_scope,
-        build_evaluation::authored_behavior_exclusion_set(checked.behavior_exclusions()),
+        compilation_report::TerminalNativeRealizationInputs {
+            target_profile: target_profile,
+            native_target: native_target,
+            subsystem: checked.subsystem(),
+            application_intent: checked.application_intent(),
+            application_identifier: checked.application_identifier().cloned(),
+            application_name: checked
+                .application_name()
+                .map(|name| name.as_str().to_owned()),
+            post_terminal_optimizations: selections.project_post_terminal(),
+            program_entry: program_entry,
+            checked_program_entry: checked_program_entry,
+            selected_provider_plans: checked.selected_provider_plans().clone(),
+            external_binding_rows: external_binding_rows,
+            package_terminal_authority_permissions: package_terminal_authority_permissions,
+            compiler_builtins: builtin_proposals,
+            callback_occurrences: callback_occurrences,
+            ieee_float_fma_occurrences: ieee_float_fma_occurrences,
+            ieee_float_comparison_occurrences: ieee_float_comparison_occurrences,
+            boundary_application_demands: boundary_application_demands,
+            boundary_application_realizations: boundary_application_realizations,
+            checked_boundary_operator_scope: checked_boundary_operator_scope,
+            behavior_exclusions: build_evaluation::authored_behavior_exclusion_set(
+                checked.behavior_exclusions(),
+            ),
+        },
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

@@ -514,26 +514,35 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     assert!(
         compilation_report::TerminalNativeRealizationProposal::new(
             retained.artifact(),
-            proposal.target_profile(),
-            proposal.native_target(),
-            proposal.subsystem(),
-            proposal.application_intent(),
-            proposal.application_identifier().cloned(),
-            proposal.application_name().map(str::to_owned),
-            proposal.post_terminal_optimizations().clone(),
-            proposal.program_entry().clone(),
-            proposal.checked_program_entry().clone(),
-            proposal.selected_provider_plans().clone(),
-            proposal.external_binding_rows().to_vec(),
-            vec![retained_permission.clone(), retained_permission.clone()],
-            proposal.compiler_builtins().to_vec(),
-            proposal.callback_occurrences().to_vec(),
-            proposal.ieee_float_fma_occurrences().to_vec(),
-            proposal.ieee_float_comparison_occurrences().to_vec(),
-            proposal.boundary_application_demands().clone(),
-            proposal.boundary_application_realizations().clone(),
-            proposal.checked_boundary_operator_scope().clone(),
-            proposal.behavior_exclusions().clone(),
+            compilation_report::TerminalNativeRealizationInputs {
+                target_profile: proposal.target_profile(),
+                native_target: proposal.native_target(),
+                subsystem: proposal.subsystem(),
+                application_intent: proposal.application_intent(),
+                application_identifier: proposal.application_identifier().cloned(),
+                application_name: proposal.application_name().map(str::to_owned),
+                post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+                program_entry: proposal.program_entry().clone(),
+                checked_program_entry: proposal.checked_program_entry().clone(),
+                selected_provider_plans: proposal.selected_provider_plans().clone(),
+                external_binding_rows: proposal.external_binding_rows().to_vec(),
+                package_terminal_authority_permissions: vec![
+                    retained_permission.clone(),
+                    retained_permission.clone()
+                ],
+                compiler_builtins: proposal.compiler_builtins().to_vec(),
+                callback_occurrences: proposal.callback_occurrences().to_vec(),
+                ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+                ieee_float_comparison_occurrences: proposal
+                    .ieee_float_comparison_occurrences()
+                    .to_vec(),
+                boundary_application_demands: proposal.boundary_application_demands().clone(),
+                boundary_application_realizations: proposal
+                    .boundary_application_realizations()
+                    .clone(),
+                checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+                behavior_exclusions: proposal.behavior_exclusions().clone()
+            }
         )
         .is_err(),
         "retained Terminal proposal must reject duplicate package permission coordinates",
@@ -567,42 +576,50 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             false,
         )
     };
-    let reconstruct_with_permissions =
-        |label: &str, permissions: Vec<effects::ServiceTerminalAuthorityPermission>| {
-            let retained = compile_retained(label);
-            let (artifact, callback_placements, proposal) = retained.into_parts();
-            let proposal = proposal.expect("retained Terminal product has a native proposal");
-            let reconstructed = compilation_report::TerminalNativeRealizationProposal::new(
-                &artifact,
-                proposal.target_profile(),
-                proposal.native_target(),
-                proposal.subsystem(),
-                proposal.application_intent(),
-                proposal.application_identifier().cloned(),
-                proposal.application_name().map(str::to_owned),
-                proposal.post_terminal_optimizations().clone(),
-                proposal.program_entry().clone(),
-                proposal.checked_program_entry().clone(),
-                proposal.selected_provider_plans().clone(),
-                proposal.external_binding_rows().to_vec(),
-                permissions,
-                proposal.compiler_builtins().to_vec(),
-                proposal.callback_occurrences().to_vec(),
-                proposal.ieee_float_fma_occurrences().to_vec(),
-                proposal.ieee_float_comparison_occurrences().to_vec(),
-                proposal.boundary_application_demands().clone(),
-                proposal.boundary_application_realizations().clone(),
-                proposal.checked_boundary_operator_scope().clone(),
-                proposal.behavior_exclusions().clone(),
-            )
-            .expect("syntactically valid reconstructed proposal");
-            compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
-                artifact,
-                callback_placements,
-                reconstructed,
-            )
-            .expect("syntactically valid reconstructed retained product")
-        };
+    let reconstruct_with_permissions = |label: &str,
+                                        permissions: Vec<
+        effects::ServiceTerminalAuthorityPermission,
+    >| {
+        let retained = compile_retained(label);
+        let (artifact, callback_placements, proposal) = retained.into_parts();
+        let proposal = proposal.expect("retained Terminal product has a native proposal");
+        let reconstructed = compilation_report::TerminalNativeRealizationProposal::new(
+            &artifact,
+            compilation_report::TerminalNativeRealizationInputs {
+                target_profile: proposal.target_profile(),
+                native_target: proposal.native_target(),
+                subsystem: proposal.subsystem(),
+                application_intent: proposal.application_intent(),
+                application_identifier: proposal.application_identifier().cloned(),
+                application_name: proposal.application_name().map(str::to_owned),
+                post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+                program_entry: proposal.program_entry().clone(),
+                checked_program_entry: proposal.checked_program_entry().clone(),
+                selected_provider_plans: proposal.selected_provider_plans().clone(),
+                external_binding_rows: proposal.external_binding_rows().to_vec(),
+                package_terminal_authority_permissions: permissions,
+                compiler_builtins: proposal.compiler_builtins().to_vec(),
+                callback_occurrences: proposal.callback_occurrences().to_vec(),
+                ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+                ieee_float_comparison_occurrences: proposal
+                    .ieee_float_comparison_occurrences()
+                    .to_vec(),
+                boundary_application_demands: proposal.boundary_application_demands().clone(),
+                boundary_application_realizations: proposal
+                    .boundary_application_realizations()
+                    .clone(),
+                checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+                behavior_exclusions: proposal.behavior_exclusions().clone(),
+            },
+        )
+        .expect("syntactically valid reconstructed proposal");
+        compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            artifact,
+            callback_placements,
+            reconstructed,
+        )
+        .expect("syntactically valid reconstructed retained product")
+    };
 
     let omitted = {
         let retained = reconstruct_with_permissions("retained-omitted-proposal", vec![]);

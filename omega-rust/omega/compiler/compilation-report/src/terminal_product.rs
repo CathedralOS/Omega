@@ -313,33 +313,62 @@ pub struct TerminalNativeRealizationProposal {
     behavior_exclusions: build_evaluation::BehaviorExclusions,
 }
 
+/// Everything a Terminal native realization proposal is built from besides
+/// the artifact itself: the selected target, entry, plans, rows and occurrences
+/// the proposal validates against the artifact's closure.
+#[derive(Debug)]
+pub struct TerminalNativeRealizationInputs {
+    pub target_profile: target::TargetProfile,
+    pub native_target: target::NativeTarget,
+    pub subsystem: u16,
+    pub application_intent: Option<build_evaluation::HostedApplicationIntent>,
+    pub application_identifier: Option<build_evaluation::ApplicationIdentifier>,
+    pub application_name: Option<String>,
+    pub post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
+    pub program_entry: build_evaluation::SelectedCompilerProgramEntry,
+    pub checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
+    pub selected_provider_plans: effects::SelectedProviderPlanFacts,
+    pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+    pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
+    pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
+    pub callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
+    pub ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
+    pub ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
+    pub boundary_application_demands: boundary_applications::TerminalBoundaryApplicationDemands,
+    pub boundary_application_realizations:
+        boundary_applications::TerminalBoundaryApplicationRealizations,
+    pub checked_boundary_operator_scope:
+        lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    pub behavior_exclusions: build_evaluation::BehaviorExclusions,
+}
+
 impl TerminalNativeRealizationProposal {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        target_profile: target::TargetProfile,
-        native_target: target::NativeTarget,
-        subsystem: u16,
-        application_intent: Option<build_evaluation::HostedApplicationIntent>,
-        application_identifier: Option<build_evaluation::ApplicationIdentifier>,
-        application_name: Option<String>,
-        post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
-        program_entry: build_evaluation::SelectedCompilerProgramEntry,
-        checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
-        selected_provider_plans: effects::SelectedProviderPlanFacts,
-        external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
-        mut package_terminal_authority_permissions: Vec<
-            effects::ServiceTerminalAuthorityPermission,
-        >,
-        compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
-        callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
-        ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
-        ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
-        boundary_application_demands: boundary_applications::TerminalBoundaryApplicationDemands,
-        boundary_application_realizations: boundary_applications::TerminalBoundaryApplicationRealizations,
-        checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-        behavior_exclusions: build_evaluation::BehaviorExclusions,
+        inputs: TerminalNativeRealizationInputs,
     ) -> Result<Self, &'static str> {
+        let TerminalNativeRealizationInputs {
+            target_profile,
+            native_target,
+            subsystem,
+            application_intent,
+            application_identifier,
+            application_name,
+            post_terminal_optimizations,
+            program_entry,
+            checked_program_entry,
+            selected_provider_plans,
+            external_binding_rows,
+            mut package_terminal_authority_permissions,
+            compiler_builtins,
+            callback_occurrences,
+            ieee_float_fma_occurrences,
+            ieee_float_comparison_occurrences,
+            boundary_application_demands,
+            boundary_application_realizations,
+            checked_boundary_operator_scope,
+            behavior_exclusions,
+        } = inputs;
         let boundary_application_coverage =
             boundary_applications::TerminalBoundaryApplicationCoverage::new(
                 boundary_application_demands,

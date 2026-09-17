@@ -251,22 +251,17 @@ pub(crate) fn build_proof_facts_with_operators(
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
     let proposition_vocabulary = build_checked_proposition_vocabulary(program);
 
-    ProofFacts::with_roots(
+    ProofFacts {
         obligations,
         contract_facts,
         inherited_contract_scopes,
         outcome_specific_guarantees,
-        arena::Arena::default(),
         evidence_terms,
-        arena::Arena::default(),
-        arena::Arena::default(),
-        arena::Arena::default(),
         contract_fact_refs,
         contract_calls,
         contract_exits,
         contract_operator_uses,
-        Vec::new(),
-        Vec::new(),
         proposition_vocabulary,
-    )
+        ..ProofFacts::default()
+    }
 }
