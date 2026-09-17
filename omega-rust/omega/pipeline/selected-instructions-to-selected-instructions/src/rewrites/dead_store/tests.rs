@@ -1,6 +1,7 @@
 //! Fixtures shared by the dead store tests: budgets, instructions, places,
 //! settlements and the block fixtures.
 
+mod clear_cycles;
 mod cross_block_eliminations;
 mod same_block_eliminations;
 

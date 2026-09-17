@@ -55,15 +55,21 @@
 //! path forward reaches one before any observer. A block is only ever
 //! entered uncovered, so its first interfering access decides all paths
 //! through it at once; a block scanned clear defers coverage to its
-//! distinct successors, and the store is dead once every walked block's
-//! paths converge on covering writes — a fork's legs may cover through
-//! different writes or reconverge on one. A join at a crossed block is
-//! harmless because coverage looks forward. Terminator roster rows decide
-//! before each crossed edge's transports, which may not write or retire the
-//! dead place's storage. A terminator without successors, an edge back into
+//! distinct successors — a fork's legs may cover through different writes
+//! or reconverge on one — and a join at a crossed block is harmless because
+//! coverage looks forward. Terminator roster rows decide before each
+//! crossed edge's transports, which may not write or retire the dead
+//! place's storage. A terminator without successors and an edge back into
 //! the store's own block — the removed store can never be its own covering
-//! write — and a walked region that cycles without reaching coverage each
-//! leave a path unproven, so they end the walk in rejection.
+//! write — each end the walk in rejection.
+//!
+//! Coverage need not be proven on every path. The walked region is closed
+//! under successor edges, so a path that never reaches a covering write is
+//! confined to clear blocks forever — no access, transport, or terminator
+//! on it can observe the dead bytes — and the store is dead on that path
+//! too. Legs whose paths disagree about coverage and writerless cycles
+//! admit on the same argument: the bytes are either rewritten before any
+//! observer or never observable again.
 //!
 //! Removing the store shortens its block's instruction vector, so boundary
 //! settlements positioned after it shift one ordinal earlier. Settlement

@@ -424,9 +424,9 @@ fn cross_block_fork_legs_reconverging_on_one_cover_eliminate() {
 }
 
 /// The same fork rejects when any leg escapes or observes: a clear leg into
-/// a return leaves the bytes observable at the boundary, a clear cycle never
-/// reaches a covering write, and an interfering access or a settlement on
-/// one leg ends the walk.
+/// a return leaves the bytes observable at the boundary, and an interfering
+/// access or a settlement on one leg ends the walk. A clear cycle that can
+/// never observe the bytes admits instead — see `clear_cycles`.
 #[test]
 fn cross_block_fork_legs_escaping_or_observing_reject() {
     let target = NativeTarget::linux_x64();
@@ -478,45 +478,6 @@ fn cross_block_fork_legs_escaping_or_observing_reject() {
     });
     assert_eq!(
         eliminate(&escaped, &environment).unwrap_err(),
-        DeadStoreEliminationError::UnsupportedPair
-    );
-    // A clear leg cycling through a second clear block never covers.
-    let cycled = mutated_chained(target, |function, environment| {
-        let jump = environment
-            .constraint(environment.selected_keys().jump)
-            .unwrap();
-        branch_to(function, environment, 2);
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(2),
-            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
-            instructions: Vec::new(),
-            terminator: SelectedTerminator::Jump {
-                instruction: instruction(
-                    SelectedInstructionId(8),
-                    SelectedInstructionKind::Jump,
-                    jump,
-                    &[],
-                ),
-                successor: successor(3),
-            },
-        });
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(3),
-            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
-            instructions: Vec::new(),
-            terminator: SelectedTerminator::Jump {
-                instruction: instruction(
-                    SelectedInstructionId(9),
-                    SelectedInstructionKind::Jump,
-                    jump,
-                    &[],
-                ),
-                successor: successor(2),
-            },
-        });
-    });
-    assert_eq!(
-        eliminate(&cycled, &environment).unwrap_err(),
         DeadStoreEliminationError::UnsupportedPair
     );
     // A read of the dead range on one leg observes the bytes.
@@ -683,7 +644,8 @@ fn cross_block_forks_returns_and_cycles_reject() {
         eliminate(&open, &environment).unwrap_err(),
         DeadStoreEliminationError::UnsupportedPair
     );
-    // A chain re-entering a walked block cycles without covering.
+    // An edge back into the store's own block re-executes the removed store
+    // from its top — the cycle stays unproven.
     let cycled = mutated_chained(target, |function, environment| {
         let jump = environment
             .constraint(environment.selected_keys().jump)

@@ -27,16 +27,25 @@
 //! only ever entered uncovered, so its first interfering access decides
 //! every path through it at once: a covering write resolves the block for
 //! all of them, anything else rejects. A block scanned clear defers coverage
-//! to its distinct successors, and the store is dead once every walked
-//! block's paths converge on covering writes — a fork's legs may cover
-//! through different writes or reconverge on one. A join at a crossed block
-//! stays harmless because coverage looks forward. The terminator's roster
-//! rows decide first; each crossed edge's transports may not write or retire
-//! the dead place's storage. A terminator with no successors lets the bytes
-//! escape to the boundary, an edge back into the store's own block
+//! to its distinct successors — a fork's legs may cover through different
+//! writes or reconverge on one — and a join at a crossed block stays
+//! harmless because coverage looks forward. The terminator's roster rows
+//! decide first; each crossed edge's transports may not write or retire the
+//! dead place's storage. A terminator with no successors lets the bytes
+//! escape to the boundary, and an edge back into the store's own block
 //! re-executes the removed store — which cannot be its own covering write —
-//! and a walked region whose clear blocks cycle without reaching coverage
-//! each end the walk in rejection.
+//! so each ends the walk in rejection.
+//!
+//! A walked region needs no all-paths coverage proof to still eliminate:
+//! the region is closed under successors, so a path that never reaches a
+//! covering write is confined to clear blocks forever — no interfering
+//! access, barrier, quiet-violating transport, or boundary escape exists on
+//! it — and can never observe the dead bytes. Fork legs that disagree about
+//! coverage, self-loops, and writerless cycles therefore admit: the store is
+//! dead on every path, whether the path's bytes are rewritten or merely
+//! never read again. Boundary settlements inside the walked region still
+//! reject, since a boundary event positioned where the bytes remain current
+//! could observe them.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
@@ -200,7 +209,6 @@ pub(super) fn admit<'source>(
     // transports, then defers coverage to its distinct successors.
     let mut killers: Vec<(usize, usize)> = Vec::new();
     let mut crossed: Vec<SelectedBlockId> = Vec::new();
-    let mut legs: Vec<(usize, Vec<usize>)> = Vec::new();
     let mut queued = vec![false; function.blocks.len()];
     let mut interval = 0usize;
     queued[block_index] = true;
@@ -252,11 +260,10 @@ pub(super) fn admit<'source>(
         {
             return Err(DeadStoreEliminationError::InterveningAccess);
         }
-        // Every path forward must reach a covered block: a terminator with
-        // no successors lets the bytes escape to the boundary. Each crossed
-        // edge's transports stay quiet, then each distinct successor joins
-        // the uncovered frontier exactly once — two edges naming one block
-        // still arrive on separate transports.
+        // A terminator with no successors lets the bytes escape to the
+        // boundary. Each crossed edge's transports stay quiet, then each
+        // distinct successor joins the frontier exactly once — two edges
+        // naming one block still arrive on separate transports.
         let edges = successors(&current.terminator);
         if edges.is_empty() {
             return Err(DeadStoreEliminationError::UnsupportedPair);
@@ -267,7 +274,6 @@ pub(super) fn admit<'source>(
         interval = interval
             .checked_add(edges.len())
             .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
-        let mut destinations = Vec::new();
         for edge in &edges {
             let next = function
                 .blocks
@@ -284,40 +290,18 @@ pub(super) fn admit<'source>(
                 queued[next] = true;
                 frontier.push((next, 0));
             }
-            if !destinations.contains(&next) {
-                destinations.push(next);
-            }
         }
         if cursor != block_index {
             crossed.push(current.id);
         }
-        legs.push((cursor, destinations));
     }
-    // Coverage is a meet over each clear block's distinct successors: a
-    // block holding a covering write covers outright, and a clear block
-    // covers once every destination does — a fork's legs may cover through
-    // different writes or reconverge on one. A block left uncovered at the
-    // fixpoint sits on a path that escapes or cycles without covering, and
-    // the store is dead only when its own block covers.
-    let mut covered = vec![false; function.blocks.len()];
-    for (killer, _) in &killers {
-        covered[*killer] = true;
-    }
-    loop {
-        let mut progressed = false;
-        for (block, destinations) in &legs {
-            if !covered[*block] && destinations.iter().all(|next| covered[*next]) {
-                covered[*block] = true;
-                progressed = true;
-            }
-        }
-        if !progressed {
-            break;
-        }
-    }
-    if !covered[block_index] {
-        return Err(DeadStoreEliminationError::UnsupportedPair);
-    }
+    // The walked region is closed under successors: every edge out of a
+    // scanned-clear block was crossed into a block the walk also scanned.
+    // A completed walk therefore admits without a coverage meet — a path
+    // either reaches a covering write, or it is confined forever to clear
+    // blocks where no access, transport, or terminator can observe the dead
+    // bytes. Fork legs that disagree about coverage, self-loops, and
+    // writerless cycles are all dead paths alike.
     // A boundary settlement positioned inside the dead interval is an event a
     // boundary could observe through; positions outside it only shift. The
     // interval covers the store's block after the removed store, every fully
