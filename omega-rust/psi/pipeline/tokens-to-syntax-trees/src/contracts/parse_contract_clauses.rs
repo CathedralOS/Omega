@@ -234,6 +234,12 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     after_header,
                     |input| {
                         input.at_punctuation(PunctuationKind::LeftBrace)
+                            // A bodyless head may publish a whole-cause route
+                            // with no guard (`boundary machine == Float::equal(...)
+                            // -> bool crashes Trap;`): the `;` then belongs to the
+                            // machine and the fact list is empty, exactly as the
+                            // `operator` head already allowed.
+                            || input.at_punctuation(PunctuationKind::Semicolon)
                             || input.at_keyword(KeywordKind::Machine)
                             || input.at_keyword(KeywordKind::Data)
                             || input.at_keyword(KeywordKind::Use)

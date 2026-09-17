@@ -1431,3 +1431,44 @@ fn parses_explicit_state_arrival_requires() {
     ));
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
 }
+
+#[test]
+fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
+    // A fact-free whole-cause route terminates at the bodyless head's `;`,
+    // matching what the `operator` head accepts; the next item still parses.
+    let source = r#"
+        boundary machine == Float::equal(left: f32, right: f32) -> bool crashes Trap;
+
+        machine compare(left: f32, right: f32) -> bool crashes Abort {
+            left == right
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("bodyless crash bucket should parse");
+    let machines = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [equal, compare] = machines.as_slice() else {
+        panic!("two machine items");
+    };
+    assert!(equal.bodyless && equal.boundary);
+    assert_eq!(
+        equal.spelling,
+        Some(syntax_trees::operator_spelling::OperatorSpelling::Equal)
+    );
+    let [contract] = parsed.items.capability_contracts(equal.contracts) else {
+        panic!("the bodyless head carries one crash bucket");
+    };
+    let syntax_trees::item::CapabilityContractKind::Crashes { cause } = &contract.kind else {
+        panic!("crash bucket");
+    };
+    assert_eq!(*cause, syntax_trees::item::CrashCause::Trap);
+    assert!(parsed.items.proof_facts(contract.facts).is_empty());
+    assert!(!compare.bodyless);
+}
