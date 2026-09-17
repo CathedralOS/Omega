@@ -23,6 +23,11 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 mod applications;
 mod receiver;
 mod selection;
+mod token_bound_machine_calls;
+
+pub(crate) use token_bound_machine_calls::{
+    bind_token_bound_machine_calls, token_bound_machine_call_target,
+};
 
 pub(crate) use applications::bind_boundary_operator_application_demands;
 pub(crate) use receiver::expression_type_reference_for_origin;
