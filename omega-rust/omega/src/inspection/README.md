@@ -6,6 +6,11 @@
 [evidence.rs](evidence.rs) verifies the selected module before trying
 the existing fixed-work deriver. Inspection grants no execution or native authority.
 
+A root beside a `build.omg` is prepared through the package manager exactly as
+`--check` prepares it, so declared dependency aliases resolve; a standalone root
+is checked directly. Inspection stops at the checked program without the
+manager's review or trust admission.
+
 Natural-ranked and unranked modules use ordinary verification; the legacy
 unsigned-countdown carrier and its separate verification entrance are retired,
 and a verification failure never retries with a different profile.

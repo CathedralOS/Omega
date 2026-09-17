@@ -1,9 +1,20 @@
 //! Select, lower, and verify a machine for inspection. Grants no native authority.
+//!
+//! Source preparation follows the compile command rather than a focused-file
+//! shortcut. A root beside a `build.omg` (or an `omega.lock`) is a package
+//! project: the package manager resolves its declared closure and the checked
+//! compile receives that graph as package inputs, so `use alias::module;`
+//! binds to the declared dependency instead of a sibling path under the root.
+//! A standalone root keeps the direct, optionally targetless check unchanged.
+//! Inspection stops at the checked program and neither admits trust nor
+//! realizes native output, so the manager's review and acceptance passes that
+//! `--check` and `run` add on top of the same prepared closure are not run here.
 
 pub mod evidence;
 
-use compiler::CheckedCompileRequest;
+use compiler::{CheckedCompileRequest, CompileOptions};
 use diagnostics::Diagnostic;
+use package_manager::operations as packages;
 use std::path::PathBuf;
 use terminal_psi::TerminalModule;
 
@@ -21,6 +32,7 @@ pub struct TerminalInspection {
 #[derive(Debug)]
 pub enum InspectTerminalError {
     Diagnostics(Vec<Diagnostic>),
+    Preparation(packages::PrepareLocalProjectError),
     Lowering {
         machine: String,
         error: checked_trees_to_lowered_psi::LoweringError,
@@ -43,6 +55,7 @@ impl std::fmt::Display for InspectTerminalError {
                 }
                 Ok(())
             }
+            Self::Preparation(error) => write!(formatter, "{error}"),
             Self::Lowering { machine, error } => write!(
                 formatter,
                 "cannot lower terminal machine `{machine}`: {error}"
@@ -60,11 +73,8 @@ impl std::error::Error for InspectTerminalError {}
 pub fn inspect_terminal(
     request: &InspectTerminalRequest,
 ) -> Result<TerminalInspection, InspectTerminalError> {
-    let checked = compiler::compile_to_checked(CheckedCompileRequest::new(
-        &request.root_path,
-        request.target_name.as_deref(),
-    ))
-    .map_err(InspectTerminalError::Diagnostics)?;
+    let checked = compiler::compile_to_checked(checked_compile_request(request)?)
+        .map_err(InspectTerminalError::Diagnostics)?;
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &request.machine).map_err(
         |error| InspectTerminalError::Lowering {
             machine: request.machine.clone(),
@@ -84,4 +94,39 @@ pub fn inspect_terminal(
         module: lowered.semantic_module,
         fixed_fuel,
     })
+}
+
+/// Prepare the checked compile the same way `--check` does: the manager decides
+/// whether the root is a package project and, if so, supplies the resolved
+/// closure. The prepared entry lives in an immutable resolver snapshot, so
+/// build staging is placed beside the authored root exactly as the compile
+/// command places it; the compiler's default of `<entry>/../build` would
+/// otherwise fall inside that snapshot. Package preparation needs an exact
+/// target, and the checked compile then keeps that target so package
+/// inputs and target attachments agree; a standalone root without a target
+/// stays targetless, as before.
+fn checked_compile_request(
+    request: &InspectTerminalRequest,
+) -> Result<CheckedCompileRequest<'static>, InspectTerminalError> {
+    let target = target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
+        .map_err(|diagnostic| InspectTerminalError::Diagnostics(vec![diagnostic]))?;
+    let prepared = packages::prepare_local_project_for_target(&request.root_path, target)
+        .map_err(InspectTerminalError::Preparation)?;
+    let Some(prepared) = prepared else {
+        return Ok(CheckedCompileRequest::new(
+            &request.root_path,
+            request.target_name.as_deref(),
+        ));
+    };
+    let build_dir = CompileOptions {
+        root_path: request.root_path.clone(),
+        build_dir: None,
+        target_name: None,
+    }
+    .build_dir();
+    let (entry_path, package_inputs) = prepared.into_parts();
+    let mut checked = CheckedCompileRequest::new(&entry_path, Some(target.target_name()));
+    checked.package_inputs = Some(package_inputs);
+    checked.build_dir = Some(build_dir);
+    Ok(checked)
 }
