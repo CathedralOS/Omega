@@ -1472,3 +1472,34 @@ fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
     assert!(parsed.items.proof_facts(contract.facts).is_empty());
     assert!(!compare.bodyless);
 }
+
+#[test]
+fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rejects() {
+    // The grammar admits a bare bodyless signature; whether a source may own
+    // it as a compiler-catalog primitive is symbol resolution's decision.
+    let tokens = Lexer::new("machine Float::meaning32(value: f32) -> FloatMeaning;")
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("bare bodyless signature should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine item");
+    assert!(machine.bodyless && !machine.boundary && machine.spelling.is_none());
+    assert_eq!(machine.name.as_str(), "Float::meaning32");
+
+    let tokens = Lexer::new("machine realize(value: f32) -> f32 satisfies Math::identity;")
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("a bodyless realization needs `via`");
+    assert!(
+        error
+            .message
+            .contains("a machine without a body is the ACCEPTED boundary form"),
+        "{}",
+        error.message
+    );
+}

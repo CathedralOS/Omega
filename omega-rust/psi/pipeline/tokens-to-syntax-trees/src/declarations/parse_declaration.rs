@@ -156,16 +156,21 @@ pub(crate) fn parse_item<'tokens, 'source>(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
             ));
         }
-        // PRV4 step 1: a bodyless machine is legal when it is an EXTERNAL
-        // LEAF -- `satisfies Requirement via <Binding>;` -- whose realization
-        // is the binding. Every other bodyless machine remains the accepted
-        // boundary form.
+        // A bodyless machine is legal as an EXTERNAL LEAF -- `satisfies
+        // Requirement via <Binding>;` -- whose realization is the binding, or
+        // as a bare tokenless signature that symbol resolution admits only
+        // when it is an exact compiler-catalog primitive declared by the
+        // sealed toolchain source (executable supply: "Exact compiler-owned
+        // bodyless machine ... its authorized closed-catalog realization").
+        // Any other bodyless machine rejects there with the boundary-form
+        // guidance; the grammar itself stays neutral about which source
+        // owns a name.
         let has_via = syntax_trees
             .items
             .satisfies_clauses(item.satisfies)
             .iter()
             .any(|clause| clause.via.is_some() || clause.via_expression.is_valid());
-        if item.bodyless && !has_via {
+        if item.bodyless && !has_via && !item.satisfies.is_empty() {
             return Err(rest.error_here(
                 "a machine without a body is the ACCEPTED boundary form -- spell it \
                  `boundary machine ...;` (chapter 10: bodyless contracts are trust \

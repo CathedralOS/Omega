@@ -60,6 +60,21 @@ fn lower_item_with_exposure(
             )?;
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
+        // A bare bodyless tokenless signature is admitted only as an exact
+        // compiler-catalog primitive declared by the sealed toolchain source;
+        // it lowers to the catalog's declaration, and every other such
+        // signature rejects with the body/boundary/external-leaf guidance.
+        syntax::item::Item::Machine(machine)
+            if machine.target.is_none()
+                && crate::lowering::operator::is_bare_bodyless_signature(machine) =>
+        {
+            let operator = crate::lowering::operator::lower_bare_bodyless_signature(
+                lowerer,
+                syntax_trees,
+                machine,
+            )?;
+            lowerer.symbol_resolved_trees.operators.push(operator);
+        }
         syntax::item::Item::Machine(machine) => {
             // A machine still carrying a target marker here was NOT selected:
             // the pre-resolution filter (pipeline/target_machines.rs) clears
