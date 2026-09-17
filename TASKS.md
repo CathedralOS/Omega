@@ -526,11 +526,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   field chain; `order.rs` accepts a subject reaching the root record
   through a `Reference`; `pass/termination/measure_{nested_projection_rank,
   nested_projection_rank_range,borrowed_projection}` plus three fail
-  canaries); the relational range route still binds direct owned fields
-  only.
+  canaries), and the relational range route transports them too:
+  validation's `FieldCoordinate` is a projection chain re-resolved from
+  the declared measure body (root record owned or reached through one
+  reference, owned exact records at each step, u64 leaf), authored member
+  chains bind to chain-identified atoms, and every arrival substitutes
+  the literal chain rebuilt down to the field
+  (`pass/termination/measure_nested_projection_range_{relational,pinned_limit}`,
+  `measure_borrowed_projection_range`, three fail canaries). Named-state
+  telescope transport for nested or borrowed record roles
+  (`fresh_record_carrier` and mapping discovery still assume a direct
+  owned nominal slot), reference boundaries inside a chain, and
+  call-component struct views remain.
   Still open on this item: diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
-  premises, relational range transport for nested/borrowed views,
+  premises, named-state transport for nested/borrowed record roles,
   STATE-LOCAL-VALUE-FRONTIER retirement of generated
   operand-call states, independent arithmetic proof for computed endpoints,
   equality evidence for non-polynomial substitutions, and produced-rank facts
