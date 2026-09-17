@@ -1,0 +1,28 @@
+// FAIL CANARY. A machine's normal return is a default-domain consumption
+// point for its readable `&mut` referents: writing through a bare
+// `&mut [u8; 4]` alias retires `level.rooms[1].label`'s declared `Utf8`
+// coverage without establishing anything, so returning the referent without
+// restoring the field rejects at the return with the exact place.
+domain [u8; 4]::Utf8
+requires
+    valid_utf8(self);
+
+data Room {
+    label: [u8; 4] in Utf8;
+}
+
+data Level {
+    rooms: [Room; 2];
+}
+
+machine corrupt(level: &mut Level) {
+    let label: &mut [u8; 4] = &mut level.rooms[1].label;
+    label[0] = 255;
+}
+
+machine main() {
+    let mut level: Level = Level {
+        rooms: [Room { label: "aaaa" }, Room { label: "bbbb" }],
+    };
+    corrupt(&mut level);
+}

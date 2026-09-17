@@ -19,13 +19,29 @@ fn check(source: &str, accepted: bool) {
                 diagnostics.iter().any(|diagnostic| diagnostic.is_error()),
                 "expected bounds error: {diagnostics:#?}\n{source}"
             );
+            let is_bounds_error = |diagnostic: &diagnostics::Diagnostic| {
+                diagnostic.message.contains("cannot prove index")
+                    || diagnostic.message.contains("cannot prove subslice range")
+            };
+            assert!(
+                diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.is_error())
+                    .any(is_bounds_error),
+                "expected a bounds error: {diagnostics:#?}\n{source}"
+            );
+            // An element store outside the live extent is an invalid write;
+            // the machine's return then also reports the field's unclosed
+            // default-domain window (the consumption point of that write).
             assert!(
                 diagnostics
                     .iter()
                     .filter(|diagnostic| diagnostic.is_error())
                     .all(|diagnostic| {
-                        diagnostic.message.contains("cannot prove index")
-                            || diagnostic.message.contains("cannot prove subslice range")
+                        is_bounds_error(diagnostic)
+                            || diagnostic.message.contains(
+                                "cannot prove default-domain field requirement for return from",
+                            )
                     }),
                 "expected bounds errors, not unrelated rejection: {diagnostics:#?}\n{source}"
             );
@@ -333,7 +349,12 @@ fn bounded_byte_assignment_value_cannot_retire_the_destination_extent() {
         check(
             &format!(
                 "{} machine Record::clear_value(&mut self) -> u8 {{ {write} 65 }}",
-                field_source("self.out = \"XXX\"; self.out[2] = self.clear_value();"),
+                // The stored byte binds through a declared ASCII range so the
+                // element store keeps `self.out` inside `Utf8`; the mutating
+                // call itself is what must not retire the destination extent.
+                field_source(
+                    "self.out = \"XXX\"; let value: u8 [0..=127] = self.clear_value(); self.out[2] = value;"
+                ),
             ),
             accepted,
         );

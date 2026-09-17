@@ -1,0 +1,1 @@
+cannot prove default-domain field requirement for return from pick at statement 2: level.rooms[1].label requires

@@ -165,23 +165,68 @@ pub(crate) fn build_contract_exit_facts(
                 true,
             );
 
-            // An owned nominal return type owes its declared field predicates
-            // on the returned value even when no ensures clause is authored.
-            // Record the exit so flow captures the value-returning contexts the
-            // result-field check consumes (checks/contracts/exits).
+            // A nominal return type -- owned, or the referent of a readable
+            // reference -- owes its declared field predicates on the returned
+            // value even when no ensures clause is authored, and a readable
+            // `&mut` referent (`self` included) owes its entry field facts
+            // again at the return. Record the exit so flow captures the
+            // exit contexts those checks consume (checks/contracts/exits).
             let return_field_obligations =
                 program
                     .machine_states(machine)
                     .first()
                     .is_some_and(|entry| {
-                        !crate::facts::field_domain::declared_result_field_domain_paths(
+                        crate::facts::field_domain::declared_result_field_domain_paths(
                             program,
-                            entry.return_type,
+                            crate::checks::contracts::result_domain_type(
+                                program,
+                                entry.return_type,
+                            ),
                         )
-                        .is_empty()
+                        .iter()
+                        .any(|(_, domain)| {
+                            crate::checks::contracts::value_provable_domain(program, *domain)
+                        })
                     });
+            let referent_field_obligations =
+                program.state_parameters(state).iter().any(|parameter| {
+                    crate::checks::contracts::is_readable_mutable_reference(
+                        program,
+                        parameter.type_reference,
+                    ) && if parameter.is_self {
+                        machine.attached_data.as_ref().is_some_and(|attached| {
+                            program
+                                .data_definitions()
+                                .iter()
+                                .find(|data| data.name.as_str() == attached.as_str())
+                                .is_some_and(|data| {
+                                    crate::facts::field_domain::declared_field_domain_paths(
+                                        program, data,
+                                    )
+                                    .iter()
+                                    .any(|(_, domain)| {
+                                        crate::checks::contracts::value_provable_domain(
+                                            program, *domain,
+                                        )
+                                    })
+                                })
+                        })
+                    } else {
+                        crate::facts::field_domain::declared_result_field_domain_paths(
+                            program,
+                            crate::checks::contracts::result_domain_type(
+                                program,
+                                parameter.type_reference,
+                            ),
+                        )
+                        .iter()
+                        .any(|(_, domain)| {
+                            crate::checks::contracts::value_provable_domain(program, *domain)
+                        })
+                    }
+                });
 
-            if ensures.is_empty() && !return_field_obligations {
+            if ensures.is_empty() && !return_field_obligations && !referent_field_obligations {
                 continue;
             }
 

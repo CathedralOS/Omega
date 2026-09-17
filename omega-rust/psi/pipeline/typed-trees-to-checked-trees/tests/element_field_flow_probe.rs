@@ -114,6 +114,10 @@ fn mutable_call_preserves_untouched_field() {
     );
 }
 
+/// The corruption is caught on the callee side: `poke` hands `row` back at
+/// its return with the declared `Utf8` coverage retired, so its return
+/// rejects with the exact place. The caller then relies on that guarantee
+/// and its own `consume` call is accepted.
 #[test]
 fn mutable_call_without_ensures_on_written_field() {
     assert_rejected(
@@ -128,7 +132,7 @@ fn mutable_call_without_ensures_on_written_field() {
             }}
         "#
         ),
-        &["parameter row.bytes requires"],
+        &["for return from poke", "row.bytes requires"],
     );
 }
 
