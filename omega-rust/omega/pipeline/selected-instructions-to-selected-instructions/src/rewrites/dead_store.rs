@@ -50,15 +50,20 @@
 //! effect conservatively blocks elimination.
 //!
 //! The walk is not confined to one block: reaching a block's end without
-//! interference continues through its terminator's successor edges when every
-//! edge names one block — each path forward from the store then arrives
-//! there, so a covering store in that block still rewrites the dead bytes
-//! before any observer. A join at a crossed block is harmless because
-//! coverage looks forward. Terminator roster rows decide before each crossed
-//! edge's transports, which may not write or retire the dead place's storage.
-//! A terminator without successors, edges fanning out to distinct blocks, and
-//! re-entering a walked block each leave a path the covering store never runs
-//! on, so they end the walk unproven.
+//! interference continues through every successor edge of its terminator —
+//! a covering write further down still rewrites the dead bytes when each
+//! path forward reaches one before any observer. A block is only ever
+//! entered uncovered, so its first interfering access decides all paths
+//! through it at once; a block scanned clear defers coverage to its
+//! distinct successors, and the store is dead once every walked block's
+//! paths converge on covering writes — a fork's legs may cover through
+//! different writes or reconverge on one. A join at a crossed block is
+//! harmless because coverage looks forward. Terminator roster rows decide
+//! before each crossed edge's transports, which may not write or retire the
+//! dead place's storage. A terminator without successors, an edge back into
+//! the store's own block — the removed store can never be its own covering
+//! write — and a walked region that cycles without reaching coverage each
+//! leave a path unproven, so they end the walk in rejection.
 //!
 //! Removing the store shortens its block's instruction vector, so boundary
 //! settlements positioned after it shift one ordinal earlier. Settlement
