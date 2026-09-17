@@ -696,11 +696,21 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   file and scope named, product cycles, and edge removal after
   publication all hold; `omega/tests/package_commands/build_purposes.rs`
   pins them through the shipped binary at 380c6f3fdb over
-  `tests/fixtures/packages/build-purposes`. Open: build helpers are
-  checked under the requested product target rather than the admitted
-  host profile (`pub macos_arm64 machine` in a build helper does not
-  resolve on the macOS host while the product target's does), which needs
-  a per-scope profile in the frontend request; the missing-edge diagnostic
+  `tests/fixtures/packages/build-purposes`. Build-scope root sources (the build
+  entry and the root-local helpers it imports) now select their
+  target-scoped machines against the admitted build execution profile
+  (`CheckedCompileRequest::build_execution_profile`, defaulting to the
+  compiler host) while product sources keep the product target
+  (`build-evaluation/src/admission/target_machines.rs::filter_target_machines_by_scope`
+  over `AssembledSyntax::build_scope_sources`; witnessed by
+  `assembled-syntax-to-checked-compilation/src/checking/execution_profile_tests.rs`,
+  macOS ARM64; a free target-scoped machine still cannot be imported by
+  name, so helpers keep std's attached-machine spelling). Open:
+  build-dependency packages' own sources still resolve
+  as product scope (`frontend/mod.rs::source_import_scope`), so a host
+  tool library's target-scoped rows are not yet checked for the execution
+  profile, and a file imported by both scopes is rejected rather than
+  checked twice; the missing-edge diagnostic
   in `source-files-to-assembled-syntax/src/frontend/mod.rs` lacks the
   suggested declaration; and non-root packages cannot author build rows,
   so cross-purpose cycles and per-helper build activations stay

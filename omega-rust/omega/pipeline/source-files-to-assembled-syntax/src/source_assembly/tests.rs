@@ -409,6 +409,7 @@ fn retained_generated_syntax_extension_preserves_unit_custody_without_reparsing(
         application: None,
         source_scoped_top_level_bindings: Vec::new(),
         generated_source_custody: Vec::new(),
+        build_scope_sources: std::collections::HashSet::new(),
     };
 
     let extension_inputs = [
@@ -498,6 +499,7 @@ fn generated_unit_pre_resolution_is_unit_local() {
         application: None,
         source_scoped_top_level_bindings: Vec::new(),
         generated_source_custody: Vec::new(),
+        build_scope_sources: std::collections::HashSet::new(),
     };
     let template_text = "data Split<T> { value: T; }";
     let wrapper_text = "data SplitUse { value: Split<u32>; }";
