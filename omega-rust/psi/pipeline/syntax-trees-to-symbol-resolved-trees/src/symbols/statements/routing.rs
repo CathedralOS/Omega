@@ -139,9 +139,14 @@ pub(super) fn assign_statement_symbols(
             );
             let provider_selection = call.target.as_str() == "select_provider";
             let representation_selection = call.target.as_str() == "select_representation";
+            let service_exclusion = call.target.as_str() == "exclude_service";
             for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
-                if provider_selection {
-                    assign_provider_selection_argument_symbol(symbols, argument, index == 0);
+                if provider_selection || service_exclusion {
+                    assign_provider_selection_argument_symbol(
+                        symbols,
+                        argument,
+                        provider_selection && index == 0,
+                    );
                 } else if representation_selection {
                     assign_representation_selection_argument_symbol(symbols, argument, index == 0);
                 } else {

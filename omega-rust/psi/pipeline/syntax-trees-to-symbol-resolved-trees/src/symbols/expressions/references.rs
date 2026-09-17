@@ -152,9 +152,16 @@ pub(super) fn assign_call_symbol(
         call.target_symbol = target_symbol;
         let provider_selection = call.target.as_str() == "select_provider";
         let representation_selection = call.target.as_str() == "select_representation";
+        // `exclude_service<Trait>()` names one exact declaration the same way
+        // a provider slot does; build harvesting requires a boundary trait.
+        let service_exclusion = call.target.as_str() == "exclude_service";
         for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
-            if provider_selection {
-                assign_provider_selection_argument_symbol(symbols, argument, index == 0);
+            if provider_selection || service_exclusion {
+                assign_provider_selection_argument_symbol(
+                    symbols,
+                    argument,
+                    provider_selection && index == 0,
+                );
             } else if representation_selection {
                 assign_representation_selection_argument_symbol(symbols, argument, index == 0);
             } else {
