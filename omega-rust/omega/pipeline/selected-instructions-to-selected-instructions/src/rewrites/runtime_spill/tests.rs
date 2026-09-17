@@ -664,8 +664,9 @@ fn compiler_address_origins_and_exhausted_budget_do_not_gain_spill_authority() {
         .unwrap_err(),
         RuntimeSpillError::SourceMismatch
     );
+    // A register absent from the function has no value to admit.
     assert_eq!(
-        spill_selected_runtime_value(&source, 0, VirtualRegisterId(0), &environment, budget())
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(90), &environment, budget())
             .unwrap_err(),
         RuntimeSpillError::UnsupportedValue
     );

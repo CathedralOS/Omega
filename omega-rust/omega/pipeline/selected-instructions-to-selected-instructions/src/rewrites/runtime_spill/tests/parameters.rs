@@ -1089,3 +1089,564 @@ fn case_payload_parameter_arrivals_still_require_exact_edge_definitions() {
         );
     }
 }
+
+/// An entry parameter's definition is the function-entry boundary: the
+/// register arrives live-in with its ABI view pinned, so the store opens the
+/// entry block and the pin keeps covering only the entry-to-store window —
+/// every use reads a reload. Replay independently requires that leading
+/// store: one displaced into the block body mismatches.
+#[test]
+fn entry_parameter_stores_at_the_entry_boundary_on_every_target() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut source = fixture(target);
+        let pinned = {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            // Selection pins the entry live-in to a real view of its class;
+            // the pin survives the rewrite as the entry-to-store interval.
+            let view = environment
+                .physical()
+                .model()
+                .classes
+                .iter()
+                .find(|row| row.id == function.virtual_registers[0].class)
+                .and_then(|row| row.views.first())
+                .copied()
+                .expect("the scalar class always declares a view");
+            function.virtual_registers[0].entry_fixed_view = Some(view);
+            view
+        };
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(0), &environment, budget())
+                .unwrap();
+        let original = &source.transformed().functions[0];
+        let transformed = &result.transformed().functions[0];
+        let block = &transformed.blocks[0];
+        // [store, address, load, copy×4]: the boundary store leads, then the
+        // sole use's reload pair precedes its consumer.
+        assert_eq!(
+            block.instructions.len(),
+            original.blocks[0].instructions.len() + 3
+        );
+        assert!(matches!(
+            block.instructions[0].kind,
+            SelectedInstructionKind::Store64 { .. }
+        ));
+        assert_eq!(
+            block.instructions[0].operands[0].virtual_register,
+            VirtualRegisterId(0)
+        );
+        assert!(matches!(
+            block.instructions[1].kind,
+            SelectedInstructionKind::FrameAddress { .. }
+        ));
+        assert!(matches!(
+            block.instructions[2].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        let reload = block.instructions[2].operands[1].virtual_register;
+        assert_eq!(block.instructions[3].operands[0].virtual_register, reload);
+        // Nothing past the boundary store still names the victim register.
+        assert!(block.instructions.iter().skip(1).all(|instruction| {
+            instruction
+                .operands
+                .iter()
+                .all(|operand| operand.virtual_register != VirtualRegisterId(0))
+        }));
+        assert_eq!(
+            transformed.local_storage_slots.as_slice(),
+            [SelectedLocalStorageSlot {
+                id: LocalStorageSlotId::Spill {
+                    register: VirtualRegisterId(0)
+                },
+                byte_size: 8,
+                alignment: 8,
+            }]
+        );
+        // The victim keeps its pinned entry view — its interval is exactly
+        // entry-to-store now — while the generated registers carry none.
+        assert_eq!(
+            transformed.virtual_registers[0].entry_fixed_view,
+            Some(pinned)
+        );
+        assert!(
+            transformed.virtual_registers[original.virtual_registers.len()..]
+                .iter()
+                .all(|register| register.entry_fixed_view.is_none())
+        );
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(0),
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // Replay demands the boundary store lead the block: pushing it into
+        // the body leaves the first stream instruction a source copy.
+        let mut moved = result.transformed().clone();
+        moved.functions[0].blocks[0].instructions.swap(0, 3);
+        assert_eq!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(0),
+                &environment,
+                budget(),
+                moved
+            )
+            .unwrap_err(),
+            RuntimeSpillError::ReplayMismatch
+        );
+    }
+}
+
+/// An entry parameter's single store is only valid once: any edge back to
+/// the entry block would re-execute it reading a register whose interval
+/// already ended at the first store, so re-entry stays rejected — whether
+/// the edge is the entry block's own loop edge or a later block's back edge.
+#[test]
+fn entry_parameter_rejects_any_edge_back_into_the_entry_block() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let jump = environment
+        .constraint(environment.selected_keys().jump)
+        .unwrap();
+    // The entry block's own conditional edge targets itself.
+    let mut self_loop = fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut self_loop.transformed).functions[0];
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: admission::instruction(
+                SelectedInstructionId(50),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            when_nonzero: successor(0),
+            when_zero: successor(0),
+        };
+    }
+    assert_eq!(
+        spill_selected_runtime_value(&self_loop, 0, VirtualRegisterId(0), &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedControlFlow
+    );
+    // A back edge from another block — reachable or not — still re-enters the
+    // boundary, so the structural scan rejects it the same way.
+    let mut back_edge = fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut back_edge.transformed).functions[0];
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: admission::instruction(
+                    SelectedInstructionId(50),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(0),
+            },
+        });
+    }
+    assert_eq!(
+        spill_selected_runtime_value(&back_edge, 0, VirtualRegisterId(0), &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedControlFlow
+    );
+}
+
+/// The boundary definition keeps its own site discipline: a parameter index
+/// the site does not name, a block-parameter site, or no site at all leaves
+/// the live-in outside admission, and a fixed view on a non-entry origin
+/// stays rejected exactly as before.
+#[test]
+fn entry_parameter_requires_its_boundary_site_and_own_the_fixed_view() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for mutation in 0..4 {
+        let mut source = fixture(target);
+        let victim = {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            match mutation {
+                // A parameter index the site does not name is not this
+                // boundary definition.
+                0 => {
+                    function.virtual_registers[0].definition_site =
+                        Some(ValueDefinitionSite::FunctionParameter(1));
+                    VirtualRegisterId(0)
+                }
+                // A block-parameter site is not the function-entry boundary.
+                1 => {
+                    function.virtual_registers[0].definition_site =
+                        Some(ValueDefinitionSite::BlockParameter {
+                            block: BlockId::new(3).unwrap(),
+                            position: 0,
+                        });
+                    VirtualRegisterId(0)
+                }
+                // The boundary live-in must still declare its semantic site.
+                2 => {
+                    function.virtual_registers[0].definition_site = None;
+                    VirtualRegisterId(0)
+                }
+                // A fixed view pins an interval the rewrite cannot shrink on
+                // any origin but the boundary live-in itself.
+                _ => {
+                    let view = environment
+                        .physical()
+                        .model()
+                        .classes
+                        .iter()
+                        .find(|row| row.id == function.virtual_registers[1].class)
+                        .and_then(|row| row.views.first())
+                        .copied()
+                        .expect("the scalar class always declares a view");
+                    function.virtual_registers[1].entry_fixed_view = Some(view);
+                    VirtualRegisterId(1)
+                }
+            }
+        };
+        assert_eq!(
+            spill_selected_runtime_value(&source, 0, victim, &environment, budget()).unwrap_err(),
+            RuntimeSpillError::UnsupportedValue,
+            "mutation {mutation}"
+        );
+    }
+}
+
+/// An entry parameter live across a loop: its store opens the entry block
+/// and the back edge targets the loop header — never the boundary itself —
+/// so the single-entry interval stays honest while every loop use reloads.
+fn entry_cycle_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
+    let mut source = fixture(target);
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let copy = environment.constraint(keys.copy_i64).unwrap();
+    let jump = environment.constraint(keys.jump).unwrap();
+    let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+    let scalar_type = function.virtual_registers[0].scalar_type;
+    let class = function.virtual_registers[0].class;
+    let mut terminal = function.blocks[0].terminator.clone();
+    let SelectedTerminator::Return { instruction, .. } = &mut terminal else {
+        unreachable!()
+    };
+    instruction.id = SelectedInstructionId(1000);
+    function.virtual_registers.truncate(1);
+    for (register, instruction) in [(5u32, 201u32), (6, 301)] {
+        function.virtual_registers.push(VirtualRegister {
+            id: VirtualRegisterId(register),
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(instruction),
+                source_value: ValueId::new(2).unwrap(),
+            },
+            definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+            entry_fixed_view: None,
+        });
+    }
+    let copy_at = |instruction, input, output| {
+        admission::instruction(
+            SelectedInstructionId(instruction),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[VirtualRegisterId(input), VirtualRegisterId(output)],
+        )
+    };
+    let jump_at = |instruction| {
+        admission::instruction(
+            SelectedInstructionId(instruction),
+            SelectedInstructionKind::Jump,
+            jump,
+            &[],
+        )
+    };
+    let semantic = |destination| {
+        let mut edge = successor(destination);
+        edge.role = SelectedSuccessorRole::Semantic;
+        edge
+    };
+    function.blocks = vec![
+        SelectedBlock {
+            id: SelectedBlockId(0),
+            origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: jump_at(100),
+                successor: semantic(1),
+            },
+        },
+        SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![copy_at(201, 0, 5)],
+            terminator: SelectedTerminator::ConditionalBranch {
+                instruction: jump_at(200),
+                when_nonzero: semantic(2),
+                when_zero: semantic(3),
+            },
+        },
+        SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: vec![copy_at(301, 0, 6)],
+            terminator: SelectedTerminator::Jump {
+                instruction: jump_at(300),
+                successor: semantic(1),
+            },
+        },
+        SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(5).unwrap()),
+            instructions: Vec::new(),
+            terminator: terminal,
+        },
+    ];
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    source
+}
+
+/// The loop keeps the boundary store single-entry: the back edge targets the
+/// header, so the entry block's leading store executes once and both loop
+/// uses reload from it. Removing the store or retargeting the back edge at
+/// the boundary itself both reject.
+#[test]
+fn entry_parameter_loop_uses_reload_from_one_boundary_store() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = entry_cycle_fixture(target);
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(0), &environment, budget())
+                .unwrap();
+        let transformed = &result.transformed().functions[0];
+        // The entry block holds only the boundary store before its jump.
+        let entry = &transformed.blocks[0];
+        assert_eq!(entry.instructions.len(), 1);
+        assert!(matches!(
+            entry.instructions[0].kind,
+            SelectedInstructionKind::Store64 { .. }
+        ));
+        assert_eq!(
+            entry.instructions[0].operands[0].virtual_register,
+            VirtualRegisterId(0)
+        );
+        // Each loop block reads one reload pair ahead of its consumer, and no
+        // survivor names the victim register.
+        for block in &transformed.blocks[1..3] {
+            assert_eq!(block.instructions.len(), 3);
+            assert!(matches!(
+                block.instructions[0].kind,
+                SelectedInstructionKind::FrameAddress { .. }
+            ));
+            assert!(matches!(
+                block.instructions[1].kind,
+                SelectedInstructionKind::Load64 { .. }
+            ));
+            assert_eq!(
+                block.instructions[2].operands[0].virtual_register,
+                block.instructions[1].operands[1].virtual_register
+            );
+        }
+        for (source_block, block) in source.transformed().functions[0]
+            .blocks
+            .iter()
+            .zip(&transformed.blocks)
+        {
+            assert_eq!(block.terminator, source_block.terminator);
+        }
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(0),
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // Dropping the boundary store leaves the entry stream a prefix of the
+        // source block — replay requires the leading store it emitted.
+        let mut dropped = result.transformed().clone();
+        dropped.functions[0].blocks[0].instructions.clear();
+        assert_eq!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(0),
+                &environment,
+                budget(),
+                dropped
+            )
+            .unwrap_err(),
+            RuntimeSpillError::ReplayMismatch
+        );
+    }
+    // The same loop shape with its back edge retargeted at the boundary is
+    // exactly the re-entry admission refuses.
+    let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
+    let mut reentry = entry_cycle_fixture(NativeTarget::linux_x64());
+    {
+        let function = &mut Arc::make_mut(&mut reentry.transformed).functions[0];
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[2].terminator = SelectedTerminator::Jump {
+            instruction: admission::instruction(
+                SelectedInstructionId(300),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: successor(0),
+        };
+    }
+    assert_eq!(
+        spill_selected_runtime_value(&reentry, 0, VirtualRegisterId(0), &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedControlFlow
+    );
+}
+
+/// A boundary store can share a declared slot whose incumbent window sits
+/// entirely after the victim's own loads: the entry-positioned store is the
+/// block's first writer event, so an incumbent store/load pair later in the
+/// block still reads its own last writer while the victim's reload reads the
+/// boundary store. Reuse declares nothing — the slot list stays singular.
+#[test]
+fn entry_parameter_reuses_an_incumbent_slot_written_after_its_loads() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let store = environment.constraint(keys.store64.unwrap()).unwrap();
+    let address = environment.constraint(keys.frame_address.unwrap()).unwrap();
+    let load = environment.constraint(keys.load64.unwrap()).unwrap();
+    let incumbent = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(9),
+    };
+    let mut source = fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        let scalar_type = function.virtual_registers[0].scalar_type;
+        let class = function.virtual_registers[0].class;
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: incumbent,
+            byte_size: 8,
+            alignment: 8,
+        });
+        function.virtual_registers.push(VirtualRegister {
+            id: VirtualRegisterId(10),
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::SpillAddress {
+                instruction: SelectedInstructionId(91),
+                register: VirtualRegisterId(9),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+        function.virtual_registers.push(VirtualRegister {
+            id: VirtualRegisterId(11),
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(92),
+                source_value: ValueId::new(9).unwrap(),
+            },
+            definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+            entry_fixed_view: None,
+        });
+        let frame_slot = FrameStorageSlotId::Local(incumbent);
+        let instructions = &mut function.blocks[0].instructions;
+        instructions.insert(
+            1,
+            admission::instruction(
+                SelectedInstructionId(90),
+                SelectedInstructionKind::Store64 {
+                    slot: frame_slot,
+                    byte_offset: 0,
+                },
+                store,
+                &[VirtualRegisterId(1)],
+            ),
+        );
+        instructions.insert(
+            2,
+            admission::instruction(
+                SelectedInstructionId(91),
+                SelectedInstructionKind::FrameAddress {
+                    slot: frame_slot,
+                    byte_offset: 0,
+                },
+                address,
+                &[VirtualRegisterId(10)],
+            ),
+        );
+        instructions.insert(
+            3,
+            admission::instruction(
+                SelectedInstructionId(92),
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                load,
+                &[VirtualRegisterId(10), VirtualRegisterId(11)],
+            ),
+        );
+    }
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    let result =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(0), &environment, budget())
+            .unwrap();
+    let function = &result.transformed().functions[0];
+    // Reuse declares nothing: the incumbent's entry stays the only slot, so
+    // the frame's byte demand is unchanged by the second victim.
+    assert_eq!(
+        function.local_storage_slots.as_slice(),
+        [SelectedLocalStorageSlot {
+            id: incumbent,
+            byte_size: 8,
+            alignment: 8,
+        }]
+    );
+    // The boundary store leads the block and names the shared slot.
+    let block = &function.blocks[0];
+    assert_eq!(
+        block.instructions[0].kind,
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(incumbent),
+            byte_offset: 0,
+        }
+    );
+    assert_eq!(
+        block.instructions[0].operands[0].virtual_register,
+        VirtualRegisterId(0)
+    );
+    validate_runtime_spill(
+        &source,
+        0,
+        VirtualRegisterId(0),
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}

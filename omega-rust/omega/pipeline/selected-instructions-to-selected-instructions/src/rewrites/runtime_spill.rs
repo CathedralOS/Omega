@@ -21,6 +21,11 @@
 //! Original parameter bindings remain exact. Replacing the destination's uses
 //! makes that parameter dead, so fresh liveness no longer requires its edge
 //! home tie. Their destination must likewise dominate every use.
+//! An entry parameter's definition is the function-entry boundary itself: the
+//! register arrives live-in, so its single store opens the entry block and its
+//! ABI live-in view keeps pinning only the entry-to-store window. That boundary
+//! store stays admitted only while no edge targets the entry block — re-entry
+//! would re-read a register whose interval already ended at the first store.
 //!
 //! Terminator instruction operands are ordinary uses at one more position:
 //! each reloads at the end of its block, after the last body instruction and
