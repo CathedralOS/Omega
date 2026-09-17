@@ -94,10 +94,32 @@ pub struct ImportSlot {
 }
 
 /// One exported callable surface offered to the component's callers.
+///
+/// Two export families exist, both re-derived from the embedded artifact:
+/// the canonical entry (`export:canonical:{machine}`) and one row per checked
+/// provider candidate the module retains
+/// ([`requirement_export_identity`]). The second family is what an
+/// independently selected provider component offers to a consumer's
+/// `Independent` selection: the exact requirement it realizes, the provider
+/// type that realizes it, and the checked candidate machine identity the
+/// selected `CheckedAdapter` row names. A description cannot invent or omit
+/// either family; the verifier compares the roster row for row.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ExportSurface {
-    /// Canonical export identity (for example `export:canonical:{machine}`).
+    /// Canonical export identity.
     pub identity: String,
+}
+
+/// Canonical export identity of one checked provider realization retained by
+/// the module's provider-candidate catalog. The three identities are the
+/// exact join coordinates the selected-plan join uses; the spelling is a
+/// string identity compared whole, never parsed.
+pub fn requirement_export_identity(
+    requirement_identity: &str,
+    provider_identity: &str,
+    candidate_identity: &str,
+) -> String {
+    format!("export:requirement:{requirement_identity}|{provider_identity}|{candidate_identity}")
 }
 
 /// Every possible way execution may enter the described component.
@@ -703,9 +725,25 @@ pub(crate) fn derive_component_inventory(
         service_ceiling.extend(dependency.upper_bound.iter().copied());
     }
 
-    let exports = vec![ExportSurface {
+    let mut exports = vec![ExportSurface {
         identity: format!("export:canonical:{}", module.entry.get()),
     }];
+    // Every checked provider candidate the module retains is an exported
+    // realization: a consumer's `Independent` selection joins its selected
+    // plan rows to exactly these coordinates. The catalog is semantic, not a
+    // selection, so exporting it grants nothing; installation still binds an
+    // occurrence per selected row.
+    for candidate in &module.provider_candidates {
+        exports.push(ExportSurface {
+            identity: requirement_export_identity(
+                &candidate.requirement_identity,
+                &candidate.provider_identity,
+                &candidate.candidate_identity,
+            ),
+        });
+    }
+    exports.sort();
+    exports.dedup();
 
     custody.sort();
     custody.dedup();

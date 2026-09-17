@@ -20,12 +20,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use sha2::{Digest, Sha256};
 use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
+use effects::provider_plan::{ProviderBinding, ProviderPlan};
+
 use crate::component_description::{
     ComponentDescription, ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind,
     DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
     InstallationObligation, MAX_COMPONENT_DESCRIPTION_BYTES, ObligationKind, OutgoingAuthority,
     OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider, component_description_identity,
     decode_component_description, derive_component_inventory, hex, requirement_contract_identity,
+    requirement_export_identity,
 };
 
 const VERIFIED_COMPONENT_CLOSURE_DOMAIN: &[u8] = b"omega-verified-component-closure-v1";
@@ -330,7 +333,202 @@ impl VerifiedComponent {
     pub const fn realization_identity(&self) -> Option<&[u8; 32]> {
         self.description.realization_identity.as_ref()
     }
+
+    /// Join one build-selected provider plan to this verified component's
+    /// exported checked realizations.
+    ///
+    /// This is the consumer-side half of an `Independent` selection: the
+    /// consumer selected `plan` (one provider type covering one boundary
+    /// slot) and this component claims to be that provider's deployable
+    /// closure. Every plan row must be a `CheckedAdapter` whose requirement,
+    /// provider type, and machine identity name exactly one provider
+    /// candidate in the *verified* module (never a description row), and
+    /// the description must export that realization. External, syscall, or
+    /// evaluated rows are not exported callable surfaces of a checked
+    /// closure and reject.
+    ///
+    /// Success establishes only that the realization exists inside this
+    /// exact subject. It grants no callable authority and discharges none of
+    /// the component's installation obligations; the consumer's fence still
+    /// owns subject/profile policy and the provider-occurrence binding.
+    pub fn realizes_selected_plan(
+        &self,
+        plan: &ProviderPlan,
+    ) -> Result<(), IndependentRealizationMismatch> {
+        if plan.provider_type.is_empty() {
+            return Err(IndependentRealizationMismatch::EmptyProviderType {
+                plan: plan.name.clone(),
+            });
+        }
+        // Schema validation owns coverage and row/origin consistency (a
+        // checked adapter whose package drifts from the plan origin rejects
+        // there); the join only reads a plan that is already a valid
+        // selection.
+        let coverage = plan.validate_against_schema();
+        if plan.rows.is_empty() || !coverage.is_empty() {
+            return Err(IndependentRealizationMismatch::InvalidPlan {
+                plan: plan.name.clone(),
+                detail: coverage.join("; "),
+            });
+        }
+        for row in &plan.rows {
+            let ProviderBinding::CheckedAdapter {
+                machine_identity, ..
+            } = &row.binding
+            else {
+                return Err(IndependentRealizationMismatch::UncheckedRow {
+                    requirement_identity: row.requirement_identity.clone(),
+                });
+            };
+            let for_requirement = self
+                .module
+                .provider_candidates
+                .iter()
+                .filter(|candidate| candidate.requirement_identity == row.requirement_identity)
+                .collect::<Vec<_>>();
+            if for_requirement.is_empty() {
+                return Err(IndependentRealizationMismatch::MissingRealization {
+                    requirement_identity: row.requirement_identity.clone(),
+                });
+            }
+            let for_provider = for_requirement
+                .iter()
+                .filter(|candidate| candidate.provider_identity == plan.provider_type)
+                .collect::<Vec<_>>();
+            if for_provider.is_empty() {
+                return Err(IndependentRealizationMismatch::ProviderTypeMismatch {
+                    requirement_identity: row.requirement_identity.clone(),
+                    selected_provider: plan.provider_type.clone(),
+                });
+            }
+            let exact = for_provider
+                .iter()
+                .filter(|candidate| candidate.candidate_identity == *machine_identity)
+                .collect::<Vec<_>>();
+            match exact.as_slice() {
+                [] => {
+                    return Err(IndependentRealizationMismatch::MachineMismatch {
+                        requirement_identity: row.requirement_identity.clone(),
+                        selected_machine: machine_identity.clone(),
+                    });
+                }
+                [_] => {}
+                _ => {
+                    return Err(IndependentRealizationMismatch::DuplicateRealization {
+                        requirement_identity: row.requirement_identity.clone(),
+                    });
+                }
+            }
+            // Verification already proved the export roster equals the
+            // module-derived roster; requiring the row here keeps the join
+            // honest if a later description schema ever narrows exports.
+            let export = requirement_export_identity(
+                &row.requirement_identity,
+                &plan.provider_type,
+                machine_identity,
+            );
+            if !self
+                .description
+                .exports
+                .iter()
+                .any(|surface| surface.identity == export)
+            {
+                return Err(IndependentRealizationMismatch::MissingExport {
+                    requirement_identity: row.requirement_identity.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
 }
+
+/// Every way a selected provider plan can fail to join a verified
+/// component's exported realizations. Categories are distinct so a consumer
+/// fence can report a substituted provider, a substituted machine, or an
+/// absent realization without conflating them with an unverified description.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IndependentRealizationMismatch {
+    /// The plan names no provider type; a free external leaf cannot be an
+    /// independently deployed component.
+    EmptyProviderType { plan: String },
+    /// The plan is not a valid fully covering selection: no rows, an
+    /// uncovered schema method, or a row inconsistent with the plan origin.
+    InvalidPlan { plan: String, detail: String },
+    /// A row is not a checked adapter inside the component closure.
+    UncheckedRow { requirement_identity: String },
+    /// The verified module retains no candidate for this requirement.
+    MissingRealization { requirement_identity: String },
+    /// The requirement is realized, but not by the selected provider type.
+    ProviderTypeMismatch {
+        requirement_identity: String,
+        selected_provider: String,
+    },
+    /// The selected provider realizes the requirement with another machine.
+    MachineMismatch {
+        requirement_identity: String,
+        selected_machine: String,
+    },
+    /// More than one identical realization row exists.
+    DuplicateRealization { requirement_identity: String },
+    /// The description omits the export row the realization requires.
+    MissingExport { requirement_identity: String },
+}
+
+impl std::fmt::Display for IndependentRealizationMismatch {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmptyProviderType { plan } => {
+                write!(formatter, "selected plan `{plan}` names no provider type")
+            }
+            Self::InvalidPlan { plan, detail } => {
+                write!(
+                    formatter,
+                    "selected plan `{plan}` is not a valid selection: {detail}"
+                )
+            }
+            Self::UncheckedRow {
+                requirement_identity,
+            } => write!(
+                formatter,
+                "requirement `{requirement_identity}` is not realized by a checked adapter"
+            ),
+            Self::MissingRealization {
+                requirement_identity,
+            } => write!(
+                formatter,
+                "verified component realizes no candidate for `{requirement_identity}`"
+            ),
+            Self::ProviderTypeMismatch {
+                requirement_identity,
+                selected_provider,
+            } => write!(
+                formatter,
+                "`{requirement_identity}` is not realized by selected provider `{selected_provider}`"
+            ),
+            Self::MachineMismatch {
+                requirement_identity,
+                selected_machine,
+            } => write!(
+                formatter,
+                "`{requirement_identity}` is not realized by selected machine `{selected_machine}`"
+            ),
+            Self::DuplicateRealization {
+                requirement_identity,
+            } => write!(
+                formatter,
+                "`{requirement_identity}` has more than one identical realization"
+            ),
+            Self::MissingExport {
+                requirement_identity,
+            } => write!(
+                formatter,
+                "description exports no realization row for `{requirement_identity}`"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for IndependentRealizationMismatch {}
 
 /// Independently verify a canonical component description for admission.
 ///
