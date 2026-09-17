@@ -361,20 +361,30 @@ fn normal_dependency_tree(package: &str) -> String {
     String::from_utf8(output.stdout).expect("cargo tree output must be UTF-8")
 }
 
+fn normal_closure_contains(tree: &str, name: &str) -> bool {
+    tree.lines()
+        .any(|line| line == name || line.starts_with(&format!("{name} ")))
+}
+
 fn assert_normal_closure_excludes(package: &str, forbidden: &[&str]) {
     let tree = normal_dependency_tree(package);
     let violations = forbidden
         .iter()
-        .filter(|name| {
-            tree.lines()
-                .any(|line| line == **name || line.starts_with(&format!("{name} ")))
-        })
+        .filter(|name| normal_closure_contains(&tree, name))
         .copied()
         .collect::<Vec<_>>();
     assert!(
         violations.is_empty(),
         "{package}'s ordinary production closure imports quarantined runtime owner(s): {}\n\n{tree}",
         violations.join(", ")
+    );
+}
+
+fn assert_normal_closure_includes(package: &str, required: &str) {
+    let tree = normal_dependency_tree(package);
+    assert!(
+        normal_closure_contains(&tree, required),
+        "{package}'s ordinary production closure no longer reaches `{required}`\n\n{tree}",
     );
 }
 
@@ -478,6 +488,16 @@ fn compilation_report_excludes_speculative_runtime_owners() {
     }
 }
 
+/// The ordinary compiler route plans and checks a program; it never installs
+/// or deploys one. `component-candidate` joins a native artifact (and with it
+/// image emission) to component policy, and the deployment, publication,
+/// installation, and external-root owners are runtime custody. None of them
+/// may enter these closures. The verified component *description* is the
+/// deliberate exception below: `component-description` is source-free
+/// evidence over the canonical Terminal artifact, which is exactly what the
+/// provider-planning fence needs to join an `Independent` selection to its
+/// realizing component, and `component_description_stays_below_the_runtime_quarantine`
+/// proves that seam never pulls the quarantined owners in behind it.
 #[test]
 fn ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners() {
     let forbidden = [
@@ -495,6 +515,48 @@ fn ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners() {
     ] {
         assert_normal_closure_excludes(package, &forbidden);
     }
+}
+
+/// `component-description` sits below the runtime quarantine so build
+/// planning can consume verified components: its ordinary closure must stay
+/// free of image emission, the native artifact, and every quarantined runtime
+/// owner, while the native-realization producer in `component-candidate`
+/// keeps reaching it.
+#[test]
+fn component_description_stays_below_the_runtime_quarantine() {
+    assert_normal_closure_excludes(
+        "component-description",
+        &[
+            "image-emission",
+            "image",
+            "native-artifact",
+            "object-file",
+            "component-candidate",
+            "component-deployment",
+            "component-publication",
+            "executable-installation",
+            "external-roots",
+        ],
+    );
+    assert_normal_closure_includes("component-candidate", "component-description");
+    let graph = load_graph();
+    assert_eq!(graph["component-description"].layer, "backend");
+    assert!(
+        graph["component-description"]
+            .deps
+            .iter()
+            .all(|dependency| {
+                [
+                    "effects",
+                    "semantic-vocabulary",
+                    "terminal-codec",
+                    "terminal-psi",
+                ]
+                .contains(&dependency.as_str())
+            }),
+        "component-description grew a governed dependency beyond its evidence closure: {:?}",
+        graph["component-description"].deps
+    );
 }
 
 #[test]
