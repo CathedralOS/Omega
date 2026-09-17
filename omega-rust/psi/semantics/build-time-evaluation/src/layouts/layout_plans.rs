@@ -39,6 +39,7 @@ pub use const_materializable::{
 };
 pub use const_record_with_nested_sum_materializable::{
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
+    ValidatedConstRecordArrayElementSelection, ValidatedConstRecordArrayFieldMaterialization,
     ValidatedConstRecordLevelSumChildrenMaterialization,
     ValidatedConstRecordWithNestedSumRecordMaterialization,
     ValidatedConstRecordWithNestedSumRecordsMaterialization,

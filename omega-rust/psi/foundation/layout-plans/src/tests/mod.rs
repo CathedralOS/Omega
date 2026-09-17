@@ -7,10 +7,10 @@ mod symbolic_sum_materializations;
 mod writer_fragments;
 
 use crate::{
-    ByteOrder, ConsumptionInstant, ConventionalRecordSumOccurrenceLayoutReport,
-    ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    ConventionalSumArrayFieldLayoutReport, ConventionalSumCaseLayoutReport,
-    ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ByteOrder, ConsumptionInstant, ConventionalRecordArrayFieldLayoutReport,
+    ConventionalRecordSumOccurrenceLayoutReport, ConventionalRecordSumPathsLayoutReport,
+    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
+    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, DataSymbolId, EntryStubId, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MaterializationContext, PlacementConstraints,
     PlacementPhase, RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldInteriorLayout,
@@ -352,6 +352,7 @@ fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
             outer_layout: record(1, &[("header", 0), ("middle", 8)], 72),
             child_sum_layouts: Vec::new(),
             child_sum_array_layouts: Vec::new(),
+            child_record_array_layouts: Vec::new(),
             paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                 outer_field: "middle".into(),
                 outer_member_identity: None,
@@ -364,6 +365,7 @@ fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
                             layout: sum_layout(),
                         }],
                         child_sum_array_layouts: Vec::new(),
+                        child_record_array_layouts: Vec::new(),
                         paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                             outer_field: "inner".into(),
                             outer_member_identity: None,
@@ -375,6 +377,7 @@ fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
                                     layout: sum_layout(),
                                 }],
                                 child_sum_array_layouts: Vec::new(),
+                                child_record_array_layouts: Vec::new(),
                             },
                         }],
                     },
@@ -415,6 +418,7 @@ fn recursive_sum_array_report() -> ConventionalRecursiveRecordSumPathsLayoutRepo
             outer_layout: record(1, &[("header", 0), ("middle", 8)], 168),
             child_sum_layouts: Vec::new(),
             child_sum_array_layouts: Vec::new(),
+            child_record_array_layouts: Vec::new(),
             paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                 outer_field: "middle".into(),
                 outer_member_identity: None,
@@ -437,6 +441,7 @@ fn recursive_sum_array_report() -> ConventionalRecursiveRecordSumPathsLayoutRepo
                             element_stride: 24,
                             element_layout: sum_layout(),
                         }],
+                        child_record_array_layouts: Vec::new(),
                         paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                             outer_field: "inner".into(),
                             outer_member_identity: None,
@@ -460,7 +465,87 @@ fn recursive_sum_array_report() -> ConventionalRecursiveRecordSumPathsLayoutRepo
                                         element_layout: sum_layout(),
                                     },
                                 ],
+                                child_record_array_layouts: Vec::new(),
                             },
+                        }],
+                    },
+                ),
+            }],
+        },
+    )
+}
+
+/// A recursive record/sum path report carrying a direct array of records that
+/// still reach sums: `middle`'s interior places the deeper record `inner` at
+/// 0 (a 32-byte leaf holding `choice` at 0 and `pad` at 24), its own direct
+/// sum `route` at 32, and `neighbors` — two 32-byte elements of the same
+/// leaf record at a 32-byte stride — spanning 56..120. The `neighbors` row's
+/// `inner` is the element record's own `Leaf` report, retained once for
+/// every index the field spells, so `middle.neighbors[1].choice.Run.<p>`
+/// composes the element hop and the record boundary inside it under the same
+/// bounded traversal the standalone record carrier walks.
+fn recursive_record_array_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
+    fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
+        LayoutPlanReport {
+            schema_report_fingerprint: fingerprint,
+            entries: fields
+                .iter()
+                .map(|&(field, offset)| LayoutFieldEntryReport {
+                    field: field.into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset },
+                })
+                .collect(),
+            offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
+            size: Some(size),
+            align: 8,
+        }
+    }
+    let element = || ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        outer_layout: record(3, &[("choice", 0), ("pad", 24)], 32),
+        child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
+            field: "choice".into(),
+            member_identity: None,
+            layout: sum_layout(),
+        }],
+        child_sum_array_layouts: Vec::new(),
+        child_record_array_layouts: Vec::new(),
+    };
+    ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
+        ConventionalRecordSumPathsLayoutReport {
+            outer_layout: record(1, &[("header", 0), ("middle", 8)], 128),
+            child_sum_layouts: Vec::new(),
+            child_sum_array_layouts: Vec::new(),
+            child_record_array_layouts: Vec::new(),
+            paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
+                outer_field: "middle".into(),
+                outer_member_identity: None,
+                inner: ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
+                    ConventionalRecordSumPathsLayoutReport {
+                        outer_layout: record(
+                            2,
+                            &[("inner", 0), ("route", 32), ("neighbors", 56)],
+                            120,
+                        ),
+                        child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
+                            field: "route".into(),
+                            member_identity: None,
+                            layout: sum_layout(),
+                        }],
+                        child_sum_array_layouts: Vec::new(),
+                        child_record_array_layouts: vec![
+                            ConventionalRecordArrayFieldLayoutReport {
+                                field: "neighbors".into(),
+                                member_identity: None,
+                                element_count: 2,
+                                element_stride: 32,
+                                inner: element(),
+                            },
+                        ],
+                        paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
+                            outer_field: "inner".into(),
+                            outer_member_identity: None,
+                            inner: element(),
                         }],
                     },
                 ),

@@ -8,8 +8,8 @@ use super::{
     validate_const_materializable_record_with_recursive_nested_sums,
 };
 use layout_plans::{
-    ConventionalRecordSumOccurrenceLayoutReport, ConventionalSumCaseLayoutReport,
-    ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ConventionalRecordArrayFieldLayoutReport, ConventionalRecordSumOccurrenceLayoutReport,
+    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
     LayoutPlanReport,
 };
@@ -23,7 +23,7 @@ fn fixture() -> (
     ConventionalRecursiveRecordSumPathsLayoutReport,
     BuildTimeValue,
 ) {
-    let tokens = Lexer::new("data Choice [copy] { case Zero; case One(value: u8); } data Leaf [copy] { choice: Choice; } data Root [copy] { inner: Leaf; route: Choice; }").tokenize().unwrap();
+    let tokens = Lexer::new("data Choice [copy] { case Zero; case One(value: u8); } data Leaf [copy] { choice: Choice; } data Root [copy] { inner: Leaf; route: Choice; neighbors: [Leaf; 2]; }").tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
@@ -73,53 +73,67 @@ fn fixture() -> (
         ],
     };
     // `Root` co-locates the deeper `inner` record path with its own direct
-    // sum `route`, so the outer `Branch` carries both child kinds.
+    // sum `route` and its direct record array `neighbors`, so the outer
+    // `Branch` carries all three child kinds. The record-array row retains
+    // the element record's leaf report once beside the literal count and
+    // stride.
+    let leaf_report = || ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+        outer_layout: record("Leaf", &[("choice", 0)], 8),
+        child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
+            field: "choice".into(),
+            member_identity: None,
+            layout: sum.clone(),
+        }],
+        child_sum_array_layouts: Vec::new(),
+        child_record_array_layouts: Vec::new(),
+    };
     let report = ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
         ConventionalRecordSumPathsLayoutReport {
-            outer_layout: record("Root", &[("inner", 0), ("route", 8)], 16),
+            outer_layout: record("Root", &[("inner", 0), ("route", 8), ("neighbors", 16)], 32),
             child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
                 field: "route".into(),
                 member_identity: None,
                 layout: sum.clone(),
             }],
             child_sum_array_layouts: Vec::new(),
+            child_record_array_layouts: vec![ConventionalRecordArrayFieldLayoutReport {
+                field: "neighbors".into(),
+                member_identity: None,
+                element_count: 2,
+                element_stride: 8,
+                inner: leaf_report(),
+            }],
             paths: vec![ConventionalRecordSumOccurrenceLayoutReport {
                 outer_field: "inner".into(),
                 outer_member_identity: None,
-                inner: ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-                    outer_layout: record("Leaf", &[("choice", 0)], 8),
-                    child_sum_layouts: vec![ConventionalSumFieldLayoutReport {
-                        field: "choice".into(),
-                        member_identity: None,
-                        layout: sum,
-                    }],
-                    child_sum_array_layouts: Vec::new(),
-                },
+                inner: leaf_report(),
             }],
         },
     );
+    let leaf_value = |payload: i64| BuildTimeValue::Struct {
+        type_name: "Leaf".into(),
+        fields: vec![(
+            "choice".into(),
+            BuildTimeValue::Case {
+                variant: "One".into(),
+                payload: vec![("value".into(), BuildTimeValue::Int(payload))],
+            },
+        )],
+    };
     let value = BuildTimeValue::Struct {
         type_name: "Root".into(),
         fields: vec![
-            (
-                "inner".into(),
-                BuildTimeValue::Struct {
-                    type_name: "Leaf".into(),
-                    fields: vec![(
-                        "choice".into(),
-                        BuildTimeValue::Case {
-                            variant: "One".into(),
-                            payload: vec![("value".into(), BuildTimeValue::Int(7))],
-                        },
-                    )],
-                },
-            ),
+            ("inner".into(), leaf_value(7)),
             (
                 "route".into(),
                 BuildTimeValue::Case {
                     variant: "One".into(),
                     payload: vec![("value".into(), BuildTimeValue::Int(9))],
                 },
+            ),
+            (
+                "neighbors".into(),
+                BuildTimeValue::Array(vec![leaf_value(11), leaf_value(13)]),
             ),
         ],
     };
@@ -128,7 +142,7 @@ fn fixture() -> (
 
 #[test]
 fn retained_recursive_bytes_identity_and_coordinates_are_not_authority() {
-    for mutation in 0..6 {
+    for mutation in 0..10 {
         let (typed, report, value) = fixture();
         let mut custody = validate_const_materializable_record_with_recursive_nested_sums(
             &typed,
@@ -140,7 +154,12 @@ fn retained_recursive_bytes_identity_and_coordinates_are_not_authority() {
         .unwrap();
         assert_eq!(
             custody.bytes(),
-            &[1, 0, 0, 0, 7, 0, 0, 0, 1, 0, 0, 0, 9, 0, 0, 0]
+            &[
+                1, 0, 0, 0, 7, 0, 0, 0, // inner.choice = One(7)
+                1, 0, 0, 0, 9, 0, 0, 0, // route = One(9)
+                1, 0, 0, 0, 11, 0, 0, 0, // neighbors[0].choice = One(11)
+                1, 0, 0, 0, 13, 0, 0, 0, // neighbors[1].choice = One(13)
+            ]
         );
         let ValidatedConstRecordWithRecursiveNestedSumsMaterialization::Branch(branch) =
             &mut custody
@@ -156,11 +175,33 @@ fn retained_recursive_bytes_identity_and_coordinates_are_not_authority() {
             4 => branch.path_layout.child_sum_layouts[0].field = "substitute".into(),
             // The retained direct-sum custody drifts from the replayed row.
             5 => branch.nested_sums[0].field = "substitute".into(),
+            // The record-array row's identity drifts in the retained report.
+            6 => branch.path_layout.child_record_array_layouts[0].field = "substitute".into(),
+            // The record-array row's literal geometry drifts in the
+            // retained report.
+            7 => branch.path_layout.child_record_array_layouts[0].element_count = 3,
+            // The record-array row's shared element report drifts in the
+            // retained report.
+            8 => {
+                let ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
+                    child_sum_layouts, ..
+                } = &mut branch.path_layout.child_record_array_layouts[0].inner
+                else {
+                    panic!("record-array element is a leaf level")
+                };
+                child_sum_layouts[0].field = "substitute".into();
+            }
+            // The retained record-array custody drifts from the replayed
+            // row — the field and one indexed element selection alike.
+            9 => {
+                branch.nested_record_arrays[0].field = "substitute".into();
+                branch.nested_record_arrays[0].elements[1].literal_index = 9;
+            }
             _ => unreachable!(),
         }
-        let mut destination = [0xa5; 18];
+        let mut destination = [0xa5; 34];
         assert!(custody.apply(&typed, &mut destination).is_err());
-        assert_eq!(destination, [0xa5; 18]);
+        assert_eq!(destination, [0xa5; 34]);
     }
 }
 
@@ -178,6 +219,7 @@ fn recursive_resource_bounds_reject_before_typed_derivation() {
                 }],
                 child_sum_layouts: Vec::new(),
                 child_sum_array_layouts: Vec::new(),
+                child_record_array_layouts: Vec::new(),
             },
         );
     }

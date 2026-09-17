@@ -286,9 +286,9 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                 // The next hop needs one enclosing element. The bound carrier
                 // spells which kind of interior this field stores, and it
                 // resolves how the hop's element index selects that element:
-                // a repeated sum retains one whole-extent `At` placement, so
-                // the index composes the element's stride offset inside it,
-                // while every other interior selects among the retained
+                // a repeated interior retains one whole-extent `At` placement,
+                // so the index composes the element's stride offset inside
+                // it, while every other interior selects among the retained
                 // element placements.
                 let Some(&node_id) = current_carriers.get(&key) else {
                     return Err(MaterializationDiagnostic(format!(
@@ -296,28 +296,38 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                     )));
                 };
                 let node = &carrier_nodes[node_id];
-                let enclosing_offset = match &node.interior {
-                    PreparedInterior::Sum {
-                        repetition: Some((element_count, element_stride)),
-                        ..
-                    } => {
+                // A repeated interior — either a repeated sum or a repeated
+                // record — composes the hop's element index through the
+                // carrier's element stride inside the field's whole-extent
+                // `At` placement, then the next hop resolves inside the
+                // addressed element. `kind` only labels diagnostics.
+                let repetition = match &node.interior {
+                    PreparedInterior::Record { repetition, .. } => {
+                        repetition.map(|repeated| ("record", repeated))
+                    }
+                    PreparedInterior::Sum { repetition, .. } => {
+                        repetition.map(|repeated| ("sum", repeated))
+                    }
+                };
+                let enclosing_offset = match repetition {
+                    Some((kind, (element_count, element_stride))) => {
                         let [entry] = entries.as_slice() else {
                             return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` requires the repeated sum field `{prefix}` to retain exactly one whole-extent `At` placement, found {}",
+                                "symbolic field `{path_display}` requires the repeated {kind} field `{prefix}` to retain exactly one whole-extent `At` placement, found {}",
                                 entries.len()
                             )));
                         };
                         let LayoutPlacementReport::At { offset } = entry.placement else {
                             return Err(MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` requires the repeated sum field `{prefix}` to use a whole `At` placement"
+                                "symbolic field `{path_display}` requires the repeated {kind} field `{prefix}` to use a whole `At` placement"
                             )));
                         };
                         let index = element_index.ok_or_else(|| {
                             MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` requires an element index into the repeated sum field `{prefix}`"
+                                "symbolic field `{path_display}` requires an element index into the repeated {kind} field `{prefix}`"
                             ))
                         })?;
-                        if index >= *element_count {
+                        if index >= element_count {
                             return Err(MaterializationDiagnostic(format!(
                                 "symbolic field `{path_display}` element index {index} is outside its {element_count} element placements"
                             )));
@@ -326,8 +336,8 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                         // the whole field, not just the selected element: a
                         // carrier describing a shrunken array must reject
                         // here rather than serve a stale element offset.
-                        let array_end = (*element_count - 1)
-                            .checked_mul(*element_stride)
+                        let array_end = (element_count - 1)
+                            .checked_mul(element_stride)
                             .and_then(|span| offset.checked_add(span))
                             .and_then(|last_start| last_start.checked_add(node.byte_len as u64));
                         match array_end {
@@ -340,7 +350,7 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                         }
                         offset
                             .checked_add(
-                                index.checked_mul(*element_stride).ok_or_else(|| {
+                                index.checked_mul(element_stride).ok_or_else(|| {
                                     MaterializationDiagnostic(format!(
                                         "symbolic field `{path_display}` composes an out-of-range interior offset"
                                     ))
@@ -624,6 +634,12 @@ enum PreparedInterior<'a> {
         /// Nested carrier node ids in supply order, so untraversed reporting
         /// is deterministic rather than key order.
         nested_order: Vec<usize>,
+        /// `Some((element_count, element_stride))` when the field repeats the
+        /// record: the plan then retains the field's whole array extent as
+        /// one `At` placement, and the hop's element index composes
+        /// `index * element_stride` inside that extent before the next hop
+        /// resolves inside the addressed element's interior.
+        repetition: Option<(u64, u64)>,
     },
     /// A conventional sum's fixed tag/case overlay. The path's case and
     /// payload hops select inside this compiler-owned geometry; the tag and
@@ -702,60 +718,27 @@ fn prepare_inner_layouts<'a>(
         }
         let (interior, byte_len) = match &carrier.inner_layout {
             SymbolicFieldInteriorLayout::Record(inner_layout) => {
-                let inner_byte_len = inner_layout
-                    .size
-                    .ok_or_else(|| {
-                        MaterializationDiagnostic(format!(
-                            "inner layout for `{path_display}` requires a fixed-size interior layout plan"
-                        ))
-                    })
-                    .and_then(|size| {
-                        usize::try_from(size).map_err(|_| {
-                            MaterializationDiagnostic(format!(
-                                "inner layout size {size} for `{path_display}` cannot be represented on this compiler host"
-                            ))
-                        })
-                    })?;
-                validate_materialization_field_identities(inner_layout)?;
-                let mut planned_inner = std::collections::BTreeMap::<
-                    MaterializationFieldKey,
-                    Vec<&LayoutFieldEntryReport>,
-                >::new();
-                for entry in &inner_layout.entries {
-                    planned_inner
-                        .entry(materialization_field_key(
-                            &entry.field,
-                            entry.member_identity,
-                        ))
-                        .or_default()
-                        .push(entry);
+                prepare_record_interior(inner_layout, None, carrier, &path_display, depth, nodes)?
+            }
+            SymbolicFieldInteriorLayout::RecordArray {
+                element_layout,
+                element_count,
+                element_stride,
+            } => {
+                if *element_count == 0 {
+                    return Err(MaterializationDiagnostic(format!(
+                        "inner layout for `{path_display}` repeats its record interior zero times"
+                    )));
                 }
-                let (nested, nested_order) = if carrier.inner_layouts.is_empty() {
-                    (std::collections::BTreeMap::new(), Vec::new())
-                } else {
-                    if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
-                        return Err(MaterializationDiagnostic(format!(
-                            "inner layout for `{path_display}` nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
-                        )));
-                    }
-                    prepare_inner_layouts(
-                        &carrier.inner_layouts,
-                        &planned_inner,
-                        &format!("{path_display}."),
-                        depth + 1,
-                        false,
-                        nodes,
-                    )?
-                };
-                (
-                    PreparedInterior::Record {
-                        layout: inner_layout,
-                        planned: planned_inner,
-                        nested,
-                        nested_order,
-                    },
-                    inner_byte_len,
-                )
+                let repetition = Some((*element_count, *element_stride));
+                prepare_record_interior(
+                    element_layout,
+                    repetition,
+                    carrier,
+                    &path_display,
+                    depth,
+                    nodes,
+                )?
             }
             SymbolicFieldInteriorLayout::Sum(sum_layout) => {
                 if !carrier.inner_layouts.is_empty() {
@@ -813,6 +796,78 @@ fn prepare_inner_layouts<'a>(
         order.push(node_id);
     }
     Ok((bound, order))
+}
+
+/// Validates one record interior a carrier binds — either a single nested
+/// record's own plan or one record-array element's plan — and prepares its
+/// field-keyed entries plus any nested carriers under the same depth bound.
+/// `repetition` carries `(element_count, element_stride)` when the field
+/// repeats the record at a constant byte stride; the stride must cover the
+/// element's complete extent so repeated elements cannot overlap.
+fn prepare_record_interior<'a>(
+    interior_layout: &'a LayoutPlanReport,
+    repetition: Option<(u64, u64)>,
+    carrier: &'a SymbolicFieldInnerLayout,
+    path_display: &str,
+    depth: usize,
+    nodes: &mut Vec<PreparedInnerLayout<'a>>,
+) -> Result<(PreparedInterior<'a>, usize), MaterializationDiagnostic> {
+    let interior_size = interior_layout.size.ok_or_else(|| {
+        MaterializationDiagnostic(format!(
+            "inner layout for `{path_display}` requires a fixed-size interior layout plan"
+        ))
+    })?;
+    let inner_byte_len = usize::try_from(interior_size).map_err(|_| {
+        MaterializationDiagnostic(format!(
+            "inner layout size {interior_size} for `{path_display}` cannot be represented on this compiler host"
+        ))
+    })?;
+    if let Some((_, element_stride)) = repetition
+        && element_stride < interior_size
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "inner layout for `{path_display}` strides repeated record elements by {element_stride} bytes inside their {interior_size}-byte extent"
+        )));
+    }
+    validate_materialization_field_identities(interior_layout)?;
+    let mut planned_inner =
+        std::collections::BTreeMap::<MaterializationFieldKey, Vec<&LayoutFieldEntryReport>>::new();
+    for entry in &interior_layout.entries {
+        planned_inner
+            .entry(materialization_field_key(
+                &entry.field,
+                entry.member_identity,
+            ))
+            .or_default()
+            .push(entry);
+    }
+    let (nested, nested_order) = if carrier.inner_layouts.is_empty() {
+        (std::collections::BTreeMap::new(), Vec::new())
+    } else {
+        if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
+            return Err(MaterializationDiagnostic(format!(
+                "inner layout for `{path_display}` nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
+            )));
+        }
+        prepare_inner_layouts(
+            &carrier.inner_layouts,
+            &planned_inner,
+            &format!("{path_display}."),
+            depth + 1,
+            false,
+            nodes,
+        )?
+    };
+    Ok((
+        PreparedInterior::Record {
+            layout: interior_layout,
+            planned: planned_inner,
+            nested,
+            nested_order,
+            repetition,
+        },
+        inner_byte_len,
+    ))
 }
 
 /// Validates one conventional sum interior bound to a carrier and returns its

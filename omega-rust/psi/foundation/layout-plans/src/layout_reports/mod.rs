@@ -180,6 +180,33 @@ pub struct ConventionalRecordSumOccurrenceLayoutReport {
     pub inner: ConventionalRecursiveRecordSumPathsLayoutReport,
 }
 
+/// One exact direct outer-field occurrence of a nonzero literal `[R; N]`
+/// fixed array whose record element still reaches conventional sums.
+///
+/// `inner` retains the complete recursive report every element shares — the
+/// element type's own record/sum geometry, retained once rather than per
+/// index. `element_count` is the literal declared length and
+/// `element_stride` the constant byte distance between consecutive elements,
+/// so the field's whole extent stays one `At` placement in the enclosing
+/// `outer_layout` while the exact element index stays semantic data on the
+/// path. This is the record counterpart of
+/// [`ConventionalSumArrayFieldLayoutReport`]: the same compact row shape, but
+/// each element crosses one record boundary before reaching sums, so the row
+/// carries the element's recursive report instead of one sum overlay.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalRecordArrayFieldLayoutReport {
+    pub field: String,
+    pub member_identity: Option<u64>,
+    /// The literal element count the field's extent covers.
+    pub element_count: u64,
+    /// The constant byte distance between consecutive elements; it covers the
+    /// complete `inner` outer extent so repeated elements cannot overlap.
+    pub element_stride: u64,
+    /// The element record's complete recursive record/sum report, shared by
+    /// every index the field spells.
+    pub inner: ConventionalRecursiveRecordSumPathsLayoutReport,
+}
+
 /// Complete authored-order path reports below one enclosing record layout.
 ///
 /// The child report retains exact geometry and semantic occurrence identity.
@@ -189,7 +216,9 @@ pub struct ConventionalRecordSumOccurrenceLayoutReport {
 /// conventional pure sums: a record that contains a direct sum, a direct
 /// sum array, and reaches sums through a record field spells one `Branch`
 /// carrying all three, rather than rejecting the direct children the `Leaf`
-/// level already retains.
+/// level already retains. `child_record_array_layouts` adds the level's
+/// direct fixed arrays of records still reaching sums — the fourth child
+/// kind the same general rule admits, one literal element hop away.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConventionalRecordSumPathsLayoutReport {
     pub outer_layout: LayoutPlanReport,
@@ -203,6 +232,12 @@ pub struct ConventionalRecordSumPathsLayoutReport {
     /// beside `child_sum_layouts` and the deeper record paths under the same
     /// general recursive rule rather than fenced to a top-level-only rung.
     pub child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
+    /// The enclosing record level's own direct fixed arrays of records still
+    /// reaching sums, in authored order — one compact row per occurrence,
+    /// each carrying the element record's complete recursive report so an
+    /// indexed path composes one element hop before crossing the record
+    /// boundary inside it.
+    pub child_record_array_layouts: Vec<ConventionalRecordArrayFieldLayoutReport>,
 }
 
 /// Recursive record-path geometry. Each occurrence retains its own exact record
@@ -217,6 +252,11 @@ pub enum ConventionalRecursiveRecordSumPathsLayoutReport {
         /// authored order — a level that ends the record recursion still
         /// carries both direct child kinds.
         child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
+        /// The leaf level's direct fixed arrays of records still reaching
+        /// sums, in authored order — each row's `inner` carries the element
+        /// record's own recursive report, so the record recursion continues
+        /// inside the repeated element rather than ending at the field.
+        child_record_array_layouts: Vec<ConventionalRecordArrayFieldLayoutReport>,
     },
     Branch(ConventionalRecordSumPathsLayoutReport),
 }
@@ -234,24 +274,34 @@ impl ConventionalRecursiveRecordSumPathsLayoutReport {
     }
 
     /// The total conventional-sum leaf occurrences the report reaches: a
-    /// `Leaf` level's own direct sums and sum arrays, or a `Branch` level's
-    /// direct children plus the leaf occurrences of every deeper record path.
+    /// `Leaf` level's own direct sums and sum arrays plus every record-array
+    /// row's element-level leaf occurrences, or a `Branch` level's direct
+    /// children plus the leaf occurrences of every deeper record path.
     pub fn leaf_occurrence_count(&self) -> Option<usize> {
         match self {
             Self::Leaf {
                 child_sum_layouts,
                 child_sum_array_layouts,
+                child_record_array_layouts,
                 ..
-            } => child_sum_layouts
-                .len()
-                .checked_add(child_sum_array_layouts.len()),
-            Self::Branch(report) => report.paths.iter().try_fold(
-                report
-                    .child_sum_layouts
+            } => child_record_array_layouts.iter().try_fold(
+                child_sum_layouts
                     .len()
-                    .checked_add(report.child_sum_array_layouts.len())?,
-                |total, path| total.checked_add(path.inner.leaf_occurrence_count()?),
+                    .checked_add(child_sum_array_layouts.len())?,
+                |total, row| total.checked_add(row.inner.leaf_occurrence_count()?),
             ),
+            Self::Branch(report) => {
+                let level = report.child_record_array_layouts.iter().try_fold(
+                    report
+                        .child_sum_layouts
+                        .len()
+                        .checked_add(report.child_sum_array_layouts.len())?,
+                    |total, row| total.checked_add(row.inner.leaf_occurrence_count()?),
+                )?;
+                report.paths.iter().try_fold(level, |total, path| {
+                    total.checked_add(path.inner.leaf_occurrence_count()?)
+                })
+            }
         }
     }
 }

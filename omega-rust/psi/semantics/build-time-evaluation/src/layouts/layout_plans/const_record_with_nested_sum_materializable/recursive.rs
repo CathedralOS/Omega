@@ -85,6 +85,7 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
                     outer_layout,
                     child_sum_layouts,
                     child_sum_array_layouts,
+                    child_record_array_layouts,
                 },
             ) => custody.replay_against_with_reachability(
                 typed,
@@ -92,6 +93,7 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
                 outer_layout,
                 child_sum_layouts,
                 child_sum_array_layouts,
+                child_record_array_layouts,
                 value,
                 byte_order,
                 reachability,
@@ -181,12 +183,14 @@ pub(super) fn validate_with_reachability(
             outer_layout,
             child_sum_layouts,
             child_sum_array_layouts,
+            child_record_array_layouts,
         } => validate_record_level_sum_children_with_reachability(
             typed,
             schema_name,
             outer_layout,
             child_sum_layouts,
             child_sum_array_layouts,
+            child_record_array_layouts,
             value,
             byte_order,
             reachability,
@@ -219,27 +223,59 @@ fn validate_report_resources(
             ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
                 child_sum_layouts,
                 child_sum_array_layouts,
+                child_record_array_layouts,
                 ..
-            } => child_sum_layouts
-                .len()
-                .checked_add(child_sum_array_layouts.len())
-                .ok_or_else(|| {
-                    MaterializationDiagnostic(
-                        "ConstMaterializable recursive occurrence count overflows".into(),
-                    )
-                })?,
+            } => {
+                pending
+                    .try_reserve(child_record_array_layouts.len())
+                    .map_err(|_| {
+                        MaterializationDiagnostic(
+                            "ConstMaterializable recursive traversal exceeds compiler resources"
+                                .into(),
+                        )
+                    })?;
+                pending.extend(
+                    child_record_array_layouts
+                        .iter()
+                        .map(|row| (&row.inner, depth + 1)),
+                );
+                child_sum_layouts
+                    .len()
+                    .checked_add(child_sum_array_layouts.len())
+                    .and_then(|count| count.checked_add(child_record_array_layouts.len()))
+                    .ok_or_else(|| {
+                        MaterializationDiagnostic(
+                            "ConstMaterializable recursive occurrence count overflows".into(),
+                        )
+                    })?
+            }
             ConventionalRecursiveRecordSumPathsLayoutReport::Branch(report) => {
-                pending.try_reserve(report.paths.len()).map_err(|_| {
-                    MaterializationDiagnostic(
-                        "ConstMaterializable recursive traversal exceeds compiler resources".into(),
+                pending
+                    .try_reserve(
+                        report
+                            .paths
+                            .len()
+                            .saturating_add(report.child_record_array_layouts.len()),
                     )
-                })?;
+                    .map_err(|_| {
+                        MaterializationDiagnostic(
+                            "ConstMaterializable recursive traversal exceeds compiler resources"
+                                .into(),
+                        )
+                    })?;
                 pending.extend(report.paths.iter().map(|path| (&path.inner, depth + 1)));
+                pending.extend(
+                    report
+                        .child_record_array_layouts
+                        .iter()
+                        .map(|row| (&row.inner, depth + 1)),
+                );
                 report
                     .paths
                     .len()
                     .checked_add(report.child_sum_layouts.len())
                     .and_then(|count| count.checked_add(report.child_sum_array_layouts.len()))
+                    .and_then(|count| count.checked_add(report.child_record_array_layouts.len()))
                     .ok_or_else(|| {
                         MaterializationDiagnostic(
                             "ConstMaterializable recursive occurrence count overflows".into(),
