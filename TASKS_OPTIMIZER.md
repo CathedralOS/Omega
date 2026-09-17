@@ -1301,6 +1301,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `Structural` slot — which can stage bytes that merely name the
   place, like a call's staged view descriptor — still interferes
   on intersection and never covers (crate `nextest`: 450 pass).
+  The dead store may itself take the local route: a `Store` or
+  `StorePacked` through the place's own parameter slot's
+  materialized address, or a `Store64` into that slot directly,
+  each carrying exactly one `WriteLocal` row whose encoded range
+  defines the dead range — the direct slot store's row naming the
+  same slot it encodes — while a `WriteLocal` on an
+  operation-owned `Structural` slot, a `WritePlace` row on the
+  slot store, a slot or range disagreement, a second row, a
+  partial covering write, and a boundary settlement inside the
+  dead interval each still reject (crate `nextest`: 756 pass).
   Load forwarding also crosses joins: a block whose body shows no
   interfering access defers to every predecessor block, and it
   resolves once each predecessor path resolves to the same stored
@@ -1326,10 +1336,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   encoded range rejects, and a `Store64` under a sub-word read
   rejects (crate `nextest`: 535 pass).
   Remaining: operation-slot and dynamic-extent writes still cannot
-  cover or source — an operation-owned `Structural` slot records
-  no storage-versus-staging role and a dynamic extent proves no
-  fixed containment — and legs whose paths disagree or reach
-  writerless cycles stay unproven.
+  die, cover, or source — an operation-owned `Structural` slot
+  records no storage-versus-staging role and a dynamic extent
+  proves no fixed containment — and legs whose paths disagree or
+  reach writerless cycles stay unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
