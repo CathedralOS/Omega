@@ -117,7 +117,18 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
     if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
         return Ok(None);
     }
-    if matches!(schema, ProviderSchemaDeclaration::BoundaryOperator(_)) {
+    // The float intrinsic catalog is keyed on the requirement view: a named
+    // boundary operator or a top-level `boundary requirement` machine.
+    if matches!(schema, ProviderSchemaDeclaration::BoundaryOperator(_))
+        || (matches!(schema, ProviderSchemaDeclaration::BoundaryRequirement(_))
+            && provider_planning::IntrinsicRequirement::by_symbol(
+                &checked.typed,
+                requirement_symbol,
+            )
+            .is_some_and(|requirement| {
+                requirement.kind == provider_planning::IntrinsicRequirementKind::TopLevelRequirement
+            }))
+    {
         return derive_selected_compiler_intrinsic_execution_identity(
             checked,
             plan,

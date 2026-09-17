@@ -171,6 +171,25 @@ fn project_compiler_intrinsic_application_realization(
                         ))
                 }),
         )
+        .chain(
+            checked
+                .facts
+                .operators
+                .named_requirement_uses
+                .iter()
+                .filter_map(|(_, requirement_use)| {
+                    (matches!(
+                        application.site,
+                        checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. }
+                    ) && requirement_use.expression == expression
+                        && requirement_use.origin == origin
+                        && requirement_use.requirement_symbol == application.requirement_symbol)
+                        .then_some((
+                            requirement_use.provider_plan_report_fingerprint,
+                            requirement_use.provider_plan_commitment,
+                        ))
+                }),
+        )
         .collect::<Vec<_>>();
     let [(plan_report, plan_commitment)] = uses.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
@@ -281,28 +300,28 @@ fn project_terminal_boundary_application_demands(
                     "Terminal boundary application occurrence names an absent checked demand",
                 )]
             })?;
-        let operator = checked
-            .typed
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == application.requirement_symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "Terminal boundary application demand lost its operator declaration",
-                )]
-            })?;
-        if !operator.is_boundary {
-            return Err(vec![Diagnostic::error(
-                "Terminal boundary application demand names a non-boundary operator",
-            )]);
-        }
+        // The demand names a boundary operator or a top-level boundary
+        // requirement; the coverage row keys on the same declaration identity
+        // and overload coordinate for either species.
+        let requirement_view = provider_planning::IntrinsicRequirement::by_symbol(
+            &checked.typed,
+            application.requirement_symbol,
+        )
+        .filter(|view| {
+            view.kind != provider_planning::IntrinsicRequirementKind::Operator
+                || view.as_operator().is_some_and(|operator| operator.is_boundary)
+        })
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Terminal boundary application demand names no boundary operator or top-level boundary requirement",
+            )]
+        })?;
         let declaration = canonical_boundary_nominal_identity(
             checked,
             application.requirement_symbol,
             "operator requirement",
         )?;
-        let overload =
-            typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
+        let overload = requirement_view.requirement_identity.clone();
         let requirement =
             boundary_applications::BoundaryOperatorRequirement::new(declaration, overload)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
