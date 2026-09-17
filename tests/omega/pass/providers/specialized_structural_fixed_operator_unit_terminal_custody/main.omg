@@ -10,7 +10,7 @@ data Position {}
 
 data Indexing {}
 
-boundary operator [] Indexing::index<Element, const Count: u64>(
+boundary machine [] Indexing::index<Element, const Count: u64>(
     items: Buffer<Element, Count>,
     position: Position
 ) -> bool
