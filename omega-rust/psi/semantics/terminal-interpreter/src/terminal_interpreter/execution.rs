@@ -298,6 +298,14 @@ impl TerminalExecution {
         structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
+        // A nonempty placed-view roster declares direct entry inputs whose
+        // referent interpretation cannot lend: no structural or scalar input
+        // channel carries the placement each row names. Execution must fail
+        // closed rather than start the entry machine with a declared input
+        // silently unbound.
+        if !module.placed_view_inputs.is_empty() {
+            return Err(TerminalInterpretError::PlacedViewInputsRequireCustody);
+        }
         let terminal_psi = terminal_codec::terminal_psi_identity(&module)
             .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
         if installation.is_some_and(|installation| installation.terminal_psi != terminal_psi) {
