@@ -135,7 +135,14 @@ derivation in 24.1 seconds at ~2.8GB peak RSS on macOS arm64:
 | Total request bytes | 135,451,492 — 16.1 times the 8,388,608 provision |
 | Projected checker work | ~45-52M — ~70-80 times the 655,360 provision and the ~675,017 pair ceiling |
 
-The derivation value is exactly `Success(T)` for the real tape. The request
+The derivation value is exactly `Success(T)` for the real tape. Every figure
+above was reproduced exactly from the checked-in stepper at `6a1751fe08` on
+macOS arm64 (24.2 seconds), including owner/witness counts, the per-rule row
+totals — which contain no symmetry rows — and the 204 maximum premise depth.
+The same gap blocks production through the selected chain: the certificate
+is ~8 times the evaluator's 16,777,212-byte buffered-output provision.
+Admission is escalated as owner decision `beta-encoding-certificate-admission`.
+The request
 cannot be admitted by the selected checker; the projected work uses the
 measured 13.9-16.5 work/row across the checked encoder batches, not an
 executed run. This is one straightforward producer shape, not a lower bound;
