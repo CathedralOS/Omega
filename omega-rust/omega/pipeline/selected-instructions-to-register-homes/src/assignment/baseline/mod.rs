@@ -49,6 +49,37 @@ pub(crate) fn stage_register_homes_with_assignment(
     Ok(staged)
 }
 
+/// Post-copy assignment probe the recovery route runs while it still owns the
+/// reanalysis, so residual `NoCompatibleHome` pressure can be answered by
+/// runtime spill instead of failing the fixed-view sequence.
+pub(crate) fn assign_optimized_register_homes_after_fixed_view_copies(
+    reanalysis: &StagedOptimizedSelectedReanalysis,
+) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
+    construction::assign_optimized_register_homes_after_fixed_view_copies(reanalysis)
+}
+
+pub(crate) fn stage_register_homes_after_fixed_view_copies_with_assignment(
+    reanalysis: StagedOptimizedSelectedReanalysis,
+    homes: crate::ValidatedRegisterHomes,
+) -> Result<
+    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    OptimizedPostCopyRegisterHomeCustodyError,
+> {
+    let staged =
+        construction::construct_optimized_register_homes_after_fixed_view_copies_with_assignment(
+            reanalysis, homes,
+        )?;
+    let custody = validate_optimized_register_home_after_fixed_view_copy_custody(
+        staged.reanalysis_stage(),
+        staged.homes(),
+        staged.post_allocation_manifest(),
+    )?;
+    if custody != staged.custody() {
+        return Err(OptimizedPostCopyRegisterHomeCustodyError::ReceiptMismatch);
+    }
+    Ok(staged)
+}
+
 pub fn stage_optimized_register_homes_after_fixed_view_copies(
     reanalysis: StagedOptimizedSelectedReanalysis,
 ) -> Result<

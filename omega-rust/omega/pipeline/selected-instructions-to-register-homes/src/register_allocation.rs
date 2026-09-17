@@ -15,8 +15,9 @@ mod route_tests;
 mod selected_rewrite_tests;
 
 use crate::assignment::recovery::{
-    stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
-    stage_leaf_local_fixed_view_register_allocation,
+    stage_active_resident_register_allocation,
+    stage_leaf_local_fixed_view_register_allocation_composing,
+    stage_shared_entry_fixed_view_register_allocation,
 };
 use optimization_core::{Optimization, OptimizationExecutionPhase};
 
@@ -57,8 +58,9 @@ pub fn stage_register_allocation(
     if let Some(rule) = recovery {
         return match rule {
             Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
-                RetainedAllocation::try_from(stage_fixed_view_register_allocation(ranges)?)
-                    .map_err(RegisterAllocationError::Replay)
+                let legality = stage_optimized_allocation_legality(ranges)
+                    .map_err(RegisterAllocationError::Legality)?;
+                stage_shared_entry_fixed_view_register_allocation(legality)
             }
             Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1 => {
                 RetainedAllocation::try_from(stage_active_resident_register_allocation(ranges)?)
@@ -73,11 +75,11 @@ pub fn stage_register_allocation(
         Ok(homes) => homes,
         Err(crate::RegisterHomeError::UnresolvedEntryTransitions { .. }) => {
             // The transitions recorded in legality are exactly the boundaries
-            // the leaf-local fixed-view policy admits; any other failure class
-            // keeps the direct-assignment surface below.
-            let recovered = stage_leaf_local_fixed_view_register_allocation(legality)?;
-            return RetainedAllocation::try_from(recovered)
-                .map_err(RegisterAllocationError::Replay);
+            // the leaf-local fixed-view policy admits; residual pressure after
+            // the copies hands custody to runtime spill inside that sequence.
+            // Any other failure class keeps the direct-assignment surface
+            // below.
+            return stage_leaf_local_fixed_view_register_allocation_composing(legality);
         }
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {
             let recovered = crate::assignment::runtime_spill::recover(legality)

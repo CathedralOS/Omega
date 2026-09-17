@@ -1,9 +1,6 @@
 use super::model::RuntimeSpillStepRewrite;
-use super::recovery::{
-    analyze, assign, assign_source, candidates, overlaps_pressure, transformations,
-};
+use super::recovery::{analyze, assign, candidates, overlaps_pressure, transformations};
 use super::{RuntimeSpillAllocation, RuntimeSpillAllocationError};
-use crate::SelectedProgramRef;
 
 pub(super) fn inadmissible(error: &crate::RuntimeSpillError) -> bool {
     matches!(
@@ -16,27 +13,14 @@ pub(super) fn inadmissible(error: &crate::RuntimeSpillError) -> bool {
 
 pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpillAllocationError> {
     let source = &staged.source;
-    let upstream = crate::validate_optimized_allocation_legality_custody(
-        source.live_range_stage(),
-        source.allocator_availability(),
-        source.legality(),
-    )
-    .map_err(RuntimeSpillAllocationError::Upstream)?;
-    let mut failure = require_pressure(assign_source(source))?;
-    let selected_stage = source.live_range_stage().liveness_stage().selected_stage();
-    let environment = selected_stage.register_environment();
-    let budget = selected_stage
-        .optimized_target()
-        .optimized()
-        .budget_per_pass();
-    let roster = candidates(source);
+    let (upstream_manifest, prefix) = source.upstream_manifest()?;
+    let environment = source.register_environment();
+    let mut failure = require_pressure(assign(environment, source.ranges(), source.legality()))?;
+    let budget = source.optimized_target().optimized().budget_per_pass();
+    let roster = candidates(source.base().plan());
     let mut used = Vec::new();
-    let mut current_ranges = source.live_range_stage().ranges().clone();
-    let mut current_liveness = source
-        .live_range_stage()
-        .liveness_stage()
-        .liveness()
-        .clone();
+    let mut current_ranges = source.ranges().clone();
+    let mut current_liveness = source.liveness().clone();
     let mut prior: Option<RuntimeSpillStepRewrite> = None;
     for (step_index, step) in staged.steps.iter().enumerate() {
         let position = roster
@@ -50,27 +34,27 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
             // Earlier steps have already been independently replayed. Their
             // source is only an equality prerequisite for candidate fact reuse.
             let previous_source = step_index.checked_sub(2).map_or_else(
-                || SelectedProgramRef::new(selected_stage.selected()),
+                || source.base(),
                 |source_index| staged.steps[source_index].rewrite.selected(),
             );
             let facts = analyze(
-                source,
+                environment,
+                source.allocator_availability(),
                 &previous_source,
                 &current_liveness,
                 &current_ranges,
                 &previous.selected(),
             )?;
-            failure = require_pressure(assign(source, &facts.ranges, &facts.legality))?;
+            failure = require_pressure(assign(environment, &facts.ranges, &facts.legality))?;
             current_ranges = facts.ranges;
             current_liveness = facts.liveness;
         }
         if !overlaps_pressure(&failure, &current_ranges, step.function, step.register) {
             return Err(RuntimeSpillAllocationError::CandidateMismatch);
         }
-        let selected = prior.as_ref().map_or_else(
-            || SelectedProgramRef::new(selected_stage.selected()),
-            |previous| previous.selected(),
-        );
+        let selected = prior
+            .as_ref()
+            .map_or_else(|| source.base(), |previous| previous.selected());
         let replayed = match &step.rewrite {
             RuntimeSpillStepRewrite::Spill(rewrite) => {
                 // The producer's decision is replayed, not trusted: private
@@ -151,8 +135,8 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
     .map_err(RuntimeSpillAllocationError::Homes)?;
     let manifest = crate::validate_post_allocation_optimization_manifest(
         staged.manifest.record(),
-        upstream.manifest(),
-        &transformations(&staged.steps),
+        upstream_manifest,
+        &transformations(&prefix, &staged.steps),
         &ranges,
         &legality,
         &homes,
