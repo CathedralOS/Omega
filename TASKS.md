@@ -2026,22 +2026,28 @@ Owners include
   argument ordinals are dense over retained positions; canary_suite
   `layouts_and_pending::erased_parameter_*` pin `keep` -> `[0]`/`[70]`
   and `first`/`second` -> `[0, 2]`/`[7, 20]`); erased `self`/`const`/
-  `mut` bindings refuse a plan. `erased_parameter_proof_only`, the
-  positional control `erased_parameter_between_runtime_values_exit` and
-  `erased_proof_only_typed_parameter_exit` stay on the checked-only
-  rosters with exit-70 headers because the Terminal consumer rejects the
-  stripped plan ("direct Unit scalar parameters do not rejoin the exact
-  typed source partition"). Next acceptance: `checked-trees-to-lowered-psi`
-  skips erased bindings in its independent reconstructions
-  (`attached_unit/parameters.rs::checked_scalar_source_parameters`,
-  `expression_preparation/qualifications.rs::scalar_state_types`,
-  `source_custody/parameters/replay_parameters.rs` arity and loop,
-  `source_custody/direct_calls.rs` retained `argument_count`,
-  `scalar_graph/scalar_computations/calls.rs` position loop, and the
-  state-graph admission arity) so the three fixtures compile natively and
-  leave `CHECKED_ONLY_PASS_CANARIES`; named transition arguments still
-  validate as runtime reads, so an erased binding cannot yet flow into an
-  erased state parameter through a transition.
+  `mut` bindings refuse a plan. At a5353861bb Terminal lowering
+  reconstructs every erased-stripped scalar and structural namespace
+  independently from the typed relevance (`attached_unit/parameters.rs`,
+  `qualifications.rs`, the `source_custody` replay/argument/successor
+  readers, `direct_calls.rs` checking the producer's retained
+  `argument_count` against its own retained count, `scalar_computations/
+  calls.rs`, state-graph admission arity, `scalar_graph_lowering/cycles.rs`),
+  and the producer's dense scalar value namespace excludes erased
+  positions (`values::scalar::occupies_scalar_position`, name lookups
+  that resolve to an erased parameter fail closed), so
+  `pass/relevance/erased_parameter_between_runtime_values_exit` and
+  `erased_proof_only_typed_parameter_exit` compile natively and exit 70
+  on macOS ARM64 on the ROOTED_BACKEND/ACTIVE rosters.
+  `erased_parameter_proof_only` stays checked-only because its
+  `requires n < bound` names the erased binding and Terminal contract
+  propositions (`scalar_contracts.rs`, `crash_routes/scalar_terms.rs`)
+  carry no proof-only value term for it ("crash predicate value position
+  is outside the selected scalar namespace"). Next acceptance: a
+  proof-only value term in Terminal contract propositions so that
+  fixture leaves `CHECKED_ONLY_PASS_CANARIES`; named transition arguments
+  still validate as runtime reads, so an erased binding cannot yet flow
+  into an erased state parameter through a transition.
 
 ## P4 - ABI, borrowing, and callbacks
 
