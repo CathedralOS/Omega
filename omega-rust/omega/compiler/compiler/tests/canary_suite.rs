@@ -331,9 +331,6 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
-    // The tokenless sibling of `providers/checked_boundary_operator_dispatch_exit`;
-    // its native leg shares that fixture's ensures-clause lowering gap.
-    "providers/checked_boundary_requirement_dispatch_exit",
     // Graduated from fail/: each pinned a checked-stage fence that has since
     // lifted, so checked semantics admits the source.
     "constants/const_computed_initializer",
@@ -2408,6 +2405,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "providers/runtime_adapter_forwarding_exit",
     "providers/runtime_boundary_capability_state_forwarding_exit",
     "providers/checked_boundary_operator_dispatch_exit",
+    "providers/checked_boundary_requirement_dispatch_exit",
     "providers/checked_boundary_requirement_terminal_exit",
     "providers/runtime_result_domain_requirement_overload_exit",
     "float/named_provider_min_max_sqrt_exit",
@@ -3918,6 +3916,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/external_leaf_binding_forms",
     "capabilities/native_fixed_array_import_compile",
     "providers/checked_boundary_operator_dispatch_exit",
+    "providers/checked_boundary_requirement_dispatch_exit",
     "providers/checked_boundary_requirement_terminal_exit",
     "capabilities/win64_pointer_length_vs_descriptor_compile",
     "targets/target_machine_gating_exit",

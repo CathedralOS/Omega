@@ -1112,7 +1112,8 @@ fn assert_selected_requirement_association(
 fn checked_boundary_requirement_dispatch_exit_canary_runs() {
     // The tokenless sibling of `checked_boundary_operator_dispatch_exit`: the
     // `boundary requirement` form with the same contracts and adapter selects
-    // through the top-level requirement route and interprets identically.
+    // through the top-level requirement route, interprets identically, and
+    // carries the same contracts through the Terminal leg.
     let canary = pass_canary(CHECKED_BOUNDARY_REQUIREMENT_DISPATCH_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
@@ -1124,16 +1125,15 @@ fn checked_boundary_requirement_dispatch_exit_canary_runs() {
         "interpreter dispatches the selected checked requirement body; error: {:?}",
         outcome.error,
     );
+    assert_selected_requirement_terminal_call(&canary, "checked boundary-requirement canary");
 }
 
-#[test]
-fn checked_boundary_requirement_terminal_exit_canary_retains_requirement_occurrence() {
-    // The Terminal leg: the canonical Terminal artifact replays, its entry
-    // calls the adapter's ordinary checked body as an in-module machine, no
-    // boundary-operator occurrence is published, and the checked compilation
-    // behind it keeps the requirement-side association and journal.
-    let canary = pass_canary(CHECKED_BOUNDARY_REQUIREMENT_TERMINAL_EXIT);
-    let label = "checked boundary-requirement Terminal canary";
+/// The Terminal leg of a selected top-level requirement: the canonical
+/// Terminal artifact replays, its entry calls the adapter's ordinary checked
+/// body as an in-module scalar machine, no boundary-operator occurrence or
+/// boundary declaration names the requirement, and the checked compilation
+/// behind it keeps the requirement-side association and journal.
+fn assert_selected_requirement_terminal_call(canary: &std::path::Path, label: &str) {
     let main_path = canary.join("main.omg");
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &main_path,
@@ -1141,12 +1141,6 @@ fn checked_boundary_requirement_terminal_exit_canary_retains_requirement_occurre
     ))
     .unwrap_or_else(|diagnostics| panic!("{label} should check: {diagnostics:#?}"));
     assert_selected_requirement_association(&checked, label);
-    let outcome = interpret(&checked, &[]);
-    assert_eq!(
-        outcome.exit_code, 70,
-        "{label} interprets; error: {:?}",
-        outcome.error
-    );
 
     let package_inputs =
         crate::reviewed_repository_fixture_package_inputs(&main_path, Some("linux_x86_64"))
@@ -1201,19 +1195,19 @@ fn checked_boundary_requirement_terminal_exit_canary_retains_requirement_occurre
             _ => None,
         })
         .collect::<Vec<_>>();
-    let realization = callees
-        .iter()
-        .filter_map(|callee| module.machines.iter().find(|machine| machine.id == *callee))
-        .find(|machine| {
-            machine.parameters.len() == 1
-                && matches!(
-                    machine.result,
-                    terminal_psi::TerminalMachineResult::Scalar(_)
-                )
-        })
-        .unwrap_or_else(|| {
-            panic!("{label} entry should call the adapter as an in-module scalar machine")
-        });
+    assert!(
+        callees
+            .iter()
+            .filter_map(|callee| module.machines.iter().find(|machine| machine.id == *callee))
+            .any(|machine| {
+                machine.parameters.len() == 1
+                    && matches!(
+                        machine.result,
+                        terminal_psi::TerminalMachineResult::Scalar(_)
+                    )
+            }),
+        "{label} entry should call the adapter as an in-module scalar machine",
+    );
     assert!(
         module
             .boundary_machines
@@ -1221,5 +1215,24 @@ fn checked_boundary_requirement_terminal_exit_canary_retains_requirement_occurre
             .all(|declaration| !declaration.identity.contains("offset_zero")),
         "{label} neither the requirement nor its realization is a Terminal boundary declaration",
     );
-    let _ = realization;
+}
+
+#[test]
+fn checked_boundary_requirement_terminal_exit_canary_retains_requirement_occurrence() {
+    let canary = pass_canary(CHECKED_BOUNDARY_REQUIREMENT_TERMINAL_EXIT);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("checked boundary-requirement Terminal canary should compile to checked trees");
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter leg; error: {:?}",
+        outcome.error
+    );
+    assert_selected_requirement_terminal_call(
+        &canary,
+        "checked boundary-requirement Terminal canary",
+    );
 }
