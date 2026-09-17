@@ -37,8 +37,10 @@ Packages:
 - `process-exit`: public API with exact accepted-package `Console` reach and process
   termination authority.
 - `console-exit-app`: application over the bundled `std` path dependency whose
-  entry exits through `Console::exit_process`; the package CLI review must
-  propose its terminal permission as one explicit decision row.
+  entry writes one console line and exits through `Console::exit_process`; the
+  package CLI review must propose the exit, byte-output and byte-input
+  terminal permissions of the selected std Console provider as one explicit
+  decision row each.
 - `network-overreach`: intentionally over-declared public network reach.
 - `remote-journal`: retained canonical-filesystem plus package-local network
   reach and invocation.
