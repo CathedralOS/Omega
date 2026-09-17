@@ -315,14 +315,18 @@ fn erased_record_equality_is_not_mistaken_for_empty_record_equality() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
+    // Since 80ca19bb1a synthesized `==` skips `[erased]` fields, so a record
+    // whose every field is erased has no runtime value to compare. Typing
+    // rejects it explicitly instead of letting the zero-member-record rule
+    // compare it as vacuous truth; no later crash-route check is reached.
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
         .expect_err("erased semantic fields must not be treated as an empty record");
-    assert!(diagnostics.iter().any(|diagnostic| {
+    assert!(
         diagnostic
-            .to_string()
-            .contains("erased field `proof` has no runtime value")
-    }));
+            .message
+            .contains("every field is `[erased]`, so the record has no runtime value to compare"),
+        "{diagnostic:#?}"
+    );
 }
 
 #[test]
