@@ -1,0 +1,11 @@
+// The only reachable terminal leaf is the exact std Console exit requirement.
+use omega::language::core::service;
+use omega_language_std::console;
+
+data Main { console: Service<Console> in Bound; }
+
+machine Main::main(&mut self)
+reaches Console
+{
+    self.console.exit_process(70);
+}

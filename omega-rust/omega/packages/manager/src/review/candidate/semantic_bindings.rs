@@ -3,6 +3,9 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use compiler::CheckedCompilation;
 use effects::provider_plan::ServiceSchema;
+use effects::{
+    ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
+};
 use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use package_evidence::record::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
@@ -106,8 +109,22 @@ pub(super) fn semantic_bindings_by_consumer(
 /// Derive non-authoritative semantic-binding proposals from a preliminary
 /// compiler review. The bound recompilation remains the exact validator, and
 /// its resulting provider and authority rows still require root policy.
+///
+/// The Console exit proposal for the closure root also carries the one
+/// terminal-authority permission its recognized requirement needs at native
+/// realization. Without that row the review has nothing to decide, the lock
+/// retains no permission, and the accepted policy projected for realization
+/// is empty, so the ordinary CLI route can never realize a program that
+/// exits. The row is a proposal, not a grant: it surfaces in the review as
+/// its own blocking `terminal_permission` decision, the final pass rejoins it
+/// to exactly one schema method, and realization still checks the selected
+/// mechanism's exercised classes against it. Only the root consumer
+/// receives it because permissions are the consuming project's decision and
+/// every package's open permissions propagate into one root policy, where an
+/// identical row accepted twice would be a duplicate rather than a grant.
 pub(super) fn candidate_semantic_binding_inputs(
     preliminary: &CompilerIssuedPackageReviewSet,
+    root: &PackageKey,
 ) -> Result<Vec<ConsumerScopedSemanticBindingReviewInput>, CompileResolvedPackageReviewsError> {
     let mut inputs = Vec::new();
     for review in preliminary.reviews() {
@@ -140,25 +157,54 @@ pub(super) fn candidate_semantic_binding_inputs(
         else {
             unreachable!("candidate predicate admits only package-owned schemas")
         };
-        let binding = AcceptedSemanticBinding::new(
+        let invalid = || CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+            consumer: review.key().clone(),
+            role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        };
+        let mut binding = AcceptedSemanticBinding::new(
             AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             package,
             provider.schema_declaration().path(),
             provider.schema().identity_digest(),
             provider.selected_plan_digest(),
         )
-        .map_err(|_| {
-            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                consumer: review.key().clone(),
-                role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            }
-        })?;
+        .map_err(|_| invalid())?;
+        if review.key() == root {
+            binding = binding
+                .with_terminal_authority_permissions(vec![
+                    candidate_console_exit_permission(provider).ok_or_else(invalid)?,
+                ])
+                .map_err(|_| invalid())?;
+        }
         inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
             review.key().clone(),
             binding,
         ));
     }
     Ok(inputs)
+}
+
+/// The process-termination permission for the exact `exit_process`
+/// requirement of one nominated Console provider schema. The class is the one
+/// the compiler's own mechanism classification assigns to hosted process exit.
+/// The readable name only selects the method, as the binding candidate itself
+/// does; the row binds the schema digest and requirement identity, so a
+/// lookalike schema cannot reuse an accepted row.
+fn candidate_console_exit_permission(
+    provider: &CheckedPackageProviderReview,
+) -> Option<ServiceTerminalAuthorityPermission> {
+    let mut methods = provider
+        .compiler_intrinsic_methods()
+        .filter(|method| method.name == "exit_process");
+    let method = methods.next()?;
+    if methods.next().is_some() {
+        return None;
+    }
+    Some(ServiceTerminalAuthorityPermission::new(
+        provider.schema().identity_digest(),
+        method.requirement_identity.clone(),
+        TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::ProcessTermination]),
+    ))
 }
 
 /// Nominate exact package-owned requirement surfaces that the consumer's
