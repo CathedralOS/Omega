@@ -2182,9 +2182,18 @@ Owners include
   `checked-trees-to-lowered-psi` does not lower a value-returning ranked
   machine ("has no admitted body (local construction stopped at call
   statement shape)"), so no generated loop carries a functional claim.
-  Acceptance: (a) a terminal-verifier replay control in
-  `tests/ranked_scc/scalar_block_invariants.rs` that keeps a valid `Natural`
-  certificate and rejects a wrong accumulator arrival; (b) the producer
+  Leg (a) landed on macOS ARM64: the terminal-verifier replay control in
+  `tests/ranked_scc/scalar_block_invariants.rs`
+  (`ranked_natural_certificate_replays_with_a_correct_accumulator_arrival`,
+  `ranked_natural_certificate_replay_rejects_a_wrong_accumulator_arrival`)
+  keeps the countdown's `Natural` certificate over a header accumulator
+  claiming `rank <= previous` and rejects a wrong accumulator arrival with
+  `RejectedEvidence { CertificateConclusionMismatch }` on the preservation
+  obligation while the unchanged cycle certificate still answers the
+  identical cycle question. The claim is an order the current kernel can
+  derive; an arithmetic accumulation claim (`sum + rank = initial`) still
+  needs ring evidence, which is the shared law-normalization gap below.
+  Remaining acceptance: (b) the producer
   lowers a value-returning ranked machine with an `ensures` so an executable
   proof canary with a wrong-accumulator fail twin leaves
   `CHECKED_ONLY_PASS_CANARIES`. Law normalization (`verify_normalization`
