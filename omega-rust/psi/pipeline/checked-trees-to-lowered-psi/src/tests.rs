@@ -24,6 +24,7 @@ mod guarded_scalar_returns;
 mod indexed_primitive_storage;
 mod literal_byte_extent;
 mod local_record_reads;
+mod operation_crash_contracts;
 mod owned_projected_selection;
 mod preterminal_optimization;
 mod proof_recursion;

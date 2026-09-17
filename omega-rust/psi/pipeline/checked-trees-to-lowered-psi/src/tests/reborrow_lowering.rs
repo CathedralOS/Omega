@@ -11,26 +11,6 @@ use crate::lowering_error::LoweringError;
 use checked_trees::CheckedUnitEffectOperationPlan;
 
 #[test]
-fn selected_operator_crash_invocations_reject_direct_terminal_lowering() {
-    for (operator_contract, caller_contract) in [
-        ("crashes Trap", "crashes Trap"),
-        ("crashes Abort", "crashes Abort"),
-        ("crashes Trap false", ""),
-    ] {
-        let checked = checked_source(&format!(
-            "boundary operator == Comparison::equal(left: i32, right: i32) -> bool {operator_contract};
-             pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left == right }}"
-        ));
-        let error = lower_machine(&checked, "compare")
-            .expect_err("direct Terminal lowering must retain its execution fence");
-        assert!(
-            format!("{error:?}")
-                .contains("selected operator crash invocations have no Terminal replay support")
-        );
-    }
-}
-
-#[test]
 fn inline_scalar_call_computation_rejects_a_missing_source_occurrence() {
     let mut checked = checked_scalar_suspension_fixture();
     let (_, state, statement, _, _) = scalar_fixture_call_coordinate(&checked);

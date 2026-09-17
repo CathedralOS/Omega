@@ -36,8 +36,9 @@ use crate::proofs::proof_recursion::lower_and_install_proof_recursion;
 use crate::retention::conformance_applications::lower_closed_conformance_applications;
 use crate::retention::placed_view_inputs::retain_selected_placed_view_inputs;
 use crate::retention::{
-    closed_reach_applications, conformance_applications, reborrow_restored_call_use,
-    reborrow_root_handoff, retained_borrow_custody, suspension_call_plan,
+    closed_reach_applications, conformance_applications, operation_crash_contracts,
+    reborrow_restored_call_use, reborrow_root_handoff, retained_borrow_custody,
+    suspension_call_plan,
 };
 use crate::scalar_graph::scalar_graph_lowering::lower_selected_scalar_graph_machine;
 use crate::unit::attached_unit;
@@ -72,13 +73,7 @@ fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
-    if checked
-        .facts
-        .operators
-        .has_crash_qualified_uses(&checked.typed)
-    {
-        return unsupported("selected operator crash invocations have no Terminal replay support");
-    }
+    operation_crash_contracts::reject_unjoinable_named_sites(checked, selection.machine)?;
     attached_unit::validate_direct_unit_parameter_custody(checked)?;
     let exact_guarded_payloadless = checked
         .facts
@@ -207,6 +202,14 @@ fn lower_terminal_selection(
     retained_borrow_custody::retain_foreign_borrow_custodies(
         checked,
         &mut lowered.semantic_module,
+    )?;
+    // Selected operator invocations carry their crash contract beside the
+    // exact emitted operation; a crash-qualified use the closure cannot join
+    // to one operation fails closed here rather than lowering crash-free.
+    operation_crash_contracts::retain_operation_crash_contracts(
+        checked,
+        &source_machines,
+        &mut lowered,
     )?;
     if checked
         .facts
@@ -421,6 +424,11 @@ pub fn lower_bounded_callback_identity_machine(
         &[(source_machine, lowered.semantic_module.entry)],
         &lowered.source_call_occurrences,
         &mut lowered.semantic_module,
+    )?;
+    operation_crash_contracts::retain_operation_crash_contracts(
+        checked,
+        &[source_machine],
+        &mut lowered,
     )?;
     terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;

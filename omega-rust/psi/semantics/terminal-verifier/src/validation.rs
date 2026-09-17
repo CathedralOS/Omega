@@ -27,7 +27,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-pub use crash::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
+pub use crash::{
+    BoundaryCrashOutcomeError, substitute_crash_routes, validate_boundary_crash_outcome,
+};
 
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
