@@ -3219,10 +3219,32 @@ Owners include
   `unknown_slice_index_meets_label_upper_bounds_against_length_facts`,
   `unknown_slice_index_meets_guard_seeded_upper_bounds_against_length_facts`,
   `length_difference_offset_reads_ensured_result_bounds`, macOS arm64
-  `mbx nextest run -p typed-trees-to-checked-trees`). Collection elements
-  still need the live declared-predicate coverage named above; the dungeon
-  probe currently stops earlier at case-literal construction and branch-local
-  transfer joins (Linux x86-64 `omega --check`, 6 diagnostics).
+  `mbx nextest run -p typed-trees-to-checked-trees`). Statement transports
+  keep one context per exact storage coordinate, so a view element write
+  retires that element's facts and not its siblings'
+  (`flow/transfers.rs`; regressions
+  `view_literal_index_write_keeps_sibling_element_coverage` and
+  `view_element_corruption_retires_only_that_element`). The dungeon probe
+  (`omega --check --target linux_x86_64
+  samples/cli/games/dungeon_crawler_cli/main.omg`, macOS ARM64, 5b1ac3505f)
+  now reaches the checker with 1746 diagnostics after the sample declared
+  `reaches Console`, `[copy]` value models, and hoisted receiver reads.
+  Resume order: (1) the callee side first: a machine's normal return must
+  be a default-domain consumption point for its readable `&mut` nominal
+  referents (including `self`) and for a reference-returning exit's
+  returned place ([invariant windows](wiki/spec/language/dependent_values.md);
+  `checks/contracts/exits/result_domains.rs` says reference returns declare
+  no obligations, so a machine that corrupts `level.rooms[1].label` through
+  a bare `&mut [u8; 4]` alias and returns is accepted today); (2) only then
+  may `flow/call_phases` re-seed those paths on each `&mut` argument's
+  actual place and on a reference result's finite candidate origins after
+  `apply_call_invalidations`, which closes ~1620 rows; (3) `checks/ranges`
+  retires a slice view's length after a call through one element
+  (`clear_room(&mut rooms[0], ..)` then `rooms[1]`), 15 rows; (4) sample
+  side: `RoomLookup` copies an element at a runtime index and passes an
+  uninitialized readable `&mut Room` out-parameter where write-only
+  `&write Room` is the intended spelling but validation rejects it for
+  constrained records, and unbounded `room_count` leaves 4 index rows.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
