@@ -3577,13 +3577,24 @@ Owners include
   (`provider_planning/independent_components.rs`, 5 tests from a real
   source fixture and a canonical described-and-verified module). The
   3-argument `selected_provider_plan_facts` forwards an empty slice, so
-  its callers still reject every `Independent` selection. Next slice, in
-  order: thread verified components from `PackageCompilationInputs`
-  through `build-evaluation/src/provider_settlement/mod.rs` (the
-  evaluated-build admission surface that must also produce them; switch
-  its call to the four-argument entrance), then make the compiler build a
+  its callers still reject every `Independent` selection. Landed next
+  (macOS ARM64, 264df70d4e..9418736601): `PackageCompilationTargetInputs`
+  carries `IndependentComponentDescription` (dependency package, observed
+  Terminal subject, canonical description bytes; root, foreign, and
+  duplicate attachments reject), and
+  `build-evaluation/src/provider_settlement` re-verifies each attached
+  description under the build's profile (schema 1, expected subject, no
+  accepted assumptions) before calling the four-argument entrance; a
+  verification rejection names the dependency package and never falls back
+  to fused (`tests/independent_component_settlement.rs`, 9 tests through
+  `filter_target_machines` and `settle_checked_providers`).
+  `component-description` exposes `test_support` (feature `test-support`)
+  for consumer fixtures. Next slice, in order: the compiler builds a
   `ComponentCandidate` for a dependency compiled as its own component,
-  since `compiler.rs` stops at `NativeArtifact`. Witnessed beside this at
+  describes it, and attaches `IndependentComponentDescription` to the
+  root's target inputs (`compiler.rs` stops at `NativeArtifact`); then a
+  build vocabulary for accepted assumption digests so mechanism-bearing
+  components can be admitted (settlement accepts none today). Witnessed at
   47d360c7cf and unrelated: `independent_provider_selection_reaches_the_componentization_fence`,
   `provider_selection_rejects_an_authored_composition_mode_lookalike`, and
   `provider_selection_rejects_conflicting_composition_modes` in
