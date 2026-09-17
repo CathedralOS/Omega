@@ -5,7 +5,14 @@
 //! writes its packed width the same way; either can be the dead store, the
 //! packed form only when its early-clobber scratch `Def` occurs nowhere
 //! else in the function — a surviving mention would lose its definition to
-//! the removal. A later write of the place's storage whose byte range
+//! the removal. Both place stores can also write the place's own local
+//! storage — its `StructuralParameter` or `StructuralBlockParameter` slot,
+//! which is the place's storage under the same byte coordinates — through
+//! the slot's materialized address, and a `Store64` writes that slot
+//! directly; a dead store carrying the `WriteLocal` row on such a slot is
+//! removed the same way, while a `WriteLocal` on an operation-owned
+//! `Structural` slot only stages bytes that name the place and stays
+//! inadmissible. A later write of the place's storage whose byte range
 //! covers the first store's range entirely replaces those bytes. When no
 //! intervening instruction can observe or partially overwrite the first
 //! store's bytes, the earlier store is dead: every observer of the place

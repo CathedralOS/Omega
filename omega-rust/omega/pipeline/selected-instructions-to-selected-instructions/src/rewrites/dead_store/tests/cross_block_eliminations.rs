@@ -974,3 +974,68 @@ fn cross_block_elimination_is_deterministic_and_terminal() {
         DeadStoreEliminationError::UnsupportedPair
     );
 }
+
+/// A place-storage local write crosses the edge as the dead store too: the
+/// `Store64` into the place's own parameter slot sits in block 0 while the
+/// covering `Store` opens block 1 — every path forward still reaches the
+/// cover before any observer.
+#[test]
+fn cross_block_local_dead_write_eliminates_across_the_edge() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        let source = mutated_chained(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.blocks[0].instructions[1] = instruction(
+                STORE,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[VALUE],
+            );
+            function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+        });
+        let result =
+            eliminate_selected_dead_store(&source, 0, STORE, &environment, budget()).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN]
+        );
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![(KILLER, SelectedMemoryAccessRole::WritePlace)]
+        );
+        validate_dead_store_elimination(
+            &source,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
