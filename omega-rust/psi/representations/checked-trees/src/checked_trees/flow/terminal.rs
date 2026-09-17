@@ -103,5 +103,6 @@ pub use terminal_selections::{
 };
 pub use unit_effect_plans::{
     CheckedStructuralValueCall, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitScalarControlPlan,
+    CheckedUnitEffectPlans, CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage,
+    CheckedUnitScalarControlPlan,
 };

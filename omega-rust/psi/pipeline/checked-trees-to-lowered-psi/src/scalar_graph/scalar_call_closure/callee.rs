@@ -92,6 +92,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
                     return Err(LoweringError::InvalidUnitMachinePlan {
                         machine: checked.symbols.display_path(source, "::"),
                         reason: "scalar callee has no checked executable body",
+                        omission: crate::unit::unit_plan_omission_explanation(checked, source),
                     });
                 };
                 if plan.structural_result.is_some() {

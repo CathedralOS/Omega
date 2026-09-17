@@ -149,6 +149,10 @@ pub(super) fn checked_unit_provider_candidates(
                                 LoweringError::InvalidUnitMachinePlan {
                                     machine: machine.name.as_str().to_owned(),
                                     reason,
+                                    omission: crate::unit::unit_plan_omission_explanation(
+                                        checked,
+                                        machine.symbol,
+                                    ),
                                 }
                             }
                             error => error,

@@ -2,6 +2,7 @@
 use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
+use checked_trees::CheckedUnitPlanOmissionStage;
 
 const CHAIN: &str = r#"
     data Root {}
@@ -137,6 +138,40 @@ fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
             .is_some()
     );
     assert_unique_catalogs(&plans);
+    // The omission roster names the stage per dropped body: the leaf whose
+    // evidence is missing failed local construction, and every caller up the
+    // chain names the direct callee that became unavailable.
+    let omission = |name: &str| {
+        plans
+            .omission_for_machine(machine_named(&checked, name))
+            .unwrap_or_else(|| panic!("omission row for {name}"))
+            .stage
+    };
+    assert_eq!(
+        omission("quiet"),
+        CheckedUnitPlanOmissionStage::LocalConstruction
+    );
+    for (caller, callee) in [
+        ("inner", "quiet"),
+        ("relay", "inner"),
+        ("middle", "relay"),
+        ("outer", "middle"),
+        ("enter", "outer"),
+    ] {
+        assert_eq!(
+            omission(caller),
+            CheckedUnitPlanOmissionStage::UnavailableCallee {
+                target: machine_named(&checked, callee)
+            },
+            "{caller} names {callee}"
+        );
+    }
+    assert!(
+        plans
+            .omission_for_machine(machine_named(&checked, "unrelated"))
+            .is_none(),
+        "a planned machine has no omission row"
+    );
 }
 
 #[test]

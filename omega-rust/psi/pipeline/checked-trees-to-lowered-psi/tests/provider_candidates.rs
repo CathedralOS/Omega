@@ -146,7 +146,7 @@ fn invalid_unit_provider_plan_names_the_exact_candidate() {
             assert!(matches!(
                 checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter"),
                 Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-                    machine, reason: actual_reason,
+                    machine, reason: actual_reason, ..
                 }) if machine == candidate && actual_reason == reason
             ));
         }

@@ -38,6 +38,47 @@ pub struct CheckedUnitEffectPlans {
     /// Multi-state Unit machines whose exact control and effect rows were
     /// admitted as one atomic executable plan.
     pub composed_machines: Vec<CheckedComposedUnitControlMachinePlan>,
+    /// One row per checked-body machine that has neither an ordinary nor a
+    /// composed plan, naming the stage that omitted it and, for closure
+    /// pruning, the direct dependency that was unavailable. Rows are
+    /// diagnostic evidence for the producer that later reports a missing
+    /// transitive plan; they grant nothing and select no fallback body.
+    pub omissions: Vec<CheckedUnitPlanOmission>,
+}
+
+/// Why one checked-body machine has no Unit plan. `machine` never appears in
+/// `machines` or `composed_machines` of the same record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedUnitPlanOmission {
+    pub machine: SymbolHandle,
+    pub stage: CheckedUnitPlanOmissionStage,
+}
+
+/// The planning stage at which a machine left the Unit plan roster. Closure
+/// stages name the direct dependency that was unavailable; following
+/// `UnavailableCallee` rows through the same record reaches the machine whose
+/// own body failed local construction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedUnitPlanOmissionStage {
+    /// No ordinary or composed builder admitted the machine's own body.
+    LocalConstruction,
+    /// The body was admitted, then dropped while receiver retention was
+    /// propagated along the call graph (the rebuilt caller no longer
+    /// retained `self`, or a receiver operand could not be rejoined).
+    ReceiverReconciliation,
+    /// Two builders described the same entry and neither survived the
+    /// overlap resolution.
+    CompetingCandidates,
+    /// A composed body used an operation outside the composed vocabulary.
+    ComposedVocabulary,
+    /// A Unit, structural, or ordinary scalar call targets a machine that has
+    /// no admitted body in the roster.
+    UnavailableCallee { target: SymbolHandle },
+    /// A boundary call targets a machine with no boundary plan.
+    MissingBoundaryTarget { target: SymbolHandle },
+    /// A scalar call has neither a registered scalar target nor an ordinary
+    /// body to borrow.
+    UnavailableScalarTarget { target: SymbolHandle },
 }
 
 impl CheckedUnitEffectPlans {
@@ -61,6 +102,11 @@ impl CheckedUnitEffectPlans {
         self.composed_machines
             .iter()
             .find(|plan| plan.machine == machine)
+    }
+
+    /// The omission row for a machine that has no plan in this record.
+    pub fn omission_for_machine(&self, machine: SymbolHandle) -> Option<&CheckedUnitPlanOmission> {
+        self.omissions.iter().find(|row| row.machine == machine)
     }
 }
 

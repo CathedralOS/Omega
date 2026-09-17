@@ -27,6 +27,7 @@ pub(crate) fn checked_unit_call_closure_including(
             LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
                 machine: name.to_owned(),
                 reason,
+                omission: crate::unit::unit_plan_omission_explanation(checked, machine_symbol),
             },
             error => error,
         })?;
