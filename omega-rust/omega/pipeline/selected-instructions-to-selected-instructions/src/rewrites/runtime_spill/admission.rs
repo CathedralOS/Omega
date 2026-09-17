@@ -45,7 +45,8 @@ pub(super) struct Admission<'source> {
 }
 
 /// Source definition coordinates, not proposed spill instructions. An incoming
-/// parameter has one exact edge-copy definition per predecessor.
+/// parameter has one exact edge definition per predecessor: the predecessor's
+/// own copy output, or a case bridge's field observation behind its load.
 pub(super) struct StorageDefinition {
     pub block_index: usize,
     pub instruction: SelectedInstructionId,
@@ -262,8 +263,14 @@ pub(super) fn admit<'source>(
                         } => {
                             // The parameter side is the destination's payload
                             // definition, never a use in this block — the same
-                            // rule the value bindings above keep.
-                            if parameter == register {
+                            // rule the value bindings above keep: only a
+                            // block-parameter victim's own incoming edges may
+                            // carry it, and parameter_definitions has already
+                            // checked every such arrival.
+                            if parameter == register
+                                && (definition.is_some()
+                                    || successor.block != function.blocks[block_index].id)
+                            {
                                 return Err(RuntimeSpillError::UnsupportedUse);
                             }
                             if argument != register {
@@ -571,12 +578,101 @@ fn parameter_definitions(
             // Every arrival must initialize the slot on its exact edge. Do not
             // place a store on a conditional predecessor shared by other paths.
             if successor.role != SelectedSuccessorRole::EdgeTransferContinuation
-                || successor.structural_case.is_some()
                 || !matches!(block.terminator, SelectedTerminator::Jump { .. })
                 || !matches!(block.origin, SelectedBlockOrigin::EdgeTransfer { edge, target }
                     if edge == successor.psi_edge && target == successor.source_target)
             {
                 return Err(RuntimeSpillError::UnsupportedControlFlow);
+            }
+            if let Some(case) = &successor.structural_case {
+                // A case edge initializes a destination parameter through its
+                // payload transport: the stored register is the bridge's own
+                // field observation, stored right after its load — the same
+                // edge-exact idiom the value bindings below keep. These are
+                // the checks `incoming_argument` applies to that transport.
+                let mut payloads = case
+                    .payloads
+                    .iter()
+                    .filter(|payload| payload.semantic.parameter.value == source_value);
+                if let Some(payload) = payloads.next() {
+                    if payloads.next().is_some()
+                        || successor
+                            .bindings
+                            .iter()
+                            .any(|binding| binding.semantic.parameter == source_value)
+                        || payload.semantic.parameter.scalar_type != victim.scalar_type
+                        || Some(payload.semantic.parameter.definition_site)
+                            != victim.definition_site
+                    {
+                        return Err(RuntimeSpillError::UnsupportedUse);
+                    }
+                    let SelectedCasePayloadTransport::Registers {
+                        argument,
+                        parameter,
+                        ..
+                    } = payload.transport
+                    else {
+                        return Err(RuntimeSpillError::UnsupportedUse);
+                    };
+                    if parameter != victim.id {
+                        return Err(RuntimeSpillError::UnsupportedUse);
+                    }
+                    let value = function
+                        .virtual_registers
+                        .iter()
+                        .find(|value| value.id == argument)
+                        .ok_or(RuntimeSpillError::UnsupportedValue)?;
+                    if value.scalar_type != victim.scalar_type
+                        || value.class != victim.class
+                        || value.definition_site.is_some()
+                    {
+                        return Err(RuntimeSpillError::UnsupportedValue);
+                    }
+                    let VirtualRegisterOrigin::StructuralObservation {
+                        instruction,
+                        place,
+                        byte_offset,
+                    } = value.origin
+                    else {
+                        return Err(RuntimeSpillError::UnsupportedValue);
+                    };
+                    if Some(place) != case.slot.structural_place()
+                        || byte_offset != payload.semantic.field_byte_offset
+                    {
+                        return Err(RuntimeSpillError::UnsupportedValue);
+                    }
+                    // The field load must be the idiom the case bridge itself
+                    // emits: a 32-bit payload through `Load32`, a 64-bit one
+                    // through `Load64`, each at the declared field offset.
+                    let load_kind = match payload.semantic.parameter.scalar_type {
+                        ScalarType::Integer(integer) if integer.bits() == 32 => {
+                            SelectedInstructionKind::Load32 { byte_offset }
+                        }
+                        ScalarType::Integer(integer) if integer.bits() == 64 => {
+                            SelectedInstructionKind::Load64 { byte_offset }
+                        }
+                        _ => return Err(RuntimeSpillError::UnsupportedValue),
+                    };
+                    let (owner, load) = physical_definition(function, argument)?;
+                    if owner != block_index
+                        || load.id != instruction
+                        || load.kind != load_kind
+                        || !load.operands.iter().any(|operand| {
+                            operand.virtual_register == argument
+                                && operand.access == RegisterOperandAccess::Def
+                        })
+                    {
+                        return Err(RuntimeSpillError::UnsupportedUse);
+                    }
+                    definitions.push(StorageDefinition {
+                        block_index,
+                        instruction,
+                        register: argument,
+                    });
+                    continue;
+                }
+                // No payload declares the parameter's value: the edge may still
+                // initialize it through an ordinary value binding.
             }
             let mut bindings = successor.bindings.iter().filter(|binding| {
                 matches!(binding.transport,
@@ -610,28 +706,8 @@ fn parameter_definitions(
             if argument_value != binding.semantic.argument {
                 return Err(RuntimeSpillError::UnsupportedValue);
             }
-            let mut physical_definitions =
-                function
-                    .blocks
-                    .iter()
-                    .enumerate()
-                    .flat_map(|(owner, block)| {
-                        block.instructions.iter().flat_map(move |candidate| {
-                            candidate
-                                .operands
-                                .iter()
-                                .filter(move |operand| {
-                                    operand.virtual_register == argument
-                                        && operand.access != RegisterOperandAccess::Use
-                                })
-                                .map(move |_| (owner, candidate))
-                        })
-                    });
-            let Some((owner, copy)) = physical_definitions.next() else {
-                return Err(RuntimeSpillError::UnsupportedValue);
-            };
-            if physical_definitions.next().is_some()
-                || owner != block_index
+            let (owner, copy) = physical_definition(function, argument)?;
+            if owner != block_index
                 || copy.id != instruction
                 || copy.kind != SelectedInstructionKind::CopyI64
                 || !copy.operands.iter().any(|operand| {
@@ -652,6 +728,39 @@ fn parameter_definitions(
         return Err(RuntimeSpillError::UnsupportedUse);
     }
     Ok(definitions)
+}
+
+/// The unique physical instruction defining `argument` anywhere in the
+/// function, as `(owner block, instruction)`. Missing definitions mean the
+/// transport names no real value; multiple mean it is not a single edge-exact
+/// definition — the same split the two caller sites keep.
+fn physical_definition(
+    function: &SelectedFunction,
+    argument: VirtualRegisterId,
+) -> Result<(usize, &SelectedInstruction), RuntimeSpillError> {
+    let mut definitions = function
+        .blocks
+        .iter()
+        .enumerate()
+        .flat_map(|(owner, block)| {
+            block.instructions.iter().flat_map(move |candidate| {
+                candidate
+                    .operands
+                    .iter()
+                    .filter(move |operand| {
+                        operand.virtual_register == argument
+                            && operand.access != RegisterOperandAccess::Use
+                    })
+                    .map(move |_| (owner, candidate))
+            })
+        });
+    let Some(definition) = definitions.next() else {
+        return Err(RuntimeSpillError::UnsupportedValue);
+    };
+    if definitions.next().is_some() {
+        return Err(RuntimeSpillError::UnsupportedUse);
+    }
+    Ok(definition)
 }
 
 pub(super) fn fresh(next: &mut u32) -> Result<u32, RuntimeSpillError> {

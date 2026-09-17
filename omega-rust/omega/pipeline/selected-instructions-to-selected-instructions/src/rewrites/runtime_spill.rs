@@ -14,8 +14,10 @@
 //! private accesses while independent replay consumes them and restores source.
 //!
 //! Instruction-result definitions must dominate every flexible use. Incoming parameters
-//! instead require a dedicated edge-copy definition on every predecessor: each
-//! copy is stored immediately, before later transfers create more pressure.
+//! instead require a dedicated edge definition on every predecessor: the edge
+//! copy's own output register, or — on a case-dispatch continuation — the
+//! bridge's field observation behind the payload's own `Load32`/`Load64`.
+//! Each is stored immediately, before later transfers create more pressure.
 //! Original parameter bindings remain exact. Replacing the destination's uses
 //! makes that parameter dead, so fresh liveness no longer requires its edge
 //! home tie. Their destination must likewise dominate every use.
@@ -34,8 +36,11 @@
 //! keeps its semantic declaration while moving to the fresh reload register.
 //! A `Registers` case-payload argument reads at that same position: its pairs
 //! follow the edge's binding pairs in payload order, and the payload's
-//! declared type must equal the victim's exact type. Structural transports
-//! and the parameter side of every binding or payload remain unsupported.
+//! declared type must equal the victim's exact type. The parameter side of a
+//! binding or payload is not a use at all — it is the destination's
+//! definition, admitted only when it is the block-parameter victim's own
+//! incoming edge; every other naming stays rejected. Structural transports
+//! remain unsupported.
 //! Cyclic functions stay admitted: a back edge
 //! reaching the destination is just one more incoming edge, and it must run
 //! the same dedicated edge-copy definition whose store initializes the slot
