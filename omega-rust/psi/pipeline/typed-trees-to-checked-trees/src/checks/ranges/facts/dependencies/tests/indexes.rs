@@ -2,6 +2,7 @@ use super::{ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, Typed
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
+use crate::checks::ranges::facts::dependencies::tests::selected_operator_facts;
 use crate::checks::ranges::facts::dependencies::tests::typed_source;
 use crate::flow::CanonicalPlace;
 use typed_trees::machine::Machine;
@@ -23,17 +24,6 @@ fn window(program: &TypedTrees) -> (&Machine, &State) {
         .find(|machine| machine.name.as_str() == "window")
         .expect("window");
     (machine, &program.machine_states(machine)[0])
-}
-
-/// Build the checked operator evidence production hands to range facts: the
-/// same value/operator fact construction, including domain selection, so a
-/// recorded use row is the exact occurrence custody the checker consults.
-fn selected_operator_facts(program: &TypedTrees) -> checked_trees::CheckedOperatorFacts {
-    let proof_plan = proof::obligations::build_proof_plan(program);
-    let values = crate::values::build_value_facts(program, &proof_plan);
-    let mut operators = crate::operators::build_operator_facts(program, &values);
-    crate::operators::select_pending_domain_operator_meanings(program, &mut operators);
-    operators
 }
 
 #[test]
@@ -815,11 +805,11 @@ fn an_open_builtin_window_reads_only_its_present_bounds() {
 }
 
 /// A window bound that selects authored arithmetic is call-shaped inside the
-/// operand position: without checked call custody the operand scan cannot
-/// describe its reads, so the window stays incomplete instead of claiming
-/// only the bound's visible places.
+/// operand position: without checked operator custody the operand scan
+/// cannot describe its reads, so the window stays incomplete instead of
+/// claiming only the bound's visible places.
 #[test]
-fn a_window_bound_with_authored_arithmetic_stays_incomplete() {
+fn a_window_bound_with_authored_arithmetic_and_no_checked_custody_stays_incomplete() {
     let program = typed_source(
         "operator + u64::custom(left: u64, right: u64) -> u64;
         machine window(items: &[i64; 4], low: u64, high: u64) {
@@ -831,4 +821,416 @@ fn a_window_bound_with_authored_arithmetic_stays_incomplete() {
     let mut facts = RangeFacts::new(&[]);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+fn arithmetic_window_source(selector: &str) -> TypedTrees {
+    typed_source(&format!(
+        "operator + u64::custom(left: u64, right: u64) -> u64;
+        machine window(items: &[i64; 4], low: u64, step: u64, high: u64, unrelated: u64) {{
+            let cut: &[i64] = items[{selector}];
+        }}"
+    ))
+}
+
+/// The authored `+` application inside a builtin window bound, for tests
+/// that corrupt its checked custody.
+fn window_start_bound(program: &TypedTrees, expression: ExpressionHandle) -> ExpressionHandle {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        panic!("window fixture")
+    };
+    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+        panic!("range selector")
+    };
+    range.start
+}
+
+/// With the exact checked operator-use row at this statement, an authored
+/// arithmetic window bound is a selected application whose footprint is the
+/// operands the declaration receives: the window reads the collection place
+/// plus each bound's operands, survives writes the bound cannot observe,
+/// and is retired by a write to any operand or to the collection.
+#[test]
+fn a_selected_arithmetic_window_bound_reads_its_checked_operands() {
+    let program = arithmetic_window_source("low + step..high");
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("selected arithmetic window reads");
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        panic!("window fixture")
+    };
+    let mut window = parameter_place(&program, state, "items");
+    window.segments.push(facts::PlaceSegment::Index {
+        expression: indexed.index,
+    });
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "low"),
+            parameter_place(&program, state, "step"),
+            parameter_place(&program, state, "high"),
+            window,
+        ]
+        .as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [
+        ("items", false),
+        ("low", false),
+        ("step", false),
+        ("high", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// A point selector with authored arithmetic over a local leaf is not
+/// hoisted, so the application stays inline in the builtin element place.
+/// Its reads are the operands plus the element place, and the place algebra
+/// keeps the non-constant selector conservative: a fixed-element write
+/// still retires the facts because the selected declaration's value is
+/// unknown.
+#[test]
+fn a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservative() {
+    let program = typed_source(
+        "operator + u64::custom(left: u64, right: u64) -> u64;
+        machine window(items: &[i64; 4], low: u64, unrelated: u64) {
+            let offset: u64 = 1u64;
+            let cut: i64 = items[low + offset];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let statement_index = statement_index_of(&program, state, "cut");
+    let offset = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.name.as_str() == "offset" => {
+                Some(CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(local.symbol),
+                    segments: Vec::new(),
+                })
+            }
+            _ => None,
+        })
+        .expect("offset local");
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        panic!("index fixture")
+    };
+    assert!(matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Binary(_)
+    ));
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("selected arithmetic selector reads");
+    let mut element = parameter_place(&program, state, "items");
+    element.segments.push(facts::PlaceSegment::Index {
+        expression: indexed.index,
+    });
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "low"),
+            offset.clone(),
+            element,
+        ]
+        .as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    let mut fixed_element = parameter_place(&program, state, "items");
+    fixed_element
+        .segments
+        .push(facts::PlaceSegment::FixedIndex { index: 3 });
+    for (write, survives) in [
+        (parameter_place(&program, state, "items"), false),
+        (fixed_element, false),
+        (parameter_place(&program, state, "low"), false),
+        (offset, false),
+        (parameter_place(&program, state, "unrelated"), true),
+    ] {
+        assert_eq!(
+            facts
+                .preserved_expression_labels(
+                    &program,
+                    machine,
+                    state,
+                    Some(std::slice::from_ref(&write)),
+                )
+                .contains(&label),
+            survives,
+            "write to {write:?}"
+        );
+    }
+}
+
+/// A constant-shaped authored application (`1u64 + 0u64`) is refused
+/// independently of custody: the place algebra folds it syntactically to
+/// builtin arithmetic's coordinate, which the selected declaration never
+/// established. Production records no use row for literal-only operands,
+/// so the row is fabricated from a resolved donor occurrence to prove that
+/// the fold guard, not missing custody, keeps the point selector and the
+/// window bound incomplete.
+#[test]
+fn a_constant_shaped_selected_arithmetic_application_stays_incomplete() {
+    for (declared, selector) in [("i64", "1u64 + 0u64"), ("&[i64]", "1u64 + 0u64..high")] {
+        let program = typed_source(&format!(
+            "operator + u64::custom(left: u64, right: u64) -> u64;
+            machine window(items: &[i64; 4], low: u64, step: u64, high: u64) {{
+                let cut: {declared} = items[{selector}];
+                let donor: u64 = low + step;
+            }}"
+        ));
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        assert_eq!(statement_index_of(&program, state, "cut"), 0);
+        let application = match program.expression_table.expression(expression) {
+            ExpressionNode::Indexed(indexed) => {
+                match program.expression_table.expression(indexed.index) {
+                    ExpressionNode::Range(range) => range.start,
+                    _ => indexed.index,
+                }
+            }
+            _ => panic!("index fixture"),
+        };
+        assert!(
+            program
+                .expression_table
+                .constant_integer_value(application)
+                .is_some(),
+            "{selector}: the application is constant-shaped"
+        );
+        let donor = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.name.as_str() == "donor" => {
+                    Some(local.initial_value)
+                }
+                _ => None,
+            })
+            .expect("donor local");
+        let mut operators = selected_operator_facts(&program);
+        let mut fabricated = *operators
+            .uses
+            .iter()
+            .find_map(|(_, row)| {
+                (row.expression == donor
+                    && row.status == checked_trees::CheckedOperatorResolutionStatus::Resolved)
+                    .then_some(row)
+            })
+            .expect("resolved donor row");
+        fabricated.expression = application;
+        let checked_trees::CheckedValueOrigin::StateStatement {
+            statement_index, ..
+        } = &mut fabricated.origin
+        else {
+            panic!("statement-scoped donor")
+        };
+        *statement_index = 0;
+        operators.uses.append(fabricated);
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_operators = Some(&operators);
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        assert!(
+            facts.expression_dependencies[0].reads.is_none(),
+            "{selector}: a folded authored application claimed a footprint"
+        );
+    }
+}
+
+/// Drifted custody on the arithmetic application — a missing or ambiguous
+/// status, an invalid selection, a candidate roster that no longer matches,
+/// or a foreign spelling — leaves the window incomplete.
+#[test]
+fn a_selected_arithmetic_bound_needs_stable_checked_custody() {
+    for mutate in [
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.status = checked_trees::CheckedOperatorResolutionStatus::Missing;
+        },
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.status = checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+        },
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.selected_operator_symbol = SymbolHandle::invalid();
+        },
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.candidate_count += 1;
+        },
+        |row: &mut checked_trees::CheckedOperatorUseFact| {
+            row.spelling = language_core::operator_spelling::OperatorSpelling::Subtract;
+        },
+    ] {
+        let program = arithmetic_window_source("low + step..high");
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        let application = window_start_bound(&program, expression);
+        let mut operators = selected_operator_facts(&program);
+        let handle = operators
+            .uses
+            .iter()
+            .find_map(|(handle, row)| (row.expression == application).then_some(handle))
+            .expect("checked use row for the arithmetic bound");
+        mutate(operators.uses.get_mut(handle));
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_operators = Some(&operators);
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        assert!(
+            facts.expression_dependencies[0].reads.is_none(),
+            "drifted arithmetic custody still claimed a footprint"
+        );
+    }
+}
+
+/// Each authored application inside a bound keeps its own custody: a nested
+/// `(low + step) + high` reads every leaf operand once when both rows are
+/// stable, and corrupting only the inner row leaves the whole window
+/// incomplete.
+#[test]
+fn nested_selected_arithmetic_bounds_each_keep_their_own_custody() {
+    for corrupt_inner in [false, true] {
+        let program = arithmetic_window_source("low + step + high..high");
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        let outer = window_start_bound(&program, expression);
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(outer) else {
+            panic!("nested arithmetic bound")
+        };
+        let inner = binary.left;
+        assert!(matches!(
+            program.expression_table.expression(inner),
+            ExpressionNode::Binary(_)
+        ));
+        let mut operators = selected_operator_facts(&program);
+        if corrupt_inner {
+            let handle = operators
+                .uses
+                .iter()
+                .find_map(|(handle, row)| (row.expression == inner).then_some(handle))
+                .expect("inner checked use row");
+            operators.uses.get_mut(handle).status =
+                checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+        }
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_operators = Some(&operators);
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        let reads = &facts.expression_dependencies[0].reads;
+        if corrupt_inner {
+            assert!(
+                reads.is_none(),
+                "an unproven inner application was admitted"
+            );
+            continue;
+        }
+        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        else {
+            panic!("window fixture")
+        };
+        let mut window = parameter_place(&program, state, "items");
+        window.segments.push(facts::PlaceSegment::Index {
+            expression: indexed.index,
+        });
+        assert_eq!(
+            reads.as_deref(),
+            Some(
+                [
+                    parameter_place(&program, state, "low"),
+                    parameter_place(&program, state, "step"),
+                    parameter_place(&program, state, "high"),
+                    window,
+                ]
+                .as_slice()
+            )
+        );
+    }
+}
+
+/// A builtin operator over an authored application keeps recursing: the
+/// outer `*` has builtin meaning on its own node, so only the inner `+`
+/// needs custody, and the window reads every leaf operand.
+#[test]
+fn a_builtin_operator_over_a_selected_application_reads_every_leaf_operand() {
+    let program = arithmetic_window_source("(low + step) * 2u64..high");
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("mixed builtin and selected arithmetic reads");
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        panic!("window fixture")
+    };
+    let mut window = parameter_place(&program, state, "items");
+    window.segments.push(facts::PlaceSegment::Index {
+        expression: indexed.index,
+    });
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "low"),
+            parameter_place(&program, state, "step"),
+            parameter_place(&program, state, "high"),
+            window,
+        ]
+        .as_slice()
+    );
+}
+
+/// A contract-scope occurrence has no statement use custody, so an authored
+/// arithmetic selector in `requires` stays incomplete exactly like a
+/// selected `[]` there.
+#[test]
+fn a_requires_scope_selected_arithmetic_selector_has_no_statement_use_custody() {
+    let program = typed_source(
+        "operator + u64::custom(left: u64, right: u64) -> u64;
+        machine window(items: &[i64; 4], low: u64, step: u64)
+        requires 0 <= items[low + step]; {}",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let contract = &program.machine_contracts(machine)[0];
+    let typed_trees::domain::ProofFact::Expression(guard) =
+        program.proof_facts.span_or_empty(contract.facts)[0]
+    else {
+        panic!("expression contract")
+    };
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        panic!("bound comparison")
+    };
+    let expression = binary.right;
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    assert!(
+        facts.expression_dependencies[0].reads.is_none(),
+        "a contract-scope arithmetic occurrence invented statement use custody"
+    );
 }

@@ -821,12 +821,17 @@ fn atomic_compare_exchange_operands(
     Some([equal.right, difference.left])
 }
 
-/// A nested operand's reads count only when that operand subtree keeps
-/// builtin bound meaning — the same floor `record_dependencies` applies to
-/// the top-level expression — and its own read scan completes. The general
+/// A nested operand's reads count when that operand subtree keeps builtin
+/// bound meaning — the same floor `record_dependencies` applies to the
+/// top-level expression — and its own read scan completes. The general
 /// bound-meaning walk does not descend through the compound nodes handled
-/// above, so each operand under them has to carry the floor independently:
-/// an authored operator inside a window bound or a literal element stays
+/// above, so each operand under them has to carry the floor independently.
+/// When the floor fails, the operand is walked node by node instead: a
+/// builtin arithmetic node keeps recursing into its operands, and an
+/// authored arithmetic application is call-shaped, so it admits exactly
+/// the operand reads its exact checked operator-use row authenticates
+/// (`collect_selected_arithmetic_reads`). Every other non-builtin node — an
+/// authored comparison, a wrapper the general walk refused — stays
 /// incomplete rather than pretending only its visible places were read.
 fn collect_operand_reads(
     program: &TypedTrees,
@@ -839,8 +844,8 @@ fn collect_operand_reads(
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
 ) -> bool {
-    validation::has_builtin_bound_expression_meaning(program, machine, Some(state), operand)
-        && collect_reads(
+    if validation::has_builtin_bound_expression_meaning(program, machine, Some(state), operand) {
+        return collect_reads(
             program,
             machine,
             state,
@@ -850,7 +855,120 @@ fn collect_operand_reads(
             operators,
             reads,
             depth + 1,
+        );
+    }
+    if depth >= 128 || !program.expression_table.expression_is_valid(operand) {
+        return false;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(operand) else {
+        return false;
+    };
+    let Some(spelling) =
+        crate::operators::binary_operator_spelling(binary.operator).filter(|spelling| {
+            use language_core::OperatorSpelling;
+            matches!(
+                spelling,
+                OperatorSpelling::Add
+                    | OperatorSpelling::Subtract
+                    | OperatorSpelling::Multiply
+                    | OperatorSpelling::Divide
+                    | OperatorSpelling::Modulo
+            )
+        })
+    else {
+        return false;
+    };
+    if validation::has_builtin_binary_expression_meaning(program, machine, Some(state), operand) {
+        return collect_operand_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            binary.left,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+        ) && collect_operand_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            binary.right,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+        );
+    }
+    collect_selected_arithmetic_reads(
+        program,
+        machine,
+        state,
+        statement_index,
+        operand,
+        spelling,
+        calls,
+        operators,
+        reads,
+        depth,
+    )
+}
+
+/// A selected `+`/`-`/`*`/`/`/`%` application is a checked occurrence, not
+/// builtin arithmetic: the exact `CheckedOperatorUseFact` at this statement
+/// authenticates which declaration governs it, and that declaration can
+/// observe only the operands it receives, so its footprint is the operands'
+/// own reads — each recursing through the operand gate, so a nested
+/// authored application still proves its own custody. A constant-shaped
+/// application (`1u64 + 0u64`) is refused even with custody: the place
+/// algebra folds such a selector syntactically (`index_place_segment`), so
+/// the recorded coordinate would be builtin arithmetic's value rather than
+/// whatever the selected declaration produces, and the read set would
+/// claim disjointness the declaration never established.
+fn collect_selected_arithmetic_reads(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    spelling: language_core::OperatorSpelling,
+    calls: Option<&RangeCallContext<'_>>,
+    operators: Option<&CheckedOperatorFacts>,
+    reads: &mut Vec<CanonicalPlace>,
+    depth: usize,
+) -> bool {
+    if program
+        .expression_table
+        .constant_integer_value(expression)
+        .is_some()
+    {
+        return false;
+    }
+    let Some(operands) = selected_operator_operands(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        spelling,
+        operators,
+    ) else {
+        return false;
+    };
+    operands.iter().all(|operand| {
+        collect_operand_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            *operand,
+            calls,
+            operators,
+            reads,
+            depth + 1,
         )
+    })
 }
 
 /// A read place counts only when its root is current storage and every
@@ -1157,12 +1275,61 @@ fn collect_selected_index_reads(
 ) -> bool {
     use language_core::OperatorSpelling;
 
-    let Some(operators) = operators else {
+    let spelling = if matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Range(_)
+    ) {
+        OperatorSpelling::Range
+    } else {
+        OperatorSpelling::Index
+    };
+    let Some(operands) = selected_operator_operands(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        spelling,
+        operators,
+    ) else {
         return false;
     };
-    // Use rows carry the enclosing statement's origin even for nested
-    // operands, so this join covers selector and subexpression positions.
-    // Custody must agree across every recorded row for this occurrence.
+    operands.iter().all(|operand| {
+        collect_reads(
+            program,
+            machine,
+            state,
+            statement_index,
+            *operand,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+        )
+    })
+}
+
+/// The operand expressions a selected operator application hands its
+/// declaration, authenticated by the exact `CheckedOperatorUseFact` at this
+/// statement occurrence. Use rows carry the enclosing statement's origin
+/// even for nested operands, so this join covers selector and
+/// subexpression positions; custody must agree across every recorded row
+/// for the occurrence, resolve to a single valid declaration under the
+/// expected spelling, and retain the candidate roster it was selected
+/// from. The operand count still has to match the retained signature so a
+/// drifted row cannot rename storage the operand scan never saw. Missing,
+/// ambiguous, or inconsistent custody yields no operands — the same
+/// evidence floor the checked-call join applies.
+fn selected_operator_operands(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    spelling: language_core::OperatorSpelling,
+    operators: Option<&CheckedOperatorFacts>,
+) -> Option<Vec<ExpressionHandle>> {
+    let operators = operators?;
     let mut uses = operators.uses.iter().filter_map(|(_, selected)| {
         (selected.expression == expression
             && matches!(
@@ -1178,51 +1345,18 @@ fn collect_selected_index_reads(
             ))
         .then_some(selected)
     });
-    let Some(selected) = uses.next() else {
-        return false;
-    };
-    let spelling = if matches!(
-        program.expression_table.expression(indexed.index),
-        ExpressionNode::Range(_)
-    ) {
-        OperatorSpelling::Range
-    } else {
-        OperatorSpelling::Index
-    };
+    let selected = uses.next()?;
     if selected.spelling != spelling
         || selected.status != CheckedOperatorResolutionStatus::Resolved
         || !selected.selected_operator_symbol.is_valid()
         || selected.candidate_count != operators.candidates(selected).len()
         || uses.any(|other| other != selected)
     {
-        return false;
+        return None;
     }
-    let Some(candidate) = operators.selected_candidate(selected) else {
-        return false;
-    };
-    // The operand expressions recovered from the checked row are the only
-    // caller storage the selected declaration can observe. Their count still
-    // has to match the retained signature so a drifted row cannot rename
-    // storage the operand scan never saw.
-    let Some(operands) = selected.operands(program) else {
-        return false;
-    };
-    if candidate.parameter_count != operands.len() {
-        return false;
-    }
-    operands.iter().all(|operand| {
-        collect_reads(
-            program,
-            machine,
-            state,
-            statement_index,
-            *operand,
-            calls,
-            Some(operators),
-            reads,
-            depth + 1,
-        )
-    })
+    let candidate = operators.selected_candidate(selected)?;
+    let operands = selected.operands(program)?;
+    (candidate.parameter_count == operands.len()).then_some(operands)
 }
 
 /// Check typed identities before contextual spelling recovery, and collect the
@@ -1298,8 +1432,12 @@ fn collect_selector_reads(
         ),
         ExpressionNode::Indexed(indexed) => {
             // The general bound-meaning query treats places as symbolic leaves.
-            // Inspect each selector explicitly before syntax-based constant
-            // normalization may establish distinct element coordinates.
+            // Inspect each selector explicitly through the operand gate: it
+            // keeps builtin bound meaning, or it proves an authored
+            // arithmetic application through checked custody — and the gate
+            // refuses a constant-shaped authored application before
+            // syntax-based normalization can mint a fixed element
+            // coordinate the selected declaration never established.
             has_builtin_index_meaning(
                 program,
                 machine,
@@ -1307,11 +1445,6 @@ fn collect_selector_reads(
                 statement_index,
                 expression,
                 indexed,
-            ) && validation::has_builtin_bound_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                indexed.index,
             ) && collect_selector_reads(
                 program,
                 machine,
@@ -1322,7 +1455,7 @@ fn collect_selector_reads(
                 operators,
                 reads,
                 depth + 1,
-            ) && collect_reads(
+            ) && collect_operand_reads(
                 program,
                 machine,
                 state,
@@ -1331,7 +1464,7 @@ fn collect_selector_reads(
                 calls,
                 operators,
                 reads,
-                depth + 1,
+                depth,
             )
         }
         _ => false,
