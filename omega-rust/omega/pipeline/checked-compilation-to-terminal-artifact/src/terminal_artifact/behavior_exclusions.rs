@@ -22,7 +22,7 @@
 use assembled_syntax_to_checked_compilation::CheckedCompilation;
 use build_evaluation::{
     AuthoredBehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, EvidenceGapKind,
-    ProhibitedSite, authored_behavior_exclusion_set, establish_behavior_exclusions,
+    ProhibitedSite, authored_behavior_exclusion_set_in, establish_behavior_exclusions_with_owners,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::MachineId;
@@ -252,18 +252,75 @@ pub(crate) fn verify_module_behavior_exclusions(
     if authored.is_empty() {
         return Ok(());
     }
-    let exclusions = authored_behavior_exclusion_set(authored);
-    let report = establish_behavior_exclusions(
+    let trait_identity = boundary_trait_identity(checked);
+    let exclusions = authored_behavior_exclusion_set_in(authored, module, &trait_identity);
+    if exclusions.is_empty() {
+        // Every authored row named a service this composition never
+        // declares: nothing in it can invoke that service.
+        return Ok(());
+    }
+    let report = establish_behavior_exclusions_with_owners(
         module,
         &[module.entry],
         &exclusions,
         checked.selected_provider_plans(),
+        &boundary_service_owners(checked, module),
     );
     match report.verdict() {
         BehaviorExclusionVerdict::Satisfied => Ok(()),
         _ => Err(behavior_exclusion_diagnostics(
-            checked, authored, module, provenance, &report,
+            checked,
+            authored,
+            module,
+            provenance,
+            &trait_identity,
+            &report,
         )),
+    }
+}
+
+/// Join each boundary declaration of `module` to the service its trait
+/// owns: the boundary's canonical identity is the trait requirement's
+/// normalized overload identity, and the owning service identity is the
+/// boundary trait's declared name.
+pub(crate) fn boundary_service_owners(
+    checked: &CheckedCompilation,
+    module: &terminal_psi::TerminalModule,
+) -> build_evaluation::BoundaryServiceOwners {
+    let mut owning_service: BTreeMap<String, String> = BTreeMap::new();
+    for definition in checked
+        .typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+    {
+        for signature in checked.typed.trait_machine_signatures(definition) {
+            owning_service.insert(
+                checked
+                    .typed
+                    .normalized_trait_requirement_overload_identity(definition, signature)
+                    .identity(),
+                definition.name.as_str().to_owned(),
+            );
+        }
+    }
+    build_evaluation::BoundaryServiceOwners::from_module(module, &|boundary_identity| {
+        owning_service.get(boundary_identity).cloned()
+    })
+}
+
+/// Map a checked boundary-trait symbol to the identity Terminal service
+/// declarations carry for it: the trait's declared name.
+pub(crate) fn boundary_trait_identity(
+    checked: &CheckedCompilation,
+) -> impl Fn(symbols::SymbolHandle) -> Option<String> + '_ {
+    move |symbol| {
+        checked
+            .typed
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == symbol && definition.is_boundary)
+            .map(|definition| definition.name.as_str().to_owned())
     }
 }
 
@@ -272,6 +329,7 @@ fn behavior_exclusion_diagnostics(
     authored: &[AuthoredBehaviorExclusion],
     module: &terminal_psi::TerminalModule,
     provenance: &MachineProvenance,
+    trait_identity: &dyn Fn(symbols::SymbolHandle) -> Option<String>,
     report: &BehaviorExclusionReport,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::with_capacity(2 * (report.prohibited.len() + report.gaps.len()) + 1);
@@ -282,7 +340,7 @@ fn behavior_exclusion_diagnostics(
     for prohibited in &report.prohibited {
         let mut diagnostic = Diagnostic::error(format!(
             "behavior exclusion violated: {} is reachable in {} at {}",
-            describe_exclusion(prohibited.exclusion),
+            describe_exclusion(module, prohibited.exclusion),
             provenance.label(prohibited.machine),
             describe_site(module, &prohibited.site),
         ));
@@ -290,7 +348,7 @@ fn behavior_exclusion_diagnostics(
         // named the requirement, not an internal Terminal coordinate.
         if let Some(row) = authored
             .iter()
-            .find(|row| row.exclusion() == prohibited.exclusion)
+            .find(|row| row.resolve(module, trait_identity) == Some(prohibited.exclusion))
         {
             diagnostic = diagnostic.with_source_span(row.source_span);
         }
@@ -303,7 +361,7 @@ fn behavior_exclusion_diagnostics(
             prohibited.machine,
             format!(
                 "the selected composition retains {} through {} declared here",
-                describe_exclusion(prohibited.exclusion),
+                describe_exclusion(module, prohibited.exclusion),
                 provenance.label(prohibited.machine),
             ),
         ) {
@@ -334,13 +392,23 @@ fn behavior_exclusion_diagnostics(
     diagnostics
 }
 
-fn describe_exclusion(exclusion: build_evaluation::BehaviorExclusion) -> String {
+fn describe_exclusion(
+    module: &terminal_psi::TerminalModule,
+    exclusion: build_evaluation::BehaviorExclusion,
+) -> String {
     match exclusion {
         build_evaluation::BehaviorExclusion::CrashCause(cause) => {
             format!("crash cause {cause:?}")
         }
         build_evaluation::BehaviorExclusion::Service(service) => {
-            format!("service {service}")
+            match module
+                .services
+                .iter()
+                .find(|declaration| declaration.id == service)
+            {
+                Some(declaration) => format!("service `{}`", declaration.identity),
+                None => format!("service {service}"),
+            }
         }
     }
 }

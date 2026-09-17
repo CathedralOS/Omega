@@ -106,7 +106,10 @@ fn authored_exclude_crash_retains_exact_case_identity_and_authored_span() {
         panic!("exactly one authored exclusion must be retained");
     };
     let build_evaluation::AuthoredBehaviorExclusionKind::CrashCause { cause, case_symbol } =
-        exclusion.kind;
+        exclusion.kind
+    else {
+        panic!("the authored exclusion is a crash cause");
+    };
     assert_eq!(cause, terminal_psi::CrashCause::Trap);
     assert_eq!(
         case_symbol,
@@ -184,7 +187,10 @@ machine build(builder: &mut Build) {
         panic!("the helper's authored exclusion must be retained");
     };
     let build_evaluation::AuthoredBehaviorExclusionKind::CrashCause { cause, case_symbol } =
-        exclusion.kind;
+        exclusion.kind
+    else {
+        panic!("the authored exclusion is a crash cause");
+    };
     assert_eq!(cause, terminal_psi::CrashCause::Abort);
     assert_eq!(case_symbol, toolchain_crash_cause_case(&checked, "Abort"));
     assert_eq!(exclusion.selecting_machine, restrict.symbol);

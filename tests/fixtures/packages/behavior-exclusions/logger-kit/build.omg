@@ -1,0 +1,8 @@
+// package-manager fixture: one abstract Sink service, a silent provider for
+// it, and an ordinary silent logger that only publishes a broad Sink
+// allowance (wiki/spec/build/behavior_exclusions.md, Console rows).
+
+machine build(builder: &mut Build) {
+    builder.package("logger-kit");
+    builder.select_provider<Sink, QuietSink>();
+}

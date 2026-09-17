@@ -1,0 +1,22 @@
+// `Sink` stands in for an abstract output service such as Console: invoking
+// it through a boundary is a service invocation whatever the selected
+// provider does. `log_quiet` merely retains the conservative allowance; its
+// verified body never invokes the service.
+use omega::language::core::service;
+
+pub boundary trait Sink {
+    machine emit(text: &[u8]);
+}
+
+pub data QuietSink { }
+
+machine QuietSink::emit(text: &[u8])
+satisfies Sink::emit
+{
+}
+
+pub machine log_quiet(text: &[u8])
+reaches Sink
+{
+    let marker: u8 = 0;
+}

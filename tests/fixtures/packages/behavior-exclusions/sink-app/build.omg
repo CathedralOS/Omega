@@ -1,0 +1,10 @@
+// package-manager fixture: excludes the Sink service while composing a
+// silent provider for a real Sink invocation; the exclusion must reject.
+
+machine build(builder: &mut Build) {
+    builder.application("sink-app");
+    builder.depend(Source::Path { location: "../logger-kit" });
+    builder.select_provider<Sink, QuietSink>();
+    builder.exclude_service<Sink>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}

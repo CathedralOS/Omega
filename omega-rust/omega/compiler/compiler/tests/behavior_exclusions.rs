@@ -34,19 +34,23 @@ fn identity(seed: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([seed; 32]).expect("nonzero package identity")
 }
 
-/// The application `app` composed with `assert-kit` under the alias its
-/// source imports (`use assert_kit::main;`).
+/// The application `app` composed with its one library dependency under the
+/// alias its source imports (`use assert_kit::main;` / `use logger_kit::main;`).
 fn inputs(app: &str) -> PackageCompilationInputs {
     let root = fixture_root();
+    let (library, alias) = match app {
+        "quiet-logger-app" | "sink-app" => ("logger-kit", "logger_kit"),
+        _ => ("assert-kit", "assert_kit"),
+    };
     PackageCompilationInputs::new_package(
         identity(0x61),
         vec![
             PackageSourceBinding::new(identity(0x61), app, root.join(app)),
-            PackageSourceBinding::new(identity(0x62), "assert-kit", root.join("assert-kit")),
+            PackageSourceBinding::new(identity(0x62), library, root.join(library)),
         ],
         vec![PackageDependencyBinding::new(
             identity(0x61),
-            "assert_kit",
+            alias,
             identity(0x62),
         )],
     )
@@ -209,5 +213,59 @@ fn native_route_shares_the_exclusion_verdict() {
     assert!(
         text.contains("UnsupportedBoundaryCrashContract"),
         "the recorded limit is the boundary crash contract: {text}"
+    );
+}
+
+#[test]
+fn silent_ordinary_logger_satisfies_the_service_exclusion_despite_its_allowance() {
+    let report = compile_one(
+        "quiet-logger-app",
+        RequestedCompileProduct::TerminalArtifact,
+        OptimizationRollback::default(),
+        "quiet-logger",
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!("a silent ordinary logger passes a Sink exclusion: {diagnostics:#?}")
+    });
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("retained Terminal product");
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained native proposal");
+    // The retained exclusion set carries the service resolved in this
+    // artifact, or nothing when the composition never declares it; either
+    // way no crash cause was authored.
+    assert!(proposal.behavior_exclusions().crash_causes().is_empty());
+}
+
+#[test]
+fn silent_provider_for_an_actual_service_invocation_is_prohibited() {
+    let diagnostics = compile_one(
+        "sink-app",
+        RequestedCompileProduct::TerminalArtifact,
+        OptimizationRollback::default(),
+        "sink-invocation",
+    )
+    .expect_err("an abstract Sink invocation counts even behind a silent provider");
+    let text = messages(&diagnostics);
+    assert!(
+        text.contains("behavior exclusion violated: service `Sink`"),
+        "prohibited possible behavior, named by service identity: {text}"
+    );
+    assert!(
+        text.contains("call to boundary"),
+        "the site is the boundary invocation: {text}"
+    );
+    assert!(
+        !text.contains("evidence is insufficient"),
+        "a witnessed invocation is not an evidence gap: {text}"
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("behavior exclusion violated")
+                && diagnostic.source_span.is_some()
+        }),
+        "the rejection points at the authored exclude_service span: {text}"
     );
 }

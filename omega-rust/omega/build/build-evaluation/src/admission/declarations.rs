@@ -452,25 +452,27 @@ pub fn harvest_behavior_exclusions(
 ) -> Result<Vec<AuthoredBehaviorExclusion>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut exclusions: Vec<AuthoredBehaviorExclusion> = Vec::new();
-    let Some(exclusion_machine) = toolchain_build_prelude_machine(typed, "Build::exclude_crash")
-    else {
-        // No toolchain exclusion vocabulary exists in this program, so no
-        // authored exclusion call can resolve to it.
-        return Ok(exclusions);
-    };
-    let mut exclusion_targets: HashSet<SymbolHandle> = typed
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == exclusion_machine)
-        .map(|candidate| {
+    // The crash vocabulary is a toolchain prelude machine; a program without
+    // it cannot spell a crash exclusion. The service marker is a parser-level
+    // build declaration (`exclude_service<Trait>()`) and is harvested by name
+    // below regardless.
+    let exclusion_machine = toolchain_build_prelude_machine(typed, "Build::exclude_crash");
+    let mut exclusion_targets: HashSet<SymbolHandle> = exclusion_machine
+        .and_then(|exclusion_machine| {
             typed
-                .machine_states(candidate)
+                .machines()
                 .iter()
-                .map(|state| state.symbol)
-                .collect()
+                .find(|candidate| candidate.symbol == exclusion_machine)
+                .map(|candidate| {
+                    typed
+                        .machine_states(candidate)
+                        .iter()
+                        .map(|state| state.symbol)
+                        .collect()
+                })
         })
         .unwrap_or_default();
-    exclusion_targets.insert(exclusion_machine);
+    exclusion_targets.extend(exclusion_machine);
 
     // The root build machine's checked static call scope. Dynamic calls
     // carry no target identity and cannot add or hide a selection here.
@@ -512,20 +514,25 @@ pub fn harvest_behavior_exclusions(
     let mut scope_errored: HashSet<SymbolHandle> = HashSet::new();
     let mut record = |typed: &TypedTrees,
                       candidate: &typed_trees::machine::Machine,
-                      targets_exclusion: bool,
+                      target: ExclusionCallTarget,
+                      machine_arguments: &[typed_trees::expression::StaticMachineArgument],
                       arguments: &[typed_trees::expression::ExpressionHandle],
                       source_span: source::SourceSpan,
                       exclusions: &mut Vec<AuthoredBehaviorExclusion>,
                       diagnostics: &mut Vec<Diagnostic>| {
-        if !targets_exclusion {
-            return;
+        let spelling = match target {
+            ExclusionCallTarget::None => return,
+            ExclusionCallTarget::CrashCause => "exclude_crash",
+            ExclusionCallTarget::Service => "exclude_service",
+        };
+        if target == ExclusionCallTarget::CrashCause {
+            *found_per_machine.entry(candidate.symbol).or_insert(0) += 1;
         }
-        *found_per_machine.entry(candidate.symbol).or_insert(0) += 1;
         if !admissible(candidate.symbol) {
             if scope_errored.insert(candidate.symbol) {
                 diagnostics.push(
                     Diagnostic::error(format!(
-                        "behavior exclusion `exclude_crash` in machine `{}` is outside the root build machine's checked call scope",
+                        "behavior exclusion `{spelling}` in machine `{}` is outside the root build machine's checked call scope",
                         candidate.name.as_str(),
                     ))
                     .with_source_span(source_span),
@@ -533,20 +540,45 @@ pub fn harvest_behavior_exclusions(
             }
             return;
         }
-        match authored_crash_cause(typed, arguments) {
-            Ok((cause, case_symbol)) => {
-                let exclusion = AuthoredBehaviorExclusion {
-                    kind: AuthoredBehaviorExclusionKind::CrashCause { cause, case_symbol },
-                    selecting_machine: candidate.symbol,
-                    source_span,
-                };
-                if !exclusions.iter().any(|existing| {
-                    existing.kind == exclusion.kind && existing.source_span == exclusion.source_span
-                }) {
-                    exclusions.push(exclusion);
+        let kind = match target {
+            ExclusionCallTarget::CrashCause => match authored_crash_cause(typed, arguments) {
+                Ok((cause, case_symbol)) => {
+                    AuthoredBehaviorExclusionKind::CrashCause { cause, case_symbol }
+                }
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic.with_source_span(source_span));
+                    return;
+                }
+            },
+            ExclusionCallTarget::Service => {
+                match authored_service_exclusion(typed, machine_arguments, arguments) {
+                    Ok(trait_symbol) => AuthoredBehaviorExclusionKind::Service { trait_symbol },
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic.with_source_span(source_span));
+                        return;
+                    }
                 }
             }
-            Err(diagnostic) => diagnostics.push(diagnostic.with_source_span(source_span)),
+            ExclusionCallTarget::None => return,
+        };
+        let exclusion = AuthoredBehaviorExclusion {
+            kind,
+            selecting_machine: candidate.symbol,
+            source_span,
+        };
+        if !exclusions.iter().any(|existing| {
+            existing.kind == exclusion.kind && existing.source_span == exclusion.source_span
+        }) {
+            exclusions.push(exclusion);
+        }
+    };
+    let classify = |target_symbol: SymbolHandle, target: &str| {
+        if exclusion_targets.contains(&target_symbol) {
+            ExclusionCallTarget::CrashCause
+        } else if !target_symbol.is_valid() && target == "exclude_service" {
+            ExclusionCallTarget::Service
+        } else {
+            ExclusionCallTarget::None
         }
     };
 
@@ -557,7 +589,8 @@ pub fn harvest_behavior_exclusions(
                     typed_trees::statement::StatementNode::Call(call) => record(
                         typed,
                         candidate,
-                        exclusion_targets.contains(&call.target_symbol),
+                        classify(call.target_symbol, call.target.as_str()),
+                        &call.machine_arguments,
                         typed.statement_table.expression_handles(call.arguments),
                         call.source_span,
                         &mut exclusions,
@@ -570,7 +603,8 @@ pub fn harvest_behavior_exclusions(
                             record(
                                 typed,
                                 candidate,
-                                exclusion_targets.contains(&call.target_symbol),
+                                classify(call.target_symbol, call.target.as_str()),
+                                &call.machine_arguments,
                                 typed.expression_table.expression_handles(call.arguments),
                                 typed.expression_table.source_span(*expression),
                                 &mut exclusions,
@@ -594,7 +628,7 @@ pub fn harvest_behavior_exclusions(
             .span_or_empty(machine_operational.states)
             .iter()
             .flat_map(|state| operational_plan.calls.span_or_empty(state.calls).iter())
-            .filter(|call| call.target_machine_symbol == exclusion_machine)
+            .filter(|call| Some(call.target_machine_symbol) == exclusion_machine)
             .count();
         if expected == 0 {
             continue;
@@ -631,6 +665,56 @@ pub fn harvest_behavior_exclusions(
 
 /// Validate the single `exclude_crash` argument as an exact compiler-owned
 /// `CrashCause` case, mirroring the `CompositionMode` case check.
+/// Which exclusion spelling one scanned call is, if any.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExclusionCallTarget {
+    None,
+    CrashCause,
+    Service,
+}
+
+/// The exact boundary trait an `exclude_service<Trait>()` marker names.
+/// The parser retains exactly one plain type path; ordinary resolution
+/// assigned its symbol, which must be a boundary trait declaration. Data,
+/// ordinary traits, machines and unresolved paths reject: a service name is
+/// an authorized declaration, never a label.
+fn authored_service_exclusion(
+    typed: &TypedTrees,
+    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
+    arguments: &[typed_trees::expression::ExpressionHandle],
+) -> Result<SymbolHandle, Diagnostic> {
+    if !arguments.is_empty() {
+        return Err(Diagnostic::error(
+            "service exclusion takes no value arguments",
+        ));
+    }
+    let [argument] = machine_arguments else {
+        return Err(Diagnostic::error(
+            "service exclusion must retain exactly one resolved boundary-trait type path",
+        ));
+    };
+    let authored_path = argument
+        .path
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let symbol = argument.symbol;
+    if symbol.is_valid()
+        && typed.symbols.get(symbol).kind == SymbolKind::Trait
+        && typed
+            .traits()
+            .iter()
+            .any(|definition| definition.symbol == symbol && definition.is_boundary)
+    {
+        Ok(symbol)
+    } else {
+        Err(Diagnostic::error(format!(
+            "service exclusion `{authored_path}` does not resolve to an exact boundary trait declaration"
+        )))
+    }
+}
+
 fn authored_crash_cause(
     typed: &TypedTrees,
     arguments: &[typed_trees::expression::ExpressionHandle],
