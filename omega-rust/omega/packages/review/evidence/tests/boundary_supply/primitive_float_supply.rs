@@ -433,3 +433,135 @@ fn primitive_float_binary_intrinsics_require_the_exact_token_and_shape() {
         );
     }
 }
+
+/// The requirement-side intrinsic bridge: the same in-package float intrinsic
+/// spelled as a top-level `boundary requirement` projects the same selected
+/// provider row and the same D29 application-realization row as the named
+/// operator spelling, modulo the species-specific declaration path and the
+/// overload coordinate the requirement view keys on.
+#[test]
+fn review_closes_a_requirement_spelled_float_negation_like_the_operator_spelling() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    const OPERATOR_SOURCE: &str = r#"pub data F32 {}
+pub boundary operator F32::negate(value: f32) -> f32;
+
+pub data FloatProvider {}
+pub machine FloatProvider::negate_f32(value: f32) -> f32
+    satisfies F32::negate
+    via Binding::CompilerIntrinsic;
+
+machine exercise() {
+    let negative32: f32 = F32::negate(1.0f32);
+}
+"#;
+    let mut reviews = Vec::new();
+    for source in [
+        OPERATOR_SOURCE.to_owned(),
+        OPERATOR_SOURCE.replace("pub boundary operator", "pub boundary requirement"),
+    ] {
+        let package = TempPackage::new();
+        package.write("main.omg", &source);
+        package.write(
+            "build.omg",
+            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+        );
+        let checked = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        })
+        .expect("both negation spellings check");
+        let requirement_uses = checked
+            .facts
+            .operators
+            .named_requirement_uses()
+            .filter(|selected_use| selected_use.provider_plan_report_fingerprint != 0)
+            .count();
+        let operator_uses = checked
+            .facts
+            .operators
+            .named_uses()
+            .filter(|selected_use| selected_use.provider_plan_report_fingerprint != 0)
+            .count();
+        reviews.push((
+            project_checked_package_review(&checked)
+                .expect("both negation spellings have a closed package-review identity"),
+            operator_uses,
+            requirement_uses,
+        ));
+    }
+    let [(operator_review, 1, 0), (requirement_review, 0, 1)] = reviews.as_slice() else {
+        panic!(
+            "each spelling stamps exactly one use of its own species: {:?}",
+            reviews
+                .iter()
+                .map(|(_, operators, requirements)| (operators, requirements))
+                .collect::<Vec<_>>()
+        );
+    };
+
+    for (review, species) in [
+        (operator_review, "operator"),
+        (requirement_review, "requirement"),
+    ] {
+        let selected = review
+            .selected_providers()
+            .iter()
+            .find(|provider| provider.schema_declaration().path() == "F32::negate")
+            .unwrap_or_else(|| panic!("{species}: missing selected provider for F32::negate"));
+        let [row] = selected.row_declarations() else {
+            panic!("{species}: one selected provider row for F32::negate")
+        };
+        assert_eq!(
+            row.compiler_intrinsic_execution(),
+            Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+                numerics::literals::FloatFormat::F32
+            )),
+            "{species}: the closed execution identity is the same",
+        );
+        assert_eq!(row.realization().path(), "FloatProvider::negate_f32");
+
+        let [application] = review.boundary_application_realizations() else {
+            panic!("{species}: exactly one D29 application-realization row")
+        };
+        assert_eq!(application.operator_declaration().path(), "F32::negate");
+        assert_eq!(
+            application.application(),
+            PackageReviewBoundaryApplication::Empty
+        );
+        assert_eq!(
+            application.role(),
+            PackageReviewBoundaryApplicationRealizationRole::ExactCompilerIntrinsic,
+        );
+        assert!(matches!(
+            application.realization(),
+            PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic {
+                execution: PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+                    numerics::literals::FloatFormat::F32
+                ),
+            }
+        ));
+        assert_ne!(application.selected_plan_digest(), &[0; 32]);
+    }
+    let [operator_application] = operator_review.boundary_application_realizations() else {
+        unreachable!()
+    };
+    let [requirement_application] = requirement_review.boundary_application_realizations() else {
+        unreachable!()
+    };
+    assert_ne!(
+        operator_application.requirement_identity(),
+        requirement_application.requirement_identity(),
+        "the overload coordinate is the species' own: the operator overload identity or the requirement's normalized machine overload",
+    );
+    assert_eq!(
+        operator_application.realization(),
+        requirement_application.realization()
+    );
+    assert_eq!(
+        operator_application.selected_plan_digest() == &[0; 32],
+        requirement_application.selected_plan_digest() == &[0; 32]
+    );
+}

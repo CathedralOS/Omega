@@ -41,6 +41,15 @@ pub(super) fn project(
             } => expression,
             _ => continue,
         };
+        // The authored selection ledger names what the call resolved to: the
+        // operator itself, or a top-level requirement's entry state.
+        let selection_target = provider_planning::IntrinsicRequirement::by_symbol(
+            &compilation.typed,
+            application.requirement_symbol,
+        )
+        .map_or(application.requirement_symbol, |requirement| {
+            requirement.call_target
+        });
         let uses = exact_application_uses(
             compilation,
             application.site,
@@ -116,7 +125,7 @@ pub(super) fn project(
                 compilation,
                 expression,
                 actual_use.kind,
-                application.requirement_symbol,
+                selection_target,
                 package,
             )?
         {
@@ -144,7 +153,7 @@ pub(super) fn project(
                     compilation,
                     expression,
                     actual_use.kind,
-                    application.requirement_symbol,
+                    selection_target,
                 )?
             },
             PackageReviewSourceLocationRole::BoundaryApplicationUse,
@@ -223,20 +232,19 @@ pub(super) fn project(
                 plan.name,
             ))]
         })?;
-        let operator = compilation
-            .typed
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == application.requirement_symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "actual compiler-intrinsic application lost its operator declaration",
-                )]
-            })?;
-        let requirement_identity = typed_trees::operator::boundary_operator_requirement_identity(
+        // The demand names a boundary operator or a top-level boundary
+        // requirement; the review row keys on the same overload coordinate
+        // for either species.
+        let requirement_identity = provider_planning::IntrinsicRequirement::by_symbol(
             &compilation.typed,
-            operator,
-        );
+            application.requirement_symbol,
+        )
+        .map(|requirement| requirement.requirement_identity)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "actual compiler-intrinsic application names no boundary operator or top-level boundary requirement",
+            )]
+        })?;
         if requirement_identity.is_empty() || actual_use.plan_commitment.is_empty() {
             return Err(vec![Diagnostic::error(
                 "actual compiler-intrinsic application lost a strong semantic identity",
@@ -297,6 +305,27 @@ fn exact_application_uses(
                     plan_commitment: operator_use.provider_plan_commitment,
                 })
         })
+        .chain(
+            compilation
+                .facts
+                .operators
+                .named_requirement_uses
+                .iter()
+                .filter_map(|(_, requirement_use)| {
+                    (site
+                        == checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                            expression: requirement_use.expression,
+                            origin: requirement_use.origin,
+                        }
+                        && requirement_use.requirement_symbol == requirement)
+                        .then_some(ExactApplicationUse {
+                            kind: selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
+                            plan_report_fingerprint: requirement_use
+                                .provider_plan_report_fingerprint,
+                            plan_commitment: requirement_use.provider_plan_commitment,
+                        })
+                }),
+        )
         .chain(
             compilation
                 .facts
