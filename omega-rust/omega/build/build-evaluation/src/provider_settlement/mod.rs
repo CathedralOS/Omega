@@ -1,5 +1,12 @@
 //! Provider settlement for the checked program: plans derived, validated
-//! and selected with provenance over the settled target machines.
+//! and selected with provenance over the settled target machines, with every
+//! `Independent` selection closed against the build's verified components.
+//!
+//! `settle_checked_providers` is the route. `independent_components` owns the
+//! one subordinate admission: re-verifying the component descriptions the
+//! package inputs attached before provider planning joins them.
+
+mod independent_components;
 
 use crate::admission::target_machines::SelectedTargetMachineDeclarations;
 use diagnostics::Diagnostic;
@@ -117,11 +124,20 @@ pub fn settle_checked_providers(
         typed,
         opaque_representation_selections,
     )?;
+    // Component-closure join. The verified components come only from the
+    // descriptions attached to this compilation's package inputs, each
+    // re-verified under the build's profile; every `Independent` selection
+    // must be realized by exactly one of them and every component must
+    // realize one selection, so a build that supplies none, several, an
+    // unmatched extra, or a mismatched realization rejects here.
+    let independent_components =
+        independent_components::verify_independent_components(package_inputs)?;
     let (selected_provider_plan_facts, selected_provider_provenance) =
-        provider_planning::selected_provider_plan_facts(
+        provider_planning::selected_provider_plan_facts_with_independent_components(
             typed,
             &evaluated_via_bindings,
             selected_provider_plans,
+            &independent_components,
         )?;
     Ok(CheckedProviderSelection {
         provider_plans,

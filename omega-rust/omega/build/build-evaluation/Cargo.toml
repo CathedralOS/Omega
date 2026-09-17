@@ -19,6 +19,7 @@ syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 validation = { path = "../../../psi/semantics/validation" }
 build-output = { path = "../build-output" }
 calling-conventions = { path = "../../representations/calling-conventions" }
+component-description = { path = "../../backend/artifacts/component-description" }
 effects = { path = "../../representations/effects" }
 optimization-core = { path = "../../representations/optimization-core" }
 package-compilation = { path = "../package-compilation" }
@@ -42,5 +43,8 @@ typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-ch
 sha2 = "0.10.9"
 
 [dev-dependencies]
+component-description = { path = "../../backend/artifacts/component-description", features = ["test-support"] }
 source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
