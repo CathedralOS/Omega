@@ -14,11 +14,13 @@ use numerics::{
 };
 
 mod entry_requirements;
+mod operation_contracts;
 mod outcome;
 mod site_truth;
 
 pub use outcome::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
 
+pub(super) use operation_contracts::validate_operation_crash_contracts;
 pub(super) use site_truth::validate_site_guard_truth;
 
 pub(super) fn validate_boundary_crash_routes(

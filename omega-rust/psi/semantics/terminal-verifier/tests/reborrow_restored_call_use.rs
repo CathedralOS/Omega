@@ -53,6 +53,7 @@ fn restored_call_use_module() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
         structural_types: vec![StructuralTypeDeclaration {

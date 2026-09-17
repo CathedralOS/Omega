@@ -1855,10 +1855,27 @@ Owners include
   published/surviving site rows. Terminal consumers still resolve selected
   comparisons only through `selected_float_comparison`, so an integer
   `SelectedComparison` rejects at lowering rather than replaying; the lowering
-  fence for crash-qualified uses is unchanged. The next slice is a Terminal
-  operation-level carrier whose verifier substitutes operands as
-  `validate_call_crash_coverage` does; design the row only now that the
-  producer exists.
+  fence for crash-qualified uses is unchanged. Terminal now carries the
+  operation-level contract: `TerminalModule::operation_crash_contracts`
+  (`terminal-psi/src/terminal_module/proof/operation_crash_contracts.rs`) rows
+  name `(machine, operation)`, the operator's published routes in a
+  declaration-local formal namespace (scalar operand ordinal plus one, typed by
+  that operand, as boundary crash routes do) and the surviving continuations
+  in the machine's value namespace; the codec encodes the roster after scalar
+  block invariants under format marker 99, and
+  `terminal-verifier/src/validation/crash/operation_contracts.rs` rejects an
+  unknown or call/operand-free operation, a noncanonical or non-scalar
+  published roster, continuations that differ from the exact operand
+  substitution (empty, widened, swapped, recaused), and then applies
+  `validate_call_crash_coverage`. Regressions: `cargo nextest run -p
+  terminal-verifier --test suite operation_crash_contracts` (7) and `-p
+  terminal-codec --test suite operation_crash_contracts` (3, including the
+  format-98 layout rejection); macOS ARM64. No producer writes the row yet:
+  `checked-trees-to-lowered-psi` still fences crash-qualified uses at
+  `machine_lowering.rs`, so the next slice lowers each
+  `CheckedCrashOperatorSite` (`published`/`surviving` as
+  `CrashPredicateIdentity`) into this row's `Proposition` form at the emitted
+  operation, reusing the boundary crash-route lowering, and lifts that fence.
 
 - **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
   and independent checker in Psi, under the

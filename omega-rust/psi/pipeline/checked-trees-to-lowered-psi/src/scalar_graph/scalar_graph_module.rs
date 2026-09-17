@@ -545,6 +545,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         semantic_module: TerminalModule {
             scalar_qualifications,
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: terminal_machine,
             structural_types: Vec::new(),

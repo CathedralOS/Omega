@@ -139,6 +139,7 @@ mod machine_bounds {
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
             entry: id(entry),
             structural_types: Vec::new(),

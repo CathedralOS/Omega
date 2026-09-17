@@ -1019,6 +1019,7 @@ fn assemble_unit_closure(
                 ..Default::default()
             },
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             // Operation bodies are emitted first; a scalar entry may follow
             // its helpers. Preserve the selected source owner, not roster order.

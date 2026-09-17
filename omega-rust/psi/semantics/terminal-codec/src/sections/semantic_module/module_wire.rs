@@ -9,8 +9,8 @@
 //! (`declaration_wire`, `placed_view_wire`, `borrow_wire`,
 //! `float_meaning_wire`, `evidence_wire`, `proof_output_wire`,
 //! `recursive_component_wire`, `closed_conformance_wire`,
-//! `carry_and_suspension_wire`, `scalar_block_invariant_wire`) or in a
-//! sibling wire module.
+//! `carry_and_suspension_wire`, `scalar_block_invariant_wire`,
+//! `operation_crash_contract_wire`) or in a sibling wire module.
 
 mod borrow_wire;
 mod carry_and_suspension_wire;
@@ -20,6 +20,7 @@ mod closed_conformance_wire;
 mod declaration_wire;
 mod evidence_wire;
 mod float_meaning_wire;
+mod operation_crash_contract_wire;
 mod placed_view_wire;
 mod proof_output_wire;
 mod scalar_block_invariant_wire;
@@ -213,6 +214,13 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for invariant in &module.scalar_block_invariants {
         scalar_block_invariant_wire::encode_scalar_block_invariant(&mut writer, invariant)?;
     }
+    writer.len(
+        "operation crash contracts",
+        module.operation_crash_contracts.len(),
+    )?;
+    for contract in &module.operation_crash_contracts {
+        operation_crash_contract_wire::encode_operation_crash_contract(&mut writer, contract)?;
+    }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
         super::machine_wire::encode_machine(&mut writer, machine)?;
@@ -297,6 +305,10 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         reader,
         scalar_block_invariant_wire::decode_scalar_block_invariant,
     )?;
+    let operation_crash_contracts = decode_counted(
+        reader,
+        operation_crash_contract_wire::decode_operation_crash_contract,
+    )?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
@@ -305,6 +317,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     Ok(TerminalModule {
         scalar_qualifications,
         scalar_block_invariants,
+        operation_crash_contracts,
         vocabulary_marker,
         entry,
         structural_types,

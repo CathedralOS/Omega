@@ -26,6 +26,7 @@ fn unit_fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(900),
         structural_types: Vec::new(),
@@ -652,6 +653,7 @@ fn unit_effect_fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(700),
         structural_types: Vec::new(),
@@ -898,6 +900,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -1026,6 +1029,7 @@ fn call_fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),

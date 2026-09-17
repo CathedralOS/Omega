@@ -34,6 +34,7 @@ fn module(argument_bits: u64) -> TerminalModule {
             ..Default::default()
         },
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),

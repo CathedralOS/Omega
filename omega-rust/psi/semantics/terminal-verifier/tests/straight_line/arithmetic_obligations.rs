@@ -38,6 +38,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(198).expect("machine"),
         structural_types: Vec::new(),
@@ -133,6 +134,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(202).expect("machine"),
         structural_types: Vec::new(),
@@ -236,6 +238,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(212).expect("machine"),
         structural_types: Vec::new(),
@@ -357,6 +360,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(222).expect("machine"),
         structural_types: Vec::new(),
@@ -451,6 +455,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(232).expect("machine"),
         structural_types: Vec::new(),
@@ -545,6 +550,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(242).expect("machine"),
         structural_types: Vec::new(),
@@ -639,6 +645,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(252).expect("machine"),
         structural_types: Vec::new(),
@@ -733,6 +740,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(256).expect("machine"),
         structural_types: Vec::new(),
@@ -852,6 +860,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
         let module = TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(70).expect("machine"),
             structural_types: Vec::new(),

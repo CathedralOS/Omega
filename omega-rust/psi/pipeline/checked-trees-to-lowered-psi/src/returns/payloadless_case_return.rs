@@ -127,6 +127,7 @@ pub(crate) fn lower_payloadless_case_return_machine(
         semantic_module: TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: terminal_machine,
             structural_types,

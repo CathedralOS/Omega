@@ -36,6 +36,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -210,6 +211,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

@@ -141,6 +141,7 @@ pub(super) fn identity_reshuffle_module() -> (TerminalModule, Proposition, Oblig
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: vec![StructuralTypeDeclaration {
@@ -372,6 +373,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
         structural_types: vec![StructuralTypeDeclaration {
@@ -705,6 +707,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: vec![StructuralTypeDeclaration {
@@ -832,6 +835,7 @@ pub(super) fn reflexive_content_module() -> (TerminalModule, Proposition, Obliga
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),

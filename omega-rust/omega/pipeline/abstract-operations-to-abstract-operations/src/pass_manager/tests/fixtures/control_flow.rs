@@ -20,6 +20,7 @@ fn module(machine: terminal_psi::TerminalMachine) -> terminal_psi::TerminalModul
     terminal_psi::TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         structural_types: Vec::new(),

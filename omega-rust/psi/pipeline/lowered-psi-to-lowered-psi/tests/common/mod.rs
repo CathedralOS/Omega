@@ -143,6 +143,7 @@ pub fn lowered(machines: Vec<TerminalMachine>) -> LoweredPsi {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             closed_conformance_applications: Vec::new(),
             dynamic_dispatch: Default::default(),
             suspension_call_plan_count: 0,
