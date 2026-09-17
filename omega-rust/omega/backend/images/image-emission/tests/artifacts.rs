@@ -6,8 +6,6 @@
 
 #[path = "artifacts/dynamic_and_cleanup_plans.rs"]
 mod dynamic_and_cleanup_plans;
-#[path = "artifacts/dynamic_elf_route.rs"]
-mod dynamic_elf_route;
 #[path = "artifacts/hosted_exit_runtime.rs"]
 mod hosted_exit_runtime;
 #[path = "artifacts/installation_field_substitutions.rs"]
@@ -30,6 +28,8 @@ mod object_replays;
 mod provider_and_call_plans;
 #[path = "artifacts/provider_execution.rs"]
 mod provider_execution;
+#[path = "artifacts/requested_executable_route.rs"]
+mod requested_executable_route;
 #[path = "artifacts/scalar_plans.rs"]
 mod scalar_plans;
 
