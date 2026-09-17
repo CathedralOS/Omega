@@ -3455,6 +3455,33 @@ Owners include
   generic/exact-application coverage. Partial, duplicate, stale, substituted,
   or padded family rows reject; equality of provider assertions is never
   realization coverage.
+  Resume evidence (65d71153a9..420a15b109, 2026-09-17, macOS ARM64):
+  family selection is pinned in `provider-planning`.
+  `ProviderOperatorFamilySelection::derive` is the one canonical roster
+  derivation (build-evaluation's harvest calls it), and
+  `selected_provider_plan_facts` replays every family declaration against
+  the typed roster and requires exactly one selected plan per coordinate,
+  so partial, padded, stale, substituted, telescope-drifted, and
+  provider-substituted rows reject naming the coordinate (previously a
+  partial row selected its subset and the omitted coordinate fell to the
+  unique covering candidate). Tests: `receipts_and_families.rs::
+  operator_family_{roster_rejects_duplicate_and_empty_coordinates,
+  selection_rejects_a_coordinate_covered_only_on_another_target,
+  selection_from_another_package_cannot_select_same_spelled_coordinates,
+  declared_twice_rejects_every_coordinate_slot,
+  roster_is_independent_of_declaration_order,
+  replay_rejects_partial_padded_stale_and_substituted_rosters,
+  replay_requires_the_declared_provider_to_realize_each_coordinate}` beside
+  the existing atomic, missing-member, unknown-coordinate, and order tests,
+  and `spelled_operator_custody.rs::
+  spelling_the_operator_inside_the_provider_redispatches_while_a_direct_call_delegates`.
+  Generic coverage stays fail-closed through the existing
+  exact-specialization demand (compiler canary `provider_adapters.rs`) and
+  review's nonzero-telescope rejection. Nothing remains in
+  provider-planning or build-evaluation; the acceptance passes, so this
+  item is a removal candidate for the owner (a compiler-level harvest
+  control with reversed overload source order would be the only optional
+  addition).
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish explicit public boundary
   requirement declarations, external satisfiers, provider selection, and
@@ -3599,15 +3626,13 @@ Owners include
   describes it, and attaches `IndependentComponentDescription` to the
   root's target inputs (`compiler.rs` stops at `NativeArtifact`); then a
   build vocabulary for accepted assumption digests so mechanism-bearing
-  components can be admitted (settlement accepts none today). Witnessed at
-  47d360c7cf and unrelated: `independent_provider_selection_reaches_the_componentization_fence`,
-  `provider_selection_rejects_an_authored_composition_mode_lookalike`, and
-  `provider_selection_rejects_conflicting_composition_modes` in
-  `package_compilation_inputs/authority_and_build_files.rs` fail before the
-  fence with build-evaluation's "composition mode must be the exact
-  compiler-owned CompositionMode::Fused or CompositionMode::Independent
-  case" (`admission/declarations.rs`, the arm taken when the typed argument
-  is not a `Name`), a frontend admission regression to attribute.
+  components can be admitted (settlement accepts none today). The
+  composition-mode admission failures witnessed beside the fence input
+  (`independent_provider_selection_reaches_the_componentization_fence` and
+  the two `provider_selection_rejects_*composition_mode*` tests) were
+  0e6c25c4dc normalizing bare case values into constructor literals while
+  `provider_selection_composition_mode` still read only a `Name`; closed at
+  65d71153a9 under BOUNDARY-OPERATOR-FAMILY-SELECTION.
 
 - **FFIVAL.** After the generic callback/runtime path closes, run the Windows
   `user32` boundary-coherence canary with no raw function pointer or Win32-only
