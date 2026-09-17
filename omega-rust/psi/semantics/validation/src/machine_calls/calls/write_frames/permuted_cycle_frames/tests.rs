@@ -15,9 +15,34 @@ fn typed(source: &str) -> TypedTrees {
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
 }
 
-/// A named cycle whose edges carry a value-typed `Kind` into one state and
-/// drop it on the way back. `Kind` is a named type, so the capability law
-/// counts it as write-capable and no edge can be an exact permutation.
+/// A named cycle whose edges carry an exclusive reference into one state and
+/// drop it on the way back. A `&mut u64` is a write-capable root, so no edge
+/// can be an exact permutation.
+const REFERENCE_CYCLE: &str = r#"
+data Output { accepted: bool; count: u64; }
+machine classify(output: &mut Output) {
+    transition { _ -> load(output) }
+    state load(output: &mut Output) {
+        output.count = 1;
+        transition { _ -> dispatch(output, &mut output.count) }
+    }
+    state dispatch(output: &mut Output, count: &mut u64) {
+        count = 2;
+        transition output.accepted {
+            false -> load(output)
+            _ -> done(output)
+        }
+    }
+    state done(output: &mut Output) {
+        output.accepted = true;
+    }
+}
+"#;
+
+/// The same cycle carrying a copy enum instead. `Kind` contains no exclusive
+/// reference anywhere in its structure, so it is the state's own storage,
+/// not a write-capable root: every edge permutes the one `&mut Output` and
+/// the solver recovers the complete frame.
 const KIND_CYCLE: &str = r#"
 data Kind [copy] { case Next; case Stop; }
 data Output { accepted: bool; count: u64; }
@@ -41,7 +66,7 @@ machine classify(output: &mut Output) {
 
 #[test]
 fn count_mismatched_cycle_declines_before_building_equations() {
-    let program = typed(KIND_CYCLE);
+    let program = typed(REFERENCE_CYCLE);
     let machine = &program.machines()[0];
     let resolver = CallFrameResolver::new(&program).expect("resolver");
     CYCLE_EQUATIONS.with(|equations| equations.set(0));
@@ -93,12 +118,12 @@ fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
         "the swapped cycle still solves to both roots"
     );
 
-    let program = typed(KIND_CYCLE);
+    let program = typed(REFERENCE_CYCLE);
     let machine = &program.machines()[0];
     for state in program.machine_states(machine).iter().take(3) {
         assert!(
             !reachable_cycle_edges_can_permute_write_parameters(&program, machine, state),
-            "{} reaches the `Kind` edge",
+            "{} reaches the reference-dropping edge",
             state.name.as_str()
         );
     }
@@ -107,4 +132,34 @@ fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
         machine,
         &program.machine_states(machine)[3]
     ));
+}
+
+#[test]
+fn copy_value_cycle_edges_permute_and_solve_to_complete_frames() {
+    let program = typed(KIND_CYCLE);
+    let machine = &program.machines()[0];
+    for state in program.machine_states(machine) {
+        assert!(
+            reachable_cycle_edges_can_permute_write_parameters(&program, machine, state),
+            "{} carries only the `&mut Output` root around the cycle",
+            state.name.as_str()
+        );
+    }
+    let resolver = CallFrameResolver::new(&program).expect("resolver");
+    let frames = resolver.inferred_machine_state_write_frames(machine);
+    let outcomes = frames
+        .iter()
+        .map(|frame| frame.complete_paths().map(<[String]>::to_vec))
+        .collect::<Vec<_>>();
+    let cycle = Some(vec!["$P0.accepted".to_owned(), "$P0.count".to_owned()]);
+    assert_eq!(
+        outcomes,
+        vec![
+            cycle.clone(),
+            cycle.clone(),
+            cycle,
+            Some(vec!["$P0.accepted".to_owned()])
+        ],
+        "a copy enum crossing a cycle edge no longer keeps the cycle opaque"
+    );
 }
