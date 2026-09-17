@@ -1,5 +1,9 @@
 use super::fixture_roster;
-use crate::{Command, compile_rooted_canary_for_native_host, executable_name, fs, pass_canary};
+use crate::{
+    Command, compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    executable_name, fs, native_hosted_target, pass_canary,
+};
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn runtime_nat_structural_recursion_exit_canary_runs() {
@@ -54,7 +58,10 @@ fn runtime_core_nat_declared_exit_canary_runs() {
 fn accepted_axiom_cited_exit_canary_runs() {
     // CH10 GR6d: a bodyless boundary machine (accepted axiom) parses, its
     // ensures is believed under dev-active grant locality, and a lemma
-    // citing it proves through the accepted fact. Runs untouched.
+    // citing it proves through the accepted fact. Runs untouched. The
+    // ungranted axiom is an own-package dev-active accepted fact carrying the
+    // standing warning in the trust report the compiler reconstructs from
+    // the checked program during admission.
     let canary = pass_canary(fixture_roster::ACCEPTED_AXIOM_CITED_EXIT);
     let build_dir =
         std::env::temp_dir().join(format!("omega-accepted-axiom-{}", std::process::id()));
@@ -71,17 +78,50 @@ fn accepted_axiom_cited_exit_canary_runs() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    let report = fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
-    assert!(
-        report.contains("accepted fact: mul_comm_axiom"),
-        "the axiom must surface as a trust row:\n{report}"
-    );
-    assert!(
-        report.contains("STANDING WARNING"),
-        "an ungranted axiom is dev-active with the standing warning:\n{report}"
-    );
     let _ = fs::remove_dir_all(&build_dir);
+
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some(native_hosted_target()),
+    ))
+    .expect("accepted-axiom canary should reach checked semantics");
+    let axiom = checked
+        .terminal_production_trees()
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "mul_comm_axiom")
+        .expect("the accepted axiom should reach checked semantics");
+    assert!(!axiom.body_is_present, "an accepted axiom is bodyless");
+    assert!(
+        checked.root_grants().is_empty(),
+        "the canary's build grants nothing, so the axiom stays dev-active"
+    );
+    let trust_report = trust_model::reconstruct_trust_report(
+        checked.terminal_production_trees(),
+        checked.root_grants(),
+        checked.provider_plans(),
+        checked.selected_provider_plans(),
+        checked.accepted_template_classifications(),
+    )
+    .expect("the trust report reconstructs from the checked program");
+    let commitments = trust_report
+        .rows
+        .iter()
+        .map(|row| row.commitment.as_str())
+        .collect::<Vec<_>>();
+    let row = trust_report
+        .rows
+        .iter()
+        .find(|row| row.commitment == "accepted fact: mul_comm_axiom")
+        .unwrap_or_else(|| panic!("the axiom must surface as a trust row:\n{commitments:#?}"));
+    assert_eq!(
+        row.provenance, "own-package (dev-active)",
+        "an ungranted axiom is own-package dev-active"
+    );
+    assert!(
+        row.standing_warning,
+        "an ungranted axiom is dev-active with the standing warning"
+    );
 }
 
 #[test]
