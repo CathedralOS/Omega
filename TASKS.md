@@ -1474,8 +1474,13 @@ Owners include
   `retirement_rejects_never_started_accounts`,
   `retirement_rejects_stale_foreign_or_replayed_started_evidence`, and
   `retirement_rejects_receipts_off_the_exact_started_evidence`). Remaining: a
-  provider edge issuing the vector to the target boot protocol and an
-  authored Omega surface invoking the entry.
+  provider edge issuing the vector to the target boot protocol and an authored
+  Omega surface invoking the entry. The provider edge is design-blocked on
+  [owner question 7](OWNER_QUESTIONS.md) (`ap-startup-protocol-ownership`):
+  the spec names no boot protocol for x86-64 and the APIC facts are Cathedral-
+  owned, so whether the compiler issues INIT/SIPI, calls firmware MP services,
+  or only seals a Cathedral-minted startup receipt is an owner decision;
+  surveyed at a6cdb2fbd9.
 
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Carry one real
   content-bearing program through checked source, Terminal Psi, provider
