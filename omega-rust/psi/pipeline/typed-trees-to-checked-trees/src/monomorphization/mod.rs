@@ -123,6 +123,11 @@ struct CalleeState {
     candidate_index: usize,
     return_type: TypeReferenceHandle,
     parameter_types: Vec<TypeReferenceHandle>,
+    /// An attached method's `self` formal's position in `parameter_types`
+    /// (`Named { machine, "Self" }`). Receiver-syntax calls exclude it from
+    /// the argument list, so its binding evidence arrives through the
+    /// receiver place instead.
+    self_index: Option<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -236,31 +241,18 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
             // conformance evidence rejects in every pass: partial static
             // evidence can never complete to a single tuple.
             //
-            // The authoritative checking pass additionally rejects EVERY
-            // incomplete statement-position selection from a concrete caller:
-            // a statement call has no result slot for the value-position
-            // validation fence to inspect, so a fully underivable or
-            // type-only-partial tuple would otherwise emit unspecialized.
-            // This gate is the last honest stop for `pick(7);` and
-            // `pair<i32>(v);` alike.
-            //
-            // Speculative passes (build-program preparation, `build.omg`
-            // interpretation) and the preliminary window that still carries
-            // pending endpoint folds do not widen the gate: a zero-binding
-            // tuple may still complete once deferred const evaluation lands,
-            // and incomplete expression calls keep their value-position fence
-            // diagnostic. The settled pass sees no pending endpoints, so an
-            // underivable statement call always rejects there.
-            let gate_is_final = enforce_complete_concrete_selections
-                && program.pending_const_range_endpoints.is_empty();
+            // A zero-binding incomplete selection is NOT rejected here. The
+            // specialization loop is a fixed point: a later round may still
+            // land a receiver, provider, or endpoint binding that completes
+            // the tuple, so this pass must wait for `applied_any` to go quiet
+            // before calling a statement call underivable.
             if selections.iter().any(|selection| {
                 selection.candidate_index == candidate_index
                     && !selection.caller_is_generic
                     && !selection.is_complete()
                     && (selection.const_bindings.iter().any(Option::is_some)
                         || selection.machine_bindings.iter().any(Option::is_some)
-                        || selection.evidence_bindings.iter().any(Option::is_some)
-                        || (gate_is_final && matches!(selection.site, CallSite::Statement(_))))
+                        || selection.evidence_bindings.iter().any(Option::is_some))
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
@@ -283,6 +275,42 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
             return Err(diagnostics);
         }
         if !applied_any {
+            // Fixed point: no later specialization round can still land a
+            // receiver, provider, or endpoint binding, so a concrete
+            // selection still incomplete here is honestly underivable. The
+            // authoritative checking pass then rejects every incomplete
+            // statement-position selection: a statement call has no result
+            // slot for the value-position validation fence to inspect, so a
+            // fully underivable or type-only-partial tuple would otherwise
+            // emit unspecialized. This is the last honest stop for
+            // `pick(7);` and `pair<i32>(v);` alike.
+            //
+            // Speculative passes (build-program preparation, `build.omg`
+            // interpretation) never enforce this gate, and neither does a
+            // settled pass that still carries pending endpoint folds: both
+            // may see a tuple complete only once deferred const evaluation
+            // lands. Incomplete expression calls keep their value-position
+            // fence diagnostic.
+            if enforce_complete_concrete_selections
+                && program.pending_const_range_endpoints.is_empty()
+            {
+                for (candidate_index, candidate) in candidates.iter().enumerate() {
+                    if selections.iter().any(|selection| {
+                        selection.candidate_index == candidate_index
+                            && !selection.caller_is_generic
+                            && !selection.is_complete()
+                            && matches!(selection.site, CallSite::Statement(_))
+                    }) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",
+                            candidate.template.template_name
+                        )));
+                    }
+                }
+                if !diagnostics.is_empty() {
+                    return Err(diagnostics);
+                }
+            }
             return Ok(());
         }
         refresh_closed_domain_instance_identities(program).map_err(|error| vec![error])?;
@@ -305,10 +333,16 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             {
                 literals.push(literal);
             }
+            // Builtin-type arguments intern the same named reference an
+            // authored `-> u64` would: an explicit `ident<u64>` is complete
+            // static evidence even when no other mention of the carrier
+            // exists in the program.
             if argument.application.is_none()
                 && argument.symbol.is_valid()
-                && (matches!(program.symbols.get(argument.symbol).kind, SymbolKind::Data)
-                    || const_arguments::forwarded_type(program, argument).is_valid())
+                && (matches!(
+                    program.symbols.get(argument.symbol).kind,
+                    SymbolKind::Data | SymbolKind::BuiltinType
+                ) || const_arguments::forwarded_type(program, argument).is_valid())
                 && let Some(name) = argument.path.last()
                 && !types.iter().any(|(symbol, _)| *symbol == argument.symbol)
             {

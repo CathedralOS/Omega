@@ -102,16 +102,19 @@ pub(super) fn callees(program: &TypedTrees, candidates: &[Candidate]) -> Vec<Cal
             program
                 .machine_states(&program.machines()[candidate.template.machine_index])
                 .iter()
-                .map(move |state| CalleeState {
-                    symbol: state.symbol,
-                    name: state.name.as_str().to_owned(),
-                    candidate_index,
-                    return_type: state.return_type,
-                    parameter_types: program
-                        .state_parameters(state)
-                        .iter()
-                        .map(|parameter| parameter.type_reference)
-                        .collect(),
+                .map(move |state| {
+                    let parameters = program.state_parameters(state);
+                    CalleeState {
+                        symbol: state.symbol,
+                        name: state.name.as_str().to_owned(),
+                        candidate_index,
+                        return_type: state.return_type,
+                        parameter_types: parameters
+                            .iter()
+                            .map(|parameter| parameter.type_reference)
+                            .collect(),
+                        self_index: parameters.iter().position(|parameter| parameter.is_self),
+                    }
                 })
         })
         .collect()

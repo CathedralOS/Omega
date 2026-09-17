@@ -1136,3 +1136,123 @@ fn derivable_generic_statement_calls_still_specialize() {
     let checked = lower_typed_trees(typed).expect("derivable calls should specialize");
     assert_eq!(checked.machine_specializations.len(), 2);
 }
+
+/// A statement call whose only evidence lands through another specialization
+/// in the same fixed point must not reject early: `consume`'s argument is the
+/// still-generic `ident<u64>` call, so the first round proposes nothing for
+/// `T`; once `ident<u64>` has specialized and its rewritten result type is
+/// concrete, the tuple completes in the next round. The underivable-tuple
+/// gate lives at the quiet point precisely so this late completion is not
+/// condemned in the round where it was still symbolic.
+#[test]
+fn statement_call_completing_in_a_later_round_still_specializes() {
+    let source = r#"
+        machine consume<T>(value: T) {}
+        machine ident<T>(value: T) -> T { value }
+        machine main() -> u64 {
+            consume(ident<u64>(9));
+            7
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked =
+        lower_typed_trees(typed).expect("a late-completing statement call should specialize");
+    assert_eq!(checked.machine_specializations.len(), 2);
+}
+
+/// An explicit builtin-type machine argument is complete static evidence on
+/// its own: `consume<u64>` binds `T` even though `u64` never appears anywhere
+/// else in the program — the unsuffixed `7` proposes no carrier and `i32` is
+/// the only authored return. The static-argument materialization must intern
+/// the builtin's named reference the same way an authored `-> u64` would, or
+/// the tuple stays underivable.
+#[test]
+fn explicit_builtin_type_arguments_bind_without_an_ambient_carrier() {
+    let source = r#"
+        machine consume<T>(value: T) {}
+        machine main() -> i32 {
+            consume<u64>(7);
+            7
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("an explicit builtin tuple should specialize");
+    assert_eq!(checked.machine_specializations.len(), 1);
+}
+
+/// The same late-round completion inside an attached `&mut self` machine:
+/// `ident<u64>` is the only `u64` mention in the program, so this also pins
+/// builtin-type argument materialization feeding the next round.
+#[test]
+fn attached_statement_call_completing_in_a_later_round_still_specializes() {
+    let source = r#"
+        machine consume<T>(value: T) {}
+        machine ident<T>(value: T) -> T { value }
+        data Main {}
+        machine Main::run(&mut self) {
+            consume(ident<u64>(9));
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked =
+        lower_typed_trees(typed).expect("a late-completing statement call should specialize");
+    assert_eq!(checked.machine_specializations.len(), 2);
+}
+
+/// An attached generic method's `self` formal carries the machine's `Self`
+/// alias, which expands to the retained owner application `Box<T>` for
+/// binding. UFCS form pairs it with an ordinary argument; receiver syntax
+/// excludes it from the argument list and the receiver place supplies the
+/// evidence instead. Both must specialize rather than leave an
+/// underivable-looking incomplete selection for the statement gate.
+#[test]
+fn attached_generic_self_evidence_specializes_statement_calls() {
+    let source = r#"
+        data Box<T> {
+            value: T;
+        }
+
+        machine Box::settle<T>(self) {}
+        machine Box::poke<T>(&mut self) {}
+
+        machine main() -> u64 {
+            let b: Box<i32> = Box { value: 1 };
+            Box::settle(b);
+            let mut c: Box<bool> = Box { value: true };
+            c.poke();
+            7
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("self-carried evidence should specialize both statement calls");
+    assert_eq!(checked.machine_specializations.len(), 2);
+}
