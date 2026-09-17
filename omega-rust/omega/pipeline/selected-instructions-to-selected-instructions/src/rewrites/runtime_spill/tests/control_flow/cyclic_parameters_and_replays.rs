@@ -327,6 +327,10 @@ fn replay_rejects_changed_edges_untouched_blocks_and_foreign_settlements() {
     }
 }
 
+// The victim here is an instruction result, so a payload's parameter side can
+// never be its own incoming definition — the edge-definition allowance for
+// block parameters does not apply. (That allowance is exercised by the
+// case-payload parameter fixtures in `parameters.rs`.)
 #[test]
 fn case_payload_parameter_and_unmaterialized_references_remain_outside_spill_admission() {
     use selected_instructions::{

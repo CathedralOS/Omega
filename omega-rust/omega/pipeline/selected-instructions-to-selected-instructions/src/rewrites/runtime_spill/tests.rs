@@ -706,6 +706,12 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             parameters::parameter_fixture(NativeTarget::linux_x64()),
             27u64,
         ),
+        // (4 blocks + 6 instructions) + (2 uses × 4) + 2 definitions + 8
+        // + 1 slot × 10 = 38.
+        (
+            parameters::case_parameter_fixture(NativeTarget::linux_x64()),
+            38u64,
+        ),
     ] {
         let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
         let result =
