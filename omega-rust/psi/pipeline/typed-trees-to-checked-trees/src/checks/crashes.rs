@@ -352,6 +352,43 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         &mut integer_disequalities,
                     );
                 }
+                // A call inside a statement holds the same unselected-arm
+                // facts a crash exit there does: each leaf's entry provenance
+                // was already resolved where the guard ran.
+                if let Some(fallthrough) = source_fallthrough.iter().find(|fallthrough| {
+                    fallthrough.location.state() == call.location().state()
+                        && fallthrough.location.statement_ordinal()
+                            == call.location().statement_ordinal()
+                }) {
+                    for &(guard, negated) in &fallthrough.guards {
+                        path_guard_conjuncts.push(crate::facts::canonical_crash_path_predicate(
+                            program,
+                            guard,
+                            negated,
+                            &parameter_names,
+                            &content_conservation,
+                        ));
+                        collect_structural_guard_consequences(
+                            program,
+                            guard,
+                            negated,
+                            &parameter_names,
+                            &content_conservation,
+                            integer_types,
+                            &mut path_guard_consequences,
+                        );
+                        collect_integer_order_relations(
+                            program,
+                            guard,
+                            negated,
+                            &parameter_names,
+                            &content_conservation,
+                            integer_types,
+                            &mut order_relations,
+                            &mut integer_disequalities,
+                        );
+                    }
+                }
                 push_transitive_integer_order_consequences(
                     program,
                     &mut order_relations,

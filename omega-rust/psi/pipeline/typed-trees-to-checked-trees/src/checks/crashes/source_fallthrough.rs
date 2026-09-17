@@ -42,24 +42,31 @@ pub(super) fn collect(
             .iter()
             .enumerate()
         {
-            let StatementNode::Transition(transition) = statement else {
-                continue;
-            };
-            if matches!(transition.exit, TransitionExit::Crash(_)) {
-                let mut retained = Vec::new();
-                for &(guard, negated, evaluated_at) in &guards {
-                    collect_stable_consequences(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        evaluated_at,
-                        guard,
-                        negated,
-                        parameter_names,
-                        content_conservation,
-                        &mut retained,
-                    );
-                }
+            // Every statement — a crash exit, a call-bearing statement, or an
+            // ordinary step — observes the facts earlier unselected arms
+            // established. Provenance was already resolved at each guard's
+            // own statement, so the same entry-term conjuncts cover a checked
+            // call exactly the way they cover a crash exit.
+            let mut retained = Vec::new();
+            for &(guard, negated, evaluated_at) in &guards {
+                collect_stable_consequences(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    evaluated_at,
+                    guard,
+                    negated,
+                    parameter_names,
+                    content_conservation,
+                    &mut retained,
+                );
+            }
+            let is_crash_exit = matches!(
+                statement,
+                StatementNode::Transition(transition)
+                    if matches!(transition.exit, TransitionExit::Crash(_))
+            );
+            if is_crash_exit || !retained.is_empty() {
                 sites.push(SiteFallthrough {
                     location: CrashSiteLocation::new(
                         state.symbol,
@@ -68,6 +75,9 @@ pub(super) fn collect(
                     guards: retained,
                 });
             }
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
             match transition.guard {
                 TransitionGuardNode::When(guard)
                     if program
