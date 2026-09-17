@@ -441,23 +441,31 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .iter()
         .map(|plan| plan.machine)
         .collect::<Vec<_>>();
-    let mut candidates = program
+    let mut candidates = Vec::new();
+    let mut local_construction = BTreeMap::new();
+    for machine in program
         .machines()
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| {
-            build_checked_machine(
-                program,
-                facts,
-                scalar_callees,
-                &mut shapes,
-                machine,
-                selected_operator_applications,
-                selected_ieee_float_fma_applications,
-                call_frames,
-            )
-        })
-        .collect::<Vec<_>>();
+    {
+        let trace = LocalConstructionTrace::default();
+        match build_checked_machine_traced(
+            program,
+            facts,
+            scalar_callees,
+            &mut shapes,
+            machine,
+            selected_operator_applications,
+            selected_ieee_float_fma_applications,
+            call_frames,
+            &trace,
+        ) {
+            Some(plan) => candidates.push(plan),
+            None => {
+                local_construction.insert(omission_key(machine.symbol), trace.stage());
+            }
+        }
+    }
     let mut composed_machines = build_checked_composed_unit_control_machines(
         program,
         facts,
@@ -466,7 +474,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &boundary_machines,
         call_frames,
     );
-    let mut omissions = OmissionLedger::new(program, &candidates, &composed_machines);
+    let mut omissions = OmissionLedger::new(
+        program,
+        &local_construction,
+        &candidates,
+        &composed_machines,
+    );
     receiver_calls::reconcile(
         program,
         facts,
@@ -770,6 +783,7 @@ fn omission_key(symbol: SymbolHandle) -> (u32, u32) {
 impl OmissionLedger {
     fn new(
         program: &TypedTrees,
+        local_construction: &BTreeMap<(u32, u32), CheckedUnitPlanOmissionStage>,
         candidates: &[CheckedUnitEffectMachinePlan],
         composed_machines: &[CheckedComposedUnitControlMachinePlan],
     ) -> Self {
@@ -787,10 +801,20 @@ impl OmissionLedger {
             .map(|machine| machine.symbol)
             .collect::<Vec<_>>();
         for machine in unplanned {
-            ledger.name(CheckedUnitPlanOmission {
-                machine,
-                stage: CheckedUnitPlanOmissionStage::LocalConstruction,
-            });
+            // A multi-state body never reaches the ordinary builder's later
+            // phases; only the composed builders could have admitted it.
+            let stage = match local_construction.get(&omission_key(machine)) {
+                Some(CheckedUnitPlanOmissionStage::LocalConstruction {
+                    phase: "single-state body",
+                    ..
+                })
+                | None => CheckedUnitPlanOmissionStage::LocalConstruction {
+                    phase: "composed control",
+                    statement_index: None,
+                },
+                Some(stage) => *stage,
+            };
+            ledger.name(CheckedUnitPlanOmission { machine, stage });
         }
         ledger
     }

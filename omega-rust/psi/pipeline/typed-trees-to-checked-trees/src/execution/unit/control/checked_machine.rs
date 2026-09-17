@@ -1,6 +1,7 @@
 //! Building one checked machine from its typed states and statements.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::{
     bind_scalar_call_result, bind_structural_call_result, checked_unit_scalar_result_local,
@@ -24,6 +25,8 @@ use crate::execution::terminal_unit::{
     structural_signature,
 };
 
+/// Test convenience: the traced builder without a trace.
+#[cfg(test)]
 pub(crate) fn build_checked_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -34,7 +37,34 @@ pub(crate) fn build_checked_machine(
     selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectMachinePlan> {
-    build_checked_machine_with(
+    build_checked_machine_traced(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        selected_operator_applications,
+        selected_ieee_float_fma_applications,
+        call_frames,
+        &LocalConstructionTrace::default(),
+    )
+}
+
+/// `build_checked_machine` with a trace of where the last attempt stopped:
+/// the ambient attempt's phase, or the retained-self retry's when that
+/// retry ran.
+pub(crate) fn build_checked_machine_traced(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    selected_operator_applications: &[crate::SelectedOperatorApplication],
+    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    trace: &LocalConstructionTrace,
+) -> Option<CheckedUnitEffectMachinePlan> {
+    build_checked_machine_with_trace(
         program,
         facts,
         scalar_callees,
@@ -44,6 +74,7 @@ pub(crate) fn build_checked_machine(
         selected_ieee_float_fma_applications,
         false,
         call_frames,
+        trace,
     )
     .or_else(|| {
         // Retain borrowed self when ambient attachment cannot plan the body.
@@ -58,7 +89,7 @@ pub(crate) fn build_checked_machine(
             .iter()
             .any(|parameter| parameter.is_self && is_reference(program, parameter.type_reference))
             .then(|| {
-                build_checked_machine_with(
+                build_checked_machine_with_trace(
                     program,
                     facts,
                     scalar_callees,
@@ -68,6 +99,7 @@ pub(crate) fn build_checked_machine(
                     selected_ieee_float_fma_applications,
                     true,
                     call_frames,
+                    trace,
                 )
             })
             .flatten()
@@ -85,6 +117,33 @@ pub(crate) fn build_checked_machine_with(
     retain_reference_self: bool,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectMachinePlan> {
+    build_checked_machine_with_trace(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        selected_operator_applications,
+        selected_ieee_float_fma_applications,
+        retain_reference_self,
+        call_frames,
+        &LocalConstructionTrace::default(),
+    )
+}
+
+fn build_checked_machine_with_trace(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    selected_operator_applications: &[crate::SelectedOperatorApplication],
+    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
+    retain_reference_self: bool,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    trace: &LocalConstructionTrace,
+) -> Option<CheckedUnitEffectMachinePlan> {
+    trace.phase("single-state body");
     let [state] = program.machine_states(machine) else {
         return None;
     };
@@ -111,6 +170,7 @@ pub(crate) fn build_checked_machine_with(
                         .any(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_)))
                 })
             });
+    trace.phase("result type");
     if !is_unit(program, state.return_type)
         && validation::reference_result_custody::parts(program, state.return_type).is_none()
         && !validation::reference_result_custody::is_reference_record(program, state.return_type)
@@ -125,6 +185,7 @@ pub(crate) fn build_checked_machine_with(
     {
         return None;
     }
+    trace.phase("result contract");
     // Entry predicates and normal guarantees belong to the shared invocation
     // contract, independent of the operation that produces the result. Result
     // refinements still need their separate qualification evidence.
@@ -153,6 +214,7 @@ pub(crate) fn build_checked_machine_with(
     {
         return None;
     }
+    trace.phase("signature");
     let statements = program.statement_table.statements(state.statement_nodes);
     let selected_scalar_result_local = selected_operator_scalar_result_local(
         program,
@@ -241,9 +303,11 @@ pub(crate) fn build_checked_machine_with(
             )?;
             (Some(attachment), structural, Vec::new())
         };
+    trace.phase("state contracts");
     if !checked_state_contracts_supported(program, machine, state, &structural_parameters) {
         return None;
     }
+    trace.phase("entry claims");
     let entry_claims = entry_claims(
         program,
         facts,
@@ -252,9 +316,12 @@ pub(crate) fn build_checked_machine_with(
         &structural_parameters,
         program.state_parameters(state),
     )?;
+    trace.phase("state flow");
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let source_calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
+    trace.phase("outer calls");
     let calls = call_occurrences::outer_calls(program, facts, machine.symbol, state, source_calls)?;
+    trace.phase("result-local family");
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
     );
@@ -342,6 +409,7 @@ pub(crate) fn build_checked_machine_with(
         None
     };
     let construction_statement_count = sequence_trivial_locals.as_ref().map_or(0, Vec::len);
+    trace.phase("statement sequence");
     let statement_sequence = if selected_scalar_result_local.is_none()
         && selected_structural_result_local.is_none()
         && selected_ieee_float_fma_result_locals.is_none()
@@ -373,6 +441,7 @@ pub(crate) fn build_checked_machine_with(
     } else {
         None
     };
+    trace.phase("scalar expression locals");
     let scalar_expression_locals = if statement_sequence.is_some() {
         Vec::new()
     } else if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
@@ -399,6 +468,7 @@ pub(crate) fn build_checked_machine_with(
                 Vec::len,
             )
         });
+    trace.phase("shape-family consistency");
     let has_scalar_result_local = scalar_result_local_count != 0;
     if has_scalar_result_local && statement_sequence.is_none() && construction.is_some() {
         return None;
@@ -430,6 +500,7 @@ pub(crate) fn build_checked_machine_with(
             |(_, local_statement_count)| *local_statement_count,
         )
     };
+    trace.phase("call statement shape");
     let call_statements = if construction.is_some() {
         &statements[statements.len()..]
     } else {
@@ -534,6 +605,7 @@ pub(crate) fn build_checked_machine_with(
             return None;
         }
     }
+    trace.phase("trivial affine locals");
     let local_rows = match (has_scalar_result_local, construction, borrow_alias_prefix) {
         (true, None, None) => sequence_trivial_locals.unwrap_or_default(),
         (false, Some((rows, _)), None) => rows,
@@ -597,6 +669,7 @@ pub(crate) fn build_checked_machine_with(
         );
     }
     operations.reserve(calls.len() + 1);
+    trace.phase("result ownership");
     let structural_result = statement_sequence
         .as_ref()
         .and_then(|sequence| sequence.structural_result.clone());
@@ -613,6 +686,7 @@ pub(crate) fn build_checked_machine_with(
     {
         return None;
     }
+    trace.phase("call operations");
     if let Some(sequence) = statement_sequence {
         operations.extend(sequence.operations);
     } else if let Some(store) = write_only_store {
@@ -625,6 +699,7 @@ pub(crate) fn build_checked_machine_with(
                 result,
             )?);
         } else if let Some(result) = scalar_result_local {
+            trace.statement(Some(result.statement_index));
             let call = calls.first()?;
             if call.statement_index != usize::try_from(result.statement_index).ok()?
                 || call.call_ordinal != 0
@@ -663,6 +738,7 @@ pub(crate) fn build_checked_machine_with(
                 result,
             )?);
         } else if let Some(result) = scalar_result_local {
+            trace.statement(Some(result.statement_index));
             let call = calls.first()?;
             if call.statement_index != usize::try_from(result.statement_index).ok()?
                 || call.call_ordinal != 0
@@ -746,6 +822,7 @@ pub(crate) fn build_checked_machine_with(
                 }
                 0
             } else if let Some((result, _)) = structural_result_local {
+                trace.statement(Some(result.statement_index));
                 let call = calls.first()?;
                 if call.statement_index != usize::try_from(result.statement_index).ok()?
                     || call.call_ordinal != 0
@@ -790,6 +867,7 @@ pub(crate) fn build_checked_machine_with(
             };
         for (call_index, call) in calls[call_offset..].iter().enumerate() {
             let statement_index = local_count.checked_add(call_index)?;
+            trace.statement(u32::try_from(statement_index).ok());
             if call.statement_index != statement_index || call.call_ordinal != 0 {
                 return None;
             }
@@ -834,6 +912,7 @@ pub(crate) fn build_checked_machine_with(
             operations.push(operation);
         }
     }
+    trace.phase("completion");
     let transferred_local_ordinals = operations
         .iter()
         .flat_map(|operation| match operation {
@@ -912,6 +991,7 @@ pub(crate) fn build_checked_machine_with(
         )?,
     });
 
+    trace.phase("contract plan");
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
     let mut body_qualifications = facts
         .qualifications
@@ -934,6 +1014,7 @@ pub(crate) fn build_checked_machine_with(
     body_qualifications.sort_by_key(|domain| domain.0);
     body_qualifications.dedup();
 
+    trace.phase("provider attachment requirements");
     let provider_attachment_requirements = match attachment_type_identity.as_deref() {
         Some(attachment) => checked_provider_attachment_requirements(
             program,
@@ -948,6 +1029,7 @@ pub(crate) fn build_checked_machine_with(
         None => Vec::new(),
     };
 
+    trace.phase("service reach");
     Some(CheckedUnitEffectMachinePlan {
         scalar_result,
         scalar_control,

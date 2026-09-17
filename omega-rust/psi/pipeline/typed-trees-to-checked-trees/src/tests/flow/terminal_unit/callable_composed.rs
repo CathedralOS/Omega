@@ -147,9 +147,13 @@ fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
             .unwrap_or_else(|| panic!("omission row for {name}"))
             .stage
     };
-    assert_eq!(
-        omission("quiet"),
-        CheckedUnitPlanOmissionStage::LocalConstruction
+    assert!(
+        matches!(
+            omission("quiet"),
+            CheckedUnitPlanOmissionStage::LocalConstruction { .. }
+        ),
+        "quiet failed local construction: {:?}",
+        omission("quiet")
     );
     for (caller, callee) in [
         ("inner", "quiet"),
