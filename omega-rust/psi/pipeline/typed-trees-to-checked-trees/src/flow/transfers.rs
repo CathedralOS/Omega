@@ -549,29 +549,57 @@ pub(super) fn propagate_statement_transfers(
         return;
     }
 
-    let context = semantic.append_context(
-        ProgramPoint::Statement {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-        },
-        refs,
-    );
+    // One statement transports evidence for many independent storage
+    // coordinates: a view binding re-anchors every element's declared fields
+    // below the view. Invalidation drops a whole context once any of its
+    // facts overlaps a write, so facts over distinct places take separate
+    // contexts, as entry seeding already does; facts over one exact place
+    // stay coupled.
+    let point = ProgramPoint::Statement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+    };
+    let mut groups: Vec<(FactPlace, Vec<facts::FactRef>)> = Vec::new();
+    for reference in semantic.refs.span_or_empty(refs) {
+        let place = semantic.facts.get(reference.fact).place;
+        if let Some((_, group)) =
+            groups
+                .iter_mut()
+                .find(|(candidate, _)| match (*candidate, place) {
+                    (FactPlace::Place(left), FactPlace::Place(right)) => {
+                        semantic.places_equal(left, right)
+                    }
+                    _ => *candidate == place,
+                })
+        {
+            group.push(*reference);
+        } else {
+            groups.push((place, vec![*reference]));
+        }
+    }
     let mut next_contexts =
         retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
-    common::append_flow_reference(
-        &mut ctx.contexts.semantic_context_refs,
-        &mut next_contexts,
-        FlowSemanticContextRef { context },
-    );
-    *active_contexts = next_contexts;
     let mut next_constraints =
         retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
-    append_constraint_ref(
-        &mut ctx.contexts.constraint_refs,
-        &mut next_constraints,
-        FlowConstraintKind::SemanticContext { context },
-    );
+    for (_, group) in groups {
+        let mut group_refs = HandleSpan::empty();
+        for reference in group {
+            semantic.refs.append_to_span(&mut group_refs, reference);
+        }
+        let context = semantic.append_context(point, group_refs);
+        common::append_flow_reference(
+            &mut ctx.contexts.semantic_context_refs,
+            &mut next_contexts,
+            FlowSemanticContextRef { context },
+        );
+        append_constraint_ref(
+            &mut ctx.contexts.constraint_refs,
+            &mut next_constraints,
+            FlowConstraintKind::SemanticContext { context },
+        );
+    }
+    *active_contexts = next_contexts;
     *active_constraints = next_constraints;
 }
 
