@@ -56,6 +56,7 @@ members = [
     "omega-rust/omega/backend/artifacts/native-artifact",
     "omega-rust/omega/compiler/native-realization",
     "omega-rust/omega/build/selected-dispatch",
+    "omega-rust/omega/backend/artifacts/component-description",
     "omega-rust/omega/backend/artifacts/component-candidate",
     "omega-rust/omega/build/component-deployment",
     "omega-rust/omega/representations/task-plans",

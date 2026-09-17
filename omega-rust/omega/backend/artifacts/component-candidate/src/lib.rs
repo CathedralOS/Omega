@@ -9,23 +9,25 @@
 //! manifest, and emitter-derived stack demand for the canonical object entry.
 //! The stack row describes the internal body closure only: it grants no
 //! provision, lease, installed-root admission, or external-entry headroom.
-
-pub mod component_description;
-pub mod component_verification;
+//!
+//! The canonical `ComponentDescription` carrier, its codec, and the
+//! source-free consumer `verify_component` live below this crate in
+//! `component-description`, which never imports native realization; this
+//! crate owns only the producer `describe_component` that fills the
+//! description facts from a realized candidate, and re-exports the carrier
+//! API so deployment-side callers keep one import root.
 
 pub use component_description::{
     COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescription, ComponentDescriptionFacts,
-    ComponentEntry, ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind,
-    DescribeError, DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface,
-    ImportSlot, InstallationObligation, ObligationKind, OutgoingAuthority, OutgoingAuthorityClass,
-    OutgoingEvidence, RetainedProvider, component_description_identity,
-    decode_component_description, describe_component, describe_component_facts,
-    description_subject, encode_component_description, port_mechanism_assumption,
-    requirement_contract_identity, requirement_export_identity,
-};
-pub use component_verification::{
-    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
-    VerifiedComponent, verify_component,
+    ComponentEntry, ComponentEntryKind, ComponentVerificationRejection,
+    ComponentVerificationRequest, CustodyConstraint, CustodyEvidence, CustodyKind, DescribeError,
+    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
+    IndependentRealizationMismatch, InstallationObligation, ObligationKind, OutgoingAuthority,
+    OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider, StackDemandFacts,
+    VerifiedComponent, component_description_identity, decode_component_description,
+    describe_component_facts, description_subject, encode_component_description,
+    port_mechanism_assumption, requirement_contract_identity, requirement_export_identity,
+    verify_component,
 };
 pub use native_artifact::{
     NativeArtifact, NativeArtifactParts, NativeProviderExecution,
@@ -141,6 +143,31 @@ impl ComponentCandidate {
             stack_demand: self.stack_demand,
         }
     }
+}
+
+/// Rejoin a checked component candidate to its canonical description.
+///
+/// The produced carrier embeds the candidate's sealed canonical artifact,
+/// the retained selected-provider facts, any pending progress manifest, the
+/// selected entry's stack demand reduced to its published facts, and the
+/// strong native-realization identity. This is publication evidence only: it
+/// cannot satisfy its own installation obligations or grant callable
+/// authority to any reader.
+pub fn describe_component(
+    candidate: &ComponentCandidate,
+) -> Result<ComponentDescription, DescribeError> {
+    let stack_demand = candidate.stack_demand();
+    describe_component_facts(ComponentDescriptionFacts {
+        artifact: candidate.artifact(),
+        selected_provider_plans: candidate.selected_provider_plans(),
+        component_progress: candidate.component_progress(),
+        stack_demand: Some(StackDemandFacts {
+            entry: stack_demand.entry(),
+            ceiling_bytes: stack_demand.ceiling_bytes(),
+            stack_alignment: stack_demand.stack_alignment(),
+        }),
+        realization_identity: Some(*candidate.native_artifact().identity().as_bytes()),
+    })
 }
 
 /// Independently rederive a component candidate's complete selected-entry

@@ -585,15 +585,12 @@ dependencies = [
 name = "component-candidate"
 version = "0.1.0"
 dependencies = [
+ "component-description",
  "effects",
  "image-emission",
- "language-semantics",
  "native-artifact",
- "semantic-vocabulary",
- "sha2",
  "target",
  "terminal-codec",
- "terminal-psi",
 ]
 
 [[package]]
@@ -612,6 +609,18 @@ dependencies = [
  "layout-plans",
  "semantic-vocabulary",
  "target",
+]
+
+[[package]]
+name = "component-description"
+version = "0.1.0"
+dependencies = [
+ "effects",
+ "language-semantics",
+ "semantic-vocabulary",
+ "sha2",
+ "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
