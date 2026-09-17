@@ -317,6 +317,13 @@ fn collect_owned_type_reference_positions(
                     }
                 }
             }
+            // A const declaration's own declared type is a real carrier
+            // position: `const B: Box<u64> = Box { value: 1 }` must discover
+            // the closed `Box<u64>` instance exactly like a data field, or the
+            // const retains a raw generic type downstream.
+            Item::Const(definition) if !public_only || definition.is_public => {
+                collect(syntax, definition.type_reference, &mut positions, true)
+            }
             Item::Machine(machine) if include_machines && machine.type_parameters.is_empty() => {
                 // Conformance arguments participate in the same concrete
                 // generic-data identity as the machine signature. Rewriting

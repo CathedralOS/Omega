@@ -4,6 +4,7 @@
 mod computed_leaves_and_replays;
 mod concrete_invocations_and_initializers;
 mod dependencies_and_aggregates;
+mod generic_application_carriers;
 
 use language_semantics::const_value::CanonicalConstIdentity;
 use source::SourceMap;
