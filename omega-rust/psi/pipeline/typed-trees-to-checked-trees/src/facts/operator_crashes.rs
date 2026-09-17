@@ -16,6 +16,11 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;
 
+mod named_routes;
+
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn build(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -130,8 +135,9 @@ pub(crate) fn build(
     }
     // Named `Namespace::requirement(...)` calls carry the same selected crash
     // obligations as spelled uses. They have no `uses` row or flow invocation
-    // capture, so their identity is the `named_uses` handle and route
-    // discharge is conservative until flow custody covers them.
+    // capture, so their identity is the `named_uses` handle; route discharge
+    // consults the containing statement's entry contexts, gated on
+    // entry-proven operands (see named_routes).
     for (named_use_handle, named_use) in operators.named_uses.iter() {
         let Some(operator) = typed_trees::operator::declaration_by_symbol(
             program,
@@ -210,9 +216,10 @@ pub(crate) fn build(
 
 /// Published and surviving crash-route buckets for one selected use. A spelled
 /// use discharges each guard the captured invocation contexts prove false. A
-/// named call passes an invalid `operator_use`: `InvocationContexts` then finds
-/// no operand-time capture, so only context-free (literal) discharge remains
-/// and every other retained alternative stays conservative.
+/// named call passes an invalid `operator_use`: with no operand-time capture
+/// it proves falsity from the containing statement's entry contexts instead,
+/// gated on every leaf occurrence resolving to an entry-proven operand (see
+/// `named_routes`). Anything unproven stays conservative.
 #[allow(clippy::too_many_arguments)]
 fn retained_operator_crash_routes(
     program: &TypedTrees,
@@ -271,16 +278,35 @@ fn retained_operator_crash_routes(
                     (CrashPredicateIdentity::from_expression(candidate) == *predicate)
                         .then_some(*expression)
                 });
+            // A spelled use consults the operand-captured invocation
+            // contexts; a named call has no capture row, so it proves falsity
+            // from the containing statement's entry contexts — sound only
+            // while every place the leaf reads is an entry-proven operand.
             if expression.is_some_and(|expression| {
-                crate::checks::operator_route_is_false(
-                    program,
-                    flow,
-                    semantic,
-                    operator_use,
-                    parameters,
-                    operands,
-                    expression,
-                )
+                if operator_use.is_valid() {
+                    crate::checks::operator_route_is_false(
+                        program,
+                        flow,
+                        semantic,
+                        operator_use,
+                        parameters,
+                        operands,
+                        expression,
+                    )
+                } else {
+                    named_routes::named_route_is_false(
+                        program,
+                        flow,
+                        semantic,
+                        machine_symbol,
+                        state_symbol,
+                        statement_index,
+                        parameters,
+                        operands,
+                        &substitution,
+                        expression,
+                    )
+                }
             }) {
                 continue;
             }
