@@ -1,5 +1,6 @@
 [package]
 name = "package-manager"
+autotests = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -40,3 +41,7 @@ sha2 = "0.10.9"
 [dev-dependencies]
 build-evaluation = { path = "../../build/build-evaluation", features = ["test-support"] }
 package-source = { path = "../sources/acquisition", features = ["test-fixtures"] }
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"

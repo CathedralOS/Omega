@@ -3,7 +3,7 @@ use super::{
     resolve_external_closure, resolve_workspace_package_closure, split_question, temporary_root,
     workspace_root,
 };
-use crate::accepted_policy_fixture;
+use crate::package_reconstruction_question::accepted_policy_fixture;
 use package_evidence::ledger::OrdinaryPackageObligationStatus;
 use package_evidence::record::{
     PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
