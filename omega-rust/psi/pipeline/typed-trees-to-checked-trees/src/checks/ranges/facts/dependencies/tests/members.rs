@@ -1,9 +1,10 @@
-use super::{ExpressionNode, SymbolHandle, TypedTrees};
+use super::{ExpressionHandle, ExpressionNode, SymbolHandle, TypedTrees};
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::RangeCallContext;
 use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::checks::ranges::facts::dependencies::tests::typed_source;
+use crate::flow::CanonicalPlace;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
@@ -801,6 +802,453 @@ fn a_match_receiver_member_chain_with_an_unresolved_hop_stays_incomplete() {
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
     record_label(&mut facts, &program, machine, state);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+/// The outermost member chain inside `expression` carrying a case-qualified
+/// hop — the operand spelling `seed_binary_guard_facts` hands the recorder
+/// for a desugared destructure guard's comparison.
+fn case_member_operand(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    if !expression.is_valid() {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => (member.case_variant.is_some()
+            || case_member_operand(program, member.receiver).is_some())
+        .then_some(expression),
+        ExpressionNode::Binary(binary) => case_member_operand(program, binary.left)
+            .or_else(|| case_member_operand(program, binary.right)),
+        ExpressionNode::Unary(unary) => case_member_operand(program, unary.operand),
+        _ => None,
+    }
+}
+
+/// The transition `When` guard in `state`, with the statement index the
+/// checker would have set for it.
+fn case_guard(program: &TypedTrees, state: &State) -> (usize, ExpressionHandle) {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+        .find_map(|(statement_index, statement)| match statement {
+            StatementNode::Transition(transition) => match transition.guard {
+                typed_trees::statement::TransitionGuardNode::When(guard) => {
+                    Some((statement_index, guard))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("guarded transition")
+}
+
+fn field_symbol(program: &TypedTrees, data: &str, field: &str) -> SymbolHandle {
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|row| row.name.as_str() == data)
+        .expect(data);
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field_row) if field_row.name.as_str() == field => {
+                Some(field_row.symbol)
+            }
+            _ => None,
+        })
+        .expect(field)
+}
+
+fn variant_symbol(program: &TypedTrees, data: &str, variant: &str) -> SymbolHandle {
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|row| row.name.as_str() == data)
+        .expect(data);
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Variant(variant_row)
+                if variant_row.name.as_str() == variant =>
+            {
+                Some(variant_row.symbol)
+            }
+            _ => None,
+        })
+        .expect(variant)
+}
+
+fn payload_field_symbol(
+    program: &TypedTrees,
+    data: &str,
+    variant: &str,
+    field: &str,
+) -> SymbolHandle {
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|row| row.name.as_str() == data)
+        .expect(data);
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Variant(variant_row)
+                if variant_row.name.as_str() == variant =>
+            {
+                program
+                    .data_payload_fields(variant_row)
+                    .iter()
+                    .find(|field_row| field_row.name.as_str() == field)
+                    .map(|field_row| field_row.symbol)
+            }
+            _ => None,
+        })
+        .expect(field)
+}
+
+/// A destructure guard's comparison operand is a case-qualified projection
+/// the member binder never stamps: `Attack::Strike { power, bonus } if
+/// bonus == 10` desugars `bonus` to `self.attack.bonus@Strike` and reaches
+/// the scan with `member_symbol` unset. The variant pins the disambiguation
+/// a leaf cannot supply — `bonus` is a declared payload field of `Strike` —
+/// so the complete footprint is the projected place `self.attack@Strike.bonus`.
+#[test]
+fn a_case_qualified_member_in_a_destructure_guard_reads_the_projected_place() {
+    let program = typed_source(
+        "data Attack {
+            case Idle;
+            case Strike(power: i64, bonus: i64);
+        }
+        data Main { attack: Attack; }
+        machine Main::window(&mut self, unrelated: i64) {
+            transition self.attack {
+                Attack::Strike { power, bonus } if bonus == 10 -> done(power)
+                _ -> done(0)
+            }
+            state done(&mut self, power: i64) { let z: i64 = power; }
+        }",
+    );
+    let (machine, state) = window(&program);
+    let (statement_index, guard) = case_guard(&program, state);
+    let operand = case_member_operand(&program, guard).expect("case-qualified operand");
+    assert_eq!(
+        program.expression_table.display_name(operand),
+        "self.attack.bonus"
+    );
+    let mut facts = RangeFacts::new(&[]);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, operand);
+    let label = program.expression_table.display_name(operand);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("case-qualified member footprint");
+    let mut expected = parameter_place(&program, state, "self");
+    expected.segments.push(facts::PlaceSegment::Field {
+        symbol: field_symbol(&program, "Main", "attack"),
+    });
+    expected.segments.push(facts::PlaceSegment::Case {
+        variant: variant_symbol(&program, "Attack", "Strike"),
+    });
+    expected.segments.push(facts::PlaceSegment::Field {
+        symbol: payload_field_symbol(&program, "Attack", "Strike", "bonus"),
+    });
+    assert_eq!(reads.as_slice(), [expected.clone()].as_slice(), "{reads:?}");
+    for (write, survives) in [
+        (expected.clone(), false),
+        (parameter_place(&program, state, "unrelated"), true),
+    ] {
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&[write.clone()]))
+                .contains(&label),
+            survives,
+            "write to {write:?}"
+        );
+    }
+}
+
+/// A computed transition subject is captured once into a generated
+/// `__transition_subject` local ahead of the arm statements, so a
+/// case-qualified read on it still names current storage:
+/// `__transition_subject.bonus@Strike` reads exactly the generated local's
+/// projected place.
+#[test]
+fn a_case_qualified_member_on_a_captured_subject_reads_the_generated_local() {
+    let program = typed_source(
+        "data Attack {
+            case Idle;
+            case Strike(power: i64, bonus: i64);
+        }
+        data Main { seed: i64; }
+        machine Main::make(&self) -> Attack { Attack::Strike { power: 0, bonus: 0 } }
+        machine Main::window(&mut self, unrelated: i64) {
+            transition self.make() {
+                Attack::Strike { power, bonus } if bonus == 10 -> done(power)
+                _ -> done(0)
+            }
+            state done(&mut self, power: i64) { let z: i64 = power; }
+        }",
+    );
+    let (machine, state) = window(&program);
+    let (statement_index, guard) = case_guard(&program, state);
+    let operand = case_member_operand(&program, guard).expect("case-qualified operand");
+    let mut facts = RangeFacts::new(&[]);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, operand);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("captured-subject member footprint");
+    let subject = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__transition_subject#") =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .expect("captured subject local");
+    let mut expected = CanonicalPlace {
+        root: facts::PlaceRoot::Symbol(subject),
+        segments: Vec::new(),
+    };
+    expected.segments.push(facts::PlaceSegment::Case {
+        variant: variant_symbol(&program, "Attack", "Strike"),
+    });
+    expected.segments.push(facts::PlaceSegment::Field {
+        symbol: payload_field_symbol(&program, "Attack", "Strike", "bonus"),
+    });
+    assert_eq!(reads.as_slice(), [expected].as_slice(), "{reads:?}");
+}
+
+/// A member hop above a case-qualified receiver is binder-shadowed as well:
+/// `self.attack.inner@Strike.v` leaves `v` unstamped because the binder
+/// cannot type the `inner@Strike` hop, so the whole chain keeps the
+/// contextual `effective_member_symbol` floor — `inner` resolves inside the
+/// named `Strike` variant and `v` on `inner`'s declared type, giving the
+/// complete projected place `self.attack@Strike.inner.v`.
+#[test]
+fn a_member_through_a_case_qualified_receiver_reads_the_projected_place() {
+    let program = typed_source(
+        "data Inner { v: i64; }
+        data Attack {
+            case Idle;
+            case Strike(inner: Inner, bonus: i64);
+        }
+        data Main { attack: Attack; }
+        machine Main::window(&mut self, unrelated: i64) {
+            transition self.attack {
+                Attack::Strike { inner, bonus } if inner.v == 10 -> done(bonus)
+                _ -> done(0)
+            }
+            state done(&mut self, power: i64) { let z: i64 = power; }
+        }",
+    );
+    let (machine, state) = window(&program);
+    let (statement_index, guard) = case_guard(&program, state);
+    let operand = case_member_operand(&program, guard).expect("case-qualified operand");
+    assert_eq!(
+        program.expression_table.display_name(operand),
+        "self.attack.inner.v"
+    );
+    let mut facts = RangeFacts::new(&[]);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, operand);
+    let label = program.expression_table.display_name(operand);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("member-through-case-receiver footprint");
+    let mut expected = parameter_place(&program, state, "self");
+    expected.segments.push(facts::PlaceSegment::Field {
+        symbol: field_symbol(&program, "Main", "attack"),
+    });
+    expected.segments.push(facts::PlaceSegment::Case {
+        variant: variant_symbol(&program, "Attack", "Strike"),
+    });
+    expected.segments.push(facts::PlaceSegment::Field {
+        symbol: payload_field_symbol(&program, "Attack", "Strike", "inner"),
+    });
+    expected.segments.push(facts::PlaceSegment::Field {
+        symbol: field_symbol(&program, "Inner", "v"),
+    });
+    assert_eq!(reads.as_slice(), [expected.clone()].as_slice(), "{reads:?}");
+    for (write, survives) in [
+        (expected.clone(), false),
+        (parameter_place(&program, state, "unrelated"), true),
+    ] {
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&[write.clone()]))
+                .contains(&label),
+            survives,
+            "write to {write:?}"
+        );
+    }
+}
+
+/// A case-qualified member must name a payload field of the named variant:
+/// `rest` belongs to `Idle`, so `self.attack.rest@Strike` has no honest
+/// identity — the place walk's fallback cannot repair the projection into a
+/// different case's field.
+#[test]
+fn a_case_qualified_member_naming_another_variants_field_stays_incomplete() {
+    let mut program = typed_source(
+        "data Attack {
+            case Idle(rest: i64);
+            case Strike(power: i64, bonus: i64);
+        }
+        data Main { attack: Attack; }
+        machine Main::window(&mut self, unrelated: i64) {
+            transition self.attack {
+                Attack::Strike { power, bonus } if bonus == 10 -> done(power)
+                _ -> done(0)
+            }
+            state done(&mut self, power: i64) { let z: i64 = power; }
+        }",
+    );
+    let (statement_index, operand) = {
+        let (_, state) = window(&program);
+        let (statement_index, guard) = case_guard(&program, state);
+        let operand = case_member_operand(&program, guard).expect("case-qualified operand");
+        (statement_index, operand)
+    };
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(operand) else {
+        panic!("member fixture")
+    };
+    member.member = "rest".into();
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, operand);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+/// Dropping the variant qualifier leaves an unqualified payload access the
+/// binder saw and refused: `self.attack.bonus` names no top-level field of
+/// `Attack`, and the selector gate must not mint `@Strike` from the name's
+/// incidental resolution inside one variant.
+#[test]
+fn an_unqualified_payload_member_stays_incomplete() {
+    let mut program = typed_source(
+        "data Attack {
+            case Idle;
+            case Strike(power: i64, bonus: i64);
+        }
+        data Main { attack: Attack; }
+        machine Main::window(&mut self, unrelated: i64) {
+            transition self.attack {
+                Attack::Strike { power, bonus } if bonus == 10 -> done(power)
+                _ -> done(0)
+            }
+            state done(&mut self, power: i64) { let z: i64 = power; }
+        }",
+    );
+    let (statement_index, operand) = {
+        let (_, state) = window(&program);
+        let (statement_index, guard) = case_guard(&program, state);
+        let operand = case_member_operand(&program, guard).expect("case-qualified operand");
+        (statement_index, operand)
+    };
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(operand) else {
+        panic!("member fixture")
+    };
+    member.case_variant = None;
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, operand);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+/// A member above a case-qualified receiver whose own field fails to resolve
+/// keeps the whole chain incomplete: `inner@Strike` names no such payload
+/// field, so `.v` above it has no receiver type to stand on.
+#[test]
+fn a_member_above_an_unresolved_case_hop_stays_incomplete() {
+    let mut program = typed_source(
+        "data Inner { v: i64; }
+        data Attack {
+            case Idle;
+            case Strike(inner: Inner, bonus: i64);
+        }
+        data Main { attack: Attack; }
+        machine Main::window(&mut self, unrelated: i64) {
+            transition self.attack {
+                Attack::Strike { inner, bonus } if inner.v == 10 -> done(bonus)
+                _ -> done(0)
+            }
+            state done(&mut self, power: i64) { let z: i64 = power; }
+        }",
+    );
+    let (statement_index, operand) = {
+        let (_, state) = window(&program);
+        let (statement_index, guard) = case_guard(&program, state);
+        let operand = case_member_operand(&program, guard).expect("case-qualified operand");
+        (statement_index, operand)
+    };
+    let ExpressionNode::Member(outer) = program.expression_table.expression(operand) else {
+        panic!("member fixture")
+    };
+    let receiver = outer.receiver;
+    let ExpressionNode::Member(inner) = program.expression_table.expression_mut(receiver) else {
+        panic!("case-member receiver fixture")
+    };
+    inner.member = "missing".into();
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, operand);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+/// A member above a resolved case receiver still has to name a field of the
+/// hop's declared type: `self.attack.inner@Strike.missing` finds `inner`
+/// inside `Strike` but `missing` on `Inner`, so the read set stays
+/// incomplete.
+#[test]
+fn a_member_above_a_case_receiver_naming_no_field_stays_incomplete() {
+    let mut program = typed_source(
+        "data Inner { v: i64; }
+        data Attack {
+            case Idle;
+            case Strike(inner: Inner, bonus: i64);
+        }
+        data Main { attack: Attack; }
+        machine Main::window(&mut self, unrelated: i64) {
+            transition self.attack {
+                Attack::Strike { inner, bonus } if inner.v == 10 -> done(bonus)
+                _ -> done(0)
+            }
+            state done(&mut self, power: i64) { let z: i64 = power; }
+        }",
+    );
+    let (statement_index, operand) = {
+        let (_, state) = window(&program);
+        let (statement_index, guard) = case_guard(&program, state);
+        let operand = case_member_operand(&program, guard).expect("case-qualified operand");
+        (statement_index, operand)
+    };
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(operand) else {
+        panic!("member fixture")
+    };
+    member.member = "missing".into();
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, operand);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
 

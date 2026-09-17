@@ -1388,19 +1388,25 @@ fn collect_selector_reads(
         }
         ExpressionNode::Member(member) => {
             // The typed member binder only covers `Name`/`Member`/`Indexed`/
-            // `StructLiteral` receivers, so `(&x).f` reaches this scan with
-            // `member_symbol` still unset — there the honest identity floor is
-            // `effective_member_symbol`, the same contextual resolution the
-            // canonical-place production stamps into the `Field` segment. A
-            // member on a receiver the binder did walk keeps the authored
-            // row's own identity: a symbol it saw but left unresolved cannot
-            // be recovered from the receiver's spelling.
+            // `StructLiteral` receivers, and it deliberately never stamps a
+            // case-qualified projection either: `subject.f@Case` reaches this
+            // scan with `member_symbol` unset on every destructure-desugared
+            // guard and target-argument read, and the unwalked hop shadows
+            // every member stacked above it — `subject.inner@Case.v` leaves
+            // `v` unstamped as well because the binder cannot type a
+            // case-qualified receiver. For both shapes the honest identity
+            // floor is `effective_member_symbol` — the same contextual
+            // resolution the canonical-place production stamps into the
+            // `Case`/`Field` segments, so the selector gate cannot admit a
+            // place the walk below would reject. A member on a receiver the
+            // binder did resolve keeps the authored row's own identity: a
+            // symbol it saw but left unresolved cannot be recovered from the
+            // receiver's spelling.
             (member.member_symbol.is_valid()
-                || (matches!(
-                    program.expression_table.expression(member.receiver),
-                    ExpressionNode::Borrow(_)
-                ) && crate::flow::effective_member_symbol(program, member.receiver, member)
-                    .is_valid()))
+                || ((member.case_variant.is_some()
+                    || member_receiver_escapes_binder(program, member.receiver, 0))
+                    && crate::flow::effective_member_symbol(program, member.receiver, member)
+                        .is_valid()))
                 && collect_selector_reads(
                     program,
                     machine,
@@ -1467,6 +1473,38 @@ fn collect_selector_reads(
                 depth,
             )
         }
+        _ => false,
+    }
+}
+
+/// Whether a member's receiver chain escaped the typed member binder, so an
+/// unset `member_symbol` on the member marks a hop the binder never typed
+/// rather than a name it saw and refused. The binder descends a member chain
+/// only while each hop resolves on the previous hop's declared type: a
+/// case-qualified hop is never stamped, so every member stacked above it —
+/// and above any earlier unwalked hop, recursively — keeps the contextual
+/// `effective_member_symbol` floor. An explicit `&`/`&mut` receiver peels
+/// before the binder's coverage test, so it escapes the same way. A receiver
+/// the binder did resolve (or whose own refusal was reachable) returns false:
+/// an unset symbol above it stays a refusal that contextual lookup must not
+/// repair — an unqualified `subject.f` naming a payload field, for example,
+/// cannot borrow `f@Case`'s identity merely because the name happens to
+/// resolve inside one variant.
+fn member_receiver_escapes_binder(
+    program: &TypedTrees,
+    receiver: ExpressionHandle,
+    depth: usize,
+) -> bool {
+    if depth >= 128 || !program.expression_table.expression_is_valid(receiver) {
+        return false;
+    }
+    match program.expression_table.expression(receiver) {
+        ExpressionNode::Member(inner) => {
+            inner.case_variant.is_some()
+                || (!inner.member_symbol.is_valid()
+                    && member_receiver_escapes_binder(program, inner.receiver, depth + 1))
+        }
+        ExpressionNode::Borrow(_) => true,
         _ => false,
     }
 }
