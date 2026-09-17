@@ -508,6 +508,7 @@ fn binary_resolution_matches_the_complete_operand_tuple() {
                     is_const: false,
                     is_mutable: false,
                     is_self: false,
+                    relevance: language_core::BindingRelevance::Relevant,
                 },
             );
         }
@@ -537,6 +538,7 @@ fn binary_resolution_matches_the_complete_operand_tuple() {
                 is_const: false,
                 is_mutable: false,
                 is_self: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         );
     }
@@ -607,6 +609,7 @@ fn attached_receiver_normalizes_to_operand_position_zero() {
                 is_const: false,
                 is_mutable: false,
                 is_self,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         );
     }
@@ -674,6 +677,7 @@ fn complete_operand_matching_shares_generic_bindings_across_positions() {
                 is_const: false,
                 is_mutable: false,
                 is_self: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         );
     }
@@ -694,6 +698,7 @@ fn complete_operand_matching_shares_generic_bindings_across_positions() {
                 is_const: false,
                 is_mutable: false,
                 is_self: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         );
     }

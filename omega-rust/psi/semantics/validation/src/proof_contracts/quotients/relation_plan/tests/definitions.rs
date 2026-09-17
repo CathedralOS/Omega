@@ -330,6 +330,7 @@ fn immutable_alias_fallthrough_requires_an_exact_immutable_chain() {
             initial_value: request,
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
         TableLocalData {
             symbol: second_symbol,
@@ -338,6 +339,7 @@ fn immutable_alias_fallthrough_requires_an_exact_immutable_chain() {
             initial_value: first_name,
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     ] {
         program
@@ -716,6 +718,7 @@ fn derived_immutable_alias_fallthrough_remains_non_executable() {
             initial_value: request,
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     program.statement_table.push_statement(

@@ -527,6 +527,7 @@ pub(crate) fn hoist_into_temp(
             initial_value: indexed_value,
             is_mutable: false,
             type_is_inferred: true,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     }));
 

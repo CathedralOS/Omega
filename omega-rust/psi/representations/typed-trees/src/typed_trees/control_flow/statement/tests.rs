@@ -92,6 +92,7 @@ fn deep_copy_owns_nested_statement_payloads() {
             initial_value: initial,
             is_mutable: true,
             type_is_inferred: true,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
 

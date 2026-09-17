@@ -916,6 +916,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
             is_const: false,
             is_mutable: true,
             is_self: true,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_state_parameter(
@@ -927,6 +928,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
             is_const: false,
             is_mutable: true,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_machine_state(&mut machine, target_state);
@@ -1013,6 +1015,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
             initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     program.statement_table.push_statement(
@@ -1052,6 +1055,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
             is_const: false,
             is_mutable: true,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_machine_state(&mut machine, target_state);

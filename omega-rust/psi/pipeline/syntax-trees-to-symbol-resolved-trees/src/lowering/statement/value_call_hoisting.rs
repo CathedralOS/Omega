@@ -159,6 +159,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
                     initial_value: call_side,
                     is_mutable: false,
                     type_is_inferred: true,
+                    relevance: language_core::BindingRelevance::Relevant,
                 },
             }));
             name
@@ -257,6 +258,7 @@ pub(crate) fn hoist_terminal_value_machine_call(
             initial_value: expression,
             is_mutable: false,
             type_is_inferred: true,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     }));
     let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;

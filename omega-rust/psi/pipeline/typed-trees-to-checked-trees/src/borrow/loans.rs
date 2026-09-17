@@ -167,6 +167,7 @@ fn assignment_borrow_loans(
         initial_value: assignment.value,
         is_mutable: true,
         type_is_inferred: false,
+        relevance: language_core::BindingRelevance::Relevant,
     };
 
     let mut loans = if is_reference_type(program, target_type) {

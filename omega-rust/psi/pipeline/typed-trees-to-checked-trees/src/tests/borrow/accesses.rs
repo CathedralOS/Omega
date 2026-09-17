@@ -548,6 +548,7 @@ fn collects_unresolved_local_argument_access_roots() {
             initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     program.statement_table.push_statement(

@@ -223,6 +223,9 @@ pub struct TableLocalData {
     /// `let mut` -- the local admits reassignment (ch3/ch14 spelling); a
     /// plain `let` is immutable and reassignment refuses.
     pub is_mutable: bool,
+    /// `let name [erased]: T` -- a proof-side local with no runtime storage;
+    /// the same binding-occurrence marker as an erased data field.
+    pub relevance: language_core::BindingRelevance,
 }
 
 impl Default for TableLocalData {
@@ -232,6 +235,7 @@ impl Default for TableLocalData {
             type_reference: crate::types::TypeReferenceHandle::invalid(),
             initial_value: crate::expression::ExpressionHandle::invalid(),
             is_mutable: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }
     }
 }

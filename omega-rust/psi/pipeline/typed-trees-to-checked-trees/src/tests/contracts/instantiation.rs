@@ -83,6 +83,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
 
@@ -133,6 +134,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
 
@@ -347,6 +349,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
             is_const: false,
             is_mutable: true,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_machine_state(&mut callee_machine, callee_state);
@@ -532,6 +535,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
             is_const: false,
             is_mutable: true,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_machine_state(&mut callee_machine, callee_state);

@@ -335,6 +335,7 @@ impl SyntaxTrees {
                 is_const: source_parameter.is_const,
                 is_mutable: source_parameter.is_mutable,
                 is_self: source_parameter.is_self,
+                relevance: source_parameter.relevance,
             })
         } else {
             StateParameterHandle::invalid()

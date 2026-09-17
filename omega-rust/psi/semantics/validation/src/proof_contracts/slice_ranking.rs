@@ -349,6 +349,7 @@ mod tests {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }
     }
 
@@ -426,6 +427,7 @@ mod tests {
                     is_const: false,
                     is_mutable,
                     is_self: false,
+                    relevance: language_core::BindingRelevance::Relevant,
                 },
             );
         }

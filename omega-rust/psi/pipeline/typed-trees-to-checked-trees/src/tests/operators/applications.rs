@@ -41,6 +41,7 @@ fn exact_operator_application_does_not_bind_a_same_spelled_foreign_nominal() {
                 is_const: false,
                 is_mutable: false,
                 is_self: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         );
     }
@@ -93,6 +94,7 @@ fn exact_operator_application_rejects_unresolved_nominal_argument() {
                 is_const: false,
                 is_mutable: false,
                 is_self: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         );
     }

@@ -1,0 +1,17 @@
+// `let name [erased]: T` is a proof-side local: its initializer may read
+// other erased bindings, but the runtime body may not read it back.
+data Main {
+    total: i32;
+}
+
+machine Main::main(&mut self) {
+    self.record(3, 10);
+}
+
+machine Main::record(&mut self, n: i32, bound [erased]: i32)
+requires
+    n < bound
+{
+    let limit [erased]: i32 = bound;
+    self.total = limit;
+}

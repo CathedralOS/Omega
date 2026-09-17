@@ -469,6 +469,7 @@ pub(super) fn clone_specialized_machine(
                     is_const: false,
                     is_mutable: false,
                     is_self: false,
+                    relevance: language_core::BindingRelevance::Relevant,
                 },
             );
         }

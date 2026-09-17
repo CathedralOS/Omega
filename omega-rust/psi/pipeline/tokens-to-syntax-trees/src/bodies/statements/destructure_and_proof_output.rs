@@ -123,6 +123,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
             initial_value: value,
             is_mutable: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }));
     let marker = syntax_trees.items.append_statement_handle(marker);
     let mut count: u32 = 1;
@@ -146,6 +147,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
                 type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value: member,
                 is_mutable: false,
+                relevance: language_core::BindingRelevance::Relevant,
             }));
         let _ = syntax_trees.items.append_statement_handle(statement);
         count = count.checked_add(1).expect("destructure count overflow");

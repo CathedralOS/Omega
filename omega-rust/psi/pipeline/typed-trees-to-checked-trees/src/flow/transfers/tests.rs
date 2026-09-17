@@ -160,6 +160,7 @@ fn correspondence_fixture() -> CorrespondenceFixture {
             initial_value: ExpressionHandle::invalid(),
             is_mutable: true,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     program.statement_table.push_statement(

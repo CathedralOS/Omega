@@ -122,6 +122,7 @@ pub(crate) fn hoist_membership_match_subject(
                     initial_value: observed,
                     is_mutable: false,
                     type_is_inferred: true,
+                    relevance: language_core::BindingRelevance::Relevant,
                 },
             }));
             name
@@ -277,6 +278,7 @@ pub(crate) fn hoist_comparison_match_subject(
                     initial_value: outer.left,
                     is_mutable: false,
                     type_is_inferred: false,
+                    relevance: language_core::BindingRelevance::Relevant,
                 },
             }));
             name

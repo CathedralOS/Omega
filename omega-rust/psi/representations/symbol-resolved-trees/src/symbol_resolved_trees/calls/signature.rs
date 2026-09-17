@@ -93,6 +93,8 @@ pub struct StateParameter {
     pub is_const: bool,
     pub is_mutable: bool,
     pub is_self: bool,
+    /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
+    pub relevance: language_core::BindingRelevance,
 }
 
 impl Default for StateParameter {
@@ -104,6 +106,7 @@ impl Default for StateParameter {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }
     }
 }

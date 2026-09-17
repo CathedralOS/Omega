@@ -64,6 +64,7 @@ pub struct StateParameterSnapshot {
     pub is_const: bool,
     pub is_mutable: bool,
     pub is_self: bool,
+    pub relevance: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -109,6 +110,7 @@ pub enum StatementSnapshot {
         type_reference: TypeReferenceSnapshot,
         initial_value: ExpressionSnapshot,
         is_mutable: bool,
+        relevance: &'static str,
     },
     Transition {
         target: TransitionTargetSnapshot,
@@ -317,6 +319,7 @@ pub(crate) fn snapshot_state_parameter(
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
         is_self: parameter.is_self,
+        relevance: super::item_snapshots::snapshot_binding_relevance(parameter.relevance),
     }
 }
 
@@ -395,6 +398,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
             initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
             is_mutable: value.is_mutable,
+            relevance: super::item_snapshots::snapshot_binding_relevance(value.relevance),
         },
         StatementNode::Transition(value) => StatementSnapshot::Transition {
             target: snapshot_transition_target(

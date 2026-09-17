@@ -117,6 +117,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
                         is_const,
                         is_mutable: access.is_exclusive() || is_leading_mutable,
                         is_self: true,
+                        relevance: language_core::BindingRelevance::Relevant,
                     },
                 ),
                 input,
@@ -124,11 +125,10 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
         }
 
         let (name, input) = input.take_identifier()?;
-        // `[erased]` is spec-legal on any authored binding occurrence; the
-        // signature parameter node cannot retain relevance yet, so the
-        // bracket fails closed here rather than parsing and dropping.
-        let ((), input) =
-            crate::parameters::binding_properties::parse_unsupported_binding_relevance_brackets(
+        // `[erased]` marks the binding occurrence, so it attaches to the
+        // parameter name exactly as on a data field.
+        let (relevance, input) =
+            crate::parameters::binding_properties::parse_binding_relevance_brackets(
                 input,
                 "parameter",
             )?;
@@ -143,6 +143,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
                     is_const,
                     is_mutable: access.is_exclusive() || is_leading_mutable || borrowed_mutable,
                     is_self: false,
+                    relevance,
                 },
             ),
             input,
@@ -161,6 +162,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
                     is_const,
                     is_mutable: is_leading_mutable,
                     is_self: true,
+                    relevance: language_core::BindingRelevance::Relevant,
                 },
             ),
             input,
@@ -169,8 +171,8 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
 
     let (name, input) = input.take_identifier()?;
     // Same binding-occurrence contract as the `&name` arm above.
-    let ((), input) =
-        crate::parameters::binding_properties::parse_unsupported_binding_relevance_brackets(
+    let (relevance, input) =
+        crate::parameters::binding_properties::parse_binding_relevance_brackets(
             input,
             "parameter",
         )?;
@@ -186,6 +188,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
                 is_const,
                 is_mutable: is_leading_mutable || borrowed_mutable,
                 is_self: false,
+                relevance,
             }),
         input,
     ))

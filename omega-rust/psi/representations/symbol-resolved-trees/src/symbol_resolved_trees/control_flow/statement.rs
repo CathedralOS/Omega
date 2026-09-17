@@ -124,6 +124,8 @@ pub struct LocalDataStorage {
     pub is_mutable: bool,
     /// No authored type annotation; typing must infer this generated binding.
     pub type_is_inferred: bool,
+    /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
+    pub relevance: language_core::BindingRelevance,
 }
 
 impl Default for LocalDataStorage {
@@ -133,6 +135,7 @@ impl Default for LocalDataStorage {
             initial_value: crate::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }
     }
 }
@@ -593,6 +596,7 @@ impl StatementTable {
                     initial_value,
                     is_mutable: local_data.is_mutable,
                     type_is_inferred: local_data.type_is_inferred,
+                    relevance: local_data.relevance,
                 }))
             }
             Statement::Transition(transition) => {
@@ -828,6 +832,8 @@ pub struct TableLocalData {
     pub is_mutable: bool,
     /// Retained inference origin, independent of the binding's name.
     pub type_is_inferred: bool,
+    /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
+    pub relevance: language_core::BindingRelevance,
 }
 
 impl Default for TableLocalData {
@@ -839,6 +845,7 @@ impl Default for TableLocalData {
             initial_value: crate::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }
     }
 }
