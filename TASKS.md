@@ -3560,6 +3560,14 @@ Owners include
   `repository_build_declarations.rs` pins that every wire, arithmetic, calls,
   traits, and float pass root declares exactly the std edge its sources
   import, with no standalone compatibility roster left.
+  `standard_library_package_resolution.rs` pins that removing a Console
+  consumer's std path dependency rejects it and that re-declaring std under
+  another alias or path spelling does not restore the `omega_language_std`
+  import. Remaining gap: the undeclared import is reported as an unresolvable
+  root-relative `omega_language_std/console.omg` source path rather than a
+  named missing dependency edge, and the Console provider selection gets no
+  diagnostic of its own because source assembly stops at the import (a
+  selection without the import is not a checkable shape).
 
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
   while keeping deployment/update policy in runtime packages or Cathedral. Componentization must

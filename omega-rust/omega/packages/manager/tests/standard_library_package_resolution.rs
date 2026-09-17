@@ -5,6 +5,7 @@ use package_compilation::AcceptedSemanticBindingRole;
 use package_evidence::record::{PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner};
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
+    resolve_external_local_project_closure_with_storage,
 };
 use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::SemanticBindingReview;
@@ -604,4 +605,141 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
         }),
         "unexpected diagnostics: {diagnostics:#?}"
     );
+}
+
+/// A root that imports `omega_language_std::console`, reaches Console, and
+/// selects the standard-library Console provider. The selection resolves
+/// through the import: a root that selects `Console` without importing it is
+/// not a checkable shape, so the import is the edge every use rides on.
+fn write_console_consumer(root: &Path, dependency: &str) {
+    fs::write(
+        root.join("build.omg"),
+        format!(
+            r#"
+machine build(builder: &mut Build) {{
+    builder.application("console-consumer");
+{dependency}    builder.select_provider<Console, ConsoleNativeProvider>();
+}}
+"#
+        ),
+    )
+    .expect("write Console consumer build declaration");
+    fs::write(
+        root.join("main.omg"),
+        r#"use omega_language_std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.console.exit_process(70);
+}
+"#,
+    )
+    .expect("write Console consumer source");
+}
+
+/// Resolve the consumer's declared closure and check its entry through the
+/// ordinary package handoff. Returns the aliases the root declares for the
+/// standard library beside the checked outcome, so a test can tell a missing
+/// package from a missing edge.
+fn check_console_consumer(
+    tree: &TempTree,
+    root: &Path,
+    storage: &str,
+) -> (Vec<String>, Result<(), Vec<String>>) {
+    let storage = SourceResolverStorage::for_hardened_base(
+        tree.0.join(storage),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create Console consumer resolver storage");
+    let closure = resolve_external_local_project_closure_with_storage(
+        root,
+        ExternalSourceContext::derive(b"console-dependency-removal"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve the Console consumer closure");
+    let aliases = closure
+        .graph()
+        .package(closure.graph().root())
+        .expect("root package graph node")
+        .dependencies()
+        .iter()
+        .filter(|edge| edge.target().name().as_str() == "omega-language-std")
+        .map(|edge| edge.alias().as_str().to_owned())
+        .collect::<Vec<_>>();
+    let inputs = package_compilation_inputs(&closure).expect("compiler package handoff");
+    let root_snapshot = closure
+        .source_root(closure.graph().root())
+        .expect("root source custody");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root_snapshot.join("main.omg"), Some("linux_x86_64"))
+    })
+    .map(|_| ())
+    .map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect()
+    });
+    (aliases, checked)
+}
+
+fn assert_rejects_standard_library_import(messages: &[String]) {
+    assert!(
+        messages.iter().any(|message| {
+            message.contains("omega_language_std")
+                && (message.contains("dependency") || message.contains("resolve"))
+        }),
+        "the std import must be rejected by name: {messages:#?}"
+    );
+}
+
+#[test]
+fn removing_the_standard_library_dependency_rejects_the_console_consumer() {
+    let tree = TempTree::new();
+    let root = tree.package("console-consumer");
+    let standard_library = repository_standard_library();
+
+    write_console_consumer(
+        &root,
+        &format!(
+            "    builder.depend(Source::Path {{ location: \"{}\" }});\n",
+            omega_path(&standard_library)
+        ),
+    );
+    let (aliases, checked) = check_console_consumer(&tree, &root, "declared");
+    assert_eq!(aliases, ["omega_language_std"]);
+    checked.expect("the declared std dependency admits the Console import and selection");
+
+    write_console_consumer(&root, "");
+    let (aliases, checked) = check_console_consumer(&tree, &root, "removed");
+    assert!(aliases.is_empty());
+    let messages = checked.expect_err("removing the std dependency must reject the consumer");
+    assert_rejects_standard_library_import(&messages);
+
+    // Re-declaring the same package under another alias and another path
+    // spelling resolves the package again but does not restore the removed
+    // `omega_language_std` edge, so the consumer stays rejected.
+    let respelled = standard_library
+        .parent()
+        .expect("standard library parent directory")
+        .join(".")
+        .join("std");
+    write_console_consumer(
+        &root,
+        &format!(
+            "    builder.depend_as(\"standard_library\", Source::Path {{ location: \"{}\" }});\n",
+            omega_path(&respelled)
+        ),
+    );
+    let (aliases, checked) = check_console_consumer(&tree, &root, "respelled");
+    assert_eq!(aliases, ["standard_library"]);
+    let messages =
+        checked.expect_err("a respelled std declaration must not restore the removed alias");
+    assert_rejects_standard_library_import(&messages);
 }
