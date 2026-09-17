@@ -31,6 +31,7 @@ pub use layouts::access_plans::{compute_access_plan, compute_placement_plan};
 pub use layouts::layout_plans::{
     BuildTimeValue, ValidatedConstMaterialization,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
+    ValidatedConstRecordArrayElementSelection, ValidatedConstRecordArrayFieldMaterialization,
     ValidatedConstRecordLevelSumChildrenMaterialization,
     ValidatedConstRecordSumArrayElementMaterialization,
     ValidatedConstRecordSumArrayElementSelection, ValidatedConstRecordSumArrayFieldMaterialization,

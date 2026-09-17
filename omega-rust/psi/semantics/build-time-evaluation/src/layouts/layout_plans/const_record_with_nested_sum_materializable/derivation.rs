@@ -2,13 +2,15 @@
 
 use super::{
     AggregateFieldSchema, AggregateFieldValue, BuildTimeValue, ByteOrder,
-    ConventionalNestedRecordSumPathLayoutReport, ConventionalRecordSumPathsLayoutReport,
-    ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport, DataDefinition,
-    DataMember, DataShapeKind, DerivedNestedRecordSumMaterialization,
-    DerivedNestedRecordSumsMaterialization, DerivedRecordLevelMaterialization,
-    DerivedRecursiveNestedSumsMaterialization, EncodedOuterField, MaterializationDiagnostic,
-    NestedPathsView, PreparedSumArrayField, SumReachability, TypedTrees,
+    ConventionalNestedRecordSumPathLayoutReport, ConventionalRecordArrayFieldLayoutReport,
+    ConventionalRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
+    ConventionalSumFieldLayoutReport, DataDefinition, DataMember, DataShapeKind,
+    DerivedNestedRecordSumMaterialization, DerivedNestedRecordSumsMaterialization,
+    DerivedRecordLevelMaterialization, DerivedRecursiveNestedSumsMaterialization,
+    EncodedOuterField, MaterializationDiagnostic, NestedPathsView, PreparedSumArrayField,
+    RepeatedFieldInfo, SumReachability, TypedTrees,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
+    ValidatedConstRecordArrayElementSelection, ValidatedConstRecordArrayFieldMaterialization,
     ValidatedConstRecordSumArrayFieldMaterialization, ValidatedConstRecordSumFieldMaterialization,
     ValidatedConstRecursiveNestedSumOccurrenceMaterialization, encode_typed_owned_value,
     exact_named_data, exact_struct_fields, field_occurrence_matches,
@@ -28,16 +30,21 @@ pub(super) struct RecordLevelChildren<'a> {
     /// Direct nonzero literal `[S; N]` fields of conventional pure sums.
     pub(super) direct_sum_arrays:
         Vec<(&'a typed_trees::data::DataField, &'a DataDefinition, usize)>,
+    /// Direct nonzero literal `[R; N]` fields whose record element still
+    /// reaches sums inside the element.
+    pub(super) direct_record_arrays:
+        Vec<(&'a typed_trees::data::DataField, &'a DataDefinition, usize)>,
     /// Record fields whose exact type still reaches sums below this level.
     pub(super) record_paths: Vec<(&'a typed_trees::data::DataField, &'a DataDefinition)>,
 }
 
 /// Classify every runtime-relevant field of one record level exactly as the
 /// projection does: direct pure sums, direct literal fixed arrays of pure
-/// sums, and record fields still reaching sums below. Arrays reaching sums
-/// through more than one literal element hop — nested arrays, record or
-/// mixed elements, non-literal lengths — remain fenced, and every declared
-/// member must be supplied by the value.
+/// sums, direct literal fixed arrays of records still reaching sums inside
+/// the element, and record fields still reaching sums below. Arrays
+/// reaching sums through more than one literal element hop — nested arrays
+/// or mixed elements — non-literal lengths, and zero-length arrays remain
+/// fenced, and every declared member must be supplied by the value.
 pub(super) fn classify_record_level_children<'a>(
     typed: &'a TypedTrees,
     data: &'a DataDefinition,
@@ -48,6 +55,7 @@ pub(super) fn classify_record_level_children<'a>(
     let mut children = RecordLevelChildren {
         direct_sums: Vec::new(),
         direct_sum_arrays: Vec::new(),
+        direct_record_arrays: Vec::new(),
         record_paths: Vec::new(),
     };
     children
@@ -64,6 +72,15 @@ pub(super) fn classify_record_level_children<'a>(
         .map_err(|_| {
             MaterializationDiagnostic(
                 "ConstMaterializable record-level sum-array set exceeds compiler resources".into(),
+            )
+        })?;
+    children
+        .direct_record_arrays
+        .try_reserve_exact(members.len())
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable record-level record-array set exceeds compiler resources"
+                    .into(),
             )
         })?;
     children
@@ -120,7 +137,20 @@ pub(super) fn classify_record_level_children<'a>(
                             field.name
                         )));
                     }
-                    DataShapeKind::Record | DataShapeKind::Empty => {
+                    // A record element crosses its own record boundary
+                    // inside each index — the same literal element hop the
+                    // projection admits, carried by the recursive report the
+                    // row retains once for every element.
+                    DataShapeKind::Record => {
+                        if *length == 0 {
+                            return Err(MaterializationDiagnostic(format!(
+                                "value.{} must have nonzero literal length",
+                                field.name
+                            )));
+                        }
+                        children.direct_record_arrays.push((field, named, *length));
+                    }
+                    DataShapeKind::Empty => {
                         return Err(MaterializationDiagnostic(format!(
                             "value.{} reaches a sum through an array deeper than one literal element hop",
                             field.name
@@ -271,11 +301,210 @@ pub(super) fn validate_direct_sum_array_rows(
     Ok(prepared_arrays)
 }
 
+/// One direct `[R; N]` field's staged repeated bytes and per-element
+/// recursive custody, prepared before the level's complete image exists.
+pub(super) struct PreparedRecordArrayField {
+    pub(super) field: String,
+    pub(super) field_identity: Option<u64>,
+    pub(super) elements: Vec<ValidatedConstRecordArrayElementSelection>,
+    pub(super) bytes: Vec<u8>,
+    pub(super) size: u64,
+    pub(super) align: u64,
+    pub(super) repeated: RepeatedFieldInfo,
+}
+
+/// Validate one direct `[R; N]` field's compact row and every literal
+/// element's recursive record/sum value against the row's shared element
+/// report, staging the field's complete repeated bytes once. Each element
+/// keeps its literal index beside its own recursive materialization
+/// coordinate; the complete element report lives once in the row. The same
+/// preparation runs wherever the field sits — a leaf level or a branch
+/// level inside the recursive record/sum report.
+pub(super) fn prepare_record_array_field(
+    typed: &TypedTrees,
+    array_field: &typed_trees::data::DataField,
+    element_data: &DataDefinition,
+    element_count: usize,
+    array_layout: &ConventionalRecordArrayFieldLayoutReport,
+    array_value: &BuildTimeValue,
+    byte_order: ByteOrder,
+    reachability: &mut SumReachability<'_>,
+) -> Result<PreparedRecordArrayField, MaterializationDiagnostic> {
+    if !field_occurrence_matches(
+        &array_layout.field,
+        array_layout.member_identity,
+        array_field.name.as_str(),
+        array_field.identity,
+    ) {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable compact record-array row for `{}` is missing, duplicated, or out of authored field order",
+            array_field.name
+        )));
+    }
+    let element_count_u64 = u64::try_from(element_count).map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable record-array count exceeds canonical report width".into(),
+        )
+    })?;
+    let element_size = array_layout.inner.outer_layout().size.ok_or_else(|| {
+        MaterializationDiagnostic(format!(
+            "ConstMaterializable compact record-array row for `{}` requires one exact element extent",
+            array_field.name
+        ))
+    })?;
+    if array_layout.element_count != element_count_u64
+        || array_layout.element_stride != element_size
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable compact record-array count/stride drifted for `{}`",
+            array_field.name
+        )));
+    }
+    let BuildTimeValue::Array(element_values) = array_value else {
+        return Err(MaterializationDiagnostic(format!(
+            "value.{} is not a fixed array",
+            array_field.name
+        )));
+    };
+    if element_values.len() != element_count {
+        return Err(MaterializationDiagnostic(format!(
+            "value.{} has {} elements, expected {element_count}",
+            array_field.name,
+            element_values.len()
+        )));
+    }
+    let mut elements = Vec::new();
+    elements.try_reserve_exact(element_count).map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable record-array element custody exceeds compiler resources".into(),
+        )
+    })?;
+    let total_size = array_layout
+        .element_stride
+        .checked_mul(array_layout.element_count)
+        .ok_or_else(|| {
+            MaterializationDiagnostic(
+                "ConstMaterializable record-array physical extent overflows".into(),
+            )
+        })?;
+    let total_size_usize = usize::try_from(total_size).map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable record-array physical extent exceeds compiler host".into(),
+        )
+    })?;
+    let mut array_bytes = Vec::new();
+    array_bytes
+        .try_reserve_exact(total_size_usize)
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable record-array staged bytes exceed compiler resources".into(),
+            )
+        })?;
+    for (index, element_value) in element_values.iter().enumerate() {
+        let inner = recursive::validate_with_reachability(
+            typed,
+            element_data.name.as_str(),
+            &array_layout.inner,
+            element_value,
+            byte_order,
+            reachability,
+        )?;
+        if u64::try_from(inner.bytes().len()).ok() != Some(element_size) {
+            return Err(MaterializationDiagnostic(format!(
+                "value.{} element {index} encoded to {} bytes, expected {element_size}",
+                array_field.name,
+                inner.bytes().len()
+            )));
+        }
+        let selection = ValidatedConstRecordArrayElementSelection {
+            literal_index: u64::try_from(index).map_err(|_| {
+                MaterializationDiagnostic(
+                    "ConstMaterializable record-array index exceeds canonical width".into(),
+                )
+            })?,
+            non_authoritative_materialization_report_fingerprint: inner
+                .non_authoritative_materialization_report_fingerprint(),
+            value: element_value.clone(),
+            bytes: inner.bytes().to_vec(),
+        };
+        array_bytes.extend_from_slice(inner.bytes());
+        elements.push(selection);
+    }
+    if array_bytes.len() != total_size_usize {
+        return Err(MaterializationDiagnostic(format!(
+            "value.{} encoded to {} bytes, expected {total_size}",
+            array_field.name,
+            array_bytes.len()
+        )));
+    }
+    Ok(PreparedRecordArrayField {
+        field: array_field.name.to_string(),
+        field_identity: array_field.identity,
+        elements,
+        bytes: array_bytes,
+        size: total_size,
+        align: array_layout.inner.outer_layout().align,
+        repeated: RepeatedFieldInfo {
+            element_size: array_layout.element_stride,
+            element_align: array_layout.inner.outer_layout().align,
+            element_count: array_layout.element_count,
+        },
+    })
+}
+
+/// Validate one level's compact record-array rows against its classified
+/// fields, staging each field's complete repeated bytes and per-element
+/// recursive custody.
+pub(super) fn validate_direct_record_array_rows(
+    typed: &TypedTrees,
+    direct_record_arrays: &[(&typed_trees::data::DataField, &DataDefinition, usize)],
+    rows: &[ConventionalRecordArrayFieldLayoutReport],
+    supplied: &std::collections::BTreeMap<&str, &BuildTimeValue>,
+    byte_order: ByteOrder,
+    reachability: &mut SumReachability<'_>,
+    role: &str,
+) -> Result<Vec<PreparedRecordArrayField>, MaterializationDiagnostic> {
+    if rows.len() != direct_record_arrays.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable {role} report contains {} record-array row(s), expected the complete authored-order set of {}",
+            rows.len(),
+            direct_record_arrays.len()
+        )));
+    }
+    let mut prepared_arrays = Vec::new();
+    prepared_arrays
+        .try_reserve_exact(direct_record_arrays.len())
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable record-level record-array staging set exceeds compiler resources"
+                    .into(),
+            )
+        })?;
+    for ((array_field, element_data, element_count), array_layout) in
+        direct_record_arrays.iter().zip(rows)
+    {
+        let array_value = supplied
+            .get(array_field.name.as_str())
+            .expect("complete outer value checked above");
+        prepared_arrays.push(prepare_record_array_field(
+            typed,
+            array_field,
+            element_data,
+            *element_count,
+            array_layout,
+            array_value,
+            byte_order,
+            reachability,
+        )?);
+    }
+    Ok(prepared_arrays)
+}
+
 /// Stage one record level's runtime fields in authored member order. The
 /// caller's `occurrence_for` supplies the next ordered deeper-path custody
-/// when `field` opens one; the level's own direct sums and prepared sum
-/// arrays join by field identity. Everything else encodes as an opaque
-/// aggregate value after `validate_value`.
+/// when `field` opens one; the level's own direct sums, prepared sum
+/// arrays, and prepared record arrays join by field identity. Everything
+/// else encodes as an opaque aggregate value after `validate_value`.
 pub(super) fn stage_record_level_fields(
     typed: &TypedTrees,
     data: &DataDefinition,
@@ -285,6 +514,7 @@ pub(super) fn stage_record_level_fields(
         &typed_trees::data::DataField,
     ) -> Result<Option<EncodedOuterField>, MaterializationDiagnostic>,
     prepared_arrays: &mut [PreparedSumArrayField],
+    prepared_record_arrays: &mut [PreparedRecordArrayField],
     nested_sums: &[ValidatedConstRecordSumFieldMaterialization],
     byte_order: ByteOrder,
     role: &str,
@@ -306,6 +536,7 @@ pub(super) fn stage_record_level_fields(
     })?;
     active.push(data.symbol);
     let mut prepared_index = 0usize;
+    let mut prepared_record_index = 0usize;
     for member in members {
         let DataMember::Field(field) = member else {
             unreachable!("outer record shape was validated above")
@@ -335,6 +566,29 @@ pub(super) fn stage_record_level_fields(
                 bytes: std::mem::take(&mut prepared.bytes),
             });
             prepared_index += 1;
+            continue;
+        }
+        if prepared_record_arrays
+            .get(prepared_record_index)
+            .is_some_and(|prepared| {
+                field_occurrence_matches(
+                    field.name.as_str(),
+                    field.identity,
+                    &prepared.field,
+                    prepared.field_identity,
+                )
+            })
+        {
+            let prepared = &mut prepared_record_arrays[prepared_record_index];
+            encoded_fields.push(EncodedOuterField {
+                name: field.name.to_string(),
+                identity: field.identity,
+                size: prepared.size,
+                align: prepared.align,
+                repeated: Some(prepared.repeated),
+                bytes: std::mem::take(&mut prepared.bytes),
+            });
+            prepared_record_index += 1;
             continue;
         }
         if let Some(nested_row) = nested_sums.iter().find(|row| {
@@ -398,6 +652,11 @@ pub(super) fn stage_record_level_fields(
     if prepared_index != prepared_arrays.len() {
         return Err(MaterializationDiagnostic(format!(
             "ConstMaterializable {role} staging did not consume the complete authored-order sum-array set"
+        )));
+    }
+    if prepared_record_index != prepared_record_arrays.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable {role} staging did not consume the complete authored-order record-array set"
         )));
     }
     Ok(encoded_fields)
@@ -466,16 +725,18 @@ pub(super) fn materialize_level_bytes(
 }
 
 /// Derive one recursive leaf level's complete direct-sum children: every
-/// direct conventional pure-sum field and every direct fixed array of pure
-/// sums beside the level's flat outer plan. A leaf level cannot carry deeper
-/// record paths; a value-side record field still reaching sums drifts from
-/// the supplied `Leaf` report and rejects.
+/// direct conventional pure-sum field, every direct fixed array of pure
+/// sums, and every direct fixed array of records still reaching sums beside
+/// the level's flat outer plan. A leaf level cannot carry deeper record
+/// paths; a value-side record field still reaching sums drifts from the
+/// supplied `Leaf` report and rejects.
 pub(super) fn derive_record_level_children_bytes(
     typed: &TypedTrees,
     schema_name: &str,
     outer_layout: &layout_plans::LayoutPlanReport,
     child_sum_layouts: &[ConventionalSumFieldLayoutReport],
     child_sum_array_layouts: &[ConventionalSumArrayFieldLayoutReport],
+    child_record_array_layouts: &[ConventionalRecordArrayFieldLayoutReport],
     value: &BuildTimeValue,
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
@@ -516,11 +777,38 @@ pub(super) fn derive_record_level_children_bytes(
             field.name
         )));
     }
-    if children.direct_sums.is_empty() && children.direct_sum_arrays.is_empty() {
+    if children.direct_sums.is_empty()
+        && children.direct_sum_arrays.is_empty()
+        && children.direct_record_arrays.is_empty()
+    {
         return Err(MaterializationDiagnostic(
-            "ConstMaterializable record-level requires at least one direct runtime-relevant pure-sum or sum-array field"
+            "ConstMaterializable record-level requires at least one direct runtime-relevant pure-sum, sum-array, or record-array field"
                 .into(),
         ));
+    }
+    let mut total_leaf_occurrences = child_sum_layouts
+        .len()
+        .checked_add(child_sum_array_layouts.len())
+        .ok_or_else(|| {
+            MaterializationDiagnostic(
+                "ConstMaterializable record-level leaf occurrence count overflows".to_owned(),
+            )
+        })?;
+    for row in child_record_array_layouts {
+        total_leaf_occurrences = total_leaf_occurrences
+            .checked_add(row.inner.leaf_occurrence_count().ok_or_else(|| {
+                MaterializationDiagnostic(
+                    "ConstMaterializable record-level leaf occurrence count overflows".to_owned(),
+                )
+            })?)
+            .ok_or_else(|| {
+                MaterializationDiagnostic(
+                    "ConstMaterializable record-level leaf occurrence count overflows".to_owned(),
+                )
+            })?;
+        if total_leaf_occurrences > SumReachability::MAX_EDGES {
+            return Err(MaterializationDiagnostic("ConstMaterializable record-level record arrays exceed the global leaf occurrence bound".to_owned()));
+        }
     }
     let nested_sums = validate_direct_sum_rows(
         typed,
@@ -538,6 +826,15 @@ pub(super) fn derive_record_level_children_bytes(
         byte_order,
         "record-level",
     )?;
+    let mut prepared_record_arrays = validate_direct_record_array_rows(
+        typed,
+        &children.direct_record_arrays,
+        child_record_array_layouts,
+        &supplied,
+        byte_order,
+        reachability,
+        "record-level",
+    )?;
     let encoded_fields = stage_record_level_fields(
         typed,
         data,
@@ -545,6 +842,7 @@ pub(super) fn derive_record_level_children_bytes(
         &supplied,
         |_| Ok(None),
         &mut prepared_arrays,
+        &mut prepared_record_arrays,
         &nested_sums,
         byte_order,
         "record-level",
@@ -566,10 +864,27 @@ pub(super) fn derive_record_level_children_bytes(
             elements: prepared.elements,
         });
     }
+    let mut nested_record_arrays = Vec::new();
+    nested_record_arrays
+        .try_reserve_exact(prepared_record_arrays.len())
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable record-level record-array custody exceeds compiler resources"
+                    .into(),
+            )
+        })?;
+    for prepared in prepared_record_arrays {
+        nested_record_arrays.push(ValidatedConstRecordArrayFieldMaterialization {
+            field: prepared.field,
+            field_identity: prepared.field_identity,
+            elements: prepared.elements,
+        });
+    }
     Ok(DerivedRecordLevelMaterialization {
         schema_report_fingerprint,
         nested_sums,
         nested_sum_arrays,
+        nested_record_arrays,
         bytes,
     })
 }
@@ -639,6 +954,15 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
         byte_order,
         "plural recursive",
     )?;
+    let mut prepared_record_arrays = validate_direct_record_array_rows(
+        typed,
+        &children.direct_record_arrays,
+        &path_layout.child_record_array_layouts,
+        &supplied,
+        byte_order,
+        reachability,
+        "plural recursive",
+    )?;
     let mut total_leaf_occurrences = path_layout
         .child_sum_layouts
         .len()
@@ -648,6 +972,24 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
                 "ConstMaterializable plural recursive leaf occurrence count overflows".to_owned(),
             )
         })?;
+    for row in &path_layout.child_record_array_layouts {
+        total_leaf_occurrences = total_leaf_occurrences
+            .checked_add(row.inner.leaf_occurrence_count().ok_or_else(|| {
+                MaterializationDiagnostic(
+                    "ConstMaterializable plural recursive leaf occurrence count overflows"
+                        .to_owned(),
+                )
+            })?)
+            .ok_or_else(|| {
+                MaterializationDiagnostic(
+                    "ConstMaterializable plural recursive leaf occurrence count overflows"
+                        .to_owned(),
+                )
+            })?;
+        if total_leaf_occurrences > SumReachability::MAX_EDGES {
+            return Err(MaterializationDiagnostic("ConstMaterializable plural recursive record arrays exceed the global leaf occurrence bound".to_owned()));
+        }
+    }
     for path in &path_layout.paths {
         total_leaf_occurrences = total_leaf_occurrences
             .checked_add(path.inner.leaf_occurrence_count().ok_or_else(|| {
@@ -765,6 +1107,7 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
             }))
         },
         &mut prepared_arrays,
+        &mut prepared_record_arrays,
         &nested_sums,
         byte_order,
         "plural recursive",
@@ -790,11 +1133,28 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
             elements: prepared.elements,
         });
     }
+    let mut nested_record_arrays = Vec::new();
+    nested_record_arrays
+        .try_reserve_exact(prepared_record_arrays.len())
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable plural recursive record-array custody exceeds compiler resources"
+                    .to_owned(),
+            )
+        })?;
+    for prepared in prepared_record_arrays {
+        nested_record_arrays.push(ValidatedConstRecordArrayFieldMaterialization {
+            field: prepared.field,
+            field_identity: prepared.field_identity,
+            elements: prepared.elements,
+        });
+    }
     Ok(DerivedRecursiveNestedSumsMaterialization {
         schema_report_fingerprint,
         occurrences,
         nested_sums,
         nested_sum_arrays,
+        nested_record_arrays,
         bytes,
     })
 }

@@ -23,9 +23,10 @@ mod symbolic_values;
 pub use layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalNestedRecordSumOccurrenceLayoutReport,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,
-    ConventionalRecordSumOccurrenceLayoutReport, ConventionalRecordSumPathsLayoutReport,
-    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
-    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ConventionalRecordArrayFieldLayoutReport, ConventionalRecordSumOccurrenceLayoutReport,
+    ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
+    ConventionalSumArrayFieldLayoutReport, ConventionalSumCaseLayoutReport,
+    ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, IntegerInterpretation, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, NativeLayoutPlanReport,
     PrivateCallbackLayoutDemandReport, conventional_sum_layout_reports_match_for_replay,

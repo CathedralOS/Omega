@@ -1,7 +1,7 @@
 use super::{
     data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
-    recursive_sum_array_report, recursive_sum_report, sum_array_layout, sum_field_layout,
-    sum_layout,
+    recursive_record_array_report, recursive_sum_array_report, recursive_sum_report,
+    sum_array_layout, sum_field_layout, sum_layout,
 };
 use crate::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumOccurrenceLayoutReport,
@@ -1038,6 +1038,7 @@ fn symbolic_recursive_sum_fold_bounds_report_depth() {
         },
         child_sum_layouts: Vec::new(),
         child_sum_array_layouts: Vec::new(),
+        child_record_array_layouts: Vec::new(),
     };
     let wrap = |inner| {
         ConventionalRecursiveRecordSumPathsLayoutReport::Branch(
@@ -1060,6 +1061,7 @@ fn symbolic_recursive_sum_fold_bounds_report_depth() {
                 }],
                 child_sum_layouts: Vec::new(),
                 child_sum_array_layouts: Vec::new(),
+                child_record_array_layouts: Vec::new(),
             },
         )
     };
@@ -1239,4 +1241,276 @@ fn symbolic_recursive_sum_array_materialization_composes_indexed_boundaries() {
     assert_eq!(&bytes[104..112], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
     assert_eq!(&bytes[136..144], &0x1122_3344_5566_7788_u64.to_le_bytes());
     assert_eq!(&bytes[152..160], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+}
+
+#[test]
+fn symbolic_recursive_record_array_materialization_composes_element_boundaries() {
+    // A direct `[R; N]` field whose record element still reaches sums folds
+    // one `RecordArray` carrier per row: the path `neighbors[1].choice` spells
+    // the element index on the field hop, then resolves `choice` inside the
+    // addressed element's own record interior — the element report is
+    // retained once for every index, and the folded carriers inside it join
+    // the same field-keyed namespace as a single nested record's.
+    let report = recursive_record_array_report();
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&report)
+        .expect("the recursive record-array report folds into inner layout carriers");
+    assert_eq!(carriers.len(), 1);
+    let middle = &carriers[0];
+    assert_eq!(middle.field, "middle");
+    let inner_carriers = middle.inner_layouts();
+    assert_eq!(inner_carriers.len(), 3);
+    assert_eq!(inner_carriers[0].field, "route");
+    assert_eq!(inner_carriers[1].field, "neighbors");
+    assert!(
+        matches!(
+            inner_carriers[1].inner_layout,
+            crate::SymbolicFieldInteriorLayout::RecordArray {
+                element_count: 2,
+                element_stride: 32,
+                ..
+            }
+        ),
+        "the record-array row folds into a repeated record interior"
+    );
+    assert_eq!(inner_carriers[2].field, "inner");
+    // The element record's own carriers ride inside the `RecordArray`
+    // carrier exactly as `inner`'s leaf carriers ride inside its `Record`
+    // carrier.
+    let element_carriers = inner_carriers[1].inner_layouts();
+    assert_eq!(element_carriers.len(), 1);
+    assert_eq!(element_carriers[0].field, "choice");
+    assert_eq!(inner_carriers[2].inner_layouts().len(), 1);
+    assert_eq!(inner_carriers[2].inner_layouts()[0].field, "choice");
+
+    let symbolic = [
+        SymbolicFieldValue::new("header", 64, data()).expect("scalar field"),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed("neighbors", 1).with_inner_segment(
+                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, entry())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new_indexed("neighbors", 0)
+                    .with_inner_segment(SymbolicFieldPathSegment::new("pad")),
+            ),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("inner").with_inner_segment(
+                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
+                    ),
+                ),
+            ),
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                SymbolicFieldPathSegment::new("route").with_inner_segment(
+                    SymbolicFieldPathSegment::new("Run")
+                        .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                ),
+            ),
+    ];
+    let plan = derive_symbolic_materialization_with_inner_layouts(
+        report.outer_layout(),
+        &carriers,
+        &symbolic,
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("recursive record-array paths compose every crossed boundary");
+
+    let writes = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            _ => panic!("an unresolved symbolic derives a runtime writer"),
+        })
+        .collect::<Vec<_>>();
+    // `middle` spans 8..128; inside it `inner` sits at 0, `route` at 32, and
+    // `neighbors` repeats at 56 on a 32-byte stride, so `neighbors[1]` lands
+    // at 56+32=88 inside the interior and its `choice.Run.callback` resolves
+    // at the element's payload offset.
+    assert_eq!(
+        writes,
+        vec![
+            ("header", 0),
+            ("middle.neighbors[1].choice.Run.callback", 104),
+            ("middle.neighbors[0].pad", 88),
+            ("middle.inner.choice.Run.clock", 24),
+            ("middle.route.Run.callback", 48),
+        ]
+    );
+
+    let writer = plan.derive_post_handoff_writer().expect("writer");
+    let mut bytes = [0xa5_u8; 128];
+    writer
+        .execute(
+            &mut bytes,
+            PlacementSite {
+                base_address: 0,
+                phase: PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: None,
+            },
+            |target| {
+                if target == entry() {
+                    Some(0x1122_3344_5566_7788)
+                } else {
+                    assert_eq!(target, data());
+                    Some(0xdead_beef_cafe_f00d)
+                }
+            },
+        )
+        .expect("the recursive record-array writer resolves each exact slot");
+
+    assert_eq!(&bytes[0..8], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[24..32], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[48..56], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+    assert_eq!(&bytes[88..96], &0x1122_3344_5566_7788_u64.to_le_bytes());
+    assert_eq!(&bytes[104..112], &0xdead_beef_cafe_f00d_u64.to_le_bytes());
+}
+
+#[test]
+fn symbolic_recursive_record_array_paths_stay_symbolic_until_assignment() {
+    // The same record-array carrier set bounds every indexed hop: a missing
+    // index, an out-of-range index, an interior escaping the enclosing
+    // extent, or an unbound member all reject before any write offset is
+    // assigned, and a carrier no path traverses rejects at the end.
+    let report = recursive_record_array_report();
+    let carriers = SymbolicFieldInnerLayout::from_recursive_sum_paths(&report)
+        .expect("the recursive record-array report folds into inner layout carriers");
+
+    let neighbors_choice = |index: Option<u64>| {
+        let segment = match index {
+            Some(index) => SymbolicFieldPathSegment::new_indexed("neighbors", index),
+            None => SymbolicFieldPathSegment::new("neighbors"),
+        };
+        SymbolicFieldValue::new("middle", 64, data())
+            .expect("outer record field")
+            .with_inner_segment(
+                segment.with_inner_segment(
+                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                    ),
+                ),
+            )
+    };
+    // The record hop still needs its own carriers traversed: `inner` and
+    // `route` ride beside `neighbors`, so covering paths cross them too.
+    let cover_rest = || {
+        [
+            SymbolicFieldValue::new("middle", 64, data())
+                .expect("outer record field")
+                .with_inner_segment(
+                    SymbolicFieldPathSegment::new("inner").with_inner_segment(
+                        SymbolicFieldPathSegment::new("choice").with_inner_segment(
+                            SymbolicFieldPathSegment::new("Run")
+                                .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
+                        ),
+                    ),
+                ),
+            SymbolicFieldValue::new("middle", 64, data())
+                .expect("outer record field")
+                .with_inner_segment(
+                    SymbolicFieldPathSegment::new("route").with_inner_segment(
+                        SymbolicFieldPathSegment::new("Run")
+                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
+                    ),
+                ),
+        ]
+    };
+
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        report.outer_layout(),
+        &carriers,
+        &std::iter::once(neighbors_choice(None))
+            .chain(cover_rest())
+            .collect::<Vec<_>>(),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("an unindexed hop into a repeated record interior cannot name one element");
+    assert!(
+        error.0.contains(
+            "requires an element index into the repeated record field `middle.neighbors`"
+        ),
+        "{}",
+        error.0
+    );
+
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        report.outer_layout(),
+        &carriers,
+        &std::iter::once(neighbors_choice(Some(2)))
+            .chain(cover_rest())
+            .collect::<Vec<_>>(),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("an element index beyond the repeated extent must reject");
+    assert!(
+        error
+            .0
+            .contains("element index 2 is outside its 2 element placements"),
+        "{}",
+        error.0
+    );
+
+    // A carrier striding repeated record elements inside their own extent
+    // rejects at preparation, before any path resolves a write offset.
+    let mut shrunken = carriers.clone();
+    let crate::SymbolicFieldInteriorLayout::RecordArray { element_stride, .. } =
+        &mut shrunken[0].inner_layouts[1].inner_layout
+    else {
+        unreachable!()
+    };
+    *element_stride = 16;
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        report.outer_layout(),
+        &shrunken,
+        &std::iter::once(neighbors_choice(Some(1)))
+            .chain(cover_rest())
+            .collect::<Vec<_>>(),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("a record array striding inside its element extent must reject");
+    assert!(
+        error
+            .0
+            .contains("strides repeated record elements by 16 bytes inside their 32-byte extent"),
+        "{}",
+        error.0
+    );
+
+    // And a repeated record interior no symbolic path traverses still
+    // rejects: the carrier must not outlive the semantic path it describes.
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        report.outer_layout(),
+        &carriers,
+        &cover_rest().into_iter().collect::<Vec<_>>(),
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err("an untraversed repeated record interior must reject");
+    assert!(
+        error.0.contains(
+            "no symbolic field path traverses the supplied inner layout for `middle.neighbors`"
+        ),
+        "{}",
+        error.0
+    );
 }

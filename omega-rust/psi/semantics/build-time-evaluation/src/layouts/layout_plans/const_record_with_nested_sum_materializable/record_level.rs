@@ -1,34 +1,40 @@
 //! One recursive record level's retained direct-child custody.
 //!
-//! A record level that ends the record recursion still carries both direct
-//! child kinds: its direct conventional pure-sum fields and its direct fixed
-//! arrays of conventional pure sums. The level's custody mirrors the branch
-//! custody — the exact supplied report rows are retained beside the validated
-//! per-field selections so replay compares hash-free layout facts before any
-//! fingerprint coordinate.
+//! A record level that ends the record recursion still carries every direct
+//! child kind: its direct conventional pure-sum fields, its direct fixed
+//! arrays of conventional pure sums, and its direct fixed arrays of records
+//! still reaching sums inside the element. The level's custody mirrors the
+//! branch custody — the exact supplied report rows are retained beside the
+//! validated per-field selections so replay compares hash-free layout facts
+//! before any fingerprint coordinate.
 
 use super::{
     BuildTimeValue, ByteOrder, MaterializationDiagnostic, SumReachability, TypedTrees,
+    ValidatedConstRecordArrayFieldMaterialization,
     ValidatedConstRecordSumArrayFieldMaterialization, ValidatedConstRecordSumFieldMaterialization,
     derive_record_level_children_bytes, layout_plan_reports_match_for_replay,
-    nested_sum_fields_match, normalized_layout_plan_report_fingerprint,
-    record_level_materialization_report_fingerprint, sum_array_fields_match,
-    sum_array_layout_sets_match_for_replay, validate_supplied_nested_rows_against_retained,
+    nested_sum_fields_match, normalized_layout_plan_report_fingerprint, record_array_fields_match,
+    record_array_layout_sets_match_for_replay, record_level_materialization_report_fingerprint,
+    sum_array_fields_match, sum_array_layout_sets_match_for_replay,
+    validate_supplied_nested_rows_against_retained,
 };
 use layout_plans::{
-    ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport, LayoutPlanReport,
+    ConventionalRecordArrayFieldLayoutReport, ConventionalSumArrayFieldLayoutReport,
+    ConventionalSumFieldLayoutReport, LayoutPlanReport,
 };
 
 /// Complete value-sensitive custody for one recursive record level that ends
-/// the record recursion: every direct conventional pure-sum field and every
-/// direct fixed array of pure sums beside the level's flat outer plan.
+/// the record recursion: every direct conventional pure-sum field, every
+/// direct fixed array of pure sums, and every direct fixed array of records
+/// still reaching sums beside the level's flat outer plan.
 ///
-/// `array_layouts` retains the supplied compact rows because each retained
-/// element selection is deliberately compact — the complete all-case element
-/// layout lives once per occurrence here, so replay can compare supplied rows
-/// hash-free before re-deriving any selected case. This type does not
-/// implement `Clone`: replay reconstructs every outer and nested fact from
-/// the caller's current typed program.
+/// `array_layouts` and `record_array_layouts` retain the supplied compact
+/// rows because each retained element selection is deliberately compact —
+/// the complete all-case element layout (or the element record's recursive
+/// report) lives once per occurrence here, so replay can compare supplied
+/// rows hash-free before re-deriving any selected element. This type does
+/// not implement `Clone`: replay reconstructs every outer and nested fact
+/// from the caller's current typed program.
 #[derive(Debug)]
 pub struct ValidatedConstRecordLevelSumChildrenMaterialization {
     pub(crate) schema_name: String,
@@ -39,6 +45,8 @@ pub struct ValidatedConstRecordLevelSumChildrenMaterialization {
     pub(crate) nested_sums: Vec<ValidatedConstRecordSumFieldMaterialization>,
     pub(crate) array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
     pub(crate) nested_sum_arrays: Vec<ValidatedConstRecordSumArrayFieldMaterialization>,
+    pub(crate) record_array_layouts: Vec<ConventionalRecordArrayFieldLayoutReport>,
+    pub(crate) nested_record_arrays: Vec<ValidatedConstRecordArrayFieldMaterialization>,
     pub(crate) byte_order: ByteOrder,
     pub(crate) bytes: Vec<u8>,
     pub(crate) non_authoritative_materialization_report_fingerprint: u64,
@@ -68,6 +76,13 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
         &self.nested_sum_arrays
     }
 
+    /// Direct fixed-array-of-records custody at this level, in authored
+    /// field order — each retained element selection keeps its own literal
+    /// index and recursive materialization coordinate.
+    pub fn nested_record_arrays(&self) -> &[ValidatedConstRecordArrayFieldMaterialization] {
+        &self.nested_record_arrays
+    }
+
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -76,8 +91,8 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
         self.non_authoritative_materialization_report_fingerprint
     }
 
-    /// Independently rederive the level's typed value, both supplied direct
-    /// child row sets, and the complete staged bytes.
+    /// Independently rederive the level's typed value, every supplied direct
+    /// child row set, and the complete staged bytes.
     pub fn replay_against(
         &self,
         typed: &TypedTrees,
@@ -85,6 +100,7 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
         layout: &LayoutPlanReport,
         child_sum_layouts: &[ConventionalSumFieldLayoutReport],
         child_sum_array_layouts: &[ConventionalSumArrayFieldLayoutReport],
+        child_record_array_layouts: &[ConventionalRecordArrayFieldLayoutReport],
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
@@ -95,6 +111,7 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
             layout,
             child_sum_layouts,
             child_sum_array_layouts,
+            child_record_array_layouts,
             value,
             byte_order,
             &mut reachability,
@@ -108,6 +125,7 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
         layout: &LayoutPlanReport,
         child_sum_layouts: &[ConventionalSumFieldLayoutReport],
         child_sum_array_layouts: &[ConventionalSumArrayFieldLayoutReport],
+        child_record_array_layouts: &[ConventionalRecordArrayFieldLayoutReport],
         value: &BuildTimeValue,
         byte_order: ByteOrder,
         reachability: &mut SumReachability<'_>,
@@ -122,6 +140,10 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
         if layout_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !layout_plan_reports_match_for_replay(layout, &self.layout)
             || !sum_array_layout_sets_match_for_replay(child_sum_array_layouts, &self.array_layouts)
+            || !record_array_layout_sets_match_for_replay(
+                child_record_array_layouts,
+                &self.record_array_layouts,
+            )
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable record-level layout set drifted from retained custody".into(),
@@ -140,6 +162,7 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
             layout,
             child_sum_layouts,
             child_sum_array_layouts,
+            child_record_array_layouts,
             value,
             byte_order,
             reachability,
@@ -147,6 +170,10 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
         if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
             || !nested_sum_fields_match(&replayed.nested_sums, &self.nested_sums)
             || !sum_array_fields_match(&replayed.nested_sum_arrays, &self.nested_sum_arrays)
+            || !record_array_fields_match(
+                &replayed.nested_record_arrays,
+                &self.nested_record_arrays,
+            )
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable record-level direct-child custody drifted from exact replay"
@@ -163,8 +190,10 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
             replayed.schema_report_fingerprint,
             layout_fingerprint,
             child_sum_array_layouts,
+            child_record_array_layouts,
             &replayed.nested_sums,
             &replayed.nested_sum_arrays,
+            &replayed.nested_record_arrays,
             byte_order,
             value,
             &replayed.bytes,
@@ -178,7 +207,7 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
         Ok(())
     }
 
-    /// Replay both retained child channels before one atomic copy of the
+    /// Replay every retained child channel before one atomic copy of the
     /// level's complete image.
     pub fn apply(
         &self,
@@ -199,6 +228,7 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
                 })
                 .collect::<Vec<_>>(),
             &self.array_layouts,
+            &self.record_array_layouts,
             &self.value,
             self.byte_order,
         )?;
@@ -214,7 +244,7 @@ impl ValidatedConstRecordLevelSumChildrenMaterialization {
     }
 }
 
-/// Validate one record level's complete direct-sum children and retain the
+/// Validate one record level's complete direct-child rows and retain the
 /// exact supplied rows beside each field's value-sensitive custody.
 pub(super) fn validate_record_level_sum_children_with_reachability(
     typed: &TypedTrees,
@@ -222,6 +252,7 @@ pub(super) fn validate_record_level_sum_children_with_reachability(
     outer_layout: &LayoutPlanReport,
     child_sum_layouts: &[ConventionalSumFieldLayoutReport],
     child_sum_array_layouts: &[ConventionalSumArrayFieldLayoutReport],
+    child_record_array_layouts: &[ConventionalRecordArrayFieldLayoutReport],
     value: &BuildTimeValue,
     byte_order: ByteOrder,
     reachability: &mut SumReachability<'_>,
@@ -232,6 +263,7 @@ pub(super) fn validate_record_level_sum_children_with_reachability(
         outer_layout,
         child_sum_layouts,
         child_sum_array_layouts,
+        child_record_array_layouts,
         value,
         byte_order,
         reachability,
@@ -242,8 +274,10 @@ pub(super) fn validate_record_level_sum_children_with_reachability(
         derived.schema_report_fingerprint,
         layout_fingerprint,
         child_sum_array_layouts,
+        child_record_array_layouts,
         &derived.nested_sums,
         &derived.nested_sum_arrays,
+        &derived.nested_record_arrays,
         byte_order,
         value,
         &derived.bytes,
@@ -257,6 +291,8 @@ pub(super) fn validate_record_level_sum_children_with_reachability(
         nested_sums: derived.nested_sums,
         array_layouts: child_sum_array_layouts.to_vec(),
         nested_sum_arrays: derived.nested_sum_arrays,
+        record_array_layouts: child_record_array_layouts.to_vec(),
+        nested_record_arrays: derived.nested_record_arrays,
         byte_order,
         bytes: derived.bytes,
         non_authoritative_materialization_report_fingerprint: materialization_fingerprint,

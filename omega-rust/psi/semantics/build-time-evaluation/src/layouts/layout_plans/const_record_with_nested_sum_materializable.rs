@@ -1,16 +1,17 @@
 //! Value-sensitive materialization of record fields containing records with
 //! direct conventional pure-sum fields. A recursive record level may also
-//! hold its own direct sum fields beside its deeper record paths; both
-//! child kinds retain independent custody under the same bounded traversal.
+//! hold its own direct sum fields, direct sum arrays, and direct record
+//! arrays beside its deeper record paths; every child kind retains
+//! independent custody under the same bounded traversal.
 
 use layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,
-    ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport,
-    MaterializationDiagnostic, conventional_sum_layout_reports_match_for_replay,
-    layout_plan_reports_match_for_replay, materialize_aggregate_layout_into,
-    normalized_layout_plan_report_fingerprint,
+    ConventionalRecordArrayFieldLayoutReport, ConventionalRecordSumPathsLayoutReport,
+    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
+    ConventionalSumFieldLayoutReport, MaterializationDiagnostic,
+    conventional_sum_layout_reports_match_for_replay, layout_plan_reports_match_for_replay,
+    materialize_aggregate_layout_into, normalized_layout_plan_report_fingerprint,
 };
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -27,7 +28,7 @@ use super::const_record_with_sum_materializable::{
     validate_outer_record_owner, validate_supplied_nested_rows_against_retained,
 };
 use super::{
-    BuildTimeValue, encode_typed_owned_value, exact_struct_fields,
+    BuildTimeValue, RepeatedFieldInfo, encode_typed_owned_value, exact_struct_fields,
     normalized_schema_report_fingerprint, reflected_field_layout,
     validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums,
@@ -79,21 +80,80 @@ impl ValidatedConstRecursiveNestedSumOccurrenceMaterialization {
     }
 }
 
+/// Compact value-sensitive custody for one literal element of one direct
+/// `[R; N]` record-array occurrence. The element record's complete
+/// recursive report is retained once in the occurrence's compact row, so
+/// each element keeps only its literal index, exact value, staged bytes,
+/// and recursive materialization coordinate.
+#[derive(Debug)]
+pub struct ValidatedConstRecordArrayElementSelection {
+    pub(crate) literal_index: u64,
+    pub(crate) value: BuildTimeValue,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) non_authoritative_materialization_report_fingerprint: u64,
+}
+
+impl ValidatedConstRecordArrayElementSelection {
+    pub const fn literal_index(&self) -> u64 {
+        self.literal_index
+    }
+
+    pub const fn value(&self) -> &BuildTimeValue {
+        &self.value
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_materialization_report_fingerprint
+    }
+}
+
+/// Value-sensitive custody for one direct fixed-array-of-records field in
+/// the complete authored-order occurrence set — each retained element
+/// selection keeps its own literal index and recursive materialization
+/// coordinate beside the field's shared compact row.
+#[derive(Debug)]
+pub struct ValidatedConstRecordArrayFieldMaterialization {
+    pub(crate) field: String,
+    pub(crate) field_identity: Option<u64>,
+    pub(crate) elements: Vec<ValidatedConstRecordArrayElementSelection>,
+}
+
+impl ValidatedConstRecordArrayFieldMaterialization {
+    pub fn field(&self) -> &str {
+        &self.field
+    }
+
+    pub const fn field_identity(&self) -> Option<u64> {
+        self.field_identity
+    }
+
+    pub fn elements(&self) -> &[ValidatedConstRecordArrayElementSelection] {
+        &self.elements
+    }
+}
+
 struct DerivedRecursiveNestedSumsMaterialization {
     schema_report_fingerprint: u64,
     occurrences: Vec<ValidatedConstRecursiveNestedSumOccurrenceMaterialization>,
     nested_sums: Vec<ValidatedConstRecordSumFieldMaterialization>,
     nested_sum_arrays: Vec<ValidatedConstRecordSumArrayFieldMaterialization>,
+    nested_record_arrays: Vec<ValidatedConstRecordArrayFieldMaterialization>,
     bytes: Vec<u8>,
 }
 
 /// One recursive leaf level's derived direct children: every direct
-/// conventional pure sum and every direct fixed array of pure sums beside
-/// the level's flat outer plan.
+/// conventional pure sum, every direct fixed array of pure sums, and every
+/// direct fixed array of records still reaching sums beside the level's
+/// flat outer plan.
 struct DerivedRecordLevelMaterialization {
     schema_report_fingerprint: u64,
     nested_sums: Vec<ValidatedConstRecordSumFieldMaterialization>,
     nested_sum_arrays: Vec<ValidatedConstRecordSumArrayFieldMaterialization>,
+    nested_record_arrays: Vec<ValidatedConstRecordArrayFieldMaterialization>,
     bytes: Vec<u8>,
 }
 
@@ -110,6 +170,7 @@ pub struct ValidatedConstRecursiveNestedSumsMaterialization {
     occurrences: Vec<ValidatedConstRecursiveNestedSumOccurrenceMaterialization>,
     nested_sums: Vec<ValidatedConstRecordSumFieldMaterialization>,
     nested_sum_arrays: Vec<ValidatedConstRecordSumArrayFieldMaterialization>,
+    nested_record_arrays: Vec<ValidatedConstRecordArrayFieldMaterialization>,
     byte_order: ByteOrder,
     bytes: Vec<u8>,
     non_authoritative_materialization_report_fingerprint: u64,
@@ -143,6 +204,14 @@ impl ValidatedConstRecursiveNestedSumsMaterialization {
     /// own literal index.
     pub fn nested_sum_arrays(&self) -> &[ValidatedConstRecordSumArrayFieldMaterialization] {
         &self.nested_sum_arrays
+    }
+
+    /// Direct fixed-array-of-records custody coexisting at this record
+    /// level, in authored field order — each retained element selection
+    /// keeps its own literal index and recursive materialization coordinate
+    /// beside the field's shared compact row.
+    pub fn nested_record_arrays(&self) -> &[ValidatedConstRecordArrayFieldMaterialization] {
+        &self.nested_record_arrays
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -179,6 +248,7 @@ fn validate_recursive_nested_sums_with_reachability(
         &derived.occurrences,
         &derived.nested_sums,
         &derived.nested_sum_arrays,
+        &derived.nested_record_arrays,
         byte_order,
         value,
         &derived.bytes,
@@ -192,6 +262,7 @@ fn validate_recursive_nested_sums_with_reachability(
         occurrences: derived.occurrences,
         nested_sums: derived.nested_sums,
         nested_sum_arrays: derived.nested_sum_arrays,
+        nested_record_arrays: derived.nested_record_arrays,
         byte_order,
         bytes: derived.bytes,
         non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
@@ -297,6 +368,15 @@ fn replay_recursive_nested_sums_with_reachability(
                 .to_owned(),
         ));
     }
+    if !record_array_fields_match(
+        &replayed.nested_record_arrays,
+        &retained.nested_record_arrays,
+    ) {
+        return Err(MaterializationDiagnostic(
+            "ConstMaterializable plural recursive record-array custody drifted after exact replay"
+                .to_owned(),
+        ));
+    }
     if replayed.schema_report_fingerprint != retained.non_authoritative_schema_report_fingerprint
         || replayed.bytes != retained.bytes
     {
@@ -312,6 +392,7 @@ fn replay_recursive_nested_sums_with_reachability(
         &replayed.occurrences,
         &replayed.nested_sums,
         &replayed.nested_sum_arrays,
+        &replayed.nested_record_arrays,
         byte_order,
         value,
         &replayed.bytes,
