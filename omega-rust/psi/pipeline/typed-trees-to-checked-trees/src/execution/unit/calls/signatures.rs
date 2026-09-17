@@ -1,6 +1,7 @@
 //! The structural and scalar signatures a call is checked against, and the
 //! claims a unit holds on entry.
 
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::{
     BTreeSet, CarryPolicy, CheckFacts, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
@@ -372,6 +373,36 @@ pub(crate) fn structural_scalar_signature(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
+    structural_scalar_signature_traced(
+        program,
+        shapes,
+        machine,
+        state,
+        binders,
+        retain_reference_self,
+        &LocalConstructionTrace::default(),
+    )
+}
+
+/// `structural_scalar_signature`, marking the signature guard (attached data
+/// shape, then each parameter's erasure, receiver attachment, scalar
+/// signature, const-ness, type shape, qualifications, access, and projected
+/// qualifications) that declined the state. Only the general state-graph
+/// route traces this, so the marks carry that route's phase prefix.
+pub(crate) fn structural_scalar_signature_traced(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    retain_reference_self: bool,
+    trace: &LocalConstructionTrace,
+) -> Option<(
+    String,
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    trace.phase("state graph: state signature: parameter signature: attached data shape");
     let attached_name = machine.attached_data.as_ref()?;
     let attached = program
         .data_definitions()
@@ -385,6 +416,7 @@ pub(crate) fn structural_scalar_signature(
         binders,
         Some((&attachment_type_identity, attached.properties.multiplicity)),
         retain_reference_self,
+        trace,
     )?;
     Some((
         attachment_type_identity,
@@ -402,10 +434,31 @@ pub(crate) fn free_structural_scalar_signature(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
+    free_structural_scalar_signature_traced(
+        program,
+        shapes,
+        state,
+        binders,
+        &LocalConstructionTrace::default(),
+    )
+}
+
+/// `free_structural_scalar_signature` with the per-parameter trace marks of
+/// `structural_scalar_signature_traced`.
+pub(crate) fn free_structural_scalar_signature_traced(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    trace: &LocalConstructionTrace,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
     if !binders.is_empty() {
         return None;
     }
-    scalar_and_structural_parameters(program, shapes, state, binders, None, false)
+    scalar_and_structural_parameters(program, shapes, state, binders, None, false, trace)
 }
 
 fn scalar_and_structural_parameters(
@@ -415,6 +468,7 @@ fn scalar_and_structural_parameters(
     binders: &[(SymbolHandle, String)],
     attachment: Option<(&str, Multiplicity)>,
     retain_reference_self: bool,
+    trace: &LocalConstructionTrace,
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
@@ -422,9 +476,11 @@ fn scalar_and_structural_parameters(
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
     for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+        trace.phase("state graph: state signature: parameter signature: erased parameter");
         if strips_erased_parameter(parameter)? {
             continue;
         }
+        trace.phase("state graph: state signature: parameter signature: receiver attachment");
         if parameter.is_self && attachment.is_none() {
             return None;
         }
@@ -433,9 +489,11 @@ fn scalar_and_structural_parameters(
             .primitive_type_reference(parameter.type_reference)
             .is_some()
         {
+            trace.phase("state graph: state signature: parameter signature: scalar parameter");
             scalar_parameters.push(scalar_parameter_signature(program, position, parameter)?);
             continue;
         }
+        trace.phase("state graph: state signature: parameter signature: const parameter");
         if parameter.is_const {
             return None;
         }
@@ -445,33 +503,37 @@ fn scalar_and_structural_parameters(
         {
             continue;
         }
+        trace.phase("state graph: state signature: parameter signature: structural parameter type");
         let type_identity = if parameter.is_self {
             attachment?.0.to_owned()
         } else {
             shapes.add_type(parameter.type_reference, binders, &[])?
         };
+        trace.phase("state graph: state signature: parameter signature: parameter qualifications");
         let qualifications =
             parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
+        // Borrowed self is the same reference-typed parameter as an
+        // explicit &Record argument. Only owned self carries the attached
+        // data's multiplicity; its referent shape remains attached above.
+        let multiplicity = if parameter.is_self && !is_reference(program, parameter.type_reference)
+        {
+            attachment?.1
+        } else {
+            crate::checks::type_multiplicity(program, parameter.type_reference)
+        };
+        trace.phase("state graph: state signature: parameter signature: parameter access");
+        let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+        trace.phase("state graph: state signature: parameter signature: projected qualifications");
+        let projected_qualifications =
+            projected_parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
             is_self: parameter.is_self,
             type_identity,
-            // Borrowed self is the same reference-typed parameter as an
-            // explicit &Record argument. Only owned self carries the attached
-            // data's multiplicity; its referent shape remains attached above.
-            multiplicity: if parameter.is_self && !is_reference(program, parameter.type_reference) {
-                attachment?.1
-            } else {
-                crate::checks::type_multiplicity(program, parameter.type_reference)
-            },
-            access: structural_access_for_type_reference(program, parameter.type_reference)?,
+            multiplicity,
+            access,
             qualifications,
-            projected_qualifications: projected_parameter_qualifications(
-                program,
-                shapes,
-                parameter.type_reference,
-                binders,
-            )?,
+            projected_qualifications,
             fused_service_erasure: None,
         });
     }

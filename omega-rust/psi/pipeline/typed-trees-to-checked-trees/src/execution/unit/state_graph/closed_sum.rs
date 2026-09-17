@@ -10,7 +10,8 @@ use super::{
     PermissionEventSource, Signature, StatementNode, TransitionGuardNode, TransitionTargetNode,
     TypeReferenceNode, TypedTrees,
 };
-use crate::execution::terminal_unit::state_graph::successor_bindings;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::execution::terminal_unit::state_graph::{SuccessorEdge, successor_bindings};
 
 pub(super) fn build(
     program: &TypedTrees,
@@ -20,6 +21,7 @@ pub(super) fn build(
     signatures: &[Signature],
     operations: &[CheckedUnitEffectOperationPlan],
     transition_start: usize,
+    trace: &LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
     let states = program.machine_states(machine);
     let state = states.get(state_index)?;
@@ -329,6 +331,8 @@ pub(super) fn build(
                 transition,
                 ordinal,
                 &payload_parameters,
+                SuccessorEdge::ClosedCase,
+                trace,
             )?;
             cases.push(CheckedClosedSumCaseSuccessorPlan {
                 case_identity: identity,
