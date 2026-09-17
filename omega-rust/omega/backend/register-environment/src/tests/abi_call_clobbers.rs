@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 mod arithmetic_effects;
 mod branch_effects;
 mod call_effects;
+mod cleanup_effects;
 mod memory_effects;
 mod provenance_effects;
 mod register_calls;
