@@ -1,7 +1,16 @@
-use crate::emission::selected_comparison::SelectedComparison;
+//! Exact selected comparison custody: the checked use's selected Terminal
+//! meaning (IEEE float or authored-order integer), its statement owner and
+//! its one boundary application, replayed from the checked facts rather than
+//! trusted from the computation node.
+
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::emission::selected_comparison::{SelectedComparison, SelectedComparisonMeaning};
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
+use checked_trees::expression::BinaryOperator;
 use checked_trees::types::PrimitiveType;
+use lowered_psi::LoweredSelectedIntegerComparisonOperation;
+use semantic_vocabulary::ScalarType;
 
 pub(crate) fn occurrence(
     checked: &CheckedTrees,
@@ -10,34 +19,34 @@ pub(crate) fn occurrence(
     state: symbols::SymbolHandle,
     statement: u32,
 ) -> Result<SelectedComparison, LoweringError> {
-    let (comparison, primitive) = checked
-        .facts
-        .operators
-        .selected_float_comparison(&checked.typed, handle)
-        .ok_or(LoweringError::Unsupported(
-            "comparison has no exact selected IEEE meaning",
-        ))?;
+    let meaning = selected_meaning(checked, handle)?;
     let selected = checked.facts.operators.uses.get(handle);
     validate_origin(checked, selected)?;
     if !matches!(selected.origin, checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, state_symbol, statement_index, .. }
         if machine_symbol == machine && state_symbol == state && usize::try_from(statement).ok() == Some(statement_index))
-        || selected.provider_plan_commitment.is_empty()
-        || selected.provider_plan_report_fingerprint == 0
-        || checked
-            .facts
-            .operators
-            .boundary_applications
-            .iter()
-            .filter(|application| {
-                application.site == selected.application_site()
-                    && application.requirement_symbol == selected.selected_operator_symbol
-            })
-            .count()
-            != 1
     {
-        return unsupported(
-            "selected comparison lost its exact source owner or provider application",
-        );
+        return unsupported("selected comparison lost its exact source owner");
+    }
+    // Omega rejoins the opaque commitment to the actual selected ProviderPlan;
+    // a use that reached lowering without one has no provider to rejoin.
+    if selected.provider_plan_commitment.is_empty()
+        || selected.provider_plan_report_fingerprint == 0
+    {
+        return unsupported("selected comparison has no complete provider plan evidence");
+    }
+    if checked
+        .facts
+        .operators
+        .boundary_applications
+        .iter()
+        .filter(|application| {
+            application.site == selected.application_site()
+                && application.requirement_symbol == selected.selected_operator_symbol
+        })
+        .count()
+        != 1
+    {
+        return unsupported("selected comparison does not rejoin one exact boundary application");
     }
     Ok(SelectedComparison {
         operator_use: handle,
@@ -45,12 +54,52 @@ pub(crate) fn occurrence(
         requirement_operator: selected.selected_operator_symbol,
         provider_plan_report_fingerprint: selected.provider_plan_report_fingerprint,
         provider_plan_commitment: selected.provider_plan_commitment,
-        comparison,
-        format: match primitive {
+        meaning,
+    })
+}
+
+/// The one Terminal operation a selected comparison use denotes. The checked
+/// classifiers decide what was selected; this only names the operation that
+/// keeps the authored operand order, because the operation's positional
+/// operand roster is the formal telescope operation crash contracts and
+/// provider rejoins read. A use with no such operation fails closed rather
+/// than lowering through a swapped or composed emission.
+fn selected_meaning(
+    checked: &CheckedTrees,
+    handle: checked_trees::CheckedOperatorUseHandle,
+) -> Result<SelectedComparisonMeaning, LoweringError> {
+    let operators = &checked.facts.operators;
+    if let Some((comparison, primitive)) =
+        operators.selected_float_comparison(&checked.typed, handle)
+    {
+        let format = match primitive {
             PrimitiveType::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
             PrimitiveType::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
             _ => return unsupported("selected comparison has a non-float operand"),
-        },
+        };
+        return Ok(SelectedComparisonMeaning::IeeeFloat { comparison, format });
+    }
+    let Some((operation, primitive)) =
+        operators.selected_integer_comparison(&checked.typed, handle)
+    else {
+        return unsupported("comparison has no exact selected Terminal meaning");
+    };
+    let comparison = match operation {
+        BinaryOperator::Equal => LoweredSelectedIntegerComparisonOperation::Equal,
+        BinaryOperator::Less => LoweredSelectedIntegerComparisonOperation::LessThan,
+        BinaryOperator::LessOrEqual => LoweredSelectedIntegerComparisonOperation::LessOrEqual,
+        _ => {
+            return unsupported(
+                "selected integer comparison has no authored-order Terminal operation to join",
+            );
+        }
+    };
+    let ScalarType::Integer(integer_type) = terminal_scalar_type(primitive)? else {
+        return unsupported("selected integer comparison has a non-integer operand");
+    };
+    Ok(SelectedComparisonMeaning::Integer {
+        comparison,
+        integer_type,
     })
 }
 

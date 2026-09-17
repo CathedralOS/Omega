@@ -53,6 +53,24 @@ pub fn validate_lowered_ieee_float_comparison_custody(
     .map(|_| ())
 }
 
+/// Psi joins a selected integer comparison to its emitted operation (the
+/// integer counterpart of the IEEE comparison roster) so its crash contract
+/// has a Terminal carrier, but no Omega consumer rejoins that occurrence to a
+/// selected provider yet. Realizing the operation natively would silently
+/// replace the selected provider with the builtin comparison, so a nonempty
+/// roster is refused here, before the tuple extractors that predate it drop
+/// the rows.
+fn reject_integer_comparison_occurrence_custody(
+    occurrences: &[lowered_psi::LoweredSelectedIntegerComparisonOccurrence],
+) -> Result<(), Vec<Diagnostic>> {
+    if occurrences.is_empty() {
+        return Ok(());
+    }
+    Err(vec![Diagnostic::error(
+        "native realization does not yet consume retained selected integer comparison occurrence custody",
+    )])
+}
+
 /// Produce one verified retained Terminal product from the complete checked
 /// frontend result.
 ///
@@ -104,6 +122,9 @@ fn produce_retained_terminal_artifact(
             error.error(),
         ))]
     })?;
+    reject_integer_comparison_occurrence_custody(
+        produced.selected_integer_comparison_occurrences(),
+    )?;
     let (
         artifact,
         checked_program_entry,
@@ -201,6 +222,9 @@ pub fn produce_program_entry_terminal_artifact(
             "native-artifact Terminal production failed: {error}"
         ))]
     })?;
+    reject_integer_comparison_occurrence_custody(
+        produced.selected_integer_comparison_occurrences(),
+    )?;
     let (
         artifact,
         checked_program_entry,

@@ -350,6 +350,7 @@ pub(super) fn lower(
         source_call_occurrences: joined_source_call_occurrences(plan, &helper_ids)?,
         selected_ieee_float_fma_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
+        selected_integer_comparison_occurrences: Vec::new(),
     })
 }
 

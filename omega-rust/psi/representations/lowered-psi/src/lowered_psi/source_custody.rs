@@ -19,6 +19,35 @@ pub struct LoweredSelectedIeeeFloatComparisonOccurrence {
     pub format: semantic_vocabulary::IeeeFloatFormat,
 }
 
+/// The Terminal integer comparison operations whose operand order is the
+/// authored operand order, so the operation's positional scalar roster is the
+/// operator's own formal telescope. `!=`, `>` and `>=` have no single
+/// authored-order Terminal operation and therefore record no occurrence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoweredSelectedIntegerComparisonOperation {
+    Equal,
+    LessThan,
+    LessOrEqual,
+}
+
+/// Exact selected integer comparison joined to one emitted operation: the
+/// integer counterpart of [`LoweredSelectedIeeeFloatComparisonOccurrence`].
+/// Operation crash contracts join a checked operator crash site to its
+/// emitted operation only through this row's `operator_use`; provider
+/// authority is independently rejoined by Omega before execution is admitted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoweredSelectedIntegerComparisonOccurrence {
+    pub operator_use: checked_trees::CheckedOperatorUseHandle,
+    pub application_site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
+    pub requirement_operator: symbols::SymbolHandle,
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
+    pub terminal_machine: MachineId,
+    pub terminal_operation: OperationId,
+    pub comparison: LoweredSelectedIntegerComparisonOperation,
+    pub integer_type: semantic_vocabulary::IntegerType,
+}
+
 /// Exact checked-to-Terminal join for the first bounded callback body cohort.
 /// Source handles remain target-owned sidecar evidence; they are never encoded
 /// into the canonical Terminal artifact.

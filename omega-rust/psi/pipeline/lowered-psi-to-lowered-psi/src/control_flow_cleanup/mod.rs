@@ -70,6 +70,9 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     for occurrence in &before.selected_ieee_float_fma_occurrences {
         sidecar_operations.insert(occurrence.terminal_operation);
     }
+    for occurrence in &before.selected_integer_comparison_occurrences {
+        sidecar_operations.insert(occurrence.terminal_operation);
+    }
     let evidence = terminal_verifier::block_local_evidence(&before.semantic_module);
     for machine in &mut after.semantic_module.machines {
         cleanup::cleanup(machine, &evidence, &sidecar_operations, &sidecar_values);

@@ -124,8 +124,13 @@ pub(super) fn operands(
                             != (checked_trees::CheckedOperatorOccurrence::MatchEquality {
                                 source_arm,
                             })
-                        || occurrence.comparison
-                            != semantic_vocabulary::IeeeFloatComparisonOperation::Equal
+                        || !matches!(
+                            occurrence.meaning,
+                            crate::emission::selected_comparison::SelectedComparisonMeaning::IeeeFloat {
+                                comparison: semantic_vocabulary::IeeeFloatComparisonOperation::Equal,
+                                ..
+                            }
+                        )
                     {
                         return unsupported(
                             "dispatch comparison substituted its authored arm meaning",

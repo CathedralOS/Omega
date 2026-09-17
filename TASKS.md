@@ -1932,14 +1932,46 @@ Owners include
   --lib facts::operator_crashes::tests` and `-p checked-trees-to-lowered-psi
   --lib operation_crash_contracts` (the guarded integer route lowers to
   `!(0 <= formal 2)` and the verifier accepts its recomputed continuation at
-  an `IntegerEqual` operation). The remaining stops are representational,
-  not producer fences: an integer `SelectedComparison` has no emitted
-  Terminal operation join, and `CheckedBooleanExpression` has no IEEE
-  ordering over scalar float formals (only structural-leaf `==`/`!=`), so
-  the float operator route that does join still has no structured form. The
-  next slice gives the selected integer comparison an emitted operation join
-  (the integer counterpart of `selected_ieee_float_comparison_occurrences`)
-  so the structured integer guard reaches a producer-written row.
+  an `IntegerEqual` operation). The selected integer comparison now has
+  the emitted-operation join: `lowered_psi::LoweredSelectedIntegerComparisonOccurrence`
+  (`LoweredPsi::selected_integer_comparison_occurrences`, keyed by the same
+  checked `operator_use` as the IEEE roster) is recorded by
+  `emission/operation_emission.rs` beside the exact `IntegerEqual` /
+  `IntegerLessThan` / `IntegerLessOrEqual` it emits for a `SelectedComparison`
+  whose `selected_integer_comparison` meaning keeps the authored operand
+  order (`==`, `<`, `<=`; `!=`, `>`, `>=` would swap or compose operands
+  against the positional formal telescope the verifier reads, so they
+  fail closed at `selected integer comparison has no authored-order Terminal
+  operation to join`), and `retention/operation_crash_contracts.rs` joins a
+  site through both rosters. Control-flow cleanup keeps the joined operation
+  as a sidecar, Terminal production carries the roster on every checked
+  product (`selected_integer_comparison_occurrences()`), and Omega's
+  `checked-compilation-to-terminal-artifact` refuses a nonempty roster
+  (`native realization does not yet consume retained selected integer
+  comparison occurrence custody`) rather than realizing a selected
+  comparison as the builtin one. Regressions: `cargo nextest run -p
+  checked-trees-to-lowered-psi --lib operation_crash_contracts` (8; the
+  guarded integer `boundary operator` route lowers through `lower_machine`
+  end to end to one row at the emitted `IntegerEqual` whose continuation
+  the verifier accepts) and `--lib comparisons::tests` (integer joins and
+  the swapped/composed refusals). Where `omega inspect-terminal` on
+  `operators/crash_routes` stops now: `safe`/`may_crash` reject at
+  `selected comparison has no complete provider plan evidence` (the
+  fixture's `boundary machine == Comparison::equal` has no selected
+  ProviderPlan, so the checked use carries an empty
+  `provider_plan_commitment` and lowering refuses to emit an unprovided
+  selected comparison); `wrapper` still rejects at `direct scalar call
+  crash continuation lacks a checked scalar term`. The next slice supplies
+  the provider evidence for the integer boundary comparison on the Omega
+  side (a selected ProviderPlan or an explicit builtin-realization
+  commitment for `Comparison::equal(i32, i32)`, then an Omega consumer that
+  rejoins `selected_integer_comparison_occurrences` the way
+  `float_comparisons::associate` does, plus the terminal-stage replay into
+  `checked_boundary_operator_scope`) so `may_crash` reaches the
+  producer-written row; the float operator route still has no structured
+  form (`CheckedBooleanExpression` has no IEEE ordering over scalar float
+  formals), and `wrapper`'s direct-call continuation is the separate
+  checked-scalar-term gap.
 
 - **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
   and independent checker in Psi, under the

@@ -25,4 +25,10 @@ pub struct LoweredPsi {
     /// plan handles remain outside the canonical Terminal artifact; Omega must
     /// consume these rows while both representations are alive.
     pub selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+    /// Ephemeral exact joins from selected checked integer comparison uses to
+    /// the Terminal operations they produced, the integer counterpart of
+    /// `selected_ieee_float_comparison_occurrences`. Operation crash contracts
+    /// are joined through these rows before the source companions are gone;
+    /// Omega does not consume them yet and fails closed on a nonempty roster.
+    pub selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }

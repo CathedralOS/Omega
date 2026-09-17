@@ -660,6 +660,7 @@ fn assemble_unit_closure(
     let mut source_call_occurrences = Vec::new();
     let mut selected_ieee_float_fma_occurrences = Vec::new();
     let mut selected_ieee_float_comparison_occurrences = Vec::new();
+    let mut selected_integer_comparison_occurrences = Vec::new();
 
     let catalog = ordinary_machine::ClosureCatalog {
         type_ids: &type_ids,
@@ -738,6 +739,7 @@ fn assemble_unit_closure(
         source_call_occurrences.extend(emitted.source_calls);
         selected_ieee_float_fma_occurrences.extend(emitted.selected_ieee_float_fmas);
         selected_ieee_float_comparison_occurrences.extend(emitted.selected_ieee_float_comparisons);
+        selected_integer_comparison_occurrences.extend(emitted.selected_integer_comparisons);
     }
 
     let mut scalar_evidence = Vec::new();
@@ -776,6 +778,8 @@ fn assemble_unit_closure(
                 .append(&mut lowered.selected_ieee_float_fma_occurrences);
             selected_ieee_float_comparison_occurrences
                 .append(&mut lowered.selected_ieee_float_comparison_occurrences);
+            selected_integer_comparison_occurrences
+                .append(&mut lowered.selected_integer_comparison_occurrences);
             continue;
         }
         let PreparedScalarCallee::Graph(machine) = machine else {
@@ -830,6 +834,8 @@ fn assemble_unit_closure(
                 .append(&mut emitted.selected_ieee_float_fma_occurrences);
             selected_ieee_float_comparison_occurrences
                 .append(&mut emitted.selected_ieee_float_comparison_occurrences);
+            selected_integer_comparison_occurrences
+                .append(&mut emitted.selected_integer_comparison_occurrences);
             continue;
         };
         let graph_parameters = scalar_graph_parameters
@@ -901,6 +907,8 @@ fn assemble_unit_closure(
             .append(&mut lowered.selected_ieee_float_fma_occurrences);
         selected_ieee_float_comparison_occurrences
             .append(&mut lowered.selected_ieee_float_comparison_occurrences);
+        selected_integer_comparison_occurrences
+            .append(&mut lowered.selected_integer_comparison_occurrences);
     }
 
     let mut lowered_structural_realizations = lower_selected_structural_scalar_realizations(
@@ -1059,6 +1067,7 @@ fn assemble_unit_closure(
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
+        selected_integer_comparison_occurrences,
     };
     Ok(shared_closure::SharedUnitClosure {
         lowered,

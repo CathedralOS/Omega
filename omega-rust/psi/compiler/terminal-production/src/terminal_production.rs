@@ -5,7 +5,8 @@ use checked_trees_to_lowered_psi::{
 };
 use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
-    LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence,
+    LoweredSelectedIeeeFloatFmaOccurrence, LoweredSelectedIntegerComparisonOccurrence,
+    LoweredSourceCallOccurrence,
 };
 use lowered_psi_to_lowered_psi::{
     PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
@@ -25,6 +26,7 @@ pub struct ProducedTerminalArtifact {
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+    selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 impl ProducedTerminalArtifact {
@@ -44,6 +46,16 @@ impl ProducedTerminalArtifact {
         &self,
     ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
         &self.selected_ieee_float_comparison_occurrences
+    }
+
+    /// Selected integer comparison joins, the integer counterpart of the IEEE
+    /// comparison roster. No Omega consumer rejoins them yet, so a consumer
+    /// that realizes native output must refuse a nonempty roster rather than
+    /// drop it with the tuple extractors that predate it.
+    pub fn selected_integer_comparison_occurrences(
+        &self,
+    ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
+        &self.selected_integer_comparison_occurrences
     }
 
     pub fn into_parts(
@@ -79,6 +91,7 @@ pub struct ProducedTerminalArtifactWithCallbackCustody<C> {
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
     selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+    selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
@@ -106,6 +119,16 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         &self,
     ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
         &self.selected_ieee_float_comparison_occurrences
+    }
+
+    /// Selected integer comparison joins, the integer counterpart of the IEEE
+    /// comparison roster. No Omega consumer rejoins them yet, so a consumer
+    /// that realizes native output must refuse a nonempty roster rather than
+    /// drop it with the tuple extractors that predate it.
+    pub fn selected_integer_comparison_occurrences(
+        &self,
+    ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
+        &self.selected_integer_comparison_occurrences
     }
 
     pub fn into_parts(
@@ -163,6 +186,7 @@ pub struct ProducedProgramEntryTerminalArtifactWithCallbackCustody<C> {
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
     selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+    selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 impl<C> ProducedProgramEntryTerminalArtifactWithCallbackCustody<C> {
@@ -194,6 +218,16 @@ impl<C> ProducedProgramEntryTerminalArtifactWithCallbackCustody<C> {
         &self,
     ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
         &self.selected_ieee_float_comparison_occurrences
+    }
+
+    /// Selected integer comparison joins, the integer counterpart of the IEEE
+    /// comparison roster. No Omega consumer rejoins them yet, so a consumer
+    /// that realizes native output must refuse a nonempty roster rather than
+    /// drop it with the tuple extractors that predate it.
+    pub fn selected_integer_comparison_occurrences(
+        &self,
+    ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
+        &self.selected_integer_comparison_occurrences
     }
 
     #[allow(clippy::type_complexity)]
@@ -256,6 +290,7 @@ pub struct ProducedProgramEntryTerminalArtifact {
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     selected_ieee_float_comparison_occurrences: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+    selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 impl ProducedProgramEntryTerminalArtifact {
@@ -279,6 +314,16 @@ impl ProducedProgramEntryTerminalArtifact {
         &self,
     ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
         &self.selected_ieee_float_comparison_occurrences
+    }
+
+    /// Selected integer comparison joins, the integer counterpart of the IEEE
+    /// comparison roster. No Omega consumer rejoins them yet, so a consumer
+    /// that realizes native output must refuse a nonempty roster rather than
+    /// drop it with the tuple extractors that predate it.
+    pub fn selected_integer_comparison_occurrences(
+        &self,
+    ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
+        &self.selected_integer_comparison_occurrences
     }
 
     pub fn into_parts(
@@ -370,6 +415,8 @@ impl<'a> TerminalProductionRequest<'a> {
             selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
             selected_ieee_float_comparison_occurrences: lowered
                 .selected_ieee_float_comparison_occurrences,
+            selected_integer_comparison_occurrences: lowered
+                .selected_integer_comparison_occurrences,
         })
     }
 
@@ -401,6 +448,8 @@ impl<'a> TerminalProductionRequest<'a> {
             selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
             selected_ieee_float_comparison_occurrences: lowered
                 .selected_ieee_float_comparison_occurrences,
+            selected_integer_comparison_occurrences: lowered
+                .selected_integer_comparison_occurrences,
         })
     }
 
@@ -421,6 +470,8 @@ impl<'a> TerminalProductionRequest<'a> {
             selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
             selected_ieee_float_comparison_occurrences: lowered
                 .selected_ieee_float_comparison_occurrences,
+            selected_integer_comparison_occurrences: lowered
+                .selected_integer_comparison_occurrences,
         })
     }
 
@@ -458,6 +509,8 @@ impl<'a> TerminalProductionRequest<'a> {
             selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
             selected_ieee_float_comparison_occurrences: lowered
                 .selected_ieee_float_comparison_occurrences,
+            selected_integer_comparison_occurrences: lowered
+                .selected_integer_comparison_occurrences,
         })
     }
 

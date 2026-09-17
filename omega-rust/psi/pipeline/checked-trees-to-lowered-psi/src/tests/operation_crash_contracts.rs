@@ -49,6 +49,43 @@ fn crash_qualified_float_comparison(cause: &str) -> checked_trees::CheckedTrees 
     ))
 }
 
+fn i32_type() -> IntegerType {
+    IntegerType::new(IntegerSign::Signed, 32).expect("i32")
+}
+
+/// The authored guard `!(right >= 0)` as the checked stage structures it over
+/// an i32 `right`: `!(0 <= right) == true`, with `Proposition::Equal` operands
+/// in canonical order.
+fn guarded_trap_route(right: ScalarTerm) -> CrashRouteBucket {
+    let i32_type = i32_type();
+    let mut left = ScalarTerm::boolean_not(
+        ScalarTerm::integer_less_or_equal(
+            i32_type,
+            ScalarTerm::integer(i32_type, IntegerValue::Signed(0)).expect("literal 0"),
+            right,
+        )
+        .expect("0 <= right"),
+    )
+    .expect("!(0 <= right)");
+    let mut right = ScalarTerm::boolean(true);
+    if left > right {
+        std::mem::swap(&mut left, &mut right);
+    }
+    CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            Proposition::Equal(left, right),
+        ))],
+    }
+}
+
+/// One guarded integer `boundary operator` route used by a crash-qualified
+/// caller: the shape `operators/crash_routes` authors for its `may_crash`.
+const GUARDED_INTEGER_OPERATOR_SOURCE: &str =
+    "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+     crashes Trap !(right >= 0);
+     pub machine compare(left: i32, right: i32) -> bool crashes Trap { left == right }";
+
 #[test]
 fn selected_operator_crash_site_lowers_to_one_row_at_the_emitted_comparison() {
     for cause in [CrashCause::Trap, CrashCause::Abort] {
@@ -148,18 +185,14 @@ fn a_recaused_site_roster_fails_closed_at_verification() {
 fn a_guarded_operator_route_lowers_to_the_guard_proposition_the_verifier_accepts() {
     // The checked stage attaches the guard's structured scalar form over the
     // operator's own formals, and the producer's formal-telescope lowering
-    // turns it into the published proposition (`right` is formal 2). The only
-    // operation join emission records today is the selected IEEE comparison,
-    // whose two float formals admit no structured guard, so this witness
-    // stops at the row: the real checked site's routes lower through the
-    // producer's own route lowering, and the row is installed at the
-    // `IntegerEqual` operation of an independently lowered integer comparison
-    // to show the verifier accepts its recomputed continuation.
-    let checked = checked_source(
-        "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
-         crashes Trap !(right >= 0);
-         pub machine compare(left: i32, right: i32) -> bool crashes Trap { left == right }",
-    );
+    // turns it into the published proposition (`right` is formal 2). This
+    // witness isolates that route lowering from emission: the real checked
+    // site's routes lower through the producer's own route lowering, and the
+    // row is installed by hand at the `IntegerEqual` operation of an
+    // independently lowered builtin integer comparison to show the verifier
+    // accepts its recomputed continuation. The sibling below goes through
+    // `lower_machine` end to end.
+    let checked = checked_source(GUARDED_INTEGER_OPERATOR_SOURCE);
     let compare = checked
         .machines()
         .iter()
@@ -174,33 +207,11 @@ fn a_guarded_operator_route_lowers_to_the_guard_proposition_the_verifier_accepts
     let [site] = plan.crash.checked_operators() else {
         panic!("one checked operator crash site");
     };
-    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
-    let integer = ScalarType::Integer(i32_type);
+    let integer = ScalarType::Integer(i32_type());
     let published = lower_formal_crash_routes(site.published(), &[integer, integer])
         .expect("the structured guard lowers through the formal telescope");
-    let guard = |right: ScalarTerm| {
-        let mut left = ScalarTerm::boolean_not(
-            ScalarTerm::integer_less_or_equal(
-                i32_type,
-                ScalarTerm::integer(i32_type, IntegerValue::Signed(0)).expect("literal 0"),
-                right,
-            )
-            .expect("0 <= right"),
-        )
-        .expect("!(0 <= right)");
-        let mut right = ScalarTerm::boolean(true);
-        if left > right {
-            std::mem::swap(&mut left, &mut right);
-        }
-        CrashRouteBucket {
-            cause: CrashCause::Trap,
-            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
-                Proposition::Equal(left, right),
-            ))],
-        }
-    };
     let formal = |raw| ScalarTerm::value(ValueId::new(raw).expect("formal"), integer);
-    assert_eq!(published, vec![guard(formal(2))]);
+    assert_eq!(published, vec![guarded_trap_route(formal(2))]);
 
     let host = checked_source(
         "pub machine compare(left: i32, right: i32) -> bool crashes Trap { left == right }",
@@ -233,7 +244,7 @@ fn a_guarded_operator_route_lowers_to_the_guard_proposition_the_verifier_accepts
         terminal_verifier::substitute_crash_routes(&published, &substitutions);
     assert_eq!(
         crash_continuations,
-        vec![guard(ScalarTerm::value(right, integer))]
+        vec![guarded_trap_route(ScalarTerm::value(right, integer))]
     );
     module.operation_crash_contracts = vec![terminal_psi::TerminalOperationCrashContract {
         machine,
@@ -243,6 +254,74 @@ fn a_guarded_operator_route_lowers_to_the_guard_proposition_the_verifier_accepts
     }];
     terminal_verifier::validate_module(&module)
         .expect("the verifier accepts the guarded row and its recomputed continuation");
+}
+
+#[test]
+fn a_guarded_integer_operator_route_lowers_end_to_end_to_the_row_the_verifier_accepts() {
+    // The selected integer comparison now records an emitted-operation join
+    // (`selected_integer_comparison_occurrences`, keyed by the same checked
+    // `operator_use` the crash site names), so the checked site's guarded
+    // route reaches a producer-written row at the `IntegerEqual` operation:
+    // published `!(0 <= formal 2)`, continuation over the operation's own
+    // right operand, and the verifier accepts the module `lower_machine`
+    // produced.
+    let checked = checked_with_provider_commitments(GUARDED_INTEGER_OPERATOR_SOURCE);
+    let lowered = lower_machine(&checked, "compare")
+        .expect("a joined guarded integer comparison carries its crash contract");
+    assert!(
+        lowered
+            .selected_ieee_float_comparison_occurrences
+            .is_empty()
+    );
+    let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
+        panic!("one selected integer comparison occurrence");
+    };
+    assert_eq!(
+        occurrence.comparison,
+        lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
+    );
+    assert_eq!(occurrence.integer_type, i32_type());
+    let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
+        panic!("one operation crash contract row");
+    };
+    assert_eq!(row.machine, occurrence.terminal_machine);
+    assert_eq!(row.operation, occurrence.terminal_operation);
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == row.machine)
+        .expect("the row names the lowered machine");
+    let (block, operation) = machine
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .operations
+                .iter()
+                .find(|operation| operation.id == row.operation)
+                .map(|operation| (block, operation))
+        })
+        .expect("the row names an emitted operation");
+    let OperationKind::IntegerEqual { left, right } = operation.kind else {
+        panic!("the joined operation is the emitted integer equality");
+    };
+    // Scalar-graph sequencing completes `left` then `right` as the trailing
+    // parameters of the comparison's own block, so the operation's positional
+    // roster is the authored operand order the formal telescope reads.
+    let [.., authored_left, authored_right] = block.parameters.as_slice() else {
+        panic!("the comparison block carries both completed operands");
+    };
+    assert_eq!((left, right), (authored_left.id, authored_right.id));
+    let integer = ScalarType::Integer(i32_type());
+    let formal = |raw| ScalarTerm::value(ValueId::new(raw).expect("formal"), integer);
+    assert_eq!(row.published_routes, vec![guarded_trap_route(formal(2))]);
+    assert_eq!(
+        row.crash_continuations,
+        vec![guarded_trap_route(ScalarTerm::value(right, integer))]
+    );
+    terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("the verifier accepts the produced guarded row");
 }
 
 #[test]
@@ -267,24 +346,37 @@ fn a_guarded_operator_route_without_a_structured_scalar_form_fails_closed() {
 
 #[test]
 fn a_crash_qualified_use_without_an_emitted_join_fails_closed() {
-    // An integer boundary comparison has no exact selected Terminal meaning
-    // yet, so its crash-qualified use cannot lower as a crash-free operation.
+    // Only an authored-order integer comparison (`==`, `<`, `<=`) emits one
+    // Terminal operation whose positional operands are the operator's formal
+    // telescope; `>` would swap or compose operands, so it records no join
+    // and its crash-qualified use must not lower crash-free. A use whose
+    // provider application is incomplete has no exact selected occurrence
+    // either.
     for (operator_contract, caller_contract) in [
         ("crashes Trap", "crashes Trap"),
         ("crashes Abort", "crashes Abort"),
         ("crashes Trap false", ""),
     ] {
-        let checked = checked_source(&format!(
-            "boundary operator == Comparison::equal(left: i32, right: i32) -> bool {operator_contract};
-             pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left == right }}"
+        let checked = checked_with_provider_commitments(&format!(
+            "boundary operator > Comparison::greater(left: i32, right: i32) -> bool {operator_contract};
+             pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left > right }}"
         ));
         let error = lower_machine(&checked, "compare")
             .expect_err("an unjoined crash-qualified use must not lower crash-free");
         assert!(
-            format!("{error:?}").contains("comparison has no exact selected IEEE meaning"),
+            format!("{error:?}").contains(
+                "selected integer comparison has no authored-order Terminal operation to join"
+            ),
             "{error:?}"
         );
     }
+    let checked = checked_source(GUARDED_INTEGER_OPERATOR_SOURCE);
+    let error = lower_machine(&checked, "compare")
+        .expect_err("a use without complete provider plan evidence must not lower");
+    assert!(
+        format!("{error:?}").contains("selected comparison has no complete provider plan evidence"),
+        "{error:?}"
+    );
 }
 
 #[test]

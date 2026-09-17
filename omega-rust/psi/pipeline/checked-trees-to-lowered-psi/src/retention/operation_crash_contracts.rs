@@ -12,10 +12,11 @@
 //! Nothing here is inferred from the emitted operation: the published routes
 //! come from the checked site and must agree with the operator declaration's
 //! own contract plan when one exists; the operation is found only through
-//! the exact source-occurrence join emission recorded; and every
-//! crash-qualified use inside the closure must produce a row, so a use whose
-//! join or contract cannot be reconstructed fails closed instead of lowering
-//! as a crash-free operation.
+//! the exact source-occurrence join emission recorded (the selected IEEE
+//! float and selected integer comparison occurrence rosters, both keyed by
+//! the checked `operator_use`); and every crash-qualified use inside the
+//! closure must produce a row, so a use whose join or contract cannot be
+//! reconstructed fails closed instead of lowering as a crash-free operation.
 
 use std::collections::BTreeMap;
 
@@ -210,8 +211,10 @@ fn lower_site(
 }
 
 /// The exact emitted operation for one site. Only emission's own
-/// source-occurrence join may answer; a positional or shape-based guess
-/// would let one comparison borrow another's contract.
+/// source-occurrence joins may answer, and every join is keyed by the same
+/// checked `operator_use` identity whichever scalar family emitted it; a
+/// positional or shape-based guess would let one comparison borrow
+/// another's contract.
 fn emitted_operation(
     lowered: &LoweredPsi,
     site: &CheckedCrashOperatorSite,
@@ -222,11 +225,17 @@ fn emitted_operation(
         );
     }
     let operator_use: CheckedOperatorUseHandle = site.operator_use;
-    let mut joins = lowered
+    let float_joins = lowered
         .selected_ieee_float_comparison_occurrences
         .iter()
         .filter(|occurrence| occurrence.operator_use == operator_use)
         .map(|occurrence| (occurrence.terminal_machine, occurrence.terminal_operation));
+    let integer_joins = lowered
+        .selected_integer_comparison_occurrences
+        .iter()
+        .filter(|occurrence| occurrence.operator_use == operator_use)
+        .map(|occurrence| (occurrence.terminal_machine, occurrence.terminal_operation));
+    let mut joins = float_joins.chain(integer_joins);
     match (joins.next(), joins.next()) {
         (Some(join), None) => Ok(join),
         (None, _) => unsupported(

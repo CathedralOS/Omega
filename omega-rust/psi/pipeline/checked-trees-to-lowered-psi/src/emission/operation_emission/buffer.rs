@@ -23,6 +23,8 @@ pub(crate) struct OperationBuffer {
     pub(crate) structural_values: Vec<(u32, terminal_psi::StructuralOperationResult)>,
     pub(crate) selected_ieee_float_comparisons:
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
+    pub(crate) selected_integer_comparisons:
+        Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
     pub(crate) next_identity: u64,
     pub(crate) operations: Vec<Operation>,
     /// Temporary observations available on the current emission path only.
@@ -43,6 +45,7 @@ impl OperationBuffer {
             source_calls: Vec::new(),
             selected_ieee_float_fmas: Vec::new(),
             selected_ieee_float_comparisons: Vec::new(),
+            selected_integer_comparisons: Vec::new(),
         }
     }
 

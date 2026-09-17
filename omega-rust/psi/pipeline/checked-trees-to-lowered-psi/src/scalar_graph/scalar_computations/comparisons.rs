@@ -4,7 +4,9 @@
 //! subject across failed arms; neither path re-evaluates source expressions here.
 //! Exact selected requirement/application custody remains separate from Omega's
 //! provider authority. Proof-only float equality never supplies executable meaning.
-use super::{Expansion, LoweringError, ScalarType, Site, unsupported};
+//! A selected IEEE float or authored-order integer comparison is one binding
+//! whose emission records the occurrence row that joins it back to its use.
+use super::{Expansion, LoweringError, Site, unsupported};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody::comparisons::occurrence;
@@ -27,7 +29,7 @@ impl Expansion<'_> {
             site.state,
             site.statement,
         )?;
-        let expected = ScalarType::IeeeFloat(occurrence.format);
+        let expected = occurrence.operand_type();
         if left.scalar_type() != expected || right.scalar_type() != expected {
             return unsupported("selected comparison operand format changed");
         }
