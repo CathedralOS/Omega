@@ -27,6 +27,7 @@ pub(super) fn validate(
         ..
     } = *scope;
     let value_env = &mut *outputs.value_env;
+    let exact_integer_casts = &mut *outputs.exact_integer_casts;
     let boundary_operator_applications = &mut *outputs.boundary_operator_applications;
     let diagnostics = &mut *outputs.diagnostics;
     if let Some(state) = current_state {
@@ -53,6 +54,21 @@ pub(super) fn validate(
         value_env,
         diagnostics,
     );
+    // The operands were validated under this statement's flow environment;
+    // retain every accepted exact fixed-integer cast among them before the
+    // call's writes disturb that environment, exactly as an expression-
+    // position call does. Checked lowering replays a call argument such as
+    // `value as u8` from this evidence rather than from ambient trust.
+    for argument in program.statement_table.expression_handles(call.arguments) {
+        arithmetic_domains::collect_exact_integer_cast_facts(
+            program,
+            machine,
+            current_state,
+            *argument,
+            value_env,
+            exact_integer_casts,
+        );
+    }
     // R5 frame seed: a resolved acyclic INTERNAL call preserves facts
     // outside its conservatively instantiated may-write set. Unknown,
     // unsummarized, and overlapping implementations remain

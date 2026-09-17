@@ -9,6 +9,7 @@ use checked_trees::{
 
 mod attached_receiver_shapes;
 mod boundary_result_operands;
+mod call_argument_casts;
 mod callable_composed;
 pub(crate) mod calls;
 mod cleanup;

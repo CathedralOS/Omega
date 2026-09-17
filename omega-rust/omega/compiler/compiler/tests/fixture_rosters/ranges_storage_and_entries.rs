@@ -88,6 +88,8 @@ pub(crate) const RUNTIME_SLICE_ELEMENT_RUNTIME_INDEX_READ_EXIT: &str =
     "slices/runtime_slice_element_runtime_index_read_exit";
 pub(crate) const RUNTIME_MEMBER_ARG_NESTED_READ_EXIT: &str =
     "calls/runtime_member_arg_nested_read_exit";
+pub(crate) const RUNTIME_NESTED_RECEIVER_CAST_ARGUMENT_EXIT: &str =
+    "calls/runtime_nested_receiver_cast_argument_exit";
 pub(crate) const RUNTIME_CONSTRUCTOR_COMPUTED_FIELD_EXIT: &str =
     "calls/runtime_constructor_computed_field_exit";
 pub(crate) const RUNTIME_MACHINE_BOUNDED_SUBSLICE_LOCAL_EXIT: &str =
@@ -280,6 +282,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_SLICE_ELEMENT_MACHINE_ROUNDTRIP_EXIT,
     RUNTIME_SLICE_ELEMENT_RUNTIME_INDEX_READ_EXIT,
     RUNTIME_MEMBER_ARG_NESTED_READ_EXIT,
+    RUNTIME_NESTED_RECEIVER_CAST_ARGUMENT_EXIT,
     RUNTIME_CONSTRUCTOR_COMPUTED_FIELD_EXIT,
     RUNTIME_MACHINE_BOUNDED_SUBSLICE_LOCAL_EXIT,
     RUNTIME_SUBSLICE_START_POINTER_EXIT,

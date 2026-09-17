@@ -1,0 +1,70 @@
+// INTERPRETER CANARY (exit 70) + host-target checked establishment. A CALL
+// THROUGH A NESTED RECEIVER FIELD whose argument is an EXACT NARROWING CAST
+// of a payload-bounded value: `self.scanner.append_byte(value as u8)` with
+// `value` bound from `ByteInput::Byte(value: i32 [0..=255])`, the product
+// lexer's `retain` state. The cast is a call-STATEMENT argument, and only
+// expression, local, assignment and transition statements retained exact
+// cast evidence, so the entry had no Unit plan. The payload bound travels
+// into `retain`, the cast fits `u8` on that evidence, and the byte lands in
+// the nested scanner and reads back as 66. Native production still stops on
+// the entry's sum-literal state argument (`state graph: terminator:
+// conditional successors: parameter transfer`), a separate Unit slice.
+// exits: 70 = the cast byte reached the nested receiver; 71 = it did not.
+use omega_language_std::console;
+
+data ByteInput {
+    case Eof;
+    case Byte(value: i32 [0..=255]);
+}
+
+data Scanner {
+    last: u8;
+    retained: bool;
+}
+
+machine Scanner::append_byte(&mut self, byte: u8) {
+    self.last = byte;
+    self.retained = true;
+}
+
+data Main {
+    console: Console;
+    scanner: Scanner;
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition true {
+        true -> classify(ByteInput::Byte { value: 66 })
+        _ -> bad()
+    }
+
+    state classify(&mut self, input: ByteInput) {
+        transition input {
+            ByteInput::Byte { value } -> retain(value)
+            _ -> bad()
+        }
+    }
+
+    state retain(&mut self, value: i32) {
+        self.scanner.append_byte(value as u8);
+        transition self.scanner.retained {
+            true -> check()
+            _ -> bad()
+        }
+    }
+
+    state check(&mut self) {
+        transition self.scanner.last == 66 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
