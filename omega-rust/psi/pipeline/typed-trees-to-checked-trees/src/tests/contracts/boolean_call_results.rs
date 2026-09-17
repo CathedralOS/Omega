@@ -102,8 +102,8 @@ fn call_produced_boolean_results_need_real_guarantees_and_independent_requires()
 #[test]
 fn call_produced_boolean_guarantees_reject_altered_call_and_argument_custody() {
     use checked_trees::{
-        CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
-        CheckedScalarExpressionRole as Role,
+        CheckedBooleanExpression as Boolean, CheckedScalarComputationKind as Computation,
+        CheckedScalarExpression as Scalar, CheckedScalarExpressionRole as Role,
     };
     let checked = lower_typed_trees(parse_typed_trees(&source(
         "let saved: bool = identity(!value); Host::finish(false); saved",
@@ -143,22 +143,33 @@ fn call_produced_boolean_guarantees_reject_altered_call_and_argument_custody() {
         .contract_fact_refs
         .span_or_empty(call.ensures)[0]
         .fact;
-    let (binding_handle, binding) = checked
+    // Since 8efcd822fb a computed Boolean initializer proves its call
+    // guarantee through the scalar computation graph: the call's argument
+    // custody is the graph `Call` node's operand and the root's coordinates,
+    // so the custody controls below alter that graph. A pure `CallArgument`
+    // source binding is not consulted for this proof and mutating it alone
+    // does not change the proven equation.
+    let computations = &checked.facts.values.scalar_computations;
+    let root_handle = computations
+        .root_at(state, 0, Role::LocalInitializer { binding_ordinal: 0 })
+        .expect("computed call initializer graph")
+        .root;
+    let Computation::Call { arguments, .. } = &computations.nodes.get(root_handle).kind else {
+        panic!("call root");
+    };
+    let [operand] = computations.operands.span_or_empty(*arguments) else {
+        panic!("one scalar operand");
+    };
+    let operand = *operand;
+    let other_call = checked
         .facts
-        .values
-        .scalar_expressions
-        .source_bindings
+        .flow
+        .control
+        .calls
         .iter()
-        .find(|(_, binding)| {
-            binding.state == state
-                && binding.role
-                    == (Role::CallArgument {
-                        binding_ordinal: 0,
-                        argument_ordinal: 0,
-                    })
-        })
-        .unwrap();
-    let binding = binding.clone();
+        .find(|(handle, _)| *handle != call_handle)
+        .map(|(handle, _)| handle)
+        .expect("the Host::finish call");
     for mutation in 0..10 {
         let mut facts = checked.facts.clone();
         match mutation {
@@ -180,39 +191,39 @@ fn call_produced_boolean_guarantees_reject_altered_call_and_argument_custody() {
                     }
             }
             5 => {
-                let plans = &mut facts.values.scalar_expressions;
-                plans.source_bindings.append(binding.clone());
+                facts.values.scalar_computations.nodes.get_mut(operand).kind =
+                    Computation::Value(Scalar::Boolean(Box::new(Boolean::Not(Box::new(
+                        Boolean::Parameter { position: 1 },
+                    )))));
             }
             6 => {
-                let plans = &mut facts.values.scalar_expressions;
-                let mut symbols = plans
-                    .binding_symbols
-                    .span_or_empty(binding.symbols)
-                    .to_vec();
-                symbols.swap(0, 1);
-                plans.source_bindings.get_mut(binding_handle).symbols =
-                    plans.binding_symbols.insert_many(symbols);
+                facts.values.scalar_computations.nodes.get_mut(operand).kind =
+                    Computation::Value(Scalar::Boolean(Box::new(Boolean::Parameter {
+                        position: 0,
+                    })));
             }
             7 => {
-                facts
+                let Computation::Call { source_call, .. } = &mut facts
                     .values
-                    .scalar_expressions
-                    .source_bindings
-                    .get_mut(binding_handle)
-                    .destination = machine.symbol
+                    .scalar_computations
+                    .nodes
+                    .get_mut(root_handle)
+                    .kind
+                else {
+                    unreachable!("call root");
+                };
+                *source_call = other_call;
             }
             8 => {
-                let plan = facts
+                let root = facts
                     .values
-                    .scalar_expressions
-                    .expressions
-                    .iter_mut()
-                    .find(|plan| plan.state == state && plan.role == binding.role)
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .find(|(_, root)| root.root == root_handle)
+                    .map(|(_, root)| root.clone())
                     .unwrap();
-                plan.expression =
-                    Scalar::Boolean(Box::new(Boolean::Not(Box::new(Boolean::Parameter {
-                        position: 1,
-                    }))));
+                facts.values.scalar_computations.roots.append(root);
             }
             9 => {
                 let (flow_handle, flow) = facts
