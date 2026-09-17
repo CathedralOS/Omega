@@ -3,7 +3,7 @@ use super::{
     project_boundary_path_only, provider_attachment_root, provider_boundary_call,
     structural_effect_fixture, unit_fixture, unused_provider_attachment_fixture,
 };
-use crate::{
+use crate::canonical::{
     block_id, claim_id, contract_id, edge_id, machine_id, operation_id, place_id,
     structural_domain_id, structural_field_id, structural_type_id, value_id,
 };

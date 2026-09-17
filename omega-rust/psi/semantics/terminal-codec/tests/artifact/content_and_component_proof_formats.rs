@@ -1,5 +1,5 @@
 use super::{certificate_bundle, kernel_bundle, representative_bundle, semantic_module};
-use crate::{evidence_id, obligation_id};
+use crate::artifact::{evidence_id, obligation_id};
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker,
