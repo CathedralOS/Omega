@@ -253,3 +253,45 @@ fn a_receiver_bearing_requirement_settles_no_direct_call_row() {
         ),
     }
 }
+
+#[test]
+fn a_requirement_realized_by_a_compiler_intrinsic_rejects_its_direct_call_by_name() {
+    // The plan for an intrinsic satisfier is derived and selected, but the
+    // direct-call route executes only checked adapters: the call rejects at
+    // settlement naming the selected plan and its intrinsic realization
+    // instead of reporting a missing provider.
+    let source = r#"
+        pub data Negation [copy] {}
+        pub boundary requirement Negation::flip(value: f32) -> f32;
+
+        pub data NegationProvider {}
+        machine NegationProvider::flip32(value: f32) -> f32
+            satisfies Negation::flip
+            via Binding::CompilerIntrinsic;
+
+        data Client {}
+        machine Client::run(&mut self) -> f32 {
+            let flipped: f32 = Negation::flip(1.0f32);
+            transition { _ -> (flipped) }
+        }
+    "#;
+    let (checked, plans) = requirement_fixture(source);
+    assert_eq!(
+        plans.len(),
+        1,
+        "the intrinsic satisfier derives one plan: {plans:?}"
+    );
+    let selected = selected_all(&plans);
+    let mut settled = Arc::new(checked);
+    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect_err("an intrinsic-realized requirement has no direct-call execution route");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "direct call `flip` names public boundary requirement `Negation::flip`, whose selected provider"
+        ) && diagnostic.message.contains("compiler intrinsic")
+            && diagnostic
+                .message
+                .contains("the direct-call route executes only checked adapters")),
+        "{diagnostics:?}"
+    );
+}

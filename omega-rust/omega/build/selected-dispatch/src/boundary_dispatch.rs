@@ -94,7 +94,7 @@ fn plan_selected_boundary_adapter_dispatch(
     // executable only through a settled row: without a selected provider the
     // call rejects here, before either engine could reach the bodyless
     // declaration. Receiver-bearing requirements keep their existing routes.
-    reject_unselected_direct_requirement_calls(typed, &adapters, &mut diagnostics);
+    reject_unselected_direct_requirement_calls(typed, &adapters, selected_plans, &mut diagnostics);
     if adapters.is_empty() && generic_requirements.is_empty() {
         return diagnostics.is_empty().then(Vec::new).ok_or(diagnostics);
     }
@@ -442,6 +442,7 @@ pub(crate) fn is_directly_callable_top_level_requirement(
 fn reject_unselected_direct_requirement_calls(
     typed: &TypedTrees,
     adapters: &[AdapterRow],
+    selected_plans: &effects::SelectedProviderPlanFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut reported = Vec::new();
@@ -466,6 +467,42 @@ fn reject_unselected_direct_requirement_calls(
             return;
         }
         reported.push(target_symbol);
+        // A selected plan whose realization is not a checked adapter (a
+        // compiler intrinsic or another external leaf) is selected but has
+        // no direct-call execution route yet: the operator spelling's
+        // intrinsic bridge keys on operator uses. Say so instead of reporting
+        // the plan as missing.
+        let external = selected_plans
+            .plans()
+            .iter()
+            .filter(|plan| {
+                provider_planning::service_schema::schema_binds_exact_boundary_requirement(
+                    typed,
+                    &plan.schema,
+                    requirement,
+                )
+            })
+            .flat_map(|plan| plan.rows.iter().map(move |row| (plan, row)))
+            .find(|(_, row)| {
+                !matches!(
+                    row.binding,
+                    effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                )
+            });
+        if let Some((plan, row)) = external {
+            diagnostics.push(Diagnostic::error(format!(
+                "direct call `{target_name}` names public boundary requirement `{}`, whose selected provider `{}` realizes it through {} rather than a checked machine body; the direct-call route executes only checked adapters",
+                requirement.name,
+                plan.name,
+                match &row.binding {
+                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } => {
+                        format!("compiler intrinsic `{machine}`")
+                    }
+                    binding => format!("external binding {binding:?}"),
+                },
+            )));
+            return;
+        }
         diagnostics.push(Diagnostic::error(format!(
             "direct call `{target_name}` names public boundary requirement `{}`, which has no selected provider; select an admitted provider whose checked machine `satisfies {}` before calling it",
             requirement.name, requirement.name,
