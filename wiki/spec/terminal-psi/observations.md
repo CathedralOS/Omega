@@ -36,10 +36,16 @@ The profile binds, in closed order:
 2. One mandatory root row: entry, ordered scalar/structural input schemas, and
    Unit/scalar/structural result-comparison schema.
 3. Crash sites ordered by machine, block, and edge, with exact closed cause.
-4. Ordinary external-event sites ordered by machine, block, and operation,
+4. Boundary crash sites ordered by machine, block, operation, and cause: every
+   declared route of every `BoundaryCall` keeps its calling operation, the
+   boundary's exact public identity, and the declaration's own route bucket.
+   Route guards speak the boundary's scalar-formal telescope; the call's
+   simultaneous positional substitution decides them, never caller value
+   identities.
+5. Ordinary external-event sites ordered by machine, block, and operation,
    with event kind, exact public boundary/service identity, ordered argument
    schemas, and result schema.
-5. Terminal-external sites with exact site, public effect identity, and argument
+6. Terminal-external sites with exact site, public effect identity, and argument
    schemas.
 
 The canonical profile encoding begins with
@@ -50,10 +56,14 @@ vocabularies, tags, classifications, malformed ordering, duplicate coordinates,
 missing/extra sites, zero module commitments, and empty profiles reject.
 Decoding rejects trailing bytes.
 
-The current V1 implementation rejects modules with boundary crash routes: its
-crash rows describe terminator edges, not operation-level boundary outcomes.
-Interpreter support for a tagged boundary crash site does not establish a
-complete V1 observation profile or permit inventing an edge for that invocation.
+A boundary crash is observed at its calling operation, not on a fabricated
+terminator edge: each declared route of each `BoundaryCall` produces its own
+operation-level row carrying the boundary identity and the exact route bucket.
+Observing the declared ceiling at the call site is not an execution outcome:
+the runtime trace and refinement join that substitute the call's actuals into
+those guards and resolve a single invocation's outcome remain separate rungs,
+and interpreter support for a tagged boundary crash site does not establish
+them.
 
 The consumer selects the typed schema and may retain an authenticated expected
 commitment. The verifier independently derives the instance from the validated

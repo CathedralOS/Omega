@@ -2,16 +2,22 @@
 
 use terminal_psi::{
     CrashCause, StructuralAccess, StructuralMultiplicity, TerminalModule,
-    TerminalObservationSchema, TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind,
-    TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema, TerminalTraceRootRow,
-    TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceV1Profile,
-    TerminalTraceValueComparison, VocabularyMarker,
+    TerminalObservationSchema, TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
+    TerminalTraceOrdinaryEventKind, TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema,
+    TerminalTraceRootRow, TerminalTraceScalarSchema, TerminalTraceStructuralSchema,
+    TerminalTraceV1Profile, TerminalTraceValueComparison, VocabularyMarker,
 };
 use terminal_verifier::{
     TerminalTraceV1ReconstructionError,
     reconstruct_terminal_trace_v1_rows as reconstruct_verified_rows,
 };
 
+use crate::sections::semantic_module::canonical_order::{
+    crash_routes_are_canonical, validate_crash_route_predicates,
+};
+use crate::sections::semantic_module::contract_wire::{
+    decode_crash_route_bucket, encode_crash_route_bucket,
+};
 use crate::sections::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use crate::sections::semantic_module::structural_signature_wire::{
     decode_projected_qualifications, encode_projected_qualifications,
@@ -23,6 +29,7 @@ const DOMAIN: &[u8] = b"omega.terminal.observation-profile.v1";
 const ROOT_ROW_TAG: u8 = 1;
 const CRASH_ROW_TAG: u8 = 2;
 const ORDINARY_EVENT_ROW_TAG: u8 = 3;
+const BOUNDARY_CRASH_ROW_TAG: u8 = 4;
 const BOUNDARY_CALL_EVENT_TAG: u8 = 1;
 const PORT_WRITE_EVENT_TAG: u8 = 2;
 
@@ -43,6 +50,7 @@ pub enum TerminalTraceV1ProfileCodecError {
     InvalidOrdinaryEventKind(u8),
     NonCanonicalStructuralQualifications,
     NonCanonicalCrashSiteOrder,
+    NonCanonicalBoundaryCrashSiteOrder,
     NonCanonicalOrdinaryEventOrder,
     UnsupportedExternalTerminationRows(u32),
     TrailingBytes(usize),
@@ -106,6 +114,7 @@ pub fn reconstruct_canonical_terminal_trace_v1_profile(
         module_identity,
         root: rows.root,
         crash_sites: rows.crash_sites,
+        boundary_crash_sites: rows.boundary_crash_sites,
         ordinary_events: rows.ordinary_events,
     })
 }
@@ -175,6 +184,20 @@ pub fn decode_terminal_trace_v1_profile(
         });
     }
 
+    let boundary_crash_count = reader.count()?;
+    let mut boundary_crash_sites = Vec::with_capacity(boundary_crash_count as usize);
+    for _ in 0..boundary_crash_count {
+        require_row_tag(&mut reader, "boundary crash", BOUNDARY_CRASH_ROW_TAG)?;
+        boundary_crash_sites.push(TerminalTraceBoundaryCrashSiteRow {
+            machine: reader.id("trace boundary crash machine")?,
+            block: reader.id("trace boundary crash block")?,
+            operation: reader.id("trace boundary crash operation")?,
+            boundary: reader.id("trace boundary crash boundary")?,
+            boundary_identity: reader.string("trace boundary crash identity")?,
+            route: decode_crash_route_bucket(&mut reader)?,
+        });
+    }
+
     let ordinary_count = reader.count()?;
     let mut ordinary_events = Vec::with_capacity(ordinary_count as usize);
     for _ in 0..ordinary_count {
@@ -203,6 +226,7 @@ pub fn decode_terminal_trace_v1_profile(
         },
         root,
         crash_sites,
+        boundary_crash_sites,
         ordinary_events,
     };
     validate_profile(&profile)?;
@@ -235,6 +259,23 @@ fn encode_raw(
             CrashCause::Trap => 1,
             CrashCause::Abort => 2,
         });
+    }
+
+    // A boundary crash is observed at its call operation, never on a fabricated
+    // terminator edge, so these rows form their own group with operation-level
+    // identity and the declaration's exact route bucket.
+    writer.len(
+        "trace boundary crash sites",
+        profile.boundary_crash_sites.len(),
+    )?;
+    for crash in &profile.boundary_crash_sites {
+        writer.u8(BOUNDARY_CRASH_ROW_TAG);
+        writer.id(crash.machine);
+        writer.id(crash.block);
+        writer.id(crash.operation);
+        writer.id(crash.boundary);
+        writer.string("trace boundary crash identity", &crash.boundary_identity)?;
+        encode_crash_route_bucket(&mut writer, &crash.route)?;
     }
 
     writer.len("trace ordinary events", profile.ordinary_events.len())?;
@@ -548,6 +589,21 @@ fn validate_profile(
     {
         return Err(TerminalTraceV1ProfileCodecError::NonCanonicalCrashSiteOrder);
     }
+    for row in &profile.boundary_crash_sites {
+        if !crash_routes_are_canonical(std::slice::from_ref(&row.route)) {
+            return Err(TerminalTraceV1ProfileCodecError::Wire(
+                CodecError::NonCanonicalOrder("boundary crash route alternatives"),
+            ));
+        }
+        validate_crash_route_predicates(std::slice::from_ref(&row.route))?;
+    }
+    if profile
+        .boundary_crash_sites
+        .windows(2)
+        .any(|rows| boundary_crash_site_key(&rows[0]) >= boundary_crash_site_key(&rows[1]))
+    {
+        return Err(TerminalTraceV1ProfileCodecError::NonCanonicalBoundaryCrashSiteOrder);
+    }
     for event in &profile.ordinary_events {
         for schema in &event.structural_arguments {
             validate_structural_schema(schema)?;
@@ -574,6 +630,17 @@ fn crash_site_key(
     semantic_vocabulary::EdgeId,
 ) {
     (row.machine, row.block, row.edge)
+}
+
+fn boundary_crash_site_key(
+    row: &TerminalTraceBoundaryCrashSiteRow,
+) -> (
+    semantic_vocabulary::MachineId,
+    semantic_vocabulary::BlockId,
+    semantic_vocabulary::OperationId,
+    CrashCause,
+) {
+    (row.machine, row.block, row.operation, row.route.cause)
 }
 
 fn ordinary_event_site_key(
@@ -609,7 +676,8 @@ fn validate_structural_schema(
 #[cfg(test)]
 mod tests {
     use super::{
-        CRASH_ROW_TAG, CrashCause, DOMAIN, ORDINARY_EVENT_ROW_TAG, TerminalObservationSchema,
+        BOUNDARY_CRASH_ROW_TAG, CRASH_ROW_TAG, CodecError, CrashCause, DOMAIN,
+        ORDINARY_EVENT_ROW_TAG, TerminalObservationSchema, TerminalTraceBoundaryCrashSiteRow,
         TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind, TerminalTraceResultSchema,
         TerminalTraceRootRow, TerminalTraceV1Profile, TerminalTraceV1ProfileAcceptanceError,
         TerminalTraceV1ProfileCodecError, VocabularyMarker, accept_terminal_trace_v1_profile,
@@ -618,17 +686,17 @@ mod tests {
     };
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId,
-        OperationId, PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
-        StructuralTypeId, ValueId,
+        OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralDomainId,
+        StructuralPlaceKind, StructuralTypeId, ValueId,
     };
     use terminal_psi::{
-        Block, BoundaryMachineDeclaration, CrashRouteBucket, CrashRouteGuard, MachineContract,
-        Operation, OperationKind, OperationResult, ServiceDeclaration, StructuralAccess,
-        StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-        StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-        TerminalMachine, TerminalMachineResult, TerminalModule, TerminalPsiIdentity,
-        TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceValueComparison,
-        Terminator, ValueDeclaration,
+        Block, BoundaryMachineDeclaration, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
+        MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
+        StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule,
+        TerminalPsiIdentity, TerminalTraceScalarSchema, TerminalTraceStructuralSchema,
+        TerminalTraceValueComparison, Terminator, ValueDeclaration,
     };
 
     fn id<T>(raw: u64, make: impl FnOnce(u64) -> Option<T>) -> T {
@@ -881,6 +949,7 @@ mod tests {
                 result: TerminalTraceResultSchema::Unit,
             },
             crash_sites: Vec::new(),
+            boundary_crash_sites: Vec::new(),
             ordinary_events: Vec::new(),
         }
     }
@@ -1374,6 +1443,194 @@ mod tests {
         let kind_bytes = encode_terminal_trace_v1_profile(&kind_mutated).unwrap();
         assert!(matches!(
             accept_terminal_trace_v1_profile(&module, &kind_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+    }
+
+    /// The publish boundary declares a guarded Trap route; the caller contract
+    /// covers the same guard after positional substitution (formal 1 receives
+    /// the flag actual). A declaration route without caller coverage would fail
+    /// module validation before profile reconstruction.
+    fn boundary_crash_module() -> TerminalModule {
+        let mut module = ordinary_event_module();
+        let guarded_route = CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                Proposition::Equal(
+                    ScalarTerm::value(id(1, ValueId::new), ScalarType::Boolean),
+                    ScalarTerm::boolean(true),
+                ),
+            ))],
+        };
+        module.boundary_machines[0].crash_routes = vec![guarded_route.clone()];
+        module.machines[0].contract.crash_routes = vec![guarded_route];
+        module
+    }
+
+    #[test]
+    fn boundary_crash_rows_bind_call_sites_boundaries_and_routes() {
+        let module = boundary_crash_module();
+        let profile = reconstruct_canonical_terminal_trace_v1_profile(&module)
+            .expect("boundary crash profile reconstructs");
+        // The invocation does not fabricate a terminator-edge crash row; its
+        // declared route rides on an operation-level row instead.
+        assert!(profile.crash_sites.is_empty());
+        assert_eq!(
+            profile.boundary_crash_sites,
+            [TerminalTraceBoundaryCrashSiteRow {
+                machine: id(11, MachineId::new),
+                block: id(12, BlockId::new),
+                operation: id(2, OperationId::new),
+                boundary: id(1, BoundaryMachineId::new),
+                boundary_identity: "Console::publish".into(),
+                route: module.boundary_machines[0].crash_routes[0].clone(),
+            }],
+        );
+
+        let bytes = encode_terminal_trace_v1_profile(&profile).expect("boundary crash bytes");
+        assert_eq!(
+            decode_terminal_trace_v1_profile(&bytes).expect("boundary crash decode"),
+            profile,
+        );
+        assert_eq!(
+            accept_terminal_trace_v1_profile(&module, &bytes)
+                .expect("module-bound boundary crash acceptance"),
+            profile,
+        );
+
+        let mut row_prefix = vec![BOUNDARY_CRASH_ROW_TAG];
+        row_prefix.extend_from_slice(&11_u64.to_le_bytes());
+        row_prefix.extend_from_slice(&12_u64.to_le_bytes());
+        row_prefix.extend_from_slice(&2_u64.to_le_bytes());
+        let row_offset = bytes
+            .windows(row_prefix.len())
+            .position(|window| window == row_prefix)
+            .expect("boundary crash row prefix");
+        let mut unknown_row = bytes;
+        unknown_row[row_offset] = 9;
+        assert!(matches!(
+            decode_terminal_trace_v1_profile(&unknown_row),
+            Err(TerminalTraceV1ProfileCodecError::InvalidRowTag {
+                group: "boundary crash",
+                tag: 9,
+            }),
+        ));
+    }
+
+    #[test]
+    fn boundary_crash_rows_follow_site_then_cause_order_and_reject_bad_rosters() {
+        let mut module = boundary_crash_module();
+        let unconditional_abort = CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![CrashRouteGuard::Truth],
+        };
+        module.boundary_machines[0]
+            .crash_routes
+            .push(unconditional_abort.clone());
+        module.machines[0]
+            .contract
+            .crash_routes
+            .push(unconditional_abort);
+        let profile = reconstruct_canonical_terminal_trace_v1_profile(&module)
+            .expect("two-cause boundary crash profile reconstructs");
+        assert_eq!(
+            profile
+                .boundary_crash_sites
+                .iter()
+                .map(|row| (row.operation, row.route.cause))
+                .collect::<Vec<_>>(),
+            [
+                (id(2, OperationId::new), CrashCause::Trap),
+                (id(2, OperationId::new), CrashCause::Abort),
+            ],
+        );
+
+        let mut reordered = profile.clone();
+        reordered.boundary_crash_sites.swap(0, 1);
+        assert!(matches!(
+            encode_terminal_trace_v1_profile(&reordered),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalBoundaryCrashSiteOrder),
+        ));
+        let reordered_bytes = encode_raw(&reordered).expect("raw reordered canary bytes");
+        assert!(matches!(
+            decode_terminal_trace_v1_profile(&reordered_bytes),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalBoundaryCrashSiteOrder),
+        ));
+
+        let mut duplicate = profile.clone();
+        duplicate
+            .boundary_crash_sites
+            .push(duplicate.boundary_crash_sites[0].clone());
+        assert!(matches!(
+            encode_terminal_trace_v1_profile(&duplicate),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalBoundaryCrashSiteOrder),
+        ));
+
+        let mut malformed_route = profile;
+        malformed_route.boundary_crash_sites[0]
+            .route
+            .alternatives
+            .clear();
+        assert!(matches!(
+            encode_terminal_trace_v1_profile(&malformed_route),
+            Err(TerminalTraceV1ProfileCodecError::Wire(
+                CodecError::NonCanonicalOrder("boundary crash route alternatives"),
+            )),
+        ));
+    }
+
+    #[test]
+    fn module_bound_acceptance_rejects_boundary_crash_row_mutations() {
+        let module = boundary_crash_module();
+        let profile = reconstruct_canonical_terminal_trace_v1_profile(&module).unwrap();
+
+        let mut missing = profile.clone();
+        missing.boundary_crash_sites.clear();
+        let missing_bytes = encode_terminal_trace_v1_profile(&missing).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &missing_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut extra = profile.clone();
+        let mut extra_row = extra.boundary_crash_sites[0].clone();
+        extra_row.operation = id(9, OperationId::new);
+        extra.boundary_crash_sites.push(extra_row);
+        let extra_bytes = encode_terminal_trace_v1_profile(&extra).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &extra_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut site_mutated = profile.clone();
+        site_mutated.boundary_crash_sites[0].block = id(30, BlockId::new);
+        let site_bytes = encode_terminal_trace_v1_profile(&site_mutated).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &site_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut boundary_mutated = profile.clone();
+        boundary_mutated.boundary_crash_sites[0].boundary_identity = "Console::lookalike".into();
+        let boundary_bytes = encode_terminal_trace_v1_profile(&boundary_mutated).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &boundary_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut cause_mutated = profile.clone();
+        cause_mutated.boundary_crash_sites[0].route.cause = CrashCause::Abort;
+        let cause_bytes = encode_terminal_trace_v1_profile(&cause_mutated).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &cause_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut route_mutated = profile;
+        route_mutated.boundary_crash_sites[0].route.alternatives = vec![CrashRouteGuard::Truth];
+        let route_bytes = encode_terminal_trace_v1_profile(&route_mutated).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &route_bytes),
             Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
         ));
     }
