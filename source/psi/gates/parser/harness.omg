@@ -40,11 +40,10 @@ blocks;
     }
 
     state source_full(&mut self) {
-        self.lexer.reject(
-            LexDiagnosticCode::SourceCapacityExceeded,
-            self.lexer.source.length,
-            self.lexer.source.length
-        );
+        // The rejection span is read before the lexer is borrowed mutably:
+        // a call's mutable receiver cannot overlap an argument read.
+        let length: u64 [0..=65536] = self.lexer.source.length;
+        self.lexer.reject(LexDiagnosticCode::SourceCapacityExceeded, length, length);
         self.console.exit_process(252);
     }
 
@@ -93,7 +92,7 @@ blocks;
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, and type-reference tables. This is hosted development
 // tooling, not an Omega ABI.
-machine ParserHarness::write_parse_observation(&mut self) {
+machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     self.write_byte(79);
     self.write_byte(77);
     self.write_byte(71);
@@ -535,7 +534,7 @@ machine ParserHarness::write_parse_observation(&mut self) {
     state parse_done(&mut self) { }
 }
 
-machine ParserHarness::write_u64(&mut self, value: u64 in Trapping) {
+machine ParserHarness::write_u64(&mut self, value: u64 in Trapping) reaches Console {
     self.write_byte((value % 256) as u8);
     self.write_byte((value / 256 % 256) as u8);
     self.write_byte((value / 65536 % 256) as u8);
@@ -546,7 +545,7 @@ machine ParserHarness::write_u64(&mut self, value: u64 in Trapping) {
     self.write_byte((value / 72057594037927936 % 256) as u8);
 }
 
-machine ParserHarness::write_byte(&mut self, value: u8) {
+machine ParserHarness::write_byte(&mut self, value: u8) reaches Console {
     let mut output: u8 = value;
     self.console.write_byte(output as i32);
 }
