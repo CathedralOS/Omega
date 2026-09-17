@@ -421,7 +421,9 @@ prerequisite to every lower-rung milestone.
   and the derivation-checker and Beta-encoding theory manifests and repacked
   member closures in `tools/bootstrap/proofs/sources_env.sh`; checked by
   `tests/bootstrap/{alpha,beta,gamma,delta,epsilon,omega,proofs}-identity.sh`
-  (identity and refusal coverage without executing the rungs; seed execution
+  (identity and refusal coverage for every bound subject — seed container,
+  flat-edge source and tape, entry, manifest, member, composed record,
+  driver, and receipt — without executing the rungs; seed execution
   needs macOS arm64 or Windows x64). Every test gate consuming a canonical
   closure now reaches it through the bound materializers or their
   `require_*_identity` checks; only gate-local diagnostic closures and
