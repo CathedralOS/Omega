@@ -329,7 +329,7 @@ fn decide_type_equality_conjunct(
 /// declared data by item, and module-retained declarations by symbol. Mirrors
 /// the `TypeReferenceNode::Named` arm of `closed_argument_identity` without
 /// materializing a reference node.
-fn closed_name_identity(
+pub(in crate::preparation::generic_data) fn closed_name_identity(
     syntax: &SyntaxTrees,
     selection: Option<&constant_selection::ConstantSelection>,
     name: &Identifier,

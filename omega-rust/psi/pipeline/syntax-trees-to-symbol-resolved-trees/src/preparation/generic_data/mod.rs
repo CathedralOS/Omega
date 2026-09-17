@@ -25,6 +25,7 @@ mod const_evaluation;
 pub(crate) mod constant_selection;
 mod discovery;
 mod eligibility;
+mod equations;
 mod module_constants;
 mod substitution;
 mod synthesis;

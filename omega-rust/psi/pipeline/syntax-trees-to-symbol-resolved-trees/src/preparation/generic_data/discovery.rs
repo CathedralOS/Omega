@@ -18,6 +18,9 @@ pub(super) struct GenericData {
     pub(super) parameter_names: Vec<String>,
     pub(super) const_parameter_types: Vec<Option<TypeReferenceHandle>>,
     pub(super) where_facts: HandleSpan<ProofFact>,
+    /// The `where` facts that equate a type binder with known structure.
+    /// Applying the template decides them; instances never carry them.
+    pub(super) type_equations: Vec<super::equations::TypeEquation>,
     pub(super) members: HandleSpan<DataMember>,
     pub(super) properties: syntax_trees::item::DataProperties,
     pub(super) supply_mode: language_semantics::DataSupplyMode,

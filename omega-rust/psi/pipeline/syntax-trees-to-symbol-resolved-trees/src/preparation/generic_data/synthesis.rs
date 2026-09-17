@@ -206,6 +206,11 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                 parameter_names,
                 const_parameter_types,
                 where_facts: definition.where_facts,
+                type_equations: super::equations::classify_type_equations(
+                    syntax,
+                    definition_parameters,
+                    syntax.tables.items.proof_facts(definition.where_facts),
+                ),
                 members: definition.members,
                 properties: definition.properties,
                 supply_mode: definition.supply_mode,
@@ -376,6 +381,16 @@ pub(super) fn desugar_generic_data_instances_with_selection(
                 .iter()
                 .enumerate()
             {
+                // A type equation was decided against this instance's complete
+                // argument tuple when the spelling was admitted; a verified
+                // equation is a discharged instantiation obligation.
+                if base_info
+                    .type_equations
+                    .iter()
+                    .any(|equation| equation.fact_offset == offset)
+                {
+                    continue;
+                }
                 let fact_warning_start = warnings.len();
                 let const_result = match fact {
                     ProofFact::Expression(expression) => evaluate_const_fact_expression(
