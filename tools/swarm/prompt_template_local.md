@@ -72,6 +72,13 @@ on ANY terminal outcome: landed, blocked, superseded, or abandoned.
   untracked file and can block a publish from the main checkout. Drop the
   redirect or send output to a real file you delete.
 
+## Commits and reasoning
+
+Commit naming follows the AGENTS.md lanes (`lane: statement`). Every commit
+carries a body covering the previous behavior, rejected alternatives, and the
+gates that ran — omit it only when the subject already carries the full
+reasoning (AGENTS.md commit convention).
+
 ## Landing
 
 Publish only through `python3 tools/landing.py` with
