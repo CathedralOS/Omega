@@ -668,6 +668,21 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   missing edges, dependency cycles and cache separation. Removing a build or
   product edge rejects only its authorized selections; source sharing never
   substitutes host output or admission for target evidence.
+  CLI audit at c3aca8bbdf (macOS ARM64, product target linux_x86_64):
+  dual-purpose std, conflicting cross-scope aliases, one package in both
+  purposes, each scope rejecting the other scope's edge with the import,
+  file and scope named, product cycles, and edge removal after
+  publication all hold; `omega/tests/package_commands/build_purposes.rs`
+  pins them through the shipped binary at 380c6f3fdb over
+  `tests/fixtures/packages/build-purposes`. Open: build helpers are
+  checked under the requested product target rather than the admitted
+  host profile (`pub macos_arm64 machine` in a build helper does not
+  resolve on the macOS host while the product target's does), which needs
+  a per-scope profile in the frontend request; the missing-edge diagnostic
+  in `source-files-to-assembled-syntax/src/frontend/mod.rs` lacks the
+  suggested declaration; and non-root packages cannot author build rows,
+  so cross-purpose cycles and per-helper build activations stay
+  unexercised.
 
 - **BUILD-PRODUCT-REFERENCES.** In Psi source selection and the existing Build
   root/provider owners, implement designated product operands and qualified
