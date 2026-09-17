@@ -462,6 +462,23 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   accepted-axiom trust row) now read checked facts through the compiler API,
   and the capability-manifest entry test was deleted as renderer-only with
   its entry-state fact folded into the checked selected-entry test.
+  Refined by the finer guards (reruns of the outer-call and state-graph
+  subsets with the finer markers landed through 8fe2af5d9b): none of the 294
+  stop at outer-call admission; they pass the statement loop and fail in the
+  shared statement sequence's structural scalar field-store sequence, 258
+  inside the structural field store (112 at the pure source, 105 at the scalar
+  field type, 18 at the destination parameter, 13 at the carrier path and 10
+  at the byte-sequence carrier) and 32 at write-frame agreement, where the
+  resolver's inferred state write frame differs from the mutation summary
+  (wire encode/decode, Utf8 string fields and record-literal field stores); 3
+  stop at an unconsumed nested call inside an assignment. The terminator stops
+  are 34 conditional successors, 22 unsupported tails and 2 jump successors;
+  the state-signature stops are 33 parameter custody shapes, 21 parameter
+  signatures and 2 claim-bearing successors; 38 stop at operation custody and
+  16 at prefix initializers. Of the "eight fixture inventory drift" failures,
+  four were dump-reading canaries (since rewritten), two roster umbrellas pass
+  after a fixture sync, and `pass_canaries_compile` is a corpus umbrella
+  rather than a fixture.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
