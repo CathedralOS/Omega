@@ -204,28 +204,84 @@ fn structural_jump_retains_reverse_order_cleanup_after_transfer() {
 
 #[test]
 fn affine_locals_fail_closed_in_the_whole_parameter_edge_slice() {
-    let checked = checked(
-        r#"
-        data Token { value: i32; }
+    // Since 8c3d008f6c a plain affine record local is a state-exit result
+    // local: its disposal is partitioned out of the whole-parameter roster and
+    // the graph producer rejoins it, so the parameter-only edge plan publishes
+    // beside the retained state-exit drop. A local whose disposal needs code
+    // still withholds the whole state plan rather than publishing a partial
+    // parameter-only slice.
+    for (declarations, local, published) in [
+        ("data Token { value: i32; }", "Token { value: 1 }", true),
+        (
+            "data Token { value: i32; } data Nominal {} machine Nominal::drop(&mut self) {}",
+            "Nominal {}",
+            false,
+        ),
+    ] {
+        let local_type = local.split(' ').next().unwrap();
+        let checked = checked(&format!(
+            r#"
+            {declarations}
 
-        machine route(input: Token) -> i32
-        {
-            let local: Token = Token { value: 1 };
-            transition { _ -> next(input) }
-            state next(input: Token) -> i32 { 0 }
-        }
-        "#,
-    );
-    let (machine, entry) = machine_and_entry_state(&checked, "route");
-    assert!(
-        checked
+            machine route(input: Token) -> i32
+            {{
+                let local: {local_type} = {local};
+                transition {{ _ -> next(input) }}
+                state next(input: Token) -> i32 {{ 0 }}
+            }}
+            "#
+        ));
+        let (machine, entry) = machine_and_entry_state(&checked, "route");
+        let plan = checked
             .facts
             .flow
             .terminal_structural_control_cleanups
-            .for_state(machine, entry)
-            .is_none(),
-        "a state needing local cleanup must not publish a partial parameter-only plan"
-    );
+            .for_state(machine, entry);
+        if !published {
+            assert!(
+                plan.is_none(),
+                "`{local_type}` local cleanup must not publish a partial parameter-only plan"
+            );
+            continue;
+        }
+        let plan = plan.expect("plain affine local partitions out of the parameter edge slice");
+        let [edge] = plan.edges.as_slice() else {
+            panic!("one ordinary successor edge: {:?}", plan.edges);
+        };
+        assert_eq!(edge.statement_ordinal, 1);
+        assert!(
+            edge.trivial_affine_discard_parameter_positions.is_empty(),
+            "the transferred parameter leaves no whole-parameter discard: {:?}",
+            edge.trivial_affine_discard_parameter_positions
+        );
+        let declaration = checked
+            .machines()
+            .iter()
+            .find(|candidate| candidate.symbol == machine)
+            .unwrap();
+        let state = &checked.machine_states(declaration)[0];
+        let typed_trees::statement::StatementNode::LocalData(local) =
+            &checked.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("the local declaration opens the entry state");
+        };
+        assert!(
+            checked
+                .facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .any(|(_, event)| {
+                    event.machine_symbol == machine
+                        && event.state_symbol == entry
+                        && event.source == language_semantics::PermissionEventSource::StateExit
+                        && event.kind == language_semantics::PermissionEventKind::AffineDrop
+                        && event.root == ::facts::PlaceRoot::Symbol(local.symbol)
+                }),
+            "the local's disposal stays a retained state-exit drop, not a parameter discard"
+        );
+    }
 }
 
 #[test]
