@@ -27,3 +27,4 @@ mod source_closure_text;
 mod source_diff_commands;
 mod standard_library_package_resolution;
 mod symbolic_boundary_application_closure;
+mod token_binding_revision;
