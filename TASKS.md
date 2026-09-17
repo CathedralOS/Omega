@@ -2868,13 +2868,20 @@ Owners include
   unclosable_rejected}`, the latter a parameter-dependent bound no round
   can close). A round without progress restores every published fold.
   Nominal/policy qualifications, trait-operator owners, applications with
-  type/machine/evidence binders, and open symbolic endpoints remain. Omitted data
-  binders (`data TinyBytes<u64[0..=256]>` still reports "expected 2
-  arguments but got 1") need generic-data instance synthesis in
-  `syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/` to
-  match each `where Binder == <structural type>` equation against the
-  supplied argument's retained `IntegerRangeNormalization` before the
-  existing slug/identity path. Record and case-payload endpoint calls resolve in
+  type/machine/evidence binders, and open symbolic endpoints remain. Omitted
+  trailing data binders recover from data-level `where Binder == <range
+  shell>` equations against the supplied argument's retained
+  `IntegerRangeNormalization` (`preparation/generic_data/equations.rs`;
+  exclusive ends bind the proof-integer successor; verified equations are
+  discharged from the instance; `generics/omitted_data_binder_*` canaries
+  pin the selection and each distinct rejection). Still open there:
+  recovering a type binder from a range-shell equation (rejects asking for
+  an explicit argument), omitted-binder applications nested inside other
+  templates, runtime `Value` binders, and two defects beside the route:
+  `lowering/type_reference.rs::lower_child_type_references` panics ("arena
+  span append must be contiguous") on two range-shell arguments to one
+  generic, and `backend/layout/src/packing.rs` overflows on a full-width
+  capacity instead of rejecting placement. Record and case-payload endpoint calls resolve in
   their declaration scope before folding; local bounded record construction and
   field reads retain range obligations through canonical Terminal execution.
   Generic-data range arguments retain structured interval observations from
