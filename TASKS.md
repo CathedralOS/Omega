@@ -4082,17 +4082,34 @@ Owners include
   `level.rooms[*]`, 14+14+7 `RoomLookup`/`append_exit`/`apply_room` rows,
   4 index rows; `cargo nextest run -p typed-trees-to-checked-trees` 4127
   passed with the same 3 failures as 6ef27bae4f, and the pass corpus fails
-  the same 212 fixtures as before. Resume order: (1) unknown call frames
-  still wipe every live fact -- `self.rng.seed(seed, &mut random)` over an
-  uninitialized `RandomState` local, `self.clear_level(level)`,
-  `self.carve_room(level, &mut random, ..)` resolve to no complete frame in
-  `MazeBuilder::build`, so `level.*` is gone before the next call or the
-  return and re-seeding restores only what the callee hands back; narrow
-  those frames to the signature ceiling (receiver plus exclusive
-  arguments) instead of the empty context set; (2) `&mut self` receivers
-  hand back only the ZII-seeded `MachineFieldDomain` rows, so a caller's
-  non-ZII field facts on a receiver survive a method call only through
-  frame precision; (3) `checks/ranges`
+  the same 212 fixtures as before. An unknown call frame now retires only
+  the declared-signature ceiling -- each `&mut`/`&write` actual's exact
+  storage and a `&mut self` receiver, empty for a builtin function --
+  and only an unrepresentable ceiling (a by-value argument that may carry
+  a reference, an exclusive actual through a reference local with no
+  single origin) still retires every live fact
+  (`flow/call_phases/ceiling.rs`; `tests/contracts/call_ceilings.rs`),
+  and the write-frame isolation walk treats the `UInt`/`Int` atoms as
+  values so `RandomState { calls: UInt }` locals have a frame
+  (`validation/write_frames/{isolation,type_capabilities}.rs`). The
+  probe reports 503 diagnostics (738 with the atom repair alone): 3x112
+  `MazeBuilder::{carve_room,connect,force_quiet_room}` return rows and
+  112 `room_mut` call rows over `level.rooms[*]`, 14+14+14+7
+  `find_room_mut`/`find_room`/`append_exit`/`apply_room` rows, 4 index
+  rows, 2 `roll_event`/`clear_event` rows; ttct 4135 passed with the
+  same 3 failures, validation 843 with its 1 known failure, pass corpus
+  the same 212. Resume order: (1) `&mut Room` locals bound from
+  `room_mut`/`find_room_mut` reference results have no single storage
+  origin, so `append_exit(from_room)` / `clear_event(&mut room.event)`
+  keep an unrepresentable ceiling and wipe `level.*` before the
+  MazeBuilder returns -- the R5 "reference results' finite candidate
+  origins" work is the closer, either as a candidate union in
+  `rebase_local_write_places` or a callee-side hand-back on every
+  candidate; (2) `&mut self` receivers hand back only the ZII-seeded
+  `MachineFieldDomain` rows: a callee's `self` entry assumption is
+  ZII-gated, so its return cannot guarantee non-ZII rows and a caller's
+  non-ZII receiver facts survive a method call only through frame
+  precision -- widening needs a contract decision, not a flow change; (3) `checks/ranges`
   retires a slice view's length after a call through one element
   (`clear_room(&mut rooms[0], ..)` then `rooms[1]`), 15 rows; (4) sample
   side: `RoomLookup` copies an element at a runtime index and passes an
