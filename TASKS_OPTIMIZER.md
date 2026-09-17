@@ -1027,12 +1027,44 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `SaturatingAddZeroScratch`/`SaturatingAddZeroLeftScratch` source
   shapes, re-derives each dropped `Def`'s custody itself, and never
   consults the pair descriptor).
+  `PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs`
+  declares the right-literal grammar extended past the scalar `Def`
+  result with a mixed drop tail — every `Use` past the result drops
+  under the zero-provenance custody the auxiliary-`Use` grammars
+  require, every `Def` under the occurrence-free custody the
+  scratch-def grammars require — and
+  `PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs` composes
+  the literal-discharged fault surface with the dead-implicit-definition
+  relationship for a consumer that does both at once.
+  `SATURATING_DIVIDE_ONE_COPIES` declares one right-literal pair per
+  saturating carrier, folding `MaterializeI64(1)` feeding the divisor
+  operand of `SaturatingDivide` into a `CopyI64` of the dividend `Use`
+  under `LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1` — `x /| 1` is `x`
+  inside every carrier's bounds, and the signed `MIN /| -1` clamp lies
+  outside the divisor the grammar admits — with no left-literal pair
+  because division does not commute: `1 /| x` is not `x`. The divisor
+  literal of one is itself the evidence the encoded fault surface cannot
+  fire — the x86-64 `div`/`idiv` realizations' divide-by-zero and
+  quotient-overflow traps are unreachable at divisor one — while the
+  aarch64 signed rows' implicit `nzcv` definition retires only under the
+  whole-function deadness proof, the x86-64 rows' zeroed-rdx auxiliary
+  `Use` drops under sole-zero-definition custody, and the aarch64
+  clamped rows' bound scratch `Def` drops under occurrence-free custody
+  (819 crate tests pass, including firing on both Linux targets across
+  all eight carriers, `1 /| x`
+  rejection, divisor values other than one, auxiliary zero-provenance
+  and scratch-custody negatives, live-`nzcv` rejection, decision-field
+  substitution, and wrong-policy negatives; the replay restates the
+  grammar through its own `SaturatingDivideOne` source shape, re-derives
+  the literal value, each tail operand's custody, and the unit deadness
+  scan itself, and never consults the pair descriptor).
   Remaining: further unit roles beyond retired implicit definitions,
   stack- and control-flow-carrying relationships, and trap relationships
-  beyond the existing `FaultDischargedByLiteral` and
-  `FaultDischargedByObligation` descriptors. Those fault-discharge
-  variants do not admit arbitrary trap preservation or hosted-trap
-  effects.
+  beyond the existing `FaultDischargedByLiteral`,
+  `FaultDischargedByObligation`, and composed
+  `FaultDischargedByLiteralDeadUnitDefs` descriptors. Those
+  fault-discharge variants do not admit arbitrary trap preservation or
+  hosted-trap effects.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
   removal, address folding, compare/test selection, and scheduling only where
