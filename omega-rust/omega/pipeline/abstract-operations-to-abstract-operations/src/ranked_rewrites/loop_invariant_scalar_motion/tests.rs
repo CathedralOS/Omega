@@ -828,6 +828,7 @@ fn bypassed_member_computation_is_speculation_and_stays_inside() {
             },
             operand_rewrites: vec![(member_parameter, anchor)],
             root_rewrite: None,
+            argument_rewrites: Vec::new(),
             provenance: addition.provenance.clone(),
             fuel: addition.fuel.clone(),
         },
@@ -4625,6 +4626,36 @@ fn invariant_byte_literal_relocates_preserving_its_declared_place() {
         "the relocation preserves the literal's declared place identity"
     );
 
+    // The consuming `CallUnit` relocates in the same run, right behind the
+    // literal whose declared root it borrows: the root is produced by the run
+    // itself, so the call moves byte-exact — no argument rewrite — and still
+    // spells the same place identity.
+    let call = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find(|node| matches!(node.operation, AbstractOperation::CallUnit { .. }))
+        .expect("the member unit call exists");
+    let call_operation = operation_of(call);
+    let call_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the literal's consuming call relocates in the same run");
+    assert!(
+        matches!(
+            call_relocation.node().result(),
+            LoopInvariantNodeResult::Unit
+        ) && call_relocation.node().argument_rewrites().is_empty()
+            && call_relocation.node().operand_rewrites().is_empty(),
+        "the call relocates byte-exact behind its literal producer"
+    );
+    assert_eq!(
+        call_relocation.destination().node,
+        relocation.destination().node + 1,
+        "the call lands immediately behind its producer in the run"
+    );
+
     let validated = validate_loop_invariant_scalar_motion(&session, candidate)
         .expect("independent relocation validation");
     let applied = apply_loop_invariant_scalar_motion(session, validated)
@@ -4659,6 +4690,20 @@ fn invariant_byte_literal_relocates_preserving_its_declared_place() {
     }
     assert_eq!(moved.provenance, relocation.node().provenance());
     assert_eq!(moved.fuel, relocation.node().fuel());
+    let moved_call =
+        &destination.nodes[usize::try_from(call_relocation.destination().node).unwrap()];
+    assert!(
+        matches!(
+            &moved_call.operation,
+            AbstractOperation::CallUnit {
+                structural_arguments,
+                ..
+            } if structural_arguments
+                .iter()
+                .any(|argument| argument.place == place.id)
+        ),
+        "the relocated call keeps borrowing the literal's preserved place"
+    );
     let member_block = output_function
         .blocks
         .iter()
@@ -4671,20 +4716,12 @@ fn invariant_byte_literal_relocates_preserving_its_declared_place() {
         )),
         "the literal exists once, at the destination"
     );
-    // The consuming call stays inside the loop and still spells the same
-    // place identity: the moved declaration preserves the root the member
-    // `CallUnit` borrows.
     assert!(
-        member_block.nodes.iter().any(|node| matches!(
-            &node.operation,
-            AbstractOperation::CallUnit {
-                structural_arguments,
-                ..
-            } if structural_arguments
-                .iter()
-                .any(|argument| argument.place == place.id)
-        )),
-        "the member call keeps borrowing the relocated literal's place"
+        member_block
+            .nodes
+            .iter()
+            .all(|node| !matches!(node.operation, AbstractOperation::CallUnit { .. })),
+        "the call exists once, at the destination behind its producer"
     );
     assert!(
         output_function.declared_places.contains(&place.id),
@@ -4711,6 +4748,16 @@ fn bypassed_member_byte_literal_stays_inside() {
         "the bypassed member block is outside the non-speculative gate"
     );
     let literal_operation = operation_of(literal);
+    // The `sink("lit")` call shares the bypassed member: relocating it would
+    // speculate the callee work alongside its literal, so it stays inside
+    // too.
+    let call_operation = operation_of(
+        literal_block
+            .nodes
+            .iter()
+            .find(|node| matches!(node.operation, AbstractOperation::CallUnit { .. }))
+            .expect("the bypassed member carries the literal's call"),
+    );
 
     let candidates =
         propose_loop_invariant_scalar_motion(&session, 1).expect("one exact relocation candidate");
@@ -4724,6 +4771,348 @@ fn bypassed_member_byte_literal_stays_inside() {
             .all(|relocation| relocation.node().psi_operation() != literal_operation),
         "the speculated literal establishment is not a planned relocation"
     );
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the speculated unit call is not a planned relocation"
+    );
+}
+
+/// A `CallUnit` borrowing an invariant member structural parameter: `sink(b)`
+/// inside `step` borrows `b`, which every reaching edge resolves to the
+/// machine's `buf` parameter root — the relocated call rebinds that root and
+/// keeps its vacuous claim-transfer row byte-exact.
+const MEMBER_BORROW_CALL_SOURCE: &str = r#"
+    data Root {}
+    machine sink(v: &[u8]) {}
+    machine Root::scan(buf: &[u8], remaining: u32 [0..=5])
+    {
+        transition { _ -> step(buf, remaining) }
+        state step(b: &[u8], pending: u32 [0..=5]) {
+            sink(b);
+            transition pending > 0 {
+                true -> scan(b, pending - 1)
+                _ -> finish()
+            }
+        }
+        state finish() {}
+    }
+"#;
+
+/// The same `sink(b)` call, but `alt` re-enters `step` binding `b` to
+/// `spare`, whose chain anchors on `fallback` rather than `buf`: `b`'s
+/// reaching edges resolve to two different preheader-visible roots, so the
+/// parameter is loop-carried and the call stays inside — the carried-view
+/// counterpart for structural call arguments.
+const CARRIED_BORROW_CALL_SOURCE: &str = r#"
+    data Root {}
+    machine sink(v: &[u8]) {}
+    machine Root::scan(buf: &[u8], fallback: &[u8], remaining: u32 [0..=5])
+    {
+        transition { _ -> step(buf, remaining, fallback) }
+        state step(b: &[u8], pending: u32 [0..=5], spare: &[u8]) {
+            sink(b);
+            transition pending > 0 {
+                true -> alt(pending - 1, spare)
+                _ -> finish()
+            }
+        }
+        state alt(pending: u32 [0..=5], spare: &[u8]) {
+            transition { _ -> step(spare, pending, spare) }
+        }
+        state finish() {}
+    }
+"#;
+
+/// The `CallUnit` inside a member block and its block — the
+/// structural-signature counterpart of [`member_call`].
+fn member_unit_call<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> (
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+) {
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::CallUnit { .. } = &node.operation {
+                return (block, node);
+            }
+        }
+    }
+    panic!("the unit call lives in a member block")
+}
+
+#[test]
+fn invariant_unit_call_relocates_rebinding_its_borrowed_root() {
+    let session = lowered_session(MEMBER_BORROW_CALL_SOURCE, "member borrow call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_unit_call(function, component);
+    let member = call_block.id;
+    let call_ownership = call.ownership.clone();
+    let (call_operation, argument_place, callee) = match &call.operation {
+        AbstractOperation::CallUnit {
+            psi_operation,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            crash_continuations,
+            ..
+        } => {
+            assert!(arguments.is_empty() && claim_transfers.is_empty());
+            assert!(crash_continuations.is_empty());
+            let [argument] = structural_arguments.as_slice() else {
+                panic!("one structural argument")
+            };
+            (*psi_operation, argument.place, *callee)
+        }
+        operation => panic!("the member node is a unit call: {operation:?}"),
+    };
+    // The borrowed root is `step`'s member structural parameter; every
+    // reaching edge resolves it to the `buf` parameter root.
+    let representative =
+        crate::validation::invariant_member_place_parameters(function, component)[&argument_place];
+    assert_ne!(representative, argument_place);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the invariant unit call is a planned relocation");
+    assert!(
+        matches!(relocation.node().result(), LoopInvariantNodeResult::Unit),
+        "the unit call relocation preserves the invocation"
+    );
+    assert_eq!(
+        relocation.node().argument_rewrites(),
+        &[(argument_place, representative)],
+        "the call's borrowed root rebinds to its preheader-visible representative"
+    );
+    assert!(
+        relocation.node().operand_rewrites().is_empty()
+            && relocation.node().root_rewrite().is_none(),
+        "the call carries no scalar operands or observed root to rebind"
+    );
+    assert_eq!(relocation.node().location().block, call_block.id);
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let destination = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::CallUnit {
+            callee: moved_callee,
+            structural_arguments,
+            claim_transfers,
+            crash_continuations,
+            ..
+        } => {
+            assert_eq!(*moved_callee, callee);
+            let [argument] = structural_arguments.as_slice() else {
+                panic!("one structural argument")
+            };
+            assert_eq!(
+                argument.place, representative,
+                "the relocated call borrows the representative root"
+            );
+            assert!(claim_transfers.is_empty() && crash_continuations.is_empty());
+        }
+        operation => panic!("relocated node keeps its unit-call operation: {operation:?}"),
+    }
+    assert_eq!(
+        moved.ownership.as_slice(),
+        call_ownership.as_slice(),
+        "the vacuous claim-transfer row moves byte-exact with the node"
+    );
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    let member_block = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == member)
+        .expect("member block exists");
+    assert!(
+        member_block
+            .nodes
+            .iter()
+            .all(|node| !matches!(node.operation, AbstractOperation::CallUnit { .. })),
+        "the unit call exists once, at the destination"
+    );
+}
+
+#[test]
+fn carried_borrow_unit_call_stays_inside() {
+    let session = lowered_session(CARRIED_BORROW_CALL_SOURCE, "carried borrow call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_unit_call(function, component);
+    let call_operation = operation_of(call);
+    // `b`'s reaching edges disagree: the entry binds `buf`'s root while `alt`
+    // re-binds it through `spare` to `fallback`'s root — two different
+    // preheader-visible representatives, so the parameter never resolves.
+    let call_argument = match &call.operation {
+        AbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } => structural_arguments[0].place,
+        operation => panic!("the member node is a unit call: {operation:?}"),
+    };
+    assert!(
+        !crate::validation::invariant_member_place_parameters(function, component)
+            .contains_key(&call_argument),
+        "the carried borrow's parameter has no invariant representative"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the component still yields one atomic candidate")
+    };
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the call borrowing a loop-carried root is not a planned relocation"
+    );
+}
+
+#[test]
+fn unit_call_moved_without_its_literal_producer_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(INVARIANT_LITERAL_SOURCE, "invariant literal loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_unit_call(function, component);
+    let member = call_block.id;
+    let preheader = entry.source;
+    let call_operation = operation_of(call);
+    let (input, mut unit) = session.into_parts();
+    // Hand-move only the call: its argument still borrows the literal's
+    // member-produced place, but the producer stayed inside — the freeze
+    // fence re-derives the admission and refuses because no node in the
+    // component's relocated run covered the borrowed root.
+    let moved = take_operation(&mut unit, call_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn unit_call_moved_without_rebinding_its_borrow_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_BORROW_CALL_SOURCE, "member borrow call loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_unit_call(function, component);
+    let member = call_block.id;
+    let preheader = entry.source;
+    let call_operation = operation_of(call);
+    let (input, mut unit) = session.into_parts();
+    // Hand-move the call byte-exact: the argument still spells `step`'s
+    // member parameter. The fence re-derives the member-parameter resolution
+    // from the seed, rebinds the expected operation, and the drifted move
+    // mismatches.
+    let moved = take_operation(&mut unit, call_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
 }
 
 #[test]

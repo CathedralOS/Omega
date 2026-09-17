@@ -17,7 +17,12 @@ use super::{
 /// scalar result. An `EstablishByteSequenceLiteral` defines no scalar
 /// either: the relocation preserves the literal place declaration its
 /// operation carries — the fresh immutable view root's identity and
-/// declaration kind stay byte-exact inside the moved operation.
+/// declaration kind stay byte-exact inside the moved operation. A `CallUnit`
+/// defines no scalar and establishes no place: the relocation preserves the
+/// invocation itself — callee, scalar and structural arguments, claims, and
+/// crash routes move byte-exact apart from the planned operand and
+/// argument-root rebinds — so the transformed unit's call custody still sees
+/// the same invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoopInvariantNodeResult {
     /// A preserved scalar definition: the result value and its declared type.
@@ -36,16 +41,23 @@ pub enum LoopInvariantNodeResult {
     /// unit's structural custody still sees the same producer declaring the
     /// same place and every consumer keeps spelling the same place identity.
     LiteralPlace(terminal_psi::StructuralPlaceDeclaration),
+    /// A preserved unit-result invocation — an admitted `CallUnit`. The
+    /// moved operation defines nothing and establishes nothing: the
+    /// relocation rebinds its member-parameter scalar operands and
+    /// structural-argument roots and keeps every other field byte-exact, so
+    /// the transformed unit still observes the same callee invoked on
+    /// equivalent arguments.
+    Unit,
 }
 
 impl LoopInvariantNodeResult {
     /// The scalar value this result preserves — `None` for a
-    /// structural-producing or place-declaring relocation, which defines no
-    /// scalar.
+    /// structural-producing, place-declaring, or unit-result relocation,
+    /// which defines no scalar.
     pub const fn scalar_value(&self) -> Option<ValueId> {
         match self {
             Self::Scalar { value, .. } => Some(*value),
-            Self::Structural(_) | Self::LiteralPlace(_) => None,
+            Self::Structural(_) | Self::LiteralPlace(_) | Self::Unit => None,
         }
     }
 }
@@ -62,7 +74,13 @@ impl LoopInvariantNodeResult {
 /// that root rebind in `root_rewrite`. A `ByteSequenceSubslice` records the
 /// same root rebind and scalar-operand rewrites a byte read does, but its
 /// result is [`LoopInvariantNodeResult::Structural`]: the fresh view stays
-/// byte-exact inside the moved operation.
+/// byte-exact inside the moved operation. An admitted `CallUnit` records its
+/// result as [`LoopInvariantNodeResult::Unit`], rebinds member-parameter
+/// scalar operands through `operand_rewrites` like every computation, and
+/// rebinds each structural argument whose root is an invariant member
+/// parameter through `argument_rewrites` — a shared-borrow argument naming
+/// a root a node earlier in the same run produced needs no rewrite, because
+/// the run keeps the producer's declared place identity byte-exact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,
@@ -75,6 +93,12 @@ pub struct LoopInvariantScalarNode {
     /// leaves, scalar computations, and observations whose root is already
     /// preheader-visible.
     pub(super) root_rewrite: Option<(PlaceId, PlaceId)>,
+    /// The structural-argument root rebinds an admitted call performs:
+    /// `(member parameter root, preheader-visible root)` pairs for every
+    /// argument whose root is an invariant member structural parameter.
+    /// Empty for every non-call relocation and for a call whose argument
+    /// roots are already preheader-visible or produced inside the same run.
+    pub(super) argument_rewrites: Vec<(PlaceId, PlaceId)>,
     pub(super) provenance: Vec<PsiProvenance>,
     pub(super) fuel: Vec<optimization_unit::FuelSettlement>,
 }
@@ -108,6 +132,15 @@ impl LoopInvariantScalarNode {
     /// preheader-visible root. `None` for every other relocated node.
     pub const fn root_rewrite(&self) -> Option<(PlaceId, PlaceId)> {
         self.root_rewrite
+    }
+
+    /// The `(member parameter root, preheader-visible root)` rewrites an
+    /// admitted call performs on its structural-argument roots, in argument
+    /// order. Empty for every non-call relocation and for a call whose
+    /// argument roots are already preheader-visible or produced inside the
+    /// same run.
+    pub fn argument_rewrites(&self) -> &[(PlaceId, PlaceId)] {
+        &self.argument_rewrites
     }
 
     pub fn provenance(&self) -> &[PsiProvenance] {
@@ -323,6 +356,13 @@ pub(super) fn candidate_identity(
                     _ => canonical.push(1),
                 }
             }
+            LoopInvariantNodeResult::Unit => {
+                // A preserved invocation commits nothing beyond the tag: the
+                // callee, arguments, claims, and crash routes move byte-exact
+                // inside the output unit identity, and the rebinds below
+                // record the only fields that change.
+                canonical.push(3);
+            }
         }
         encode_location(&mut canonical, relocation.node.location);
         encode_location(&mut canonical, relocation.destination);
@@ -342,6 +382,15 @@ pub(super) fn candidate_identity(
                 canonical.extend_from_slice(&representative.get().to_le_bytes());
             }
             None => canonical.push(0),
+        }
+        canonical.extend_from_slice(
+            &u64::try_from(relocation.node.argument_rewrites.len())
+                .expect("argument rewrite count fits u64")
+                .to_le_bytes(),
+        );
+        for (parameter, root) in &relocation.node.argument_rewrites {
+            canonical.extend_from_slice(&parameter.get().to_le_bytes());
+            canonical.extend_from_slice(&root.get().to_le_bytes());
         }
     }
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)
