@@ -1,5 +1,6 @@
 [package]
 name = "syntax-trees-to-symbol-resolved-trees"
+autotests = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -22,3 +23,7 @@ symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
 [dev-dependencies]
 source-files-to-tokens = { path = "../source-files-to-tokens" }
 tokens-to-syntax-trees = { path = "../tokens-to-syntax-trees" }
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"
