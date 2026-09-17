@@ -1061,11 +1061,46 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   grammar through its own `SaturatingDivideOne` source shape, re-derives
   the literal value, each tail operand's custody, and the unit deadness
   scan itself, and never consults the pair descriptor).
+  `PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs`
+  declares the left-literal constant-result grammar extended past the
+  scalar `Def` result with the same mixed drop tail — the operand-0
+  literal alone fixes the result, the operand-1 `Use` drops with the
+  form, a tail `Use` drops under zero-provenance custody and a tail
+  `Def` under occurrence-free custody — and
+  `PairMachineEffects::FaultDischargedByObligationDeadUnitDefs`
+  declares the fourth distinct fault-discharge relationship: the
+  consumer's encoded fault surface retires under the carried obligation
+  its kind and provenance name — not under the folded literal — while
+  every implicit unit the consumer defines retires under the
+  whole-function deadness proof. `SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS`
+  declares one pair per saturating carrier, folding `MaterializeI64(0)`
+  feeding the dividend operand of `SaturatingDivide` into a
+  `MaterializeI64` of zero at the result register under
+  `LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1` — `0 /| x` is `0`
+  inside every carrier's bounds, and the zero quotient reaches no
+  saturation edge — with no right-literal pair because `x /| 0` is the
+  divide-by-zero case, not a constant. The folded dividend is not the
+  fault's evidence: only the nonzero-divisor obligation the kind
+  carries discharges it, so the descriptor gates on the obligation's
+  presence in the consumer provenance while aarch64's signed rows'
+  implicit `nzcv` definition retires under deadness, the x86-64 rows'
+  zeroed-rdx auxiliary `Use` drops under sole-zero-definition custody,
+  and the aarch64 clamped rows' bound scratch `Def` drops under
+  occurrence-free custody (894 crate tests pass, including firing on
+  both Linux targets across all eight carriers, `x /| 0` and
+  non-zero-dividend rejection, missing-obligation rejection,
+  auxiliary zero-provenance and scratch-custody negatives,
+  live-`nzcv` rejection, cross-carrier kind-versus-row rejection,
+  decision-field substitution, and wrong-policy negatives; the replay
+  restates the grammar through its own `SaturatingDivideZeroDividend`
+  source shape, re-derives the literal, each tail operand's custody,
+  the obligation custody, and the unit deadness scan itself, and never
+  consults the pair descriptor).
   Remaining: further unit roles beyond retired implicit definitions,
   stack- and control-flow-carrying relationships, and trap relationships
   beyond the existing `FaultDischargedByLiteral`,
-  `FaultDischargedByObligation`, and composed
-  `FaultDischargedByLiteralDeadUnitDefs` descriptors. Those
+  `FaultDischargedByObligation`, `FaultDischargedByLiteralDeadUnitDefs`,
+  and `FaultDischargedByObligationDeadUnitDefs` descriptors. Those
   fault-discharge variants do not admit arbitrary trap preservation or
   hosted-trap effects.
 
