@@ -96,7 +96,9 @@ pub fn validate_fixed_segment_fuel(
 /// edge is a semantic safe point in this slice. Calls compose the callee's
 /// normal-return bound into a following caller edge and terminate separately
 /// at a callee crash; an all-crash call therefore makes the caller terminator
-/// unreachable. No partial call or suspension state crosses an edge, and the
+/// unreachable. A return edge composes the nominal cleanup machines it
+/// suspends into, in order, since that work is metered before control leaves
+/// the machine. No partial call or suspension state crosses an edge, and the
 /// successor block begins the next segment.
 /// The returned order is canonical block order followed by terminator edge
 /// order, restricted to blocks reachable from the machine entry.
