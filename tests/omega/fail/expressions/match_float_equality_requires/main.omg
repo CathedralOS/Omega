@@ -1,4 +1,4 @@
-boundary operator == Float::equal(left: f32, right: f32) -> bool
+boundary machine == Float::equal(left: f32, right: f32) -> bool
 requires false;
 
 machine choose(value: f32, pattern: f32) -> u64 {
