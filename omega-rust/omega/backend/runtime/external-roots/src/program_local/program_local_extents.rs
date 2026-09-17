@@ -14,6 +14,7 @@ use crate::{
     RetiredProgramLocalRootOccurrence,
 };
 
+mod activation_loans;
 mod retained_foreign_arguments;
 
 pub use retained_foreign_arguments::*;
@@ -127,9 +128,12 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
     /// set, so the installed backing covers the group's whole live demand
     /// without a gap or remainder.
     ///
-    /// Success mints one program-local Extent per member — the authority an
-    /// activation borrows through `Extent::loan`/`loan_mut` — and retains
-    /// each account until its recombined root returns through
+    /// Success mints one program-local Extent per member — the authority the
+    /// establishing activation borrows through
+    /// [`ProgramLocalExtentRegistry::loan_under_activation`]/
+    /// [`ProgramLocalExtentRegistry::loan_mut_under_activation`], the
+    /// checked `Extent::loan`/`loan_mut` route — and retains each account
+    /// until its recombined root returns through
     /// [`ProgramLocalExtentRegistry::retire`], which releases the exact
     /// occurrence and returns its partition for rejoin into installed
     /// storage, completing the same occurrence and epoch.
@@ -320,6 +324,51 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
             .try_into()
             .expect("one program-local input materializes one Extent");
         Ok(extent)
+    }
+
+    /// Resolve one Extent's claimed program-local origin to its held account
+    /// in this registry: the origin must name a live account, and the
+    /// Extent's lineage root and runtime facts (address space, provenance,
+    /// mapping era) must match the actual installed backing consumed at
+    /// materialization. Shared by activation loans and retained foreign
+    /// arguments; a provider-issued or ambient Extent has no such account.
+    fn validate_backing(
+        &self,
+        extent: &Extent,
+    ) -> Result<
+        (
+            &HeldProgramLocalExtent<'root, 'code>,
+            ExtentProgramLocalOrigin,
+        ),
+        ExternalRootDiagnostic,
+    > {
+        let Some(origin) = extent.program_local_origin() else {
+            return Err(ExternalRootDiagnostic(
+                "extent has unknown ambient backing: the Extent is not rooted in an established program-local account"
+                    .into(),
+            ));
+        };
+        let Some(held) = self.held.get(&origin) else {
+            return Err(ExternalRootDiagnostic(
+                "extent has unknown ambient backing: no held program-local account exists for the Extent"
+                    .into(),
+            ));
+        };
+        if extent.lineage_root() != held.lineage {
+            return Err(ExternalRootDiagnostic(
+                "extent has substituted lineage for its held program-local account".into(),
+            ));
+        }
+        if extent.address_space() != held.backing.address_space()
+            || extent.provenance() != held.backing.provenance()
+            || extent.era() != held.backing.era()
+        {
+            return Err(ExternalRootDiagnostic(
+                "extent revision provenance does not match the installed occurrence (mapping era / provenance / address space)"
+                    .into(),
+            ));
+        }
+        Ok((held, origin))
     }
 
     /// Consume the exact recombined root Extent and release its retained
