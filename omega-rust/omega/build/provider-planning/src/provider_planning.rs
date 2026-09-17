@@ -41,9 +41,13 @@ pub use external_binding_rows::{
 };
 #[cfg(feature = "installed-writer")]
 pub use installed_writer::*;
-pub use intrinsic_execution::primitive_float_binary_intrinsic_execution_identity;
+pub use intrinsic_execution::{
+    primitive_float_binary_intrinsic_execution_identity,
+    primitive_float_binary_intrinsic_execution_identity_for,
+};
 pub use operator_provider_evidence::{
-    compiler_intrinsic_diagnostic_label, intrinsic_realization_matches_operator,
+    compiler_intrinsic_diagnostic_label, compiler_intrinsic_diagnostic_label_for,
+    intrinsic_realization_matches_operator,
 };
 pub use provenance_replay::*;
 pub use selected_plan_bindings::SelectedProviderPlanBinding;
@@ -95,6 +99,10 @@ pub fn bind_selected_provider_plan_facts(
         receipt_binding::plan_admitted_receipt_updates(checked, &facts, &provider_grants)?;
     let (spelled_operator_uses, named_operator_uses) =
         plan_selected_operator_provider_evidence(checked, candidates, &facts)?;
+    let named_requirement_uses =
+        operator_provider_evidence::plan_selected_requirement_provider_evidence(
+            checked, candidates, &facts,
+        )?;
     let installation_reach_resolutions =
         derive_selected_installation_reach_resolutions(checked, &facts)?;
     let selected = facts
@@ -103,6 +111,7 @@ pub fn bind_selected_provider_plan_facts(
     let updates = SelectedProviderProgramUpdates {
         spelled_operator_uses,
         named_operator_uses,
+        named_requirement_uses,
         admitted_receipts: receipt_updates,
     };
     let mut bound_program = Arc::clone(program);

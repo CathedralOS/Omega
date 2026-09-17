@@ -255,11 +255,10 @@ fn a_receiver_bearing_requirement_settles_no_direct_call_row() {
 }
 
 #[test]
-fn a_requirement_realized_by_a_compiler_intrinsic_rejects_its_direct_call_by_name() {
-    // The plan for an intrinsic satisfier is derived and selected, but the
-    // direct-call route executes only checked adapters: the call rejects at
-    // settlement naming the selected plan and its intrinsic realization
-    // instead of reporting a missing provider.
+fn a_requirement_realized_by_a_compiler_intrinsic_settles_no_adapter_row_and_is_not_rejected() {
+    // The plan for an intrinsic satisfier is derived and selected; the
+    // direct call executes through the named-float intrinsic bridge, so
+    // association settlement neither emits an adapter row nor rejects it.
     let source = r#"
         pub data Negation [copy] {}
         pub boundary requirement Negation::flip(value: f32) -> f32;
@@ -283,15 +282,8 @@ fn a_requirement_realized_by_a_compiler_intrinsic_rejects_its_direct_call_by_nam
     );
     let selected = selected_all(&plans);
     let mut settled = Arc::new(checked);
-    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect_err("an intrinsic-realized requirement has no direct-call execution route");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-            "direct call `flip` names public boundary requirement `Negation::flip`, whose selected provider"
-        ) && diagnostic.message.contains("compiler intrinsic")
-            && diagnostic
-                .message
-                .contains("the direct-call route executes only checked adapters")),
-        "{diagnostics:?}"
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected).expect(
+        "an intrinsic-realized requirement call is the intrinsic bridge's, not an adapter row",
     );
+    assert!(settled.facts.boundary_adapter_dispatch.is_empty());
 }

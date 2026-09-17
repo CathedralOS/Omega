@@ -8,25 +8,26 @@ use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::RoundingDirection;
 use numerics::literals::FloatFormat;
+use provider_planning::IntrinsicRequirement;
 use symbols::BuiltinFunction;
 
 pub(crate) fn preflight_named_float_execution(
     checked: &CheckedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
+    requirement: &IntrinsicRequirement<'_>,
     realization: NamedFloatRealization,
 ) -> Result<StagedNamedFloatExecution, Diagnostic> {
     if let NamedFloatRealization::Negate(format) = realization {
         return Ok(StagedNamedFloatExecution::Negate(format));
     }
     if let NamedFloatRealization::Convert(domain) = realization {
-        if !operator.return_type.is_valid() {
+        if !requirement.return_type.is_valid() {
             return Err(Diagnostic::error(
                 "selected named conversion intrinsic has no exact return type",
             ));
         }
         return Ok(StagedNamedFloatExecution::Convert {
             domain,
-            target_type: operator.return_type,
+            target_type: requirement.return_type,
         });
     }
     let function = named_float_realization_builtin(realization)?;
@@ -84,27 +85,28 @@ pub(crate) fn named_float_realization_builtin(
 /// Resolve execution from the exact checked operator shape. The retained
 /// catalog label is diagnostic-only; it is never parsed or used as a dispatch
 /// key.
-pub(crate) fn named_float_realization_from_operator(
+/// The compiler-known named float realization of one `Owner::name`
+/// requirement, keyed on the requirement view so a `boundary operator` and a
+/// `boundary requirement` spelling of the same signature select the same
+/// realization.
+pub(crate) fn named_float_realization_for(
     typed: &typed_trees::TypedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
+    requirement: &IntrinsicRequirement<'_>,
 ) -> Option<NamedFloatRealization> {
-    let [namespace, requirement] = typed.operator_path_members(operator.name) else {
-        return None;
-    };
-    let requirement = requirement.as_str();
+    let namespace = requirement.namespace.as_str();
+    let return_type = requirement.return_type;
+    let requirement = requirement.name.as_str();
     if matches!(
-        namespace.as_str(),
+        namespace,
         "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64"
     ) {
         return matches!(requirement, "from_f32" | "from_f64").then(|| {
             NamedFloatRealization::Convert(
-                typed
-                    .type_reference_table
-                    .arithmetic_domain(operator.return_type),
+                typed.type_reference_table.arithmetic_domain(return_type),
             )
         });
     }
-    let format = match namespace.as_str() {
+    let format = match namespace {
         "F32" => FloatFormat::F32,
         "F64" => FloatFormat::F64,
         _ => return None,

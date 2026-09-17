@@ -1,7 +1,7 @@
 //! Selected operator provider evidence and intrinsic realization checks.
 
 pub(crate) use crate::exact_checked_adapter;
-use crate::provider_planning::intrinsic_execution::primitive_float_binary_intrinsic_execution_identity;
+use crate::provider_planning::intrinsic_execution::primitive_float_binary_intrinsic_execution_identity_for;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use typed_trees::TypedTrees;
@@ -120,6 +120,121 @@ pub(crate) fn plan_selected_operator_provider_evidence(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Stamp the selected plan onto each direct call to a public receiver-free
+/// top-level requirement, the requirement-spelling twin of the named
+/// operator-use stamping above. A checked-adapter plan is the direct-call
+/// adapter route; a compiler-intrinsic plan must name a compiler-known
+/// realization that satisfies exactly this requirement as an external leaf.
+pub(crate) fn plan_selected_requirement_provider_evidence(
+    checked: &checked_trees::CheckedTrees,
+    candidates: &[ProviderPlan],
+    selected: &effects::SelectedProviderPlanFacts,
+) -> Result<
+    Vec<(
+        arena::Handle<checked_trees::CheckedNamedRequirementUseFact>,
+        u64,
+        checked_trees::CheckedProviderPlanCommitment,
+    )>,
+    Vec<diagnostics::Diagnostic>,
+> {
+    let mut updates = Vec::new();
+    let mut diagnostics = Vec::new();
+    let uses = checked
+        .facts
+        .operators
+        .named_requirement_uses
+        .iter()
+        .map(|(handle, requirement_use)| (handle, requirement_use.requirement_symbol))
+        .collect::<Vec<_>>();
+    for (handle, symbol) in uses {
+        match selected_requirement_provider_evidence(checked, candidates, selected, symbol) {
+            Ok(Some((report_fingerprint, commitment))) => {
+                updates.push((handle, report_fingerprint, commitment));
+            }
+            Ok(None) => {}
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(updates)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn selected_requirement_provider_evidence(
+    checked: &checked_trees::CheckedTrees,
+    candidates: &[ProviderPlan],
+    selected: &effects::SelectedProviderPlanFacts,
+    requirement_symbol: symbols::SymbolHandle,
+) -> Result<Option<(u64, checked_trees::CheckedProviderPlanCommitment)>, diagnostics::Diagnostic> {
+    let Some(requirement) =
+        crate::IntrinsicRequirement::by_symbol(&checked.typed, requirement_symbol)
+    else {
+        return Ok(None);
+    };
+    if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
+        return Ok(None);
+    }
+    let slot = requirement.display();
+    if !candidates
+        .iter()
+        .any(|candidate| requirement.schema_binds(&checked.typed, &candidate.schema))
+    {
+        return Ok(None);
+    }
+    let matching_selected = selected
+        .plans()
+        .iter()
+        .filter(|plan| requirement.schema_binds(&checked.typed, &plan.schema))
+        .collect::<Vec<_>>();
+    let [plan] = matching_selected.as_slice() else {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "boundary requirement `{slot}` in package {:?} resolves to {} selected ProviderPlans; expected exactly one",
+            requirement.package_identity,
+            matching_selected.len(),
+        )));
+    };
+    let plan = *plan;
+    let [row] = plan.rows.as_slice() else {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "selected boundary-requirement ProviderPlan `{}` must contain exactly one realization row",
+            plan.name,
+        )));
+    };
+    match &row.binding {
+        ProviderBinding::CheckedAdapter { .. } => {}
+        ProviderBinding::CompilerIntrinsic { machine, .. } => {
+            compiler_intrinsic_diagnostic_label_for(&checked.typed, &requirement).ok_or_else(
+                || {
+                    diagnostics::Diagnostic::error(format!(
+                        "selected boundary-requirement ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
+                        plan.name,
+                    ))
+                },
+            )?;
+            if !requirement.intrinsic_realization_matches(&checked.typed, machine) {
+                return Err(diagnostics::Diagnostic::error(format!(
+                    "selected boundary-requirement ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact slot `{slot}` as an external leaf",
+                    plan.name,
+                )));
+            }
+        }
+        binding => {
+            return Err(diagnostics::Diagnostic::error(format!(
+                "selected boundary-requirement ProviderPlan `{}` uses unsupported binding `{binding:?}` for a direct call; a directly called requirement takes a checked adapter or compiler intrinsic",
+                plan.name,
+            )));
+        }
+    }
+    Ok(Some((
+        plan.report_fingerprint(),
+        checked_trees::CheckedProviderPlanCommitment::from_digest(
+            *plan.identity_digest().as_bytes(),
+        ),
+    )))
 }
 
 fn selected_operator_provider_evidence(
@@ -370,25 +485,8 @@ pub fn intrinsic_realization_matches_operator(
     realization_machine_identity: &str,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> bool {
-    typed.machines().iter().any(|machine| {
-        typed
-            .normalized_machine_overload_identity(machine)
-            .is_some_and(|identity| identity.identity() == realization_machine_identity)
-            && typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .any(|conformance| conformance.external_binding.is_some())
-            && typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .any(|conformance| {
-                    typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
-                        typed,
-                        machine,
-                        conformance,
-                    )
-                    .is_some_and(|resolved| resolved.symbol == operator.symbol)
-                })
+    crate::IntrinsicRequirement::from_operator(typed, operator).is_some_and(|requirement| {
+        requirement.intrinsic_realization_matches(typed, realization_machine_identity)
     })
 }
 
@@ -399,21 +497,30 @@ pub fn compiler_intrinsic_diagnostic_label(
     typed: &TypedTrees,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Option<String> {
+    let requirement = crate::IntrinsicRequirement::from_operator(typed, operator)?;
+    compiler_intrinsic_diagnostic_label_for(typed, &requirement)
+}
+
+/// The same label keyed on the requirement view, so a `boundary requirement`
+/// spelling of the same `Owner::name` signature renders identically.
+pub fn compiler_intrinsic_diagnostic_label_for(
+    typed: &TypedTrees,
+    requirement: &crate::IntrinsicRequirement<'_>,
+) -> Option<String> {
     if let Some(CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format }) =
-        primitive_float_binary_intrinsic_execution_identity(typed, operator)
+        primitive_float_binary_intrinsic_execution_identity_for(typed, requirement)
     {
         return Some(format!("Float::{}.{}", operation.name(), format.name()));
     }
-    let path = typed.operator_path_members(operator.name);
-    let [namespace, requirement] = path else {
-        return None;
-    };
-    let parameters = typed.operator_parameters(operator);
-    let (operation, primitive, expected_result) = match namespace.as_str() {
+    let namespace = requirement.namespace.as_str();
+    let requirement_name = requirement.name.as_str();
+    let return_type = requirement.return_type;
+    let parameters = requirement.parameters;
+    let (operation, primitive, expected_result) = match namespace {
         "F32" | "F64" => {
-            if matches!(requirement.as_str(), "from_f64" | "from_f32") {
+            if matches!(requirement_name, "from_f64" | "from_f32") {
                 let (expected_source, expected_result, source_name) =
-                    match (namespace.as_str(), requirement.as_str()) {
+                    match (namespace, requirement_name) {
                         ("F32", "from_f64") => (
                             typed_trees::types::PrimitiveType::F64,
                             typed_trees::types::PrimitiveType::F32,
@@ -430,17 +537,13 @@ pub fn compiler_intrinsic_diagnostic_label(
                     return None;
                 };
                 if typed.primitive_type_reference(value.type_reference) != Some(expected_source)
-                    || typed.primitive_type_reference(operator.return_type) != Some(expected_result)
+                    || typed.primitive_type_reference(return_type) != Some(expected_result)
                 {
                     return None;
                 }
-                return Some(format!(
-                    "{}::{}.{source_name}",
-                    namespace.as_str(),
-                    requirement.as_str()
-                ));
+                return Some(format!("{}::{}.{source_name}", namespace, requirement_name));
             }
-            if let Some(source_name) = requirement.as_str().strip_prefix("from_") {
+            if let Some(source_name) = requirement_name.strip_prefix("from_") {
                 let expected_source = match source_name {
                     "i8" => typed_trees::types::PrimitiveType::I8,
                     "i16" => typed_trees::types::PrimitiveType::I16,
@@ -452,7 +555,7 @@ pub fn compiler_intrinsic_diagnostic_label(
                     "u64" => typed_trees::types::PrimitiveType::U64,
                     _ => return None,
                 };
-                let expected_result = if namespace.as_str() == "F32" {
+                let expected_result = if namespace == "F32" {
                     typed_trees::types::PrimitiveType::F32
                 } else {
                     typed_trees::types::PrimitiveType::F64
@@ -461,18 +564,14 @@ pub fn compiler_intrinsic_diagnostic_label(
                     return None;
                 };
                 if typed.primitive_type_reference(value.type_reference) != Some(expected_source)
-                    || typed.primitive_type_reference(operator.return_type) != Some(expected_result)
+                    || typed.primitive_type_reference(return_type) != Some(expected_result)
                 {
                     return None;
                 }
-                return Some(format!(
-                    "{}::{}.{source_name}",
-                    namespace.as_str(),
-                    requirement.as_str()
-                ));
+                return Some(format!("{}::{}.{source_name}", namespace, requirement_name));
             }
-            let operation = match requirement.as_str() {
-                "minimum" | "maximum" => requirement.as_str(),
+            let operation = match requirement_name {
+                "minimum" | "maximum" => requirement_name,
                 "negate"
                 | "square_root"
                 | "square_root_toward_zero"
@@ -483,27 +582,27 @@ pub fn compiler_intrinsic_diagnostic_label(
                 | "is_finite"
                 | "is_infinite"
                 | "is_normal"
-                | "is_subnormal" => requirement.as_str(),
+                | "is_subnormal" => requirement_name,
                 "multiply_then_add"
                 | "fused_multiply_add"
                 | "fused_multiply_add_toward_zero"
                 | "fused_multiply_add_toward_positive"
-                | "fused_multiply_add_toward_negative" => requirement.as_str(),
+                | "fused_multiply_add_toward_negative" => requirement_name,
                 "add_toward_zero" | "add_toward_positive" | "add_toward_negative" => {
-                    requirement.as_str()
+                    requirement_name
                 }
                 "subtract_toward_zero"
                 | "subtract_toward_positive"
-                | "subtract_toward_negative" => requirement.as_str(),
+                | "subtract_toward_negative" => requirement_name,
                 "multiply_toward_zero"
                 | "multiply_toward_positive"
-                | "multiply_toward_negative" => requirement.as_str(),
+                | "multiply_toward_negative" => requirement_name,
                 "divide_toward_zero" | "divide_toward_positive" | "divide_toward_negative" => {
-                    requirement.as_str()
+                    requirement_name
                 }
                 _ => return None,
             };
-            let expected_primitive = if namespace.as_str() == "F32" {
+            let expected_primitive = if namespace == "F32" {
                 typed_trees::types::PrimitiveType::F32
             } else {
                 typed_trees::types::PrimitiveType::F64
@@ -581,7 +680,7 @@ pub fn compiler_intrinsic_diagnostic_label(
                 _ => return None,
             }
             if operation == "classify" {
-                if typed.display_type_reference(operator.return_type) != "FloatClass" {
+                if typed.display_type_reference(return_type) != "FloatClass" {
                     return None;
                 }
                 let format = if expected_primitive == typed_trees::types::PrimitiveType::F32 {
@@ -589,7 +688,7 @@ pub fn compiler_intrinsic_diagnostic_label(
                 } else {
                     "f64"
                 };
-                return Some(format!("{}::classify.{format}", namespace.as_str()));
+                return Some(format!("{}::classify.{format}", namespace));
             }
             let expected_result = if matches!(
                 operation,
@@ -602,7 +701,7 @@ pub fn compiler_intrinsic_diagnostic_label(
             (operation, expected_primitive, expected_result)
         }
         "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64" => {
-            let expected_result = match namespace.as_str() {
+            let expected_result = match namespace {
                 "I8" => typed_trees::types::PrimitiveType::I8,
                 "I16" => typed_trees::types::PrimitiveType::I16,
                 "I32" => typed_trees::types::PrimitiveType::I32,
@@ -613,7 +712,7 @@ pub fn compiler_intrinsic_diagnostic_label(
                 "U64" => typed_trees::types::PrimitiveType::U64,
                 _ => unreachable!(),
             };
-            let (expected_source, source_name) = match requirement.as_str() {
+            let (expected_source, source_name) = match requirement_name {
                 "from_f32" => (typed_trees::types::PrimitiveType::F32, "f32"),
                 "from_f64" => (typed_trees::types::PrimitiveType::F64, "f64"),
                 _ => return None,
@@ -622,14 +721,11 @@ pub fn compiler_intrinsic_diagnostic_label(
                 return None;
             };
             if typed.primitive_type_reference(value.type_reference) != Some(expected_source)
-                || typed.primitive_type_reference(operator.return_type) != Some(expected_result)
+                || typed.primitive_type_reference(return_type) != Some(expected_result)
             {
                 return None;
             }
-            let policy = match typed
-                .type_reference_table
-                .arithmetic_domain(operator.return_type)
-            {
+            let policy = match typed.type_reference_table.arithmetic_domain(return_type) {
                 numerics::arithmetic::ArithmeticDomain::Exact => "exact",
                 numerics::arithmetic::ArithmeticDomain::Trapping => "trapping",
                 numerics::arithmetic::ArithmeticDomain::Saturating => "saturating",
@@ -637,13 +733,12 @@ pub fn compiler_intrinsic_diagnostic_label(
             };
             return Some(format!(
                 "{}::{}.{source_name}.{policy}",
-                namespace.as_str(),
-                requirement.as_str()
+                namespace, requirement_name
             ));
         }
         _ => return None,
     };
-    if typed.primitive_type_reference(operator.return_type) != Some(expected_result) {
+    if typed.primitive_type_reference(return_type) != Some(expected_result) {
         return None;
     }
     let format = match primitive {
@@ -651,7 +746,7 @@ pub fn compiler_intrinsic_diagnostic_label(
         typed_trees::types::PrimitiveType::F64 => "f64",
         _ => return None,
     };
-    Some(format!("{}::{operation}.{format}", namespace.as_str()))
+    Some(format!("{}::{operation}.{format}", namespace))
 }
 
 pub(crate) fn provider_type_package_identity(

@@ -7,7 +7,9 @@ use super::{
     apply_selected_float_intrinsic_rewrites, derive_selected_compiler_intrinsic_execution_identity,
     settle_selected_float_intrinsic_dispatch,
 };
-use crate::selected_dispatch::float_intrinsic::intrinsic_resolution::resolve_selected_float_intrinsic_call;
+use crate::selected_dispatch::float_intrinsic::intrinsic_resolution::{
+    SelectedIntrinsicUse, resolve_selected_float_intrinsic_call,
+};
 use crate::selected_dispatch::float_intrinsic::named_float_realizations::preflight_named_float_execution;
 use effects::provider_plan::ProviderBinding;
 use provider_planning::CompilerNumericType;
@@ -332,8 +334,11 @@ fn exact_intrinsic_resolver_rejects_every_identity_drift() {
             )
         };
 
-        let result =
-            resolve_selected_float_intrinsic_call(&fixture.checked, &plans, &fixture.operator_use);
+        let result = resolve_selected_float_intrinsic_call(
+            &fixture.checked,
+            &plans,
+            &SelectedIntrinsicUse::from(&fixture.operator_use),
+        );
         match expected_error {
             Some(expected) => {
                 let diagnostic = result.expect_err("drift must fail closed");
@@ -588,10 +593,13 @@ fn non_builtin_execution_forms_preflight_without_publication() {
         .iter()
         .find(|operator| operator.symbol == fixture.operator_use.selected_operator_symbol)
         .expect("selected F32::minimum operator");
+    let requirement =
+        provider_planning::IntrinsicRequirement::from_operator(&fixture.checked.typed, operator)
+            .expect("the operator is an intrinsic requirement");
     assert_eq!(
         preflight_named_float_execution(
             &fixture.checked,
-            operator,
+            &requirement,
             NamedFloatRealization::Negate(FloatFormat::F32),
         )
         .expect("primitive negate preflights"),
@@ -600,7 +608,7 @@ fn non_builtin_execution_forms_preflight_without_publication() {
     assert_eq!(
         preflight_named_float_execution(
             &fixture.checked,
-            operator,
+            &requirement,
             NamedFloatRealization::Convert(ArithmeticDomain::Exact),
         )
         .expect("exact cast preflights"),

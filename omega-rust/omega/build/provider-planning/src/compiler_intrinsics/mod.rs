@@ -6,6 +6,8 @@
 //! canonical Terminal artifact receive a structural proposal. The consuming
 //! lowerer independently accepts it through its local target catalog.
 
+pub mod requirement_view;
+
 use crate::CompilerIntrinsicExecutionIdentity;
 use crate::SelectedProviderReviewProvenance;
 use diagnostics::Diagnostic;

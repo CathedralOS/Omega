@@ -1,7 +1,7 @@
 //! Selected compiler intrinsic execution identities and realizations.
 
 use crate::selected_dispatch::float_intrinsic::named_float_realizations::{
-    named_float_realization_builtin, named_float_realization_from_operator,
+    named_float_realization_builtin, named_float_realization_for,
 };
 use crate::selected_dispatch::float_intrinsic::{
     NamedFloatRealization, SelectedCompilerIntrinsicExecutionIdentity,
@@ -11,7 +11,9 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use numerics::arithmetic::ArithmeticDomain;
-use provider_planning::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
+use provider_planning::{
+    CompilerIntrinsicExecutionIdentity, CompilerNumericType, IntrinsicRequirement,
+};
 
 /// Rederive the closed execution child for one exact selected provider row.
 ///
@@ -47,21 +49,14 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
         )));
     }
     if let NamedFloatRealization::Convert(domain) = realization {
-        let operators = checked
-            .typed
-            .operators()
-            .iter()
-            .filter(|operator| operator.symbol == requirement_symbol)
-            .collect::<Vec<_>>();
-        let [operator] = operators.as_slice() else {
+        let Some(requirement) = IntrinsicRequirement::by_symbol(&checked.typed, requirement_symbol)
+        else {
             return Err(Diagnostic::error(format!(
-                "selected ProviderPlan `{}` resolves conversion requirement symbol {:?} to {} operator declarations",
-                plan.name,
-                requirement_symbol,
-                operators.len(),
+                "selected ProviderPlan `{}` resolves conversion requirement symbol {:?} to no intrinsic requirement declaration",
+                plan.name, requirement_symbol,
             )));
         };
-        return named_float_conversion_execution_identity(checked, operator, domain)
+        return named_float_conversion_execution_identity(checked, &requirement, domain)
             .map(SelectedCompilerIntrinsicExecutionIdentity::Closed)
             .map(Some);
     }
@@ -89,10 +84,10 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
 
 fn named_float_conversion_execution_identity(
     checked: &CheckedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
+    requirement: &IntrinsicRequirement<'_>,
     domain: ArithmeticDomain,
 ) -> Result<CompilerIntrinsicExecutionIdentity, Diagnostic> {
-    let [value] = checked.typed.operator_parameters(operator) else {
+    let [value] = requirement.parameters else {
         return Err(Diagnostic::error(
             "selected named-float conversion must retain exactly one parameter",
         ));
@@ -106,7 +101,7 @@ fn named_float_conversion_execution_identity(
         })?;
     let target = checked
         .typed
-        .primitive_type_reference(operator.return_type)
+        .primitive_type_reference(requirement.return_type)
         .and_then(CompilerNumericType::from_primitive)
         .ok_or_else(|| {
             Diagnostic::error("selected named-float conversion has no closed numeric target type")
@@ -145,85 +140,62 @@ pub(crate) fn selected_compiler_intrinsic_realization(
     plan: &effects::provider_plan::ProviderPlan,
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<Option<SelectedCompilerIntrinsicRealization>, Diagnostic> {
-    let operators = typed
-        .operators()
-        .iter()
-        .filter(|operator| operator.symbol == requirement_symbol)
-        .collect::<Vec<_>>();
-    let [operator] = operators.as_slice() else {
+    let Some(requirement) = IntrinsicRequirement::by_symbol(typed, requirement_symbol) else {
         return Err(Diagnostic::error(format!(
-            "selected ProviderPlan `{}` resolves requirement symbol {:?} to {} operator declarations",
-            plan.name,
-            requirement_symbol,
-            operators.len(),
+            "selected ProviderPlan `{}` resolves requirement symbol {:?} to no boundary operator or public receiver-free boundary requirement",
+            plan.name, requirement_symbol,
         )));
     };
-    if !operator.is_boundary {
-        return Err(Diagnostic::error(format!(
-            "selected ProviderPlan `{}` compiler intrinsic does not realize a boundary operator",
-            plan.name,
-        )));
-    }
-    let overload_identity =
-        typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
-    if overload_identity.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected ProviderPlan `{}` compiler intrinsic has an empty canonical overload identity",
-            plan.name,
-        )));
-    }
+    let slot = requirement.requirement_identity.clone();
     let [method] = plan.schema.methods.as_slice() else {
         return Err(Diagnostic::error(format!(
-            "selected compiler-intrinsic ProviderPlan `{}` must retain exactly one schema method",
+            "selected ProviderPlan `{}` must retain exactly one schema method for a compiler intrinsic",
             plan.name,
         )));
     };
     let [row] = plan.rows.as_slice() else {
         return Err(Diagnostic::error(format!(
-            "selected compiler-intrinsic ProviderPlan `{}` must retain exactly one realization row",
+            "selected ProviderPlan `{}` must retain exactly one realization row for a compiler intrinsic",
             plan.name,
         )));
     };
-    let operator_package = typed.symbols.symbol_package_identity(operator.symbol);
-    if plan.schema.trait_name != overload_identity
-        || plan.schema.trait_package_identity != operator_package
-        || method.name != "realize"
-        || method.requirement_owner != overload_identity
-        || method.requirement_owner_package_identity != operator_package
-        || method.requirement_identity != overload_identity
-        || row.requirement_identity != overload_identity
-        || !plan.schema.row_binds_method(row, method)
-    {
+    if !requirement.plan_row_binds(plan, method, row) {
         return Err(Diagnostic::error(format!(
-            "selected compiler-intrinsic ProviderPlan `{}` does not bind exact overload `{overload_identity}`",
+            "selected compiler-intrinsic ProviderPlan `{}` does not bind exact overload `{slot}`",
             plan.name,
         )));
     }
-    let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
+    let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
         return Ok(None);
     };
-    if !provider_planning::intrinsic_realization_matches_operator(typed, machine, operator) {
+    if !requirement.intrinsic_realization_matches(typed, machine) {
         return Err(Diagnostic::error(format!(
-            "selected compiler-intrinsic ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact overload `{overload_identity}` as an external leaf",
+            "selected compiler-intrinsic ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact overload `{slot}` as an external leaf",
             plan.name,
         )));
     }
-    provider_planning::compiler_intrinsic_diagnostic_label(typed, operator).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "selected overload `{overload_identity}` has no compiler-known intrinsic realization",
-        ))
-    })?;
+    provider_planning::compiler_intrinsic_diagnostic_label_for(typed, &requirement).ok_or_else(
+        || {
+            Diagnostic::error(format!(
+                "selected overload `{slot}` has no compiler-known intrinsic realization",
+            ))
+        },
+    )?;
     if let Some(identity) =
-        provider_planning::primitive_float_binary_intrinsic_execution_identity(typed, operator)
+        provider_planning::primitive_float_binary_intrinsic_execution_identity_for(
+            typed,
+            &requirement,
+        )
     {
         return Ok(Some(
             SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity),
         ));
     }
     Ok(Some(
-        named_float_realization_from_operator(typed, operator)
-            .map(SelectedCompilerIntrinsicRealization::NamedFloat)
-            .unwrap_or(SelectedCompilerIntrinsicRealization::OtherCompilerPath),
+        match named_float_realization_for(typed, &requirement) {
+            Some(realization) => SelectedCompilerIntrinsicRealization::NamedFloat(realization),
+            None => SelectedCompilerIntrinsicRealization::OtherCompilerPath,
+        },
     ))
 }
 

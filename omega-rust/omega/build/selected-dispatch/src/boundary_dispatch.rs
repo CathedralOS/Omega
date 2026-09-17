@@ -467,11 +467,10 @@ fn reject_unselected_direct_requirement_calls(
             return;
         }
         reported.push(target_symbol);
-        // A selected plan whose realization is not a checked adapter (a
-        // compiler intrinsic or another external leaf) is selected but has
-        // no direct-call execution route yet: the operator spelling's
-        // intrinsic bridge keys on operator uses. Say so instead of reporting
-        // the plan as missing.
+        // A selected compiler-intrinsic plan is executed by the named-float
+        // intrinsic bridge (the requirement use is stamped with the plan and
+        // rewritten at execution settlement); any other external binding has
+        // no direct-call execution route yet and says so.
         let external = selected_plans
             .plans()
             .iter()
@@ -490,16 +489,15 @@ fn reject_unselected_direct_requirement_calls(
                 )
             });
         if let Some((plan, row)) = external {
+            if matches!(
+                row.binding,
+                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+            ) {
+                return;
+            }
             diagnostics.push(Diagnostic::error(format!(
-                "direct call `{target_name}` names public boundary requirement `{}`, whose selected provider `{}` realizes it through {} rather than a checked machine body; the direct-call route executes only checked adapters",
-                requirement.name,
-                plan.name,
-                match &row.binding {
-                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } => {
-                        format!("compiler intrinsic `{machine}`")
-                    }
-                    binding => format!("external binding {binding:?}"),
-                },
+                "direct call `{target_name}` names public boundary requirement `{}`, whose selected provider `{}` realizes it through external binding {:?} rather than a checked machine body or compiler intrinsic; the direct-call route executes only those",
+                requirement.name, plan.name, row.binding,
             )));
             return;
         }

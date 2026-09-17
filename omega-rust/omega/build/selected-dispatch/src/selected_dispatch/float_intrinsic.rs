@@ -20,6 +20,8 @@ mod fma_unit_applications;
 mod intrinsic_resolution;
 mod named_float_realizations;
 #[cfg(test)]
+mod requirement_view_tests;
+#[cfg(test)]
 mod tests;
 
 pub use execution_identities::{
@@ -30,7 +32,9 @@ pub(crate) use fma_unit_applications::{
     selected_ieee_float_fma_unit_applications, validate_selected_ieee_float_fma_unit_applications,
 };
 
-use crate::selected_dispatch::float_intrinsic::intrinsic_resolution::resolve_selected_float_intrinsic_call;
+use crate::selected_dispatch::float_intrinsic::intrinsic_resolution::{
+    SelectedIntrinsicUse, resolve_selected_float_intrinsic_call,
+};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
@@ -117,16 +121,32 @@ pub(super) fn plan_selected_float_intrinsic_rewrites(
     let mut rewrites = Vec::new();
     let mut diagnostics = Vec::new();
 
-    for (_, operator_use) in checked.facts.operators.named_uses.iter() {
-        if operator_use.provider_plan_report_fingerprint == 0
-            && operator_use.provider_plan_commitment.is_empty()
+    let selected_uses = checked
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .map(|(_, operator_use)| SelectedIntrinsicUse::from(operator_use))
+        .chain(
+            checked
+                .facts
+                .operators
+                .named_requirement_uses
+                .iter()
+                .map(|(_, requirement_use)| SelectedIntrinsicUse::from(requirement_use)),
+        )
+        .collect::<Vec<_>>();
+    for selected_use in &selected_uses {
+        if selected_use.provider_plan_report_fingerprint == 0
+            && selected_use.provider_plan_commitment.is_empty()
         {
             continue;
         }
+        let operator_use = selected_use;
         let rewrite = match resolve_selected_float_intrinsic_call(
             checked,
             selected_provider_plans.plans(),
-            operator_use,
+            selected_use,
         ) {
             Ok(Some(rewrite)) => rewrite,
             Ok(None) => continue,
