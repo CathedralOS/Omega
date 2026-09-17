@@ -1,0 +1,1 @@
+merely naming a declaration `FloatSemantics::add` grants no primitive
