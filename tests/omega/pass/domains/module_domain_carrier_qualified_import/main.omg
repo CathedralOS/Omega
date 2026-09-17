@@ -1,0 +1,14 @@
+use units;
+
+// A broad module import exposes the domain's declared carrier-qualified
+// spelling: `u64::Distance` selects `units::u64::Distance` as a type
+// constraint and in executable membership.
+data Main {
+    span: u64 in u64::Distance;
+}
+
+machine span_is_positive(value: u64 in u64::Distance) -> bool {
+    value in u64::Distance
+}
+
+machine Main::main(&mut self) {}

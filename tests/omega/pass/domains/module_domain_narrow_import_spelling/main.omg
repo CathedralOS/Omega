@@ -1,0 +1,10 @@
+use units::u64::Distance;
+
+// A narrow import of the exact declaration exposes both its leaf spelling
+// and its declared carrier-qualified spelling.
+data Main {
+    span: u64 in u64::Distance;
+    other: u64 in Distance;
+}
+
+machine Main::main(&mut self) {}

@@ -1,0 +1,9 @@
+use units;
+
+// A broad module import exposes the carrier-qualified spelling
+// `u64::Distance` only; the bare leaf `Distance` is not a local name.
+data Main {
+    span: u64 in Distance;
+}
+
+machine Main::main(&mut self) {}
