@@ -25,12 +25,19 @@ pub(crate) fn unit_plan_omission_explanation(
         let row = plans.omission_for_machine(current)?;
         visited.push(current);
         let step = match row.stage {
-            CheckedUnitPlanOmissionStage::LocalConstruction => {
-                format!(
-                    "`{}` has no admitted body (local construction)",
+            CheckedUnitPlanOmissionStage::LocalConstruction {
+                phase,
+                statement_index,
+            } => match statement_index {
+                Some(index) => format!(
+                    "`{}` has no admitted body (local construction stopped at {phase}, statement {index})",
                     name(current)
-                )
-            }
+                ),
+                None => format!(
+                    "`{}` has no admitted body (local construction stopped at {phase})",
+                    name(current)
+                ),
+            },
             CheckedUnitPlanOmissionStage::ReceiverReconciliation => format!(
                 "`{}` was dropped while reconciling retained receivers",
                 name(current)

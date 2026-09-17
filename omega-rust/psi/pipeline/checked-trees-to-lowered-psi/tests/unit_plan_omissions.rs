@@ -46,7 +46,7 @@ fn a_root_without_an_admitted_body_names_its_own_local_construction() {
     );
     assert_eq!(
         omission.as_deref(),
-        Some("`Main::main` has no admitted body (local construction)")
+        Some("`Main::main` has no admitted body (local construction stopped at completion)")
     );
 }
 
@@ -84,10 +84,10 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
             .unwrap_or_else(|| panic!("{name} has an omission row"))
             .stage
     };
-    assert_eq!(
+    assert!(matches!(
         omission("Main::leaf"),
-        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction
-    );
+        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { .. }
+    ));
     assert_eq!(
         omission("Main::relay"),
         checked_trees::CheckedUnitPlanOmissionStage::UnavailableCallee {
@@ -116,7 +116,7 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
         Some(
             "`Main::main` calls `Main::relay`, which has no plan; \
              `Main::relay` calls `Main::leaf`, which has no plan; \
-             `Main::leaf` has no admitted body (local construction)"
+             `Main::leaf` has no admitted body (local construction stopped at completion)"
         )
     );
 }

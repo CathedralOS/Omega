@@ -3,7 +3,8 @@
 //! This file owns the control plan entry point. `structural_unit_machine.rs`
 //! builds a structural unit's control machine, `boundary_machine.rs` builds
 //! boundary machines and their static requirements, `checked_machine.rs`
-//! builds a checked machine and `call_results.rs` binds call results to unit
+//! builds a checked machine (`construction_trace.rs` records where it stopped
+//! when it declines a body) and `call_results.rs` binds call results to unit
 //! locals.
 
 #[path = "boundary_machine.rs"]
@@ -14,6 +15,8 @@ mod call_occurrences;
 mod call_results;
 #[path = "checked_machine.rs"]
 mod checked_machine;
+#[path = "construction_trace.rs"]
+mod construction_trace;
 #[path = "scalar_arrays.rs"]
 mod scalar_arrays;
 #[path = "statement_sequence.rs"]
@@ -29,7 +32,10 @@ pub(crate) use call_results::{
     bind_structural_call_result, checked_structural_result_type,
     checked_unit_structural_result_local,
 };
-pub(crate) use checked_machine::{build_checked_machine, build_checked_machine_with};
+#[cfg(test)]
+pub(crate) use checked_machine::build_checked_machine;
+pub(crate) use checked_machine::{build_checked_machine_traced, build_checked_machine_with};
+pub(crate) use construction_trace::LocalConstructionTrace;
 pub(crate) use structural_unit_machine::build_structural_unit_control_machine;
 
 use super::{
