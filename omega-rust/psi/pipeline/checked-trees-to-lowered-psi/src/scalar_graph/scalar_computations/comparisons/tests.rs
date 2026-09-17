@@ -80,6 +80,109 @@ fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
 }
 
 #[test]
+fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
+    // The integer counterpart of the IEEE join above: one authored-order
+    // Terminal operation, one occurrence naming it, carried through checked
+    // Terminal production beside the float roster.
+    for (token, name, expected) in [
+        ("==", "equal", "IntegerEqual"),
+        ("<", "less", "IntegerLessThan"),
+        ("<=", "less_or_equal", "IntegerLessOrEqual"),
+    ] {
+        for primitive in ["i32", "u64"] {
+            let source = format!(
+                "boundary operator {token} Comparison::{name}(left: {primitive}, right: {primitive}) -> bool; machine choose(left: {primitive}, right: {primitive}) -> bool {{ left {token} right }}"
+            );
+            let checked = checked(&source);
+            let lowered = crate::lower_machine(&checked, "choose")
+                .expect("selected integer comparison lowers");
+            assert!(
+                lowered
+                    .selected_ieee_float_comparison_occurrences
+                    .is_empty()
+            );
+            let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
+                panic!("one selected integer comparison occurrence");
+            };
+            let machine = lowered
+                .semantic_module
+                .machines
+                .iter()
+                .find(|machine| machine.id == occurrence.terminal_machine)
+                .expect("the occurrence names the lowered machine");
+            let (block, operation) = machine
+                .blocks
+                .iter()
+                .find_map(|block| {
+                    block
+                        .operations
+                        .iter()
+                        .find(|operation| operation.id == occurrence.terminal_operation)
+                        .map(|operation| (block, operation))
+                })
+                .expect("the occurrence names one emitted operation");
+            let (kind, left, right) = match operation.kind {
+                OperationKind::IntegerEqual { left, right } => ("IntegerEqual", left, right),
+                OperationKind::IntegerLessThan { left, right } => ("IntegerLessThan", left, right),
+                OperationKind::IntegerLessOrEqual { left, right } => {
+                    ("IntegerLessOrEqual", left, right)
+                }
+                ref other => panic!("selected integer comparison emitted {other:?}"),
+            };
+            assert_eq!(kind, expected, "{source}");
+            // `left` then `right` complete as the trailing parameters of the
+            // comparison's own block: the authored operand order is the
+            // Terminal operand order.
+            let [.., authored_left, authored_right] = block.parameters.as_slice() else {
+                panic!("the comparison block carries both completed operands");
+            };
+            assert_eq!(
+                (left, right),
+                (authored_left.id, authored_right.id),
+                "{source}"
+            );
+            assert_eq!(
+                semantic_vocabulary::ScalarType::Integer(occurrence.integer_type),
+                authored_left.scalar_type
+            );
+            let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
+                .produce_checked_artifact()
+                .expect("selected integer comparison custody publishes");
+            assert_eq!(produced.selected_integer_comparison_occurrences().len(), 1);
+            assert_eq!(
+                produced.selected_integer_comparison_occurrences()[0].terminal_operation,
+                occurrence.terminal_operation
+            );
+        }
+    }
+}
+
+#[test]
+fn selected_integer_comparisons_without_an_authored_order_operation_fail_closed() {
+    // `!=`, `>` and `>=` have no single Terminal operation over the authored
+    // operand order, so no occurrence could name one; the use fails closed
+    // instead of lowering through a swapped or negated emission.
+    for (token, name) in [
+        ("!=", "not_equal"),
+        (">", "greater"),
+        (">=", "greater_or_equal"),
+    ] {
+        let source = format!(
+            "boundary operator {token} Comparison::{name}(left: i32, right: i32) -> bool; machine choose(left: i32, right: i32) -> bool {{ left {token} right }}"
+        );
+        let checked = checked(&source);
+        let error = crate::lower_machine(&checked, "choose")
+            .expect_err("a swapped or composed integer comparison has no join");
+        assert!(
+            format!("{error:?}").contains(
+                "selected integer comparison has no authored-order Terminal operation to join"
+            ),
+            "{source}: {error:?}"
+        );
+    }
+}
+
+#[test]
 fn published_match_custody_rejects_missing_and_duplicate_occurrences() {
     let checked = checked(
         "boundary operator == Float::equal(left: f32, right: f32) -> bool;

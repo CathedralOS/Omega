@@ -38,7 +38,7 @@ use crate::unit::{
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 use lowered_psi::{
     LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIeeeFloatFmaOccurrence,
-    LoweredSourceCallOccurrence,
+    LoweredSelectedIntegerComparisonOccurrence, LoweredSourceCallOccurrence,
 };
 
 /// What the closure keeps for every ordinary machine emitter: the identity
@@ -137,6 +137,7 @@ pub(super) struct EmittedMachine {
     pub(super) source_calls: Vec<LoweredSourceCallOccurrence>,
     pub(super) selected_ieee_float_fmas: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     pub(super) selected_ieee_float_comparisons: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+    pub(super) selected_integer_comparisons: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 /// Emit one ordinary machine. Counters advance only when emission succeeds;
@@ -735,6 +736,7 @@ pub(super) fn emit(
         source_calls,
         selected_ieee_float_fmas,
         selected_ieee_float_comparisons,
+        selected_integer_comparisons,
         ..
     } = operations;
     let mut structural_places = parameters
@@ -850,6 +852,7 @@ pub(super) fn emit(
         source_calls,
         selected_ieee_float_fmas,
         selected_ieee_float_comparisons,
+        selected_integer_comparisons,
     })
 }
 

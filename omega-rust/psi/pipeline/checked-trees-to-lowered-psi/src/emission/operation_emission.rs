@@ -10,6 +10,7 @@ pub(crate) mod expressions;
 pub(crate) mod integer;
 
 use crate::emission::expression_validation::direct_expression_contains_short_circuit;
+use crate::emission::selected_comparison::SelectedComparisonMeaning;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::value_id;
@@ -19,6 +20,7 @@ pub(crate) use calls::emit_staged_scalar_call_binding;
 use calls::{CallEmissionContext, LoweredDirectCallBinding};
 use expressions::LoweredDirectExpression;
 pub(crate) use expressions::{emit_byte_length, emit_direct_expression};
+use lowered_psi::LoweredSelectedIntegerComparisonOperation;
 use semantic_vocabulary::{QualifiedScalarType, ScalarType, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
@@ -97,19 +99,62 @@ pub(crate) fn emit_scalar_binding(
                 .ok_or(LoweringError::Unsupported(
                     "comparison source machine has no Terminal identity",
                 ))?;
-            operations.selected_ieee_float_comparisons.push(
-                lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence {
-                    operator_use: occurrence.operator_use,
-                    application_site: occurrence.application_site,
-                    requirement_operator: occurrence.requirement_operator,
-                    provider_plan_report_fingerprint: occurrence.provider_plan_report_fingerprint,
-                    provider_plan_commitment: occurrence.provider_plan_commitment,
-                    comparison: occurrence.comparison,
-                    format: occurrence.format,
-                    terminal_machine,
-                    terminal_operation: operation,
-                },
-            );
+            // The occurrence row is recorded beside the exact operation it
+            // names: a selected use that reached emission without one would
+            // be indistinguishable from a builtin comparison downstream.
+            let kind = match occurrence.meaning {
+                SelectedComparisonMeaning::IeeeFloat { comparison, format } => {
+                    operations.selected_ieee_float_comparisons.push(
+                        lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence {
+                            operator_use: occurrence.operator_use,
+                            application_site: occurrence.application_site,
+                            requirement_operator: occurrence.requirement_operator,
+                            provider_plan_report_fingerprint: occurrence
+                                .provider_plan_report_fingerprint,
+                            provider_plan_commitment: occurrence.provider_plan_commitment,
+                            comparison,
+                            format,
+                            terminal_machine,
+                            terminal_operation: operation,
+                        },
+                    );
+                    OperationKind::IeeeFloatCompare {
+                        comparison,
+                        left,
+                        right,
+                    }
+                }
+                SelectedComparisonMeaning::Integer {
+                    comparison,
+                    integer_type,
+                } => {
+                    operations.selected_integer_comparisons.push(
+                        lowered_psi::LoweredSelectedIntegerComparisonOccurrence {
+                            operator_use: occurrence.operator_use,
+                            application_site: occurrence.application_site,
+                            requirement_operator: occurrence.requirement_operator,
+                            provider_plan_report_fingerprint: occurrence
+                                .provider_plan_report_fingerprint,
+                            provider_plan_commitment: occurrence.provider_plan_commitment,
+                            comparison,
+                            integer_type,
+                            terminal_machine,
+                            terminal_operation: operation,
+                        },
+                    );
+                    match comparison {
+                        LoweredSelectedIntegerComparisonOperation::Equal => {
+                            OperationKind::IntegerEqual { left, right }
+                        }
+                        LoweredSelectedIntegerComparisonOperation::LessThan => {
+                            OperationKind::IntegerLessThan { left, right }
+                        }
+                        LoweredSelectedIntegerComparisonOperation::LessOrEqual => {
+                            OperationKind::IntegerLessOrEqual { left, right }
+                        }
+                    }
+                }
+            };
             operations.push(Operation {
                 static_reach_binding: None,
                 id: operation,
@@ -118,11 +163,7 @@ pub(crate) fn emit_scalar_binding(
                     scalar_type: ScalarType::Boolean,
                     qualifications: Default::default(),
                 }),
-                kind: OperationKind::IeeeFloatCompare {
-                    comparison: occurrence.comparison,
-                    left,
-                    right,
-                },
+                kind,
             });
             Ok(id)
         }

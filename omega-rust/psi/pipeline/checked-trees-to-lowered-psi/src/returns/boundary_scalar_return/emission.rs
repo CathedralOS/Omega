@@ -38,6 +38,8 @@ pub(crate) struct EmittedBoundaryScalarReturn {
     pub(crate) selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     pub(crate) selected_ieee_float_comparison_occurrences:
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
+    pub(crate) selected_integer_comparison_occurrences:
+        Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 pub(crate) fn emit_boundary_scalar_return(
@@ -280,6 +282,7 @@ pub(crate) fn emit_boundary_scalar_return(
         source_calls: source_call_occurrences,
         selected_ieee_float_fmas: selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparisons: selected_ieee_float_comparison_occurrences,
+        selected_integer_comparisons: selected_integer_comparison_occurrences,
         ..
     } = operations;
     evaluation.blocks.push(Block {
@@ -362,5 +365,6 @@ pub(crate) fn emit_boundary_scalar_return(
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
         selected_ieee_float_comparison_occurrences,
+        selected_integer_comparison_occurrences,
     })
 }

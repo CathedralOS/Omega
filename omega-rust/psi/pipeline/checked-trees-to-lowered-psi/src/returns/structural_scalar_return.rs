@@ -1002,6 +1002,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         source_call_occurrences: Vec::new(),
         selected_ieee_float_fma_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
+        selected_integer_comparison_occurrences: Vec::new(),
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)

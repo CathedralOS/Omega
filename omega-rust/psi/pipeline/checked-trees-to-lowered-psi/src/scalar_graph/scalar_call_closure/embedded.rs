@@ -136,6 +136,9 @@ impl EmbeddedScalarCalls {
             lowered
                 .selected_ieee_float_comparison_occurrences
                 .append(&mut helper.selected_ieee_float_comparison_occurrences);
+            lowered
+                .selected_integer_comparison_occurrences
+                .append(&mut helper.selected_integer_comparison_occurrences);
         }
         lowered
             .semantic_module

@@ -558,7 +558,7 @@ pub(crate) fn validate(
                                         result.statement_index,
                                     )?;
                                 let selected = checked.facts.operators.uses.get(arm.equality_use);
-                                if selected.expression != expression || selected.occurrence != (checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm }) || occurrence.comparison != semantic_vocabulary::IeeeFloatComparisonOperation::Equal {
+                                if selected.expression != expression || selected.occurrence != (checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm }) || !matches!(occurrence.meaning, crate::emission::selected_comparison::SelectedComparisonMeaning::IeeeFloat { comparison: semantic_vocabulary::IeeeFloatComparisonOperation::Equal, .. }) {
                                     return unsupported("structural pattern substituted selected equality");
                                 }
                             } else if arm.equality_use.is_valid() {
