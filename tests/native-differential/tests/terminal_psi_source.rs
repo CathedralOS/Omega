@@ -15,8 +15,7 @@ use calling_conventions::CallSignature;
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
 use compiler::CheckedCompileRequest;
 use compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest,
-    RequestedCompileProduct, compile_to_checked,
+    CheckedCompilation, CompileOptions, CompileRequest, RequestedCompileProduct, compile_to_checked,
 };
 use component_candidate::{ComponentCandidate, ComponentCandidateParts};
 #[cfg(unix)]
@@ -516,8 +515,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
             build_dir: None,
             target_name: Some("linux_x64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect("ordinary NativeArtifact compilation shares component realization");
@@ -871,8 +869,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             build_dir: None,
             target_name: Some("linux_x64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .expect_err("a bare native artifact cannot discard build-bound progress");

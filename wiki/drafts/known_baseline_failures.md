@@ -81,8 +81,13 @@ MODULE-NAMESPACE-RESOLUTION claim.
 ## native-differential `terminal_psi_source`
 
 `cargo nextest run -p omega-native-differential-test --test terminal_psi_source
---no-fail-fast` at 76df1b15c7 plus 1a56e53b8d on 2026-09-16 (macOS arm64):
-90 run, 82 passed, 8 failed, in three pre-existing families.
+--no-fail-fast` at 9cf696b9b5 plus the compile repair beside this row on
+2026-09-17 (macOS arm64): 90 run, 82 passed, 8 failed, in three pre-existing
+families. (65dc530cef removed `ArtifactEmissionPolicy` but left two
+`with_artifact_policy` calls in this target, so it did not compile between
+that commit and the repair; 51f21bb168 moved the emptied-scalar-contract
+rejection to the earlier `scalar contract lost authored requirements` gate
+and the expectation now names it.)
 
 - Hosted-receiver custody (5): `control_flow_cleanup_source_reaches_the_publication_gate`,
   `retired_selected_lowering_rejects_before_native_publication`,
