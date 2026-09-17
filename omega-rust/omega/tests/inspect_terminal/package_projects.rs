@@ -1,7 +1,7 @@
 //! `inspect-terminal` prepares a package project through the same manager
 //! route as `--check`, and a standalone root keeps its direct local resolution.
 
-use super::inspect;
+use super::{inspect, inspect_on_target};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -41,6 +41,16 @@ impl ScratchProject {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => panic!("read scratch project file {relative}: {error}"),
         }
+    }
+
+    fn path(&self, relative: &str) -> PathBuf {
+        self.0.join(relative)
+    }
+
+    fn create_dir(&self, relative: &str) -> PathBuf {
+        let path = self.path(relative);
+        std::fs::create_dir(&path).expect("create scratch project directory");
+        path
     }
 }
 
@@ -127,4 +137,109 @@ fn standalone_root_keeps_resolving_sibling_path_imports() {
     );
     assert!(stdout.contains("identity=named(name(Token))"), "{stdout}");
     assert_eq!(project.read_optional("omega.lock"), None);
+}
+
+/// A packaged build that reaches its Source facet: reads a template through
+/// the captured snapshot. Output obligations deliberately stay out of this
+/// route — sealing staged-output custody is a sponsored-session capability
+/// inspection does not hold.
+const SNAPSHOT_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.package("inspect-snapshot-root");
+    let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
+    let template_descriptor: i32 = builder.source.open(template, 0);
+    let mut banner_bytes: [u8; 7];
+    let read_count: i64 = builder.source.read(template_descriptor, &mut banner_bytes, 7);
+    let source_close: i32 = builder.source.close(template_descriptor);
+}
+"#;
+
+fn snapshot_project() -> (ScratchProject, PathBuf) {
+    let project = ScratchProject::new("snapshot");
+    project.write("root/build.omg", SNAPSHOT_BUILD);
+    let entry = project.write("root/main.omg", "machine main() {}\n");
+    project.write("root/templates/banner.tmpl", "HELLO {{name}}\n");
+    (project, entry)
+}
+
+/// The bound route materializes the occurrence's captured inventory under the
+/// child's temp root before the build machine runs. A temp root that cannot
+/// hold the private snapshot fails the inspection; an unbound route would
+/// have reached the shared resolver snapshot instead and succeeded.
+#[test]
+fn packaged_root_build_materializes_a_private_captured_source_snapshot() {
+    let (project, entry) = snapshot_project();
+    let missing_temp = project.path("scratch/missing");
+
+    let output = inspect_on_target(
+        "main",
+        &entry,
+        "linux_x86_64",
+        &[("TMPDIR", missing_temp.as_path())],
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(
+        stderr.contains("failed to create the captured source snapshot"),
+        "the bound snapshot must materialize under the child's temp root: {stderr}"
+    );
+}
+
+/// The same fixture under a usable private temp root completes its build
+/// activation: the materialized snapshot is released on exit and nothing
+/// about the authored project is rewritten.
+#[test]
+fn packaged_root_build_releases_its_private_captured_source_snapshot() {
+    let (project, entry) = snapshot_project();
+    let scratch = project.create_dir("scratch");
+    let declaration = project.read_optional("root/build.omg");
+
+    let output = inspect_on_target(
+        "main",
+        &entry,
+        "linux_x86_64",
+        &[("TMPDIR", scratch.as_path())],
+    );
+
+    assert!(
+        output.status.success(),
+        "packaged snapshot-bound inspection failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("selected_machine=main"), "{stdout}");
+    let residue = std::fs::read_dir(&scratch)
+        .expect("read fixture temp root")
+        .map(|entry| entry.expect("temp entry").file_name())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        residue,
+        Vec::<std::ffi::OsString>::new(),
+        "the occurrence must release its private captured-source snapshot"
+    );
+    assert_eq!(project.read_optional("root/build.omg"), declaration);
+}
+
+/// A standalone root has no package inputs and binds no captured snapshot:
+/// the same unusable temp root cannot affect it.
+#[test]
+fn standalone_root_never_materializes_a_captured_source_snapshot() {
+    let project = ScratchProject::new("standalone-unbound");
+    let entry = project.write("main.omg", "machine main() {}\n");
+    let missing_temp = project.path("missing-temp");
+
+    let output = inspect_on_target(
+        "main",
+        &entry,
+        "linux_x86_64",
+        &[("TMPDIR", missing_temp.as_path())],
+    );
+
+    assert!(
+        output.status.success(),
+        "a standalone inspection must not depend on the captured-snapshot temp root: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("selected_machine=main"), "{stdout}");
 }

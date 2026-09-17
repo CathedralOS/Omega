@@ -12,6 +12,7 @@ pub use assembled_syntax_to_checked_compilation::{
     OptimizationRollbackInputError, PreparedCheckedSource, admit_checked_compilation,
     compile_to_checked,
 };
+pub use build_evaluation::BuildSnapshotRequest;
 pub use checked_compilation_to_terminal_artifact::validate_lowered_ieee_float_comparison_custody;
 pub use compilation_report::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, FinalRealizationEvidenceError,
