@@ -160,19 +160,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         // change during this pass.
         let integer_types =
             integer_types.get_or_insert_with(|| IntegerTypeClassification::build(program));
-        let mutable_parameters = program
-            .machine_states(machine)
-            .iter()
-            .flat_map(|state| program.state_parameters(state))
-            .filter(|parameter| {
-                parameter.is_mutable
-                    && !parameter.is_self
-                    && program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_some()
-            })
-            .map(|parameter| parameter.symbol)
-            .collect::<Vec<_>>();
+        // Each retained `when` guard is re-resolved against the state and
+        // statement where it was evaluated, not the site where its edge
+        // arrives. That is the point where current storage can still be
+        // related to the invocation-entry operand a published route names.
+        let eval_sites = entry_guards::guard_eval_sites(program, machine);
         let source_fallthrough = source_fallthrough::collect(program, machine);
         let entry_requirements = entry_requirements::collect(
             program,
@@ -191,21 +183,25 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 let applicable_guards = incoming
                     .iter()
                     .filter(|guard| guard.applies_at(site.location().state()))
-                    .filter(|guard| {
-                        entry_guards::retains_entry_meaning(
+                    .flat_map(|guard| {
+                        entry_guards::entry_meaning_conjuncts(
                             program,
-                            &mutable_parameters,
+                            machine,
+                            &eval_sites,
                             guard.guard(),
+                            guard.is_negated(),
+                            &parameter_names,
+                            &content_conservation,
                         )
                     })
                     .collect::<Vec<_>>();
                 let mut path_guard_conjuncts = applicable_guards
                     .iter()
-                    .map(|guard| {
+                    .map(|&(guard, negated)| {
                         crate::facts::canonical_crash_path_predicate(
                             program,
-                            guard.guard(),
-                            guard.is_negated(),
+                            guard,
+                            negated,
                             &parameter_names,
                             &content_conservation,
                         )
@@ -215,11 +211,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 let mut path_predicates = entry_requirements.consequences.clone();
                 let mut order_relations = Vec::new();
                 let mut integer_disequalities = Vec::new();
-                for guard in applicable_guards {
+                for (guard, negated) in applicable_guards {
                     collect_structural_guard_consequences(
                         program,
-                        guard.guard(),
-                        guard.is_negated(),
+                        guard,
+                        negated,
                         &parameter_names,
                         &content_conservation,
                         integer_types,
@@ -227,8 +223,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     );
                     collect_integer_order_relations(
                         program,
-                        guard.guard(),
-                        guard.is_negated(),
+                        guard,
+                        negated,
                         &parameter_names,
                         &content_conservation,
                         integer_types,
@@ -306,21 +302,25 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 let applicable_guards = incoming
                     .iter()
                     .filter(|guard| guard.applies_at(call.location().state()))
-                    .filter(|guard| {
-                        entry_guards::retains_entry_meaning(
+                    .flat_map(|guard| {
+                        entry_guards::entry_meaning_conjuncts(
                             program,
-                            &mutable_parameters,
+                            machine,
+                            &eval_sites,
                             guard.guard(),
+                            guard.is_negated(),
+                            &parameter_names,
+                            &content_conservation,
                         )
                     })
                     .collect::<Vec<_>>();
                 let mut path_guard_conjuncts = applicable_guards
                     .iter()
-                    .map(|guard| {
+                    .map(|&(guard, negated)| {
                         crate::facts::canonical_crash_path_predicate(
                             program,
-                            guard.guard(),
-                            guard.is_negated(),
+                            guard,
+                            negated,
                             &parameter_names,
                             &content_conservation,
                         )
@@ -330,11 +330,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 let mut path_guard_consequences = entry_requirements.consequences.clone();
                 let mut order_relations = Vec::new();
                 let mut integer_disequalities = Vec::new();
-                for guard in applicable_guards {
+                for (guard, negated) in applicable_guards {
                     collect_structural_guard_consequences(
                         program,
-                        guard.guard(),
-                        guard.is_negated(),
+                        guard,
+                        negated,
                         &parameter_names,
                         &content_conservation,
                         integer_types,
@@ -342,8 +342,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     );
                     collect_integer_order_relations(
                         program,
-                        guard.guard(),
-                        guard.is_negated(),
+                        guard,
+                        negated,
                         &parameter_names,
                         &content_conservation,
                         integer_types,
