@@ -23,7 +23,10 @@
 //! runtime execution. `establish_behavior_exclusions` consumes an
 //! already-selected entry roster and the selected provider-plan facts that
 //! decide which retained provider-candidate bodies a boundary call can
-//! realize.
+//! realize. It is deliberately source-free: the boundary-to-service ownership
+//! is reconstructed from the canonical requirement identities the module
+//! retains, so an independently consuming proposal replays the identical
+//! accounting instead of trusting producer-supplied owner rows.
 //!
 //! A boundary call's own fixed service reach always counts: the requirement
 //! invocation contributes it no matter which provider the installation picks.
@@ -263,13 +266,39 @@ pub enum BehaviorExclusionVerdict {
 /// Which abstract service each boundary machine in a module belongs to.
 ///
 /// A boundary declaration retains only the service reach it spelled; the
-/// trait that owns the requirement is not part of the Terminal row. Invoking
+/// trait that owns the requirement is not a dedicated Terminal row. Invoking
 /// a boundary is an invocation of its owning service and of every parent in
 /// the module's service closure, whatever the selected provider does, so the
-/// join supplies this ownership from the checked trait declarations.
+/// join supplies this ownership. The producing admission supplies it from
+/// the checked trait declarations; [`Self::from_module_identities`]
+/// reconstructs the same relation source-free from the canonical requirement
+/// identities the module retains, so independently consuming evidence does
+/// not depend on producer-supplied owner rows.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BoundaryServiceOwners {
     owners: BTreeMap<BoundaryMachineId, ServiceId>,
+}
+
+/// The owning service identity inside a canonical requirement identity.
+/// The normalized overload identities write
+/// `named-callable(path(Owner::requirement),parameters(...),result-dispatch(...))`:
+/// the `path(...)` atom holds `Owner::requirement`, with `\`, `(`, `)` and
+/// `,` escaped. The last `::` separates the requirement member from its
+/// owner, which may itself be qualified (`a::b::Owner`). `None` outside
+/// this canonical form.
+fn canonical_requirement_owner(identity: &str) -> Option<String> {
+    let path = identity.strip_prefix("named-callable(path(")?;
+    let mut unescaped = String::with_capacity(path.len());
+    let mut characters = path.chars();
+    loop {
+        match characters.next()? {
+            ')' => break,
+            '\\' => unescaped.push(characters.next()?),
+            character => unescaped.push(character),
+        }
+    }
+    let (owner, requirement) = unescaped.rsplit_once("::")?;
+    (!owner.is_empty() && !requirement.is_empty()).then(|| owner.to_owned())
 }
 
 impl BoundaryServiceOwners {
@@ -295,6 +324,20 @@ impl BoundaryServiceOwners {
             }
         }
         Self { owners }
+    }
+
+    /// Source-free ownership reconstruction for independently consumed
+    /// modules: a canonical requirement identity retains its declaring owner
+    /// as `named-callable(path(Owner::requirement),...)`, so the owner is
+    /// decoded and resolved against the module's service catalog. Boundaries
+    /// outside the canonical form contribute no owner. A canonical identity
+    /// cannot distinguish a trait requirement from an exact machine
+    /// overload: a machine requirement named `Endpoint::step` beside an
+    /// unrelated service `Endpoint` counts that service — conservative in
+    /// the direction incomplete evidence already takes, rejecting the
+    /// composition rather than dropping a possible invocation.
+    pub fn from_module_identities(module: &TerminalModule) -> Self {
+        Self::from_module(module, &canonical_requirement_owner)
     }
 
     pub fn insert(&mut self, boundary: BoundaryMachineId, service: ServiceId) {
@@ -351,6 +394,9 @@ impl BehaviorExclusionReport {
 /// Reconstruct a conservative account of possible behavior for the exact
 /// entry roster's static call closure in `module`, under the provider
 /// realization `selected_provider_plans` admits for each reached boundary.
+/// Boundary-to-service ownership is reconstructed from the module's canonical
+/// requirement identities so a source-free consumer replays the identical
+/// accounting.
 pub fn establish_behavior_exclusions(
     module: &TerminalModule,
     entries: &[MachineId],
@@ -362,7 +408,7 @@ pub fn establish_behavior_exclusions(
         entries,
         exclusions,
         selected_provider_plans,
-        &BoundaryServiceOwners::default(),
+        &BoundaryServiceOwners::from_module_identities(module),
     )
 }
 

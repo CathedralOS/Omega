@@ -524,9 +524,12 @@ impl TerminalNativeRealizationProposal {
         // this artifact's committed semantics: a consumer replays the same
         // Terminal-closure absence check the producing build enforced, so a
         // proposal whose retained policy the artifact cannot satisfy never
-        // reaches realization. The producing admission gate additionally
-        // checked the unoptimized closure committed as this artifact's
-        // optimization input; this replay re-verifies the published subject.
+        // reaches realization. Boundary-to-service ownership is reconstructed
+        // from the canonical requirement identities inside the artifact, not
+        // trusted from producer rows. The producing admission gate
+        // additionally checked the unoptimized closure committed as this
+        // artifact's optimization input; this replay re-verifies the
+        // published subject.
         match build_evaluation::establish_behavior_exclusions(
             &module,
             &[module.entry],
