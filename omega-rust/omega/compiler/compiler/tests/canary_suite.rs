@@ -1773,6 +1773,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "wire/wire_codec_ambiguous_schema_receiver",
     "wire/wire_codec_schema_identity_buffer_bound",
     "memory/bump_allocator_live_allocation_dropped",
+    "memory/bump_allocator_reset_with_live_resident",
+    "memory/bump_allocator_resident_dropped",
+    "memory/bump_allocator_place_into_occupied",
 ];
 
 #[path = "canary_suite/entry_and_abi.rs"]
