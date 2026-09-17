@@ -3893,15 +3893,20 @@ Owners include
   other unsupported expression shapes.
   Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
   Acceptance: all supported finite source shapes converge without widening
-  permissions, and unsupported recursion fails explicitly. Precision
-  question raised by the product parser at 19ac2d1527: copy enums such
-  as `KeywordKind` entering or leaving a cycle edge count as write-capable
-  roots (`type_may_carry_write` is true for any `Named` type), so
-  `parse`/`parse_data` SCC frames stay opaque; whether
-  `parameter_may_carry_write` should treat caller-isolated value types
-  (no exclusive reference anywhere in the type) as non-write-capable in
-  the cycle laws is a summary-semantics choice for this item, not an
-  evaluation-order change. The equation builder also hands statement
+  permissions, and unsupported recursion fails explicitly. Since
+  a3b3ecd8c4 `parameter_may_carry_write` is `type_may_carry_write &&
+  !type_is_reference_free_value` (`write_frames/type_capabilities.rs`):
+  a state parameter whose type contains no exclusive reference anywhere
+  in its transitive structure and reaches no opaque boundary data is the
+  state's own storage and no longer a write-capable cycle root
+  (ownership.md, "Borrows and aliases"), so copy enums such as
+  `KeywordKind`, `RootItem` and `DataItem` crossing cycle edges let the
+  parser and harness components permute and solve;
+  `omega --check source/psi/gates/parser/main.omg` went from a 3340.6 s
+  kill to 174.4 s, with cli_mvp and nqueens frames byte-identical.
+  `type_may_carry_write` itself still counts every `Named` local or
+  reference referent as write-capable, and the walk is unmemoized (one
+  bounded traversal per query). The equation builder also hands statement
   calls a fresh memo while the prefix walk shares one; unifying them
   changes the solve-versus-walk route for a cyclic state calling a cached
   callee that calls back, so it stays separate.
@@ -4527,63 +4532,40 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   and production pipeline, passes the shared product suite, and publishes a
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
-  Resume (macOS ARM64, 442cf5c018 on 8564df08b7): the product parser no
-  longer owns a second `TokenStream`; `Parser::parse(&mut self, input:
-  &TokenStream)` observes the lexer's stream through a shared borrow
-  forwarded along the state edges that read a token (28/38 `parse`,
-  91/125 `parse_data`, 4/5 `skip_trivia` states), which retires the
-  `cannot transfer a non-copy value out of borrowed storage without
-  replacing its owner in Main::main, state parse (statement 0)`
-  diagnostic (239.96 s before). The checker admits no owner-replacement
-  route today: `pass/ownership/move_keyword_field_assignment`, on the
-  checked-only pass roster, is rejected with the same diagnostic at
-  8564df08b7, so that fixture and `projected_affine.rs` disagree. The
-  parser gate moved its harness into its own package
-  (`source/psi/gates/parser/harness.omg`, imported as `use harness;`)
-  because `roots.bind` admission is lexical per package
-  (`admission/selection/root_bindings.rs`) and the build-scope import of
-  `psi::parse::harness` was dead (entry operands resolve in the product
-  context, entry_roots.md); a `build_depend_as` edge would have made the
-  harness a file imported by both scopes. The full gate check still does
-  not finish: killed at 3340 s wall (2837 s user) inside
-  `validate_default_domain_writes -> walk_state_write_prefix ->
-  permuted_cycle_frames::summarize_transition_target_written_paths` on
-  the harness's `write_parse_observation` cycles, which carry copy data
-  such as `RootItem` and `DataItem` as write-capable roots (the R5
-  precision decision), so
+  Resume (macOS ARM64, 7072b700dd on aa916ab1ce): `omega --check
+  source/omega/main.omg` runs the complete Psi checked stage and the std
+  calling-policy admission and stops on one diagnostic, `root slot
+  alpha_bootstrap::ProgramEntry belongs to unknown target profile
+  alpha_bootstrap` from `source/omega/build.omg:11` (601.8 s wall at
+  dd8bb81386, 704.0 s at a3b3ecd8c4 beside a concurrent gate check);
+  that row is OWNER_QUESTIONS 8 and no product-source edit is pending
+  behind it. The stops before it are retired: the parser borrows the
+  lexer's stream (`Parser::parse(&mut self, input: &TokenStream)`,
+  61c0b806c0/b30c5ae693; the borrowed-storage owner-replacement conflict
+  with `pass/ownership/move_keyword_field_assignment` is OWNER_QUESTIONS
+  9), and build-time member selections confine on their exact owner
+  package (dd8bb81386: the std `ValueClass::Record { first_field,
+  field_count }` pattern no longer rejects any package declaring those
+  member spellings; the twelve-line reproduction checks in 340.7 s and
+  the rejection, when one remains, is located at the member). The parser
+  gate (`source/psi/gates/parser/`, harness in its own package since
+  f03f8b4dad) completes the same checked stage in 1550.9 s wall /
+  1445.2 s user (a3b3ecd8c4 stopped counting copy `RootItem`/`DataItem`
+  cycle parameters as write-capable roots, 3340.6 s kill to 174.4 s to
+  the first harness diagnostic; 7072b700dd declares `reaches Console` on
+  the harness writers and reads the rejection span before
+  `self.lexer.reject`) and stops on the compiler's generic
+  `selected ProgramEntry establishment rejoins 0 Terminal attachment
+  identities; expected one`, the diagnostic `samples/cli/basics/cli_mvp`
+  reaches at aa916ab1ce in 236.3 s, so
   `command_line::routed_production_entry_roots_pass_real_package_resolution`
-  stays red on the gate leg. `omega --check source/omega/main.omg` now
-  runs the complete checked stage and stops in build-time admission of
-  the std calling policy: `build-time evaluation of calling policy
-  MacosArm64::plan failed: ... unresolved authored MemberAccess selection
-  first_field (CheckedMember); package authority must be known before
-  compiler execution` (1002.96 s wall, 598.11 s user beside a concurrent
-  check; the reported `source-unit 15, bytes 12636..12643` points past
-  the pattern into the file's trailing trait line). This is a compiler
-  precision bug, not a source error: a twelve-line program declaring
-  `data Item { first_field: u64; field_count: u64; }` beside std console
-  reproduces it in 142.9 s, renaming `first_field` alone moves the
-  rejection to `field_count`, and renaming both passes in 291.1 s.
-  `selection_authority.rs::unresolved_spelling_is_confined` treats every
-  member symbol in the program spelled like the std pattern binding
-  `ValueClass::Record { first_field, field_count }` as a candidate for
-  that late-bound `CheckedMember`, so any user package that declares a
-  `first_field` or `field_count` member (the psi `DataItem` does) makes
-  the macOS and Linux x86-64 calling policies inadmissible; the path
-  is under TOP-LEVEL-BOUNDARY-REQUIREMENTS' claim and the precise fix
-  needs the pre-specialization exact-owner member resolution that
-  `typed-trees-to-checked-trees/src/authored_selections/contexts.rs`
-  already performs. A scratch copy with those two psi members renamed
-  passes the whole checked stage in 422.2 s and stops on the next real
-  diagnostic, `root slot alpha_bootstrap::ProgramEntry belongs to unknown
-  target profile alpha_bootstrap` from `source/omega/build.omg`: the row
-  is required by bootstrap/CONTRACT.md (D compiles C for the ordinary
-  `alpha_bootstrap` target) while the Rust comparator's target catalog
-  (`representations/target/src/lib.rs`) does not know that profile;
-  whether unknown-profile rows are unselected rather than rejected
-  (entry_roots.md, "only rows owned by the selected profile enter the
-  durable child projection") or `alpha_bootstrap` must be catalogued
-  without a realization is an owner decision.
+  waits on that establishment leg and on OWNER_QUESTIONS 8, not on
+  product source. Known baseline reds met on the way (aa916ab1ce):
+  `compiler --test calling_policy_plans` fails 3 `macos_entry` tests on
+  duplicate std declarations, `validation` suite fails
+  `match_values::fresh_match_containers_cannot_hide_existing_owned_inputs_or_cleanup`,
+  `typed-trees-to-checked-trees` carries 8 clippy errors, and the
+  `control_flow/` pass leg fails the same 23 fixtures.
 
 ## Platform-gated verification
 
