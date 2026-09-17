@@ -28,6 +28,30 @@ pub(super) fn connected_cases<'a>(
     assumptions: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
 ) -> Vec<ProjectedFact<'a>> {
+    connected_facts(goal, assumptions, semantic_axioms, |proposition| {
+        matches!(proposition, Proposition::Disjunction(_))
+    })
+}
+
+/// Implications the goal can reach through value dependencies. A conditional
+/// fact about values the goal never touches cannot shorten its proof, and
+/// trying each one recursively multiplies the search by every guard in scope.
+pub(super) fn connected_implications<'a>(
+    goal: &Proposition,
+    assumptions: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> Vec<ProjectedFact<'a>> {
+    connected_facts(goal, assumptions, semantic_axioms, |proposition| {
+        matches!(proposition, Proposition::Implication { .. })
+    })
+}
+
+fn connected_facts<'a>(
+    goal: &Proposition,
+    assumptions: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+    selected: impl Fn(&Proposition) -> bool,
+) -> Vec<ProjectedFact<'a>> {
     // A conjunction packages independent facts; it must not connect their
     // value dependencies. Only its exact projected leaves become graph rows.
     let facts = projected_facts(assumptions, semantic_axioms);
@@ -60,7 +84,7 @@ pub(super) fn connected_cases<'a>(
     let mut cases: Vec<ProjectedFact<'a>> = Vec::new();
     for (fact, dependency) in facts.into_iter().zip(dependencies) {
         let proposition = fact.proposition;
-        if matches!(proposition, Proposition::Disjunction(_))
+        if selected(proposition)
             && (retain_all
                 || !dependency.complete
                 || dependency.values.is_empty()
