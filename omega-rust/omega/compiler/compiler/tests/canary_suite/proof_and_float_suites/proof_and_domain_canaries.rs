@@ -1,11 +1,37 @@
 use super::fixture_roster;
 use crate::{
     ACTIVE_FAIL_CANARIES, CANARY_UMBRELLA_LOCK, CHECKED_ONLY_FAIL_CANARIES,
-    CROSS_TARGET_FAIL_CANARIES, check_canary, compile_canary_without_output,
+    CROSS_TARGET_FAIL_CANARIES, Command, check_canary, compile_canary_without_output,
     compile_canary_without_output_for_target, compile_native_canary_without_output,
-    compile_reviewed_repository_fixture, fail_canary, fs, pass_canary, run_bounded_canary_jobs,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
+    fail_canary, fs, pass_canary, run_bounded_canary_jobs,
 };
 use compiler::CheckedCompileRequest;
+
+#[test]
+fn runtime_ranked_accumulator_guarantee_exit_canary_runs() {
+    // A ranked free loop returning its accumulator under `ensures result <=
+    // previous`: the source exit prover admits the guarantee through a proved
+    // header invariant over the re-entered parameter, the producer lowers the
+    // cycle with its `Natural` certificate, and `descend(3, 9)` returns 1.
+    let canary = pass_canary(fixture_roster::PROOFS_RUNTIME_RANKED_ACCUMULATOR_GUARANTEE_EXIT);
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-ranked-accumulator-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("ranked accumulator guarantee canary should compile from its authored root");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("ranked accumulator guarantee canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected descend(3, 9) to return 1 under its proved guarantee (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
 
 #[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {

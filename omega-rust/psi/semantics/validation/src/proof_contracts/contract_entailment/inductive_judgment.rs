@@ -450,7 +450,7 @@ fn failed_guard_display(program: &TypedTrees, guard: ExpressionHandle) -> String
 }
 
 /// The classical negation of a comparison operator (integer semantics).
-fn negated_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
+pub(super) fn negated_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
     match operator {
         BinaryOperator::Equal => Some(BinaryOperator::NotEqual),
         BinaryOperator::NotEqual => Some(BinaryOperator::Equal),

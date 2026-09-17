@@ -2152,6 +2152,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_core_rat_declared_exit",
     "proofs/runtime_core_roster_ops_exit",
     "proofs/runtime_nat_structural_recursion_exit",
+    "proofs/runtime_ranked_accumulator_guarantee_exit",
     "storage/runtime_dispatch_helper_local_alias_add_exit",
     "ownership/linear_state_call_handoff",
     "ownership/linear_transition_nested_call_handoff",
@@ -4349,6 +4350,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_core_rat_declared_exit",
     "proofs/accepted_axiom_cited_exit",
     "proofs/runtime_nat_structural_recursion_exit",
+    "proofs/runtime_ranked_accumulator_guarantee_exit",
     "proofs/runtime_core_roster_ops_exit",
     "build/runtime_depend_mapping_exit",
     "recast/runtime_record_view_exit",
@@ -4654,6 +4656,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/proposition_relation_inherited_law_rejected",
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
+    "proofs/ranked_accumulator_guarantee_wrong_step_twin",
     // The v0 freestanding-authority discharge is wired into the typed->checked
     // settlement transition, so a hosted build (no `freestanding = true` in
     // build.omg) rejects asm instructions whose catalog contract requires

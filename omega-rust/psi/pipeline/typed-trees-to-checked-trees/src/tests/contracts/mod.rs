@@ -18,6 +18,7 @@ mod byte_sequences;
 mod closed_boolean_calls;
 mod closed_scalar_arithmetic;
 mod contract_entailment_certificates;
+mod cyclic_header_invariants;
 mod element_fields;
 mod entry_requirement_crash_coverage;
 mod fact_call_projections;

@@ -1,0 +1,41 @@
+// Wrong-step twin of pass/proofs/runtime_ranked_accumulator_guarantee_exit.
+// The backedge forwards the constant `1000` as the accumulator: the
+// re-established `requires` still admits it (`n - 1 <= 1000`,
+// `1000 <= 1000`) and the `Nat::Descending` certificate is unchanged, but the
+// transported header conjunct `previous <= previous@invocation` is not
+// preserved (`1000 <= previous@invocation` fails), so the checker admits
+// nothing and the pre-existing origin diagnostic stands. The guarantee is
+// genuinely false: `descend(1, 5)` returns 1000.
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let floor: u64 = descend(3, 9);
+    transition floor == 1 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine descend(n: u64, previous: u64) -> u64
+requires n <= previous && previous <= 1000
+terminates by n -> Nat::Descending;
+ensures result <= previous
+{
+    transition n > 0 {
+        true -> descend(n - 1, 1000)
+        false -> previous
+    }
+}
