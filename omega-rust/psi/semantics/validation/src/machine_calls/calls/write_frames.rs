@@ -90,6 +90,7 @@ use type_capabilities::{type_may_carry_write, type_reference_is_reference};
 #[cfg(test)]
 thread_local! {
     static PREFIX_WALKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static CYCLE_EQUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// Instantiate the conservative may-write set of a resolved internal call in

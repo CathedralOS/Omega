@@ -34,6 +34,7 @@ use crate::machine_calls::calls::write_frames::transition_equations::{
 };
 use crate::machine_calls::calls::write_frames::transition_topology::{
     named_transition_preserves_state_namespace, named_transition_target_state,
+    reachable_cycle_edges_can_permute_write_parameters, write_parameter_counts_can_permute,
 };
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_place_expression_origin;
 use crate::machine_calls::calls::write_frames::type_capabilities::{
@@ -69,6 +70,16 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
     outer_inference: &FrameInference,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
+    // The prefix walk below re-enters this solver at every nested visit of a
+    // state that reaches a named cycle. When a cyclic edge cannot pair the
+    // write-capable parameters by count, the solve is doomed before any
+    // equation exists; deciding that from the topology keeps a declined
+    // system from rebuilding every reachable equation, and every nested call
+    // inside them, once per visit. The answer is the same `None` the
+    // permutation check would have produced.
+    if !reachable_cycle_edges_can_permute_write_parameters(program, machine, entry) {
+        return None;
+    }
     let mut diagnostics = Vec::new();
     let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
     if !diagnostics.is_empty() {
@@ -202,6 +213,8 @@ fn build_permuted_cycle_frame_equation<'program>(
     outer_inference: &FrameInference,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<PermutedCycleFrameEquation<'program>> {
+    #[cfg(test)]
+    super::CYCLE_EQUATIONS.with(|equations| equations.set(equations.get() + 1));
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
@@ -517,26 +530,21 @@ fn transition_is_exact_write_parameter_permutation(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> bool {
+    if !write_parameter_counts_can_permute(program, source, target, arguments) {
+        return false;
+    }
     let source_write_parameters = program
         .state_parameters(source)
         .iter()
         .filter(|parameter| !parameter.is_self && parameter_may_carry_write(program, parameter))
         .collect::<Vec<_>>();
-    let target_parameters = program
+    let target_write_positions = program
         .state_parameters(target)
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
-    let target_write_positions = target_parameters
-        .iter()
         .enumerate()
         .filter(|(_, parameter)| parameter_may_carry_write(program, parameter))
         .collect::<Vec<_>>();
-    if source_write_parameters.len() != target_write_positions.len()
-        || target_parameters.len() != arguments.len()
-    {
-        return false;
-    }
 
     let mut forwarded = Vec::new();
     for (position, _) in target_write_positions {
@@ -666,3 +674,6 @@ pub(crate) fn summarize_transition_target_written_paths(
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
