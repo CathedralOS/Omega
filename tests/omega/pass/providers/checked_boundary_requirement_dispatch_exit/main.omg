@@ -1,0 +1,34 @@
+// A public top-level boundary requirement is its own provider slot: the
+// `boundary requirement` form (no operator token, no `operator` introducer)
+// declares the required operation, a checked adapter `satisfies` it, and the
+// unique covering adapter is the declaration-era default. Checking retains
+// the public requirement contract and the exact ProviderPlan identity;
+// settlement records the requirement/realization association and redirects
+// the direct call to the selected ordinary machine in both engines.
+use omega_language_std::console;
+
+pub data CheckedMath {}
+
+pub boundary requirement CheckedMath::offset_zero(value: i32) -> i32
+requires value == value
+ensures result == value + 0 && value == value;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+satisfies CheckedMath::offset_zero
+requires input == input
+ensures result == input + 0 && input == input
+{
+    transition { _ -> (input + 0) }
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self)
+reaches Console
+{
+    let selected: i32 = CheckedMath::offset_zero(70);
+    let result: i32 = selected + 0i32;
+    self.console.exit_process(result);
+}
