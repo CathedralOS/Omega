@@ -269,3 +269,16 @@ bootstrap completion. The [compiler board](TASKS.md),
 Read [repository conventions](AGENTS.md#repository-conventions) before changing
 code. [Local testing](tools/testing.md) covers focused checks and supported
 development hosts.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in this repository shall be dual licensed as above, without any
+additional terms or conditions.
