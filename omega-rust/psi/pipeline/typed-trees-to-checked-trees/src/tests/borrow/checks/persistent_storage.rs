@@ -623,23 +623,33 @@ fn accepts_static_persistent_copy_across_disjoint_cyclic_alias_frame() {
 
 #[test]
 fn accepts_static_persistent_copy_across_attached_transparent_result_frame() {
+    // The shared receiver is a call operand like any other: since 12c70b7e72 a
+    // `&self` receiver overlapping an exclusive `&mut self.code` argument in
+    // the same call is rejected as interference. The attached helper therefore
+    // lives on a disjoint field so its transparent result still comes from the
+    // explicit argument alone.
     let source = r#"
         data Message [copy] {
             body: &[u8];
         }
 
+        data Forwarder {
+            marker: u8;
+        }
+
         data Main {
             source: Message;
             copy: Message;
+            forwarder: Forwarder;
             code: i32;
         }
 
-        machine Main::forward_alias(&self, value: &mut i32) -> &mut i32 {
+        machine Forwarder::forward_alias(&self, value: &mut i32) -> &mut i32 {
             value
         }
 
         machine Main::touch_code(&mut self) {
-            let alias: &mut i32 = self.forward_alias(&mut self.code);
+            let alias: &mut i32 = self.forwarder.forward_alias(&mut self.code);
             alias = 7;
         }
 
