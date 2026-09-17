@@ -65,6 +65,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_wrapping_remainder_zero());
     assert!(policy.enables_exact_divide_zero());
     assert!(policy.enables_saturating_add_zero());
+    assert!(policy.enables_saturating_subtract_zero());
 }
 
 #[test]
@@ -86,6 +87,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         remainder_zero,
         divide_zero,
         saturating_add_zero,
+        saturating_subtract_zero,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -1030,14 +1032,130 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         SelectedInstructionPairRule::SATURATING_ADD_ZERO_LEFT_COPY
     );
 
+    // The saturating-subtract identity family declares one pair per
+    // carrier — the right-literal grammar alone: a literal of exactly
+    // zero at the operand-1 `Use` folds a `SaturatingSubtract` into a
+    // `CopyI64` of the operand-0 `Use` — `x -| 0` is `x`, already inside
+    // the carrier's bounds. Saturating subtraction does not commute —
+    // `0 -| x` is `-x` clamped, not `x` — so the family declares no
+    // left-literal pair at either operand grammar. The unit and effect
+    // surfaces are the saturating family's own: the consumer's implicit
+    // unit definitions retire under `DeadConsumerUnitDefs` — aarch64's
+    // `nzcv` must stay dead across the whole function — while its
+    // `early_clobber` operand marks drop with the replaced operand list
+    // under `BoundEarlyClobberConsumerOperands`. The carrier's signedness
+    // picks the operand grammar: unsigned carriers bind the exact
+    // three-operand row; every signed carrier binds the clamped row whose
+    // bound scratch `Def` tail drops under the scratch-defs grammar.
+    let saturating_subtract_zero_pairs = saturating_subtract_zero.payload().pairs();
+    assert_eq!(saturating_subtract_zero_pairs.len(), 8);
+    assert_eq!(
+        saturating_subtract_zero.optimization(),
+        Optimization::SelectedIncomingSaturatingSubtractZeroIdentityCopy
+    );
+    let unsigned_carriers = [
+        SaturatingCarrier::U8,
+        SaturatingCarrier::U16,
+        SaturatingCarrier::U32,
+        SaturatingCarrier::U64,
+    ];
+    let signed_carriers = [
+        SaturatingCarrier::I8,
+        SaturatingCarrier::I16,
+        SaturatingCarrier::I32,
+        SaturatingCarrier::I64,
+    ];
+    for (index, pair) in saturating_subtract_zero_pairs.iter().copied().enumerate() {
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        let carrier = if index < unsigned_carriers.len() {
+            unsigned_carriers[index]
+        } else {
+            signed_carriers[index - unsigned_carriers.len()]
+        };
+        assert_eq!(
+            pair.consumer(),
+            MachineSemanticKind::SaturatingSubtract(carrier)
+        );
+        assert_eq!(
+            pair.operand_shape(),
+            if carrier.is_signed() {
+                PairOperandShape::BinaryRightLiteralScratchDefs
+            } else {
+                PairOperandShape::BinaryRightLiteral
+            }
+        );
+        assert_eq!(pair.victim_operand(), 1);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::CopyI64);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(0));
+        assert!(pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(1));
+        assert!(!pair.admits_immediate(u64::MAX));
+        // The recorded immediate is the folded literal itself — zero —
+        // unused by the `CopyI64` rewrite.
+        assert_eq!(pair.fold_immediate(0), Some(0));
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(
+            pair.unit_effects(),
+            PairUnitEffects::BoundEarlyClobberConsumerOperands
+        );
+        assert_eq!(
+            pair.machine_effects(),
+            PairMachineEffects::DeadConsumerUnitDefs
+        );
+        // Every rule rewrites only its own carrier's kind into the
+        // surviving-operand copy; a different carrier, the saturating-add
+        // sibling kind, or any other consumer kind never rewrites through
+        // it.
+        let saturating_subtract_kind = SelectedInstructionKind::SaturatingSubtract { carrier };
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, Some(u64_scalar)),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, Some(i64_scalar)),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, None),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        let other_carrier = if carrier.is_signed() {
+            SaturatingCarrier::U64
+        } else {
+            SaturatingCarrier::I32
+        };
+        assert_eq!(
+            pair.rewrite_consumer(
+                SelectedInstructionKind::SaturatingSubtract {
+                    carrier: other_carrier
+                },
+                0,
+                Some(u64_scalar)
+            ),
+            None
+        );
+        assert_eq!(
+            pair.rewrite_consumer(
+                SelectedInstructionKind::SaturatingAdd { carrier },
+                0,
+                Some(u64_scalar)
+            ),
+            None
+        );
+        assert_eq!(
+            pair.rewrite_consumer(wrapping_add_kind, 0, Some(u64_scalar)),
+            None
+        );
+    }
+
     // Every landed rule's rewrite but the divide, remainder, and
-    // saturating-add folds is unit-effect isolated: no implicit unit uses
+    // saturating folds is unit-effect isolated: no implicit unit uses
     // or clobbers and no operand unit bindings beyond the declared result
     // channel. The divide fold deliberately drops the pinned consumer's
     // `fixed_view` bindings; the remainder folds drop the pinned
     // consumer's `fixed_view` pins and `early_clobber` scratch marks; the
-    // saturating-add fold drops the consumer's `early_clobber` result
-    // mark.
+    // saturating-add and saturating-subtract folds drop the consumer's
+    // `early_clobber` result and scratch marks.
     for entry in [
         add,
         subtract,
@@ -1126,6 +1244,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::SATURATING_ADD_ZERO_V1).collect::<Vec<_>>(),
         SelectedInstructionPairRule::SATURATING_ADD_ZERO_COPIES.to_vec()
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1).collect::<Vec<_>>(),
+        SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES.to_vec()
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -1240,6 +1362,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         saturating_add_zero_left_rule.immediate_constraint_key(&keys),
         Some(keys.copy_i64)
     );
+    // Every saturating-subtract-zero pair — the unsigned-carrier rules and
+    // the signed-carrier scratch-defs rules alike — rewrites through the
+    // same copy row.
+    for pair in saturating_subtract_zero_pairs {
+        assert_eq!(pair.immediate_constraint_key(&keys), Some(keys.copy_i64));
+    }
 }
 
 #[test]
@@ -1295,6 +1423,11 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // consumer's operand decorations.
             SelectedInstructionPairRule::SATURATING_ADD_ZERO_COPY,
             SelectedInstructionPairRule::SATURATING_ADD_ZERO_LEFT_COPY,
+            // The saturating-subtract-zero grammar rewrites into the same
+            // copy row under the same consumer-operand relaxation — one
+            // pair per grammar is representative.
+            SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES[0],
+            SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES[7],
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -1584,6 +1717,64 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         // record-level, checked separately by the producer and the
         // replay.
         for rule in SelectedInstructionPairRule::SATURATING_ADD_ZERO_COPIES {
+            assert_eq!(
+                rule.machine_effects(),
+                PairMachineEffects::DeadConsumerUnitDefs
+            );
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A consumer carrying an implicit unit use cannot fold under
+            // this surface — the rewritten copy would silently stop
+            // observing the unit.
+            let flag_consuming = declaration(MachineSemanticKind::MaterializeBooleanEqual);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(flag_consuming, rewritten),
+                "{rule:?} flag-consuming consumer on {target:?}"
+            );
+            // Memory traffic and control flow cannot take the consumer
+            // role either: the isolated non-unit declaration surface
+            // still applies.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
+            );
+        }
+
+        // The saturating-subtract-zero pairs admit their own triples on
+        // both targets under `DeadConsumerUnitDefs`: an isolated producer,
+        // each carrier's saturating subtract — defining `nzcv` on
+        // aarch64, clobbering `rflags` on x86-64 — and the isolated copy.
+        // The declaration-level requirement is the shared
+        // isolated-outside-units shape with no implicit uses; the
+        // distinguishing whole-function deadness of each defined unit is
+        // record-level, checked separately by the producer and the
+        // replay.
+        for rule in SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES {
             assert_eq!(
                 rule.machine_effects(),
                 PairMachineEffects::DeadConsumerUnitDefs

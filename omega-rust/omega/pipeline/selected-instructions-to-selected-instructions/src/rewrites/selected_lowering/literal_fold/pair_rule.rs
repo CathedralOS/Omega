@@ -1562,6 +1562,104 @@ impl SelectedInstructionPairRule {
         Self::saturating_add_zero_clamped_left(SaturatingCarrier::U32),
     ];
 
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
+    /// `SaturatingSubtract` on an unsigned carrier when the literal is
+    /// exactly zero: zero is the right identity under saturating
+    /// subtraction — `x -| 0` is `x` for every `x`, already inside the
+    /// carrier's bounds — so the rewrite is a `CopyI64` of the surviving
+    /// operand-0 register at the consumer's result register. The grammar
+    /// is deliberately asymmetric: `0 -| x` is `-x` clamped to the
+    /// carrier's bounds, not `x`, so this family declares no left-literal
+    /// pair and a literal recorded at operand 0 names no admitted
+    /// grammar. Like the saturating add, the consumer carries an implicit
+    /// unit *definition* the rewrite retires: the three-operand unsigned
+    /// saturating-subtract row defines `nzcv` on aarch64 — its
+    /// flag-setting `subs` realization — while the isolated `CopyI64`
+    /// defines nothing. Under
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// that definition may retire only while it is dead in the function —
+    /// a conditional branch reading `nzcv` would go stale — and the
+    /// consumer's clobbers retire wholesale, as the x86-64 row's `rflags`
+    /// clobber does. The consumer's operands may carry the `early_clobber`
+    /// mark the x86-64 saturating realization declares on its result —
+    /// the hazard it names exists only inside the dropped operand list —
+    /// under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// The operand-0 `Use` survives under the ordinary
+    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// grammar: the rewritten row binds it as its `Use` operand.
+    const fn saturating_subtract_zero_unsigned(carrier: SaturatingCarrier) -> Self {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::SaturatingSubtract(carrier),
+            rewritten: MachineSemanticKind::CopyI64,
+            operand_shape: PairOperandShape::BinaryRightLiteral,
+            immediate_bound: PairImmediateBound::Exactly(0),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+        };
+        assert!(
+            !carrier.is_signed() && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
+            "the unsigned identity fold holds only for an unsigned carrier's zero literal"
+        );
+        rule
+    }
+
+    /// The right-operand identity fold for a clamped-carrier saturating
+    /// subtract: `MaterializeI64` feeding the operand-1 `Use` of
+    /// `SaturatingSubtract` on `carrier` — every signed carrier — when
+    /// the literal is exactly zero. `x -| 0` is `x` inside the carrier's
+    /// bounds under signed saturation, so the rewrite is a `CopyI64` of
+    /// the surviving operand-0 register; the asymmetric grammar of the
+    /// unsigned rules applies here too. Unlike the unsigned row, the
+    /// clamped row's operand list continues past its `Def` result with
+    /// an early-clobber bound scratch — a `Def` output the realization
+    /// writes and nothing else may observe — so the rule declares
+    /// [`BinaryRightLiteralScratchDefs`](PairOperandShape::BinaryRightLiteralScratchDefs):
+    /// each dropped `Def` register must occur nowhere else in the
+    /// function. The unit surface is the family's own: the aarch64
+    /// clamped row still defines `nzcv` — retired under
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// only while dead in the function — both targets mark the dropped
+    /// result and scratch `early_clobber`, admitted under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// and the x86-64 row's `rflags` clobber retires unconditionally.
+    const fn saturating_subtract_zero_clamped(carrier: SaturatingCarrier) -> Self {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::SaturatingSubtract(carrier),
+            rewritten: MachineSemanticKind::CopyI64,
+            operand_shape: PairOperandShape::BinaryRightLiteralScratchDefs,
+            immediate_bound: PairImmediateBound::Exactly(0),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+        };
+        assert!(
+            carrier.is_signed() && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
+            "the clamped identity fold holds only for a signed carrier's zero literal"
+        );
+        rule
+    }
+
+    /// The saturating-subtract identity rules: one right-literal pair for
+    /// each unsigned carrier's three-operand row, and one for each signed
+    /// carrier's clamped row whose bound scratch `Def` drops under the
+    /// scratch-defs grammar. Saturating subtraction does not commute —
+    /// `0 -| x` is `-x` clamped to the carrier's bounds, not `x` — so the
+    /// family declares no left-literal pair at either operand grammar.
+    pub const SATURATING_SUBTRACT_ZERO_COPIES: [Self; 8] = [
+        Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U8),
+        Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U16),
+        Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U32),
+        Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U64),
+        Self::saturating_subtract_zero_clamped(SaturatingCarrier::I8),
+        Self::saturating_subtract_zero_clamped(SaturatingCarrier::I16),
+        Self::saturating_subtract_zero_clamped(SaturatingCarrier::I32),
+        Self::saturating_subtract_zero_clamped(SaturatingCarrier::I64),
+    ];
+
     pub const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
@@ -1761,24 +1859,28 @@ impl SelectedInstructionPairRule {
                 Some(SelectedInstructionKind::CopyI64)
             }
             // An exclusive-or or a wrapping add with a zero literal, a
-            // bitwise-and with an all-ones literal, or a saturating add
-            // with a zero literal is the other operand — `x ^ 0` and
-            // `0 ^ x` are both `x`, `x + 0` and `0 + x` are both `x`
-            // modulo 2^64, `x & MAX` and `MAX & x` are both `x`, and
-            // `x +| 0` and `0 +| x` are both `x` inside the carrier's
-            // bounds: the `CopyI64` rewrite binds the surviving register
-            // the recorded action names. The consumer guard keeps each
-            // rule bound to its own consumer kind — the xor rule never
-            // rewrites an add, the add rule never rewrites an and, the
-            // and-ones rule never rewrites either, and each
-            // saturating-add rule rewrites only the carrier kind its
-            // pair admits.
+            // bitwise-and with an all-ones literal, a saturating add
+            // with a zero literal, or a saturating subtract with a zero
+            // right literal is the other operand — `x ^ 0` and `0 ^ x`
+            // are both `x`, `x + 0` and `0 + x` are both `x` modulo 2^64,
+            // `x & MAX` and `MAX & x` are both `x`, `x +| 0` and `0 +| x`
+            // are both `x` inside the carrier's bounds, and `x -| 0` is
+            // `x` inside the carrier's bounds: the `CopyI64` rewrite
+            // binds the surviving register the recorded action names. The
+            // consumer guard keeps each rule bound to its own consumer
+            // kind — the xor rule never rewrites an add, the add rule
+            // never rewrites an and, the and-ones rule never rewrites
+            // either, each saturating-add rule rewrites only the carrier
+            // kind its pair admits, and each saturating-subtract rule
+            // likewise — while the subtraction family stays bound to the
+            // right-literal grammar alone: `0 -| x` is not `x`.
             (
                 MachineSemanticKind::CopyI64,
                 kind @ (SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::BitwiseAndI64
-                | SelectedInstructionKind::SaturatingAdd { .. }),
+                | SelectedInstructionKind::SaturatingAdd { .. }
+                | SelectedInstructionKind::SaturatingSubtract { .. }),
             ) if machine_semantic_kind(kind) == self.consumer => {
                 Some(SelectedInstructionKind::CopyI64)
             }
