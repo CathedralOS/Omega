@@ -1,0 +1,53 @@
+// FAIL CANARY. `carried` arrives through a computed literal that refills the
+// component `scan_b` decrements, so the cycle `scan_a -> hold -> scan_b ->
+// scan_a` preserves the rank forever. Lineage to `progress` is not equality:
+// the carrier keeps no role, and `scan_b(carried)` cannot spell the authored
+// subject at the site.
+
+data Progress {
+    outer: u64;
+    inner: u64;
+}
+
+measure Progress::Steps lexicographic { outer, inner }
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition {
+        _ -> self.scan_a(Progress { outer: 1, inner: 4 })
+    }
+}
+
+machine Main::scan_a(&mut self, progress: Progress)
+terminates by progress -> Progress::Steps;
+-> u64
+{
+    transition progress.inner > 0 {
+        true -> hold(Progress {
+            outer: progress.outer,
+            inner: progress.inner + 1,
+        })
+        false -> 0
+    }
+
+    state hold(carried: Progress) {
+        transition carried.inner > 0 {
+            true -> self.scan_b(carried)
+            false -> 0
+        }
+    }
+}
+
+machine Main::scan_b(&mut self, remaining: Progress)
+terminates by remaining -> Progress::Steps;
+-> u64
+{
+    transition remaining.inner > 0 {
+        true -> self.scan_a(Progress {
+            outer: remaining.outer,
+            inner: remaining.inner - 1,
+        })
+        false -> 0
+    }
+}

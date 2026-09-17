@@ -1,8 +1,8 @@
-// FAIL CANARY. The subordinate site consumes `outer`'s range invariant only
-// as the member's own proof. `hold(remaining, cap - 1)` moves the carried
-// ceiling at the arrival, so `outer`'s state-edge judgment cannot pin
-// `0..=cap` there: the invariant the site would read was never established,
-// and the member's own rank-range judgment rejects.
+// FAIL CANARY. `hold(remaining, cap - 1)` moves the carried ceiling at the
+// arrival: `bound` denotes `cap - 1`, not the pinned `cap`, so neither layer
+// can conserve the endpoint. The component judgment now rejects first -- the
+// site's premise `0..=cap` has no carrier still denoting `cap` -- and the
+// member's own rank-range judgment cannot pin the moved endpoint either.
 
 data Main {}
 
