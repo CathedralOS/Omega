@@ -82,12 +82,26 @@ pub(super) fn collect_call_proposals(
         .iter()
         .zip(callee.parameter_types.iter().skip(skip))
     {
+        // Place lookup covers declaration-backed arguments. A value expression
+        // whose exact result is already source-owned — a landed literal, a
+        // cast, a selected operator result — carries the same inference
+        // evidence, so the shared result-type evaluator supplies the actual
+        // type when no place declaration exists. An unresolved result still
+        // declines to propose, keeping underdetermined calls rejecting.
         let Some(actual) = validation::declared_place_type_raw(
             program,
             caller_machine,
             Some(caller_state),
             *argument,
-        ) else {
+        )
+        .or_else(|| {
+            validation::expression_result_type_reference(
+                program,
+                caller_machine,
+                caller_state,
+                *argument,
+            )
+        }) else {
             continue;
         };
         infer_static_bindings(

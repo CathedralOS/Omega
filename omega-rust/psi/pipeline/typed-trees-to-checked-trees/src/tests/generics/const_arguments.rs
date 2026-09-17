@@ -528,3 +528,69 @@ fn conflicting_explicit_and_inferred_values_reject() {
         .is_err()
     );
 }
+
+#[test]
+fn value_argument_results_seed_static_inference_without_a_place_declaration() {
+    // A landed literal carries an authored carrier even though no place
+    // declaration exists for it. Inference must read that result type the
+    // same way it reads a declared argument's type.
+    let checked = accepts(
+        "machine wrap<T, const N: u64>(extra: T, v: u64[0..=N]) -> u64 { N }
+        machine caller(v: u64[0..=256]) -> u64 { wrap(7i32, v) }",
+    );
+    assert_eq!(checked.machine_specializations.len(), 1);
+    assert_eq!(checked.machine_specializations[0].type_arguments, ["i32"]);
+    assert_eq!(checked.machine_specializations[0].const_arguments, ["256"]);
+}
+
+#[test]
+fn literal_cast_and_operator_results_seed_type_inference() {
+    let checked = accepts(
+        "machine pick<T>(value: T) -> T { value }
+        machine caller(flag: bool, whole: i64) -> u64 {
+            _ = pick(true);
+            _ = pick(2.5f64);
+            _ = pick(whole as i32);
+            _ = pick(1i32 + 2i32);
+            _ = pick(!flag);
+            0
+        }",
+    );
+    let mut arguments: Vec<_> = checked
+        .machine_specializations
+        .iter()
+        .map(|specialization| specialization.type_arguments.clone())
+        .collect();
+    arguments.sort();
+    // The two i32-producing arguments share one specialization, as do the
+    // two bool-producing ones.
+    assert_eq!(arguments, [["bool"], ["f64"], ["i32"]]);
+}
+
+#[test]
+fn struct_literal_arguments_seed_type_inference() {
+    let checked = accepts(
+        "data Point [copy] { x: u8; }
+        machine pick<T>(value: T) -> T { value }
+        machine caller() -> u64 { _ = pick(Point { x: 1 }); 0 }",
+    );
+    assert_eq!(checked.machine_specializations.len(), 1);
+    assert_eq!(checked.machine_specializations[0].type_arguments, ["Point"]);
+}
+
+#[test]
+fn anonymous_numeric_arguments_still_cannot_derive_static_binders() {
+    // An unlanded literal is anonymous: the range const still resolves from
+    // the declared argument, but the type binder has nothing honest to
+    // propose. The partial tuple must keep rejecting rather than guessing a
+    // carrier.
+    let errors = check(
+        "machine wrap<T, const N: u64>(extra: T, v: u64[0..=N]) -> u64 { N }
+        machine caller(v: u64[0..=256]) -> u64 { wrap(7, v) }",
+    )
+    .expect_err("partially bound application must reject");
+    assert!(
+        format!("{errors:?}").contains("cannot be derived"),
+        "{errors:?}"
+    );
+}
