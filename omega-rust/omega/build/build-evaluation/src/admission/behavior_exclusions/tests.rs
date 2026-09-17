@@ -921,8 +921,13 @@ fn service_rows_resolve_against_the_module_catalog_and_crash_rows_stand_alone() 
 #[test]
 fn boundary_ownership_counts_the_owning_service_and_its_parents_without_fixed_reach() {
     // `Sink::emit` spelled no `reaches`, so its fixed reach is empty; the
-    // requirement still belongs to Sink, whose parent is Output.
-    let boundary = boundary_declaration(1);
+    // requirement still belongs to Sink, whose parent is Output. The
+    // canonical requirement identity retains the owner, so the plain
+    // source-free entry reconstructs the same join the producing admission
+    // supplies from the checked trait declarations.
+    let mut boundary = boundary_declaration(1);
+    boundary.identity =
+        "named-callable(path(Sink::emit),parameters(),result-dispatch())".to_owned();
     let machine = unit_machine(
         1,
         vec![Block {
@@ -950,19 +955,31 @@ fn boundary_ownership_counts_the_owning_service_and_its_parents_without_fixed_re
         identity: "Sink".to_owned(),
         parents: vec![service_id(2)],
     });
-    let owners = BoundaryServiceOwners::from_module(&module, &|identity| {
-        (identity == module.boundary_machines[0].identity).then(|| "Sink".to_owned())
-    });
+    let owners = BoundaryServiceOwners::from_module_identities(&module);
     assert_eq!(owners.owner(boundary_id(1)), Some(service_id(1)));
 
     for excluded in [service_id(1), service_id(2)] {
         let exclusions =
             BehaviorExclusions::from_selections([BehaviorExclusion::Service(excluded)]);
-        // Without ownership the empty fixed reach hides the invocation.
-        let unowned =
+        // The source-free entry reconstructs ownership from the canonical
+        // identity: the boundary call invokes Sink and its parent Output.
+        let report =
             establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
-        assert_eq!(unowned.verdict(), BehaviorExclusionVerdict::Satisfied);
-        // With ownership the boundary call invokes Sink and its parent Output.
+        assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+        assert_eq!(report.prohibited.len(), 1);
+        assert_eq!(
+            report.prohibited[0].exclusion,
+            BehaviorExclusion::Service(excluded)
+        );
+        assert_eq!(
+            report.prohibited[0].site,
+            ProhibitedSite::BoundaryCall {
+                block: block_id(1),
+                operation: operation_id(1),
+                boundary: boundary_id(1),
+            }
+        );
+        // An explicit owner join reaches the identical verdict.
         let owned = establish_behavior_exclusions_with_owners(
             &module,
             &entries(),
@@ -970,11 +987,127 @@ fn boundary_ownership_counts_the_owning_service_and_its_parents_without_fixed_re
             &empty_plans(),
             &owners,
         );
-        assert_eq!(owned.verdict(), BehaviorExclusionVerdict::Prohibited);
-        assert_eq!(owned.prohibited.len(), 1);
+        assert_eq!(owned, report);
+    }
+}
+
+#[test]
+fn boundary_without_a_canonical_requirement_identity_contributes_no_owner() {
+    // Identities outside `named-callable(path(Owner::requirement),...)`
+    // carry no decodable owner: the boundary call counts only its spelled
+    // fixed reach.
+    let boundary = boundary_declaration(1); // identity "test::boundary_1"
+    let machine = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(
+                1,
+                OperationKind::BoundaryCall {
+                    boundary: boundary_id(1),
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+            )],
+            ..return_unit_block(1)
+        }],
+    );
+    let mut module = terminal_module(vec![machine], vec![boundary]);
+    module.services.push(terminal_psi::ServiceDeclaration {
+        id: service_id(1),
+        identity: "test".to_owned(),
+        parents: Vec::new(),
+    });
+    assert_eq!(
+        BoundaryServiceOwners::from_module_identities(&module).owner(boundary_id(1)),
+        None
+    );
+    let exclusions =
+        BehaviorExclusions::from_selections([BehaviorExclusion::Service(service_id(1))]);
+    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
+}
+
+#[test]
+fn qualified_and_escaped_owner_paths_rejoin_the_declaring_service() {
+    for (identity, service_identity) in [
+        (
+            "named-callable(path(a::b::Sink::emit),parameters(),result-dispatch())",
+            "a::b::Sink",
+        ),
+        (
+            "named-callable(path(Sink\\(v2\\)::emit),parameters(),result-dispatch())",
+            "Sink(v2)",
+        ),
+    ] {
+        let mut boundary = boundary_declaration(1);
+        boundary.identity = identity.to_owned();
+        let machine = unit_machine(
+            1,
+            vec![Block {
+                operations: vec![unit_operation(
+                    1,
+                    OperationKind::BoundaryCall {
+                        boundary: boundary_id(1),
+                        arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        completion_receipts: Vec::new(),
+                    },
+                )],
+                ..return_unit_block(1)
+            }],
+        );
+        let mut module = terminal_module(vec![machine], vec![boundary]);
+        module.services.push(terminal_psi::ServiceDeclaration {
+            id: service_id(1),
+            identity: service_identity.to_owned(),
+            parents: Vec::new(),
+        });
+        let exclusions =
+            BehaviorExclusions::from_selections([BehaviorExclusion::Service(service_id(1))]);
+        let report =
+            establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
         assert_eq!(
-            owned.prohibited[0].exclusion,
-            BehaviorExclusion::Service(excluded)
+            report.verdict(),
+            BehaviorExclusionVerdict::Prohibited,
+            "boundary identity {identity} must rejoin service {service_identity}"
         );
     }
+}
+
+#[test]
+fn canonical_machine_overload_sharing_a_service_name_counts_conservatively() {
+    // A canonical identity cannot distinguish a trait requirement from an
+    // exact machine overload: `Endpoint::step` reads as owned by a declared
+    // service `Endpoint`. The join counts that service — rejecting rather
+    // than dropping a possible invocation, the direction incomplete
+    // evidence already takes.
+    let mut boundary = boundary_declaration(1);
+    boundary.identity =
+        "named-callable(path(Endpoint::step),parameters(),result-dispatch())".to_owned();
+    let machine = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(
+                1,
+                OperationKind::BoundaryCall {
+                    boundary: boundary_id(1),
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+            )],
+            ..return_unit_block(1)
+        }],
+    );
+    let mut module = terminal_module(vec![machine], vec![boundary]);
+    module.services.push(terminal_psi::ServiceDeclaration {
+        id: service_id(1),
+        identity: "Endpoint".to_owned(),
+        parents: Vec::new(),
+    });
+    let exclusions =
+        BehaviorExclusions::from_selections([BehaviorExclusion::Service(service_id(1))]);
+    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
 }
