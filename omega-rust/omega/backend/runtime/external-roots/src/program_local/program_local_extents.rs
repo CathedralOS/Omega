@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use effects::ComponentEraEntryLedger;
 use extents::{
-    Extent, ExtentLineageId, ExtentProgramLocalOrigin, ExtentRootGrant, ValidatedExtentGeometry,
+    Extent, ExtentLineageId, ExtentProgramLocalOrigin, ExtentRootGrant, OwnedExtentPartition,
+    ValidatedExtentGeometry,
 };
 use language_semantics::content::{CanonicalIntervalSet, NaturalInterval};
 use numerics::bignum::BigInt;
@@ -26,6 +27,64 @@ struct LiveRetention {
     access: RetainedForeignAccess,
 }
 
+/// The conserved siblings of one receiver partition, retained inert inside
+/// the held account for the account's lifetime.
+///
+/// `Extent::partition_owned` splits a receiver extent into up to three
+/// conserved pieces — the lower residual, the selected partition the account
+/// backs onto, and the upper residual. When materialization consumes the
+/// whole partition the residuals stay under the same ledger custody as the
+/// backing instead of remaining ambient authority outside the ledger: while
+/// the account is live no residual can be spent, dropped, or repartitioned,
+/// and retirement rejoins them around the returned partition so the exact
+/// receiver extent is restored rather than a detached range. The merge order
+/// is fixed by the conserved split tree — the selected partition rejoins its
+/// upper sibling first, then the lower residual rejoins the result — which
+/// `OwnedExtentPartition::rejoin` documents and this replays.
+#[derive(Debug, Default)]
+struct ReceiverPartitionResiduals {
+    before: Option<Extent>,
+    after: Option<Extent>,
+}
+
+impl ReceiverPartitionResiduals {
+    fn rejoin(self, selected: Extent) -> Extent {
+        let mut restored = selected;
+        if let Some(after) = self.after {
+            restored = restored
+                .merge(after)
+                .expect("held receiver partition residual remains the exact upper sibling");
+        }
+        if let Some(before) = self.before {
+            restored = before
+                .merge(restored)
+                .expect("held receiver partition residual remains the exact lower sibling");
+        }
+        restored
+    }
+}
+
+/// One fully validated materialization input: the exact established
+/// occurrence, the installed backing its interval capacity equals, and the
+/// conserved receiver-partition residuals retained alongside when the
+/// backing was carved out of a receiver extent. Plain backing inputs carry
+/// empty residuals.
+#[derive(Debug)]
+struct MaterializationMember<'root, 'code> {
+    root: EstablishedProgramLocalRoot<'root, 'code>,
+    backing: Extent,
+    residuals: ReceiverPartitionResiduals,
+}
+
+impl<'root, 'code> MaterializationMember<'root, 'code> {
+    /// Restore the consumed input authority: for a receiver partition the
+    /// residuals merge back around the selected backing into the exact
+    /// receiver extent; for a plain backing this is the identity.
+    fn into_consumed(self) -> (EstablishedProgramLocalRoot<'root, 'code>, Extent) {
+        (self.root, self.residuals.rejoin(self.backing))
+    }
+}
+
 #[derive(Debug)]
 struct HeldProgramLocalExtent<'root, 'code> {
     root: EstablishedProgramLocalRoot<'root, 'code>,
@@ -45,6 +104,10 @@ struct HeldProgramLocalExtent<'root, 'code> {
     /// returns the exact backing so the caller can rejoin it into the
     /// installed storage it was partitioned from.
     backing: Extent,
+    /// The receiver-partition residuals held beside `backing` when the
+    /// account materialized over an `OwnedExtentPartition`; empty for plain
+    /// backing inputs.
+    residuals: ReceiverPartitionResiduals,
     retained: BTreeMap<RetainedForeignArgumentId, LiveRetention>,
 }
 
@@ -107,7 +170,89 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                 }));
             }
         }
-        self.mint_held(inputs)
+        self.mint_held(
+            inputs
+                .into_iter()
+                .map(|(root, backing)| MaterializationMember {
+                    root,
+                    backing,
+                    residuals: ReceiverPartitionResiduals::default(),
+                })
+                .collect(),
+        )
+    }
+
+    /// Materialize one established root over the receiver partition carved
+    /// out of installed writable backing by `Extent::partition_owned`.
+    ///
+    /// Where [`ProgramLocalExtentRegistry::materialize`] consumes a bare
+    /// backing Extent and leaves the partition residuals as ambient authority
+    /// outside the ledger, this route consumes the whole
+    /// [`OwnedExtentPartition`]: the selected member is validated as the
+    /// account's backing exactly as there, and the conserved lower/upper
+    /// residuals are retained inert inside the held account for the same
+    /// occurrence and lifecycle epoch — they cannot be spent, dropped, or
+    /// repartitioned while the program-local account is live. Completion
+    /// rejoins them around the returned partition, so
+    /// [`RetiredProgramLocalExtent::backing`] restores the exact receiver
+    /// extent rather than a detached range.
+    ///
+    /// The selected member must equal the root's evaluated interval capacity
+    /// and cannot carry a program-local origin: partitioning a held
+    /// program-local account's Extent cannot reticket the same installed
+    /// range under a second occurrence. Rejection returns the input with its
+    /// partition rejoined into the restored receiver extent.
+    pub fn materialize_over_receiver(
+        &mut self,
+        root: EstablishedProgramLocalRoot<'root, 'code>,
+        receiver_partition: OwnedExtentPartition,
+    ) -> Result<Extent, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
+        let [extent]: [Extent; 1] = self
+            .materialize_batch_over_receiver(vec![(root, receiver_partition)])?
+            .try_into()
+            .expect("one receiver partition materializes one Extent");
+        Ok(extent)
+    }
+
+    /// Batch counterpart of
+    /// [`ProgramLocalExtentRegistry::materialize_over_receiver`]: every
+    /// member's partition is validated before any Extent mints or any
+    /// residual is retained. Rejection returns each input with its partition
+    /// rejoined into the restored receiver extent.
+    pub fn materialize_batch_over_receiver(
+        &mut self,
+        inputs: Vec<(
+            EstablishedProgramLocalRoot<'root, 'code>,
+            OwnedExtentPartition,
+        )>,
+    ) -> Result<Vec<Extent>, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
+        let mut origins = BTreeSet::new();
+        for (root, partition) in &inputs {
+            if let Err(diagnostic) =
+                self.validate_materialization_member(&mut origins, root, partition.selected())
+            {
+                return Err(Box::new(ProgramLocalExtentMaterializationError {
+                    inputs: inputs
+                        .into_iter()
+                        .map(|(root, partition)| (root, partition.rejoin()))
+                        .collect(),
+                    diagnostic,
+                }));
+            }
+        }
+        self.mint_held(
+            inputs
+                .into_iter()
+                .map(|(root, partition)| {
+                    let (before, backing, after) = partition.into_parts();
+                    MaterializationMember {
+                        root,
+                        backing,
+                        residuals: ReceiverPartitionResiduals { before, after },
+                    }
+                })
+                .collect(),
+        )
     }
 
     /// Atomically materialize the complete live membership of one
@@ -225,7 +370,141 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                 ),
             }));
         }
-        self.mint_held(inputs)
+        self.mint_held(
+            inputs
+                .into_iter()
+                .map(|(root, backing)| MaterializationMember {
+                    root,
+                    backing,
+                    residuals: ReceiverPartitionResiduals::default(),
+                })
+                .collect(),
+        )
+    }
+
+    /// The receiver-partition counterpart of
+    /// [`ProgramLocalExtentRegistry::materialize_aggregate`]: each presented
+    /// member is a whole [`OwnedExtentPartition`] carved out of installed
+    /// writable backing, the selected member of each is validated and
+    /// composed exactly as there, and every partition's conserved residuals
+    /// are retained inert inside its held account for the same occurrence
+    /// and lifecycle epoch. Completion of the discharged membership rejoins
+    /// each member's residuals around its returned partition, restoring the
+    /// exact receiver extents the partitions were carved from.
+    ///
+    /// Rejection — a stale or substituted aggregate, a repeated occurrence,
+    /// a mismatched selected member, mixed address spaces, overlapping
+    /// partitions, or an under-covering composition — returns each input
+    /// with its partition rejoined into the restored receiver extent.
+    pub fn materialize_aggregate_over_receiver(
+        &mut self,
+        installation: &ProgramLocalRootInstallationLedger,
+        lifecycle: &ComponentEraEntryLedger,
+        aggregate: &ProgramLocalRootEpochAggregateCapacity,
+        inputs: Vec<(
+            EstablishedProgramLocalRoot<'root, 'code>,
+            OwnedExtentPartition,
+        )>,
+    ) -> Result<Vec<Extent>, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
+        let rejoin_inputs = |inputs: Vec<(
+            EstablishedProgramLocalRoot<'root, 'code>,
+            OwnedExtentPartition,
+        )>,
+                             diagnostic| {
+            Box::new(ProgramLocalExtentMaterializationError {
+                inputs: inputs
+                    .into_iter()
+                    .map(|(root, partition)| (root, partition.rejoin()))
+                    .collect(),
+                diagnostic,
+            })
+        };
+        let Some(required) = aggregate.capacity().interval_set() else {
+            return Err(rejoin_inputs(
+                inputs,
+                ExternalRootDiagnostic(
+                    "counted program-local aggregate capacity cannot materialize Extent partitions"
+                        .into(),
+                ),
+            ));
+        };
+        let fresh = match installation
+            .reconstruct_aggregate_capacity(lifecycle, inputs.iter().map(|(root, _)| root))
+        {
+            Ok(fresh) => fresh,
+            Err(diagnostic) => {
+                return Err(rejoin_inputs(inputs, diagnostic));
+            }
+        };
+        if fresh != *aggregate {
+            return Err(rejoin_inputs(
+                inputs,
+                ExternalRootDiagnostic(
+                    "presented program-local aggregate capacity is stale or substituted for the live reconstructed membership".into(),
+                ),
+            ));
+        }
+
+        let mut origins = BTreeSet::new();
+        let mut backings = Vec::with_capacity(inputs.len());
+        for (root, partition) in &inputs {
+            if let Err(diagnostic) =
+                self.validate_materialization_member(&mut origins, root, partition.selected())
+            {
+                return Err(rejoin_inputs(inputs, diagnostic));
+            }
+            backings.push(partition.selected());
+        }
+        if backings
+            .windows(2)
+            .any(|pair| pair[0].address_space() != pair[1].address_space())
+        {
+            return Err(rejoin_inputs(
+                inputs,
+                ExternalRootDiagnostic(
+                    "program-local aggregate backing partitions span distinct address spaces"
+                        .into(),
+                ),
+            ));
+        }
+        let covered = match CanonicalIntervalSet::new(backings.iter().map(|extent| {
+            NaturalInterval::new(
+                BigInt::from_u64(extent.base()),
+                BigInt::from_u64(extent.end()),
+            )
+            .expect("validated installed backing is a nonempty proof-natural interval")
+        })) {
+            Ok(covered) => covered,
+            Err(_overlap) => {
+                return Err(rejoin_inputs(
+                    inputs,
+                    ExternalRootDiagnostic(
+                        "program-local aggregate backing partitions overlap".into(),
+                    ),
+                ));
+            }
+        };
+        if covered != *required {
+            return Err(rejoin_inputs(
+                inputs,
+                ExternalRootDiagnostic(
+                    "installed backing partitions do not compose the exact reconstructed aggregate capacity".into(),
+                ),
+            ));
+        }
+        self.mint_held(
+            inputs
+                .into_iter()
+                .map(|(root, partition)| {
+                    let (before, backing, after) = partition.into_parts();
+                    MaterializationMember {
+                        root,
+                        backing,
+                        residuals: ReceiverPartitionResiduals { before, after },
+                    }
+                })
+                .collect(),
+        )
     }
 
     /// Reject one member/backing pair before commitment: the exact
@@ -249,16 +528,21 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
 
     /// Commit a fully validated member/backing batch: reserve one lineage
     /// identity per member, mint each program-local Extent over its backing's
-    /// own runtime facts, and retain the accounts.
+    /// own runtime facts, and retain the accounts — including each member's
+    /// receiver-partition residuals. Rejection returns every input's full
+    /// consumed authority, rejoining residuals around their selected backing.
     fn mint_held(
         &mut self,
-        inputs: Vec<(EstablishedProgramLocalRoot<'root, 'code>, Extent)>,
+        members: Vec<MaterializationMember<'root, 'code>>,
     ) -> Result<Vec<Extent>, Box<ProgramLocalExtentMaterializationError<'root, 'code>>> {
-        let count = match u64::try_from(inputs.len()) {
+        let count = match u64::try_from(members.len()) {
             Ok(count) => count,
             Err(_) => {
                 return Err(Box::new(ProgramLocalExtentMaterializationError {
-                    inputs,
+                    inputs: members
+                        .into_iter()
+                        .map(MaterializationMember::into_consumed)
+                        .collect(),
                     diagnostic: ExternalRootDiagnostic(
                         "program-local Extent batch cardinality does not fit its lineage space"
                             .into(),
@@ -268,7 +552,10 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         };
         let Some(next_lineage) = self.next_lineage.checked_add(count) else {
             return Err(Box::new(ProgramLocalExtentMaterializationError {
-                inputs,
+                inputs: members
+                    .into_iter()
+                    .map(MaterializationMember::into_consumed)
+                    .collect(),
                 diagnostic: ExternalRootDiagnostic(
                     "program-local Extent lineage space is exhausted".into(),
                 ),
@@ -277,8 +564,13 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
 
         let first_lineage = self.next_lineage;
         self.next_lineage = next_lineage;
-        let mut extents = Vec::with_capacity(inputs.len());
-        for (offset, (root, backing)) in inputs.into_iter().enumerate() {
+        let mut extents = Vec::with_capacity(members.len());
+        for (offset, member) in members.into_iter().enumerate() {
+            let MaterializationMember {
+                root,
+                backing,
+                residuals,
+            } = member;
             let origin = exact_origin(&root)
                 .expect("validated established program-local origin remains exact");
             let lineage = ExtentLineageId::from_normalized_identity(
@@ -302,6 +594,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                     root,
                     lineage,
                     backing,
+                    residuals,
                     retained: BTreeMap::new(),
                 },
             );
@@ -376,8 +669,11 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
     /// Consume the exact recombined root Extent and release its retained
     /// installed occurrence. Split descendants and substituted runtime facts
     /// reject without removing the held account. Success returns the exact
-    /// installed backing consumed at materialization, completing the
-    /// account's custody of that range. The aggregate counterpart
+    /// installed authority consumed at materialization, completing the
+    /// account's custody of that range — for an account materialized over a
+    /// receiver partition the retained residuals rejoin around the selected
+    /// backing, so the returned extent is the restored receiver itself. The
+    /// aggregate counterpart
     /// [`ProgramLocalExtentRegistry::retire_aggregate`] completes one
     /// aggregate schema group's complete live membership in the same epoch.
     pub fn retire(
@@ -400,6 +696,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
             root,
             lineage,
             backing,
+            residuals,
             retained,
         } = self
             .held
@@ -408,7 +705,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         match installation.retire_established(root, lifecycle) {
             Ok(occurrence) => Ok(RetiredProgramLocalExtent {
                 occurrence,
-                backing,
+                backing: residuals.rejoin(backing),
             }),
             Err(error) => {
                 let root = (*error).into_root();
@@ -418,6 +715,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                         root,
                         lineage,
                         backing,
+                        residuals,
                         retained,
                     },
                 );
@@ -450,9 +748,11 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
     /// roll the single-account [`ProgramLocalExtentRegistry::retire`] route
     /// still releases each held occurrence's stale-era lease. Success
     /// releases every member's lifecycle lease through the exact ledger
-    /// retirement and returns each member's installed backing — the receiver
-    /// partitions consumed at materialization — in presented order for
-    /// rejoin into installed storage. A counted aggregate names no
+    /// retirement and returns each member's installed authority — the
+    /// receiver partitions consumed at materialization, each rejoined with
+    /// its retained residuals into the restored receiver extent — in
+    /// presented order for rejoin into installed storage. A counted
+    /// aggregate names no
     /// Extent-partitioned membership and rejects, as does an empty member
     /// set.
     pub fn retire_aggregate(
@@ -535,6 +835,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                 root,
                 lineage,
                 backing,
+                residuals,
                 retained,
             } = self
                 .held
@@ -543,7 +844,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
             match installation.retire_established(root, lifecycle) {
                 Ok(occurrence) => retired.push(RetiredProgramLocalExtent {
                     occurrence,
-                    backing,
+                    backing: residuals.rejoin(backing),
                 }),
                 Err(error) => {
                     let root = (*error).into_root();
@@ -553,6 +854,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                             root,
                             lineage,
                             backing,
+                            residuals,
                             retained,
                         },
                     );
@@ -618,8 +920,12 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
 }
 
 /// Result of one program-local Extent account retirement: the released exact
-/// installed occurrence plus the actual installed backing consumed at
-/// materialization, returned to the caller's custody.
+/// installed occurrence plus the actual installed authority consumed at
+/// materialization, returned to the caller's custody. For an account
+/// materialized over an [`OwnedExtentPartition`] the consumed authority is
+/// the whole partition, so `backing` is the receiver extent restored by
+/// rejoining the retained residuals around the returned partition — not a
+/// detached range of it.
 #[derive(Debug)]
 pub struct RetiredProgramLocalExtent {
     occurrence: RetiredProgramLocalRootOccurrence,
@@ -640,6 +946,10 @@ impl RetiredProgramLocalExtent {
     }
 }
 
+/// Rejection of a materialization route. Every input's full consumed
+/// authority returns in presented order — for a receiver-partition input the
+/// partition is rejoined into the restored receiver extent first, so no
+/// residual is dropped into ambient custody on failure.
 #[derive(Debug)]
 pub struct ProgramLocalExtentMaterializationError<'root, 'code> {
     inputs: Vec<(EstablishedProgramLocalRoot<'root, 'code>, Extent)>,
@@ -651,6 +961,8 @@ impl<'root, 'code> ProgramLocalExtentMaterializationError<'root, 'code> {
         &self.diagnostic
     }
 
+    /// Consume into the inputs with each receiver partition rejoined into
+    /// its restored receiver extent.
     pub fn into_inputs(self) -> Vec<(EstablishedProgramLocalRoot<'root, 'code>, Extent)> {
         self.inputs
     }

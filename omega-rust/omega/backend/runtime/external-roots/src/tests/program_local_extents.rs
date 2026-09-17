@@ -1982,3 +1982,525 @@ fn aggregate_retirement_rejects_cross_group_blocked_and_foreign_members() {
     assert_eq!(registry.held_accounts(), 0);
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
 }
+
+#[test]
+fn receiver_partition_materialization_holds_residuals_until_completion_restores_the_receiver() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        787,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 887, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 987, 10);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject(&root, &activation, 1087, 0x4040, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+
+    // The registry consumes the whole receiver partition: the selected
+    // member backs the account and the conserved residuals stay held inside
+    // it for the account's epoch rather than ambient outside the ledger.
+    let partition = installed_backing_extent(733, 0x4000, 0x200, 30)
+        .partition_owned(0x40, 0x100)
+        .expect("exact receiver partition");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let mut extent = registry
+        .materialize_over_receiver(established, partition)
+        .expect("receiver partition materializes the exact occurrence");
+    assert_eq!(extent.base(), 0x4040);
+    assert_eq!(extent.length(), 0x100);
+    assert_eq!(registry.held_accounts(), 1);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+
+    // The establishing activation still borrows a subrange of the partition.
+    {
+        let loan = registry
+            .loan_mut_under_activation(&activation, &mut extent, 0x10, 0x20)
+            .expect("exclusive activation loan over the receiver partition");
+        assert_eq!(loan.base(), 0x4050);
+        assert_eq!(loan.length(), 0x20);
+    }
+
+    // Completion rejoins the retained residuals: the returned backing is the
+    // restored receiver extent, not a detached partition range.
+    let retired = registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("recombined root completes the receiver account");
+    let restored = retired.into_backing();
+    assert!(restored.is_lineage_root());
+    assert_eq!(restored.base(), 0x4000);
+    assert_eq!(restored.length(), 0x200);
+    assert_eq!(
+        restored.era(),
+        extent_id(30, MappingEraId::from_normalized_identity)
+    );
+    assert!(
+        restored
+            .provider_issuance()
+            .is_some_and(|issuance| issuance == extent_provider_issuance(733))
+    );
+}
+
+#[test]
+fn receiver_partition_materialization_rejects_and_restores_the_receiver() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        788,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 888, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 988, 10);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject(&root, &activation, 1088, 0x4040, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+
+    // A partition whose selected member does not equal the evaluated
+    // interval capacity rejects, and the returned input is the receiver
+    // extent restored whole — no residual is left carved outside the ledger.
+    let mismatched = installed_backing_extent(734, 0x4000, 0x200, 30)
+        .partition_owned(0x60, 0x100)
+        .expect("mismatched receiver partition");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let rejected = registry
+        .materialize_over_receiver(established, mismatched)
+        .expect_err("a mismatched selected partition cannot back the account");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("does not equal its established interval capacity")
+    );
+    let [(established, receiver)] = (*rejected)
+        .into_inputs()
+        .try_into()
+        .expect("rejection returns the member input");
+    assert!(receiver.is_lineage_root());
+    assert_eq!(receiver.base(), 0x4000);
+    assert_eq!(receiver.length(), 0x200);
+    assert_eq!(registry.held_accounts(), 0);
+
+    // The restored receiver partitions again and discharges the same member.
+    let partition = receiver
+        .partition_owned(0x40, 0x100)
+        .expect("exact receiver partition");
+    let extent = registry
+        .materialize_over_receiver(established, partition)
+        .expect("the restored receiver discharges the same member");
+    let retired = registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("recombined root completes the receiver account");
+    let restored = retired.into_backing();
+    assert!(restored.is_lineage_root());
+    assert_eq!(restored.base(), 0x4000);
+    assert_eq!(restored.length(), 0x200);
+}
+
+#[test]
+fn receiver_partition_materialization_cannot_reticket_held_program_local_authority() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_two_schema_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let claims = vec![program_local_claim_at(0), program_local_claim_at(1)];
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_two_parameter_roots(&mut code, entry, claims);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [first_prebinding, second_prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("two verified installed Extent prebindings")
+        .try_into()
+        .expect("two producer schemas");
+    let mut lifecycle = program_local_lifecycle(
+        789,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let first_lease = program_local_epoch_lease(&mut lifecycle, 889, 10, "TestRoot::entry");
+    let second_lease = program_local_epoch_lease(&mut lifecycle, 890, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [
+                ProgramLocalRootCohortMember::new(first_prebinding.identity(), &root, first_lease),
+                ProgramLocalRootCohortMember::new(
+                    second_prebinding.identity(),
+                    &root,
+                    second_lease,
+                ),
+            ],
+        )
+        .expect("exact two-schema Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 989, 10);
+    let first = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject_at(&root, &activation, 1089, 0, 0, 0x4040, 0x100),
+        )
+        .expect("first schema establishes on its exact parameter subject");
+    let second = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject_at(&root, &activation, 1090, 1, 1, 0x5040, 0x100),
+        )
+        .expect("second schema establishes on its exact parameter subject");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extent_a = registry
+        .materialize_over_receiver(
+            first,
+            installed_backing_extent(735, 0x4000, 0x200, 30)
+                .partition_owned(0x40, 0x100)
+                .expect("first receiver partition"),
+        )
+        .expect("first receiver partition materializes");
+
+    // A partition carved out of a held program-local Extent is not installed
+    // backing: it cannot reticket the same range under a second occurrence,
+    // and the rejection rejoins it into the exact minted Extent.
+    let reticket = extent_a
+        .partition_owned(0x10, 0x40)
+        .expect("held account partition");
+    let rejected = registry
+        .materialize_over_receiver(second, reticket)
+        .expect_err("a held program-local Extent is not installed backing");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("requires actual installed backing")
+    );
+    let [(second, extent_a)] = (*rejected)
+        .into_inputs()
+        .try_into()
+        .expect("rejection returns the member input");
+    assert!(extent_a.is_lineage_root());
+    assert_eq!(registry.held_accounts(), 1);
+
+    // The returned minted Extent still completes its own account, restoring
+    // the first receiver, and the second member materializes over its own
+    // receiver partition.
+    let retired = registry
+        .retire(extent_a, &mut installation, &mut lifecycle)
+        .expect("first receiver account completes");
+    assert_eq!(retired.backing().base(), 0x4000);
+    assert_eq!(retired.backing().length(), 0x200);
+    let extent_b = registry
+        .materialize_over_receiver(
+            second,
+            installed_backing_extent(736, 0x5000, 0x200, 30)
+                .partition_owned(0x40, 0x100)
+                .expect("second receiver partition"),
+        )
+        .expect("second receiver partition materializes");
+    let retired = registry
+        .retire(extent_b, &mut installation, &mut lifecycle)
+        .expect("second receiver account completes");
+    assert!(retired.backing().is_lineage_root());
+    assert_eq!(retired.backing().base(), 0x5000);
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn aggregate_over_receiver_partitions_complete_with_restored_receivers() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        790,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 891, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 991, 10);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject(&root, &activation, 1091, 0x4040, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&established])
+        .expect("the live group reconstructs its aggregate capacity");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let [extent] = registry
+        .materialize_aggregate_over_receiver(
+            &installation,
+            &lifecycle,
+            &aggregate,
+            vec![(
+                established,
+                installed_backing_extent(737, 0x4000, 0x200, 30)
+                    .partition_owned(0x40, 0x100)
+                    .expect("exact receiver partition"),
+            )],
+        )
+        .expect("the aggregate discharges over the receiver partition")
+        .try_into()
+        .expect("one minted program-local Extent");
+    assert_eq!(extent.base(), 0x4040);
+    assert_eq!(registry.held_accounts(), 1);
+
+    let [retired]: [_; 1] = registry
+        .retire_aggregate(&mut installation, &mut lifecycle, &aggregate, vec![extent])
+        .expect("the complete live membership completes in its epoch")
+        .try_into()
+        .expect("one retired member");
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+
+    // Aggregate completion rejoined the retained residuals: the member's
+    // returned backing is the receiver extent restored whole.
+    let restored = retired.into_backing();
+    assert!(restored.is_lineage_root());
+    assert_eq!(restored.base(), 0x4000);
+    assert_eq!(restored.length(), 0x200);
+    assert!(
+        restored
+            .provider_issuance()
+            .is_some_and(|issuance| issuance == extent_provider_issuance(737))
+    );
+}
+
+#[test]
+fn batch_over_receiver_partitions_retains_each_member_residuals() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_two_schema_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let claims = vec![program_local_claim_at(0), program_local_claim_at(1)];
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_two_parameter_roots(&mut code, entry, claims);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [first_prebinding, second_prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("two verified installed Extent prebindings")
+        .try_into()
+        .expect("two producer schemas");
+    let mut lifecycle = program_local_lifecycle(
+        791,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let first_lease = program_local_epoch_lease(&mut lifecycle, 892, 10, "TestRoot::entry");
+    let second_lease = program_local_epoch_lease(&mut lifecycle, 893, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [
+                ProgramLocalRootCohortMember::new(first_prebinding.identity(), &root, first_lease),
+                ProgramLocalRootCohortMember::new(
+                    second_prebinding.identity(),
+                    &root,
+                    second_lease,
+                ),
+            ],
+        )
+        .expect("exact two-schema Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 992, 10);
+    let first = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject_at(&root, &activation, 1092, 0, 0, 0x4040, 0x100),
+        )
+        .expect("first schema establishes on its exact parameter subject");
+    let second = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject_at(&root, &activation, 1093, 1, 1, 0x5040, 0x100),
+        )
+        .expect("second schema establishes on its exact parameter subject");
+
+    // Each member's receiver partition retains its own residuals under the
+    // account; a member whose partition does not match its interval rejects
+    // the whole batch and restores every receiver.
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let rejected = registry
+        .materialize_batch_over_receiver(vec![
+            (
+                first,
+                installed_backing_extent(738, 0x4000, 0x200, 30)
+                    .partition_owned(0x40, 0x100)
+                    .expect("first receiver partition"),
+            ),
+            (
+                second,
+                installed_backing_extent(739, 0x5000, 0x200, 30)
+                    .partition_owned(0x80, 0x100)
+                    .expect("mismatched second receiver partition"),
+            ),
+        ])
+        .expect_err("a mismatched member partition rejects the whole batch");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("does not equal its established interval capacity")
+    );
+    let receivers = (*rejected).into_inputs();
+    assert_eq!(receivers.len(), 2);
+    for (_, receiver) in &receivers {
+        assert!(receiver.is_lineage_root());
+        assert_eq!(receiver.length(), 0x200);
+    }
+    assert_eq!(registry.held_accounts(), 0);
+
+    // The restored receivers discharge the batch; each account's completion
+    // rejoins its residuals into the exact receiver extent.
+    let mut members = receivers.into_iter();
+    let (first, first_receiver) = members.next().expect("first member input");
+    let (second, second_receiver) = members.next().expect("second member input");
+    let mut extents = registry
+        .materialize_batch_over_receiver(vec![
+            (
+                first,
+                first_receiver
+                    .partition_owned(0x40, 0x100)
+                    .expect("first receiver partition"),
+            ),
+            (
+                second,
+                second_receiver
+                    .partition_owned(0x40, 0x100)
+                    .expect("second receiver partition"),
+            ),
+        ])
+        .expect("both members materialize over their receiver partitions");
+    let extent_b = extents.pop().expect("second member extent");
+    let [extent_a]: [_; 1] = extents.try_into().expect("first member extent");
+    assert_eq!(registry.held_accounts(), 2);
+
+    let retired_a = registry
+        .retire(extent_a, &mut installation, &mut lifecycle)
+        .expect("first receiver account completes");
+    let retired_b = registry
+        .retire(extent_b, &mut installation, &mut lifecycle)
+        .expect("second receiver account completes");
+    for (retired, base) in [(retired_a, 0x4000), (retired_b, 0x5000)] {
+        let restored = retired.into_backing();
+        assert!(restored.is_lineage_root());
+        assert_eq!(restored.base(), base);
+        assert_eq!(restored.length(), 0x200);
+    }
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
