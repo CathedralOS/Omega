@@ -93,12 +93,36 @@ fn unit_body_affine_local_slice_fences_every_wider_local_shape() {
         checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
     ] if result.multiplicity == Multiplicity::Affine && result.statement_index == 0 && result.binding_ordinal == 0
         && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
-    for machine in [
-        "nonempty_local",
-        "qualified_local",
-        "nominal_cleanup_local",
-        "local_after_effect",
-    ] {
+    // A plain affine record local is an ordinary structural value since
+    // 8e95b1eba7: it is established once and its disposal debt is discharged
+    // on return, so it no longer sits outside the bounded slice.
+    let nonempty = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "nonempty_local"))
+        .expect("plain affine record local establishes once and discards on return");
+    assert!(matches!(nonempty.operations.as_slice(), [
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
+        checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
+    ] if result.multiplicity == Multiplicity::Affine && result.statement_index == 0 && result.binding_ordinal == 0
+        && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
+    // An affine local after an effect is the same ordinary statement sequence
+    // with one more statement, not a separate family: the port write precedes
+    // the establishment and the disposal debt is still discharged on return.
+    let after_effect = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "local_after_effect"))
+        .expect("an affine local after an effect sequences behind that effect");
+    assert!(matches!(after_effect.operations.as_slice(), [
+        checked_trees::CheckedUnitEffectOperationPlan::PortWrite { port: 32, value: 7, .. },
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: true, .. },
+        checked_trees::CheckedUnitEffectOperationPlan::Complete { trivial_affine_discards, trivial_affine_local_discard_ordinals, .. }
+    ] if result.multiplicity == Multiplicity::Affine && result.statement_index == 1 && result.binding_ordinal == 0
+        && trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty()));
+    for machine in ["qualified_local", "nominal_cleanup_local"] {
         assert!(
             checked
                 .facts
