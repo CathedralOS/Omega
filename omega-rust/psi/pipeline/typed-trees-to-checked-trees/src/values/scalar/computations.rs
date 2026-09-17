@@ -495,15 +495,21 @@ pub(crate) fn build_checked_value_computation_plans(
                     else {
                         continue;
                     };
-                    let target_parameters = program.state_parameters(target_state);
+                    // Authored actuals exclude the implicit receiver. Each
+                    // argument keeps its full target parameter position so the
+                    // recorded role joins the pure expression plan, the saved
+                    // jump-argument capture, and every downstream consumer on
+                    // the same coordinate.
+                    let target_parameters = program
+                        .state_parameters(target_state)
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, parameter)| !parameter.is_self);
                     let arguments = program.statement_table.expression_handles(*arguments);
-                    if arguments.len() != target_parameters.len() {
-                        continue;
-                    }
-                    for (argument_index, (argument, parameter)) in
-                        arguments.iter().zip(target_parameters).enumerate()
+                    for (argument, (target_position, parameter)) in
+                        arguments.iter().zip(target_parameters)
                     {
-                        let Ok(argument_ordinal) = u32::try_from(argument_index) else {
+                        let Ok(argument_ordinal) = u32::try_from(target_position) else {
                             continue;
                         };
                         let role = if continuation {
