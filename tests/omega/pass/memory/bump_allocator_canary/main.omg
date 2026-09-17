@@ -113,8 +113,50 @@
 //   ambiguous shape the boundary rejected. A container over this chain
 //   today is therefore `BumpVec`: one live buffer plus the strategy,
 //   opened under the exact capacity requirement and closed by recomposing
-//   buffer and tail. Growth, resident elements, and element `length` all
-//   wait on placed access and on the outcome/custody edges above.
+//   buffer and tail. Growth and element `length` still wait on the
+//   outcome/custody edges above; resident elements now have the custody
+//   route below.
+//
+// Resident custody over an issued extent (`exercise_resident`): one
+// establishment of an owned `Slot` into a `Vacant` allocation yielding
+// `Extent in Granted & Resident<SlotPlacement, Slot>`, one read view, one
+// owned retirement back to `Granted & Vacant`, then recomposition with the
+// tail. The establishment crosses the package boundary `ResidentStorage`,
+// the provider-issuance route of placed_access.md ("`ResidentContentTransfer
+// <P, T>` introduces it only at an exact installed/provider-issuance
+// occurrence"), spelled here as one concrete application. The compiler-owned
+// `Initialize` family (encode an owned `T` into exclusive `Vacant` Stable
+// storage under `P`'s evaluated plan) is not declared, so this pins the
+// custody shape the placed operations must satisfy, not the encoding:
+// - Recomposition refuses a live resident: constructing a `Split` field
+//   from `Occupied.storage` drops `Resident<SlotPlacement, Slot>`, which the
+//   weakening check rejects, so `reset`/`close` cannot fold an occupied
+//   allocation back (`tests/omega/fail/memory/bump_allocator_reset_with_live_resident`).
+// - A resident cannot be dropped: `Occupied.storage` is linear qualified
+//   custody, so only `retire` disposes of it
+//   (`tests/omega/fail/memory/bump_allocator_resident_dropped`).
+// - An occupied slot cannot be placed again: `place` requires `Vacant`,
+//   which an occupied storage does not carry
+//   (`tests/omega/fail/memory/bump_allocator_place_into_occupied`).
+//
+// Discovered edges that fix the spelling:
+// - `ensures result in Granted & Resident<SlotPlacement, Slot>` does not
+//   parse in proof-fact position (the indexed domain's `<` is read as a
+//   comparison), so `place` returns the `Occupied` record whose field
+//   carries the domain in type position, as `Split` and `Retired` do.
+// - Restating `placed.storage` into a typed local
+//   `Extent in Granted & Resident<SlotPlacement, Slot>` keeps the domain
+//   for weakening and linearity but not for a call's `requires`: an indexed
+//   membership is proved only against an exact instance identity, which the
+//   restatement does not supply, so `read(&resident)`/`retire(resident)`
+//   report `resident in Resident<...>` unprovable. The resident family
+//   therefore stays inside `Occupied` and is consumed atomically —
+//   `read(&Occupied)`, `retire(Occupied)` — the record rule the header
+//   already states for issued allocations.
+// - A generic `boundary trait ResidentContentTransfer<P, T>` with an
+//   `Occupied<P, T>` result parses and types, so lifting this concrete
+//   route into the core schema is mechanical once its signature and receipt
+//   semantics are settled.
 use omega::language::core::extent;
 use omega::language::core::content;
 
@@ -451,6 +493,72 @@ reaches ExtentPartition
         rest: upper_and_tail,
     });
     restored as Extent
+}
+
+// Element type and the placement-policy index it is resident under. The
+// index is identity only: no plan is evaluated for it here.
+data Slot [copy] {
+    value: u32;
+}
+
+data SlotPlacement {}
+
+// Established custody: the allocation now carries one complete live `Slot`.
+// The record, not a bare extent, is what crosses machines (see the header's
+// restatement edge).
+data Occupied {
+    storage: Extent in Granted & Resident<SlotPlacement, Slot>;
+}
+
+// Owned retirement: the storage returns to `Vacant` and the value moves out.
+data Retired {
+    storage: Extent in Granted & Vacant;
+    value: Slot;
+}
+
+// The provider-issuance route for one concrete `(SlotPlacement, Slot)`
+// application. `place` and `retire` conserve the extent's content; `read`
+// is a borrowed view returning a copy of the resident value.
+boundary trait ResidentStorage {
+    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
+    ensures
+        Granted::content(old(&storage)) == Granted::content(&result.storage);
+
+    machine read(placed: &Occupied) -> Slot;
+
+    machine retire(placed: Occupied) -> Retired
+    ensures
+        Granted::content(old(&placed.storage)) == Granted::content(&result.storage);
+}
+
+// One allocation, established, read, retired, and recomposed with the tail.
+machine exercise_resident(
+    partition: &ExtentPartition,
+    storage: &ResidentStorage,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    16 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition, ResidentStorage
+{
+    let issued: Issued = allocate(
+        partition,
+        Bump { tail: whole, remaining: capacity },
+        16,
+    );
+    let tail: Extent in Granted & Vacant = issued.strategy.tail;
+    let vacant: Extent in Granted & Vacant = issued.allocation;
+    let placed: Occupied = storage.place(vacant, Slot { value: 7 });
+    let observed: Slot = storage.read(&placed);
+    let retired: Retired = storage.retire(placed);
+    let released: Extent in Granted & Vacant = retired.storage;
+    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+        taken: released,
+        rest: tail,
+    });
+    recomposed as Extent
 }
 
 data Main {}

@@ -1,0 +1,77 @@
+// A live resident cannot be dropped: `Occupied.storage` is linear qualified
+// custody, so a machine that establishes a resident and never retires it is
+// rejected. The pass-side sibling
+// (`tests/omega/pass/memory/bump_allocator_canary`, `exercise_resident`)
+// disposes of it through `ResidentStorage::retire`.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Split {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+
+boundary trait ExtentPartition {
+    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
+    ensures
+        Granted::content(old(&whole))
+        == separate(
+            Granted::content(&result.taken),
+            Granted::content(&result.rest),
+        );
+
+    machine merge(parts: Split) -> Extent
+    ensures
+        result in Granted & Vacant,
+        separate(
+            Granted::content(old(&parts.taken)),
+            Granted::content(old(&parts.rest)),
+        )
+        == Granted::content(&result);
+}
+
+data Slot [copy] {
+    value: u32;
+}
+
+data SlotPlacement {}
+
+data Occupied {
+    storage: Extent in Granted & Resident<SlotPlacement, Slot>;
+}
+
+data Retired {
+    storage: Extent in Granted & Vacant;
+    value: Slot;
+}
+
+boundary trait ResidentStorage {
+    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
+    ensures
+        Granted::content(old(&storage)) == Granted::content(&result.storage);
+
+    machine read(placed: &Occupied) -> Slot;
+
+    machine retire(placed: Occupied) -> Retired
+    ensures
+        Granted::content(old(&placed.storage)) == Granted::content(&result.storage);
+}
+
+machine exercise(
+    partition: &ExtentPartition,
+    storage: &ResidentStorage,
+    whole: Extent in Granted & Vacant
+) -> Extent
+reaches ExtentPartition, ResidentStorage
+{
+    let parts: Split = partition.split(whole, 16);
+    let vacant: Extent in Granted & Vacant = parts.taken;
+    let tail: Extent in Granted & Vacant = parts.rest;
+    let placed: Occupied = storage.place(vacant, Slot { value: 7 });
+    let observed: Slot = storage.read(&placed);
+    tail as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
