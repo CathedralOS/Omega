@@ -69,9 +69,11 @@ improvement.
 
 ## Commits and reasoning
 
-Commit naming follows the AGENTS.md lanes (`lane: statement`). Preserve the
-reasoning a next reader needs on the common reading path, per the advance
-skill.
+Commit naming follows the AGENTS.md lanes (`lane: statement`). Every commit
+carries a body covering the previous behavior, rejected alternatives, and the
+gates that ran — omit it only when the subject already carries the full
+reasoning (AGENTS.md commit convention). Preserve the reasoning a next reader
+needs on the common reading path, per the advance skill.
 
 ## Structured output
 
