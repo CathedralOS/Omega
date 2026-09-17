@@ -1,5 +1,6 @@
 [package]
 name = "terminal-codec"
+autotests = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -20,3 +21,7 @@ sha2 = "0.10"
 
 [dev-dependencies]
 numerics = { path = "../../foundation/numerics" }
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"

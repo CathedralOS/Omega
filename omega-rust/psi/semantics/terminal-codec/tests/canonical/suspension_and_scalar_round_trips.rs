@@ -3,7 +3,7 @@ use super::{
     partial_affine_fixture, proof_recursive_component_fixture, ranked_countdown_fixture,
     structural_effect_fixture, two_nominal_affine_fixture, unit_fixture,
 };
-use crate::{
+use crate::canonical::{
     block_id, claim_id, contract_id, edge_id, machine_id, obligation_id, operation_id, place_id,
     service_id, structural_case_id, structural_domain_id, structural_field_id, structural_type_id,
     suspension_crossing_id, value_id,

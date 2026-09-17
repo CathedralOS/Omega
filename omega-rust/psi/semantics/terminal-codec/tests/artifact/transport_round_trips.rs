@@ -2,7 +2,7 @@ use super::{
     canonical_artifact, kernel_bundle, proof_recursive_component, proof_recursive_evidence,
     representative_bundle, semantic_module,
 };
-use crate::{
+use crate::artifact::{
     evidence_id, obligation_id, place_id, structural_case_id, structural_field_id, value_id,
 };
 use proof_admission::{

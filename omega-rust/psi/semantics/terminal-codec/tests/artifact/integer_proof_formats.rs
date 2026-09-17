@@ -1,5 +1,5 @@
 use super::{certificate_bundle, semantic_module};
-use crate::{
+use crate::artifact::{
     evidence_id, machine_id, obligation_id, place_id, structural_case_id, structural_field_id,
     value_id,
 };

@@ -3,7 +3,7 @@ use super::{
     partition_composition_fixture, structural_call_fixture, structural_effect_fixture,
     unit_fixture,
 };
-use crate::{
+use crate::canonical::{
     block_id, claim_id, edge_id, machine_id, obligation_id, place_id, proposition_id, service_id,
     structural_case_id, structural_field_id, structural_type_id, value_id,
 };

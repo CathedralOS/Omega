@@ -2,7 +2,9 @@ use super::{
     i32_type, multi_claim_structural_call_fixture, structural_call_fixture,
     structural_effect_fixture,
 };
-use crate::{claim_id, operation_id, structural_domain_id, structural_type_id, value_id};
+use crate::canonical::{
+    claim_id, operation_id, structural_domain_id, structural_type_id, value_id,
+};
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
 use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
 use terminal_psi::{
