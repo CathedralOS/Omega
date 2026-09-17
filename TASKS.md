@@ -481,7 +481,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   field type, 18 at the destination parameter, 13 at the carrier path and 10
   at the byte-sequence carrier) and 32 at write-frame agreement, where the
   resolver's inferred state write frame differs from the mutation summary
-  (wire encode/decode, Utf8 string fields and record-literal field stores); 3
+  (Utf8 string fields and record-literal field stores). Synthesized wire codec
+  calls now frame exactly their exclusively borrowed argument places instead
+  of reaching the ownership floor with the type-name receiver
+  (`validation/.../write_frames/wire_codecs.rs`); on macOS ARM64
+  `runtime_wire_decode_let_compare_exit` moved from write-frame agreement to
+  `structural field store: destination parameter`, while
+  `runtime_wire_encode_string_exit` and `runtime_wire_roundtrip_utf8_exit`
+  still stop at write-frame agreement because an uninitialized
+  `&[u8] in Utf8` local is opaque even with no codec call in the body; 3
   stop at an unconsumed nested call inside an assignment. The terminator stops
   are 34 conditional successors, 22 unsupported tails and 2 jump successors;
   the state-signature stops are 33 parameter custody shapes, 21 parameter
@@ -503,7 +511,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   accepts only local/parameter roots), both **STATE-LOCAL-VALUE-FRONTIER**,
   and on synthesized wire `encode`/`decode` calls, which have no write-frame
   model and fall to `demand::syntactic_call_written_paths`, whose type-name
-  receiver root fails state-relative visibility; that codec gap is owned here.
+  receiver root fails state-relative visibility; the codec route is now closed
+  as recorded above.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in

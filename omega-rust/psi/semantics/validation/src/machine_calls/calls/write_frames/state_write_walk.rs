@@ -41,7 +41,7 @@ use crate::machine_calls::calls::write_frames::type_capabilities::{
     type_may_carry_write, type_reference_is_reference,
 };
 use crate::machine_calls::calls::write_frames::{
-    alias_bindings, local_aliases, reference_subjects, stored_origins,
+    alias_bindings, local_aliases, reference_subjects, stored_origins, wire_codecs,
 };
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -548,86 +548,94 @@ fn walk_state_write_prefix_inner(
                 let arguments = program
                     .statement_table
                     .expression_handles(nested_call.arguments);
-                let argument_origins = arguments
-                    .iter()
-                    .map(|argument| {
-                        stable_alias_initializer_origin(
-                            program,
-                            machine,
-                            &machine_symbols,
-                            inference,
-                            *argument,
-                            parameters,
-                            &isolated_local_roots,
-                            &local_alias_origins,
-                            symbols,
-                            true,
-                            &stored,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let nested_writes = known_call_written_paths_for_parts_with_origins(
-                    program,
-                    nested_call.target_symbol,
-                    nested_call.target.as_str(),
-                    &nested_receiver_members,
-                    None,
-                    arguments,
-                    machine,
-                    &machine_symbols,
-                    symbols,
-                    inference,
-                    Some(&argument_origins),
-                    complete_state_summaries,
-                )
-                .or_else(|| {
-                    (!arguments
+                // A synthesized wire codec has no body to summarize and no
+                // parameters to instantiate; its frame is its exclusively
+                // borrowed arguments. The type-name receiver must never reach
+                // the ownership floor, which would poison it as a place.
+                let nested_writes = if wire_codecs::is_wire_codec_call(program, nested_call) {
+                    wire_codecs::known_wire_codec_call_written_paths(program, nested_call)
+                } else {
+                    let argument_origins = arguments
                         .iter()
-                        .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
-                    .then(|| {
-                        known_boundary_call_written_paths_for_parts(
-                            program,
-                            machine,
-                            &machine_symbols,
-                            symbols,
-                            &nested_receiver_members,
-                            nested_call.target.as_str(),
-                            CallerWriteSite::Call(nested_call),
-                            arguments,
-                            inference,
-                        )
-                    })
-                    .flatten()
-                })
-                .or_else(|| {
-                    (!arguments
-                        .iter()
-                        .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
-                    .then(|| {
-                        known_requirement_call_written_paths_for_parts(
-                            program,
-                            machine,
-                            &machine_symbols,
-                            symbols,
-                            &nested_receiver_members,
-                            nested_call.target.as_str(),
-                            None,
-                            CallerWriteSite::Call(nested_call),
-                            arguments,
-                            inference,
-                        )
-                    })
-                    .flatten()
-                })
-                .or_else(|| {
-                    syntactic_call_written_paths(
+                        .map(|argument| {
+                            stable_alias_initializer_origin(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                inference,
+                                *argument,
+                                parameters,
+                                &isolated_local_roots,
+                                &local_alias_origins,
+                                symbols,
+                                true,
+                                &stored,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    known_call_written_paths_for_parts_with_origins(
                         program,
+                        nested_call.target_symbol,
+                        nested_call.target.as_str(),
                         &nested_receiver_members,
+                        None,
                         arguments,
+                        machine,
                         &machine_symbols,
                         symbols,
+                        inference,
+                        Some(&argument_origins),
+                        complete_state_summaries,
                     )
-                })?;
+                    .or_else(|| {
+                        (!arguments.iter().any(|argument| {
+                            expression_is_effectful_indexed_place(program, *argument)
+                        }))
+                        .then(|| {
+                            known_boundary_call_written_paths_for_parts(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                symbols,
+                                &nested_receiver_members,
+                                nested_call.target.as_str(),
+                                CallerWriteSite::Call(nested_call),
+                                arguments,
+                                inference,
+                            )
+                        })
+                        .flatten()
+                    })
+                    .or_else(|| {
+                        (!arguments.iter().any(|argument| {
+                            expression_is_effectful_indexed_place(program, *argument)
+                        }))
+                        .then(|| {
+                            known_requirement_call_written_paths_for_parts(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                symbols,
+                                &nested_receiver_members,
+                                nested_call.target.as_str(),
+                                None,
+                                CallerWriteSite::Call(nested_call),
+                                arguments,
+                                inference,
+                            )
+                        })
+                        .flatten()
+                    })
+                    .or_else(|| {
+                        syntactic_call_written_paths(
+                            program,
+                            &nested_receiver_members,
+                            arguments,
+                            &machine_symbols,
+                            symbols,
+                        )
+                    })
+                }?;
                 for relative in nested_writes
                     .iter()
                     .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
