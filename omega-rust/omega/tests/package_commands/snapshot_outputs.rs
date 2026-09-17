@@ -640,6 +640,240 @@ fn one_targets_uncommitted_set_does_not_hide_another_targets_completion() {
     assert_eq!(snapshot_residue(&fixture), Vec::<String>::new());
 }
 
+/// An `artifact_only` application declares no executable product: its build
+/// still runs against the captured snapshot and publishes only the sealed
+/// required-artifact set. This is the package-route witness for the
+/// artifact-only half of the acceptance pair; the compiler suite covers the
+/// same admission through a hand-constructed `BuildSnapshotRequest`.
+const ARTIFACT_ONLY_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-artifact-app");
+    builder.artifact_only();
+    let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
+    let template_descriptor: i32 = builder.source.open(template, 0);
+    let mut banner_bytes: [u8; 7];
+    let read_count: i64 = builder.source.read(template_descriptor, &mut banner_bytes, 7);
+    let source_close: i32 = builder.source.close(template_descriptor);
+
+    let required: RequiredOutput = builder.output.require("artifact.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, &banner_bytes);
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, artifact);
+}
+"#;
+
+/// The executable route: an ordinary application binds a program root and
+/// still settles a companion required output through the same sealed staged
+/// custody — the executable-with-companion half of the acceptance pair.
+const EXECUTABLE_COMPANION_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-companion-app");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    let required: RequiredOutput = builder.output.require("companion.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "companion\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, artifact);
+}
+"#;
+
+/// The bound root's declared machine. `roots.bind` names `Main::main`, so the
+/// executable-route fixture needs a real receiver machine to select.
+const EXECUTABLE_MAIN: &str = "data Main {}\nmachine Main::main(&mut self) { }\n";
+
+/// `artifact_only` admits no executable route: binding a program root must
+/// reject even though the modifier is otherwise a valid declaration.
+const ARTIFACT_ONLY_ROOTS_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-artifact-roots");
+    builder.artifact_only();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#;
+
+/// `artifact_only` without a completed required output publishes nothing:
+/// the modifier exists to ship artifacts, so an empty artifact set rejects.
+const ARTIFACT_ONLY_EMPTY_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-artifact-empty");
+    builder.artifact_only();
+}
+"#;
+
+fn application_fixture(build: &str, main: &str) -> Fixture {
+    let fixture = Fixture::new();
+    fixture.write("root/build.omg", build);
+    fixture.write("root/main.omg", main);
+    fs::create_dir(fixture.path("root/templates")).unwrap();
+    fixture.write("root/templates/banner.tmpl", TEMPLATE);
+    fs::create_dir(fixture.path("scratch")).unwrap();
+    fixture
+}
+
+#[test]
+fn artifact_only_application_build_settles_its_required_output() {
+    let fixture = application_fixture(ARTIFACT_ONLY_BUILD, MAIN);
+    let before = fixture.accepted_files();
+    let output = audit(&fixture);
+    assert_status(&output, 0);
+    let report = String::from_utf8_lossy(&output.stdout).into_owned();
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+    let captured = format!(
+        "build-snapshot captured-entries 5 captured-file-bytes {}",
+        ARTIFACT_ONLY_BUILD.len() + MAIN.len() + TEMPLATE.len()
+    );
+    assert!(report.contains(&captured), "{report}");
+    assert!(report.contains("settled-outputs 1\n"), "{report}");
+    assert!(
+        report.contains("  settled-output \"artifact.txt\"\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("sealed-outputs 1; each sealed entry: --details\n"),
+        "{report}"
+    );
+    assert_eq!(fixture.accepted_files(), before);
+    // Artifact-only publishes no executable product and never writes into the
+    // project: the settled artifact set stays in sealed staged custody.
+    assert!(!fixture.path("root/artifact.txt").exists());
+    assert!(!fixture.path("root/build/package-manager/proposal").exists());
+    assert_eq!(
+        snapshot_residue(&fixture),
+        Vec::<String>::new(),
+        "a settled artifact-only occurrence releases its private snapshot"
+    );
+
+    let fresh = fixture.fresh_reviews(TARGET);
+    let review = fresh
+        .reviews()
+        .iter()
+        .find(|review| review.key().name().as_str() == "snapshot-artifact-app")
+        .expect("the root application is reviewed");
+    let observation = review
+        .build_observation_summary()
+        .expect("the artifact-only build retains its observation");
+    assert_eq!(
+        observation
+            .captured_source_inventory()
+            .expect("the artifact-only occurrence bound a captured snapshot")
+            .entry_count(),
+        5,
+        "root, build.omg, main.omg, the template directory, and the template"
+    );
+    let settlements = observation.required_output_settlements();
+    assert_eq!(settlements.len(), 1, "exactly one obligation settled");
+    assert_eq!(settlements[0].relative_path(), b"artifact.txt");
+    let staged = observation
+        .staged_output_tree()
+        .expect("completed outputs remain in staged custody");
+    let entry = staged
+        .sealed_entry(b"artifact.txt")
+        .expect("the completed artifact is discoverable in sealed custody");
+    assert_eq!(
+        format!("{:?}", entry.kind()),
+        format!(
+            "File {{ bytes: {:?}, executable: false }}",
+            &TEMPLATE.as_bytes()[..7]
+        ),
+        "the sealed artifact carries exactly the bytes the captured template supplied"
+    );
+}
+
+#[test]
+fn executable_application_build_settles_a_companion_required_output() {
+    let fixture = application_fixture(EXECUTABLE_COMPANION_BUILD, EXECUTABLE_MAIN);
+    let before = fixture.accepted_files();
+    let output = audit(&fixture);
+    assert_status(&output, 0);
+    let report = String::from_utf8_lossy(&output.stdout).into_owned();
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+    let captured = format!(
+        "build-snapshot captured-entries 5 captured-file-bytes {}",
+        EXECUTABLE_COMPANION_BUILD.len() + EXECUTABLE_MAIN.len() + TEMPLATE.len()
+    );
+    assert!(report.contains(&captured), "{report}");
+    assert!(report.contains("settled-outputs 1\n"), "{report}");
+    assert!(
+        report.contains("  settled-output \"companion.txt\"\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("sealed-outputs 1; each sealed entry: --details\n"),
+        "{report}"
+    );
+    assert_eq!(fixture.accepted_files(), before);
+    assert!(!fixture.path("root/companion.txt").exists());
+    assert!(!fixture.path("root/build/package-manager/proposal").exists());
+    assert_eq!(snapshot_residue(&fixture), Vec::<String>::new());
+
+    let fresh = fixture.fresh_reviews(TARGET);
+    let review = fresh
+        .reviews()
+        .iter()
+        .find(|review| review.key().name().as_str() == "snapshot-companion-app")
+        .expect("the root application is reviewed");
+    let observation = review
+        .build_observation_summary()
+        .expect("the executable build retains its observation");
+    let settlements = observation.required_output_settlements();
+    assert_eq!(
+        settlements.len(),
+        1,
+        "the companion obligation settles once"
+    );
+    assert_eq!(settlements[0].relative_path(), b"companion.txt");
+    let staged = observation
+        .staged_output_tree()
+        .expect("completed outputs remain in staged custody");
+    let entry = staged
+        .sealed_entry(b"companion.txt")
+        .expect("the completed companion is discoverable in sealed custody");
+    assert_eq!(
+        format!("{:?}", entry.kind()),
+        "File { bytes: [99, 111, 109, 112, 97, 110, 105, 111, 110, 10], executable: false }",
+        "the sealed companion carries the bytes the build wrote"
+    );
+}
+
+#[test]
+fn artifact_only_application_build_rejects_executable_root_bindings() {
+    let fixture = application_fixture(ARTIFACT_ONLY_ROOTS_BUILD, EXECUTABLE_MAIN);
+    let before = fixture.accepted_files();
+    let output = audit(&fixture);
+    assert_status(&output, 1);
+    let combined = combined_output(&output);
+    assert!(
+        combined.contains("may not bind executable roots or select boundary providers"),
+        "{combined}"
+    );
+    assert!(!combined.contains("fresh-analysis complete"), "{combined}");
+    assert_eq!(fixture.accepted_files(), before);
+    assert!(!fixture.path("root/build/package-manager/proposal").exists());
+    assert_eq!(
+        snapshot_residue(&fixture),
+        Vec::<String>::new(),
+        "a rejected occurrence still releases its private snapshot"
+    );
+}
+
+#[test]
+fn artifact_only_application_build_without_a_completed_output_rejects() {
+    let fixture = application_fixture(ARTIFACT_ONLY_EMPTY_BUILD, MAIN);
+    let before = fixture.accepted_files();
+    let output = audit(&fixture);
+    assert_status(&output, 1);
+    let combined = combined_output(&output);
+    assert!(
+        combined.contains("completed no required output"),
+        "{combined}"
+    );
+    assert!(!combined.contains("fresh-analysis complete"), "{combined}");
+    assert_eq!(fixture.accepted_files(), before);
+    assert!(!fixture.path("root/build/package-manager/proposal").exists());
+    assert_eq!(snapshot_residue(&fixture), Vec::<String>::new());
+}
+
 #[test]
 fn a_settled_dependency_output_cannot_carry_the_roots_uncommitted_set() {
     // The dependency builds first and completes its `artifact.txt`; the
