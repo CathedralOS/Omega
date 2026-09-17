@@ -96,31 +96,8 @@ fn expected_omega_case_application_name(root: &Path) -> String {
     if root.ends_with("pass/float/build_runtime_semantics_twins_x86_baseline") {
         return "x86-baseline-float-semantic-edge-twin".to_owned();
     }
-    if let Some(&(_, declared_name)) = NON_CANONICAL_APPLICATION_NAMES
-        .iter()
-        .find(|(case, _)| root.ends_with(case))
-    {
-        return declared_name.to_owned();
-    }
     leaf.replace('_', "-")
 }
-
-/// Corpus roots whose declared application name does not follow their leaf
-/// directory name. Each entry pins the exact declared name so the mismatch
-/// stays visible: renaming the fixture to its leaf name makes the entry fail,
-/// and deleting the entry is then the whole repair.
-///
-/// `fail/build/repeated_evaluated_root_binding` was created by cd21d24262
-/// with the directory named after its `pass/build/evaluated_root_binding`
-/// sibling while its declaration dropped "evaluated". Nothing consumes the
-/// declared name, so the one-line fixture rename to
-/// `repeated-evaluated-root-binding` is the canonical fix; it is pinned here
-/// only because `tests/omega/fail/build` is held by a live claim
-/// (TOP-LEVEL-BOUNDARY-REQUIREMENTS).
-const NON_CANONICAL_APPLICATION_NAMES: &[(&str, &str)] = &[(
-    "fail/build/repeated_evaluated_root_binding",
-    "repeated-root-binding",
-)];
 
 const DECLARATION_REJECTION_CASES: &[&str] = &["fail/build/build-machine-wrong-arity"];
 
