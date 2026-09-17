@@ -3,6 +3,7 @@
 mod allocated_machine;
 mod call_spanning_reload;
 mod common;
+mod composition_pressure;
 mod control_flow;
 mod ordinary_graph_controls;
 mod scalar_call_preserving;
@@ -16,6 +17,7 @@ mod validation;
 pub(crate) use allocated_machine::*;
 pub(crate) use call_spanning_reload::*;
 pub(crate) use common::*;
+pub(crate) use composition_pressure::*;
 pub(crate) use control_flow::*;
 pub(crate) use ordinary_graph_controls::*;
 pub(crate) use scalar_call_preserving::*;

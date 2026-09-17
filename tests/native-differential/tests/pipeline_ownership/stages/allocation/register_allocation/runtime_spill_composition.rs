@@ -1,0 +1,158 @@
+//! Fixed-view copies composed with runtime spill. When post-copy assignment
+//! still reports `NoCompatibleHome`, the complete reanalysis — not the
+//! original legality — becomes spill recovery's source, the manifest keeps
+//! the copy transformation ahead of every spill step, and the recorded copy
+//! policy binds the declared recovery selection through retained replay.
+
+use crate::tests::{
+    AllocationEvidence, AllocationReplayError, NativeTarget, Optimization, OptimizationSelections,
+    PostAllocationSelectedTransformation,
+    stage_leaf_local_fixed_view_register_allocation_composing,
+    stage_shared_entry_fixed_view_register_allocation, staged_composition_pressure_module_legality,
+};
+use selected_instructions_to_register_homes::{AllocationSource, RegisterAllocationError};
+
+fn transformations(
+    retained: &selected_instructions_to_register_homes::RetainedAllocation,
+) -> &[PostAllocationSelectedTransformation] {
+    &retained
+        .current()
+        .post_allocation_manifest()
+        .record()
+        .selected_transformations
+}
+
+/// The fixture's pressure survives the fixed/precolored segment homes and the
+/// copy sequence, so post-copy assignment still reports `NoCompatibleHome`
+/// and custody passes to runtime spill: the recorded ledger opens with the
+/// copy transformation and continues with the runtime steps that resolved
+/// the pressure.
+#[test]
+fn fixed_view_copies_compose_into_runtime_spill_when_post_copy_pressure_remains() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let retained = stage_leaf_local_fixed_view_register_allocation_composing(
+            staged_composition_pressure_module_legality(
+                target,
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            ),
+        )
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: leaf-local composition must complete: {error}")
+        });
+        let current = retained.current();
+        assert!(
+            matches!(current.evidence(), AllocationEvidence::RuntimeSpill(_)),
+            "{target:?}: residual pressure must publish runtime-spill evidence"
+        );
+        let ledger = transformations(&retained);
+        assert!(
+            matches!(
+                ledger.first(),
+                Some(PostAllocationSelectedTransformation::FixedViewCopy(_))
+            ),
+            "{target:?}: the fixed-view transformation stays first in the ledger"
+        );
+        assert!(
+            ledger.len() > 1
+                && ledger[1..].iter().all(|transformation| matches!(
+                    transformation,
+                    PostAllocationSelectedTransformation::RuntimeSpill(_)
+                        | PostAllocationSelectedTransformation::RuntimeRematerialization(_)
+                )),
+            "{target:?}: runtime steps follow the fixed-view prefix"
+        );
+        // Fresh and retained replays rejoin the same facts: the prefix is
+        // validated custody, not a downstream representation selector.
+        let replayed = retained.replay_allocation().unwrap();
+        assert_eq!(current.selected_plan(), replayed.selected_plan());
+        assert_eq!(current.homes(), replayed.homes());
+        assert_eq!(current.evidence(), replayed.evidence());
+        assert_eq!(
+            current.post_allocation_manifest(),
+            replayed.post_allocation_manifest()
+        );
+    }
+}
+
+/// The shared-entry policy's prefix binds the declared recovery selection:
+/// without it the composed allocation must fail retained replay, and with it
+/// the same composition retains and publishes runtime-spill evidence.
+#[test]
+fn shared_entry_fixed_view_composition_binds_the_declared_recovery_selection() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let undeclared = stage_shared_entry_fixed_view_register_allocation(
+            staged_composition_pressure_module_legality(
+                target,
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            ),
+        );
+        assert!(
+            matches!(
+                undeclared,
+                Err(RegisterAllocationError::Replay(
+                    AllocationReplayError::SelectionMismatch
+                ))
+            ),
+            "{target:?}: a shared-entry prefix under no declared selection must reject"
+        );
+
+        let retained = stage_shared_entry_fixed_view_register_allocation(
+            staged_composition_pressure_module_legality(
+                target,
+                OptimizationSelections::new([
+                    Optimization::CopyPropagation,
+                    Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                ])
+                .unwrap(),
+            ),
+        )
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: declared shared-entry composition must complete: {error}")
+        });
+        let current = retained.current();
+        assert!(
+            matches!(current.evidence(), AllocationEvidence::RuntimeSpill(_)),
+            "{target:?}: residual pressure must publish runtime-spill evidence"
+        );
+        let ledger = transformations(&retained);
+        assert!(
+            matches!(
+                ledger.first(),
+                Some(PostAllocationSelectedTransformation::FixedViewCopy(_))
+            ),
+            "{target:?}: the shared-entry copy transformation stays first in the ledger"
+        );
+        assert!(ledger.len() > 1);
+        let replayed = retained.replay_allocation().unwrap();
+        assert_eq!(current.selected_plan(), replayed.selected_plan());
+        assert_eq!(current.homes(), replayed.homes());
+    }
+}
+
+/// The leaf-local prefix is default-path recovery, so the same composed
+/// allocation under a declared shared-entry selection must reject — the
+/// recorded copy policy is custody evidence, not interchangeable labeling.
+#[test]
+fn leaf_local_composition_rejects_a_declared_shared_entry_selection() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let allocation = stage_leaf_local_fixed_view_register_allocation_composing(
+            staged_composition_pressure_module_legality(
+                target,
+                OptimizationSelections::new([
+                    Optimization::CopyPropagation,
+                    Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                ])
+                .unwrap(),
+            ),
+        );
+        assert!(
+            matches!(
+                allocation,
+                Err(RegisterAllocationError::Replay(
+                    AllocationReplayError::SelectionMismatch
+                ))
+            ),
+            "{target:?}: a leaf-local prefix must not absorb a declared selection"
+        );
+    }
+}

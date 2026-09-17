@@ -12,15 +12,16 @@
 //! demands a cross-call home.
 
 use crate::tests::{
-    AdmissionProfile, AllocatorAvailabilityPolicy, Block, BlockId, ContractId, EdgeId, IntegerSign,
-    IntegerType, IntegerValue, MachineContract, MachineId, NativeTarget, Operation, OperationId,
-    OperationKind, OperationResult, Optimization, OptimizationSelections,
-    OptimizedTargetLoweringRequest, ScalarType, StagedOptimizedAllocationLegality, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
-    conditional_immediate_module, lower_optimized_to_target_operations,
-    materialize_allocator_availability, operation_proof_bundle, optimize_artifact_sections,
-    request, stage_optimized_allocation_legality_with_availability,
-    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
+    AdmissionProfile, AllocatorAvailabilityPolicy, Block, BlockId, ContractId, EdgeId,
+    ExplicitOptimizationRequest, IntegerSign, IntegerType, IntegerValue, MachineContract,
+    MachineId, NativeTarget, Operation, OperationId, OperationKind, OperationResult, Optimization,
+    OptimizationSelections, OptimizedTargetLoweringRequest, ScalarType,
+    StagedOptimizedAllocationLegality, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, ValueId, conditional_immediate_module,
+    lower_optimized_to_target_operations, materialize_allocator_availability,
+    operation_proof_bundle, optimize_artifact_sections, request,
+    stage_optimized_allocation_legality_with_availability, stage_optimized_instruction_selection,
+    stage_optimized_live_ranges, stage_optimized_liveness,
 };
 use target::{Architecture, ObjectFormat};
 
@@ -245,29 +246,24 @@ fn call_spanning_reload_module(target: NativeTarget) -> TerminalModule {
     conditional_immediate_module(call_spanning_reload_caller(), vec![wide, narrow, caller])
 }
 
-pub(crate) fn call_spanning_reload_artifact(target: NativeTarget) -> (Vec<u8>, Vec<u8>) {
-    let module = call_spanning_reload_module(target);
-    let proof = operation_proof_bundle(&module);
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
-    )
-}
-
 /// Selection through allocation legality with the unconstrained homes reduced
 /// to the explicit allowlist, leaving the calls' argument pins plus exactly one
-/// callee-saved view.
-pub(crate) fn staged_call_spanning_reload_legality(
+/// callee-saved view. Caller-chosen optimization selections ride the same
+/// artifact so recovery-composition coverage can declare the selection the
+/// retained route must bind.
+fn staged_call_spanning_legality(
     target: NativeTarget,
+    request: ExplicitOptimizationRequest,
 ) -> StagedOptimizedAllocationLegality {
-    let (semantic, proof) = call_spanning_reload_artifact(target);
-    let optimized = optimize_artifact_sections(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
-    )
-    .unwrap();
+    let module = call_spanning_reload_module(target);
+    let proof = operation_proof_bundle(&module);
+    let (semantic, proof) = (
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
+    );
+    let optimized =
+        optimize_artifact_sections(&semantic, &proof, &AdmissionProfile::default(), request)
+            .unwrap();
     let lowered = lower_optimized_to_target_operations(
         optimized,
         OptimizedTargetLoweringRequest::new(target),
@@ -295,4 +291,13 @@ pub(crate) fn staged_call_spanning_reload_legality(
     )
     .unwrap();
     stage_optimized_allocation_legality_with_availability(ranges, availability).unwrap()
+}
+
+pub(crate) fn staged_call_spanning_reload_legality(
+    target: NativeTarget,
+) -> StagedOptimizedAllocationLegality {
+    staged_call_spanning_legality(
+        target,
+        request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+    )
 }
