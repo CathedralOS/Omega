@@ -15,4 +15,3 @@ machine build(builder: &mut Build) {
         location: "../.."
     });
 }
-use psi::parse::harness;
