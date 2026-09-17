@@ -3070,11 +3070,18 @@ Owners include
   same custody rule, with typed shape validation rejecting drift and the
   float harness, std check and std policy (modulo core's digest)
   identical; the lookalike control
-  `fail/float/float_semantics_lookalike_grants_no_primitive` still needs
-  its roster line in `canary_suite.rs`. `Nat::Descending` (identified by
-  spelling only in `RankingView::canonical` and
-  `checks/termination/order.rs`) and the corpus ranking/surface fixtures
-  need their own catalog rows before the route admits them; bodyless domain-family and
+  `fail/float/float_semantics_lookalike_grants_no_primitive` is
+  rostered. At da974222c6/10cc6e4b62/e9cc9afdcc `Nat::Descending` is a
+  bare catalog signature in `core/nat.omg` with a declaration custody row
+  in `language-semantics` (`RankingViewId::catalog_declaration`), the
+  checker keys `-> View` on the catalog identity and consults every
+  declaration at that path so a user lookalike never becomes the builtin
+  (`fail/termination/nat_descending_lookalike_grants_no_primitive`), and
+  the termination harness, std check and rosters are identical
+  before/after; `Nat::BoundedDistance`, `Slice::Length` and
+  `Nat::IncreasingTo` have no core declaration and stay spelling-only
+  builtins. The corpus surface fixtures (`operators/*surface*`,
+  `*overload_signature*`) still author tokenless `operator`; bodyless domain-family and
   carrier-qualified semantic declarations (5 library, 26 tests) migrate
   to declaration-owned bodies with their relational `ensures`, since the
   supply table admits no other nonboundary supply (at c74c9adcbf a
