@@ -1891,11 +1891,24 @@ Owners include
   wording does cover parameters and `let` locals; the bracket grammar is now
   shared across all `name [properties]: Type` bindings and `[erased]` at
   those two sites fails closed with a targeted diagnostic rather than
-  parse-and-dropping the marker. Next acceptance: carry `BindingRelevance`
-  on `StateParameterNode`/`TableLocalData` and their resolved/typed twins,
-  propagate through lowering, exempt them in `proof_only_faces`, reject
-  runtime reads in `relevance/runtime_uses.rs`, strip erased parameters in
-  the ABI, and register a fail canary for a runtime read.
+  parse-and-dropping the marker. At 85f37369d3 `[erased]` is retained on
+  signature parameters and `let` locals through the syntax, resolved and
+  typed trees, `proof_only_faces` and `is_proof_machine` exempt them,
+  `proof_contracts/relevance/runtime_uses.rs` rejects runtime reads and
+  treats erased-position arguments and initializers as erased initializers
+  (`pass/relevance/erased_parameter_proof_only`,
+  `fail/relevance/erased_{parameter,local}_runtime_read`, on the
+  checked-only rosters). Next acceptance: strip erased parameter positions
+  from the checked calling plan
+  (`typed-trees-to-checked-trees/src/execution/{unit/calls/signatures.rs,
+  unit/calls/call_operations.rs,scalar/plan_scalar.rs}`) with dense
+  `source_position` renumbering, because the Terminal consumer
+  `checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs`
+  rejects non-strict source order, so `erased_parameter_proof_only`
+  compiles natively and leaves `CHECKED_ONLY_PASS_CANARIES`; named
+  transition arguments still validate as runtime reads, so an erased
+  binding cannot yet flow into an erased state parameter through a
+  transition.
 
 ## P4 - ABI, borrowing, and callbacks
 
