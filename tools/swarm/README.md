@@ -176,6 +176,17 @@ coordinator-side:
   sustained waves at 8 stayed up while the budget was quiet and died when it
   was not. Launch a batch, let claims register, then backfill each freed slot
   instead of launching the whole wave at once.
+- linw2 evidence: in-session background subagents can be canceled en masse
+  without any completion notification — nine linw2 slots exited "Canceled by
+  user" across two rounds while their coordinator believed they were running;
+  only a manual liveness check exposed it. A spawned slot is not a running
+  slot: verify each handle is alive before counting it, verify every slot's
+  handle at every checkpoint, and correlate quiet worktrees (no commits, no
+  dirt, no recent mtimes, no live claim) against the handle before assuming
+  progress. On repeated cancellations stop backfilling, WIP-commit dirty
+  worktrees, release orphaned tickets, and report rather than respawn into a
+  canceller. Spawn only through the session's own subagent mechanism — never
+  detached shells, tmux, or terminals the user cannot observe.
 - The `local-swarm` skill carries the coordinator procedure end to end —
   partition, launch, monitor, recover, drain — and defers here for the
   evidence behind each rule.
