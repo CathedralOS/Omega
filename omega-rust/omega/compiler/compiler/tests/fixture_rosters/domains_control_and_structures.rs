@@ -137,6 +137,8 @@ pub(crate) const RUNTIME_STRUCT_ARRAY_LITERAL_EXIT: &str =
     "structs/runtime_struct_array_literal_exit";
 pub(crate) const RUNTIME_ENUM_STRUCT_PAYLOAD_EXIT: &str =
     "structs/runtime_enum_struct_payload_exit";
+pub(crate) const RUNTIME_COPY_SUM_ARRAY_RECEIVER_EXIT: &str =
+    "structs/runtime_copy_sum_array_receiver_exit";
 pub(crate) const RUNTIME_ENUM_CLASSIFY_DISPATCH_EXIT: &str =
     "structs/runtime_enum_classify_dispatch_exit";
 pub(crate) const RUNTIME_NESTED_FIELD_ACCUMULATE_LOOP_EXIT: &str =
@@ -319,6 +321,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_NESTED_STRUCT_VALUE_SEMANTICS_EXIT,
     RUNTIME_STRUCT_ARRAY_LITERAL_EXIT,
     RUNTIME_ENUM_STRUCT_PAYLOAD_EXIT,
+    RUNTIME_COPY_SUM_ARRAY_RECEIVER_EXIT,
     RUNTIME_ENUM_CLASSIFY_DISPATCH_EXIT,
     RUNTIME_NESTED_FIELD_ACCUMULATE_LOOP_EXIT,
     RUNTIME_INDEXED_WRITE_CONST_READ_EXIT,

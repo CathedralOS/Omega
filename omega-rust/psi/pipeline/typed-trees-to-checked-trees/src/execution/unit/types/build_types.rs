@@ -1098,7 +1098,15 @@ impl<'program> ShapeCollector<'program> {
                     == Multiplicity::Unrestricted)
     }
 
-    fn is_unrestricted_material_record(&self, type_reference: TypeReferenceHandle) -> bool {
+    /// A closed, copyable, checked-shape data declaration whose every stored
+    /// member is material: a record of fields, a pure sum of cases, or a
+    /// mixed declaration of both, with no erased field or payload field.
+    /// Each member type still shapes itself through `add_type`; this only
+    /// decides that the declaration is an ordinary owned array element. The
+    /// three kinds share one Terminal vocabulary (`Record`, `Sum`, `Mixed`
+    /// beneath `FixedArray`), so a copy sum with payload cases is as much an
+    /// element as a copy record.
+    fn is_unrestricted_material_data(&self, type_reference: TypeReferenceHandle) -> bool {
         let TypeReferenceNode::Named { symbol, .. } = self
             .program
             .type_reference_table
@@ -1119,10 +1127,17 @@ impl<'program> ShapeCollector<'program> {
                     && data.where_facts.is_empty()
                     && !data.zero_gated
                     && data.properties.multiplicity == Multiplicity::Unrestricted
-                    && typed_trees::data::DataDefinition::shape_kind_from_members(members)
-                        == DataShapeKind::Record
-                    && members.iter().all(|member| {
-                        matches!(member, DataMember::Field(field) if !field.relevance.is_erased())
+                    && matches!(
+                        typed_trees::data::DataDefinition::shape_kind_from_members(members),
+                        DataShapeKind::Record | DataShapeKind::Enum | DataShapeKind::Mixed
+                    )
+                    && members.iter().all(|member| match member {
+                        DataMember::Field(field) => !field.relevance.is_erased(),
+                        DataMember::Variant(variant) => self
+                            .program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .all(|field| !field.relevance.is_erased()),
                     })
             })
     }
@@ -1280,8 +1295,8 @@ impl<'program> ShapeCollector<'program> {
                 && !type_graph_requires_nominal_drop(self.program, type_reference);
             let unrestricted_primitive_element =
                 self.is_unrestricted_nonatomic_primitive(*element_type);
-            let unrestricted_material_record_element =
-                self.is_unrestricted_material_record(*element_type);
+            let unrestricted_material_data_element =
+                self.is_unrestricted_material_data(*element_type);
             let unrestricted_nested_primitive_array_element =
                 self.is_literal_array_of_unrestricted_primitive(*element_type);
             // Domain membership is carried separately at each indexed place.
@@ -1310,7 +1325,7 @@ impl<'program> ShapeCollector<'program> {
                         || (crate::checks::type_multiplicity(self.program, *element_type)
                             != Multiplicity::Linear
                             && !unrestricted_primitive_element
-                            && !unrestricted_material_record_element
+                            && !unrestricted_material_data_element
                             && !unrestricted_nested_primitive_array_element)))
                 || !self.in_progress.insert(identity.clone())
             {

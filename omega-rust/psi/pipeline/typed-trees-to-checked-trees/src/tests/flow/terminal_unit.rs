@@ -7,6 +7,7 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
 };
 
+mod attached_receiver_shapes;
 mod boundary_result_operands;
 mod callable_composed;
 pub(crate) mod calls;
