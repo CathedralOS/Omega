@@ -4182,13 +4182,18 @@ Owners include
   settlement and keep the fence on private requirements
   (`providers/checked_boundary_requirement_{dispatch,terminal}_exit`,
   `fail/providers/{boundary_requirement_direct_call_unselected,
-  private_boundary_requirement_direct_call}`). The requires-only sibling
-  carries the Terminal witness; the contracted customer stays
-  checked-only because ordinary scalar-machine lowering rejects its
-  `ensures result == input + 0 && input == input` ("scalar contract
-  contains an unsupported clause") since 21fc627a6e, which also reds the
-  operator sibling `checked_boundary_operator_dispatch_exit` on main
-  (CRASH-CONTRACT lane). Remaining: statement-position direct calls,
+  private_boundary_requirement_direct_call}`). At 2f7cbe7a12/b0b34b2883
+  ordinary scalar-machine contracts carry exact `+`/`-`/`*` integer
+  arithmetic over subjects and contextual literals as closed predicates
+  (`values/scalar/result_contract.rs` `ContractPredicates::integer_term`
+  onto Terminal's exact integer-math terms; wrapping carriers, bitwise
+  or shift operators, division, and literal-only arithmetic stay
+  unsupported), repairing the Terminal/native legs that 21fc627a6e's
+  erasure-mode removal had broken for the contracted customer and the
+  operator sibling `checked_boundary_operator_dispatch_exit`; both
+  requirement fixtures are ACTIVE+ROOTED with the Terminal leg asserted
+  through one helper, and the full-corpus pass leg drops from 222 to
+  221 failing fixtures with no other change. Remaining: statement-position direct calls,
   receiver-bearing requirements such as `Task::finish(self)` beyond
   installation-bound reach, and the tokenless boundary-operator
   respelling onto this route.
