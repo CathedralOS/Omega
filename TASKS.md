@@ -4033,21 +4033,41 @@ Owners include
   retires that element's facts and not its siblings'
   (`flow/transfers.rs`; regressions
   `view_literal_index_write_keeps_sibling_element_coverage` and
-  `view_element_corruption_retires_only_that_element`). The dungeon probe
+  `view_element_corruption_retires_only_that_element`). A machine's normal
+  return is now a default-domain consumption point for its readable `&mut`
+  referents, `self` included, and for a readable reference return's
+  returned place: the exit re-proves the same `StateParameterDomain` and
+  `MachineFieldDomain` rows the self-transition arrival check re-proves,
+  establishment-gated domains (`established by ..`) excluded
+  (`checks/contracts/exits/result_domains.rs`, exits recorded in
+  `proof/contracts/calls.rs`; regressions
+  `tests/omega/fail/dependent/{mutable_referent_alias_corruption_return_rejected,reference_return_alias_corruption_rejected}`,
+  `tests/omega/pass/dependent/mutable_referent_alias_corruption_restored_compile`),
+  and `flow/call_phases/referents.rs` hands those rows back after
+  `apply_call_invalidations` on each readable `&mut` actual's exact storage
+  and on a `&mut self` receiver, while `flow/transfers` establishes a write
+  through a local `&mut` alias on the aliased storage
+  (`AssignmentWriteTarget::Storage`). The dungeon probe
   (`omega --check --target linux_x86_64
-  samples/cli/games/dungeon_crawler_cli/main.omg`, macOS ARM64, 5b1ac3505f)
-  now reaches the checker with 1746 diagnostics after the sample declared
-  `reaches Console`, `[copy]` value models, and hoisted receiver reads.
-  Resume order: (1) the callee side first: a machine's normal return must
-  be a default-domain consumption point for its readable `&mut` nominal
-  referents (including `self`) and for a reference-returning exit's
-  returned place ([invariant windows](wiki/spec/language/dependent_values.md);
-  `checks/contracts/exits/result_domains.rs` says reference returns declare
-  no obligations, so a machine that corrupts `level.rooms[1].label` through
-  a bare `&mut [u8; 4]` alias and returns is accepted today); (2) only then
-  may `flow/call_phases` re-seed those paths on each `&mut` argument's
-  actual place and on a reference result's finite candidate origins after
-  `apply_call_invalidations`, which closes ~1620 rows; (3) `checks/ranges`
+  samples/cli/games/dungeon_crawler_cli/main.omg`, macOS ARM64, 6c3a89f196
+  after the sample acknowledged its blocking game loop) reports 962
+  diagnostics against 1731 at dd06a082c2 (2891 with the return point
+  alone): 113 `Dungeon::use_event` and 4x112 `MazeBuilder::*` return rows
+  plus 3x112 `clear_level`/`carve_room`/`room_mut` call rows over
+  `level.rooms[*]`, 14+14+7 `RoomLookup`/`append_exit`/`apply_room` rows,
+  4 index rows; `cargo nextest run -p typed-trees-to-checked-trees` 4127
+  passed with the same 3 failures as 6ef27bae4f, and the pass corpus fails
+  the same 212 fixtures as before. Resume order: (1) unknown call frames
+  still wipe every live fact -- `self.rng.seed(seed, &mut random)` over an
+  uninitialized `RandomState` local, `self.clear_level(level)`,
+  `self.carve_room(level, &mut random, ..)` resolve to no complete frame in
+  `MazeBuilder::build`, so `level.*` is gone before the next call or the
+  return and re-seeding restores only what the callee hands back; narrow
+  those frames to the signature ceiling (receiver plus exclusive
+  arguments) instead of the empty context set; (2) `&mut self` receivers
+  hand back only the ZII-seeded `MachineFieldDomain` rows, so a caller's
+  non-ZII field facts on a receiver survive a method call only through
+  frame precision; (3) `checks/ranges`
   retires a slice view's length after a call through one element
   (`clear_room(&mut rooms[0], ..)` then `rooms[1]`), 15 rows; (4) sample
   side: `RoomLookup` copies an element at a runtime index and passes an
