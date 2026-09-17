@@ -426,6 +426,32 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   call statement it was planning, or `composed control` when only the
   composed builders applied; the guard inside that phase is still not
   retained, so per-fixture reading starts at that phase.
+  Distribution reconstructed 2026-09-17 (macOS ARM64, `cargo nextest run -p
+  compiler --test canary_suite --no-fail-fast` at 4dcb7723da): 1379 tests,
+  223 pass, 1156 fail. By owner: 680 stop at Terminal production with
+  `Main::main` lacking a checked transitive Unit plan (by the checked stage's omission roster: 541 are multi-state
+  bodies that no composed control builder admits, **GENERAL-CYCLIC-EXECUTION**
+  and the state-graph route; 45 stop in the shared statement sequence and 34
+  at the call-statement shape, both single-state Unit bodies; 12 reach a
+  scalar callee with neither a registered target nor an ordinary body; the
+  rest stop at signature, outer calls, trivial affine locals, or provider
+  attachment requirements); 80 lose the
+  macOS hosted receiver bridge's exact contract/storage/entry custody, 36
+  select no exact program entry, and 22 fail the `MacosPhysicalEntry::enter`
+  schema requirement (**ENTRY-CONTENT-ROOTS**); 66 are
+  decision-17 exact-arithmetic overflow obligations and 55 are
+  borrowed-storage transfers without an owner replacement
+  (**STATE-LOCAL-VALUE-FRONTIER** value transport); 29 cannot prove a
+  default-domain `[u8]::Utf8` field requirement on collection elements
+  (**NOMINAL-FIELD-FLOW**); 13 index a non-array collection with an
+  unsupported selected `requires` and 3 are unresolved authored Operator
+  selections (**OPERATOR-MACHINE-SUPPLY**); 20 fail native selection on
+  wrapping/saturating scalar operations or SourceCustodyMismatch
+  (**WRITE-ONLY-BORROW** / selected legalization); 11 lower with
+  `OperationProofUnavailable` (**BORROW-PROOF-CONVERGENCE** obligations);
+  10 declare no service reach (Automatic service reach); the remaining ~70
+  are singletons named in the run log. Eight failures were fixture
+  inventory drift from a checkout synced mid-run, not compiler behavior.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
