@@ -1,0 +1,52 @@
+// A copy enum crossing a named cycle edge is the state's own storage, not a
+// write-capable root: `&mut T` is the only exclusive observation-and-mutation
+// path (spec ownership.md, "Borrows and aliases"). `classify` threads one
+// `&mut Output` around its `Kind` cycle, so every cycle edge is an exact
+// permutation of that single root and the cycle's own states (`load`,
+// `dispatch`) solve to the frame `output.count` instead of staying opaque
+// (`validation`'s `copy_value_cycle_edges_permute_and_solve_to_complete_frames`
+// pins the frames for this shape). The caller then keeps its `limit` fact
+// across the call and bounds the index with it.
+
+data Kind [copy] {
+    case Next;
+    case Stop;
+}
+
+data Output {
+    count: u64 in Trapping;
+    limit: u64 [0..=8];
+}
+
+machine classify(output: &mut Output) {
+    transition { _ -> load(output, Kind::Next) }
+
+    state load(output: &mut Output, kind: Kind) {
+        output.count = output.count + 1;
+        transition kind {
+            Kind::Next -> dispatch(output, Kind::Stop)
+            _ -> done(output)
+        }
+    }
+
+    state dispatch(output: &mut Output, kind: Kind) {
+        transition kind {
+            Kind::Next -> load(output, kind)
+            _ -> done(output)
+        }
+    }
+
+    state done(output: &mut Output) {}
+}
+
+data Main {
+    output: Output;
+    cells: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    self.output.limit = 3;
+    classify(&mut self.output);
+    let index: u64 [0..=3] = self.output.limit;
+    self.cells[index] = 1;
+}

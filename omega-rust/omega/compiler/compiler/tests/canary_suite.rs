@@ -785,6 +785,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "control_flow/entry_local_member_access_in_nested_state",
     "control_flow/entry_local_nested_member_access_in_nested_state",
     "control_flow/entry_parameter_explicit_state_forwarding",
+    "control_flow/copy_enum_cycle_edge_write_frame",
     "termination/custom_ranking_order_compile",
     "termination/cyclic_bound_countdown_compile",
     "termination/increasing_to_rank_range_compile",
