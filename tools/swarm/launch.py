@@ -599,12 +599,10 @@ def local_session_state(repository, wave, session):
         branch_exists = False
     else:
         branch_exists = True
-    if ahead and worktree.is_dir():
-        state = "resumable"
+    if worktree.is_dir():
+        state = "resumable" if ahead else "existing"
     elif ahead or branch_exists:
         state = "resumable_no_worktree"
-    elif worktree.is_dir():
-        state = "existing"
     else:
         state = "absent"
     return {"worktree": worktree, "branch": branch, "ahead": ahead,
