@@ -67,3 +67,81 @@ pub fn rebuild_checked_terminal_plans_with_selected_execution(
     program.facts.flow.terminal_structural_scalar_returns = structural_scalar_returns;
     Ok(())
 }
+
+/// Re-derive the retained state write frames from the settled typed program
+/// after settlement rewrote authored bodies in place.
+///
+/// Checking retains an opaque frame for a state whose body calls a bodyless
+/// boundary declaration; settlement replaces such a call with its selected
+/// realization (an adapter call, a builtin, or an arithmetic expression), so
+/// the settled body carries a derivable frame that the retained one no longer
+/// describes. Terminal store planning compares the retained frame with the one
+/// re-inferred from the settled body, so the retained facts follow the
+/// settled program. Every refreshed frame must equal the retained frame or
+/// refine a retained opaque frame; any other change is a settlement fault.
+pub fn refresh_settled_state_write_frames(
+    program: &mut CheckedTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let Some(call_frames) = validation::CallFrameResolver::new(&program.typed) else {
+        return Err(vec![diagnostics::Diagnostic::error(
+            "selected execution settlement cannot re-infer state write frames: the settled typed program has no call frame resolver",
+        )]);
+    };
+    let refreshed = settled_mutation_facts(&program.typed, &call_frames);
+    let mut diagnostics = Vec::new();
+    for (retained, refreshed) in program
+        .facts
+        .mutation
+        .machines
+        .iter()
+        .zip(refreshed.machines.iter())
+    {
+        for (retained_state, refreshed_state) in retained
+            .state_write_frames
+            .iter()
+            .zip(refreshed.state_write_frames.iter())
+        {
+            let retained_opaque =
+                retained_state.frame.completeness() == facts::WriteFrameCompleteness::Opaque;
+            if retained_state.frame == refreshed_state.frame || retained_opaque {
+                continue;
+            }
+            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                "selected execution settlement changed the complete write frame retained for state `{}`: retained {:?}, settled {:?}",
+                program.typed.symbols.display_path(retained_state.state, "::"),
+                retained_state.frame.paths(),
+                refreshed_state.frame.paths(),
+            )));
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    program.facts.mutation = refreshed;
+    Ok(())
+}
+
+/// The settled program's write frames in the retained fact shape: one entry
+/// per machine in machine-table order, one frame per state in state order.
+fn settled_mutation_facts(
+    program: &typed_trees::TypedTrees,
+    call_frames: &validation::CallFrameResolver<'_>,
+) -> checked_trees::MutationFacts {
+    let machines = program
+        .machines()
+        .iter()
+        .map(|machine| checked_trees::MachineMutationFact {
+            machine: machine.symbol,
+            state_write_frames: program
+                .machine_states(machine)
+                .iter()
+                .zip(call_frames.inferred_machine_state_write_frames(machine))
+                .map(|(state, frame)| checked_trees::StateWriteFramePlan {
+                    state: state.symbol,
+                    frame,
+                })
+                .collect(),
+        })
+        .collect();
+    checked_trees::MutationFacts { machines }
+}

@@ -609,7 +609,9 @@ fn build_checked_machine_with_trace(
                 .all(|parameter| !parameter.is_self && !parameter.is_const);
         trace.phase("call statement shape: primitive carrier without a store or call closure");
         if carries_primitive
-            && source_calls.is_empty()
+            && source_calls
+                .iter()
+                .all(|call| facts.flow.control.is_retired(state.symbol, call))
             && !statement_sequence.as_ref().is_some_and(|sequence| {
                 sequence
                     .structural_result

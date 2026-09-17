@@ -164,6 +164,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
         && !calls.iter().any(|nested| {
             nested.statement_index == call.statement_index
                 && nested.call_ordinal != 0
+                && !facts.flow.control.is_retired(state.symbol, nested)
                 && result(
                     program,
                     facts,

@@ -20,10 +20,10 @@ use typed_trees::types::PrimitiveType;
 
 /// A public, nongeneric, receiver-free top-level `boundary requirement`: the
 /// shape a direct call may execute through its selected provider.
-fn directly_callable_requirement<'program>(
-    program: &'program TypedTrees,
+fn directly_callable_requirement(
+    program: &TypedTrees,
     entry_symbol: symbols::SymbolHandle,
-) -> Option<&'program typed_trees::machine::Machine> {
+) -> Option<&typed_trees::machine::Machine> {
     if !entry_symbol.is_valid() {
         return None;
     }
