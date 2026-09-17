@@ -1,11 +1,15 @@
-// A fixed-token boundary operator may select a checked Omega body. The token
-// resolves the public operator while execution redirects to the exact selected
-// adapter in both checked interpretation and target-selected Terminal production.
+// A fixed-token boundary signature may select a checked Omega body. Spelled
+// as a top-level bodyless `boundary machine - Owner::name(...);`, the token
+// identifies the required operator slot and the realization reaches it through
+// the ordinary exact `satisfies` relationship without redeclaring the token;
+// the token resolves the public slot while execution redirects to the exact
+// selected adapter in both checked interpretation and target-selected Terminal
+// production, exactly as the `boundary operator` spelling did.
 use omega_language_std::console;
 
 data CheckedMath {}
 
-boundary operator - CheckedMath::select_left(left: i32, right: i32) -> i32;
+boundary machine - CheckedMath::select_left(left: i32, right: i32) -> i32;
 
 data CheckedMathProvider {}
 
