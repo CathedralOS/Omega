@@ -3465,9 +3465,38 @@ Owners include
   was under a live `PROOF-CERTIFICATION-BRIDGE` claim this wave; module proof
   admission stays with the existing verifier's purpose-specific carriers.
   `provider-planning` still rejects every `Independent` selection at the
-  explicit component-closure fence. Next slice: route verified descriptions
-  into independent admission/replacement and the deployed-component custody
-  joins so `Independent` selection can close.
+  explicit component-closure fence (`selection_provenance.rs`; pinned by
+  `package_compilation_inputs/authority_and_build_files.rs::
+  independent_provider_selection_reaches_the_componentization_fence`).
+  Landed beside it (macOS ARM64): `derive_component_inventory` exports one
+  row per retained checked provider realization
+  (`export:requirement:{requirement}|{provider}|{machine}`, derived
+  identically by producer and verifier so omitted or invented rows reject),
+  and `VerifiedComponent::realizes_selected_plan(&ProviderPlan)` joins a
+  selected plan against the verified module with distinct rejections for an
+  empty provider type, schema drift, unchecked rows, missing, mismatched,
+  duplicated, or unexported realizations. The fence cannot consume that join
+  yet because `tests/architecture/layering.rs`
+  (`ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners`,
+  76d1e4421f) keeps `component-candidate` out of the provider-planning,
+  build-evaluation, compiler, and package-manager closures, and a projection
+  of the join into a provider-planning type would be the hand-authored
+  inventory this item forbids. Next slice, in order: move
+  `component_description.rs` and `component_verification.rs` (with their
+  tests) below that quarantine into a `component-description` crate that
+  depends only on effects, terminal-codec, terminal-psi and
+  semantic-vocabulary (replacing the `image_emission::StackDemand` input of
+  `describe_component_facts` with plain entry/ceiling/alignment facts) while
+  `component-candidate` keeps `describe_component(&ComponentCandidate)`;
+  then give `selected_provider_plan_facts` an `independent_components:
+  &[VerifiedComponent]` input requiring exactly one component whose join
+  passes per `Independent` plan and rejecting missing, duplicate, unmatched
+  extra, and each mismatch distinctly; then thread verified components from
+  `PackageCompilationInputs` through `build-evaluation/src/provider_settlement`
+  (the evaluated-build admission surface that must also produce them); and
+  finally make the compiler build a `ComponentCandidate` for a dependency
+  compiled as its own component, since today `compiler.rs` stops at
+  `NativeArtifact` and no compile path produces a description.
 
 - **FFIVAL.** After the generic callback/runtime path closes, run the Windows
   `user32` boundary-coherence canary with no raw function pointer or Win32-only
