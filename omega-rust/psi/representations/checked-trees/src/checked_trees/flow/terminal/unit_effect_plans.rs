@@ -61,11 +61,13 @@ pub struct CheckedUnitPlanOmission {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedUnitPlanOmissionStage {
     /// No ordinary or composed builder admitted the machine's own body.
-    /// `phase` names the ordinary builder's last phase before it gave up (or
-    /// `composed control` when only the composed builders applied), and
-    /// `statement_index` the call statement it was planning, when known.
+    /// `phase` names the last phase the ordinary builder (single-state
+    /// bodies) or the general state-graph builder (multi-state bodies)
+    /// entered before it gave up, `state_index` the state and
+    /// `statement_index` the statement it was planning, when known.
     LocalConstruction {
         phase: &'static str,
+        state_index: Option<u32>,
         statement_index: Option<u32>,
     },
     /// The body was admitted, then dropped while receiver retention was

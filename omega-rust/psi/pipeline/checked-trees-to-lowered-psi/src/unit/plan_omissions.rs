@@ -27,17 +27,21 @@ pub(crate) fn unit_plan_omission_explanation(
         let step = match row.stage {
             CheckedUnitPlanOmissionStage::LocalConstruction {
                 phase,
+                state_index,
                 statement_index,
-            } => match statement_index {
-                Some(index) => format!(
-                    "`{}` has no admitted body (local construction stopped at {phase}, statement {index})",
+            } => {
+                let mut position = String::new();
+                if let Some(index) = state_index {
+                    position.push_str(&format!(", state {index}"));
+                }
+                if let Some(index) = statement_index {
+                    position.push_str(&format!(", statement {index}"));
+                }
+                format!(
+                    "`{}` has no admitted body (local construction stopped at {phase}{position})",
                     name(current)
-                ),
-                None => format!(
-                    "`{}` has no admitted body (local construction stopped at {phase})",
-                    name(current)
-                ),
-            },
+                )
+            }
             CheckedUnitPlanOmissionStage::ReceiverReconciliation => format!(
                 "`{}` was dropped while reconciling retained receivers",
                 name(current)

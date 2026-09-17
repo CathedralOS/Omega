@@ -423,9 +423,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   A local-construction row also names the ordinary builder's last phase
   (`LocalConstructionTrace` in `execution/unit/control`: signature, state
   contracts, statement sequence, call operations, completion, ...) and the
-  call statement it was planning, or `composed control` when only the
-  composed builders applied; the guard inside that phase is still not
-  retained, so per-fixture reading starts at that phase.
+  call statement it was planning; a multi-state body names the general
+  state-graph route's phase, state, and statement instead (`state graph:
+  state signature`, `terminator`, ..., or the shared statement kinds); the
+  guard inside that phase is still not retained, so per-fixture reading
+  starts at that phase.
   Distribution reconstructed 2026-09-17 (macOS ARM64, `cargo nextest run -p
   compiler --test canary_suite --no-fail-fast` at 4dcb7723da): 1379 tests,
   223 pass, 1156 fail. By owner: 680 stop at Terminal production with

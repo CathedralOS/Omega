@@ -13,6 +13,7 @@ use checked_trees::CheckedUnitPlanOmissionStage;
 #[derive(Debug, Default)]
 pub(crate) struct LocalConstructionTrace {
     phase: Cell<&'static str>,
+    state_index: Cell<Option<u32>>,
     statement_index: Cell<Option<u32>>,
 }
 
@@ -28,9 +29,16 @@ impl LocalConstructionTrace {
         self.statement_index.set(index);
     }
 
+    /// The authored state a multi-state builder is planning; it persists
+    /// across that state's phases until the builder moves on.
+    pub(crate) fn state(&self, index: Option<u32>) {
+        self.state_index.set(index);
+    }
+
     pub(crate) fn stage(&self) -> CheckedUnitPlanOmissionStage {
         CheckedUnitPlanOmissionStage::LocalConstruction {
             phase: self.phase.get(),
+            state_index: self.state_index.get(),
             statement_index: self.statement_index.get(),
         }
     }
