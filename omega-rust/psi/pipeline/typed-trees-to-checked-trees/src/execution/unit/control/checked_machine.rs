@@ -384,6 +384,7 @@ fn build_checked_machine_with_trace(
                 statements,
                 scalar_result_local.as_ref(),
                 selected_write_only_scalar_result_local,
+                trace,
             )
         })
         .flatten();
