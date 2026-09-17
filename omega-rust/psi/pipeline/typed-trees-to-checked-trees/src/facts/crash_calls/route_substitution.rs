@@ -7,6 +7,7 @@ use crate::facts::crash_calls::summary_predicates::{
     concrete_guard_scalar_value, normalize_summary_buckets, normalize_summary_guards,
     scalar_guard_is_integer_comparison, summary_boolean_value,
 };
+use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
@@ -19,13 +20,16 @@ pub(crate) enum SelectedTargetCrashRoutes<'a> {
     Empty,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn call_argument_substitution(
     program: &TypedTrees,
     operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
+    flow: &checked_trees::FlowFacts,
+    state_flow: &checked_trees::FlowStateFact,
+    call_flow: &checked_trees::FlowCallFact,
     target_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[typed_trees::expression::ExpressionHandle],
-    caller_state: SymbolHandle,
-    before_statement: usize,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> CallArgumentSubstitution {
     // Both direct published routes and private/transitive summaries cross the
@@ -33,6 +37,8 @@ pub(crate) fn call_argument_substitution(
     // prove that a current actual still denotes the caller's entry value.
     // Retain exact immutable entry inputs/literals; unsupported current-value
     // provenance leaves a missing substitution, which widens the cause below.
+    let caller_state = state_flow.state_symbol;
+    let before_statement = call_flow.statement_index;
     let owner = program.machines().iter().find_map(|machine| {
         program
             .machine_states(machine)
@@ -40,14 +46,72 @@ pub(crate) fn call_argument_substitution(
             .find(|state| state.symbol == caller_state)
             .map(|state| (machine, state))
     });
+    // Each actual's proven current value is read only from this call's own
+    // entry contexts — the semantic facts flow proves live exactly when the
+    // invocation begins, after every operand already ran. A place the
+    // containing statement may still overwrite through a sibling operand
+    // stays unproven: the entry snapshot postdates those effects and would
+    // describe newer storage than the argument carried.
+    let entry_contexts: Vec<facts::FactContextHandle> = flow
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(call_flow.entry_semantic_contexts)
+        .iter()
+        .map(|reference| reference.context)
+        .collect();
+    let containing_statement = owner.and_then(|(_, state)| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(before_statement)
+    });
+    // The dense binding namespace of `lower_unit_scalar_argument`: primitive
+    // parameters, then immutable primitive locals in declaration order.
+    // Mutable storage resolves through named StorageRead leaves instead.
+    let caller_symbols: Vec<SymbolHandle> = owner
+        .map(|(_, state)| {
+            program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| {
+                    program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+                })
+                .map(|parameter| parameter.symbol)
+                .chain(
+                    program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .get(..before_statement)
+                        .unwrap_or(&[])
+                        .iter()
+                        .filter_map(|statement| match statement {
+                            typed_trees::statement::StatementNode::LocalData(local)
+                                if !local.is_mutable
+                                    && local.initial_value.is_valid()
+                                    && program
+                                        .primitive_type_reference(local.type_reference)
+                                        .is_some() =>
+                            {
+                                Some(local.symbol)
+                            }
+                            _ => None,
+                        }),
+                )
+                .collect()
+        })
+        .unwrap_or_default();
     let mut argument_index = 0usize;
     let mut identity = Vec::with_capacity(target_parameters.len());
     let mut scalar = Vec::with_capacity(target_parameters.len());
+    let mut values = Vec::with_capacity(target_parameters.len());
     for parameter in target_parameters {
         if parameter.is_self {
             // Receiver-entry identity needs retained referent custody. A name
             // alone must not impersonate a caller entry value.
             identity.push(None);
+            values.push(None);
             continue;
         }
         let argument = arguments.get(argument_index).copied();
@@ -79,10 +143,75 @@ pub(crate) fn call_argument_substitution(
                     exact_integer_casts,
                 )
             }));
+            values.push(argument.and_then(|argument| {
+                let (machine, state) = owner?;
+                // Live evaluation folds under builtin laws. An actual whose
+                // own operator occurrence selected an authored meaning cannot
+                // be re-interpreted this way; it keeps no proven value.
+                if !validation::has_builtin_bound_expression_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    argument,
+                ) {
+                    return None;
+                }
+                let lowered = crate::values::lower_unit_scalar_argument(
+                    program,
+                    operators,
+                    state,
+                    before_statement,
+                    argument,
+                    expected,
+                )?;
+                crate::values::evaluate_checked_scalar(
+                    &lowered,
+                    &mut crate::values::PlaceScalarValues {
+                        program,
+                        parameters: program.state_parameters(state),
+                        symbols: &caller_symbols,
+                        value_at_place: |place: &crate::flow::CanonicalPlace| {
+                            if containing_statement.is_none_or(|statement| {
+                                crate::facts::crash_entry_values::statement_may_overwrite_place(
+                                    program,
+                                    machine.symbol,
+                                    statement,
+                                    place,
+                                )
+                            }) {
+                                return None;
+                            }
+                            crate::values::scalar_value_at_place(
+                                program,
+                                semantic,
+                                entry_contexts
+                                    .iter()
+                                    .map(|handle| semantic.contexts.get(*handle)),
+                                place,
+                            )
+                        },
+                    },
+                )
+                .and_then(|value| match value {
+                    facts::ScalarValue::Boolean(value) => {
+                        Some(CrashPredicateExpression::Boolean(value))
+                    }
+                    facts::ScalarValue::Integer(value) => {
+                        Some(CrashPredicateExpression::Integer(value.to_string()))
+                    }
+                    facts::ScalarValue::Unknown => None,
+                })
+            }));
+        } else {
+            values.push(None);
         }
         identity.push(entry_identity);
     }
-    CallArgumentSubstitution { identity, scalar }
+    CallArgumentSubstitution {
+        identity,
+        scalar,
+        values,
+    }
 }
 
 pub(crate) fn substitute_checked_boolean_expression(
@@ -212,6 +341,8 @@ pub(crate) fn refine_published_crash_routes(
     program: &TypedTrees,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    semantic: &facts::FactPlan,
+    flow: &checked_trees::FlowFacts,
     state_flow: &checked_trees::FlowStateFact,
     call_flow: &checked_trees::FlowCallFact,
     call_site: &crate::semantic_calls::CallSite<'_>,
@@ -233,10 +364,12 @@ pub(crate) fn refine_published_crash_routes(
     let substitution = call_argument_substitution(
         program,
         operators,
+        semantic,
+        flow,
+        state_flow,
+        call_flow,
         target_parameters,
         arguments,
-        state_flow.state_symbol,
-        call_flow.statement_index,
         exact_integer_casts,
     );
     let mut surviving = Vec::new();
@@ -302,6 +435,29 @@ pub(crate) fn refine_published_crash_routes(
                         Some(false) => {}
                         Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
                         None => {
+                            // Live storage evidence decides a guard entry
+                            // custody cannot carry: each referenced formal is
+                            // replaced by the one literal this call's own
+                            // entry contexts prove for its actual. The fold
+                            // honors this route's own selected meaning, and a
+                            // missing value leaves the substitution missing
+                            // rather than inventing an origin.
+                            if let Some(value) = crate::facts::crash_entry_values::substitute_entry(
+                                &predicate,
+                                &substitution.values,
+                            )
+                            .and_then(|substituted| {
+                                if builtin_meaning {
+                                    summary_boolean_value(&substituted)
+                                } else {
+                                    substituted.boolean_value()
+                                }
+                            }) {
+                                if value {
+                                    guards.push(SummaryCrashRouteGuard::Truth);
+                                }
+                                continue;
+                            }
                             let Some(predicate) = entry_predicate else {
                                 guards.push(SummaryCrashRouteGuard::Truth);
                                 continue;

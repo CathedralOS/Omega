@@ -21,11 +21,13 @@ use conversions::{selected_call, selected_operand};
 #[cfg(test)]
 mod call_tests;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn capture_statement(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
+    machine_symbol: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -59,7 +61,8 @@ pub(super) fn capture_statement(
         state,
         statement_index,
         statement,
-    ) {
+    ) && builtin_bound_meaning_source(program, machine_symbol, state, source)
+    {
         return crate::values::evaluate_checked_scalar(
             expression,
             &mut crate::values::PlaceScalarValues {
@@ -103,11 +106,13 @@ pub(super) fn capture_statement(
         .and_then(|value| operand.convert(value))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn capture_bounds(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
+    machine_symbol: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -138,7 +143,8 @@ pub(super) fn capture_bounds(
         state,
         statement_index,
         statement,
-    ) {
+    ) && builtin_bound_meaning_source(program, machine_symbol, state, source)
+    {
         let contexts = context
             .contexts
             .semantic_context_refs
@@ -177,6 +183,28 @@ pub(super) fn capture_bounds(
     };
     facts::IntegerRange::operand(program, &live, statement_index, operand.operand)
         .and_then(|value| operand.convert(value))
+}
+
+/// A selected scalar plan folds every retained operation under builtin
+/// meaning. The checked operator row's BuiltinFallback is not builtin
+/// authority while a declared or selected authored candidate still matches
+/// the operands, so only a source whose complete bound subtree retains
+/// builtin meaning may be captured as this statement's recorded evidence.
+fn builtin_bound_meaning_source(
+    program: &typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state: SymbolHandle,
+    source: ExpressionHandle,
+) -> bool {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+        return false;
+    };
+    validation::has_builtin_bound_expression_meaning(
+        program,
+        machine,
+        crate::semantic_calls::find_state_in_machine(program, machine_symbol, state),
+        source,
+    )
 }
 
 fn selected_statement<'plans>(
