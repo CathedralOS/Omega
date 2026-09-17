@@ -1427,6 +1427,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "termination/increasing_unbounded_rejected",
     "termination/joint_machine_call_cycle_stalled",
     "termination/mutual_recursion_no_decrease",
+    "termination/nat_descending_lookalike_grants_no_primitive",
     "termination/proof_joint_machine_cycle_nondecreasing",
     "termination/proof_joint_machine_cycle_unmeasured",
     "termination/rank_range_excludes_floor",
