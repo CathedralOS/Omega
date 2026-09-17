@@ -1144,3 +1144,31 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
         let _ = fs::remove_dir_all(&build_dir);
     }
 }
+
+#[test]
+fn token_bound_machine_operand_selection_exit_canary_interprets() {
+    // `left + right` over `&Wrapped` operands selects `machine + Wrapped::add`
+    // and is supplied by that declaration's own checked body through the
+    // ordinary call edge: no operator evaluator, no satisfier search. The
+    // checked interpreter must see the token route and the named route
+    // compute the same 260 (exit 70; 71 = token route missed, 72 = named
+    // route missed). The native leg is deliberately absent: the identical
+    // program with a plain `machine Wrapped::add` (no token) stops at the
+    // macOS hosted receiver bridge, so borrowed local data arguments to a
+    // free machine have no native route yet, independent of token supply.
+    let canary = pass_canary("expressions/token_bound_machine_operand_selection");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("token-bound machine operand selection should reach checked trees");
+    let interpreted = interpret(&checked, b"");
+    assert_eq!(
+        interpreted.error, None,
+        "reference execution should run the declaration body for the token call"
+    );
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "the token call and the named call should both return the wrapped sum 260"
+    );
+}

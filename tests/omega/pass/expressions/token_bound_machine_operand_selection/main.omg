@@ -1,19 +1,67 @@
 // OPERATOR-MACHINE-SUPPLY: a fixed token after `machine` binds operator syntax
-// to an ordinary named declaration. `left + right` on `Wrapped` operands
+// to an ordinary named declaration. `left + right` on `&Wrapped` operands
 // selects `Wrapped::add` by operand type, and the same declaration remains
-// callable by name; nothing is searched among satisfiers. Execution supply
-// through the declaration's own body is a later slice, so this canary is
-// checked only.
+// callable by name; nothing is searched among satisfiers. The selected use is
+// supplied by the declaration's own checked body through the ordinary call
+// edge, so the token call and the named call compute the same wrapped sum
+// (250 + 10 = 260, which no `u8` builtin could carry) from runtime state.
+// Operands are borrowed so the same source can join the native route once
+// borrowed local data arguments to a free machine are admitted there;
+// by-value data arguments stop earlier, at the native Unit-plan admission
+// wall. Exits 70 only when both routes produce 260; 71 when the token route
+// misses, 72 when the named route misses.
+
+use omega_language_std::console;
+
 pub data Wrapped { value: u8; }
 
-pub machine + Wrapped::add(left: Wrapped, right: Wrapped) -> u64 {
+pub machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64 {
     (left.value as u64) + (right.value as u64)
 }
 
-machine by_token(left: Wrapped, right: Wrapped) -> u64 {
+machine by_token(left: &Wrapped, right: &Wrapped) -> u64 {
     left + right
 }
 
-machine by_name(left: Wrapped, right: Wrapped) -> u64 {
+machine by_name(left: &Wrapped, right: &Wrapped) -> u64 {
     Wrapped::add(left, right)
+}
+
+data Main {
+    console: Console;
+    high: u8;
+    low: u8;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.high = 250;
+    self.low = 10;
+    let left: Wrapped = Wrapped { value: self.high };
+    let right: Wrapped = Wrapped { value: self.low };
+    let token_sum: u64 = by_token(&left, &right);
+    let named_sum: u64 = by_name(&left, &right);
+
+    transition token_sum == 260u64 {
+        true -> check_named(named_sum)
+        _ -> bad_token()
+    }
+
+    state check_named(&mut self, named_sum: u64) {
+        transition named_sum == 260u64 {
+            true -> good()
+            _ -> bad_named()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_token(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_named(&mut self) {
+        self.console.exit_process(72);
+    }
 }
