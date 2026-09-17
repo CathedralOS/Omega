@@ -498,10 +498,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   slice once `src/tests` (which pins the conservative rule in
   `mixed_component_conserves_endpoints_through_internal_state_calls`) is
   free to update.
+  Struct-view rankings admit nested projection paths and borrowed subjects
+  at 49d6f9e87e (`MeasureBodyShape::FieldProjection` carries the exact
+  field chain; `order.rs` accepts a subject reaching the root record
+  through a `Reference`; `pass/termination/measure_{nested_projection_rank,
+  nested_projection_rank_range,borrowed_projection}` plus three fail
+  canaries); the relational range route still binds direct owned fields
+  only.
   Still open on this item: diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
-  premises, borrowed and nested
-  custom-view projections, STATE-LOCAL-VALUE-FRONTIER retirement of generated
+  premises, relational range transport for nested/borrowed views,
+  STATE-LOCAL-VALUE-FRONTIER retirement of generated
   operand-call states, independent arithmetic proof for computed endpoints,
   equality evidence for non-polynomial substitutions, and produced-rank facts
   for scalar views and projected slice storage.
