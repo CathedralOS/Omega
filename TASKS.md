@@ -1894,12 +1894,34 @@ Owners include
   `validate_call_crash_coverage`. Regressions: `cargo nextest run -p
   terminal-verifier --test suite operation_crash_contracts` (7) and `-p
   terminal-codec --test suite operation_crash_contracts` (3, including the
-  format-98 layout rejection); macOS ARM64. No producer writes the row yet:
-  `checked-trees-to-lowered-psi` still fences crash-qualified uses at
-  `machine_lowering.rs`, so the next slice lowers each
-  `CheckedCrashOperatorSite` (`published`/`surviving` as
-  `CrashPredicateIdentity`) into this row's `Proposition` form at the emitted
-  operation, reusing the boundary crash-route lowering, and lifts that fence.
+  format-98 layout rejection); macOS ARM64. The producer now writes the row:
+  `checked-trees-to-lowered-psi/src/retention/operation_crash_contracts.rs`
+  lowers each `CheckedCrashOperatorSite` in the lowered closure at the exact
+  operation emission joined to its `operator_use` (today only the selected
+  IEEE comparison join), through the same formal-telescope lowering boundary
+  declarations use (`proofs/crash_routes.rs::lower_formal_crash_routes`) and
+  the verifier's own `substitute_crash_routes` for the continuations; the
+  whole-program fence at `machine_lowering.rs` is lifted and replaced by
+  fail-closed rejections for a crash-qualified use without a site or without
+  an emitted join, a named-use site (no operation join exists), a non-scalar
+  or miscounted operand roster, and a call operation. Regression:
+  `cargo nextest run -p checked-trees-to-lowered-psi --lib
+  operation_crash_contracts` (6). Where the corpus stops next
+  (`omega inspect-terminal` on `operators/crash_routes`; its canary rows
+  are check-only and never lower): `safe`/`may_crash` reject at
+  `comparison has no exact selected IEEE meaning` (no executable Terminal
+  meaning for an integer `SelectedComparison`), `wrapper` rejects at
+  `direct scalar call crash continuation lacks a checked scalar term`, and a
+  guarded operator route rejects at `guarded crash route is outside
+  structured scalar predicate lowering`, all because
+  `facts/crash_plan_facts.rs::derive_authored_operator_crash_buckets`
+  builds operator published rows with no owner and so attaches no
+  `CheckedBooleanExpression` to their `CrashPredicateIdentity`; operator
+  declarations also own no `contract_plans` machine plan. The next slice
+  attaches the structured scalar form to operator published rows in the
+  checked stage (positional over the operator's parameters, as
+  `lower_signature_crash_contract_expression` does for signatures) so guarded
+  routes lower through the unchanged producer.
 
 - **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
   and independent checker in Psi, under the

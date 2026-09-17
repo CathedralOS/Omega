@@ -91,7 +91,12 @@ pub(super) fn validate_boundary_call_crash_coverage(
     validate_call_crash_coverage(caller, &continuations, operation)
 }
 
-pub(super) fn substitute_crash_routes(
+/// Replace formal value identities inside published crash routes with the
+/// invocation's actual scalar terms. This is the one substitution the
+/// verifier reconstructs at boundary calls and operation-level contracts;
+/// producers reuse it so an emitted continuation roster cannot drift from
+/// what verification will recompute.
+pub fn substitute_crash_routes(
     routes: &[CrashRouteBucket],
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> Vec<CrashRouteBucket> {

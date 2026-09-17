@@ -57,6 +57,20 @@ pub(crate) fn lower_boundary_crash_routes(
         .ok_or(LoweringError::Unsupported(
             "boundary crash contract owner is absent",
         ))?;
+    lower_formal_crash_routes(buckets, scalar_types)
+}
+
+/// Lower published crash routes into a declaration-local formal namespace:
+/// the scalar lane position `k` is formal `ValueId` `k + 1`, typed by
+/// `scalar_types[k]`. Boundary declarations and operation-level crash
+/// contracts share this telescope, so the verifier's positional substitution
+/// reconstructs both from the same identities. Authored constant routes
+/// normalize before lowering: `false` contributes nothing and `true` is the
+/// unconditional guard.
+pub(crate) fn lower_formal_crash_routes(
+    buckets: &[checked_trees::CrashRouteBucket],
+    scalar_types: &[ScalarType],
+) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     let parameters = scalar_types
         .iter()
         .enumerate()
