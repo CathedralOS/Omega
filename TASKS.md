@@ -3449,40 +3449,6 @@ Owners include
   Physical-child binding belongs to `TRANSLATION-VALIDATION` in
   `TASKS_OPTIMIZER.md`.
 
-- **BOUNDARY-OPERATOR-FAMILY-SELECTION.** Extend build selection from exact
-  boundary traits to exact package-qualified boundary-operator families.
-  Selection is atomic over every overload coordinate and retains target plus
-  generic/exact-application coverage. Partial, duplicate, stale, substituted,
-  or padded family rows reject; equality of provider assertions is never
-  realization coverage.
-  Resume evidence (65d71153a9..420a15b109, 2026-09-17, macOS ARM64):
-  family selection is pinned in `provider-planning`.
-  `ProviderOperatorFamilySelection::derive` is the one canonical roster
-  derivation (build-evaluation's harvest calls it), and
-  `selected_provider_plan_facts` replays every family declaration against
-  the typed roster and requires exactly one selected plan per coordinate,
-  so partial, padded, stale, substituted, telescope-drifted, and
-  provider-substituted rows reject naming the coordinate (previously a
-  partial row selected its subset and the omitted coordinate fell to the
-  unique covering candidate). Tests: `receipts_and_families.rs::
-  operator_family_{roster_rejects_duplicate_and_empty_coordinates,
-  selection_rejects_a_coordinate_covered_only_on_another_target,
-  selection_from_another_package_cannot_select_same_spelled_coordinates,
-  declared_twice_rejects_every_coordinate_slot,
-  roster_is_independent_of_declaration_order,
-  replay_rejects_partial_padded_stale_and_substituted_rosters,
-  replay_requires_the_declared_provider_to_realize_each_coordinate}` beside
-  the existing atomic, missing-member, unknown-coordinate, and order tests,
-  and `spelled_operator_custody.rs::
-  spelling_the_operator_inside_the_provider_redispatches_while_a_direct_call_delegates`.
-  Generic coverage stays fail-closed through the existing
-  exact-specialization demand (compiler canary `provider_adapters.rs`) and
-  review's nonzero-telescope rejection. Nothing remains in
-  provider-planning or build-evaluation; the acceptance passes, so this
-  item is a removal candidate for the owner (a compiler-level harvest
-  control with reversed overload source order would be the only optional
-  addition).
-
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish explicit public boundary
   requirement declarations, external satisfiers, provider selection, and
   installed execution/era replay. Remove transitional undifferentiated
