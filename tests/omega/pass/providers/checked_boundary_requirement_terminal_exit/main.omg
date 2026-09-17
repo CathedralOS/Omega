@@ -1,0 +1,30 @@
+// The Terminal leg of a selected top-level boundary requirement: the direct
+// call executes the adapter's ordinary checked body natively while the
+// retained association and the settlement journal keep the requirement. The
+// contract stays within the closed scalar predicate language so the adapter
+// body lowers as an ordinary scalar machine.
+use omega_language_std::console;
+
+pub data CheckedMath {}
+
+pub boundary requirement CheckedMath::offset_zero(value: i32) -> i32
+requires value == value;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+satisfies CheckedMath::offset_zero
+requires input == input
+{
+    transition { _ -> (input + 0) }
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self)
+reaches Console
+{
+    let selected: i32 = CheckedMath::offset_zero(70);
+    let result: i32 = selected + 0i32;
+    self.console.exit_process(result);
+}

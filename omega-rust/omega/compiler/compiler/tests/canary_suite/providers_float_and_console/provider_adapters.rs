@@ -1019,3 +1019,207 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
         .validate_for_artifact(artifact)
         .expect("Terminal proposal should independently replay root establishment");
 }
+
+const CHECKED_BOUNDARY_REQUIREMENT_DISPATCH_EXIT: &str =
+    "providers/checked_boundary_requirement_dispatch_exit";
+const CHECKED_BOUNDARY_REQUIREMENT_TERMINAL_EXIT: &str =
+    "providers/checked_boundary_requirement_terminal_exit";
+
+/// The requirement-side association a settled direct call retains: one
+/// dispatch row joining the requirement's entry state to the selected
+/// adapter's entry state, the settled call redirected to that adapter, and the
+/// selected-dispatch journal restoring the authored call to the requirement.
+fn assert_selected_requirement_association(
+    checked: &compiler::CheckedCompilation,
+    label: &str,
+) -> (symbols::SymbolHandle, symbols::SymbolHandle) {
+    let entry_symbol = |machine_name: &str| {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .unwrap_or_else(|| panic!("{label} should retain machine `{machine_name}`"));
+        checked
+            .typed
+            .machine_states(machine)
+            .first()
+            .unwrap_or_else(|| panic!("{label} machine `{machine_name}` has an entry"))
+            .symbol
+    };
+    let requirement = entry_symbol("CheckedMath::offset_zero");
+    let realization = entry_symbol("CheckedMathProvider::offset_zero_impl");
+    let owner = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "CheckedMath")
+        .unwrap_or_else(|| panic!("{label} should retain the requirement owner"))
+        .symbol;
+    let rows = checked
+        .facts
+        .boundary_adapter_dispatch
+        .iter()
+        .filter(|row| row.requirement == requirement)
+        .collect::<Vec<_>>();
+    let [row] = rows.as_slice() else {
+        panic!("{label} should settle one requirement dispatch row: {rows:?}");
+    };
+    assert_eq!(
+        row.receiver, owner,
+        "{label} row is keyed on the exact owner"
+    );
+    assert_eq!(row.realization_state, realization);
+    assert!(!row.forward_receiver && row.family_tuple.is_empty());
+
+    let settled_calls = checked
+        .typed
+        .expression_table
+        .expression_entries()
+        .filter_map(|(handle, expression)| match expression {
+            typed_trees::expression::ExpressionNode::Call(call)
+                if call.target_symbol == realization && !call.receiver.is_valid() =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [settled_call] = settled_calls.as_slice() else {
+        panic!("{label} should redirect exactly one direct call to the adapter entry");
+    };
+    let authored = checked
+        .pre_selected_dispatch_source_trees(&checked.typed)
+        .unwrap_or_else(|diagnostics| panic!("{label} journal should restore: {diagnostics:#?}"));
+    let typed_trees::expression::ExpressionNode::Call(authored_call) =
+        authored.expression_table.expression(*settled_call)
+    else {
+        panic!("{label} restored occurrence should be a call");
+    };
+    assert_eq!(
+        authored_call.target_symbol, requirement,
+        "{label} the journaled occurrence names the requirement",
+    );
+    assert_eq!(authored_call.target.as_str(), "offset_zero");
+    assert!(
+        checked.facts.operators.boundary_applications.is_empty(),
+        "{label} a top-level requirement is not a boundary-operator application",
+    );
+    (requirement, realization)
+}
+
+#[test]
+fn checked_boundary_requirement_dispatch_exit_canary_runs() {
+    // The tokenless sibling of `checked_boundary_operator_dispatch_exit`: the
+    // `boundary requirement` form with the same contracts and adapter selects
+    // through the top-level requirement route and interprets identically.
+    let canary = pass_canary(CHECKED_BOUNDARY_REQUIREMENT_DISPATCH_EXIT);
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+        .expect("checked boundary-requirement canary should compile to checked trees");
+    assert_selected_requirement_association(&checked, "checked boundary-requirement canary");
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter dispatches the selected checked requirement body; error: {:?}",
+        outcome.error,
+    );
+}
+
+#[test]
+fn checked_boundary_requirement_terminal_exit_canary_retains_requirement_occurrence() {
+    // The Terminal leg: the canonical Terminal artifact replays, its entry
+    // calls the adapter's ordinary checked body as an in-module machine, no
+    // boundary-operator occurrence is published, and the checked compilation
+    // behind it keeps the requirement-side association and journal.
+    let canary = pass_canary(CHECKED_BOUNDARY_REQUIREMENT_TERMINAL_EXIT);
+    let label = "checked boundary-requirement Terminal canary";
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some("linux_x86_64"),
+    ))
+    .unwrap_or_else(|diagnostics| panic!("{label} should check: {diagnostics:#?}"));
+    assert_selected_requirement_association(&checked, label);
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "{label} interprets; error: {:?}",
+        outcome.error
+    );
+
+    let package_inputs =
+        crate::reviewed_repository_fixture_package_inputs(&main_path, Some("linux_x86_64"))
+            .unwrap_or_else(|diagnostics| {
+                panic!("{label} should derive package inputs: {diagnostics:#?}")
+            });
+    let mut request = CompileRequest::new(CompilerOptions {
+        root_path: main_path,
+        build_dir: None,
+        target_name: Some("linux_x86_64".into()),
+    })
+    .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report = compiler::compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!("{label} should produce a canonical Terminal artifact: {diagnostics:#?}")
+        });
+    let retained = report
+        .into_retained_terminal_artifact()
+        .unwrap_or_else(|| panic!("{label} should retain its Terminal artifact"));
+    retained
+        .validate()
+        .unwrap_or_else(|error| panic!("{label} Terminal artifact should replay: {error}"));
+    let module = terminal_codec::decode_module(retained.artifact().semantic_bytes())
+        .unwrap_or_else(|error| panic!("{label} Terminal semantics should decode: {error:?}"));
+    let proposal = retained
+        .native_realization_proposal()
+        .unwrap_or_else(|| panic!("{label} should retain its native proposal"));
+    assert!(
+        proposal
+            .checked_boundary_operator_scope()
+            .occurrences()
+            .is_empty()
+            && proposal.boundary_application_demands().rows().is_empty(),
+        "{label} publishes no boundary-operator occurrence for a top-level requirement",
+    );
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap_or_else(|| panic!("{label} Terminal module has its entry machine"));
+    let callees = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::Call { callee, .. }
+            | terminal_psi::OperationKind::CallUnit { callee, .. } => Some(*callee),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let realization = callees
+        .iter()
+        .filter_map(|callee| module.machines.iter().find(|machine| machine.id == *callee))
+        .find(|machine| {
+            machine.parameters.len() == 1
+                && matches!(
+                    machine.result,
+                    terminal_psi::TerminalMachineResult::Scalar(_)
+                )
+        })
+        .unwrap_or_else(|| {
+            panic!("{label} entry should call the adapter as an in-module scalar machine")
+        });
+    assert!(
+        module
+            .boundary_machines
+            .iter()
+            .all(|declaration| !declaration.identity.contains("offset_zero")),
+        "{label} neither the requirement nor its realization is a Terminal boundary declaration",
+    );
+    let _ = realization;
+}
