@@ -20,14 +20,23 @@
 //! Calls, hosted effects, and unaccounted writers reject.
 //!
 //! The walk is not confined to one block: reaching a block's end without
-//! interference continues through its terminator's successor edges when every
-//! edge names one block, since each path forward from the dead store then
-//! reaches that block — a join there is harmless because coverage is
-//! forward-looking. The terminator's roster rows decide first; each crossed
-//! edge's transports may not write or retire the dead place's storage. A
-//! terminator with no successors, edges fanning out to distinct blocks, and
-//! re-entering a walked block each leave an uncovered path, so they end the
-//! walk in rejection.
+//! interference continues through its terminator's successor edges — every
+//! edge out of a walked block is crossed, not only a single-successor
+//! chain's, since a covering write further down still rewrites the dead
+//! bytes when each path forward reaches one before any observer. A block is
+//! only ever entered uncovered, so its first interfering access decides
+//! every path through it at once: a covering write resolves the block for
+//! all of them, anything else rejects. A block scanned clear defers coverage
+//! to its distinct successors, and the store is dead once every walked
+//! block's paths converge on covering writes — a fork's legs may cover
+//! through different writes or reconverge on one. A join at a crossed block
+//! stays harmless because coverage looks forward. The terminator's roster
+//! rows decide first; each crossed edge's transports may not write or retire
+//! the dead place's storage. A terminator with no successors lets the bytes
+//! escape to the boundary, an edge back into the store's own block
+//! re-executes the removed store — which cannot be its own covering write —
+//! and a walked region whose clear blocks cycle without reaching coverage
+//! each end the walk in rejection.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
@@ -178,20 +187,25 @@ pub(super) fn admit<'source>(
     } else {
         place_store_shape(dead_store, environment)?;
     }
-    // Walk forward to the first access that can reach the dead bytes. It must
-    // be a write of the dead place's storage whose row covers the dead range
-    // entirely; anything else leaves the bytes observable or only partially
-    // overwritten. Reaching a block's end without interference crosses into
-    // its only successor block — every edge out naming one block means each
-    // path forward from the store arrives there — checking the terminator's
-    // roster rows and each crossed edge's transports on the way.
-    let mut visited = vec![false; function.blocks.len()];
-    let mut crossed = Vec::new();
+    // Walk forward along every path the crossed region admits: the first
+    // access that can reach the dead bytes must be a write of the dead
+    // place's storage whose row covers the dead range entirely; anything
+    // else leaves the bytes observable or only partially overwritten on
+    // every path through it. A block is only ever entered uncovered — the
+    // dead bytes still current — so its scan decides identically for all
+    // paths reaching it: a covering write resolves the block for all of
+    // them, while any other interference, barrier, or unaccounted writer
+    // leaves the bytes observable and rejects. A block scanned clear
+    // crosses its terminator's roster rows and every outgoing edge's
+    // transports, then defers coverage to its distinct successors.
+    let mut killers: Vec<(usize, usize)> = Vec::new();
+    let mut crossed: Vec<SelectedBlockId> = Vec::new();
+    let mut legs: Vec<(usize, Vec<usize>)> = Vec::new();
+    let mut queued = vec![false; function.blocks.len()];
     let mut interval = 0usize;
-    let mut cursor = block_index;
-    let mut cursor_start = store_index + 1;
-    let (killer_block, killer_index) = loop {
-        visited[cursor] = true;
+    queued[block_index] = true;
+    let mut frontier = vec![(block_index, store_index + 1)];
+    while let Some((cursor, cursor_start)) = frontier.pop() {
         let current = &function.blocks[cursor];
         let mut found = None;
         for (candidate_index, candidate) in
@@ -221,7 +235,8 @@ pub(super) fn admit<'source>(
             interval = interval
                 .checked_add(candidate_index + 1 - cursor_start)
                 .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
-            break (cursor, candidate_index);
+            killers.push((cursor, candidate_index));
+            continue;
         }
         interval = interval
             .checked_add(current.instructions.len() - cursor_start)
@@ -237,14 +252,13 @@ pub(super) fn admit<'source>(
         {
             return Err(DeadStoreEliminationError::InterveningAccess);
         }
-        // Every path forward must reach one block: a terminator with no
-        // successors lets the bytes escape to the boundary, and edges to
-        // distinct blocks admit a path the covering store never runs on.
+        // Every path forward must reach a covered block: a terminator with
+        // no successors lets the bytes escape to the boundary. Each crossed
+        // edge's transports stay quiet, then each distinct successor joins
+        // the uncovered frontier exactly once — two edges naming one block
+        // still arrive on separate transports.
         let edges = successors(&current.terminator);
-        let Some(first) = edges.first() else {
-            return Err(DeadStoreEliminationError::UnsupportedPair);
-        };
-        if edges.iter().any(|edge| edge.block != first.block) {
+        if edges.is_empty() {
             return Err(DeadStoreEliminationError::UnsupportedPair);
         }
         for edge in &edges {
@@ -253,33 +267,77 @@ pub(super) fn admit<'source>(
         interval = interval
             .checked_add(edges.len())
             .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
-        crossed.push(current.id);
-        let next = function
-            .blocks
-            .iter()
-            .position(|candidate| candidate.id == first.block)
-            .ok_or(DeadStoreEliminationError::SourceMismatch)?;
-        // Re-entering a walked block closes a cycle that never covers.
-        if visited[next] {
-            return Err(DeadStoreEliminationError::UnsupportedPair);
+        let mut destinations = Vec::new();
+        for edge in &edges {
+            let next = function
+                .blocks
+                .iter()
+                .position(|candidate| candidate.id == edge.block)
+                .ok_or(DeadStoreEliminationError::SourceMismatch)?;
+            // An edge back into the dead store's own block re-executes the
+            // removed store from its top — it can never be its own covering
+            // write — so the looped path stays unproven.
+            if next == block_index {
+                return Err(DeadStoreEliminationError::UnsupportedPair);
+            }
+            if !queued[next] {
+                queued[next] = true;
+                frontier.push((next, 0));
+            }
+            if !destinations.contains(&next) {
+                destinations.push(next);
+            }
         }
-        cursor = next;
-        cursor_start = 0;
-    };
+        if cursor != block_index {
+            crossed.push(current.id);
+        }
+        legs.push((cursor, destinations));
+    }
+    // Coverage is a meet over each clear block's distinct successors: a
+    // block holding a covering write covers outright, and a clear block
+    // covers once every destination does — a fork's legs may cover through
+    // different writes or reconverge on one. A block left uncovered at the
+    // fixpoint sits on a path that escapes or cycles without covering, and
+    // the store is dead only when its own block covers.
+    let mut covered = vec![false; function.blocks.len()];
+    for (killer, _) in &killers {
+        covered[*killer] = true;
+    }
+    loop {
+        let mut progressed = false;
+        for (block, destinations) in &legs {
+            if !covered[*block] && destinations.iter().all(|next| covered[*next]) {
+                covered[*block] = true;
+                progressed = true;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    if !covered[block_index] {
+        return Err(DeadStoreEliminationError::UnsupportedPair);
+    }
     // A boundary settlement positioned inside the dead interval is an event a
     // boundary could observe through; positions outside it only shift. The
     // interval covers the store's block after the removed store, every fully
-    // crossed block, and the covering block through the covering store.
+    // crossed block, and each covering block through its covering store.
+    let origin_cover = killers
+        .iter()
+        .find(|(killer, _)| *killer == block_index)
+        .map(|(_, cover)| *cover);
     for settlement in function.boundary_settlements.iter() {
         let position = settlement.instruction_index as usize;
         if settlement.block == block.id {
-            if store_index < position && (killer_block != block_index || position <= killer_index) {
+            if store_index < position && origin_cover.is_none_or(|cover| position <= cover) {
                 return Err(DeadStoreEliminationError::InterveningAccess);
             }
         } else if crossed.contains(&settlement.block)
-            || (killer_block != block_index
-                && settlement.block == function.blocks[killer_block].id
-                && position <= killer_index)
+            || killers.iter().any(|(killer, cover)| {
+                *killer != block_index
+                    && function.blocks[*killer].id == settlement.block
+                    && position <= *cover
+            })
         {
             return Err(DeadStoreEliminationError::InterveningAccess);
         }
