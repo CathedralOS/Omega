@@ -5,6 +5,7 @@ use super::{
     TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::ShapeCollector;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
 use crate::execution::terminal_unit::is_unit;
 use crate::execution::terminal_unit::machine_binders;
@@ -116,14 +117,16 @@ pub(super) fn ordered_statement_call<'program>(
     Some((*expression, call))
 }
 
-pub(in crate::execution::terminal_unit) fn outer_calls<'a>(
+/// `outer_calls_before` over the whole body, tracing where admission stopped.
+pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     calls: &'a [checked_trees::FlowCallFact],
+    trace: &LocalConstructionTrace,
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
-    outer_calls_before(
+    outer_calls_before_traced(
         program,
         facts,
         machine,
@@ -133,19 +136,43 @@ pub(in crate::execution::terminal_unit) fn outer_calls<'a>(
             .statement_table
             .statements(state.statement_nodes)
             .len(),
+        trace,
+    )
+}
+
+pub(in crate::execution::terminal_unit) fn outer_calls<'a>(
+    program: &TypedTrees,
+    facts: &'a CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    calls: &'a [checked_trees::FlowCallFact],
+) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
+    outer_calls_traced(
+        program,
+        facts,
+        machine,
+        state,
+        calls,
+        &LocalConstructionTrace::default(),
     )
 }
 
 /// Sequence only the common body. Selected exit operands retain their own
 /// computation/value roots and must not consume the body's call roster.
-pub(in crate::execution::terminal_unit) fn outer_calls_before<'a>(
+/// Sequence only the common body, tracing the call statement and the admission step
+/// (statement window, duplicate call, structural operands, ordered statement
+/// call, statement shape, target agreement, argument calls, unconsumed
+/// nested calls) where it declined the body.
+pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     calls: &'a [checked_trees::FlowCallFact],
     statement_end: usize,
+    trace: &LocalConstructionTrace,
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
+    trace.phase("outer calls: statement window");
     let statements = program.statement_table.statements(state.statement_nodes);
     if statement_end > statements.len()
         || calls
@@ -470,12 +497,16 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before<'a>(
         {
             continue;
         }
+        trace.phase("outer calls: duplicate statement call");
+        trace.statement(u32::try_from(call.statement_index).ok());
         if outer.iter().any(|prior: &&checked_trees::FlowCallFact| {
             prior.statement_index == call.statement_index
         }) {
             return None;
         }
         outer.push(call);
+        trace.phase("outer calls: structural operands");
+        trace.statement(u32::try_from(call.statement_index).ok());
         let owner = program
             .machines()
             .iter()
@@ -486,6 +517,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before<'a>(
             }
             structural.push(nested);
         }
+        trace.phase("outer calls: ordered statement call");
+        trace.statement(u32::try_from(call.statement_index).ok());
         let statement = program
             .statement_table
             .statements(state.statement_nodes)
@@ -516,6 +549,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before<'a>(
         {
             continue;
         }
+        trace.phase("outer calls: statement shape");
+        trace.statement(u32::try_from(call.statement_index).ok());
         let (target, arguments) = match statement {
             StatementNode::Call(authored) => (
                 authored.target_symbol,
@@ -564,9 +599,13 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before<'a>(
             }
             _ => return None,
         };
+        trace.phase("outer calls: target agreement");
+        trace.statement(u32::try_from(call.statement_index).ok());
         if target != call.target_symbol {
             return None;
         }
+        trace.phase("outer calls: argument calls");
+        trace.statement(u32::try_from(call.statement_index).ok());
         collect_argument_calls(
             program,
             facts,
@@ -579,6 +618,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before<'a>(
         )?;
     }
     for call in &structural {
+        trace.phase("outer calls: structural argument calls");
+        trace.statement(u32::try_from(call.statement_index).ok());
         let site = crate::semantic_calls::find_call_site(
             program,
             machine,
@@ -598,6 +639,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before<'a>(
             &mut consumed,
         )?;
     }
+    trace.phase("outer calls: unconsumed nested calls");
+    trace.statement(None);
     if calls
         .iter()
         .filter(|call| call.call_ordinal != 0)

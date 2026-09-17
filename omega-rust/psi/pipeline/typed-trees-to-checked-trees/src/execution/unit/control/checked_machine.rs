@@ -320,7 +320,14 @@ fn build_checked_machine_with_trace(
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let source_calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
     trace.phase("outer calls");
-    let calls = call_occurrences::outer_calls(program, facts, machine.symbol, state, source_calls)?;
+    let calls = call_occurrences::outer_calls_traced(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        source_calls,
+        trace,
+    )?;
     trace.phase("result-local family");
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,

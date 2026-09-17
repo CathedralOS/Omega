@@ -27,7 +27,7 @@ pub(super) mod structural_operands;
 mod structural_unit_machine;
 
 pub(crate) use boundary_machine::{build_boundary_machine, build_static_boundary_requirements};
-pub(super) use call_occurrences::{outer_calls, outer_calls_before, tail_call};
+pub(super) use call_occurrences::{outer_calls, outer_calls_before_traced, tail_call};
 pub(crate) use call_results::{
     bind_structural_call_result, checked_structural_result_type,
     checked_unit_structural_result_local,
