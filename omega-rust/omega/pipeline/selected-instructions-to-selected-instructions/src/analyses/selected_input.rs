@@ -9,9 +9,9 @@ use crate::{
     ValidatedEdgeRelocation, ValidatedFixedViewCopies, ValidatedForkRelocation,
     ValidatedJoinRelocation, ValidatedLiteralCompare, ValidatedLiteralFold,
     ValidatedLiteralMinuend, ValidatedLocalRelocation, ValidatedLocalSchedule,
-    ValidatedPressureRematerialization, ValidatedRedundantExtension, ValidatedRunRelocation,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedStoreMutationMotion,
-    ValidatedStoredLoadForwarding,
+    ValidatedPredecessorRelocation, ValidatedPressureRematerialization,
+    ValidatedRedundantExtension, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
+    ValidatedRuntimeSpill, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
 };
 
 mod sealed {
@@ -341,6 +341,26 @@ impl ValidatedSelectedAnalysis for ValidatedLocalRelocation {
 impl sealed::Sealed for ValidatedLocalSchedule {}
 
 impl ValidatedSelectedAnalysis for ValidatedLocalSchedule {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedPredecessorRelocation {}
+
+impl ValidatedSelectedAnalysis for ValidatedPredecessorRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
