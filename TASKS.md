@@ -1109,9 +1109,22 @@ other terminal services are not prerequisites.
   by `process_exit_i32_status_mapped`: semantic statuses outside the host's
   8-bit presentation (-44 taken, 300 untaken) stay exact through the checked
   interpreter and each branch's `SelectedProcessExit` custody, while the
-  macOS arm64 physical run presents the low byte (212). Open: remaining
-  hosts' physical runs, root-return/task-custody survivor contracts, and
-  general completion syntax.
+  macOS arm64 physical run presents the low byte (212). At c2a47182f6 the
+  ordinary CLI review proposes the root consumer's `Console::exit_process`
+  `terminal_permission` row (`process_termination`) as one blocking
+  decision (`review/candidate/semantic_bindings.rs`, root-only because
+  every package's open permissions propagate into one root policy);
+  accepting it publishes a lock whose accepted policy carries the row, so
+  `omega --target macos_arm64` on a downstream application now stops only
+  at the empty CLI receiving policy ("omits the accepted permission"),
+  which is TWO-AXIS-TERMINAL-AUTHORITY-REVIEW's receiving-axis input
+  (`PreparedLocalProjectNativeRequest::with_receiving_terminal_authority_permission_policy`
+  has no caller under `omega-rust/omega/src`) rather than test-owned
+  acceptance (`package_commands console_exit_permission`,
+  `tests/fixtures/packages/console-exit-app`). Console output/input
+  permissions are not proposed yet. Open: the CLI receiving policy,
+  remaining hosts' physical runs, root-return/task-custody survivor
+  contracts, and general completion syntax.
 
 ## P1 - Authority, roots, and entry
 
