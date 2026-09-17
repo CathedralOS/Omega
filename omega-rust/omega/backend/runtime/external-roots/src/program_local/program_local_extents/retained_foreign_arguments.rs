@@ -1,16 +1,19 @@
 //! Explicit custody records for foreign arguments retained beyond one call.
 //!
-//! Call-scoped arguments remain `Extent::loan` or `Extent::loan_mut` borrows.
-//! Longer-lived dispositions are explicit so the registry can retain the
-//! program-local account, while the `Extent` remains passive authority.
-//! Unknown ambient backing and substituted mapping revisions reject.
+//! Call-scoped arguments remain borrows minted through
+//! [`ProgramLocalExtentRegistry::loan_under_activation`]/
+//! [`ProgramLocalExtentRegistry::loan_mut_under_activation`] under the exact
+//! establishing activation. Longer-lived dispositions are explicit so the
+//! registry can retain the program-local account, while the `Extent` remains
+//! passive authority. Unknown ambient backing and substituted mapping
+//! revisions reject.
 
 use extents::{
     AddressSpaceId, Extent, ExtentLineageId, ExtentProgramLocalOrigin, ExtentProvenanceId,
     ExtentRights, MappingEraId,
 };
 
-use super::{ExternalRootDiagnostic, HeldProgramLocalExtent, ProgramLocalExtentRegistry};
+use super::{ExternalRootDiagnostic, ProgramLocalExtentRegistry};
 
 /// Foreign access polarity over the retained range; mirrors [`extents::LoanPolarity`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -419,46 +422,6 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
             disposition,
             returned,
         })
-    }
-
-    fn validate_backing(
-        &self,
-        extent: &Extent,
-    ) -> Result<
-        (
-            &HeldProgramLocalExtent<'root, 'code>,
-            ExtentProgramLocalOrigin,
-        ),
-        ExternalRootDiagnostic,
-    > {
-        let Some(origin) = extent.program_local_origin() else {
-            return Err(ExternalRootDiagnostic(
-                "retained foreign argument has unknown ambient backing: the Extent is not rooted in an established program-local account"
-                    .into(),
-            ));
-        };
-        let Some(held) = self.held.get(&origin) else {
-            return Err(ExternalRootDiagnostic(
-                "retained foreign argument has unknown ambient backing: no held program-local account exists for the Extent"
-                    .into(),
-            ));
-        };
-        if extent.lineage_root() != held.lineage {
-            return Err(ExternalRootDiagnostic(
-                "retained foreign argument has substituted lineage for its held program-local account"
-                    .into(),
-            ));
-        }
-        if extent.address_space() != held.backing.address_space()
-            || extent.provenance() != held.backing.provenance()
-            || extent.era() != held.backing.era()
-        {
-            return Err(ExternalRootDiagnostic(
-                "retained foreign argument revision provenance does not match the installed occurrence (mapping era / provenance / address space)"
-                    .into(),
-            ));
-        }
-        Ok((held, origin))
     }
 
     fn validate_requested_range(

@@ -215,10 +215,11 @@ fn aggregate_materialization_discharges_reconstructed_capacity_over_installed_pa
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
 
     // The activation borrows a partition subrange rather than owning it; the
-    // loan carries the same program-local origin and ends before completion.
+    // checked loan carries the same program-local origin and ends before
+    // completion.
     {
-        let loan = extent
-            .loan_mut(0x10, 0x20)
+        let loan = registry
+            .loan_mut_under_activation(&activation, &mut extent, 0x10, 0x20)
             .expect("exclusive activation loan");
         assert_eq!(loan.base(), 0x4050);
         assert_eq!(loan.length(), 0x20);
@@ -474,6 +475,195 @@ fn counted_aggregate_capacity_cannot_discharge_extent_partitions() {
             .0
             .contains("counted program-local aggregate")
     );
+}
+
+#[test]
+fn program_local_extent_loans_require_the_establishing_activation() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    // The cohort ledger starts in era 9 so one activation can be entered
+    // there and held while era 10 publishes: the held token then carries a
+    // stale epoch for the era-10 occurrence.
+    let mut lifecycle = program_local_lifecycle(
+        780,
+        9,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let stale_activation = program_local_activation(&mut lifecycle, 979, 9);
+    publish_program_local_era(
+        &mut lifecycle,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+        110,
+        true,
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 880, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 980, 10);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject(&root, &activation, 1080, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let mut extent = registry
+        .materialize(
+            established,
+            installed_backing_extent(700, 0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes over its installed backing");
+    let origin = extent.program_local_origin().expect("program-local origin");
+    assert_eq!(origin.entry_invocation(), 980);
+
+    // The establishing activation borrows shared and exclusive subranges of
+    // its own introduced root.
+    {
+        let shared = registry
+            .loan_under_activation(&activation, &extent, 0x10, 0x20)
+            .expect("shared activation loan");
+        assert_eq!(shared.polarity(), extents::LoanPolarity::Shared);
+        assert_eq!(shared.base(), 0x4010);
+        assert_eq!(shared.length(), 0x20);
+        assert_eq!(shared.program_local_origin(), Some(origin));
+    }
+    {
+        let exclusive = registry
+            .loan_mut_under_activation(&activation, &mut extent, 0x30, 0x10)
+            .expect("exclusive activation loan");
+        assert_eq!(exclusive.polarity(), extents::LoanPolarity::Exclusive);
+        assert_eq!(exclusive.base(), 0x4030);
+    }
+
+    // A split descendant remains inside the same held account, so its
+    // subrange still loans under the establishing activation.
+    let (lower, upper) = extent.split_at(0x40).expect("split program-local Extent");
+    {
+        let descendant = registry
+            .loan_under_activation(&activation, &lower, 0x10, 0x10)
+            .expect("a split descendant borrows under the same activation");
+        assert_eq!(descendant.base(), 0x4010);
+        assert_eq!(descendant.length(), 0x10);
+    }
+    let extent = lower.merge(upper).expect("recombine exact root Extent");
+
+    // Another activation entered on the same ledger and epoch is a distinct
+    // invocation: it did not observe this occurrence's subject.
+    let other_activation = program_local_activation(&mut lifecycle, 981, 10);
+    let rejected = registry
+        .loan_under_activation(&other_activation, &extent, 0x10, 0x20)
+        .expect_err("another invocation of the same epoch cannot borrow the extent");
+    assert!(rejected.0.contains("established the exact occurrence"));
+
+    // An activation entered on a stale era of the same ledger is not the
+    // occurrence's epoch, even though it is still live.
+    let rejected = registry
+        .loan_under_activation(&stale_activation, &extent, 0x10, 0x20)
+        .expect_err("a stale-epoch activation cannot borrow the extent");
+    assert!(
+        rejected
+            .0
+            .contains("exact occurrence lifecycle ledger and epoch")
+    );
+
+    // A foreign ledger's activation is not this installation's occurrence
+    // even with a coincidentally matching invocation identity.
+    let mut foreign_lifecycle = program_local_lifecycle(
+        781,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let foreign_activation = program_local_activation(&mut foreign_lifecycle, 980, 10);
+    let rejected = registry
+        .loan_under_activation(&foreign_activation, &extent, 0x10, 0x20)
+        .expect_err("a foreign ledger's activation cannot borrow the extent");
+    assert!(
+        rejected
+            .0
+            .contains("exact occurrence lifecycle ledger and epoch")
+    );
+
+    // Provider-issued installed backing and an account held by another
+    // registry are both ambient authority here.
+    let ambient = installed_backing_extent(701, 0x4000, 0x100, 30);
+    let rejected = registry
+        .loan_under_activation(&activation, &ambient, 0x10, 0x20)
+        .expect_err("provider-issued backing is not a held program-local account");
+    assert!(
+        rejected
+            .0
+            .contains("not rooted in an established program-local account")
+    );
+    let empty_registry = ProgramLocalExtentRegistry::new();
+    let rejected = empty_registry
+        .loan_under_activation(&activation, &extent, 0x10, 0x20)
+        .expect_err("another registry holds no account for the extent");
+    assert!(rejected.0.contains("no held program-local account"));
+
+    // The checked route still enforces the Extent's own subrange geometry.
+    let rejected = registry
+        .loan_under_activation(&activation, &extent, 0x200, 0x10)
+        .expect_err("a loan outside the extent range rejects");
+    assert!(rejected.0.contains("exceeds"));
+
+    // Completion for the same occurrence and epoch: the recombined root
+    // retires through the ledger and the establishing activation leaves.
+    let retired = registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("exact recombined root completes the occurrence");
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    assert_eq!(retired.backing().base(), 0x4000);
+    assert_eq!(retired.backing().length(), 0x100);
+
+    let receipt = activation.leave_receipt(true);
+    activation
+        .leave(&mut lifecycle, receipt)
+        .expect("the establishing activation completes its scope");
+    let receipt = other_activation.leave_receipt(true);
+    other_activation
+        .leave(&mut lifecycle, receipt)
+        .expect("the same-epoch activation completes its scope");
+    let receipt = stale_activation.leave_receipt(true);
+    stale_activation
+        .leave(&mut lifecycle, receipt)
+        .expect("the held stale-era activation completes its scope");
+    let receipt = foreign_activation.leave_receipt(true);
+    foreign_activation
+        .leave(&mut foreign_lifecycle, receipt)
+        .expect("the foreign activation completes on its own ledger");
 }
 
 #[test]
