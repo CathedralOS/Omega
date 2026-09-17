@@ -433,11 +433,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   223 pass, 1156 fail. By owner: 680 stop at Terminal production with
   `Main::main` lacking a checked transitive Unit plan (by the checked stage's omission roster: 541 are multi-state
   bodies that no composed control builder admits, **GENERAL-CYCLIC-EXECUTION**
-  and the state-graph route; 45 stop in the shared statement sequence and 34
-  at the call-statement shape, both single-state Unit bodies; 12 reach a
-  scalar callee with neither a registered target nor an ordinary body; the
-  rest stop at signature, outer calls, trivial affine locals, or provider
-  attachment requirements); 80 lose the
+  and the state-graph route, and the general route's trace places them at
+  outer-call admission (294), a local-data statement in the shared
+  statement sequence (96), the terminator (58), the state signature (56),
+  operation custody (38), prefix initializers (16) and call statements (10);
+  45 single-state Unit bodies stop in the shared statement sequence and 34
+  at the call-statement shape; 12 reach a scalar callee with neither a
+  registered target nor an ordinary body; the rest stop at signature,
+  outer calls, trivial affine locals, or provider attachment requirements); 80 lose the
   macOS hosted receiver bridge's exact contract/storage/entry custody, 36
   select no exact program entry, and 22 fail the `MacosPhysicalEntry::enter`
   schema requirement (**ENTRY-CONTENT-ROOTS**); 66 are
