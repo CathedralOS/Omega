@@ -231,17 +231,21 @@ impl<'program> FieldCoordinate<'program> {
     }
 
     /// The value this coordinate holds after `expression` arrives in its
-    /// formal: the formal itself forwarded, or the literal chain rebuilt
-    /// declaration by declaration down to the field. A forward of the exact
-    /// prefix projection at any depth keeps the remaining chain's current
-    /// value; a literal of another declaration, a foreign record, or a
-    /// missing step is not this coordinate.
+    /// formal: the formal itself forwarded, a borrow of a formal naming the
+    /// same record, or the literal chain rebuilt declaration by declaration
+    /// down to the field. `arrival_borrowed` is the destination formal's own
+    /// reference boundary, so a borrowed arrival unwraps one `&` no matter
+    /// how the source slot stored its record. A forward of the exact prefix
+    /// projection at any depth keeps the remaining chain's current value; a
+    /// literal of another declaration, a foreign record, or a missing step is
+    /// not this coordinate.
     pub(super) fn actual(
         &self,
         program: &TypedTrees,
         state: &State,
         engine: &mut Engine<'_>,
         expression: ExpressionHandle,
+        arrival_borrowed: bool,
     ) -> Option<Polynomial> {
         if parameter(program, state, expression)
             .is_some_and(|parameter| parameter.symbol == self.parameter.symbol)
@@ -249,12 +253,21 @@ impl<'program> FieldCoordinate<'program> {
             return Some(self.value());
         }
         let mut current = expression;
-        if self.borrowed {
+        if arrival_borrowed {
             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current)
             else {
                 return None;
             };
             current = borrow.target;
+            // `&x` arrives with the record `x` already denotes, so the slot
+            // reads exactly this coordinate of `x`'s own formal. The rebased
+            // atom keeps the ordinary proof burden: an unconstrained or
+            // foreign record still supplies no membership or descent
+            // evidence, and a borrow of a member projection stays a separate
+            // leg because its coordinate is not a bare formal's.
+            if let Some(coordinate) = self.rebased(program, state, current) {
+                return Some(coordinate.value());
+            }
         }
         let mut owner = self.root;
         for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {

@@ -262,10 +262,14 @@ fn constructed_borrow_arrivals_still_prove_the_rank() {
         "step(&Card { power: c.power - amount }, amount)",
         "step(&Card { power: c.power }, amount)",
     ));
-    // Anchoring the slot is not the same as reading the arrival: borrowing an
-    // owned formal crosses a reference boundary the field substitution does
-    // not yet traverse, so the edge still has no produced-rank evidence.
-    reject(
+}
+
+#[test]
+fn borrowed_formal_arrivals_rebase_the_coordinate() {
+    // `&card` borrows the owned formal the view reads: the destination slot
+    // holds exactly `card`'s field coordinate, so the arrival proves
+    // membership from the rank invariant instead of a rebuilt literal.
+    prove(
         r#"
 data Card { power: u64; }
 measure Card::PowerOrder(card: Card) -> u64 { card.power }
@@ -274,6 +278,122 @@ requires card.power <= 5;
 terminates by card -> Card::PowerOrder in 0..=5;
 -> u64 {
     transition { _ -> step(&card, amount) }
+    state step(c: &Card, amount: u64 [1..=2]) {
+        transition c.power >= amount {
+            true -> step(&Card { power: c.power - amount }, amount)
+            false -> c.power
+        }
+    }
+}
+"#,
+    );
+    // The same borrow from a named state's owned formal rebases onto that
+    // formal's coordinate: `m` carries the ranked entry role into `&m`.
+    prove(
+        r#"
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+machine walk(card: Card, amount: u64 [1..=2])
+requires card.power <= 5;
+terminates by card -> Card::PowerOrder in 0..=5;
+-> u64 {
+    transition { _ -> deal(card, amount) }
+    state deal(m: Card, amount: u64 [1..=2]) {
+        transition { _ -> step(&m, amount) }
+    }
+    state step(c: &Card, amount: u64 [1..=2]) {
+        transition c.power >= amount {
+            true -> step(&Card { power: c.power - amount }, amount)
+            false -> c.power
+        }
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn borrowed_formal_arrivals_keep_their_proof_burden() {
+    // A borrow of an owned formal preserves the rank instead of decreasing
+    // it: `&m` rebases onto `m`'s coordinate, so the cyclic deal/step edge
+    // still owes strict descent it cannot prove.
+    reject(
+        r#"
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+machine walk(card: Card, amount: u64 [1..=2])
+requires card.power <= 5;
+terminates by card -> Card::PowerOrder in 0..=5;
+-> u64 {
+    transition { _ -> deal(card, amount) }
+    state deal(m: Card, amount: u64 [1..=2]) {
+        transition { _ -> step(&m, amount) }
+    }
+    state step(c: &Card, amount: u64 [1..=2]) {
+        transition { _ -> deal(Card { power: c.power }, amount) }
+    }
+}
+"#,
+    );
+    // Borrowing a different owned record names that formal's own entry role,
+    // so `step` never carries the ranked `card` coordinate at all.
+    reject(
+        r#"
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+machine walk(card: Card, other: Card, amount: u64 [1..=2])
+requires card.power <= 5;
+terminates by card -> Card::PowerOrder in 0..=5;
+-> u64 {
+    transition { _ -> step(&other, amount) }
+    state step(c: &Card, amount: u64 [1..=2]) {
+        transition c.power >= amount {
+            true -> step(&Card { power: c.power - amount }, amount)
+            false -> c.power
+        }
+    }
+}
+"#,
+    );
+    // A store into the borrowed premise carrier before the edge still
+    // invalidates the arrival value the coordinate names.
+    reject(
+        r#"
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+machine walk(card: Card, amount: u64 [1..=2])
+requires card.power <= 5;
+terminates by card -> Card::PowerOrder in 0..=5;
+-> u64 {
+    transition { _ -> deal(card, amount) }
+    state deal(mut m: Card, amount: u64 [1..=2]) {
+        m = Card { power: 0 };
+        transition { _ -> step(&m, amount) }
+    }
+    state step(c: &Card, amount: u64 [1..=2]) {
+        transition c.power >= amount {
+            true -> step(&Card { power: c.power - amount }, amount)
+            false -> c.power
+        }
+    }
+}
+"#,
+    );
+    // A borrow of a local names no formal coordinate: the telescope cannot
+    // anchor `step` through `&n`.
+    reject(
+        r#"
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+machine walk(card: Card, amount: u64 [1..=2])
+requires card.power <= 5;
+terminates by card -> Card::PowerOrder in 0..=5;
+-> u64 {
+    transition { _ -> deal(card, amount) }
+    state deal(m: Card, amount: u64 [1..=2]) {
+        let n: Card = Card { power: m.power };
+        transition { _ -> step(&n, amount) }
+    }
     state step(c: &Card, amount: u64 [1..=2]) {
         transition c.power >= amount {
             true -> step(&Card { power: c.power - amount }, amount)

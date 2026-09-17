@@ -164,10 +164,20 @@ impl<'program> FieldCoordinates<'program> {
             if entry_symbol != formal {
                 continue;
             }
-            if let Some(destination) = destination {
-                coordinate.at_arrival(program, destination, entry_symbol)?;
-            }
-            let actual = coordinate.actual(program, state, engine, argument)?;
+            // The destination formal's own type decides whether the actual
+            // arrives under one borrow: an owned source slot can feed a `&R`
+            // formal through `&x`, while the source coordinate's boundary
+            // says nothing about the arrival. A root edge re-fills the
+            // coordinate's own formal, so its boundary is the arrival's.
+            let arrival_borrowed = match destination {
+                Some(destination) => {
+                    coordinate
+                        .at_arrival(program, destination, entry_symbol)?
+                        .borrowed
+                }
+                None => coordinate.borrowed,
+            };
+            let actual = coordinate.actual(program, state, engine, argument, arrival_borrowed)?;
             if substitutions
                 .insert(coordinate.identity.clone(), actual)
                 .is_some()
