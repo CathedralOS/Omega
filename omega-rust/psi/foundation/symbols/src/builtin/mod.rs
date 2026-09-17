@@ -612,6 +612,89 @@ impl BuiltinFunction {
         }
     }
 
+    /// Whether a call to this builtin writes no caller storage: it reads its
+    /// operands and produces a value. Write-frame inference gives such a
+    /// receiver-free call an empty frame instead of the whole-receiver clobber
+    /// of an unresolved call. Machine-control and port intrinsics, content
+    /// custody builtins, and `embed` are excluded: their effects are their own
+    /// custody axes, not value reads.
+    pub const fn has_empty_write_frame(self) -> bool {
+        match self {
+            Self::Max
+            | Self::Min
+            | Self::Sqrt
+            | Self::FloatIsNan
+            | Self::FloatMultiplyThenAddF32
+            | Self::FloatMultiplyThenAddF64
+            | Self::FloatFusedMultiplyAddF32
+            | Self::FloatFusedMultiplyAddF64
+            | Self::FloatIsFinite
+            | Self::FloatIsInfinite
+            | Self::FloatIsNormal
+            | Self::FloatIsSubnormal
+            | Self::FloatClassifyF32
+            | Self::FloatClassifyF64
+            | Self::FloatAddTowardZeroF32
+            | Self::FloatAddTowardZeroF64
+            | Self::FloatAddTowardPositiveF32
+            | Self::FloatAddTowardPositiveF64
+            | Self::FloatAddTowardNegativeF32
+            | Self::FloatAddTowardNegativeF64
+            | Self::FloatSubtractTowardZeroF32
+            | Self::FloatSubtractTowardZeroF64
+            | Self::FloatSubtractTowardPositiveF32
+            | Self::FloatSubtractTowardPositiveF64
+            | Self::FloatSubtractTowardNegativeF32
+            | Self::FloatSubtractTowardNegativeF64
+            | Self::FloatMultiplyTowardZeroF32
+            | Self::FloatMultiplyTowardZeroF64
+            | Self::FloatMultiplyTowardPositiveF32
+            | Self::FloatMultiplyTowardPositiveF64
+            | Self::FloatMultiplyTowardNegativeF32
+            | Self::FloatMultiplyTowardNegativeF64
+            | Self::FloatDivideTowardZeroF32
+            | Self::FloatDivideTowardZeroF64
+            | Self::FloatDivideTowardPositiveF32
+            | Self::FloatDivideTowardPositiveF64
+            | Self::FloatDivideTowardNegativeF32
+            | Self::FloatDivideTowardNegativeF64
+            | Self::FloatSqrtTowardZeroF32
+            | Self::FloatSqrtTowardZeroF64
+            | Self::FloatSqrtTowardPositiveF32
+            | Self::FloatSqrtTowardPositiveF64
+            | Self::FloatSqrtTowardNegativeF32
+            | Self::FloatSqrtTowardNegativeF64
+            | Self::FloatFusedMultiplyAddTowardZeroF32
+            | Self::FloatFusedMultiplyAddTowardZeroF64
+            | Self::FloatFusedMultiplyAddTowardPositiveF32
+            | Self::FloatFusedMultiplyAddTowardPositiveF64
+            | Self::FloatFusedMultiplyAddTowardNegativeF32
+            | Self::FloatFusedMultiplyAddTowardNegativeF64 => true,
+            Self::AsmHlt
+            | Self::AsmPortOut
+            | Self::AsmPortIn
+            | Self::AsmLoadFence
+            | Self::AsmStoreFence
+            | Self::AsmFullFence
+            | Self::AsmDisableInterrupts
+            | Self::AsmEnableInterrupts
+            | Self::AsmSnapshotFlags
+            | Self::AsmRestoreFlags
+            | Self::AsmReadMsr
+            | Self::AsmWriteMsr
+            | Self::AsmReadCr0
+            | Self::AsmReadCr2
+            | Self::AsmReadCr3
+            | Self::AsmReadCr4
+            | Self::AsmWriteCr0
+            | Self::AsmWriteCr3
+            | Self::AsmWriteCr4
+            | Self::ContentOld
+            | Self::ContentSeparate
+            | Self::IntegerEmbed => false,
+        }
+    }
+
     pub fn is_asm_intrinsic(self) -> bool {
         matches!(
             self,
