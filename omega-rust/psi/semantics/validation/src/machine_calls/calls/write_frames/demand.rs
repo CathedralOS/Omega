@@ -786,16 +786,14 @@ fn value_builtin_has_empty_write_frame(
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     if !call.receiver.is_valid() {
-        return matches!(
-            program
-                .symbols
-                .builtin_function_for_symbol(call.target_symbol),
-            Some(
-                symbols::BuiltinFunction::Min
-                    | symbols::BuiltinFunction::Max
-                    | symbols::BuiltinFunction::Sqrt
-            )
-        );
+        // One roster for every receiver-free value builtin, including the
+        // float intrinsics that selected execution settles an authored call
+        // into after checking: the settled body must derive the same frame
+        // the authored call did.
+        return program
+            .symbols
+            .builtin_function_for_symbol(call.target_symbol)
+            .is_some_and(symbols::BuiltinFunction::has_empty_write_frame);
     }
     // View operations remain receiver-bearing builtins. Numeric builtins are
     // free functions: an unresolved method cannot acquire their empty frame.
@@ -869,4 +867,115 @@ pub(crate) fn conservative_call_written_paths(
         machine_symbols,
         symbols,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use typed_trees::TypedTrees;
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::statement::StatementNode;
+
+    fn typed(source: &str) -> TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("symbols");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
+    }
+
+    /// Settle the `min` initializer call into a receiver-free float builtin
+    /// the way selected execution does after checking: same node, new target.
+    fn retarget_initializer_call(
+        program: &mut TypedTrees,
+        function: symbols::BuiltinFunction,
+        receiver: Option<typed_trees::expression::ExpressionHandle>,
+    ) {
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let initializer = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) => Some(local.initial_value),
+                _ => None,
+            })
+            .expect("local initializer");
+        let symbol = program
+            .symbols
+            .builtin_function_symbol(function)
+            .expect("builtin symbol");
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(initializer)
+        else {
+            panic!("the initializer is a call");
+        };
+        call.target = typed_trees::name::Identifier::generated(function.name());
+        call.target_symbol = symbol;
+        if let Some(receiver) = receiver {
+            call.receiver = receiver;
+        }
+    }
+
+    const SOURCE: &str = "machine observe(output: &mut f32, value: f32) { let settled: f32 = min(value, value); output = settled; }";
+
+    #[test]
+    fn receiver_free_float_builtin_calls_infer_an_empty_write_frame() {
+        for function in [
+            symbols::BuiltinFunction::FloatFusedMultiplyAddF32,
+            symbols::BuiltinFunction::FloatIsNan,
+            symbols::BuiltinFunction::FloatAddTowardZeroF32,
+            symbols::BuiltinFunction::Min,
+        ] {
+            let mut program = typed(SOURCE);
+            retarget_initializer_call(&mut program, function, None);
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[0];
+            let resolver = crate::CallFrameResolver::new(&program).expect("frame resolver");
+            assert_eq!(
+                resolver
+                    .inferred_state_write_frame(machine, state)
+                    .complete_paths(),
+                Some(["$P0".to_owned()].as_slice()),
+                "{function:?}: only the assignment to `output` writes caller storage",
+            );
+        }
+    }
+
+    #[test]
+    fn receiver_bearing_builtin_calls_still_write_their_receiver() {
+        let mut program = typed(SOURCE);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let output = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::Assignment(assignment) => Some(assignment.target),
+                _ => None,
+            })
+            .expect("assignment target names `output`");
+        retarget_initializer_call(
+            &mut program,
+            symbols::BuiltinFunction::FloatIsNan,
+            Some(output),
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let resolver = crate::CallFrameResolver::new(&program).expect("frame resolver");
+        let frame = resolver.inferred_state_write_frame(machine, state);
+        assert!(
+            frame.complete_paths().is_none() || frame.paths().iter().any(|path| path == "$P0"),
+            "a receiver-bearing call keeps its receiver reach: {frame:?}",
+        );
+        assert!(
+            !symbols::BuiltinFunction::AsmPortOut.has_empty_write_frame()
+                && !symbols::BuiltinFunction::ContentSeparate.has_empty_write_frame(),
+            "machine-control and content builtins keep their own custody",
+        );
+    }
 }
