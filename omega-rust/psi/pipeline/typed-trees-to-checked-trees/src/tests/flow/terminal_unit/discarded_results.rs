@@ -64,3 +64,84 @@ fn discarded_boundary_result_accepts_a_projected_fixed_buffer() {
         "entry-owned raw fixed storage reaches the boundary reader"
     );
 }
+
+// A boundary that publishes `blocks;` still returns through the ordinary
+// call edge: the acknowledged `block` call plans exactly like the
+// nonblocking one, so an entry that waits on hosted input keeps its Unit
+// plan and its attachment identity for ProgramEntry establishment.
+#[test]
+fn discarded_blocking_boundary_result_keeps_the_entry_unit_plan() {
+    let source = SOURCE
+        .replace(
+            "machine read(buffer: &mut [u8]) -> ReadResult;",
+            "machine read(buffer: &mut [u8]) -> ReadResult blocks;",
+        )
+        .replace("machine run(buffer: &mut [u8]) reaches Host {", "data Root { host: Host; buffer: [u8; 256]; }\nmachine Root::run(&mut self) reaches Host {")
+        .replace("Host::mark(", "self.host.mark(")
+        .replace("_ = Host::read(buffer);", "_ = block self.host.read(&mut self.buffer);");
+    let checked = checked(&source);
+    let root = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(root)
+        .unwrap_or_else(|| {
+            panic!(
+                "a blocking boundary read keeps the attached Unit caller: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(root)
+            )
+        });
+    assert_eq!(plan.operations.len(), 5);
+    assert!(matches!(
+        &plan.operations[1],
+        CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
+            if coordinate.statement_index == 1
+    ));
+    assert!(
+        plan.attachment_type_identity.is_some(),
+        "the attached entry rejoins its receiver type identity"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(root)
+            .is_none()
+    );
+}
+
+// Suspension stays outside the synchronous Unit call vocabulary.
+#[test]
+fn discarded_suspending_boundary_result_still_omits_the_unit_plan() {
+    let source = SOURCE
+        .replace(
+            "machine read(buffer: &mut [u8]) -> ReadResult;",
+            "machine read(buffer: &mut [u8]) -> ReadResult;\n    machine poll() -> ReadResult suspends;",
+        )
+        .replace("_ = Host::read(buffer);", "_ = suspend Host::poll();");
+    let checked = checked(&source);
+    let root = machine_named(&checked, "run");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(root)
+            .is_none(),
+        "a suspending boundary call has no synchronous Unit plan"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(root)
+            .is_some()
+    );
+}

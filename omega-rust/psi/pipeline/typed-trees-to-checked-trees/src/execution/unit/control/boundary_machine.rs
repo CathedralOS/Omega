@@ -123,10 +123,14 @@ pub(crate) fn build_static_boundary_requirements(
                             None => nominal_use_backs_binder(ordinal, parameter),
                         }
                     });
+            // A suspending requirement parks its caller, which no synchronous
+            // boundary plan expresses. A blocking one only occupies the
+            // worker while it waits; its envelope is folded into the
+            // contract commitment below, exactly as an attached `boundary
+            // machine` declaration that blocks is planned above.
             if (!type_parameters.is_empty() && !callback_telescope)
                 || !signature_contracts_are_exact_parameter_qualifications(program, signature)
                 || signature.suspends
-                || signature.blocks
             {
                 continue;
             }
