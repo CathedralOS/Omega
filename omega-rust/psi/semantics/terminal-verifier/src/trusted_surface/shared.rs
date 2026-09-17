@@ -374,7 +374,7 @@ rows! {
     FORM_MACHINE => (
         "formation:machine-validation",
         SharedFormation,
-        "one machine's signature, blocks, parameters, contract, and declared invariants",
+        "one machine's signature, blocks, parameters (including shared-borrow record views joined at block parameters), contract, and declared invariants",
         "the machine validates as a whole before its obligations are reconstructed",
         &["formation:module-structure"],
         &[tv!( "validation/machine.rs"), tv!( "validation/block_views.rs")]
@@ -486,7 +486,7 @@ rows! {
     FORM_FRONTIER => (
         "formation:frontier",
         SharedFormation,
-        "the machine's claim frontier at each block and traversal point",
+        "the machine's claim frontier and the referent roots pinned by shared-borrow join parameters at each block and traversal point",
         "the reconstructed frontier used by crash guards and cleanup checks is the validated one",
         &["scope:dominance-order"],
         &[tv!( "validation/frontier.rs"), tv!( "validation/frontier/block_parameters.rs"), tv!( "validation/frontier/traversal.rs")]

@@ -838,6 +838,13 @@ pub enum ModuleError {
         operation: OperationId,
         place: PlaceId,
     },
+    /// An operation moved, exclusively subloaned, or wrote through a root a
+    /// shared-borrow block parameter still observes. The joined view keeps
+    /// the root stable for the whole block that binds it.
+    SharedStructuralLoanDisturbed {
+        operation: OperationId,
+        place: PlaceId,
+    },
     ClaimFrontierJoinMismatch(BlockId),
     OwnedStructuralFrontierJoinMismatch(BlockId),
     LiveLinearClaimAtUnitReturn {

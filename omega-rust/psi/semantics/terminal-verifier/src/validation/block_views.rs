@@ -3,7 +3,8 @@
 use super::{
     BTreeMap, BTreeSet, BlockId, EdgeId, ModuleError, PlaceId, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+    Terminator,
 };
 pub(super) fn parameter(
     machine: &TerminalMachine,
@@ -72,7 +73,9 @@ pub(super) fn validate_declarations(
                                 StructuralTypeShape::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BorrowedView
                                 )
-                            ))
+                            )
+                            || (declaration.access == StructuralAccess::SharedBorrow
+                                && super::record::plain_type(module, row.id)))
                 })
                 || machine
                     .entry_claims
@@ -154,6 +157,43 @@ pub(super) fn validate_successor(
                 place: argument.place,
             });
         }
+        if expected.access == StructuralAccess::SharedBorrow {
+            // A shared successor loan joins the exact referent the authored
+            // borrow observed: the argument names the same root and the same
+            // projected field path, presented as `SharedBorrow`, and the
+            // path resolves to the parameter's declared referent type. No
+            // custody moves on this edge — the joined parameter can only
+            // read — and the frontier walk separately proves the root is
+            // still held when the edge completes. A borrowed byte view is a
+            // whole-view loan; only record joins carry a projection.
+            let byte_view_parameter = module.structural_types.iter().any(|row| {
+                row.id == expected.structural_type
+                    && matches!(
+                        row.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                        )
+                    )
+            });
+            if expected.multiplicity != StructuralMultiplicity::Unrestricted
+                || !expected.qualifications.is_empty()
+                || !expected.projected_qualifications.is_empty()
+                || argument.access != StructuralAccess::SharedBorrow
+                || (byte_view_parameter && !argument.path.is_empty())
+                || (!byte_view_parameter
+                    && !argument.path.is_empty()
+                    && !super::is_nonempty_field_path(&argument.path))
+                || shared_loan_root(module, machine, argument, available).and_then(|root| {
+                    super::foundation::resolve_structural_path(module, root, &argument.path)
+                }) != Some(expected.structural_type)
+            {
+                return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: argument.place,
+                });
+            }
+            continue;
+        }
         if !argument.path.is_empty() {
             // A projected owned argument moves one affine child out of a live
             // root into the target's plain affine parameter. Only Jump edges
@@ -222,11 +262,8 @@ pub(super) fn validate_successor(
                         })
                 })
         } else {
-            expected.access == StructuralAccess::SharedBorrow
-                && expected.multiplicity == StructuralMultiplicity::Unrestricted
-                && available.contains(&argument.place)
-                && super::byte_sequence_subslice::borrowed_result(machine, argument.place)
-                    .is_some_and(|source| source.structural_type == expected.structural_type)
+            // Shared-borrow parameters were handled by their own lane above.
+            false
         };
         if argument.access != expected.access || !exact_source {
             return Err(ModuleError::InvalidStructuralSuccessorArgument {
@@ -236,6 +273,48 @@ pub(super) fn validate_successor(
         }
     }
     Ok(())
+}
+
+/// The declared type at a shared successor loan's root. A signature or block
+/// parameter presents its own custody — anything the access lattice allows
+/// to read shared — while a completed record result or an established
+/// borrowed byte view carries its producer's exact type. Linear custody
+/// cannot present a shared read at all. Non-signature roots must still
+/// dominate the edge through `available`; machine parameters are
+/// established at entry and dominate every block.
+fn shared_loan_root(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    argument: &StructuralArgument,
+    available: &BTreeSet<PlaceId>,
+) -> Option<StructuralTypeId> {
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)
+        .or_else(|| {
+            parameter(machine, argument.place).filter(|_| available.contains(&argument.place))
+        })
+    {
+        return (super::structural_operations::structural_access_can_supply(
+            parameter.access,
+            StructuralAccess::SharedBorrow,
+        ) && parameter.multiplicity != StructuralMultiplicity::Linear
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty())
+        .then_some(parameter.structural_type);
+    }
+    if let Some(result) = super::record::completed_source(module, machine, argument.place)
+        .filter(|_| available.contains(&argument.place))
+    {
+        return Some(result.structural_type);
+    }
+    if argument.path.is_empty() {
+        return super::byte_sequence_subslice::borrowed_result(machine, argument.place)
+            .filter(|_| available.contains(&argument.place))
+            .map(|result| result.structural_type);
+    }
+    None
 }
 
 /// Mutable view names transfer at an edge; ordinary calls only reborrow them.

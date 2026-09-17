@@ -187,7 +187,10 @@ pub(crate) fn structural_occurrence_carries_qualification(
     }
 }
 
-fn structural_access_can_supply(source: StructuralAccess, presented: StructuralAccess) -> bool {
+pub(crate) fn structural_access_can_supply(
+    source: StructuralAccess,
+    presented: StructuralAccess,
+) -> bool {
     match source {
         StructuralAccess::Owned => true,
         StructuralAccess::SharedBorrow => presented == StructuralAccess::SharedBorrow,
