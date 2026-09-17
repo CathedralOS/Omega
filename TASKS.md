@@ -3291,8 +3291,31 @@ Owners include
   semantic home, and are design-blocked on the
   `open-index-operation-selection` owner question; tokenless boundary requirements (155
   library, 18 tests) wait on the named `boundary requirement`
-  provider/interpreter/Terminal route (TOP-LEVEL-BOUNDARY-REQUIREMENTS),
-  and the representation inversion (`SpelledOperator` wrapping machine
+  provider/interpreter/Terminal route (TOP-LEVEL-BOUNDARY-REQUIREMENTS):
+  at 79a9a2d084/8920cffc24 an intrinsic (or other `via`) satisfier of a
+  top-level requirement no longer restates the requirement's contract
+  (`conformance/machine_conformance.rs`, mirroring the operator
+  satisfier rule) and a direct call to a requirement whose selected plan
+  is not a checked adapter fails closed naming the plan
+  (`boundary_dispatch.rs::reject_unselected_direct_requirement_calls`),
+  but the 126 `F32/F64/I*/U*::*` rows in `core/float_operations.omg`
+  (78 float rows with `ensures`, 48 integer-conversion rows, 32 of them
+  carrier-qualified) stay on the operator spelling because the
+  named-float intrinsic execution bridge is operator-keyed end to end:
+  `selected_dispatch/float_intrinsic/*` plans rewrites only from
+  `facts.operators.named_uses`, realizations resolve by
+  `OperatorDefinition`, review evidence
+  (`capture/providers/application_realizations.rs`), D29 coverage
+  (`checked-compilation-to-terminal-artifact/application_coverage`) and
+  the native proposal (`checked_boundary_operator_scope`) key intrinsic
+  rows on operator symbols, and a rewritten requirement call would leave
+  its `FlowCallFact` live; migrating them needs an intrinsic requirement
+  signature view shared by operators and top-level requirements,
+  plan-commitment stamping for direct requirement calls, flow-fact
+  retirement, requirement-keyed coverage/proposal/evidence rows, and the
+  7 `named_float_rewrites.rs` harness tests moved to requirement-side
+  evidence (a user package cannot witness the shape: only toolchain
+  custody supplies catalog identity); and the representation inversion (`SpelledOperator` wrapping machine
   signatures directly) needs the provider-planning, build-time
   `selected_operators.rs`, evidence `capture/callables/boundary_operators.rs`
   and result-domain overload dispatch owners (the named-requirement
