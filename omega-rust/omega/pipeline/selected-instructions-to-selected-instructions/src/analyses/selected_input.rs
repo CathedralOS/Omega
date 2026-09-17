@@ -4,12 +4,12 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
-    ValidatedAddressFold, ValidatedCopyRemoval, ValidatedDeadStoreElimination,
-    ValidatedEdgeRelocation, ValidatedFixedViewCopies, ValidatedLiteralCompare,
-    ValidatedLiteralFold, ValidatedLiteralMinuend, ValidatedLocalRelocation,
-    ValidatedLocalSchedule, ValidatedPressureRematerialization, ValidatedRedundantExtension,
-    ValidatedRunRelocation, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedAddressFold, ValidatedConstantBoolean, ValidatedCopyRemoval,
+    ValidatedDeadStoreElimination, ValidatedEdgeRelocation, ValidatedFixedViewCopies,
+    ValidatedLiteralCompare, ValidatedLiteralFold, ValidatedLiteralMinuend,
+    ValidatedLocalRelocation, ValidatedLocalSchedule, ValidatedPressureRematerialization,
+    ValidatedRedundantExtension, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
+    ValidatedRuntimeSpill, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
 };
 
 mod sealed {
@@ -19,6 +19,26 @@ mod sealed {
 impl sealed::Sealed for ValidatedAddressFold {}
 
 impl ValidatedSelectedAnalysis for ValidatedAddressFold {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedConstantBoolean {}
+
+impl ValidatedSelectedAnalysis for ValidatedConstantBoolean {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
