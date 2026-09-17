@@ -829,6 +829,8 @@ pub(in crate::execution::terminal_unit) fn build(
             append_call_cleanup(program, facts, machine.symbol, state, &mut operations, statement_index, &structural_results)?;
         }
     }
+    trace.statement(None);
+    trace.phase("statement sequence: structural return types");
     if operations.iter().any(|operation| {
         matches!(
             operation,
@@ -873,6 +875,7 @@ pub(in crate::execution::terminal_unit) fn build(
             .map(|(binding, _)| binding.clone())
     });
     let mut structural_result = if let Some(binding) = returned_local {
+        trace.phase("statement sequence: structural result: returned local");
         if Some(binding.type_identity.as_str())
             != base_type_identity(program, state.return_type, &binders).as_deref()
             || binding.multiplicity != program.type_multiplicity(state.return_type)
@@ -930,6 +933,7 @@ pub(in crate::execution::terminal_unit) fn build(
         // a second binding and bypass the exact parameter-return custody owner.
         Some(result)
     } else if let Some(root) = returned_value {
+        trace.phase("statement sequence: structural result: returned value");
         if root.machine != machine.symbol || root.type_reference != state.return_type {
             return None;
         }
@@ -987,6 +991,7 @@ pub(in crate::execution::terminal_unit) fn build(
     } else if let Some(binding) = returned_call {
         Some(binding.into())
     } else if validation::is_closed_primitive_array_type(program, state.return_type) {
+        trace.phase("statement sequence: structural result: returned scalar array");
         let statements = program.statement_table.statements(state.statement_nodes);
         let StatementNode::Expression(expression) = statements.last()? else {
             return None;
@@ -1033,6 +1038,7 @@ pub(in crate::execution::terminal_unit) fn build(
     } else {
         None
     };
+    trace.phase("statement sequence: reference result");
     if let Some(result) = &mut structural_result
         && super::super::reference_results::parts(program, state.return_type).is_some()
         && let [reference] = result.reference_sources.as_slice()
@@ -1062,6 +1068,7 @@ pub(in crate::execution::terminal_unit) fn build(
     // before any scalar completion or following statement can reuse the parent.
     // An empty body cannot have established a call-result reference. Do not
     // require a last-statement coordinate for an ordinary empty helper/state.
+    trace.phase("statement sequence: returned carrier releases");
     if let Some(statement_index) = program
         .statement_table
         .statements(state.statement_nodes)
@@ -1080,6 +1087,7 @@ pub(in crate::execution::terminal_unit) fn build(
         && returned_scalar_call.is_none()
         && let Some(primitive_type) = program.primitive_type_reference(state.return_type)
     {
+        trace.phase("statement sequence: scalar completion");
         let statements = program.statement_table.statements(state.statement_nodes);
         let StatementNode::Expression(expression) = statements.last()? else {
             return None;
@@ -1134,6 +1142,7 @@ pub(in crate::execution::terminal_unit) fn build(
         operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
         returned_scalar_call = Some(result);
     }
+    trace.phase("statement sequence: scalar control ownership");
     if scalar_control.is_some()
         && operations.iter().any(|operation| {
             matches!(operation,
@@ -1145,6 +1154,7 @@ pub(in crate::execution::terminal_unit) fn build(
     {
         return None;
     }
+    trace.phase("statement sequence: call count agreement");
     (call_count == calls.len()).then_some(StatementSequence {
         scalar_result: returned_scalar_call,
         scalar_control,
