@@ -73,7 +73,12 @@ fn retains_static_boundary_scalar_parameter_and_literal_argument() {
 }
 
 #[test]
-fn static_boundary_reaches_keep_every_direct_intrinsic_and_parameter_call() {
+fn static_boundary_reaches_keep_every_direct_intrinsic_and_requirement_call() {
+    // The requirement calls are direct: since c5843e4c43 a nominal binder
+    // call (`Selected(0)` under `where machine Selected satisfies
+    // Console::exit_process`) is an obligation for specialization, not an
+    // executable boundary body, so an open generic entry retains no plan for
+    // it and cannot carry the reach-conflict controls below.
     let original = checked(
         r#"
         pub boundary trait Console {
@@ -85,14 +90,13 @@ fn static_boundary_reaches_keep_every_direct_intrinsic_and_parameter_call() {
         boundary machine ConsoleNativeProvider::write_byte(byte: i32)
             satisfies Console::write_byte;
         data Root {}
-        machine Root::enter<machine Selected>()
-        where machine Selected satisfies Console::exit_process;
+        machine Root::enter()
         reaches Console {
             ConsoleNativeProvider::write_byte(1);
             ConsoleNativeProvider::write_byte(2);
             Console::write_byte(3);
-            Selected(0);
-            Selected(0);
+            Console::exit_process(0);
+            Console::exit_process(0);
         }
         "#,
     );

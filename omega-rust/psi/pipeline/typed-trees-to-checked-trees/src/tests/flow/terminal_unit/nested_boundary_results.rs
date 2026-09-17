@@ -51,6 +51,22 @@ fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() 
         );
         let checked = checked(&source);
         let machine = machine_named(&checked, "enter");
+        if nominal {
+            // Since c5843e4c43 a nominal binder call is an obligation for
+            // specialization, not an executable boundary body: the open
+            // generic entry retains no Unit plan until a selected
+            // implementation replaces the binder.
+            assert!(
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .for_machine(machine)
+                    .is_none(),
+                "open nominal binder entry retains no executable plan: {create}"
+            );
+            continue;
+        }
         let plan = checked
             .facts
             .flow
@@ -269,6 +285,20 @@ fn nested_ordinary_results_keep_postorder_and_exact_boundary_operand_roles() {
         );
         let checked = checked(&source);
         let machine = machine_named(&checked, "enter");
+        if nominal {
+            // The same c5843e4c43 fence: an open nominal binder consumer has
+            // no executable plan before specialization.
+            assert!(
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .for_machine(machine)
+                    .is_none(),
+                "open nominal binder entry retains no executable plan: {invocation}"
+            );
+            continue;
+        }
         let plan = checked
             .facts
             .flow
