@@ -185,6 +185,7 @@ fn validate_immediate_row(
             PairOperandShape::BinaryRightLiteral
             | PairOperandShape::BinaryLeftLiteral
             | PairOperandShape::BinaryRightLiteralAuxiliaryUses
+            | PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs
             | PairOperandShape::BinaryRightLiteralScratchDefs
             | PairOperandShape::BinaryLeftLiteralScratchDefs,
             PairResultDisposition::ScalarRegister,

@@ -15,9 +15,9 @@ use crate::{
 
 use super::constraints::{
     ValidationImmediateRows, dead_unit_defs_fold_admission, effect_declaration,
-    fault_discharged_fold_admission, indexed_read_fold_admission, isolated_effect_alternative,
-    isolated_effect_declaration, isolated_rewritten_declaration,
-    obligation_discharged_fold_admission,
+    fault_discharged_dead_unit_defs_fold_admission, fault_discharged_fold_admission,
+    indexed_read_fold_admission, isolated_effect_alternative, isolated_effect_declaration,
+    isolated_rewritten_declaration, obligation_discharged_fold_admission,
 };
 
 pub(super) fn reconstruct_literal_fold(
@@ -394,6 +394,29 @@ fn reconstruct_action(
             rows.saturating_subtract_zero,
             MachineSemanticKind::CopyI64,
         ),
+        // The saturating-divide identity fold: a literal of exactly one
+        // at the operand-1 `Use` folds `SaturatingDivide` on any carrier
+        // into a `CopyI64` of the operand-0 `Use` — `x /| 1` is `x`,
+        // already inside the carrier's bounds — bound to the `CopyI64`
+        // row the saturating-divide-one policy's own gate selected. The
+        // grammar is asymmetric: division does not commute, so the
+        // right-literal shape is the family's only shape and a literal
+        // recorded at operand 0 — `1 /| x` is not `x` — names no admitted
+        // grammar and rejects as a future-use mismatch against the
+        // shape's operand-1 victim position. Operands past the operand-2
+        // `Def` result admit the mixed custody no other grammar carries:
+        // a `Use` — the zeroed high-half input an x86-64 `div`
+        // realization reads — must be defined only by zero
+        // materializations, and a `Def` — the bound scratch an aarch64
+        // signed realization writes — must be occurrence-free. The
+        // literal of one also discharges the encoded fault surface, and
+        // the consumer's implicit unit definitions retire under the same
+        // whole-function deadness gate the saturating-add grammar derives.
+        SelectedInstructionKind::SaturatingDivide { .. } => (
+            SourceShape::SaturatingDivideOne,
+            rows.saturating_divide_one,
+            MachineSemanticKind::CopyI64,
+        ),
         _ => (
             SourceShape::BinaryImmediate,
             None,
@@ -583,6 +606,21 @@ fn reconstruct_action(
         // `CopyI64` rebuild.
         SourceShape::SaturatingSubtractZero | SourceShape::SaturatingSubtractZeroScratch => {
             if literal_u64 != 0 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
+        }
+        // The saturating-divide fold is the identity only when the folded
+        // literal is exactly one — one is the right divisor identity on
+        // every carrier, and the literal itself is the evidence the
+        // consumer's encoded fault surface cannot fire; any other right
+        // literal is a different computation the replay must not admit.
+        // The recorded immediate is the folded literal itself, unused by
+        // the `CopyI64` rebuild.
+        SourceShape::SaturatingDivideOne => {
+            if literal_u64 != 1 {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
                 });
@@ -1038,6 +1076,45 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
+        // The saturating-divide identity grammar: `[surviving, victim,
+        // result, tail...]` folds the operand-1 `Use`; the operand-0 `Use`
+        // survives and binds the `CopyI64` row's `Use` position. Operands
+        // past the operand-2 `Def` result admit the mixed custody no other
+        // grammar carries. The validator independently re-derives each
+        // tail operand's custody: a tail `Use` — the zeroed high-half
+        // input an x86-64 `div` realization reads — must be defined in
+        // this function only by `MaterializeI64` instructions producing
+        // `Unsigned(0)`, because the fold discards whatever the operand
+        // carried; a tail `Def` — the bound scratch an aarch64 signed
+        // realization writes — must occur nowhere else in the function,
+        // because the fold discards a definition a surviving read or
+        // second definition would still observe. Any other access — a
+        // `UseDef` an in-place constraint would carry — names no droppable
+        // role and rejects.
+        (SourceShape::SaturatingDivideOne, [left, right, result, tail @ ..]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 2
+                || left.class != row.operands[0].class
+                || result.class != row.operands[1].class
+                || !tail.iter().all(|operand| match operand.access {
+                    RegisterOperandAccess::Use => {
+                        dropped_use_defined_zero(function, operand.virtual_register)
+                    }
+                    RegisterOperandAccess::Def => {
+                        dropped_def_is_dead(function, operand.virtual_register)
+                    }
+                    _ => false,
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // The and-ones identity grammar: `[surviving, victim, result]`
         // folds the operand-1 `Use`; the operand-0 `Use` survives and
         // binds the `CopyI64` row's `Use` position. The consumer carries
@@ -1123,6 +1200,7 @@ fn reconstruct_action(
             | SourceShape::SaturatingAddZeroLeftScratch
             | SourceShape::SaturatingSubtractZero
             | SourceShape::SaturatingSubtractZeroScratch
+            | SourceShape::SaturatingDivideOne
     );
     let drops_early_clobbers = matches!(
         shape,
@@ -1134,6 +1212,7 @@ fn reconstruct_action(
             | SourceShape::SaturatingAddZeroLeftScratch
             | SourceShape::SaturatingSubtractZero
             | SourceShape::SaturatingSubtractZeroScratch
+            | SourceShape::SaturatingDivideOne
     );
     if consumer.operands.iter().any(|operand| {
         (operand.fixed_view.is_some() && !drops_fixed_views)
@@ -1232,6 +1311,21 @@ fn reconstruct_action(
             dead_unit_defs_fold_admission(consumer_declaration, rewritten_declaration)
                 && dropped_unit_defs_dead(function, consumer)
         }
+        // The saturating divide's encoded alternatives may architecturally
+        // fault *and* may declare implicit unit definitions — the aarch64
+        // signed rows write `nzcv` — so its admission combines the two
+        // gates the validator re-derives separately elsewhere: the literal
+        // of one is itself the evidence the divide-by-zero fault cannot
+        // fire, and every implicit unit the consumer record defines must
+        // be dead in the function before the folded `CopyI64` retires the
+        // definition. The record-level deadness scan runs alongside the
+        // declaration-level relationship like the saturating-add gate.
+        SelectedInstructionKind::SaturatingDivide { .. } => {
+            fault_discharged_dead_unit_defs_fold_admission(
+                consumer_declaration,
+                rewritten_declaration,
+            ) && dropped_unit_defs_dead(function, consumer)
+        }
         _ => {
             isolated_effect_declaration(consumer_declaration)
                 && consumer_declaration.alternatives.iter().all(|alternative| {
@@ -1289,6 +1383,7 @@ fn reconstruct_action(
         | SourceShape::SaturatingAddZeroScratch
         | SourceShape::SaturatingSubtractZero
         | SourceShape::SaturatingSubtractZeroScratch
+        | SourceShape::SaturatingDivideOne
         | SourceShape::AndOnes => consumer.operands[0].virtual_register,
     };
 
@@ -1348,7 +1443,15 @@ fn reconstruct_action(
 /// saturating subtraction does not commute, so `0 -| x` names no admitted
 /// shape — retiring the same dead unit definitions, on the unsigned
 /// carriers under the exact three-operand grammar and on the signed
-/// carriers under the scratch-defs grammar.
+/// carriers under the scratch-defs grammar — or the saturating-divide
+/// identity form whose operand-1 divisor literal of one folds a
+/// `SaturatingDivide` into a copy of the operand-0 `Use` under the
+/// right-literal grammar alone — `1 /| x` is not `x` — whose literal is
+/// itself the evidence the encoded fault surface cannot fire, whose
+/// implicit unit definitions retire under the same whole-function
+/// deadness gate, and whose operands past the `Def` result admit the
+/// mixed custody of provably-zero auxiliary `Use`s and occurrence-free
+/// scratch `Def`s.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SourceShape {
     BinaryImmediate,
@@ -1373,6 +1476,7 @@ enum SourceShape {
     SaturatingAddZeroLeftScratch,
     SaturatingSubtractZero,
     SaturatingSubtractZeroScratch,
+    SaturatingDivideOne,
 }
 
 impl SourceShape {
@@ -1388,7 +1492,8 @@ impl SourceShape {
             | Self::SaturatingAddZero
             | Self::SaturatingAddZeroScratch
             | Self::SaturatingSubtractZero
-            | Self::SaturatingSubtractZeroScratch => 1,
+            | Self::SaturatingSubtractZeroScratch
+            | Self::SaturatingDivideOne => 1,
             Self::BinaryLeftImmediate
             | Self::UnaryExtension
             | Self::UnaryCopy
@@ -1912,6 +2017,19 @@ fn rebuild_function(
             rows.saturating_subtract_zero,
             SelectedInstructionKind::CopyI64,
         ),
+        // A saturating divide on any carrier with a divisor literal of one
+        // is the operand-0 operand: the validator rebuilds the consumer as
+        // a `CopyI64` bound to the `CopyI64` row the
+        // saturating-divide-one policy gate selected. The rebuild replaces
+        // the operand list — including the x86-64 row's dropped zeroed
+        // high-half `Use` and the aarch64 signed rows' dropped bound
+        // scratch `Def` — and the unit surface wholesale from the bound
+        // row, so the retired implicit definitions — the aarch64 `nzcv`
+        // write — and the retired clobbers — the x86-64 `rdx`/`rflags`
+        // writes — leave with the folded form.
+        SelectedInstructionKind::SaturatingDivide { .. } => {
+            (rows.saturating_divide_one, SelectedInstructionKind::CopyI64)
+        }
         _ => (None, consumer.kind),
     };
     let row = row
@@ -1952,12 +2070,14 @@ fn rebuild_function(
             | SelectedInstructionKind::WrappingRemainderI64 { .. }
             | SelectedInstructionKind::SaturatingAdd { .. }
             | SelectedInstructionKind::SaturatingSubtract { .. }
+            | SelectedInstructionKind::SaturatingDivide { .. }
     );
     let drops_early_clobbers = matches!(
         consumer.kind,
         SelectedInstructionKind::WrappingRemainderI64 { .. }
             | SelectedInstructionKind::SaturatingAdd { .. }
             | SelectedInstructionKind::SaturatingSubtract { .. }
+            | SelectedInstructionKind::SaturatingDivide { .. }
     );
     if consumer.operands.iter().any(|operand| {
         (operand.fixed_view.is_some() && !drops_fixed_views)

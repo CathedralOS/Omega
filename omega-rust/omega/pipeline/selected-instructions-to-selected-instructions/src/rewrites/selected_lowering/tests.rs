@@ -66,6 +66,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_exact_divide_zero());
     assert!(policy.enables_saturating_add_zero());
     assert!(policy.enables_saturating_subtract_zero());
+    assert!(policy.enables_saturating_divide_one());
 }
 
 #[test]
@@ -88,6 +89,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         divide_zero,
         saturating_add_zero,
         saturating_subtract_zero,
+        saturating_divide_one,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -1148,6 +1150,126 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
     }
 
+    // The saturating-divide-one identity family declares one pair per
+    // carrier — the right-literal grammar alone: a divisor literal of
+    // exactly one at the operand-1 `Use` folds a `SaturatingDivide` into
+    // a `CopyI64` of the operand-0 `Use` — `x /| 1` is `x` inside every
+    // carrier's bounds. Saturating division does not commute — `1 /| x`
+    // is `1 / x` clamped, not `x` — so the family declares no
+    // left-literal pair. This is the first family whose consumer both may
+    // architecturally fault and retires implicit unit definitions, so it
+    // declares `FaultDischargedByLiteralDeadUnitDefs`: the divisor
+    // literal of one discharges the encoded `MayArchitecturalFaultV1`
+    // x86-64's `div`/`idiv` carry, while every unit the consumer record
+    // defines — aarch64's signed rows' `nzcv` — must stay dead across the
+    // whole function. The mixed drop-tail grammar covers every
+    // realization's operand-3 role under its own access's custody — the
+    // zeroed-rdx auxiliary `Use` the pinned x86-64 rows read and the
+    // bound scratch `Def` aarch64's clamped signed row writes — as well
+    // as the empty tail aarch64's `udiv` leaves, and the family admits
+    // the consumer's `fixed_view` pins and `early_clobber` marks under
+    // `BoundEarlyClobberConsumerOperands`.
+    let saturating_divide_one_pairs = saturating_divide_one.payload().pairs();
+    assert_eq!(saturating_divide_one_pairs.len(), 8);
+    assert_eq!(
+        saturating_divide_one.optimization(),
+        Optimization::SelectedIncomingSaturatingDivideOneIdentityCopy
+    );
+    let all_carriers = [
+        SaturatingCarrier::U8,
+        SaturatingCarrier::U16,
+        SaturatingCarrier::U32,
+        SaturatingCarrier::U64,
+        SaturatingCarrier::I8,
+        SaturatingCarrier::I16,
+        SaturatingCarrier::I32,
+        SaturatingCarrier::I64,
+    ];
+    for (index, pair) in saturating_divide_one_pairs.iter().copied().enumerate() {
+        let carrier = all_carriers[index];
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(
+            pair.consumer(),
+            MachineSemanticKind::SaturatingDivide(carrier)
+        );
+        assert_eq!(
+            pair.operand_shape(),
+            PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs
+        );
+        assert_eq!(pair.victim_operand(), 1);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::CopyI64);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(1));
+        assert!(pair.admits_immediate(1));
+        assert!(!pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(2));
+        assert!(!pair.admits_immediate(u64::MAX));
+        // The recorded immediate is the folded literal itself — one —
+        // the evidence the divide's encoded fault cannot fire; the
+        // `CopyI64` rewrite binds the surviving register rather than
+        // embedding a constant.
+        assert_eq!(pair.fold_immediate(1), Some(1));
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(
+            pair.unit_effects(),
+            PairUnitEffects::BoundEarlyClobberConsumerOperands
+        );
+        assert_eq!(
+            pair.machine_effects(),
+            PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs
+        );
+        // Every rule rewrites only its own carrier's kind into the
+        // surviving-operand copy; a different carrier, the exact-divide
+        // kind sharing the faulting realization, or any other consumer
+        // kind never rewrites through it.
+        let saturating_divide_kind = SelectedInstructionKind::SaturatingDivide {
+            carrier,
+            obligation,
+            accepted_fact,
+        };
+        assert_eq!(
+            pair.rewrite_consumer(saturating_divide_kind, 1, Some(u64_scalar)),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_divide_kind, 1, Some(i64_scalar)),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_divide_kind, 1, None),
+            Some(SelectedInstructionKind::CopyI64)
+        );
+        let other_carrier = if carrier.is_signed() {
+            SaturatingCarrier::U64
+        } else {
+            SaturatingCarrier::I32
+        };
+        assert_eq!(
+            pair.rewrite_consumer(
+                SelectedInstructionKind::SaturatingDivide {
+                    carrier: other_carrier,
+                    obligation,
+                    accepted_fact,
+                },
+                1,
+                Some(u64_scalar)
+            ),
+            None
+        );
+        // The exact-divide kind shares the faulting `div`/`idiv`
+        // realization but is no `SaturatingDivide` consumer — the
+        // admission-side guard binds each pair to its own kind.
+        assert!(pair.matches_consumer(saturating_divide_kind));
+        assert!(!pair.matches_consumer(divide_kind));
+        assert_eq!(
+            pair.rewrite_consumer(wrapping_add_kind, 1, Some(u64_scalar)),
+            None
+        );
+    }
+    assert_eq!(
+        saturating_divide_one_pairs,
+        SelectedInstructionPairRule::SATURATING_DIVIDE_ONE_COPIES.as_slice()
+    );
+
     // Every landed rule's rewrite but the divide, remainder, and
     // saturating folds is unit-effect isolated: no implicit unit uses
     // or clobbers and no operand unit bindings beyond the declared result
@@ -1248,6 +1370,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1).collect::<Vec<_>>(),
         SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES.to_vec()
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1).collect::<Vec<_>>(),
+        SelectedInstructionPairRule::SATURATING_DIVIDE_ONE_COPIES.to_vec()
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -1368,6 +1494,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     for pair in saturating_subtract_zero_pairs {
         assert_eq!(pair.immediate_constraint_key(&keys), Some(keys.copy_i64));
     }
+    // Every saturating-divide-one pair — the unsigned-carrier rules and
+    // the signed-carrier mixed-tail rules alike — rewrites through the
+    // same copy row.
+    for pair in saturating_divide_one_pairs {
+        assert_eq!(pair.immediate_constraint_key(&keys), Some(keys.copy_i64));
+    }
 }
 
 #[test]
@@ -1428,6 +1560,11 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // pair per grammar is representative.
             SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES[0],
             SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES[7],
+            // The saturating-divide-one grammar rewrites into the same
+            // copy row under the same consumer-operand relaxation — one
+            // pair per grammar is representative.
+            SelectedInstructionPairRule::SATURATING_DIVIDE_ONE_COPIES[0],
+            SelectedInstructionPairRule::SATURATING_DIVIDE_ONE_COPIES[7],
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -1778,6 +1915,65 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             assert_eq!(
                 rule.machine_effects(),
                 PairMachineEffects::DeadConsumerUnitDefs
+            );
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A consumer carrying an implicit unit use cannot fold under
+            // this surface — the rewritten copy would silently stop
+            // observing the unit.
+            let flag_consuming = declaration(MachineSemanticKind::MaterializeBooleanEqual);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(flag_consuming, rewritten),
+                "{rule:?} flag-consuming consumer on {target:?}"
+            );
+            // Memory traffic and control flow cannot take the consumer
+            // role either: the isolated non-unit declaration surface
+            // still applies.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
+            );
+        }
+
+        // The saturating-divide-one pairs admit their own triples on both
+        // targets under `FaultDischargedByLiteralDeadUnitDefs`: an
+        // isolated producer, each carrier's saturating divide — encoding
+        // `MayArchitecturalFaultV1` on x86-64 and `NeverV1` on aarch64,
+        // defining `nzcv` on aarch64's signed rows, clobbering
+        // `rdx`/`rflags` on x86-64 — and the isolated copy. The
+        // declaration-level requirement is the shared fault-discharged
+        // shape with no implicit uses; the distinguishing whole-function
+        // deadness of each defined unit is record-level, checked
+        // separately by the producer and the replay.
+        for rule in SelectedInstructionPairRule::SATURATING_DIVIDE_ONE_COPIES {
+            assert_eq!(
+                rule.machine_effects(),
+                PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
