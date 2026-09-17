@@ -2016,17 +2016,29 @@ Owners include
   treats erased-position arguments and initializers as erased initializers
   (`pass/relevance/erased_parameter_proof_only`,
   `fail/relevance/erased_{parameter,local}_runtime_read`, on the
-  checked-only rosters). Next acceptance: strip erased parameter positions
-  from the checked calling plan
-  (`typed-trees-to-checked-trees/src/execution/{unit/calls/signatures.rs,
-  unit/calls/call_operations.rs,scalar/plan_scalar.rs}`) with dense
-  `source_position` renumbering, because the Terminal consumer
-  `checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs`
-  rejects non-strict source order, so `erased_parameter_proof_only`
-  compiles natively and leaves `CHECKED_ONLY_PASS_CANARIES`; named
-  transition arguments still validate as runtime reads, so an erased
-  binding cannot yet flow into an erased state parameter through a
-  transition.
+  checked-only rosters). At 59011569a5 the checked calling plan strips
+  erased parameters on both call sides (`strips_erased_parameter`,
+  `abi_parameter_count`; `source_position` stays the sparse authored
+  index because every consumer rejoins by that index, while caller
+  argument ordinals are dense over retained positions; canary_suite
+  `layouts_and_pending::erased_parameter_*` pin `keep` -> `[0]`/`[70]`
+  and `first`/`second` -> `[0, 2]`/`[7, 20]`); erased `self`/`const`/
+  `mut` bindings refuse a plan. `erased_parameter_proof_only`, the
+  positional control `erased_parameter_between_runtime_values_exit` and
+  `erased_proof_only_typed_parameter_exit` stay on the checked-only
+  rosters with exit-70 headers because the Terminal consumer rejects the
+  stripped plan ("direct Unit scalar parameters do not rejoin the exact
+  typed source partition"). Next acceptance: `checked-trees-to-lowered-psi`
+  skips erased bindings in its independent reconstructions
+  (`attached_unit/parameters.rs::checked_scalar_source_parameters`,
+  `expression_preparation/qualifications.rs::scalar_state_types`,
+  `source_custody/parameters/replay_parameters.rs` arity and loop,
+  `source_custody/direct_calls.rs` retained `argument_count`,
+  `scalar_graph/scalar_computations/calls.rs` position loop, and the
+  state-graph admission arity) so the three fixtures compile natively and
+  leave `CHECKED_ONLY_PASS_CANARIES`; named transition arguments still
+  validate as runtime reads, so an erased binding cannot yet flow into an
+  erased state parameter through a transition.
 
 ## P4 - ABI, borrowing, and callbacks
 
