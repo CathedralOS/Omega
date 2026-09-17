@@ -334,9 +334,19 @@ impl RankProjection {
         self.order == other.order
     }
 
-    pub(super) fn is_subject(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    /// Whether the expression spells the retained ranked subject. `role`
+    /// translates a spelled symbol to the entry parameter it carries at the
+    /// issuing site -- a subordinate state's formal answers to its
+    /// discovered role while every other symbol stands for itself, so an
+    /// entry-state call reads the same identity mapping it always had.
+    pub(super) fn is_subject(
+        &self,
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        role: &dyn Fn(SymbolHandle) -> SymbolHandle,
+    ) -> bool {
         matches!(program.expression_table.expression(unwrapped(program, expression)),
-            ExpressionNode::Name(path) if path.symbol == self.parameter)
+            ExpressionNode::Name(path) if role(path.symbol) == self.parameter)
     }
 
     pub(super) fn is_component(
@@ -344,6 +354,7 @@ impl RankProjection {
         program: &TypedTrees,
         expression: ExpressionHandle,
         field: SymbolHandle,
+        role: &dyn Fn(SymbolHandle) -> SymbolHandle,
     ) -> bool {
         let RankOrder::Lexicographic { data: owner, .. } = self.order else {
             return false;
@@ -354,7 +365,7 @@ impl RankProjection {
         else {
             return false;
         };
-        if !self.is_subject(program, member.receiver) || member.case_variant.is_some() {
+        if !self.is_subject(program, member.receiver, role) || member.case_variant.is_some() {
             return false;
         }
         let Some(data) = program

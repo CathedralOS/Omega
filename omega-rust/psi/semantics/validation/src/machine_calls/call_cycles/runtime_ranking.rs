@@ -130,7 +130,7 @@ pub(super) fn check_component(
     // evidence no judgment ran for. Runtime members never select a
     // record-subject struct view, so there is no fresh-record carrier to
     // prefer.
-    let member_mappings = component
+    let member_discovery = component
         .iter()
         .enumerate()
         .map(|(position, index)| {
@@ -160,18 +160,64 @@ pub(super) fn check_component(
             } else {
                 Some(Vec::new())
             }?;
-            discover_state_entry_mappings_preferring(
+            let mappings = discover_state_entry_mappings_preferring(
                 program,
                 machine,
                 &preferred,
                 SymbolHandle::default(),
                 &required,
-            )
+            )?;
+            Some((mappings, required))
         })
         .collect::<Option<Vec<_>>>();
-    let Some(member_mappings) = member_mappings else {
+    let Some(member_discovery) = member_discovery else {
         return Err("the ranking needs entry-to-state arrival evidence");
     };
+    // A discovered role records DEPENDENCY, not equality: a slot that claimed
+    // an entry role through a computed actual denotes a derived value, not
+    // the value the role carried at invocation. Binding the authored subject
+    // or an endpoint to that slot would let an internal `hold(remaining + 1)`
+    // inflate the site carrier beyond the entry rank, so `step(carried - 1)`
+    // reads as a strict edge while the component cycle preserves the rank.
+    // Consumption therefore keeps a role only when every arrival preserves
+    // it: a bare forward of a formal still carrying the role, a
+    // direction-correct `carrier - positive`/`carrier + positive` descent for
+    // a subject role, or -- for a ranged member's required carriers -- a
+    // computed claimant the member's own arrival judgment proved equal to a
+    // bare-anchored sibling.
+    let mut member_mappings = Vec::with_capacity(member_discovery.len());
+    for (position, index) in component.iter().enumerate() {
+        let (mappings, required) = &member_discovery[position];
+        let bounds = carrier_bounds(program, &program.machines()[*index], mappings);
+        let mut filtered = mappings.clone();
+        for (state_position, slots) in filtered.iter_mut().enumerate() {
+            // Required carriers keep a computed claimant only while a sibling
+            // slot still forwards the role bare: the member's own ranged
+            // arrival judgment proves such copies equal, so every claim then
+            // names the anchor's value.
+            let anchored = slots
+                .iter()
+                .zip(&bounds[state_position])
+                .filter(|(claimed, bound)| {
+                    claimed.is_valid()
+                        && required.contains(claimed)
+                        && **bound == CarrierBound::Equal
+                })
+                .map(|(claimed, _)| *claimed)
+                .collect::<Vec<_>>();
+            for (slot, role) in slots.iter_mut().enumerate() {
+                if !role.is_valid() {
+                    continue;
+                }
+                let kept = bound_allows(&ranks[position], *role, bounds[state_position][slot])
+                    || anchored.contains(role);
+                if !kept {
+                    *role = SymbolHandle::default();
+                }
+            }
+        }
+        member_mappings.push(filtered);
+    }
     // A prefix store is judged against the premise carriers the call-site
     // judgment actually reads (subjects, endpoints, requires facts, and
     // constrained entries), located in each state through the same telescope,
@@ -364,11 +410,20 @@ pub(super) fn check_component(
                                 }
                             }
                         } else {
+                            // A lexicographic member carries no scalar range
+                            // judgment, but its subordinate-site formals still
+                            // telescope to their discovered entry roles: the
+                            // comparison reads the carried copy as the authored
+                            // subject it denotes at this arrival.
                             match comparison::argument_comparison(
                                 program,
                                 &ranks[position],
                                 *argument,
                                 &site_guards,
+                                &RankingRangeCallSite {
+                                    state,
+                                    entry_parameters: &mappings[state_position],
+                                },
                             ) {
                                 Some(Comparison::Strict) => {}
                                 Some(Comparison::Equal) => {
@@ -445,6 +500,265 @@ fn weak_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
     super::strongly_connected_components(adjacency)
         .iter()
         .all(|component| component.len() == 1 && !adjacency[component[0]].contains(&component[0]))
+}
+
+/// How a slot's arrival value may relate to its recorded entry role while the
+/// call judgment still consumes the claim. `Equal` carriers denote the role's
+/// value exactly; `AtMost`/`AtLeast` carriers keep the site value bounded by
+/// the invocation rank on the side the member's order reads -- a
+/// `carrier - positive` step shrinks a descending subject, a
+/// `carrier + positive` step grows an increasing one. The lattice meets the
+/// bounds of every arrival into the slot.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CarrierBound {
+    /// No readable bound: the slot's role cannot be consumed at a call site.
+    None,
+    AtMost,
+    AtLeast,
+    Equal,
+}
+
+impl CarrierBound {
+    fn meet(self, other: CarrierBound) -> CarrierBound {
+        use CarrierBound::*;
+        match (self, other) {
+            (None, _) | (_, None) => None,
+            (Equal, bound) | (bound, Equal) => bound,
+            (AtMost, AtMost) => AtMost,
+            (AtLeast, AtLeast) => AtLeast,
+            (AtMost, AtLeast) | (AtLeast, AtMost) => None,
+        }
+    }
+}
+
+/// Whether the computed bound lets the component judgment consume the slot's
+/// recorded role. A premise carrier -- endpoints, requires inputs,
+/// constrained copies -- must denote the role exactly; a subject carrier may
+/// additionally arrive through the direction that order decreases.
+fn bound_allows(rank: &RankProjection, role: SymbolHandle, bound: CarrierBound) -> bool {
+    match bound {
+        CarrierBound::Equal => true,
+        CarrierBound::AtMost => carrier_direction(rank, role) == CarrierBound::AtMost,
+        CarrierBound::AtLeast => carrier_direction(rank, role) == CarrierBound::AtLeast,
+        CarrierBound::None => false,
+    }
+}
+
+/// The direction a subject carrier may move while the call still transports a
+/// non-increasing rank: a natural or produced-scalar rank decreases as its
+/// subject does, an increasing-to rank decreases as its subject rises, and a
+/// bounded distance decreases as its lower subject rises or its upper
+/// subject falls. Every non-subject role stays `Equal`: a premise read
+/// through a moved slot names a different fact.
+fn carrier_direction(rank: &RankProjection, role: SymbolHandle) -> CarrierBound {
+    if role == rank.parameter {
+        match &rank.order {
+            RankOrder::IncreasingTo(_) | RankOrder::BoundedDistance(_) => CarrierBound::AtLeast,
+            _ => CarrierBound::AtMost,
+        }
+    } else if role == rank.paired_parameter && matches!(rank.order, RankOrder::BoundedDistance(_)) {
+        CarrierBound::AtMost
+    } else {
+        CarrierBound::Equal
+    }
+}
+
+/// Per-slot carrier bounds under the discovered telescope. Bounds shrink
+/// along the internal-arrival fixpoint: a slot keeps a bound only while
+/// EVERY arrival into it preserves the bound, so an unwitnessed shape fails
+/// closed to `None` rather than borrowing an equality no judgment ran for.
+fn carrier_bounds(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    mappings: &[Vec<SymbolHandle>],
+) -> Vec<Vec<CarrierBound>> {
+    let states = program.machine_states(machine);
+    let mut bounds = mappings
+        .iter()
+        .map(|slots| vec![CarrierBound::Equal; slots.len()])
+        .collect::<Vec<_>>();
+    let arrivals = internal_arrivals(program, machine);
+    loop {
+        let previous = bounds.clone();
+        for (source, destination, arguments) in &arrivals {
+            if *destination == 0 {
+                // The entry telescope is always the identity mapping; a
+                // back-edge does not restate its own formals.
+                continue;
+            }
+            let (Some(slots), Some(source_state), Some(source_slots)) = (
+                mappings.get(*destination),
+                states.get(*source),
+                mappings.get(*source),
+            ) else {
+                continue;
+            };
+            for (slot, role) in slots.iter().enumerate() {
+                if !role.is_valid() || bounds[*destination][slot] == CarrierBound::None {
+                    continue;
+                }
+                let arrival = carrier_arrival_bound(
+                    program,
+                    source_state,
+                    &bounds[*source],
+                    source_slots,
+                    arguments.get(slot).copied(),
+                    *role,
+                );
+                bounds[*destination][slot] = bounds[*destination][slot].meet(arrival);
+            }
+        }
+        if bounds == previous {
+            return bounds;
+        }
+    }
+}
+
+/// One arrival's contribution to a slot's carrier bound: a bare forward of a
+/// formal still carrying the role inherits that formal's bound, and a
+/// `carrier - positive`/`carrier + positive` step keeps the matching side.
+/// Any other shape -- arithmetic over several inputs, a projection, a
+/// literal, an operand call -- names no bound this judgment can read.
+fn carrier_arrival_bound(
+    program: &TypedTrees,
+    source: &typed_trees::state::State,
+    source_bounds: &[CarrierBound],
+    source_slots: &[SymbolHandle],
+    argument: Option<ExpressionHandle>,
+    role: SymbolHandle,
+) -> CarrierBound {
+    let Some(argument) = argument else {
+        return CarrierBound::None;
+    };
+    // The source formal position mirrors the telescope's own lookup: non-self
+    // slots in order, and a constant formal cannot carry a mutable role.
+    let formal_bound = |symbol: SymbolHandle| {
+        program
+            .state_parameters(source)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .position(|parameter| parameter.symbol == symbol && !parameter.is_const)
+            .filter(|position| source_slots[*position] == role)
+            .and_then(|position| source_bounds.get(position).copied())
+            .unwrap_or(CarrierBound::None)
+    };
+    let bare_name = |expression: ExpressionHandle| match program
+        .expression_table
+        .expression(projection::unwrapped(program, expression))
+    {
+        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
+            Some(name.symbol)
+        }
+        _ => None,
+    };
+    match program
+        .expression_table
+        .expression(projection::unwrapped(program, argument))
+    {
+        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
+            formal_bound(name.symbol)
+        }
+        ExpressionNode::Binary(binary) => {
+            let Some(symbol) = bare_name(binary.left) else {
+                return CarrierBound::None;
+            };
+            let amount = match program
+                .expression_table
+                .expression(projection::unwrapped(program, binary.right))
+            {
+                ExpressionNode::Integer(literal) => literal.value_i64(),
+                _ => None,
+            };
+            let bound = formal_bound(symbol);
+            match (binary.operator, amount) {
+                (typed_trees::expression::BinaryOperator::Subtract, Some(amount)) if amount > 0 => {
+                    bound.meet(CarrierBound::AtMost)
+                }
+                (typed_trees::expression::BinaryOperator::Add, Some(amount)) if amount > 0 => {
+                    bound.meet(CarrierBound::AtLeast)
+                }
+                // `carrier + 0`/`carrier - 0` spell a computed claimant, not a
+                // bare forward: only a ranged member's own arrival judgment
+                // proves that copy equal to a required carrier, so it keeps
+                // the role through the anchored rule -- never by shape alone.
+                _ => CarrierBound::None,
+            }
+        }
+        _ => CarrierBound::None,
+    }
+}
+
+/// Every authored internal arrival: `(source index, destination index,
+/// actuals)` for each named transition target inside the machine and each
+/// implicit self transition. This mirrors the telescope's occurrence set
+/// exactly: a role consumed through an arrival this walk did not see would
+/// name a value the member's own judgment never established.
+fn internal_arrivals<'program>(
+    program: &'program TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Vec<(usize, usize, &'program [ExpressionHandle])> {
+    let states = program.machine_states(machine);
+    let mut arrivals = Vec::new();
+    for (source, state) in states.iter().enumerate() {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } => {
+                        if let Some(destination) =
+                            internal_state_index(program, machine, path.symbol)
+                        {
+                            arrivals.push((
+                                source,
+                                destination,
+                                program.statement_table.expression_handles(*arguments),
+                            ));
+                        }
+                    }
+                    TransitionTargetNode::SelfTarget => {
+                        arrivals.push((source, source, &[]));
+                    }
+                    TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+    }
+    arrivals
+}
+
+/// Resolve a named internal transition target to its state index inside
+/// `machine`, exactly as the telescope's discovery does: a transition back to
+/// the machine's declared entry names the machine symbol, while transitions
+/// to subordinate states name the state symbol.
+fn internal_state_index(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    target_symbol: SymbolHandle,
+) -> Option<usize> {
+    if target_symbol == machine.symbol {
+        let entry_name = machine
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or_default();
+        return program
+            .machine_states(machine)
+            .iter()
+            .position(|state| state.name.as_str() == entry_name)
+            .or_else(|| (!program.machine_states(machine).is_empty()).then_some(0));
+    }
+    program
+        .machine_states(machine)
+        .iter()
+        .position(|state| state.symbol == target_symbol)
 }
 
 fn target_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<usize> {

@@ -5,11 +5,13 @@ use super::{
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 
+mod carriers;
 mod clamped;
 mod computed;
 mod distance;
 mod identity;
 mod increasing;
+mod lexicographic;
 mod meaning;
 mod ranges;
 mod scratch_writes;

@@ -1,0 +1,37 @@
+// FAIL CANARY. `remaining < 9` keeps `remaining + 1` inside the declared
+// range, so the member's own arrival judgment accepts the computed carrier --
+// but membership is not equality. `carried` denotes `remaining + 1`, not the
+// invocation rank, so `step(carried - 1)` must not read a strict edge from
+// the `remaining` role: `count(5) -> hold(6) -> step(5) -> count(5)`
+// preserves the rank forever.
+
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining < 9 {
+        true -> hold(remaining + 1)
+        false -> remaining
+    }
+
+    state hold(carried: u32 [0..=9]) {
+        transition carried > 0 {
+            true -> self.step(carried - 1)
+            false -> carried
+        }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 {
+        true -> self.count(n)
+        false -> n
+    }
+}

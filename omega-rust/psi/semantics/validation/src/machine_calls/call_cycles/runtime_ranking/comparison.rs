@@ -2,6 +2,8 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
+use crate::proof_contracts::contract_entailment::RankingRangeCallSite;
+
 use super::projection::{RankOrder, RankProjection, unwrapped};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -15,6 +17,7 @@ pub(super) fn argument_comparison(
     rank: &RankProjection,
     argument: ExpressionHandle,
     guards: &[(ExpressionHandle, bool)],
+    site: &RankingRangeCallSite<'_>,
 ) -> Option<Comparison> {
     let RankOrder::Lexicographic {
         data,
@@ -24,7 +27,13 @@ pub(super) fn argument_comparison(
     else {
         return None;
     };
-    if rank.is_subject(program, argument) {
+    // A call issued from a subordinate state spells the site's formals, not
+    // the member's authored entry names. The discovered telescope translates
+    // each carried formal back to its entry role so the unchanged rank
+    // components and the guarded decrement name the same values the member's
+    // own ranking judgment proved at this arrival.
+    let role = |symbol: SymbolHandle| site_role(program, site, symbol);
+    if rank.is_subject(program, argument, &role) {
         return Some(Comparison::Equal);
     }
     let ExpressionNode::StructLiteral(literal) = program
@@ -50,7 +59,8 @@ pub(super) fn argument_comparison(
         if strict {
             continue;
         }
-        strict = component_comparison(program, rank, value, *field, guards)? == Comparison::Strict;
+        strict = component_comparison(program, rank, value, *field, guards, &role)?
+            == Comparison::Strict;
     }
     Some(if strict {
         Comparison::Strict
@@ -59,14 +69,35 @@ pub(super) fn argument_comparison(
     })
 }
 
+/// The entry role a spelled symbol carries at the issuing site: each non-self
+/// formal answers to the entry parameter its telescope slot recorded. Any
+/// other name -- an entry-state spelling of the parameter itself, a local, or
+/// a global -- stands for itself, so the identity telescope keeps an
+/// entry-state call unchanged. A formal with no discovered role answers
+/// invalid rather than borrowing an entry premise it never carried.
+fn site_role(
+    program: &TypedTrees,
+    site: &RankingRangeCallSite<'_>,
+    symbol: SymbolHandle,
+) -> SymbolHandle {
+    program
+        .state_parameters(site.state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .zip(site.entry_parameters)
+        .find_map(|(parameter, role)| (parameter.symbol == symbol).then_some(*role))
+        .unwrap_or(symbol)
+}
+
 fn component_comparison(
     program: &TypedTrees,
     rank: &RankProjection,
     value: ExpressionHandle,
     field: SymbolHandle,
     guards: &[(ExpressionHandle, bool)],
+    role: &dyn Fn(SymbolHandle) -> SymbolHandle,
 ) -> Option<Comparison> {
-    if rank.is_component(program, value, field) {
+    if rank.is_component(program, value, field, role) {
         return Some(Comparison::Equal);
     }
     let ExpressionNode::Binary(binary) = program
@@ -76,14 +107,14 @@ fn component_comparison(
         return None;
     };
     if binary.operator != BinaryOperator::Subtract
-        || !rank.is_component(program, binary.left, field)
+        || !rank.is_component(program, binary.left, field, role)
     {
         return None;
     }
     let amount = integer(program, binary.right)?;
     (amount > 0
         && guards.iter().any(|(guard, truth)| {
-            guard_proves_lower_bound(program, rank, *guard, *truth, field, amount)
+            guard_proves_lower_bound(program, rank, *guard, *truth, field, amount, role)
         }))
     .then_some(Comparison::Strict)
 }
@@ -108,6 +139,7 @@ fn guard_proves_lower_bound(
     truth: bool,
     field: SymbolHandle,
     minimum: i64,
+    role: &dyn Fn(SymbolHandle) -> SymbolHandle,
 ) -> bool {
     if !guard.is_valid() {
         return false;
@@ -134,6 +166,7 @@ fn guard_proves_lower_bound(
                     truth == (*value == (binary.operator == BinaryOperator::Equal)),
                     field,
                     minimum,
+                    role,
                 );
             }
         }
@@ -141,8 +174,8 @@ fn guard_proves_lower_bound(
     if (binary.operator == BinaryOperator::And && truth)
         || (binary.operator == BinaryOperator::Or && !truth)
     {
-        return guard_proves_lower_bound(program, rank, binary.left, truth, field, minimum)
-            || guard_proves_lower_bound(program, rank, binary.right, truth, field, minimum);
+        return guard_proves_lower_bound(program, rank, binary.left, truth, field, minimum, role)
+            || guard_proves_lower_bound(program, rank, binary.right, truth, field, minimum, role);
     }
     let operator = if truth {
         binary.operator
@@ -157,9 +190,9 @@ fn guard_proves_lower_bound(
             _ => return false,
         }
     };
-    let (operator, bound) = if rank.is_component(program, binary.left, field) {
+    let (operator, bound) = if rank.is_component(program, binary.left, field, role) {
         (operator, integer(program, binary.right))
-    } else if rank.is_component(program, binary.right, field) {
+    } else if rank.is_component(program, binary.right, field, role) {
         let operator = match operator {
             BinaryOperator::Less => BinaryOperator::Greater,
             BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,

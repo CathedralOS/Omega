@@ -1,0 +1,53 @@
+// PASS CANARY. A lexicographic member may issue a component call from a
+// subordinate state: `hold -> scan_b` transports `carried` to its discovered
+// entry role `progress`, so the rebuilt literal still reads the carried
+// rank's components and the guarded decrement is the strict edge the shared
+// cycle needs.
+
+data Progress {
+    outer: u64;
+    inner: u64;
+}
+
+measure Progress::Steps lexicographic { outer, inner }
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition {
+        _ -> self.scan_a(Progress { outer: 1, inner: 4 })
+    }
+}
+
+machine Main::scan_a(&mut self, progress: Progress)
+terminates by progress -> Progress::Steps;
+-> u64
+{
+    transition progress.inner > 1 {
+        true -> hold(progress)
+        false -> 0
+    }
+
+    state hold(carried: Progress) {
+        transition carried.inner > 0 {
+            true -> self.scan_b(Progress {
+                outer: carried.outer,
+                inner: carried.inner - 1,
+            })
+            false -> 0
+        }
+    }
+}
+
+machine Main::scan_b(&mut self, remaining: Progress)
+terminates by remaining -> Progress::Steps;
+-> u64
+{
+    transition remaining.inner > 0 {
+        true -> self.scan_a(Progress {
+            outer: remaining.outer,
+            inner: remaining.inner - 1,
+        })
+        false -> 0
+    }
+}

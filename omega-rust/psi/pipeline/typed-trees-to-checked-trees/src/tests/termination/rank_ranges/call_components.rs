@@ -478,9 +478,10 @@ fn component_calls_carry_rank_through_duplicated_arrival_copies() {
 fn reject_range(source: &str) {
     let diagnostics = lower_typed_trees(typed(source)).expect_err(source);
     assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("cannot prove rank range")),
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("cannot prove rank range")
+                || diagnostic.message.contains("machine call cycle")
+        }),
         "{source}\n{diagnostics:#?}"
     );
 }
@@ -551,9 +552,10 @@ fn mixed_component_conserves_endpoints_through_internal_state_calls() {
             ),
     );
     // The invariant is consumed only as the member's own proof: an arrival
-    // that cannot establish membership or pin the ceiling fails at the
-    // member's state-edge judgment, and a missing entry premise fails the
-    // component's entry obligation.
+    // that cannot establish membership or pin the ceiling fails -- the
+    // component judgment now reports the moved endpoint first, and the
+    // member's state-edge judgment cannot pin it either -- and a missing
+    // entry premise fails the component's entry obligation.
     reject_range(
         &MIXED_STATEFUL
             .replace(
