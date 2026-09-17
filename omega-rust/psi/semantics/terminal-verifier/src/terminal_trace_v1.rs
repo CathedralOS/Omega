@@ -1,12 +1,12 @@
 //! Verifier-owned reconstruction of the first bounded D39 observation profile.
 
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId,
-    ScalarType,
+    BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
 };
 use terminal_psi::{
-    BoundaryMachineResult, OperationKind, StructuralAccess, TerminalMachineResult, TerminalModule,
-    TerminalObservationSchema, TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    BoundaryMachineDeclaration, BoundaryMachineResult, CrashCause, OperationKind, StructuralAccess,
+    TerminalMachineResult, TerminalModule, TerminalObservationSchema,
+    TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind,
     TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema, TerminalTraceRootRow,
     TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceV1Rows,
     TerminalTraceValueComparison, Terminator,
@@ -24,12 +24,17 @@ enum TerminalTraceV1OperationClassification {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTraceV1ReconstructionError {
     InvalidModule(ModuleError),
-    UnsupportedBoundaryCrashRoutes(BoundaryMachineId),
     MissingEntry(MachineId),
     DuplicateCrashSite {
         machine: MachineId,
         block: BlockId,
         edge: EdgeId,
+    },
+    DuplicateBoundaryCrashSite {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
+        cause: CrashCause,
     },
     DuplicateOrdinaryEventSite {
         machine: MachineId,
@@ -70,18 +75,10 @@ pub fn reconstruct_terminal_trace_v1_rows(
 ) -> Result<TerminalTraceV1Rows, TerminalTraceV1ReconstructionError> {
     validate_module_representation(module)?;
 
-    // V1 crash rows identify terminator edges only. An operation-level boundary
-    // crash must not disappear from a supposedly complete observer roster.
-    if let Some(boundary) = module
-        .boundary_machines
-        .iter()
-        .find(|boundary| !boundary.crash_routes.is_empty())
-    {
-        return Err(
-            TerminalTraceV1ReconstructionError::UnsupportedBoundaryCrashRoutes(boundary.id),
-        );
-    }
-
+    // V1 terminator crash rows identify edges only. An operation-level boundary
+    // crash must not disappear from a supposedly complete observer roster, so
+    // each declared route rides on its own call-site row below rather than
+    // inventing an edge for the invocation.
     let entry = module
         .machines
         .iter()
@@ -132,15 +129,36 @@ pub fn reconstruct_terminal_trace_v1_rows(
     };
 
     let mut crash_sites = Vec::new();
+    let mut boundary_crash_sites = Vec::new();
     let mut ordinary_events = Vec::new();
     for machine in &module.machines {
         for block in &machine.blocks {
             for operation in &block.operations {
                 match classify_operation(&operation.kind) {
                     TerminalTraceV1OperationClassification::Internal => {}
-                    TerminalTraceV1OperationClassification::BoundaryCall => ordinary_events.push(
-                        reconstruct_boundary_call_event(module, machine.id, block.id, operation),
-                    ),
+                    TerminalTraceV1OperationClassification::BoundaryCall => {
+                        let declaration = boundary_declaration(module, operation);
+                        ordinary_events.push(reconstruct_boundary_call_event(
+                            machine.id,
+                            block.id,
+                            operation,
+                            declaration,
+                        ));
+                        // The declared ceiling is observed at every call to it:
+                        // one row per (call site, cause bucket), retaining the
+                        // declaration's own guards for a later per-invocation
+                        // substitution join.
+                        for route in &declaration.crash_routes {
+                            boundary_crash_sites.push(TerminalTraceBoundaryCrashSiteRow {
+                                machine: machine.id,
+                                block: block.id,
+                                operation: operation.id,
+                                boundary: declaration.id,
+                                boundary_identity: declaration.identity.clone(),
+                                route: route.clone(),
+                            });
+                        }
+                    }
                     TerminalTraceV1OperationClassification::PortWrite => ordinary_events.push(
                         reconstruct_port_write_event(module, machine.id, block.id, operation),
                     ),
@@ -168,6 +186,21 @@ pub fn reconstruct_terminal_trace_v1_rows(
             edge: duplicate.edge,
         });
     }
+    boundary_crash_sites.sort_unstable_by_key(boundary_crash_site_key);
+    if let Some(rows) = boundary_crash_sites
+        .windows(2)
+        .find(|rows| boundary_crash_site_key(&rows[0]) == boundary_crash_site_key(&rows[1]))
+    {
+        let duplicate = &rows[0];
+        return Err(
+            TerminalTraceV1ReconstructionError::DuplicateBoundaryCrashSite {
+                machine: duplicate.machine,
+                block: duplicate.block,
+                operation: duplicate.operation,
+                cause: duplicate.route.cause,
+            },
+        );
+    }
     ordinary_events.sort_unstable_by_key(ordinary_event_site_key);
     if let Some(rows) = ordinary_events
         .windows(2)
@@ -191,12 +224,19 @@ pub fn reconstruct_terminal_trace_v1_rows(
             result,
         },
         crash_sites,
+        boundary_crash_sites,
         ordinary_events,
     })
 }
 
 fn crash_site_key(row: &TerminalTraceCrashSiteRow) -> (MachineId, BlockId, EdgeId) {
     (row.machine, row.block, row.edge)
+}
+
+fn boundary_crash_site_key(
+    row: &TerminalTraceBoundaryCrashSiteRow,
+) -> (MachineId, BlockId, OperationId, CrashCause) {
+    (row.machine, row.block, row.operation, row.route.cause)
 }
 
 fn ordinary_event_site_key(
@@ -283,27 +323,34 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
     }
 }
 
-fn reconstruct_boundary_call_event(
-    module: &TerminalModule,
-    machine: MachineId,
-    block: BlockId,
+fn boundary_declaration<'a>(
+    module: &'a TerminalModule,
     operation: &terminal_psi::Operation,
-) -> TerminalTraceOrdinaryEventRow {
+) -> &'a BoundaryMachineDeclaration {
     let OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
         unreachable!("classification selected a boundary call")
     };
-    let declaration = module
+    module
         .boundary_machines
         .iter()
         .find(|declaration| declaration.id == *boundary)
-        .expect("module validation established the boundary declaration");
+        .expect("module validation established the boundary declaration")
+}
+
+fn reconstruct_boundary_call_event(
+    machine: MachineId,
+    block: BlockId,
+    operation: &terminal_psi::Operation,
+    declaration: &BoundaryMachineDeclaration,
+) -> TerminalTraceOrdinaryEventRow {
+    let boundary = declaration.id;
     let exact = TerminalTraceValueComparison::ExactSemanticValue;
     TerminalTraceOrdinaryEventRow {
         machine,
         block,
         operation: operation.id,
         kind: TerminalTraceOrdinaryEventKind::BoundaryCall {
-            boundary: *boundary,
+            boundary,
             boundary_identity: declaration.identity.clone(),
         },
         scalar_arguments: declaration

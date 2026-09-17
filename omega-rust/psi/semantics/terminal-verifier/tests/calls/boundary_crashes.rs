@@ -1,9 +1,9 @@
 use super::{
     AdmissionProfile, CrashCause, CrashRouteBucket, CrashRouteGuard, IntegerSign, IntegerType,
     ModuleError, OperationKind, ProofBundle, Proposition, PropositionId, ScalarTerm, ScalarType,
-    StructuralMultiplicity, StructuralTypeId, TerminalModule, VerificationError,
-    boolean_declaration, boolean_value, boundary_call_module, boundary_id, machine_id, place_id,
-    provider_candidate_module, validate_module, value_id, verify_module,
+    StructuralMultiplicity, StructuralTypeId, TerminalModule, VerificationError, block_id,
+    boolean_declaration, boolean_value, boundary_call_module, boundary_id, machine_id,
+    operation_id, place_id, provider_candidate_module, validate_module, value_id, verify_module,
 };
 use terminal_psi::CrashPredicateTerm;
 use terminal_verifier::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
@@ -322,15 +322,70 @@ fn same_cause_alternatives_can_independently_permit_a_crash_after_incomplete_eva
 }
 
 #[test]
-fn observation_v1_rejects_unrepresentable_boundary_crash_sites() {
+fn observation_v1_reconstructs_boundary_crash_sites_at_the_call_operation() {
     let module = guarded_boundary_module();
+    let rows = terminal_verifier::reconstruct_terminal_trace_v1_rows(&module)
+        .expect("operation-level boundary crash sites reconstruct");
+    // No terminator edge is fabricated for the invocation: the crash roster
+    // stays edge-only while the boundary route rides on its own row.
+    assert!(rows.crash_sites.is_empty());
     assert_eq!(
-        terminal_verifier::reconstruct_terminal_trace_v1_rows(&module),
-        Err(
-            terminal_verifier::TerminalTraceV1ReconstructionError::UnsupportedBoundaryCrashRoutes(
-                boundary_id(1)
-            )
-        )
+        rows.boundary_crash_sites,
+        [terminal_psi::TerminalTraceBoundaryCrashSiteRow {
+            machine: machine_id(1),
+            block: block_id(1),
+            operation: operation_id(2),
+            boundary: boundary_id(1),
+            boundary_identity: "test::observe".into(),
+            route: module.boundary_machines[0].crash_routes[0].clone(),
+        }],
+    );
+    // The same call remains one ordinary event: the crash route is a separate
+    // row identity, not a folded flag on the call event.
+    assert_eq!(
+        rows.ordinary_events
+            .iter()
+            .map(|row| row.operation)
+            .collect::<Vec<_>>(),
+        [operation_id(2)],
+    );
+}
+
+#[test]
+fn observation_v1_orders_boundary_crash_sites_by_call_site_then_cause() {
+    let mut module = guarded_boundary_module();
+    // A second call site and a second cause exercise both ordering lanes.
+    module.boundary_machines[0].crash_routes = vec![
+        module.boundary_machines[0].crash_routes[0].clone(),
+        CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![CrashRouteGuard::Truth],
+        },
+    ];
+    let mut second_call = module.machines[0].blocks[0].operations[0].clone();
+    second_call.id = operation_id(3);
+    module.machines[0].blocks[0].operations.push(second_call);
+    module.machines[0].contract.crash_routes = vec![
+        module.machines[0].contract.crash_routes[0].clone(),
+        CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![CrashRouteGuard::Truth],
+        },
+    ];
+
+    let rows = terminal_verifier::reconstruct_terminal_trace_v1_rows(&module)
+        .expect("multi-site boundary crash roster reconstructs");
+    assert_eq!(
+        rows.boundary_crash_sites
+            .iter()
+            .map(|row| (row.operation, row.route.cause))
+            .collect::<Vec<_>>(),
+        [
+            (operation_id(2), CrashCause::Trap),
+            (operation_id(2), CrashCause::Abort),
+            (operation_id(3), CrashCause::Trap),
+            (operation_id(3), CrashCause::Abort),
+        ],
     );
 }
 

@@ -6,7 +6,9 @@ use semantic_vocabulary::{
 };
 
 use crate::StructuralPathQualification;
-use crate::{CrashCause, StructuralAccess, StructuralMultiplicity, TerminalPsiIdentity};
+use crate::{
+    CrashCause, CrashRouteBucket, StructuralAccess, StructuralMultiplicity, TerminalPsiIdentity,
+};
 
 /// The closed consumer-selected observation schema understood by this build.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -78,6 +80,25 @@ pub struct TerminalTraceCrashSiteRow {
     pub cause: CrashCause,
 }
 
+/// One declared crash route of one exact `BoundaryCall` operation.
+///
+/// A boundary crash belongs to the invocation, not to a fabricated terminator
+/// edge, so its site coordinate is the calling operation. `boundary` and its
+/// canonical public `boundary_identity` bind the row to the invoked
+/// declaration (the same convention ordinary event rows use); `route` carries
+/// that declaration's exact cause bucket. Route guards speak the boundary's
+/// scalar-formal telescope — simultaneous actual substitution at the call
+/// decides them, never caller value identities.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalTraceBoundaryCrashSiteRow {
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub operation: OperationId,
+    pub boundary: BoundaryMachineId,
+    pub boundary_identity: String,
+    pub route: CrashRouteBucket,
+}
+
 /// The closed ordinary-event classification carried by TerminalTraceV1.
 ///
 /// Module-local declaration IDs bind the event to its exact Terminal declaration;
@@ -117,21 +138,24 @@ pub struct TerminalTraceOrdinaryEventRow {
 pub struct TerminalTraceV1Rows {
     pub root: TerminalTraceRootRow,
     pub crash_sites: Vec<TerminalTraceCrashSiteRow>,
+    pub boundary_crash_sites: Vec<TerminalTraceBoundaryCrashSiteRow>,
     pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
 }
 
 /// First bounded `TerminalTraceV1` instance.
 ///
-/// This bounded rung contains the root, crash-site roster, and every ordinary
-/// `BoundaryCall` and `PortWrite` event. Its canonical codec still includes a
-/// zero terminal-external count. The interpreter may consume its exact scalar
-/// schemas for the bounded semantic-value comparator; runtime trace
-/// construction and refinement are separate later rungs.
+/// This bounded rung contains the root, the terminator-edge crash-site roster,
+/// every declared boundary crash route at its exact call operation, and every
+/// ordinary `BoundaryCall` and `PortWrite` event. Its canonical codec still
+/// includes a zero terminal-external count. The interpreter may consume its
+/// exact scalar schemas for the bounded semantic-value comparator; runtime
+/// trace construction and refinement are separate later rungs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TerminalTraceV1Profile {
     pub schema: TerminalObservationSchema,
     pub module_identity: TerminalPsiIdentity,
     pub root: TerminalTraceRootRow,
     pub crash_sites: Vec<TerminalTraceCrashSiteRow>,
+    pub boundary_crash_sites: Vec<TerminalTraceBoundaryCrashSiteRow>,
     pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
 }

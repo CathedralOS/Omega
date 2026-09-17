@@ -80,18 +80,26 @@ pub(crate) fn encode_crash_routes(
 ) -> Result<(), CodecError> {
     writer.len("crash route buckets", crash_routes.len())?;
     for bucket in crash_routes {
-        writer.u8(match bucket.cause {
-            CrashCause::Trap => 1,
-            CrashCause::Abort => 2,
-        });
-        writer.len("crash route alternatives", bucket.alternatives.len())?;
-        for guard in &bucket.alternatives {
-            match guard {
-                CrashRouteGuard::Truth => writer.u8(0),
-                CrashRouteGuard::Predicate(predicate) => {
-                    writer.u8(1);
-                    encode_crash_predicate(writer, predicate)?;
-                }
+        encode_crash_route_bucket(writer, bucket)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn encode_crash_route_bucket(
+    writer: &mut Writer,
+    bucket: &CrashRouteBucket,
+) -> Result<(), CodecError> {
+    writer.u8(match bucket.cause {
+        CrashCause::Trap => 1,
+        CrashCause::Abort => 2,
+    });
+    writer.len("crash route alternatives", bucket.alternatives.len())?;
+    for guard in &bucket.alternatives {
+        match guard {
+            CrashRouteGuard::Truth => writer.u8(0),
+            CrashRouteGuard::Predicate(predicate) => {
+                writer.u8(1);
+                encode_crash_predicate(writer, predicate)?;
             }
         }
     }
@@ -187,26 +195,32 @@ pub(crate) fn decode_crash_routes(
     let count = reader.count()?;
     let mut crash_routes = Vec::with_capacity(count as usize);
     for _ in 0..count {
-        let cause = match reader.u8()? {
-            1 => CrashCause::Trap,
-            2 => CrashCause::Abort,
-            tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
-        };
-        let alternative_count = reader.count()?;
-        let mut alternatives = Vec::with_capacity(alternative_count as usize);
-        for _ in 0..alternative_count {
-            alternatives.push(match reader.u8()? {
-                0 => CrashRouteGuard::Truth,
-                1 => CrashRouteGuard::Predicate(decode_crash_predicate(reader)?),
-                tag => return Err(CodecError::InvalidTag("CrashRouteGuard", tag)),
-            });
-        }
-        crash_routes.push(CrashRouteBucket {
-            cause,
-            alternatives,
-        });
+        crash_routes.push(decode_crash_route_bucket(reader)?);
     }
     Ok(crash_routes)
+}
+
+pub(crate) fn decode_crash_route_bucket(
+    reader: &mut Reader<'_>,
+) -> Result<CrashRouteBucket, CodecError> {
+    let cause = match reader.u8()? {
+        1 => CrashCause::Trap,
+        2 => CrashCause::Abort,
+        tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
+    };
+    let alternative_count = reader.count()?;
+    let mut alternatives = Vec::with_capacity(alternative_count as usize);
+    for _ in 0..alternative_count {
+        alternatives.push(match reader.u8()? {
+            0 => CrashRouteGuard::Truth,
+            1 => CrashRouteGuard::Predicate(decode_crash_predicate(reader)?),
+            tag => return Err(CodecError::InvalidTag("CrashRouteGuard", tag)),
+        });
+    }
+    Ok(CrashRouteBucket {
+        cause,
+        alternatives,
+    })
 }
 
 pub(crate) fn decode_crash_predicate(
