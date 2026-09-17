@@ -403,6 +403,13 @@ pub(in crate::execution::terminal_unit) fn build(
                 continue;
             }
             StatementNode::LocalData(local) => {
+                // Guard-group markers beneath the local-data phase keep the
+                // statement position that `phase` resets.
+                let local_phase = |phase: &'static str| {
+                    trace.phase(phase);
+                    trace.statement(Some(statement_index));
+                };
+                local_phase("statement sequence: local data: initializer expression");
                 if !program
                     .expression_table
                     .expression_is_valid(local.initial_value)
@@ -411,22 +418,27 @@ pub(in crate::execution::terminal_unit) fn build(
                 }
                 local_count = local_count.checked_add(1)?;
                 if let Some(root) = facts.values.structural_values.root_at(state.symbol, statement_index) {
+                    local_phase("statement sequence: local data: structural value: reference record loans");
                     if super::super::reference_results::is_reference_record(program, local.type_reference) {
                         super::super::reference_results::local_record_loans(program, facts, machine.symbol, state, statement_index)?;
                     }
+                    local_phase("statement sequence: local data: structural value: root identity");
                     if root.machine != machine.symbol
                         || root.expression != local.initial_value || root.type_reference != local.type_reference {
                         return None;
                     }
+                    local_phase("statement sequence: local data: structural value: value calls");
                     let calls = structural_operands::value_calls(program, facts, scalar_callees, shapes, machine,
                         state, structural_parameters, trivial_affine_locals, entry_claims, &structural_results,
                         &mut structural_count, root.root)?;
+                    local_phase("statement sequence: local data: structural value: source custody");
                     if facts.flow.ownership.owned_selection_at(state.symbol, statement_index).is_some() {
                     retain_selected_sources(facts, state.symbol, statement_index, &structural_results, &mut operations)?;
                     } else {
                     consume_value_places(facts, root.root, &structural_results, &mut operations)?;
                     }
                     for call in &calls { consume_results(&mut operations, call.operation())?; }
+                    local_phase("statement sequence: local data: structural value: type shape");
                     let result = CheckedUnitStructuralResultBindingPlan {
                         statement_index,
                         binding_ordinal: u32::try_from(structural_count).ok()?,
@@ -446,6 +458,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 }
                 if validation::is_closed_primitive_array_type(program, local.type_reference)
                     && !matches!(program.expression_table.expression(local.initial_value), ExpressionNode::Call(_)) {
+                    local_phase("statement sequence: local data: scalar array: immutable binding");
                     if local.is_mutable {
                         return None;
                     }
@@ -455,6 +468,7 @@ pub(in crate::execution::terminal_unit) fn build(
                         type_identity: shapes.add_type(local.type_reference, &binders, &[])?,
                         multiplicity: Multiplicity::Unrestricted,
                     };
+                    local_phase("statement sequence: local data: scalar array: elements");
                     let elements = super::scalar_arrays::elements(
                         program,
                         facts,
@@ -479,6 +493,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 if let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
                 {
                     if local.is_mutable {
+                        local_phase("statement sequence: local data: mutable primitive local: named type");
                         if !matches!(
                             program
                                 .type_reference_table
@@ -487,6 +502,7 @@ pub(in crate::execution::terminal_unit) fn build(
                         ) {
                             return None;
                         }
+                        local_phase("statement sequence: local data: mutable primitive local: storage initializer");
                         let (binding, value) =
                             facts.values.scalar_expressions.bound_expression_at(
                                 state.symbol,
@@ -535,6 +551,7 @@ pub(in crate::execution::terminal_unit) fn build(
                             statement_index,
                             binding_ordinal,
                             local,
+                            trace,
                         )?;
                         operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                             result,
@@ -542,12 +559,14 @@ pub(in crate::execution::terminal_unit) fn build(
                         });
                         continue;
                     }
+                    local_phase("statement sequence: local data: scalar call binding");
                     Some(CheckedUnitScalarResultBindingPlan {
                         statement_index,
                         binding_ordinal,
                         primitive_type,
                     })
                 } else {
+                    local_phase("statement sequence: local data: structural call binding");
                     let (mut result, symbol) = checked_unit_structural_result_local(
                         program,
                         shapes,
@@ -1278,6 +1297,7 @@ fn scalar_computation_local_at(
     statement_index: u32,
     binding_ordinal: u32,
     local: &typed_trees::statement::TableLocalData,
+    trace: &LocalConstructionTrace,
 ) -> Option<(
     CheckedUnitScalarResultBindingPlan,
     checked_trees::CheckedCallScalarArgument,
@@ -1294,6 +1314,8 @@ fn scalar_computation_local_at(
                 && root.role == role
         });
     let Some(root) = roots.next() else {
+        trace.phase("statement sequence: local data: scalar local: pure initializer");
+        trace.statement(Some(statement_index));
         let (result, value) = scalar_expression_local_at(
             program,
             facts,
@@ -1307,6 +1329,8 @@ fn scalar_computation_local_at(
             checked_trees::CheckedCallScalarArgument::Pure(value),
         ));
     };
+    trace.phase("statement sequence: local data: scalar local: computation initializer");
+    trace.statement(Some(statement_index));
     let primitive_type = program.primitive_type_reference(local.type_reference)?;
     if roots.next().is_some()
         || root.machine != machine
