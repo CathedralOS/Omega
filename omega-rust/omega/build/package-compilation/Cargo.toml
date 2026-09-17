@@ -20,6 +20,7 @@ checked-trees = { path = "../../../psi/representations/checked-trees" }
 build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" }
 checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 source = { path = "../../../psi/foundation/source" }
 sha2 = "0.10.9"
