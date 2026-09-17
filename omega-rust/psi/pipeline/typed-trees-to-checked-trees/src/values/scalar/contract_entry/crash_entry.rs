@@ -89,6 +89,46 @@ pub(crate) fn lower_signature_crash_contract_expression(
     .boolean(expression, 0)
 }
 
+/// An operator declaration publishes its crash routes over its own formal
+/// parameters, exactly as a bodyless signature does: the structured form
+/// binds scalar formals by dense scalar position, which the Terminal
+/// operation-contract telescope reads as formal `k + 1`. A generic operator
+/// has no closed scalar telescope yet, and a structural formal keeps its
+/// route identity-only (the machine-rooted field reader does not apply), so
+/// both leave the route without a form rather than guess one.
+pub(crate) fn lower_operator_crash_contract_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    operator: &typed_trees::operator::OperatorDefinition,
+    expression: ExpressionHandle,
+) -> Option<CheckedBooleanExpression> {
+    if !operator.symbol.is_valid()
+        || !program.operator_type_parameters(operator).is_empty()
+        || !operator.lifetime_parameters.is_empty()
+    {
+        return None;
+    }
+    let parameters = program.operator_parameters(operator);
+    for (position, parameter) in parameters.iter().enumerate() {
+        if !parameter.symbol.is_valid()
+            || parameters[..position]
+                .iter()
+                .any(|prior| prior.symbol == parameter.symbol)
+        {
+            return None;
+        }
+    }
+    Reader {
+        program,
+        operators,
+        machine: None,
+        owner: operator.symbol,
+        parameters,
+        remaining: 4096,
+    }
+    .boolean(expression, 0)
+}
+
 struct FieldPath {
     parameter_position: usize,
     path: Vec<CheckedStructuralPredicatePathSegment>,

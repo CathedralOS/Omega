@@ -1912,16 +1912,29 @@ Owners include
   `comparison has no exact selected IEEE meaning` (no executable Terminal
   meaning for an integer `SelectedComparison`), `wrapper` rejects at
   `direct scalar call crash continuation lacks a checked scalar term`, and a
-  guarded operator route rejects at `guarded crash route is outside
-  structured scalar predicate lowering`, all because
-  `facts/crash_plan_facts.rs::derive_authored_operator_crash_buckets`
-  builds operator published rows with no owner and so attaches no
-  `CheckedBooleanExpression` to their `CrashPredicateIdentity`; operator
-  declarations also own no `contract_plans` machine plan. The next slice
-  attaches the structured scalar form to operator published rows in the
-  checked stage (positional over the operator's parameters, as
-  `lower_signature_crash_contract_expression` does for signatures) so guarded
-  routes lower through the unchanged producer.
+  guarded float operator route rejects at `guarded crash route is outside
+  structured scalar predicate lowering`. Operator published rows now carry
+  the guard's structured scalar form over the operator's own formals
+  (`facts/crash_plan_facts.rs::derive_authored_operator_crash_buckets`
+  through `CrashContractOwner::Operator` and
+  `values/scalar/contract_entry/crash_entry.rs::lower_operator_crash_contract_expression`,
+  the same reader bodyless signatures use; dense scalar position `k` is the
+  Terminal formal `k + 1`), for both `boundary operator` and
+  `boundary machine ==` declarations and for spelled and named uses; a
+  generic operator or a guard through a structural formal keeps identity
+  only. Neither form owns a `contract_plans` machine plan, so the site
+  roster is the producer's carrier. Regressions: `cargo nextest run -p typed-trees-to-checked-trees
+  --lib facts::operator_crashes::tests` and `-p checked-trees-to-lowered-psi
+  --lib operation_crash_contracts` (the guarded integer route lowers to
+  `!(0 <= formal 2)` and the verifier accepts its recomputed continuation at
+  an `IntegerEqual` operation). The remaining stops are representational,
+  not producer fences: an integer `SelectedComparison` has no emitted
+  Terminal operation join, and `CheckedBooleanExpression` has no IEEE
+  ordering over scalar float formals (only structural-leaf `==`/`!=`), so
+  the float operator route that does join still has no structured form. The
+  next slice gives the selected integer comparison an emitted operation join
+  (the integer counterpart of `selected_ieee_float_comparison_occurrences`)
+  so the structured integer guard reaches a producer-written row.
 
 - **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
   and independent checker in Psi, under the
