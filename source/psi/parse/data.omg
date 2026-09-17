@@ -9,18 +9,19 @@ use psi::tokens::tokens;
 // multiplicity/visibility scratch.
 machine Parser::parse_data(
     &mut self,
+    input: &TokenStream,
     item_start: u64 in Trapping,
     is_public: bool
 ) {
     self.data_item_start = item_start;
     self.data_is_public = is_public;
     transition self.output.root_count < 256 {
-        true -> data_capacity()
-        _ -> root_full()
+        true -> data_capacity(input)
+        _ -> root_full(input)
     }
 
-    state root_full(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state root_full(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         self.output.reject(
             ParseDiagnosticCode::RootCapacityExceeded,
             self.source,
@@ -29,39 +30,41 @@ machine Parser::parse_data(
         );
     }
 
-    state data_capacity(&mut self) {
+    state data_capacity(&mut self, input: &TokenStream) {
         transition self.output.data_count < 256 {
-            true -> data_start()
-            _ -> data_full()
+            true -> data_start(input)
+            _ -> data_full(input)
         }
     }
 
-    state data_start(&mut self) {
+    state data_start(&mut self, input: &TokenStream) {
         self.data_first_member = self.output.data_member_count;
         self.data_first_field = self.output.field_count;
         self.data_first_case = self.output.case_count;
         self.data_multiplicity = DataMultiplicity::Affine;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_name()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_name(input)
             _ -> expected_data_name_at_end()
         }
     }
 
-    state data_name(&mut self) {
-        self.load_current();
-        transition { _ -> data_name_loaded() }
+    state data_name(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> data_name_loaded(input) }
     }
 
-    state data_name_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state data_name_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
             Token::Identifier -> retain_data_name(
+                input,
                 token.start,
                 token.end
             )
             Token::Keyword { keyword } -> data_name_keyword(
+                input,
                 keyword,
                 token.start,
                 token.end
@@ -72,6 +75,7 @@ machine Parser::parse_data(
 
     state data_name_keyword(
         &mut self,
+        input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -79,34 +83,36 @@ machine Parser::parse_data(
         transition keyword {
             KeywordKind::SelfType -> expected_data_name(start, end)
             KeywordKind::SelfValue -> expected_data_name(start, end)
-            _ -> retain_data_name(start, end)
+            _ -> retain_data_name(input, start, end)
         }
     }
 
     state retain_data_name(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         self.data_name_start = start;
         self.data_name_end = end;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_body()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_body(input)
             _ -> expected_data_body_at_end()
         }
     }
 
-    state data_body(&mut self) {
-        self.load_current();
-        transition { _ -> data_body_loaded() }
+    state data_body(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> data_body_loaded(input) }
     }
 
-    state data_body_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state data_body_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
             Token::Punctuation { punctuation } -> data_body_punctuation(
+                input,
                 punctuation,
                 token.start,
                 token.end
@@ -117,36 +123,37 @@ machine Parser::parse_data(
 
     state data_body_punctuation(
         &mut self,
+        input: &TokenStream,
         punctuation: PunctuationKind,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         transition punctuation {
-            PunctuationKind::LeftBracket -> data_property_start()
-            PunctuationKind::LeftBrace -> data_body_start()
+            PunctuationKind::LeftBracket -> data_property_start(input)
+            PunctuationKind::LeftBrace -> data_body_start(input)
             _ -> expected_data_body(start, end)
         }
     }
 
-    state data_property_start(&mut self) {
+    state data_property_start(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_property()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_property(input)
             _ -> expected_data_property_at_end()
         }
     }
 
-    state data_property(&mut self) {
-        self.load_current();
-        transition { _ -> data_property_loaded() }
+    state data_property(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> data_property_loaded(input) }
     }
 
-    state data_property_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state data_property_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
-            Token::Keyword { keyword: KeywordKind::Copy } -> retain_copy_property()
-            Token::Keyword { keyword: KeywordKind::Linear } -> retain_linear_property()
+            Token::Keyword { keyword: KeywordKind::Copy } -> retain_copy_property(input)
+            Token::Keyword { keyword: KeywordKind::Linear } -> retain_linear_property(input)
             _ -> expected_data_property(
                 token.start,
                 token.end
@@ -154,35 +161,35 @@ machine Parser::parse_data(
         }
     }
 
-    state retain_copy_property(&mut self) {
+    state retain_copy_property(&mut self, input: &TokenStream) {
         self.data_multiplicity = DataMultiplicity::Unrestricted;
-        transition { _ -> retain_multiplicity_property() }
+        transition { _ -> retain_multiplicity_property(input) }
     }
 
-    state retain_linear_property(&mut self) {
+    state retain_linear_property(&mut self, input: &TokenStream) {
         self.data_multiplicity = DataMultiplicity::Linear;
-        transition { _ -> retain_multiplicity_property() }
+        transition { _ -> retain_multiplicity_property(input) }
     }
 
-    state retain_multiplicity_property(&mut self) {
+    state retain_multiplicity_property(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_property_end()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_property_end(input)
             _ -> expected_data_property_end_at_end()
         }
     }
 
-    state data_property_end(&mut self) {
-        self.load_current();
-        transition { _ -> data_property_end_loaded() }
+    state data_property_end(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> data_property_end_loaded(input) }
     }
 
-    state data_property_end_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state data_property_end_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property()
-            Token::Punctuation { punctuation: PunctuationKind::Comma } -> data_property_trailing_comma()
+            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property(input)
+            Token::Punctuation { punctuation: PunctuationKind::Comma } -> data_property_trailing_comma(input)
             _ -> expected_data_property_end(
                 token.start,
                 token.end
@@ -190,24 +197,24 @@ machine Parser::parse_data(
         }
     }
 
-    state data_property_trailing_comma(&mut self) {
+    state data_property_trailing_comma(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_property_trailing_end()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_property_trailing_end(input)
             _ -> expected_data_property_end_at_end()
         }
     }
 
-    state data_property_trailing_end(&mut self) {
-        self.load_current();
-        transition { _ -> data_property_trailing_end_loaded() }
+    state data_property_trailing_end(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> data_property_trailing_end_loaded(input) }
     }
 
-    state data_property_trailing_end_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state data_property_trailing_end_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property()
+            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property(input)
             Token::Keyword { keyword: KeywordKind::Copy } -> second_copy_property(
                 token.start,
                 token.end
@@ -245,40 +252,42 @@ machine Parser::parse_data(
         }
     }
 
-    state after_data_property(&mut self) {
+    state after_data_property(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_body()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_body(input)
             _ -> expected_data_body_at_end()
         }
     }
 
-    state data_body_start(&mut self) {
+    state data_body_start(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_member()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_member(input)
             _ -> expected_data_body_at_end()
         }
     }
 
-    state data_member(&mut self) {
-        self.load_current();
-        transition { _ -> data_member_loaded() }
+    state data_member(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> data_member_loaded(input) }
     }
 
-    state data_member_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state data_member_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightBrace } -> retain_data(
+                input,
                 token.end
             )
             Token::Keyword { keyword: KeywordKind::Case } -> case_marker(
+                input,
                 token.start,
                 token.end
             )
-            _ -> field_capacity()
+            _ -> field_capacity(input)
         }
     }
 
@@ -286,33 +295,36 @@ machine Parser::parse_data(
     // `case: Type;` remains an ordinary field named `case`.
     state case_marker(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         self.case_start = start;
         self.case_keyword_end = end;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> case_marker_tail()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> case_marker_tail(input)
             _ -> expected_data_case_name_at_end()
         }
     }
 
-    state case_marker_tail(&mut self) {
-        self.load_current();
-        transition { _ -> case_marker_tail_loaded() }
+    state case_marker_tail(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> case_marker_tail_loaded(input) }
     }
 
-    state case_marker_tail_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state case_marker_tail_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Colon } -> contextual_case_field_capacity()
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> contextual_case_field_capacity(input)
             Token::Identifier -> case_capacity(
+                input,
                 token.start,
                 token.end
             )
             Token::Keyword { keyword } -> case_name_keyword(
+                input,
                 keyword,
                 token.start,
                 token.end
@@ -324,29 +336,30 @@ machine Parser::parse_data(
         }
     }
 
-    state contextual_case_field_capacity(&mut self) {
+    state contextual_case_field_capacity(&mut self, input: &TokenStream) {
         transition self.output.field_count < 1024 {
-            true -> contextual_case_field_member_capacity()
-            _ -> field_full()
+            true -> contextual_case_field_member_capacity(input)
+            _ -> field_full(input)
         }
     }
 
-    state contextual_case_field_member_capacity(&mut self) {
+    state contextual_case_field_member_capacity(&mut self, input: &TokenStream) {
         transition self.output.data_member_count < 1024 {
-            true -> retain_contextual_case_field_name()
-            _ -> data_member_full()
+            true -> retain_contextual_case_field_name(input)
+            _ -> data_member_full(input)
         }
     }
 
-    state retain_contextual_case_field_name(&mut self) {
+    state retain_contextual_case_field_name(&mut self, input: &TokenStream) {
         self.field_start = self.case_start;
         self.field_name_start = self.case_start;
         self.field_name_end = self.case_keyword_end;
-        transition { _ -> field_type_start() }
+        transition { _ -> field_type_start(input) }
     }
 
     state case_name_keyword(
         &mut self,
+        input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -354,34 +367,37 @@ machine Parser::parse_data(
         transition keyword {
             KeywordKind::SelfType -> expected_data_case_name(start, end)
             KeywordKind::SelfValue -> expected_data_case_name(start, end)
-            _ -> case_capacity(start, end)
+            _ -> case_capacity(input, start, end)
         }
     }
 
     state case_capacity(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         transition self.output.case_count < 512 {
-            true -> case_member_capacity(start, end)
-            _ -> case_full()
+            true -> case_member_capacity(input, start, end)
+            _ -> case_full(input)
         }
     }
 
     state case_member_capacity(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         transition self.output.data_member_count < 1024 {
-            true -> retain_case_name(start, end)
-            _ -> data_member_full()
+            true -> retain_case_name(input, start, end)
+            _ -> data_member_full(input)
         }
     }
 
     state retain_case_name(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
@@ -389,25 +405,26 @@ machine Parser::parse_data(
         self.case_name_end = end;
         self.case_first_payload_field = self.output.payload_field_count;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> case_end()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> case_end(input)
             _ -> expected_data_case_end_at_end()
         }
     }
 
-    state case_end(&mut self) {
-        self.load_current();
-        transition { _ -> case_end_loaded() }
+    state case_end(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> case_end_loaded(input) }
     }
 
-    state case_end_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state case_end_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_case(
+                input,
                 token.end
             )
-            Token::Punctuation { punctuation: PunctuationKind::LeftParen } -> begin_case_payload()
+            Token::Punctuation { punctuation: PunctuationKind::LeftParen } -> begin_case_payload(input)
             _ -> expected_data_case_end(
                 token.start,
                 token.end
@@ -415,26 +432,27 @@ machine Parser::parse_data(
         }
     }
 
-    state begin_case_payload(&mut self) {
+    state begin_case_payload(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> case_payload_item_or_end()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> case_payload_item_or_end(input)
             _ -> expected_case_payload_field_at_end()
         }
     }
 
-    state case_payload_item_or_end(&mut self) {
-        self.load_current();
-        transition { _ -> case_payload_item_or_end_loaded() }
+    state case_payload_item_or_end(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> case_payload_item_or_end_loaded(input) }
     }
 
-    state case_payload_item_or_end_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state case_payload_item_or_end_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::RightParen } -> finish_case_payload()
-            Token::Identifier -> payload_field_capacity(token.start, token.end)
+            Token::Punctuation { punctuation: PunctuationKind::RightParen } -> finish_case_payload(input)
+            Token::Identifier -> payload_field_capacity(input, token.start, token.end)
             Token::Keyword { keyword } -> payload_field_name_keyword(
+                input,
                 keyword,
                 token.start,
                 token.end
@@ -445,6 +463,7 @@ machine Parser::parse_data(
 
     state payload_field_name_keyword(
         &mut self,
+        input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -452,23 +471,25 @@ machine Parser::parse_data(
         transition keyword {
             KeywordKind::SelfType -> expected_case_payload_field(start, end)
             KeywordKind::SelfValue -> expected_case_payload_field(start, end)
-            _ -> payload_field_capacity(start, end)
+            _ -> payload_field_capacity(input, start, end)
         }
     }
 
     state payload_field_capacity(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         transition self.output.payload_field_count < 1024 {
-            true -> retain_payload_field_name(start, end)
-            _ -> payload_field_full()
+            true -> retain_payload_field_name(input, start, end)
+            _ -> payload_field_full(input)
         }
     }
 
     state retain_payload_field_name(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
@@ -476,45 +497,46 @@ machine Parser::parse_data(
         self.payload_field_name_start = start;
         self.payload_field_name_end = end;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> payload_field_colon()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> payload_field_colon(input)
             _ -> expected_payload_field_colon_at_end()
         }
     }
 
-    state payload_field_colon(&mut self) {
-        self.load_current();
-        transition { _ -> payload_field_colon_loaded() }
+    state payload_field_colon(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> payload_field_colon_loaded(input) }
     }
 
-    state payload_field_colon_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state payload_field_colon_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Colon } -> payload_field_type_start()
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> payload_field_type_start(input)
             _ -> expected_payload_field_colon(token.start, token.end)
         }
     }
 
-    state payload_field_type_start(&mut self) {
+    state payload_field_type_start(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> payload_field_type()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> payload_field_type(input)
             _ -> expected_payload_field_type_at_end()
         }
     }
 
-    state payload_field_type(&mut self) {
-        self.load_current();
-        transition { _ -> payload_field_type_loaded() }
+    state payload_field_type(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> payload_field_type_loaded(input) }
     }
 
-    state payload_field_type_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state payload_field_type_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
-            Token::Identifier -> payload_type_reference_capacity(token.start, token.end)
+            Token::Identifier -> payload_type_reference_capacity(input, token.start, token.end)
             Token::Keyword { keyword } -> payload_field_type_keyword(
+                input,
                 keyword,
                 token.start,
                 token.end
@@ -525,6 +547,7 @@ machine Parser::parse_data(
 
     state payload_field_type_keyword(
         &mut self,
+        input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -532,49 +555,53 @@ machine Parser::parse_data(
         transition keyword {
             KeywordKind::SelfType -> expected_payload_field_type(start, end)
             KeywordKind::SelfValue -> expected_payload_field_type(start, end)
-            _ -> payload_type_reference_capacity(start, end)
+            _ -> payload_type_reference_capacity(input, start, end)
         }
     }
 
     state payload_type_reference_capacity(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         transition self.output.type_reference_count < 1024 {
-            true -> retain_payload_type_name(start, end)
-            _ -> type_reference_full()
+            true -> retain_payload_type_name(input, start, end)
+            _ -> type_reference_full(input)
         }
     }
 
     state retain_payload_type_name(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         self.payload_type_name_start = start;
         self.payload_type_name_end = end;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> payload_field_end()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> payload_field_end(input)
             _ -> expected_payload_separator_or_end_at_end()
         }
     }
 
-    state payload_field_end(&mut self) {
-        self.load_current();
-        transition { _ -> payload_field_end_loaded() }
+    state payload_field_end(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> payload_field_end_loaded(input) }
     }
 
-    state payload_field_end_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state payload_field_end_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Comma } -> retain_payload_type_reference(
+                input,
                 token.end,
                 true
             )
             Token::Punctuation { punctuation: PunctuationKind::RightParen } -> retain_payload_type_reference(
+                input,
                 self.payload_type_name_end,
                 false
             )
@@ -584,17 +611,19 @@ machine Parser::parse_data(
 
     state retain_payload_type_reference(
         &mut self,
+        input: &TokenStream,
         field_end: u64 in Trapping,
         has_more: bool
     ) {
         transition self.output.type_reference_count < 1024 {
-            true -> retain_payload_type_reference_bounded(field_end, has_more)
-            _ -> type_reference_full()
+            true -> retain_payload_type_reference_bounded(input, field_end, has_more)
+            _ -> type_reference_full(input)
         }
     }
 
     state retain_payload_type_reference_bounded(
         &mut self,
+        input: &TokenStream,
         field_end: u64 in Trapping,
         has_more: bool
     ) {
@@ -619,23 +648,25 @@ machine Parser::parse_data(
             }
         };
         self.output.type_reference_count = self.output.type_reference_count + 1;
-        transition { _ -> retain_payload_field(field_end, type_index, has_more) }
+        transition { _ -> retain_payload_field(input, field_end, type_index, has_more) }
     }
 
     state retain_payload_field(
         &mut self,
+        input: &TokenStream,
         field_end: u64 in Trapping,
         type_index: u64 in Trapping,
         has_more: bool
     ) {
         transition self.output.payload_field_count < 1024 {
-            true -> retain_payload_field_bounded(field_end, type_index, has_more)
-            _ -> payload_field_full()
+            true -> retain_payload_field_bounded(input, field_end, type_index, has_more)
+            _ -> payload_field_full(input)
         }
     }
 
     state retain_payload_field_bounded(
         &mut self,
+        input: &TokenStream,
         field_end: u64 in Trapping,
         type_index: u64 in Trapping,
         has_more: bool
@@ -658,37 +689,37 @@ machine Parser::parse_data(
         };
         self.output.payload_field_count = self.output.payload_field_count + 1;
         transition has_more {
-            true -> advance_payload_field()
-            _ -> finish_case_payload()
+            true -> advance_payload_field(input)
+            _ -> finish_case_payload(input)
         }
     }
 
-    state advance_payload_field(&mut self) {
+    state advance_payload_field(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> case_payload_item_or_end()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> case_payload_item_or_end(input)
             _ -> expected_case_payload_field_at_end()
         }
     }
 
-    state finish_case_payload(&mut self) {
+    state finish_case_payload(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> case_end()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> case_end(input)
             _ -> expected_data_case_end_at_end()
         }
     }
 
-    state retain_case(&mut self, case_end: u64 in Trapping) {
+    state retain_case(&mut self, input: &TokenStream, case_end: u64 in Trapping) {
         transition self.output.case_count < 512 {
-            true -> retain_case_bounded(case_end)
-            _ -> case_full()
+            true -> retain_case_bounded(input, case_end)
+            _ -> case_full(input)
         }
     }
 
-    state retain_case_bounded(&mut self, case_end: u64 in Trapping) {
+    state retain_case_bounded(&mut self, input: &TokenStream, case_end: u64 in Trapping) {
         let case_index: u64 in Trapping = self.output.case_count;
         self.output.cases[self.output.case_count] = DataCase {
             name: IdentifierSpan {
@@ -705,22 +736,24 @@ machine Parser::parse_data(
             }
         };
         self.output.case_count = self.output.case_count + 1;
-        transition { _ -> retain_case_member(case_end, case_index) }
+        transition { _ -> retain_case_member(input, case_end, case_index) }
     }
 
     state retain_case_member(
         &mut self,
+        input: &TokenStream,
         case_end: u64 in Trapping,
         case_index: u64 in Trapping
     ) {
         transition self.output.data_member_count < 1024 {
-            true -> retain_case_member_bounded(case_end, case_index)
-            _ -> data_member_full()
+            true -> retain_case_member_bounded(input, case_end, case_index)
+            _ -> data_member_full(input)
         }
     }
 
     state retain_case_member_bounded(
         &mut self,
+        input: &TokenStream,
         case_end: u64 in Trapping,
         case_index: u64 in Trapping
     ) {
@@ -734,35 +767,37 @@ machine Parser::parse_data(
         };
         self.output.data_member_count = self.output.data_member_count + 1;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_member()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_member(input)
             _ -> expected_data_body_at_end()
         }
     }
 
-    state field_capacity(&mut self) {
+    state field_capacity(&mut self, input: &TokenStream) {
         transition self.output.field_count < 1024 {
-            true -> field_member_capacity()
-            _ -> field_full()
+            true -> field_member_capacity(input)
+            _ -> field_full(input)
         }
     }
 
-    state field_member_capacity(&mut self) {
+    state field_member_capacity(&mut self, input: &TokenStream) {
         transition self.output.data_member_count < 1024 {
-            true -> field_name()
-            _ -> data_member_full()
+            true -> field_name(input)
+            _ -> data_member_full(input)
         }
     }
 
-    state field_name(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state field_name(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
             Token::Identifier -> retain_field_name(
+                input,
                 token.start,
                 token.end
             )
             Token::Keyword { keyword } -> field_name_keyword(
+                input,
                 keyword,
                 token.start,
                 token.end
@@ -773,6 +808,7 @@ machine Parser::parse_data(
 
     state field_name_keyword(
         &mut self,
+        input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -780,12 +816,13 @@ machine Parser::parse_data(
         transition keyword {
             KeywordKind::SelfType -> expected_field_colon(start, end)
             KeywordKind::SelfValue -> expected_field_colon(start, end)
-            _ -> retain_field_name(start, end)
+            _ -> retain_field_name(input, start, end)
         }
     }
 
     state retain_field_name(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
@@ -793,22 +830,22 @@ machine Parser::parse_data(
         self.field_name_start = start;
         self.field_name_end = end;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> field_colon()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> field_colon(input)
             _ -> expected_field_colon_at_end()
         }
     }
 
-    state field_colon(&mut self) {
-        self.load_current();
-        transition { _ -> field_colon_loaded() }
+    state field_colon(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> field_colon_loaded(input) }
     }
 
-    state field_colon_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state field_colon_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Colon } -> field_type_start()
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> field_type_start(input)
             _ -> expected_field_colon(
                 token.start,
                 token.end
@@ -816,28 +853,30 @@ machine Parser::parse_data(
         }
     }
 
-    state field_type_start(&mut self) {
+    state field_type_start(&mut self, input: &TokenStream) {
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> field_type()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> field_type(input)
             _ -> expected_field_type_at_end()
         }
     }
 
-    state field_type(&mut self) {
-        self.load_current();
-        transition { _ -> field_type_loaded() }
+    state field_type(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> field_type_loaded(input) }
     }
 
-    state field_type_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state field_type_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
             Token::Identifier -> type_reference_capacity(
+                input,
                 token.start,
                 token.end
             )
             Token::Keyword { keyword } -> field_type_keyword(
+                input,
                 keyword,
                 token.start,
                 token.end
@@ -848,6 +887,7 @@ machine Parser::parse_data(
 
     state field_type_keyword(
         &mut self,
+        input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -855,45 +895,48 @@ machine Parser::parse_data(
         transition keyword {
             KeywordKind::SelfType -> expected_field_type(start, end)
             KeywordKind::SelfValue -> expected_field_type(start, end)
-            _ -> type_reference_capacity(start, end)
+            _ -> type_reference_capacity(input, start, end)
         }
     }
 
     state type_reference_capacity(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         transition self.output.type_reference_count < 1024 {
-            true -> retain_type_name(start, end)
-            _ -> type_reference_full()
+            true -> retain_type_name(input, start, end)
+            _ -> type_reference_full(input)
         }
     }
 
     state retain_type_name(
         &mut self,
+        input: &TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
         self.type_name_start = start;
         self.type_name_end = end;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> field_end()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> field_end(input)
             _ -> expected_field_end_at_end()
         }
     }
 
-    state field_end(&mut self) {
-        self.load_current();
-        transition { _ -> field_end_loaded() }
+    state field_end(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> field_end_loaded(input) }
     }
 
-    state field_end_loaded(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state field_end_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_type_reference(
+                input,
                 token.end
             )
             _ -> expected_field_end(
@@ -903,14 +946,14 @@ machine Parser::parse_data(
         }
     }
 
-    state retain_type_reference(&mut self, field_end: u64 in Trapping) {
+    state retain_type_reference(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
         transition self.output.type_reference_count < 1024 {
-            true -> retain_type_reference_bounded(field_end)
-            _ -> type_reference_full()
+            true -> retain_type_reference_bounded(input, field_end)
+            _ -> type_reference_full(input)
         }
     }
 
-    state retain_type_reference_bounded(&mut self, field_end: u64 in Trapping) {
+    state retain_type_reference_bounded(&mut self, input: &TokenStream, field_end: u64 in Trapping) {
         let type_index: u64 in Trapping = self.output.type_reference_count;
         self.output.type_references[self.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Named,
@@ -926,22 +969,24 @@ machine Parser::parse_data(
             }
         };
         self.output.type_reference_count = self.output.type_reference_count + 1;
-        transition { _ -> retain_field(field_end, type_index) }
+        transition { _ -> retain_field(input, field_end, type_index) }
     }
 
     state retain_field(
         &mut self,
+        input: &TokenStream,
         field_end: u64 in Trapping,
         type_index: u64 in Trapping
     ) {
         transition self.output.field_count < 1024 {
-            true -> retain_field_bounded(field_end, type_index)
-            _ -> field_full()
+            true -> retain_field_bounded(input, field_end, type_index)
+            _ -> field_full(input)
         }
     }
 
     state retain_field_bounded(
         &mut self,
+        input: &TokenStream,
         field_end: u64 in Trapping,
         type_index: u64 in Trapping
     ) {
@@ -960,22 +1005,24 @@ machine Parser::parse_data(
             }
         };
         self.output.field_count = self.output.field_count + 1;
-        transition { _ -> retain_field_member(field_end, field_index) }
+        transition { _ -> retain_field_member(input, field_end, field_index) }
     }
 
     state retain_field_member(
         &mut self,
+        input: &TokenStream,
         field_end: u64 in Trapping,
         field_index: u64 in Trapping
     ) {
         transition self.output.data_member_count < 1024 {
-            true -> retain_field_member_bounded(field_end, field_index)
-            _ -> data_member_full()
+            true -> retain_field_member_bounded(input, field_end, field_index)
+            _ -> data_member_full(input)
         }
     }
 
     state retain_field_member_bounded(
         &mut self,
+        input: &TokenStream,
         field_end: u64 in Trapping,
         field_index: u64 in Trapping
     ) {
@@ -989,17 +1036,17 @@ machine Parser::parse_data(
         };
         self.output.data_member_count = self.output.data_member_count + 1;
         self.cursor = self.cursor + 1;
-        self.skip_trivia();
-        transition self.cursor < self.input.token_count {
-            true -> data_member()
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_member(input)
             _ -> expected_data_body_at_end()
         }
     }
 
-    state retain_data(&mut self, item_end: u64 in Trapping) {
+    state retain_data(&mut self, input: &TokenStream, item_end: u64 in Trapping) {
         transition self.output.data_count < 256 {
             true -> retain_data_bounded(item_end)
-            _ -> data_full()
+            _ -> data_full(input)
         }
     }
 
@@ -1057,33 +1104,33 @@ machine Parser::parse_data(
         self.cursor = self.cursor + 1;
     }
 
-    state data_full(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state data_full(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         self.output.reject(ParseDiagnosticCode::DataCapacityExceeded, self.source, token.start, token.end);
     }
 
-    state field_full(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state field_full(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         self.output.reject(ParseDiagnosticCode::DataFieldCapacityExceeded, self.source, token.start, token.end);
     }
 
-    state type_reference_full(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state type_reference_full(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         self.output.reject(ParseDiagnosticCode::TypeReferenceCapacityExceeded, self.source, token.start, token.end);
     }
 
-    state data_member_full(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state data_member_full(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         self.output.reject(ParseDiagnosticCode::DataMemberCapacityExceeded, self.source, token.start, token.end);
     }
 
-    state case_full(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state case_full(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         self.output.reject(ParseDiagnosticCode::DataCaseCapacityExceeded, self.source, token.start, token.end);
     }
 
-    state payload_field_full(&mut self) {
-        let token: Token = self.input.tokens[self.current_index];
+    state payload_field_full(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         self.output.reject(
             ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded,
             self.source,

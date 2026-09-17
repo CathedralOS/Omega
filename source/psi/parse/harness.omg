@@ -58,14 +58,13 @@ blocks;
     state prepare_parse(&mut self) {
         self.parser.initialize(
             self.lexer.source.id,
-            self.lexer.source.length,
-            self.lexer.output
+            self.lexer.source.length
         );
         transition { _ -> parse() }
     }
 
     state parse(&mut self) {
-        self.parser.parse();
+        self.parser.parse(&self.lexer.output);
         transition self.parser.output.accepted {
             true -> accepted()
             _ -> parse_rejected()
