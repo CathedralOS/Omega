@@ -9,7 +9,7 @@ use super::{
     PROJECTED_RUNTIME_DIVISOR_CALL_SOURCE, RUNTIME_DIVISOR_CALL_SOURCE,
     RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE, UNPROVEN_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE,
 };
-use crate::bounded_inputs;
+use crate::crash_member_source::bounded_inputs;
 use proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, Proposition, ScalarTerm,

@@ -3,7 +3,7 @@ use super::{
     constructed_wrapper_source, pause_before_crashing_helper, record_field_computation, start,
     unit_wrapper_artifact, unit_wrapper_source, unsigned,
 };
-use crate::{
+use crate::structural_return_source::{
     AdmissionProfile, RESULT_BOUNDARY_CUSTODY_SOURCE, ResultBoundaryHandler,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalInterpretError,
     TerminalScalarValue, Terminator, decode_module,

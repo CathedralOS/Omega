@@ -3,7 +3,7 @@ use super::{
     assert_constructed_wrapper_execution, checked, constructed_wrapper_source, source, start,
     start_with_scalars, unit_wrapper_artifact, unit_wrapper_source, unsigned,
 };
-use crate::{
+use crate::structural_return_source::{
     TerminalEffect, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
     decode_module,
 };

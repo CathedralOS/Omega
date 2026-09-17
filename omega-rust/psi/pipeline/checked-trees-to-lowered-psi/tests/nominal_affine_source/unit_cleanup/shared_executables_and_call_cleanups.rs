@@ -2,7 +2,7 @@ use super::{
     EXECUTABLE_SOURCE, THREE_CALL_SOURCE, THREE_ROOT_DISTINCT_SOURCE,
     THREE_ROOT_SHARED_EXECUTABLE_SOURCE, TWO_CALL_SOURCE,
 };
-use crate::{
+use crate::nominal_affine_source::{
     AdmissionProfile, Lexer, OperationKind, OperationResult, ResolutionRequest, Terminator,
     decode_module, encode_module, lower_symbol_resolved_trees, lower_typed_trees,
     parse_syntax_trees, resolve,

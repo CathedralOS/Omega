@@ -10,7 +10,7 @@ mod membership_subjects;
 #[path = "owned_results/owned_match_records_and_selections.rs"]
 mod owned_match_records_and_selections;
 
-use crate::check_source;
+use crate::value_dispatch::check_source;
 
 const SOURCE: &str =
     include_str!("../../../../../../tests/omega/pass/expressions/owned_match_values/main.omg");

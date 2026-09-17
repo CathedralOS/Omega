@@ -1,5 +1,7 @@
 use super::{INTERLEAVED_SOURCE, PARAMETER_SOURCE, PROJECTED_FIELD_SOURCE};
-use crate::{TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned};
+use crate::value_dispatch::{
+    TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned,
+};
 use terminal_interpreter::TerminalStructuralInputs;
 
 #[test]
@@ -152,7 +154,7 @@ fn interleaved_selection_rejects_reordered_or_incomplete_return_cleanup() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err(),
             "interleaved cleanup mutation {mutation}"
@@ -200,7 +202,7 @@ fn interleaved_selection_rejects_swapped_join_arguments() {
         terminal_verifier::verify_module(
             &changed,
             &lowered.proof_bundle,
-            &crate::AdmissionProfile::default()
+            &crate::value_dispatch::AdmissionProfile::default()
         )
         .is_err()
     );
@@ -335,7 +337,7 @@ fn owned_match_projected_children_reject_mutated_edge_evidence() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err(),
             "projected edge mutation {mutation}"
@@ -355,8 +357,12 @@ fn owned_match_parameter_source_returns_the_exact_selected_identity() {
             .expect("encode proof");
     let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
     let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
-    terminal_verifier::verify_module(&module, &proof, &crate::AdmissionProfile::default())
-        .expect("independent parameter-source verification");
+    terminal_verifier::verify_module(
+        &module,
+        &proof,
+        &crate::value_dispatch::AdmissionProfile::default(),
+    )
+    .expect("independent parameter-source verification");
     let entry = module
         .machines
         .iter()
@@ -384,7 +390,7 @@ fn owned_match_parameter_source_returns_the_exact_selected_identity() {
         let execution = terminal_interpreter::interpret_terminal_artifact_measured(
             &semantic_bytes,
             &proof_bytes,
-            &crate::AdmissionProfile::default(),
+            &crate::value_dispatch::AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(selected)],
             TerminalStructuralInputs {
                 arguments: &arguments,
@@ -416,8 +422,12 @@ fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
             .expect("encode proof");
     let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
     let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
-    terminal_verifier::verify_module(&module, &proof, &crate::AdmissionProfile::default())
-        .expect("independent parameter-source verification");
+    terminal_verifier::verify_module(
+        &module,
+        &proof,
+        &crate::value_dispatch::AdmissionProfile::default(),
+    )
+    .expect("independent parameter-source verification");
     let machine = module
         .machines
         .iter()
@@ -505,7 +515,7 @@ fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err(),
             "parameter-source cleanup mutation {mutation}"
@@ -527,8 +537,12 @@ fn projected_parameter_roots_move_the_selected_child_with_exact_identity() {
             .expect("encode proof");
     let module = terminal_codec::decode_module(&semantic_bytes).expect("decode semantics");
     let proof = terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof");
-    terminal_verifier::verify_module(&module, &proof, &crate::AdmissionProfile::default())
-        .expect("independent projected-parameter verification");
+    terminal_verifier::verify_module(
+        &module,
+        &proof,
+        &crate::value_dispatch::AdmissionProfile::default(),
+    )
+    .expect("independent projected-parameter verification");
     let machine = module
         .machines
         .iter()
@@ -605,7 +619,7 @@ fn projected_parameter_roots_move_the_selected_child_with_exact_identity() {
         let execution = terminal_interpreter::interpret_terminal_artifact_measured(
             &semantic_bytes,
             &proof_bytes,
-            &crate::AdmissionProfile::default(),
+            &crate::value_dispatch::AdmissionProfile::default(),
             &[TerminalScalarValue::Boolean(selected)],
             TerminalStructuralInputs {
                 arguments: &arguments,
@@ -669,7 +683,7 @@ fn projected_parameter_roots_reject_mutated_residual_cleanup() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err(),
             "projected parameter cleanup mutation {mutation}"

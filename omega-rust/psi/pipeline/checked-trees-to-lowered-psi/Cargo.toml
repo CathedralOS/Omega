@@ -1,5 +1,6 @@
 [package]
 name = "checked-trees-to-lowered-psi"
+autotests = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -42,3 +43,7 @@ terminal-interpreter = { path = "../../semantics/terminal-interpreter" }
 tokens-to-syntax-trees = { path = "../tokens-to-syntax-trees" }
 typed-trees = { path = "../../representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../typed-trees-to-checked-trees" }
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"

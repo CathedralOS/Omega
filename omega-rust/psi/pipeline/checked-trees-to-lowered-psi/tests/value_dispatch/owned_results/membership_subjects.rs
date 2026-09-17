@@ -1,5 +1,5 @@
 use super::{MEMBERSHIP_TYPES, membership_case, verify_membership_source};
-use crate::{TerminalExecutionResult, TerminalScalarValue};
+use crate::value_dispatch::{TerminalExecutionResult, TerminalScalarValue};
 
 /// A `subject in Type::Case` dispatch guard is a tag observation, not an
 /// ownership transfer: borrowed, copy, affine-parameter, `self`, and affine
@@ -108,7 +108,7 @@ fn owned_match_membership_subject_preserves_join_cleanup_order() {
         terminal_verifier::verify_module(
             &changed,
             &lowered.proof_bundle,
-            &crate::AdmissionProfile::default()
+            &crate::value_dispatch::AdmissionProfile::default()
         )
         .is_err(),
         "swapped residual/owner cleanup order must reject"
@@ -173,7 +173,7 @@ fn owned_match_membership_subject_executes_the_selected_arm() {
         let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
             &semantic_bytes,
             &proof_bytes,
-            &crate::AdmissionProfile::default(),
+            &crate::value_dispatch::AdmissionProfile::default(),
             &[],
             terminal_interpreter::TerminalStructuralInputs {
                 arguments: &arguments,

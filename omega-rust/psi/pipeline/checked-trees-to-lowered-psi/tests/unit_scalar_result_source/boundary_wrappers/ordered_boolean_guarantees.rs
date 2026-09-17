@@ -2,7 +2,7 @@ use super::{
     artifact, boolean_guarantee_source, execute, integer, nested_boolean_guarantee_source,
     normal_guarantee_source,
 };
-use crate::{CheckedScalarExpression, checked_from_source};
+use crate::unit_scalar_result_source::{CheckedScalarExpression, checked_from_source};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue};

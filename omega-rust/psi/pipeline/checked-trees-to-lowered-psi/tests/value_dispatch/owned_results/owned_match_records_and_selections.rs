@@ -1,5 +1,7 @@
 use super::{MIXED_SOURCE, RECORD_SOURCE, SOURCE};
-use crate::{TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned};
+use crate::value_dispatch::{
+    TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned,
+};
 
 #[test]
 fn owned_match_nested_record_replays_every_selected_payload() {
@@ -96,7 +98,7 @@ fn owned_match_record_frontier_rejects_missing_and_duplicate_disposal() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err()
         );
@@ -166,7 +168,7 @@ fn owned_match_record_shared_projection_rejects_substituted_custody() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err(),
             "changed joined field path/access/availability {mutation}"
@@ -567,7 +569,7 @@ fn chained_owned_selection_rejects_mutated_join_arguments() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err(),
             "chained join mutation {mutation}"
@@ -806,7 +808,7 @@ fn projected_chained_selection_rejects_mutated_residual_evidence() {
                 || terminal_verifier::verify_module(
                     &changed,
                     &lowered.proof_bundle,
-                    &crate::AdmissionProfile::default()
+                    &crate::value_dispatch::AdmissionProfile::default()
                 )
                 .is_err(),
             "projected chained residual mutation {mutation}"
@@ -857,7 +859,7 @@ fn projected_chained_selection_rejects_mutated_join_arguments() {
             terminal_verifier::verify_module(
                 &changed,
                 &lowered.proof_bundle,
-                &crate::AdmissionProfile::default()
+                &crate::value_dispatch::AdmissionProfile::default()
             )
             .is_err(),
             "projected chained join mutation {mutation}"
