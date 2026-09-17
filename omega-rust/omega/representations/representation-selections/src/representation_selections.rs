@@ -184,8 +184,14 @@ pub fn selection_for_opaque(
 #[cfg(test)]
 mod tests {
     use super::{
-        OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
-        OpaqueRepresentationLifecycleDisposition, selected_application_commitment,
+        OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION, OpaqueRepresentationApplicationOrigin,
+        OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,
+        OpaqueRepresentationSelection, selected_application_commitment,
+    };
+    use source::SourceSpan;
+    use symbols::SymbolHandle;
+    use typed_trees::typed_trees::{
+        ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     };
 
     #[test]
@@ -206,5 +212,63 @@ mod tests {
         assert_ne!(placement, copying);
         assert_ne!(placement, conformance);
         assert_ne!(copying, conformance);
+    }
+
+    #[test]
+    fn selected_application_commitment_binds_application_commitment() {
+        let base = selected_application_commitment(
+            [0x5a; 32],
+            OpaqueRepresentationLifecycleDisposition::Inert,
+            OpaqueRepresentationCopyDisposition::PlacementOnly,
+            OpaqueRepresentationApplicationOrigin::NamedConformance,
+        );
+        let foreign = selected_application_commitment(
+            [0xab; 32],
+            OpaqueRepresentationLifecycleDisposition::Inert,
+            OpaqueRepresentationCopyDisposition::PlacementOnly,
+            OpaqueRepresentationApplicationOrigin::NamedConformance,
+        );
+        assert_ne!(base, foreign);
+    }
+
+    #[test]
+    fn stored_commitment_substitution_diverges_from_honest_recomputation() {
+        // `from_validated_application` always stores the honest recomputation,
+        // so a substituted stored commitment is only expressible inside this
+        // crate. `rederive_opaque_representation_selections` compares exactly
+        // this pair before trusting the row: the forged row is rejected as
+        // stale custody independently of any other field.
+        let application = ClosedConformanceApplication {
+            commitment: ClosedConformanceApplicationCommitment::from_digest([0x5a; 32]),
+            ..Default::default()
+        };
+        let honest = OpaqueRepresentationSelection::from_validated_application(
+            SymbolHandle::invalid(),
+            SymbolHandle::invalid(),
+            application,
+            OpaqueRepresentationLifecycleDisposition::Inert,
+            OpaqueRepresentationCopyDisposition::PlacementOnly,
+            OpaqueRepresentationApplicationOrigin::NamedConformance,
+            SymbolHandle::invalid(),
+            SourceSpan::default(),
+        );
+        assert_eq!(
+            honest.schema_version(),
+            OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
+        );
+        assert_eq!(
+            honest.selected_application_commitment(),
+            honest.rederived_selected_application_commitment(),
+        );
+        let forged = OpaqueRepresentationSelection {
+            selected_application_commitment: [0xab; 32],
+            ..honest.clone()
+        };
+        assert_ne!(
+            forged.selected_application_commitment(),
+            forged.rederived_selected_application_commitment(),
+            "a substituted stored commitment must diverge from the field recomputation",
+        );
+        assert_ne!(forged, honest);
     }
 }
