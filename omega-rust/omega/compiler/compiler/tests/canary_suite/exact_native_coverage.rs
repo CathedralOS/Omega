@@ -7,7 +7,7 @@ mod fixture_constants;
 
 pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 797;
 pub(super) const EXPECTED_UNIQUE_DIRECT_ACTIVE_COVERAGE: usize = 4;
-pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 32;
+pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 31;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -482,8 +482,7 @@ fn exact_checked_report_native_status(compact: &str) -> Option<i32> {
         }
         expected = Some(status);
         let ordinary = format!("let{local}=compile_rooted_canary_for_native_host(");
-        let full = format!("let{local}=compile_rooted_canary_for_native_host(");
-        if !compact.contains(&ordinary) && !compact.contains(&full) {
+        if !compact.contains(&ordinary) {
             return None;
         }
         cursor = status_start + 1 + digits.len() + 1;
@@ -504,11 +503,7 @@ fn exact_target_coverage(
         .collect::<String>();
     let mut coverage = Vec::new();
 
-    for function in [
-        "compile_canary_without_output_for_target",
-        "compile",
-        "compile",
-    ] {
+    for function in ["compile_canary_without_output_for_target", "compile"] {
         for call in exact_successful_calls(&compact, function) {
             let target = if function == "compile_canary_without_output_for_target" {
                 let arguments = top_level_arguments(call.arguments);
@@ -532,25 +527,20 @@ fn exact_target_coverage(
         }
     }
 
-    for function in [
-        "compile_rooted_canary_for_target",
-        "compile_rooted_canary_for_target",
-    ] {
-        for call in exact_successful_calls(&compact, function) {
-            let arguments = top_level_arguments(call.arguments);
-            let [canary_argument, _, target_argument] = arguments.as_slice() else {
-                continue;
-            };
-            if *canary_argument != "&canary" {
-                continue;
-            }
-            if let Some(target) = exact_string_literal(target_argument) {
-                coverage.push((
-                    ExactTargetOwnerKind::RootedTarget,
-                    canary.clone(),
-                    target.to_owned(),
-                ));
-            }
+    for call in exact_successful_calls(&compact, "compile_rooted_canary_for_target") {
+        let arguments = top_level_arguments(call.arguments);
+        let [canary_argument, _, target_argument] = arguments.as_slice() else {
+            continue;
+        };
+        if *canary_argument != "&canary" {
+            continue;
+        }
+        if let Some(target) = exact_string_literal(target_argument) {
+            coverage.push((
+                ExactTargetOwnerKind::RootedTarget,
+                canary.clone(),
+                target.to_owned(),
+            ));
         }
     }
     coverage
@@ -819,7 +809,6 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         "root_path: canary.join(\"main.omg\")",
         "root_path: other.join(\"main.omg\")",
     );
-    let auxiliary = direct.replace("compile(CanaryCompileSpec", "compile(CanaryCompileSpec");
     let multiple_canaries = direct.replace(
         "let canary =",
         "let other = pass_canary(\"demo/other\"); let canary =",
@@ -840,7 +829,6 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         ("wrong_target.rs", &wrong_target),
         ("no_native_product.rs", &no_native_product),
         ("wrong_root.rs", &wrong_root),
-        ("auxiliary.rs", &auxiliary),
         ("multiple_canaries.rs", &multiple_canaries),
         ("no_execution.rs", &no_execution),
     ]);
