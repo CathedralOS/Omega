@@ -1,6 +1,6 @@
 use super::{
     BuildTimeEvaluationRequest, BuildTimeSelectionAuthority, BuildTimeSourceContext,
-    evaluate_pre_resolution,
+    SelectedBuildTimeOperators, SelectedBuildTimeProviderBody, evaluate_pre_resolution,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+use typed_trees::domain::ProofFact;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::types::FixedArrayLength;
 
 const CONST_ARRAY_SOURCE: &str = r#"
@@ -435,6 +437,165 @@ fn folded_const_arguments(syntax: &syntax_trees::SyntaxTrees) -> Vec<i64> {
             _ => Vec::new(),
         })
         .collect()
+}
+
+/// The rows Omega's settlement derives for the program's selected
+/// boundary-operator uses, exactly as `selected_provider_bodies` does from
+/// the retained checked facts and the settled plan.
+fn provider_body_rows(typed: &typed_trees::TypedTrees) -> Vec<SelectedBuildTimeProviderBody> {
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
+    facts
+        .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
+        .filter(|fact| {
+            typed.operators().iter().any(|operator| {
+                operator.symbol == fact.selected_operator_symbol && operator.is_boundary
+            })
+        })
+        .map(|fact| {
+            let provider = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Provider::remainder")
+                .unwrap();
+            let entry = typed.machine_states(provider).first().unwrap();
+            SelectedBuildTimeProviderBody {
+                expression: fact.expression,
+                origin: fact.origin,
+                requirement: fact.selected_operator_symbol,
+                operands: fact.operands(typed).unwrap(),
+                provider_machine: provider.symbol,
+                provider_state: entry.symbol,
+                provider_type: provider.attached_data.as_ref().unwrap().as_str().to_owned(),
+                provider: checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]),
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn provider_backed_domain_fact_defers_then_evaluates_its_selected_body() {
+    // The provider's body computes `left + right`, which differs from the
+    // builtin `%` result, so `is_sum(7)` proving `7 + 2 == 9` is the positive
+    // witness that the provider's machine -- not host arithmetic -- ran.
+    let package = PackageKeyIdentity::from_digest([0x78; 32]).expect("nonzero package identity");
+    let source = r#"
+        data Math {}
+        boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+        data Provider {}
+        machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left + right }
+        machine is_sum(value: u64) -> bool { value % 2 == 9 }
+        domain u64::Summable requires is_sum(self);
+        data FixedBuffer<const N: u64>
+        where
+            N in Summable,
+        {
+            values: [u8; N];
+        }
+        data Main { buffer: FixedBuffer<7>; }
+        machine Main::main(&mut self) {}
+    "#;
+    let (syntax, sources) = parsed_source(source, package);
+    let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(BuildTimeSourceContext {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
+    })
+    .expect("a provider-backed domain fact survives pre-resolution evaluation");
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let mut typed = typed_after_pre_resolution(&syntax, sources);
+
+    let pre_check = pre_check
+        .evaluate_or_defer(&mut typed)
+        .expect("deferral scan")
+        .expect("a membership whose fact machine selects a boundary use must defer");
+
+    let rows = provider_body_rows(&typed);
+    assert_eq!(rows.len(), 1);
+    pre_check
+        .evaluate_selected_operators(
+            &mut typed,
+            SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &rows,
+            },
+        )
+        .expect("the resumed continuation runs the selected provider body");
+
+    let instance = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "FixedBuffer<7>")
+        .expect("concrete instance");
+    assert!(
+        typed
+            .proof_facts
+            .span_or_empty(instance.where_facts)
+            .iter()
+            .all(|fact| matches!(fact, ProofFact::Expression(expression)
+            if matches!(
+                typed.expression_table.expression(*expression),
+                ExpressionNode::Boolean(true)
+            ))),
+        "the selected provider body proved the membership; builtin `%` folds 1 and `1 == 9` is false"
+    );
+    assert!(
+        !instance.zero_gated,
+        "a fully discharged fact list clears the instance's zero gate"
+    );
+}
+
+#[test]
+fn builtin_only_domain_fact_keeps_the_undifferentiated_early_route() {
+    let package = PackageKeyIdentity::from_digest([0x79; 32]).expect("nonzero package identity");
+    let source = r#"
+        machine is_positive(value: u64) -> bool { value > 0 }
+        domain u64::Positive requires is_positive(self);
+        data FixedBuffer<const N: u64>
+        where
+            N in Positive,
+        {
+            values: [u8; N];
+        }
+        data Main { buffer: FixedBuffer<7>; }
+        machine Main::main(&mut self) {}
+    "#;
+    let (syntax, sources) = parsed_source(source, package);
+    let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(BuildTimeSourceContext {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
+    })
+    .expect("builtin-only domain fact survives pre-resolution evaluation");
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let mut typed = typed_after_pre_resolution(&syntax, sources);
+    assert!(
+        pre_check
+            .evaluate_or_defer(&mut typed)
+            .expect("builtin-only evaluation")
+            .is_none(),
+        "a membership with no selected-execution need folds immediately"
+    );
+    let instance = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "FixedBuffer<7>")
+        .expect("concrete instance");
+    assert!(
+        typed
+            .proof_facts
+            .span_or_empty(instance.where_facts)
+            .iter()
+            .all(|fact| matches!(fact, ProofFact::Expression(_))),
+        "the membership folded to an ordinary `true` fact"
+    );
 }
 
 #[test]
