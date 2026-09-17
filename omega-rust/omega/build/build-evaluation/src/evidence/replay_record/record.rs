@@ -18,7 +18,7 @@ pub(crate) const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
 
-pub(crate) const VERSION: u16 = 56;
+pub(crate) const VERSION: u16 = 57;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -101,8 +101,8 @@ impl ReviewOnlyBuildFilesystemReplayRecord {
 
     /// The exact activation this record's evidence was captured under. A
     /// replay request admits the record only when the requesting
-    /// compilation's own root package, declaration role, and selected target
-    /// agree with it.
+    /// compilation's own root package, declaration role, selected target, and
+    /// build execution profile agree with it.
     pub const fn replay_activation(&self) -> BuildReplayActivation {
         self.replay_activation
     }

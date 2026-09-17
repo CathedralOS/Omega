@@ -3486,28 +3486,27 @@ Owners include
   authored/generated boundary; no own-build final-component query or hidden
   post-compilation callback.
 
-  Resume evidence: `4eecfbddfe` (2026-09-15 UTC, Linux x86-64) bound the full
-  replay activation — serialized replay records now carry the exact root
-  package identity, authored declaration role, and selected target profile
-  (`build-evaluation/src/observations.rs` `BuildReplayActivation`, folded into
-  the observation identity and record VERSION 56), and admission drift-rejects
-  a replay captured under any other activation
-  (`build_config_granted.rs::serialized_replay_record_rejects_activation_drift`;
-  `cargo nextest run -p compiler --test build_config_granted
-  serialized_replay_record` passes). Remaining: compiler-owned publication of
-  the retained native product with generated source — dependency-purpose and
-  execution-profile binding on checkpoints and generated handoffs, and
-  publication gated on every required output plus final product checking.
-  Blocking dependency for the purpose/profile binding (2026-09-17 UTC, macOS
-  ARM64): `CheckedCompileRequest`, `PackageCompilationInputs`,
-  and `PackageGeneratedSourceBundle` carry `DependencyPurpose` only on
-  dependency edges and no execution profile at all, and the only compilation
-  occurrence is the root product-purpose one, so the activation has no purpose
-  or profile fact to bind and no second occurrence to witness drift against;
-  this waits on **BUILD-DEPENDENCY-PURPOSES** supplying the per-scope
-  execution profile on the frontend request and a build-purpose occurrence,
-  and must not derive the profile from the compiler process OS or duplicate
-  the already-bound selected target.
+  Resume evidence (2026-09-17 UTC, macOS ARM64): serialized replay records
+  carry the exact root package identity, authored declaration role, selected
+  target profile, and admitted build execution profile
+  (`build-evaluation/src/evidence/observations.rs` `BuildReplayActivation`,
+  folded into the observation identity and the record version), and
+  admission drift-rejects a replay captured under any other activation
+  (`build_config_granted/checkpoints_and_snapshots.rs`
+  `serialized_replay_record_rejects_activation_drift` and
+  `serialized_replay_record_rejects_execution_profile_drift`). The bound
+  profile is the request's admitted one
+  (`CheckedCompileRequest::build_execution_profile`, the compiler host when
+  the request names none), threaded from `CheckedChildExecution` into the
+  filesystem scope; it is never inferred from the compiler process and stays
+  distinct from the selected target. Remaining: dependency-purpose binding on
+  checkpoints and generated handoffs waits on **BUILD-DEPENDENCY-PURPOSES**
+  supplying a per-occurrence purpose value — `DependencyPurpose` exists only
+  on dependency edges and the only compilation occurrence is the root
+  product-purpose one, so there is no purpose fact to bind and no second
+  occurrence to witness drift against. Compiler-owned publication of the
+  retained native product with generated source, gated on every required
+  output plus final product checking, is still open.
 
 - **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish the compiler/library migration
   to explicit ordinary std dependency edges. Std may be replaced, split, or

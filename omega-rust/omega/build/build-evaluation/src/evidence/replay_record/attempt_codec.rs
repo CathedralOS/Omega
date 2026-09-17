@@ -46,7 +46,15 @@ pub(crate) fn encode_replay_activation(
         Some(package_compilation::BuildDeclarationKind::Application) => 2,
         Some(package_compilation::BuildDeclarationKind::Workspace) => 3,
     });
-    match activation.selected_target_profile() {
+    encode_optional_target_profile(encoder, activation.selected_target_profile())?;
+    encode_optional_target_profile(encoder, activation.build_execution_profile())
+}
+
+fn encode_optional_target_profile(
+    encoder: &mut Encoder,
+    profile: Option<target::TargetProfile>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    match profile {
         None => encoder.byte(0),
         Some(profile) => {
             encoder.byte(1);
@@ -87,31 +95,52 @@ pub(crate) fn decode_replay_activation(
             ));
         }
     };
-    let selected_target_profile = match decoder.byte()? {
-        0 => None,
-        1 => {
-            let name = std::str::from_utf8(decoder.bytes()?).map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "invalid replay activation target profile encoding",
-                )
-            })?;
-            Some(
-                target::TargetProfile::from_canonical_target_name(name).map_err(|_| {
-                    BuildFilesystemReplayRecordError::new(
-                        "invalid replay activation target profile",
-                    )
-                })?,
-            )
-        }
-        _ => {
-            return Err(BuildFilesystemReplayRecordError::new(
-                "invalid replay activation target profile tag",
-            ));
-        }
-    };
+    let selected_target_profile =
+        decode_optional_target_profile(decoder, &SELECTED_TARGET_PROFILE_REJECTIONS)?;
+    let build_execution_profile =
+        decode_optional_target_profile(decoder, &BUILD_EXECUTION_PROFILE_REJECTIONS)?;
     Ok(BuildReplayActivation {
         root_package_identity,
         root_role,
         selected_target_profile,
+        build_execution_profile,
     })
+}
+
+/// The rejections one optional target-profile activation member decodes
+/// with, so a corrupt record names the member it failed on.
+struct ProfileMemberRejections {
+    encoding: &'static str,
+    profile: &'static str,
+    tag: &'static str,
+}
+
+const SELECTED_TARGET_PROFILE_REJECTIONS: ProfileMemberRejections = ProfileMemberRejections {
+    encoding: "invalid replay activation target profile encoding",
+    profile: "invalid replay activation target profile",
+    tag: "invalid replay activation target profile tag",
+};
+
+const BUILD_EXECUTION_PROFILE_REJECTIONS: ProfileMemberRejections = ProfileMemberRejections {
+    encoding: "invalid replay activation build execution profile encoding",
+    profile: "invalid replay activation build execution profile",
+    tag: "invalid replay activation build execution profile tag",
+};
+
+/// Decode one optional canonical target name.
+fn decode_optional_target_profile(
+    decoder: &mut Decoder<'_>,
+    rejections: &ProfileMemberRejections,
+) -> Result<Option<target::TargetProfile>, BuildFilesystemReplayRecordError> {
+    match decoder.byte()? {
+        0 => Ok(None),
+        1 => {
+            let name = std::str::from_utf8(decoder.bytes()?)
+                .map_err(|_| BuildFilesystemReplayRecordError::new(rejections.encoding))?;
+            target::TargetProfile::from_canonical_target_name(name)
+                .map(Some)
+                .map_err(|_| BuildFilesystemReplayRecordError::new(rejections.profile))
+        }
+        _ => Err(BuildFilesystemReplayRecordError::new(rejections.tag)),
+    }
 }

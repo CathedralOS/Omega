@@ -673,3 +673,90 @@ fn serialized_replay_record_rejects_activation_drift() {
     );
     let _ = std::fs::remove_dir_all(session);
 }
+
+/// A hosted profile other than the compiler host, so the drift below changes
+/// only the admitted build execution profile.
+fn foreign_build_execution_profile() -> target::TargetProfile {
+    match target::TargetProfile::host() {
+        target::TargetProfile::LinuxX64 => target::TargetProfile::LinuxArm64,
+        _ => target::TargetProfile::LinuxX64,
+    }
+}
+
+#[test]
+fn serialized_replay_record_rejects_execution_profile_drift() {
+    let profile = target::TargetProfile::WindowsX64;
+    let project = Project::new("serialized-execution-profile-drift");
+    write_serialized_replay_project(&project);
+    let (session, sponsor, build_dir) =
+        sponsored_build_session("serialized-execution-profile-drift");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let inputs = package_inputs(&project.root);
+    // A request naming no execution profile admits the compiler host; the
+    // primary activation is captured under exactly that admitted profile.
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir),
+        package_inputs: Some(inputs.clone()),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect("admitted build activation executes and appends generated source");
+    let summary = checked
+        .build_observation_summary()
+        .expect("admitted activation retains observation custody");
+    assert_eq!(
+        summary.replay_activation().build_execution_profile(),
+        Some(target::TargetProfile::host()),
+        "the retained activation binds the admitted build execution profile"
+    );
+    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
+    let record = build_evaluation::capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("capture the verified replay record")
+        .expect("a complete receipted activation issues a replay record");
+    let recovered = build_evaluation::recover_review_only_build_filesystem_replay_record(
+        record.canonical_bytes(),
+        limits,
+    )
+    .expect("serialized replay record recovers");
+    assert_eq!(
+        recovered.replay_activation().build_execution_profile(),
+        Some(target::TargetProfile::host()),
+        "the serialized record carries the build execution profile"
+    );
+
+    // Same root package, declaration role, and selected product target; only
+    // the profile the build machine is admitted to execute under differs. The
+    // evidence is stale for that activation and must not substitute.
+    let foreign_execution_profile = foreign_build_execution_profile();
+    let drifted_profile = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        replay_record: Some(recovered),
+        build_execution_profile: Some(foreign_execution_profile),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect_err("replay evidence bound to another build execution profile must reject");
+    let drift_message = drifted_profile
+        .iter()
+        .find(|diagnostic| {
+            diagnostic
+                .message
+                .contains("was captured for a different activation")
+        })
+        .map(|diagnostic| diagnostic.message.as_str())
+        .unwrap_or_else(|| panic!("unexpected profile-drift diagnostics: {drifted_profile:#?}"));
+    assert!(
+        drift_message.contains("build execution profile"),
+        "the rejection names the drifted execution profile: {drift_message}"
+    );
+    for equal_axis in [
+        "root package identity",
+        "root declaration role",
+        "selected target profile",
+    ] {
+        assert!(
+            !drift_message.contains(equal_axis),
+            "{equal_axis} did not drift: {drift_message}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(session);
+}

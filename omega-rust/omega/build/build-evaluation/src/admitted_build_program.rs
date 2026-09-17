@@ -360,9 +360,10 @@ pub fn admit_build_program(
         build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
 
     // Replay evidence is bound to the activation that produced it: the
-    // build's `Build.target`, root package occurrence, and authored
-    // declaration role are all observable inputs. A record captured under a
-    // different activation is stale evidence for this request.
+    // build's `Build.target`, root package occurrence, authored declaration
+    // role, and admitted build execution profile are all observable inputs.
+    // A record captured under a different activation is stale evidence for
+    // this request.
     if let Some(bound_activation) = filesystem_scope.replay_activation() {
         let expected_activation = filesystem_scope.activation(selected_target_profile);
         if bound_activation != expected_activation {
@@ -379,6 +380,11 @@ pub fn admit_build_program(
                 != expected_activation.selected_target_profile()
             {
                 drift.push("selected target profile");
+            }
+            if bound_activation.build_execution_profile()
+                != expected_activation.build_execution_profile()
+            {
+                drift.push("build execution profile");
             }
             return Err(vec![Diagnostic::error(format!(
                 "build filesystem replay record was captured for a different activation ({} drifted)",
