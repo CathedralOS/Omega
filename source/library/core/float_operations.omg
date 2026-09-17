@@ -44,240 +44,245 @@ pub data FloatClass [copy] {
 machine Float::meaning32(value: f32) -> FloatMeaning;
 machine Float::meaning64(value: f64) -> FloatMeaning;
 
-// The executable, representation-free semantic definitions. The compiler's
-// core implementation is the current checked provider for these
-// proof-only operations; target realizations cite the same identities.
-pub operator FloatSemantics::add(
+// The executable, representation-free semantic definitions. These are exact
+// compiler primitives from the closed float-semantics catalog: bare bodyless
+// machine signatures supplied because this sealed toolchain source declares
+// them with exactly this path and complete signature (the `from_integer`
+// carriers are distinct catalog rows). The compiler's core implementation is
+// the current checked provider for these proof-only operations; target
+// realizations cite the same identities. Merely naming a declaration
+// `FloatSemantics::add` elsewhere grants no primitive.
+pub machine FloatSemantics::add(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::subtract(
+pub machine FloatSemantics::subtract(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::multiply(
+pub machine FloatSemantics::multiply(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::divide(
+pub machine FloatSemantics::divide(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::negate(
+pub machine FloatSemantics::negate(
     format: FloatFormat,
     value: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::square_root(
+pub machine FloatSemantics::square_root(
     format: FloatFormat,
     value: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::convert(
+pub machine FloatSemantics::convert(
     format: FloatFormat,
     value: FloatMeaning
 ) -> FloatMeaning;
 
 // Primitive integer carriers project to one mathematical integer before the
 // destination format performs its nearest-even landing.
-pub operator FloatSemantics::from_integer(format: FloatFormat, value: i8) -> FloatMeaning;
-pub operator FloatSemantics::from_integer(format: FloatFormat, value: i16) -> FloatMeaning;
-pub operator FloatSemantics::from_integer(format: FloatFormat, value: i32) -> FloatMeaning;
-pub operator FloatSemantics::from_integer(format: FloatFormat, value: i64) -> FloatMeaning;
-pub operator FloatSemantics::from_integer(format: FloatFormat, value: u8) -> FloatMeaning;
-pub operator FloatSemantics::from_integer(format: FloatFormat, value: u16) -> FloatMeaning;
-pub operator FloatSemantics::from_integer(format: FloatFormat, value: u32) -> FloatMeaning;
-pub operator FloatSemantics::from_integer(format: FloatFormat, value: u64) -> FloatMeaning;
+pub machine FloatSemantics::from_integer(format: FloatFormat, value: i8) -> FloatMeaning;
+pub machine FloatSemantics::from_integer(format: FloatFormat, value: i16) -> FloatMeaning;
+pub machine FloatSemantics::from_integer(format: FloatFormat, value: i32) -> FloatMeaning;
+pub machine FloatSemantics::from_integer(format: FloatFormat, value: i64) -> FloatMeaning;
+pub machine FloatSemantics::from_integer(format: FloatFormat, value: u8) -> FloatMeaning;
+pub machine FloatSemantics::from_integer(format: FloatFormat, value: u16) -> FloatMeaning;
+pub machine FloatSemantics::from_integer(format: FloatFormat, value: u32) -> FloatMeaning;
+pub machine FloatSemantics::from_integer(format: FloatFormat, value: u64) -> FloatMeaning;
 
 // Normal-return meanings for toward-zero float-to-integer conversion. The
 // unqualified and Trapping requirements share the exact semantic value on
 // successful return; Saturating owns its total clamp/NaN-to-zero meaning.
-pub operator FloatSemantics::to_i8(value: FloatMeaning) -> i8;
-pub operator FloatSemantics::to_i16(value: FloatMeaning) -> i16;
-pub operator FloatSemantics::to_i32(value: FloatMeaning) -> i32;
-pub operator FloatSemantics::to_i64(value: FloatMeaning) -> i64;
-pub operator FloatSemantics::to_u8(value: FloatMeaning) -> u8;
-pub operator FloatSemantics::to_u16(value: FloatMeaning) -> u16;
-pub operator FloatSemantics::to_u32(value: FloatMeaning) -> u32;
-pub operator FloatSemantics::to_u64(value: FloatMeaning) -> u64;
-pub operator FloatSemantics::to_i8_saturating(value: FloatMeaning) -> i8;
-pub operator FloatSemantics::to_i16_saturating(value: FloatMeaning) -> i16;
-pub operator FloatSemantics::to_i32_saturating(value: FloatMeaning) -> i32;
-pub operator FloatSemantics::to_i64_saturating(value: FloatMeaning) -> i64;
-pub operator FloatSemantics::to_u8_saturating(value: FloatMeaning) -> u8;
-pub operator FloatSemantics::to_u16_saturating(value: FloatMeaning) -> u16;
-pub operator FloatSemantics::to_u32_saturating(value: FloatMeaning) -> u32;
-pub operator FloatSemantics::to_u64_saturating(value: FloatMeaning) -> u64;
+pub machine FloatSemantics::to_i8(value: FloatMeaning) -> i8;
+pub machine FloatSemantics::to_i16(value: FloatMeaning) -> i16;
+pub machine FloatSemantics::to_i32(value: FloatMeaning) -> i32;
+pub machine FloatSemantics::to_i64(value: FloatMeaning) -> i64;
+pub machine FloatSemantics::to_u8(value: FloatMeaning) -> u8;
+pub machine FloatSemantics::to_u16(value: FloatMeaning) -> u16;
+pub machine FloatSemantics::to_u32(value: FloatMeaning) -> u32;
+pub machine FloatSemantics::to_u64(value: FloatMeaning) -> u64;
+pub machine FloatSemantics::to_i8_saturating(value: FloatMeaning) -> i8;
+pub machine FloatSemantics::to_i16_saturating(value: FloatMeaning) -> i16;
+pub machine FloatSemantics::to_i32_saturating(value: FloatMeaning) -> i32;
+pub machine FloatSemantics::to_i64_saturating(value: FloatMeaning) -> i64;
+pub machine FloatSemantics::to_u8_saturating(value: FloatMeaning) -> u8;
+pub machine FloatSemantics::to_u16_saturating(value: FloatMeaning) -> u16;
+pub machine FloatSemantics::to_u32_saturating(value: FloatMeaning) -> u32;
+pub machine FloatSemantics::to_u64_saturating(value: FloatMeaning) -> u64;
 
-pub operator FloatSemantics::multiply_then_add(
+pub machine FloatSemantics::multiply_then_add(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning,
     addend: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::fused_multiply_add(
+pub machine FloatSemantics::fused_multiply_add(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning,
     addend: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::minimum(
+pub machine FloatSemantics::minimum(
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::maximum(
+pub machine FloatSemantics::maximum(
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::equal(
+pub machine FloatSemantics::equal(
     left: FloatMeaning,
     right: FloatMeaning
 ) -> bool;
 
-pub operator FloatSemantics::not_equal(
+pub machine FloatSemantics::not_equal(
     left: FloatMeaning,
     right: FloatMeaning
 ) -> bool;
 
-pub operator FloatSemantics::less(
+pub machine FloatSemantics::less(
     left: FloatMeaning,
     right: FloatMeaning
 ) -> bool;
 
-pub operator FloatSemantics::less_or_equal(
+pub machine FloatSemantics::less_or_equal(
     left: FloatMeaning,
     right: FloatMeaning
 ) -> bool;
 
-pub operator FloatSemantics::greater(
+pub machine FloatSemantics::greater(
     left: FloatMeaning,
     right: FloatMeaning
 ) -> bool;
 
-pub operator FloatSemantics::greater_or_equal(
+pub machine FloatSemantics::greater_or_equal(
     left: FloatMeaning,
     right: FloatMeaning
 ) -> bool;
 
-pub operator FloatSemantics::classify(
+pub machine FloatSemantics::classify(
     format: FloatFormat,
     value: FloatMeaning
 ) -> FloatClass;
 
-pub operator FloatSemantics::is_finite(value: FloatMeaning) -> bool;
-pub operator FloatSemantics::is_nan(value: FloatMeaning) -> bool;
-pub operator FloatSemantics::is_infinite(value: FloatMeaning) -> bool;
-pub operator FloatSemantics::is_normal(
+pub machine FloatSemantics::is_finite(value: FloatMeaning) -> bool;
+pub machine FloatSemantics::is_nan(value: FloatMeaning) -> bool;
+pub machine FloatSemantics::is_infinite(value: FloatMeaning) -> bool;
+pub machine FloatSemantics::is_normal(
     format: FloatFormat,
     value: FloatMeaning
 ) -> bool;
-pub operator FloatSemantics::is_subnormal(
+pub machine FloatSemantics::is_subnormal(
     format: FloatFormat,
     value: FloatMeaning
 ) -> bool;
 
-pub operator FloatSemantics::add_toward_zero(
+pub machine FloatSemantics::add_toward_zero(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
-pub operator FloatSemantics::add_toward_positive(
+pub machine FloatSemantics::add_toward_positive(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
-pub operator FloatSemantics::add_toward_negative(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
-
-pub operator FloatSemantics::subtract_toward_zero(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
-pub operator FloatSemantics::subtract_toward_positive(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
-pub operator FloatSemantics::subtract_toward_negative(
+pub machine FloatSemantics::add_toward_negative(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::multiply_toward_zero(
+pub machine FloatSemantics::subtract_toward_zero(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
-pub operator FloatSemantics::multiply_toward_positive(
+pub machine FloatSemantics::subtract_toward_positive(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
-pub operator FloatSemantics::multiply_toward_negative(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
-
-pub operator FloatSemantics::divide_toward_zero(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
-pub operator FloatSemantics::divide_toward_positive(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
-pub operator FloatSemantics::divide_toward_negative(
+pub machine FloatSemantics::subtract_toward_negative(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::square_root_toward_zero(
+pub machine FloatSemantics::multiply_toward_zero(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning
+) -> FloatMeaning;
+pub machine FloatSemantics::multiply_toward_positive(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning
+) -> FloatMeaning;
+pub machine FloatSemantics::multiply_toward_negative(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning
+) -> FloatMeaning;
+
+pub machine FloatSemantics::divide_toward_zero(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning
+) -> FloatMeaning;
+pub machine FloatSemantics::divide_toward_positive(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning
+) -> FloatMeaning;
+pub machine FloatSemantics::divide_toward_negative(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning
+) -> FloatMeaning;
+
+pub machine FloatSemantics::square_root_toward_zero(
     format: FloatFormat,
     value: FloatMeaning
 ) -> FloatMeaning;
-pub operator FloatSemantics::square_root_toward_positive(
+pub machine FloatSemantics::square_root_toward_positive(
     format: FloatFormat,
     value: FloatMeaning
 ) -> FloatMeaning;
-pub operator FloatSemantics::square_root_toward_negative(
+pub machine FloatSemantics::square_root_toward_negative(
     format: FloatFormat,
     value: FloatMeaning
 ) -> FloatMeaning;
 
-pub operator FloatSemantics::fused_multiply_add_toward_zero(
+pub machine FloatSemantics::fused_multiply_add_toward_zero(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning,
     addend: FloatMeaning
 ) -> FloatMeaning;
-pub operator FloatSemantics::fused_multiply_add_toward_positive(
+pub machine FloatSemantics::fused_multiply_add_toward_positive(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning,
     addend: FloatMeaning
 ) -> FloatMeaning;
-pub operator FloatSemantics::fused_multiply_add_toward_negative(
+pub machine FloatSemantics::fused_multiply_add_toward_negative(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning,
