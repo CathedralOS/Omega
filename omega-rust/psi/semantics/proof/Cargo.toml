@@ -13,6 +13,8 @@ arena = { path = "../../foundation/arena" }
 diagnostics = { path = "../../foundation/diagnostics" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
+proof-admission = { path = "../proof-admission" }
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 symbols = { path = "../../foundation/symbols" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 typed-trees = { path = "../../representations/typed-trees" }

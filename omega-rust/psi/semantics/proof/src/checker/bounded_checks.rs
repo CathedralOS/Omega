@@ -5,6 +5,9 @@ use crate::checker::AssignmentRangeContext;
 use crate::checker::assignment_stability::{
     collect_read_place_paths, expression_contains_call, member_paths_may_alias, written_place_path,
 };
+use crate::checker::certificate::{
+    CertificateVerdict, bounded_integer_value_verdict, state_return_integer_verdict,
+};
 use crate::checker::dependent_bounds::{
     dependent_call_field_floor, dependent_field_floor, guard_proves_dependent_upper,
     guard_proves_sibling_len_upper, sibling_len_from_constraints, state_preserves_field,
@@ -47,6 +50,7 @@ use typed_trees::statement::StatementNode;
 pub(crate) fn check_bounded_assignment(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
+    seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Chapter 11 invariant windows: an intermediate store need not itself
@@ -63,22 +67,47 @@ pub(crate) fn check_bounded_assignment(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(value_range) = guarded_integer_range_for_assignment(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_assignment_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return;
-        };
+        // The certificate route decides the covered shapes on independently
+        // checked evidence; everything else keeps the ordinary derivation.
+        match bounded_integer_value_verdict(
+            proof_plan,
+            obligation.value,
+            obligation.value_constraints,
+            obligation.base_type,
+            &target_range,
+            seed,
+            false,
+        ) {
+            CertificateVerdict::Certified => {}
+            CertificateVerdict::Rejected => {
+                diagnostics.push(cannot_prove_bounded_assignment_integer(
+                    proof_plan,
+                    obligation,
+                    target_range,
+                ));
+            }
+            CertificateVerdict::Uncovered => {
+                let Some(value_range) =
+                    guarded_integer_range_for_assignment(proof_plan, obligation)
+                else {
+                    diagnostics.push(cannot_prove_bounded_assignment_integer(
+                        proof_plan,
+                        obligation,
+                        target_range,
+                    ));
+                    return;
+                };
 
-        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
-        {
-            diagnostics.push(cannot_prove_bounded_assignment_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
+                if value_range.minimum < target_range.minimum
+                    || value_range.maximum > target_range.maximum
+                {
+                    diagnostics.push(cannot_prove_bounded_assignment_integer(
+                        proof_plan,
+                        obligation,
+                        target_range,
+                    ));
+                }
+            }
         }
     }
 
@@ -213,6 +242,7 @@ fn assignment_is_overwritten_before_consumption(
 pub(crate) fn check_bounded_initializer(
     proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
+    seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     check_initializer_named_constraints(proof_plan, obligation, diagnostics);
@@ -220,22 +250,46 @@ pub(crate) fn check_bounded_initializer(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(value_range) = integer_range_for_initializer(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_initializer_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return;
-        };
+        // The certificate route covers the literal leg; initializers carry no
+        // value constraints, so every other shape stays uncovered.
+        match bounded_integer_value_verdict(
+            proof_plan,
+            obligation.value,
+            arena::HandleSpan::empty(),
+            obligation.base_type,
+            &target_range,
+            seed,
+            false,
+        ) {
+            CertificateVerdict::Certified => {}
+            CertificateVerdict::Rejected => {
+                diagnostics.push(cannot_prove_bounded_initializer_integer(
+                    proof_plan,
+                    obligation,
+                    target_range,
+                ));
+            }
+            CertificateVerdict::Uncovered => {
+                let Some(value_range) = integer_range_for_initializer(proof_plan, obligation)
+                else {
+                    diagnostics.push(cannot_prove_bounded_initializer_integer(
+                        proof_plan,
+                        obligation,
+                        target_range,
+                    ));
+                    return;
+                };
 
-        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
-        {
-            diagnostics.push(cannot_prove_bounded_initializer_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
+                if value_range.minimum < target_range.minimum
+                    || value_range.maximum > target_range.maximum
+                {
+                    diagnostics.push(cannot_prove_bounded_initializer_integer(
+                        proof_plan,
+                        obligation,
+                        target_range,
+                    ));
+                }
+            }
         }
     }
 
@@ -265,6 +319,7 @@ pub(crate) fn check_bounded_state_return(
     proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
     context: &AssignmentRangeContext<'_>,
+    seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     check_return_named_constraints(proof_plan, obligation, diagnostics);
@@ -272,23 +327,40 @@ pub(crate) fn check_bounded_state_return(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(value_range) = return_arrival::integer_range(proof_plan, obligation, context)
-        else {
-            diagnostics.push(cannot_prove_bounded_return_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return;
-        };
+        // The certificate route covers the declared-or-literal legs the
+        // arrival machinery would reach anyway; arrival bounds, contract
+        // refinement and malformed obligations stay uncovered.
+        match state_return_integer_verdict(proof_plan, obligation, &target_range, seed) {
+            CertificateVerdict::Certified => {}
+            CertificateVerdict::Rejected => {
+                diagnostics.push(cannot_prove_bounded_return_integer(
+                    proof_plan,
+                    obligation,
+                    target_range,
+                ));
+            }
+            CertificateVerdict::Uncovered => {
+                let Some(value_range) =
+                    return_arrival::integer_range(proof_plan, obligation, context)
+                else {
+                    diagnostics.push(cannot_prove_bounded_return_integer(
+                        proof_plan,
+                        obligation,
+                        target_range,
+                    ));
+                    return;
+                };
 
-        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
-        {
-            diagnostics.push(cannot_prove_bounded_return_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
+                if value_range.minimum < target_range.minimum
+                    || value_range.maximum > target_range.maximum
+                {
+                    diagnostics.push(cannot_prove_bounded_return_integer(
+                        proof_plan,
+                        obligation,
+                        target_range,
+                    ));
+                }
+            }
         }
     }
 
@@ -317,6 +389,7 @@ pub(crate) fn check_bounded_state_return(
 pub(crate) fn check_bounded_call_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
+    seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     check_call_named_constraints(proof_plan, obligation, diagnostics);
@@ -324,23 +397,46 @@ pub(crate) fn check_bounded_call_argument(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(argument_range) = integer_range_for_call_argument(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_call_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
-            return;
-        };
+        // The certificate route covers the anonymous, literal and declared
+        // legs in the same order the ordinary derivation tries them.
+        match bounded_integer_value_verdict(
+            proof_plan,
+            obligation.argument,
+            obligation.argument_constraints,
+            obligation.base_type,
+            &target_range,
+            seed,
+            true,
+        ) {
+            CertificateVerdict::Certified => {}
+            CertificateVerdict::Rejected => {
+                diagnostics.push(cannot_prove_bounded_call_integer(
+                    proof_plan,
+                    obligation,
+                    target_range,
+                ));
+            }
+            CertificateVerdict::Uncovered => {
+                let Some(argument_range) = integer_range_for_call_argument(proof_plan, obligation)
+                else {
+                    diagnostics.push(cannot_prove_bounded_call_integer(
+                        proof_plan,
+                        obligation,
+                        target_range,
+                    ));
+                    return;
+                };
 
-        if argument_range.minimum < target_range.minimum
-            || argument_range.maximum > target_range.maximum
-        {
-            diagnostics.push(cannot_prove_bounded_call_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
+                if argument_range.minimum < target_range.minimum
+                    || argument_range.maximum > target_range.maximum
+                {
+                    diagnostics.push(cannot_prove_bounded_call_integer(
+                        proof_plan,
+                        obligation,
+                        target_range,
+                    ));
+                }
+            }
         }
     }
 
@@ -433,6 +529,7 @@ pub(crate) fn check_bounded_call_argument(
 pub(crate) fn check_bounded_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
+    seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     check_transition_named_constraints(proof_plan, obligation, diagnostics);
@@ -440,30 +537,54 @@ pub(crate) fn check_bounded_transition_argument(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let argument_range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
-
-        if argument_range.minimum < target_range.minimum
-            || argument_range.maximum > target_range.maximum
-        {
-            // Use the shared arithmetic owner for this exact occurrence.
-            // Named/dependent constraints remain independent checks below.
-            let arrival_fits = validation::arrival_integer_expression_bounds(
-                proof_plan.program,
-                obligation.machine_symbol,
-                obligation.state_symbol,
-                obligation.statement_index,
-                obligation.argument,
-            )
-            .is_some_and(|(minimum, maximum)| {
-                BigInt::from_i64(minimum) >= target_range.minimum
-                    && BigInt::from_i64(maximum) <= target_range.maximum
-            });
-            if !arrival_fits {
+        // The certificate route covers the anonymous, literal and declared
+        // legs in the same order the ordinary derivation tries them; guard
+        // narrowing and the arrival rescue stay on the uncovered path.
+        match bounded_integer_value_verdict(
+            proof_plan,
+            obligation.argument,
+            obligation.argument_constraints,
+            obligation.base_type,
+            &target_range,
+            seed,
+            true,
+        ) {
+            CertificateVerdict::Certified => {}
+            CertificateVerdict::Rejected => {
                 diagnostics.push(cannot_prove_bounded_transition_integer(
                     proof_plan,
                     obligation,
                     target_range,
                 ));
+            }
+            CertificateVerdict::Uncovered => {
+                let argument_range =
+                    guarded_integer_range_for_transition_argument(proof_plan, obligation);
+
+                if argument_range.minimum < target_range.minimum
+                    || argument_range.maximum > target_range.maximum
+                {
+                    // Use the shared arithmetic owner for this exact occurrence.
+                    // Named/dependent constraints remain independent checks below.
+                    let arrival_fits = validation::arrival_integer_expression_bounds(
+                        proof_plan.program,
+                        obligation.machine_symbol,
+                        obligation.state_symbol,
+                        obligation.statement_index,
+                        obligation.argument,
+                    )
+                    .is_some_and(|(minimum, maximum)| {
+                        BigInt::from_i64(minimum) >= target_range.minimum
+                            && BigInt::from_i64(maximum) <= target_range.maximum
+                    });
+                    if !arrival_fits {
+                        diagnostics.push(cannot_prove_bounded_transition_integer(
+                            proof_plan,
+                            obligation,
+                            target_range,
+                        ));
+                    }
+                }
             }
         }
     }
