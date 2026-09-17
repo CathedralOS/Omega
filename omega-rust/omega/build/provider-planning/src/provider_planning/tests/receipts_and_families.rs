@@ -1,14 +1,17 @@
 use super::{
-    append_admitted_fact, bind_selected_provider_plan_facts_for_test, operator_coordinate_plan,
-    operator_symbol_at_path, package_selection, push_boundary_requirement, selected_plan_names,
-    selection_plan, set_exact_requirement, typed_fixture,
+    append_admitted_fact, bind_selected_provider_plan_facts_for_test, data_symbol,
+    family_selection_from_typed, operator_coordinate_plan, operator_symbol_at_path,
+    package_selection, push_boundary_requirement, selected_plan_names, selection_plan,
+    set_exact_requirement, typed_fixture, typed_fixture_with_source,
 };
 use crate::provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    ProviderSelectionProvenance, select_derived_provider_plans, select_provider_plans,
+    ProviderSelectionProvenance, derive_satisfies_plans, select_derived_provider_plans,
+    select_provider_plans, selected_provider_plan_facts,
 };
 use crate::{
-    ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection, ProviderSelectionSubject,
+    ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection, ProviderPlanDerivation,
+    ProviderSelectionSubject,
 };
 
 #[test]
@@ -594,6 +597,219 @@ fn operator_family_roster_is_independent_of_declaration_order() {
         vec![OTHER_U8]
     );
 }
+
+fn replay_family_selection(
+    typed: &typed_trees::TypedTrees,
+    selection: crate::ProviderSelection,
+) -> Result<Vec<String>, Vec<diagnostics::Diagnostic>> {
+    let derived = derive_satisfies_plans(typed, ProviderPlanDerivation::unevaluated(None));
+    assert_eq!(
+        derived.len(),
+        3,
+        "two Convert coordinates and one Other coordinate"
+    );
+    let table = crate::evaluated_via_bindings::evaluate_via_bindings(typed, None, None)
+        .expect("a fixture without `via` evaluates to an empty table");
+    let selected =
+        select_derived_provider_plans(&derived, target::NativeTarget::host(), &[], &[selection])?;
+    let (facts, _) = selected_provider_plan_facts(typed, &table, selected)?;
+    Ok(facts
+        .plans()
+        .iter()
+        .map(|plan| plan.schema.trait_name.clone())
+        .collect())
+}
+
+fn family_with_coordinates(
+    selection: &crate::ProviderSelection,
+    coordinates: Vec<ProviderOperatorFamilyCoordinate>,
+) -> crate::ProviderSelection {
+    let ProviderSelectionSubject::BoundaryOperatorFamily(family) = &selection.subject else {
+        panic!("family fixture must retain a family subject")
+    };
+    let mut forged = selection.clone();
+    forged.subject = ProviderSelectionSubject::BoundaryOperatorFamily(
+        ProviderOperatorFamilySelection::new(
+            family.package,
+            family.canonical_path.clone(),
+            family.authored_path.clone(),
+            coordinates,
+        )
+        .expect("forged roster is well-formed on its own"),
+    );
+    forged
+}
+
+#[test]
+fn operator_family_replay_rejects_partial_padded_stale_and_substituted_rosters() {
+    let typed = typed_fixture_with_source("family_replay.omg", FAMILY_SOURCE_SIGNED_FIRST);
+    let exact =
+        family_selection_from_typed(&typed, "Convert::apply", "ConvertProvider", "build_root");
+    let ProviderSelectionSubject::BoundaryOperatorFamily(family) = &exact.subject else {
+        panic!("family fixture must retain a family subject")
+    };
+    let [signed, unsigned] = family.coordinates() else {
+        panic!("Convert::apply has two canonical coordinates")
+    };
+    assert_eq!(signed.requirement_identity, CONVERT_I32);
+    assert_eq!(unsigned.requirement_identity, CONVERT_U32);
+    let other_symbol = operator_symbol_at_path(&typed, "Other::apply");
+
+    let mut selected =
+        replay_family_selection(&typed, exact.clone()).expect("the exact canonical roster replays");
+    selected.sort_unstable();
+    assert_eq!(selected, vec![CONVERT_I32, CONVERT_U32, OTHER_U8]);
+
+    // Partial: the omitted coordinate has a unique covering candidate, so
+    // slot selection alone would quietly complete the family. Replay names
+    // the omitted member instead.
+    let partial = family_with_coordinates(&exact, vec![signed.clone()]);
+    let diagnostics =
+        replay_family_selection(&typed, partial).expect_err("a partial family row selects nothing");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("omits coordinate")
+                && diagnostic.message.contains(CONVERT_U32)
+        }),
+        "expected the omitted member to be named, got {diagnostics:#?}"
+    );
+
+    // Padded: a coordinate the provider does realize, but outside the family.
+    let padded = family_with_coordinates(
+        &exact,
+        vec![
+            signed.clone(),
+            unsigned.clone(),
+            ProviderOperatorFamilyCoordinate {
+                symbol: other_symbol,
+                requirement_identity: OTHER_U8.to_owned(),
+                static_parameter_count: 0,
+            },
+        ],
+    );
+    let diagnostics =
+        replay_family_selection(&typed, padded).expect_err("a padded family row selects nothing");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resolves to a declaration outside the family")
+                && diagnostic.message.contains(OTHER_U8)
+        }),
+        "expected the padded member to be named, got {diagnostics:#?}"
+    );
+
+    // Substituted: the right coordinate spelling under another declaration.
+    let substituted = family_with_coordinates(
+        &exact,
+        vec![
+            ProviderOperatorFamilyCoordinate {
+                symbol: other_symbol,
+                ..signed.clone()
+            },
+            unsigned.clone(),
+        ],
+    );
+    let diagnostics = replay_family_selection(&typed, substituted)
+        .expect_err("a substituted coordinate symbol selects nothing");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("under a substituted declaration symbol")
+                && diagnostic.message.contains(CONVERT_I32)
+        }),
+        "expected the substituted member to be named, got {diagnostics:#?}"
+    );
+
+    // Generic axis: a retained telescope arity is rechecked, never trusted.
+    let generic_assertion = family_with_coordinates(
+        &exact,
+        vec![
+            ProviderOperatorFamilyCoordinate {
+                static_parameter_count: 1,
+                ..signed.clone()
+            },
+            unsigned.clone(),
+        ],
+    );
+    let diagnostics = replay_family_selection(&typed, generic_assertion)
+        .expect_err("a coordinate cannot claim a generic telescope its declaration lacks");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("static-telescope arity 1, but its exact declaration has arity 0")
+                && diagnostic.message.contains(CONVERT_I32)
+        }),
+        "expected the telescope drift to be named, got {diagnostics:#?}"
+    );
+
+    // Stale: a coordinate no declaration produces any more never reaches
+    // slot selection; the roster replay still names it.
+    let stale = family_with_coordinates(
+        &exact,
+        vec![
+            signed.clone(),
+            unsigned.clone(),
+            family_coordinate("operator::Convert::apply(named(name(i64)))->named(name(i64))"),
+        ],
+    );
+    let ProviderSelectionSubject::BoundaryOperatorFamily(stale_family) = &stale.subject else {
+        panic!("stale fixture must retain a family subject")
+    };
+    let reasons = stale_family.replay_against_typed(&typed);
+    assert_eq!(reasons.len(), 1, "{reasons:#?}");
+    assert!(reasons[0].contains("no longer resolves to a boundary operator declaration"));
+    assert!(reasons[0].contains("named(name(i64))"));
+}
+
+#[test]
+fn operator_family_replay_requires_the_declared_provider_to_realize_each_coordinate() {
+    let typed = typed_fixture_with_source("family_provider.omg", FAMILY_SOURCE_SIGNED_FIRST);
+    let mut selection =
+        family_selection_from_typed(&typed, "Convert::apply", "ConvertProvider", "build_root");
+    let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
+    let table = crate::evaluated_via_bindings::evaluate_via_bindings(&typed, None, None)
+        .expect("a fixture without `via` evaluates to an empty table");
+    let selected = select_derived_provider_plans(
+        &derived,
+        target::NativeTarget::host(),
+        &[],
+        &[selection.clone()],
+    )
+    .expect("the exact family selects");
+
+    // A retained provenance whose provider symbol is not the plans' provider
+    // is a substitution of the provider axis, not a family the plans realize.
+    selection.provider_type.symbol = data_symbol(&typed, "Other");
+    let forged = selected
+        .into_iter()
+        .map(|mut plan| {
+            if let ProviderSelectionProvenance::BuildOverride(declarations) = &mut plan.selected_by
+            {
+                for declaration in declarations {
+                    declaration.provider_type.symbol = selection.provider_type.symbol;
+                }
+            }
+            plan
+        })
+        .collect::<Vec<_>>();
+    let diagnostics = selected_provider_plan_facts(&typed, &table, forged)
+        .expect_err("a family whose provider the plans do not realize selects nothing");
+    for coordinate in [CONVERT_I32, CONVERT_U32] {
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains(coordinate)
+                    && diagnostic
+                        .message
+                        .contains("to 0 selected plans of provider `ConvertProvider`")
+            }),
+            "expected coordinate `{coordinate}` to be named, got {diagnostics:#?}"
+        );
+    }
+}
+
 #[test]
 fn same_spelled_package_slots_and_providers_remain_distinct() {
     let first_package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x61; 32])
