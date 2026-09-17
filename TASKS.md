@@ -710,9 +710,9 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   as product scope (`frontend/mod.rs::source_import_scope`), so a host
   tool library's target-scoped rows are not yet checked for the execution
   profile, and a file imported by both scopes is rejected rather than
-  checked twice; the missing-edge diagnostic
-  in `source-files-to-assembled-syntax/src/frontend/mod.rs` lacks the
-  suggested declaration; and non-root packages cannot author build rows,
+  checked twice (the cross-scope import diagnostic now names the
+  `builder.depend_as`/`build_depend_as` declaration that would close the
+  gap); and non-root packages cannot author build rows,
   so cross-purpose cycles and per-helper build activations stay
   unexercised.
 

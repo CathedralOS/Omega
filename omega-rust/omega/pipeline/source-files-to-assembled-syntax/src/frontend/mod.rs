@@ -505,19 +505,27 @@ pub(crate) fn reconciled_package_import(
         None => {
             // An alias declared only in the other scope is not a missing
             // module below the requester: name the actual authorization gap
-            // so cross-scope spellings never fall back to local paths.
+            // and the declaration that would close it, so cross-scope
+            // spellings never fall back to local paths.
             let other = other_purpose(purpose);
             if let Some(target) =
                 packages.dependency_target_for_purpose(requester, other, first.as_str())
             {
+                let declaration = match purpose {
+                    DependencyPurpose::Product => "depend_as",
+                    DependencyPurpose::Build => "build_depend_as",
+                };
                 return Err(vec![Diagnostic::error(format!(
-                    "import `{}` in {} names {} dependency `{}` (package {}); a {} import may only select {} dependencies",
+                    "import `{}` in {} names {} dependency `{}` (package {}); a {} import may only select {} dependencies -- declare `builder.{}(\"{}\", ...)` in the root build.omg to select that package for the {} scope",
                     identifier_path_text(members),
                     requesting_source.display(),
                     other.name(),
                     first.as_str(),
                     packages.package_label(target),
                     purpose.name(),
+                    purpose.name(),
+                    declaration,
+                    first.as_str(),
                     purpose.name(),
                 ))]);
             }
