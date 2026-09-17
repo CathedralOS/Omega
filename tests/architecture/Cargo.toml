@@ -74,3 +74,7 @@ serde_json = "1.0"
 [[test]]
 name = "glob_self_imports"
 path = "glob_self_imports.rs"
+
+[[test]]
+name = "integration_test_suites"
+path = "integration_test_suites.rs"
