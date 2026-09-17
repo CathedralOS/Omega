@@ -426,8 +426,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   call statement it was planning; a multi-state body names the general
   state-graph route's phase, state, and statement instead (`state graph:
   state signature`, `terminator`, ..., or the shared statement kinds); the
-  guard inside that phase is still not retained, so per-fixture reading
-  starts at that phase.
+  single-state route's guard inside a phase is still not retained, so
+  per-fixture reading there starts at that phase. The state-graph route
+  names the guard beneath its phase since 9ff722c55f, and the 168-test
+  state-graph subset rerun at that commit (macOS ARM64, base 07c1e746fe)
+  splits as: operation custody 38 scalar call; conditional successors 33
+  guard expression and 1 parameter transfer; parameter custody shape 23
+  persistent receiver access, 8 borrowed non-view carrier, 2 qualified
+  non-linear parameter; parameter signature 13 structural parameter type,
+  5 attached data shape, 3 parameter qualifications; prefix initializers
+  13 bound expression, 3 short-circuit boolean; unsupported tail 11
+  transition chain, 2 single guarded transition, 1 jump followed by a
+  transition; jump successor 2 scalar arguments; 2 claim-bearing
+  successor; 2 now stop in the shared statement sequence at a local-data
+  statement and 6 fail earlier on the `block` envelope acknowledgement
+  check from 8508aec01e.
   Distribution reconstructed 2026-09-17 (macOS ARM64, `cargo nextest run -p
   compiler --test canary_suite --no-fail-fast` at 4dcb7723da): 1379 tests,
   223 pass, 1156 fail. By owner: 680 stop at Terminal production with
