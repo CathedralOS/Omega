@@ -316,7 +316,12 @@ pub fn compute_boundary_calling_plans(
                 relationship_span,
             )),
         )
-        .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(relationship_span)])?;
+        .map_err(|rejection| {
+            vec![
+                Diagnostic::error(rejection.reason)
+                    .with_source_span(rejection.source_span.unwrap_or(relationship_span)),
+            ]
+        })?;
         let (application_report_fingerprint, application_commitment) =
             boundary_plan_application_identity(&signature, &validated);
         evaluated.push(BoundaryCallingPlanRealization {
@@ -366,6 +371,25 @@ pub fn evaluate_calling_policy_plan(
         &materialized,
         None,
     )
+    .map_err(|rejection| rejection.reason)
+}
+
+/// One refused calling-policy evaluation. `source_span` locates the authored
+/// occurrence build-time admission rejected, when it named one; the caller
+/// otherwise reports the `Calling<C>` relationship it was evaluating.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CallingPolicyRejection {
+    pub(crate) reason: String,
+    pub(crate) source_span: Option<source::SourceSpan>,
+}
+
+impl From<String> for CallingPolicyRejection {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            source_span: None,
+        }
+    }
 }
 
 pub(crate) fn evaluate_materialized_calling_policy_plan(
@@ -374,12 +398,13 @@ pub(crate) fn evaluate_materialized_calling_policy_plan(
     policy_machine: &str,
     signature: &MaterializedBoundarySignature,
     custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
-) -> Result<ValidatedBoundaryEntryPlan, String> {
+) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
     if signature.parameters.len() > PARAMETER_CAPACITY {
         return Err(format!(
             "boundary signature has {} parameters; calling policies currently support at most {PARAMETER_CAPACITY}",
             signature.parameters.len()
-        ));
+        )
+        .into());
     }
 
     let arguments = vec![build_boundary_signature(signature)];
@@ -389,14 +414,19 @@ pub(crate) fn evaluate_materialized_calling_policy_plan(
         }
         None => admission.evaluate_machine(typed, policy_machine, arguments),
     }
-    .map_err(|reason| {
-        format!("build-time evaluation of calling policy `{policy_machine}` failed: {reason}")
+    .map_err(|rejection| CallingPolicyRejection {
+        reason: format!(
+            "build-time evaluation of calling policy `{policy_machine}` failed: {}",
+            rejection.reason
+        ),
+        source_span: rejection.source_span,
     })?;
     let result = decode_boundary_plan_result(&value).map_err(|reason| {
         format!("calling policy `{policy_machine}` returned an invalid result: {reason}")
     })?;
 
     validate_materialized_boundary_plan_result(result, signature)
+        .map_err(CallingPolicyRejection::from)
 }
 
 pub fn materialized_boundary_signature_from_abi(

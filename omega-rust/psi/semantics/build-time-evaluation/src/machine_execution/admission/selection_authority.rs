@@ -11,6 +11,30 @@ use typed_trees::{
 
 use super::{BuildTimeCallEdge, BuildTimeInvocationCustody, BuildTimeSelectionAuthority};
 
+/// One declaration-selection rejection. An authored occurrence carries its
+/// own source span so the reporting owner can point at the selection rather
+/// than at the invocation that reached it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SelectionViolation {
+    pub(crate) message: String,
+    pub(crate) source_span: Option<SourceSpan>,
+}
+
+impl SelectionViolation {
+    fn unlocated(message: String) -> Self {
+        Self {
+            message,
+            source_span: None,
+        }
+    }
+}
+
+impl From<SelectionViolation> for String {
+    fn from(violation: SelectionViolation) -> Self {
+        violation.message
+    }
+}
+
 pub(super) fn selection_authority_violation(
     call_edges: &[BuildTimeCallEdge],
     program: &TypedTrees,
@@ -18,12 +42,12 @@ pub(super) fn selection_authority_violation(
     custody: Option<BuildTimeInvocationCustody>,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
-) -> Option<String> {
+) -> Option<SelectionViolation> {
     if let Some(authority) = authority {
         let Some(custody) = custody else {
-            return Some(
+            return Some(SelectionViolation::unlocated(
                 "package-aware build-time evaluation has no authored invocation custody".to_owned(),
-            );
+            ));
         };
         let requester = match custody {
             BuildTimeInvocationCustody::Source(source) => package_for_source(program, source),
@@ -36,7 +60,7 @@ pub(super) fn selection_authority_violation(
             authority,
             &format!("build-time invocation of `{}`", root.name),
         ) {
-            return Some(violation);
+            return Some(SelectionViolation::unlocated(violation));
         }
     }
 
@@ -73,14 +97,14 @@ pub(super) fn selection_authority_violation(
                         authority,
                         &context,
                     ) {
-                        return Some(violation);
+                        return Some(SelectionViolation::unlocated(violation));
                     }
                     continue;
                 }
-                return Some(format!(
+                return Some(SelectionViolation::unlocated(format!(
                     "build-time call from `{}` has no exact target-machine identity",
                     program.symbols.display_path(source_machine, "::")
-                ));
+                )));
             };
             let context = format!(
                 "build-time call `{}` -> `{}`",
@@ -96,7 +120,7 @@ pub(super) fn selection_authority_violation(
                     &context,
                 )
             {
-                return Some(violation);
+                return Some(SelectionViolation::unlocated(violation));
             }
             pending.push(target_machine);
         }
@@ -109,7 +133,7 @@ fn machine_selection_violation(
     machine_symbol: SymbolHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
-) -> Option<String> {
+) -> Option<SelectionViolation> {
     let machine = program
         .machines()
         .iter()
@@ -208,7 +232,7 @@ fn expression_selection_violation(
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
     visited: &mut Vec<ExpressionHandle>,
-) -> Option<String> {
+) -> Option<SelectionViolation> {
     if !expression.is_valid() || visited.contains(&expression) {
         return None;
     }
@@ -225,9 +249,10 @@ fn expression_selection_violation(
     ) && !selected.iter().any(|row| {
         row.expression == expression && row.origin.machine_symbol() == Some(machine.symbol)
     }) {
-        return Some(
-            "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator".to_owned(),
-        );
+        return Some(SelectionViolation {
+            message: "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator".to_owned(),
+            source_span: Some(program.expression_table.source_span(expression)),
+        });
     }
 
     if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
@@ -317,12 +342,12 @@ pub(crate) fn require_call_expression_selection(
         return Err("range endpoint lost its original call selection".to_owned());
     };
     if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
-        return Err(violation);
+        return Err(violation.message);
     }
     if call.receiver.is_valid()
         && let Some(violation) = expression_occurrence_violation(program, call.receiver, authority)
     {
-        return Err(violation);
+        return Err(violation.message);
     }
     Ok(())
 }
@@ -362,7 +387,7 @@ pub(crate) fn require_closed_boolean_argument(
                 if let Some(violation) =
                     expression_occurrence_violation(program, expression, authority)
                 {
-                    return Err(violation);
+                    return Err(violation.message);
                 }
             }
             ExpressionNode::Binary(binary)
@@ -371,7 +396,7 @@ pub(crate) fn require_closed_boolean_argument(
                 if let Some(violation) =
                     expression_occurrence_violation(program, expression, authority)
                 {
-                    return Err(violation);
+                    return Err(violation.message);
                 }
                 pending.push(binary.right);
                 pending.push(binary.left);
@@ -416,7 +441,7 @@ fn require_closed_scalar_custody(
         } else if let Some(violation) =
             expression_occurrence_violation(program, expression, authority)
         {
-            return Err(violation);
+            return Err(violation.message);
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Call(call) => {
@@ -442,7 +467,7 @@ fn expression_occurrence_violation(
     program: &TypedTrees,
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
-) -> Option<String> {
+) -> Option<SelectionViolation> {
     if let Some(authority) = authority {
         let occurrences = program
             .expression_table
@@ -450,10 +475,17 @@ fn expression_occurrence_violation(
             .collect::<Vec<_>>();
         for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
             let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
-                return Some(format!(
-                    "build-time expression retains unknown authored declaration selection occurrence {}",
-                    occurrence.ordinal()
-                ));
+                return Some(SelectionViolation {
+                    message: format!(
+                        "build-time expression retains unknown authored declaration selection occurrence {}",
+                        occurrence.ordinal()
+                    ),
+                    source_span: Some(program.expression_table.source_span(expression)),
+                });
+            };
+            let located = |message: String| SelectionViolation {
+                message,
+                source_span: Some(selection.source_span()),
             };
             let requester = package_for_source(program, selection.source_span());
             let owner = match selection.target() {
@@ -477,20 +509,27 @@ fn expression_occurrence_violation(
                         ) {
                             Some(selected) => package_for_symbol(program, selected),
                             None => {
-                                if unresolved_spelling_is_confined(
+                                // No exact owner is derivable for this
+                                // occurrence, so its authority can only be
+                                // established by spelling: every declaration
+                                // the spelling could select must already be
+                                // admitted for the requesting package.
+                                match unresolved_spelling_confinement(
                                     program,
                                     program.symbols.source_text(selection.source_span()),
                                     requester,
                                     authority,
                                     binding,
                                 ) {
-                                    continue;
+                                    Ok(()) => continue,
+                                    Err(unconfined) => {
+                                        return Some(located(format!(
+                                            "build-time expression has unresolved authored {:?} selection `{}` ({binding:?}) with no derivable exact owner, so its package authority is confined by spelling across the program and {unconfined}; package authority must be known before compiler execution",
+                                            selection.kind(),
+                                            program.symbols.source_text(selection.source_span()),
+                                        )));
+                                    }
                                 }
-                                return Some(format!(
-                                    "build-time expression has unresolved authored {:?} selection `{}` ({binding:?}); package authority must be known before compiler execution",
-                                    selection.kind(),
-                                    program.symbols.source_text(selection.source_span()),
-                                ));
                             }
                         }
                     }
@@ -503,7 +542,7 @@ fn expression_occurrence_violation(
             if let Some(violation) =
                 require_selection(program, requester, owner, authority, &context)
             {
-                return Some(violation);
+                return Some(located(violation));
             }
         }
     }
@@ -539,13 +578,18 @@ fn unresolved_operator_candidates_are_confined(
     })
 }
 
-fn unresolved_spelling_is_confined(
+/// Spelling-wide confinement for a late-bound occurrence with no derivable
+/// exact owner: `Ok` when every declaration the spelling could select is
+/// already admitted for the requester, otherwise the first unadmitted
+/// candidate's rejection. This is the fallback route only; an occurrence
+/// whose owner type is known is confined on that declaration alone.
+fn unresolved_spelling_confinement(
     program: &TypedTrees,
     spelling: &str,
     requester: PackageCustody,
     authority: &dyn BuildTimeSelectionAuthority,
     binding: typed_trees::AuthoredDeclarationSelectionLateBinding,
-) -> bool {
+) -> Result<(), String> {
     use typed_trees::AuthoredDeclarationSelectionLateBinding as Binding;
 
     if !matches!(
@@ -557,7 +601,9 @@ fn unresolved_spelling_is_confined(
             | Binding::CheckedStructLiteralCase
             | Binding::CheckedStructLiteralField
     ) {
-        return false;
+        return Err(format!(
+            "a {binding:?} occurrence has no spelling-confinement route"
+        ));
     }
     let candidates = program
         .symbols
@@ -570,17 +616,26 @@ fn unresolved_spelling_is_confined(
             .then_some(symbol)
         })
         .collect::<Vec<_>>();
-    !candidates.is_empty()
-        && candidates.into_iter().all(|candidate| {
-            require_selection(
-                program,
-                requester,
-                package_for_symbol(program, candidate),
-                authority,
-                "candidate for an unresolved build-time declaration selection",
-            )
-            .is_none()
-        })
+    if candidates.is_empty() {
+        return Err(format!(
+            "no declaration spelled `{spelling}` exists in the program"
+        ));
+    }
+    for candidate in candidates {
+        if let Some(violation) = require_selection(
+            program,
+            requester,
+            package_for_symbol(program, candidate),
+            authority,
+            "candidate for an unresolved build-time declaration selection",
+        ) {
+            return Err(format!(
+                "`{}` is not: {violation}",
+                program.symbols.display_path(candidate, "::")
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn candidate_kind_matches_binding(
@@ -657,7 +712,19 @@ fn late_bound_selection_symbol(
                     .unwrap_or_else(SymbolHandle::invalid)
             }
         }
-        (Binding::CheckedMember, ExpressionNode::Member(member)) => member.member_symbol,
+        // Destructure-pattern payload projections keep an invalid typed
+        // member symbol; derive the declaration from the receiver's exact
+        // owner type the way checked binding does before consulting spelling.
+        (Binding::CheckedMember, ExpressionNode::Member(member)) => {
+            if member.member_symbol.is_valid() {
+                member.member_symbol
+            } else {
+                typed_trees_to_checked_trees::late_bound_member_declaration_from_exact_owner(
+                    program, expression,
+                )
+                .unwrap_or_else(SymbolHandle::invalid)
+            }
+        }
         (Binding::CheckedStaticPathSegment, ExpressionNode::Name(path)) => table
             .name_path_member_symbols(path.member_symbols)
             .get(ordinal)
@@ -764,8 +831,11 @@ mod tests {
         BuildTimeSelectionAuthority, ExpressionHandle, ExpressionNode, PackageCustody,
         PackageKeyIdentity, TypedTrees, expression_occurrence_violation,
         late_bound_selection_symbol, unresolved_operator_candidates_are_confined,
+        unresolved_spelling_confinement,
     };
     use source_files_to_tokens::Lexer;
+    use std::path::PathBuf;
+    use std::sync::Arc;
     use tokens_to_syntax_trees::parse_syntax_trees;
 
     fn typed_from_source(source: &str) -> TypedTrees {
@@ -934,6 +1004,229 @@ mod tests {
             expression_occurrence_violation(&typed, expression, Some(&UnconsultedAuthority)),
             None,
             "builtin-only occurrence consumes no declaration-selection authority"
+        );
+    }
+    // The std calling policies destructure `ValueClass::Record { first_field,
+    // field_count }`; the parser rewrites each binding into a case-payload
+    // member projection whose typed member symbol stays invalid. Its exact
+    // owner is the scrutinee's type, so a same-spelled member elsewhere in
+    // the program is not a candidate.
+    const PAYLOAD_PROJECTION_SOURCE: &str = r#"
+        data Shape {
+            case Scalar;
+            case Record(first_field: u64, field_count: u64);
+        }
+
+        data Item {
+            first_field: u64;
+            field_count: u64;
+        }
+
+        machine widths(shape: Shape) -> u64 {
+            transition shape {
+                Shape::Record { first_field, field_count } -> record(first_field, field_count)
+                _ -> none()
+            }
+            state record(first_field: u64, field_count: u64) -> u64 {
+                first_field + field_count
+            }
+            state none() -> u64 { 0 }
+        }
+    "#;
+
+    fn payload_projection(program: &TypedTrees, name: &str) -> ExpressionHandle {
+        program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                matches!(
+                    node,
+                    ExpressionNode::Member(member)
+                        if member.member.as_str() == name && member.case_variant.is_some()
+                )
+                .then_some(expression)
+            })
+            .expect("case-payload member projection")
+    }
+
+    fn payload_field_symbol(
+        program: &TypedTrees,
+        data: &str,
+        case: &str,
+        field: &str,
+    ) -> symbols::SymbolHandle {
+        let definition = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == data)
+            .expect("payload owner");
+        program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == case =>
+                {
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|candidate| candidate.name.as_str() == field)
+                        .map(|candidate| candidate.symbol)
+                }
+                _ => None,
+            })
+            .expect("payload field")
+    }
+
+    #[test]
+    fn destructure_payload_member_resolves_to_its_exact_owner_not_a_same_spelled_member() {
+        let typed = typed_from_source(PAYLOAD_PROJECTION_SOURCE);
+        for name in ["first_field", "field_count"] {
+            let expression = payload_projection(&typed, name);
+            let ExpressionNode::Member(member) = typed.expression_table.expression(expression)
+            else {
+                unreachable!();
+            };
+            assert!(
+                !member.member_symbol.is_valid(),
+                "typing leaves the payload projection late-bound"
+            );
+            assert_eq!(
+                late_bound_selection_symbol(
+                    &typed,
+                    expression,
+                    &[],
+                    typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedMember,
+                ),
+                Some(payload_field_symbol(&typed, "Shape", "Record", name)),
+                "{name} resolves through the scrutinee's owner type"
+            );
+        }
+    }
+
+    struct FixedAuthority(bool);
+
+    impl BuildTimeSelectionAuthority for FixedAuthority {
+        fn allows_declaration_selection(
+            &self,
+            _requester: PackageKeyIdentity,
+            _owner: PackageKeyIdentity,
+        ) -> bool {
+            self.0
+        }
+
+        fn package_label(&self, _identity: PackageKeyIdentity) -> String {
+            "fixture-package".to_owned()
+        }
+    }
+
+    fn packaged_typed_from_source(source: &str) -> TypedTrees {
+        let package = PackageKeyIdentity::from_digest([0x51; 32]).unwrap();
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add_with_metadata(
+                PathBuf::from("fixture/main.omg"),
+                source.to_owned(),
+                PathBuf::from("fixture"),
+                Some(package),
+                source::SourceOrigin::User,
+            )
+            .source_id;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("resolve");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+    }
+
+    // Exact-owner resolution confines the payload projection on its owner's
+    // package alone: an allowing authority admits it although `Item` spells
+    // the same members, and a denying authority still rejects it, locating
+    // the rejection at the member occurrence rather than the invocation.
+    #[test]
+    fn exact_owner_payload_projection_is_confined_on_its_owner_package_only() {
+        let typed = packaged_typed_from_source(PAYLOAD_PROJECTION_SOURCE);
+        let expression = payload_projection(&typed, "first_field");
+        assert_eq!(
+            expression_occurrence_violation(&typed, expression, Some(&FixedAuthority(true))),
+            None
+        );
+
+        let violation =
+            expression_occurrence_violation(&typed, expression, Some(&FixedAuthority(false)))
+                .expect("a denied owner package still rejects the exact selection");
+        assert!(
+            violation
+                .message
+                .contains("build-time authored MemberAccess selection selects package"),
+            "{}",
+            violation.message
+        );
+        assert!(
+            violation
+                .message
+                .contains("without direct dependency authority"),
+            "{}",
+            violation.message
+        );
+        assert!(
+            !violation.message.contains("confined by spelling"),
+            "an exact owner never falls back to spelling: {}",
+            violation.message
+        );
+        let span = violation
+            .source_span
+            .expect("located at the member occurrence");
+        assert_eq!(typed.symbols.source_text(span), "first_field");
+    }
+
+    // The spelling-wide route remains the fallback for occurrences without a
+    // derivable owner, and it names the candidate that is not admitted.
+    #[test]
+    fn spelling_fallback_names_the_unadmitted_candidate() {
+        let typed = packaged_typed_from_source(PAYLOAD_PROJECTION_SOURCE);
+        let requester =
+            PackageCustody::Package(PackageKeyIdentity::from_digest([0x52; 32]).unwrap());
+        assert_eq!(
+            unresolved_spelling_confinement(
+                &typed,
+                "first_field",
+                requester,
+                &FixedAuthority(true),
+                typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedMember,
+            ),
+            Ok(())
+        );
+        let unconfined = unresolved_spelling_confinement(
+            &typed,
+            "first_field",
+            requester,
+            &FixedAuthority(false),
+            typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedMember,
+        )
+        .expect_err("a denied same-spelled candidate leaves the spelling unconfined");
+        assert!(
+            unconfined.contains("first_field")
+                && unconfined.contains("is not:")
+                && unconfined.contains("without direct dependency authority"),
+            "{unconfined}"
+        );
+        assert_eq!(
+            unresolved_spelling_confinement(
+                &typed,
+                "no_such_member",
+                requester,
+                &FixedAuthority(true),
+                typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedMember,
+            ),
+            Err("no declaration spelled `no_such_member` exists in the program".to_owned())
         );
     }
 }

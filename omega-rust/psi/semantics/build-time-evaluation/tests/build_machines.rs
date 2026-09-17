@@ -929,7 +929,8 @@ fn admission_rejects_explicit_self_loops_before_interpretation() {
             // Analyze admission only: a regression must never run this loop.
             let error = admission
                 .require_common_floor(&program, machine)
-                .expect_err("an implicit self loop has no checked termination guarantee");
+                .expect_err("an implicit self loop has no checked termination guarantee")
+                .reason;
             assert!(
                 error.contains("has no ordinary checked `Terminates` guarantee"),
                 "{error}"
@@ -978,7 +979,8 @@ fn admission_rejects_a_transitive_progress_premise_before_interpretation() {
         .expect("build machine");
     let error = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None)
         .require_common_floor(&typed, machine)
-        .expect_err("pre-check evaluation has no proof context for the progress premise");
+        .expect_err("pre-check evaluation has no proof context for the progress premise")
+        .reason;
 
     assert!(
         error.contains("has an authored `requires` premise"),

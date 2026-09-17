@@ -74,6 +74,17 @@ pub fn typed_operator_has_no_authored_selection(
     authored_selections::typed_operator_has_no_authored_selection(program, expression)
 }
 
+/// Exact declaration selected by one late-bound member access whose typed
+/// `member_symbol` is still invalid, derived from the receiver's owner type
+/// exactly as checked binding derives it. Build-time authority confines that
+/// declaration's package instead of every same-spelled member in the program.
+pub fn late_bound_member_declaration_from_exact_owner(
+    program: &typed_trees::TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    authored_selections::exact_owner_member_declaration(program, expression)
+}
+
 /// Conservative declaration candidates for an operator before checked
 /// selection is final. Build-time authority uses this set only to prove that
 /// every possible authored meaning is already within the package's admitted

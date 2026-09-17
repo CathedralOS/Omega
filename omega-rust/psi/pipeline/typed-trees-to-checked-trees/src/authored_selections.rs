@@ -108,6 +108,33 @@ pub(crate) fn bind_checked_intrinsic_call_facts(
     Ok(())
 }
 
+/// Exact declaration for one late-bound `CheckedMember` occurrence, derived
+/// from the receiver's owner type in every checked environment that contains
+/// the expression, before checked binding has run. Case-payload projections
+/// synthesized from destructure patterns stay unresolved through typing; this
+/// is the same owner-type resolution checked binding applies to them. `None`
+/// means no exact owner is derivable, never that the spelling is free.
+pub(crate) fn exact_owner_member_declaration(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.member_symbol.is_valid() {
+        return Some(member.member_symbol);
+    }
+    match contexts::checked_member_target_from_exact_owner(
+        program,
+        &CheckFacts::default(),
+        expression,
+        member,
+    )? {
+        contexts::OwnerMemberTarget::Declaration(symbol) => Some(symbol),
+        contexts::OwnerMemberTarget::CollectionLength => None,
+    }
+}
+
 pub(crate) fn bind_pre_specialization_authored_selections(
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {
