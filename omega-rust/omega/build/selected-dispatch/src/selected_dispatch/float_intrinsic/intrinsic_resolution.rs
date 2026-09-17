@@ -9,136 +9,122 @@ use crate::selected_dispatch::float_intrinsic::{
 };
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use provider_planning::{IntrinsicRequirement, IntrinsicRequirementKind};
 use typed_trees::expression::ExpressionNode;
+
+/// One selected named use of an intrinsic-realizable requirement: a named
+/// boundary-operator use or a direct top-level requirement call, each
+/// stamped by provider planning with its exact selected plan.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SelectedIntrinsicUse {
+    pub(crate) expression: typed_trees::expression::ExpressionHandle,
+    pub(crate) origin: checked_trees::CheckedValueOrigin,
+    /// The operator symbol or the requirement machine symbol.
+    pub(crate) requirement_symbol: symbols::SymbolHandle,
+    pub(crate) provider_plan_report_fingerprint: u64,
+    pub(crate) provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
+}
+
+impl From<&checked_trees::CheckedNamedOperatorUseFact> for SelectedIntrinsicUse {
+    fn from(operator_use: &checked_trees::CheckedNamedOperatorUseFact) -> Self {
+        Self {
+            expression: operator_use.expression,
+            origin: operator_use.origin,
+            requirement_symbol: operator_use.selected_operator_symbol,
+            provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
+            provider_plan_commitment: operator_use.provider_plan_commitment,
+        }
+    }
+}
+
+impl From<&checked_trees::CheckedNamedRequirementUseFact> for SelectedIntrinsicUse {
+    fn from(requirement_use: &checked_trees::CheckedNamedRequirementUseFact) -> Self {
+        Self {
+            expression: requirement_use.expression,
+            origin: requirement_use.origin,
+            requirement_symbol: requirement_use.requirement_symbol,
+            provider_plan_report_fingerprint: requirement_use.provider_plan_report_fingerprint,
+            provider_plan_commitment: requirement_use.provider_plan_commitment,
+        }
+    }
+}
 
 pub(crate) fn resolve_selected_float_intrinsic_call(
     checked: &CheckedTrees,
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
-    operator_use: &checked_trees::CheckedNamedOperatorUseFact,
+    selected_use: &SelectedIntrinsicUse,
 ) -> Result<Option<StagedNamedFloatRewrite>, Diagnostic> {
-    if operator_use.provider_plan_commitment.is_empty() {
+    if selected_use.provider_plan_commitment.is_empty() {
         return Err(Diagnostic::error(format!(
-            "named float operator use carries ProviderPlan report fingerprint {:#018x} without an exact commitment",
-            operator_use.provider_plan_report_fingerprint,
+            "named float use carries ProviderPlan report fingerprint {:#018x} without an exact commitment",
+            selected_use.provider_plan_report_fingerprint,
         )));
     }
     let report_matches = selected_provider_plans
         .iter()
-        .filter(|plan| plan.report_fingerprint() == operator_use.provider_plan_report_fingerprint)
+        .filter(|plan| plan.report_fingerprint() == selected_use.provider_plan_report_fingerprint)
         .collect::<Vec<_>>();
     let plans = report_matches
         .iter()
         .copied()
         .filter(|plan| {
-            plan.identity_digest().as_bytes() == operator_use.provider_plan_commitment.as_bytes()
+            plan.identity_digest().as_bytes() == selected_use.provider_plan_commitment.as_bytes()
         })
         .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         return Err(Diagnostic::error(
             match (report_matches.len(), plans.len()) {
                 (1, 0) => format!(
-                    "named float operator use ProviderPlan report fingerprint {:#018x} has an exact commitment that does not match the selected plan",
-                    operator_use.provider_plan_report_fingerprint,
+                    "named float use ProviderPlan report fingerprint {:#018x} has an exact commitment that does not match the selected plan",
+                    selected_use.provider_plan_report_fingerprint,
                 ),
                 (0, _) => format!(
-                    "named float operator use carries unknown ProviderPlan report fingerprint {:#018x}",
-                    operator_use.provider_plan_report_fingerprint,
+                    "named float use carries unknown ProviderPlan report fingerprint {:#018x}",
+                    selected_use.provider_plan_report_fingerprint,
                 ),
                 (_, count) => format!(
-                    "named float operator use ProviderPlan report fingerprint {:#018x} and exact commitment match {count} selected plans",
-                    operator_use.provider_plan_report_fingerprint,
+                    "named float use ProviderPlan report fingerprint {:#018x} and exact commitment match {count} selected plans",
+                    selected_use.provider_plan_report_fingerprint,
                 ),
             },
         ));
     };
 
-    resolve_float_intrinsic_call(checked, operator_use, plan)
+    resolve_float_intrinsic_call(checked, selected_use, plan)
 }
 
 fn resolve_float_intrinsic_call(
     checked: &CheckedTrees,
-    operator_use: &checked_trees::CheckedNamedOperatorUseFact,
+    selected_use: &SelectedIntrinsicUse,
     plan: &effects::provider_plan::ProviderPlan,
 ) -> Result<Option<StagedNamedFloatRewrite>, Diagnostic> {
-    let operators = checked
-        .typed
-        .operators()
-        .iter()
-        .filter(|operator| operator.symbol == operator_use.selected_operator_symbol)
-        .collect::<Vec<_>>();
-    let [operator] = operators.as_slice() else {
+    let Some(requirement) =
+        IntrinsicRequirement::by_symbol(&checked.typed, selected_use.requirement_symbol)
+    else {
         return Err(Diagnostic::error(format!(
-            "selected named float at expression {:?} resolves symbol {:?} to {} operator definitions",
-            operator_use.expression,
-            operator_use.selected_operator_symbol,
-            operators.len(),
+            "selected named float at expression {:?} resolves symbol {:?} to no boundary operator or public receiver-free boundary requirement",
+            selected_use.expression, selected_use.requirement_symbol,
         )));
     };
-    if !operator.is_boundary {
-        return Err(Diagnostic::error(format!(
-            "selected named float at expression {:?} does not name a boundary operator",
-            operator_use.expression,
-        )));
-    }
-    let overload_identity =
-        typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
-    if overload_identity.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected named float at expression {:?} has an empty canonical overload identity",
-            operator_use.expression,
-        )));
-    }
-    let [method] = plan.schema.methods.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected named-float ProviderPlan `{}` must retain exactly one schema method",
-            plan.name,
-        )));
-    };
-    let [row] = plan.rows.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected named-float ProviderPlan `{}` must retain exactly one realization row",
-            plan.name,
-        )));
-    };
-    let operator_package = checked
-        .typed
-        .symbols
-        .symbol_package_identity(operator.symbol);
-    if plan.schema.trait_name != overload_identity
-        || plan.schema.trait_package_identity != operator_package
-        || method.name != "realize"
-        || method.requirement_owner != overload_identity
-        || method.requirement_owner_package_identity != operator_package
-        || method.requirement_identity != overload_identity
-        || !plan.schema.row_binds_method(row, method)
-    {
-        return Err(Diagnostic::error(format!(
-            "selected named-float ProviderPlan `{}` does not bind exact overload `{overload_identity}`",
-            plan.name,
-        )));
-    }
-
-    let Some(selected_realization) = selected_compiler_intrinsic_realization(
-        &checked.typed,
-        plan,
-        operator_use.selected_operator_symbol,
-    )?
+    let overload_identity = requirement.requirement_identity.clone();
+    let Some(selected_realization) =
+        selected_compiler_intrinsic_realization(&checked.typed, plan, requirement.symbol)?
     else {
         return Ok(None);
     };
     let SelectedCompilerIntrinsicRealization::NamedFloat(realization) = selected_realization else {
         return Err(Diagnostic::error(format!(
-            "selected named-float overload `{overload_identity}` has no named-float execution realization",
+            "selected named-float requirement `{overload_identity}` has no named-float execution realization",
         )));
     };
     let ExpressionNode::Call(call) = checked
         .typed
         .expression_table
-        .expression(operator_use.expression)
+        .expression(selected_use.expression)
     else {
         return Err(Diagnostic::error(format!(
             "selected named float intrinsic at expression {:?} is not a call",
-            operator_use.expression,
+            selected_use.expression,
         )));
     };
     let expected_arity = named_float_realization_arity(realization);
@@ -148,30 +134,36 @@ fn resolve_float_intrinsic_call(
         .expression_handles(call.arguments);
     if arguments.len() != expected_arity {
         return Err(Diagnostic::error(format!(
-            "selected named float overload `{overload_identity}` requires {expected_arity} runtime argument(s), but its checked call retains {}",
+            "selected named float requirement `{overload_identity}` requires {expected_arity} runtime argument(s), but its checked call retains {}",
             arguments.len(),
         )));
     }
-    let source_names_selected_operator =
-        typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
-            .map(|resolved| resolved.symbol)
-            == Some(operator.symbol);
+    let source_names_selected = match requirement.kind {
+        IntrinsicRequirementKind::Operator => {
+            typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
+                .map(|resolved| resolved.symbol)
+                == Some(requirement.symbol)
+        }
+        IntrinsicRequirementKind::TopLevelRequirement => {
+            call.target_symbol == requirement.call_target
+        }
+    };
     let source_is_matching_builtin = matches!(realization, NamedFloatRealization::Builtin { .. })
         && typed_trees_to_checked_trees::resolve_checked_builtin_float_operator_requirement(
             &checked.typed,
-            operator_use.expression,
-            operator_use.origin,
-        ) == Some(operator.symbol);
-    if !source_names_selected_operator && !source_is_matching_builtin {
+            selected_use.expression,
+            selected_use.origin,
+        ) == Some(requirement.symbol);
+    if !source_names_selected && !source_is_matching_builtin {
         return Err(Diagnostic::error(format!(
-            "selected named float intrinsic at expression {:?} no longer names its checked operator symbol or normalized builtin",
-            operator_use.expression,
+            "selected named float intrinsic at expression {:?} no longer names its checked operator symbol, requirement entry or normalized builtin",
+            selected_use.expression,
         )));
     }
 
-    let execution = preflight_named_float_execution(checked, operator, realization)?;
+    let execution = preflight_named_float_execution(checked, &requirement, realization)?;
     Ok(Some(StagedNamedFloatRewrite {
-        expression: operator_use.expression,
+        expression: selected_use.expression,
         realization,
         execution,
     }))

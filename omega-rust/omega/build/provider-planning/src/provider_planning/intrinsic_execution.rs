@@ -7,6 +7,17 @@ pub fn primitive_float_binary_intrinsic_execution_identity(
     typed: &TypedTrees,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Option<CompilerIntrinsicExecutionIdentity> {
+    let requirement = crate::IntrinsicRequirement::from_operator(typed, operator)?;
+    primitive_float_binary_intrinsic_execution_identity_for(typed, &requirement)
+}
+
+/// The spelled `Float::+`-family execution child. Only the operator species
+/// carries a fixed token, so a top-level requirement never selects it.
+pub fn primitive_float_binary_intrinsic_execution_identity_for(
+    typed: &TypedTrees,
+    requirement: &crate::IntrinsicRequirement<'_>,
+) -> Option<CompilerIntrinsicExecutionIdentity> {
+    let operator = requirement.as_operator()?;
     let (operation, format) =
         typed_trees::operator::primitive_float_binary_semantics(typed, operator)?;
     let operation = match operation {

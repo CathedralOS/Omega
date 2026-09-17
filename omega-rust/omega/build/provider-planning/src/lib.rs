@@ -20,6 +20,7 @@ pub mod service_schema;
 pub mod task_plans;
 pub mod x86_fma_plan_association;
 
+pub use compiler_intrinsics::requirement_view::{IntrinsicRequirement, IntrinsicRequirementKind};
 pub use provider_planning::selection::{
     CompositionMode, ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection,
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject,
@@ -42,12 +43,13 @@ pub use provider_planning::{
     DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
     ProviderSelectionProvenance, SelectedProviderPlanBinding, SelectedProviderPlanWithProvenance,
     SelectedProviderReviewProvenance, SelectedTargetMachineOrigin,
-    bind_selected_provider_plan_facts, compiler_intrinsic_diagnostic_label, derive_satisfies_plans,
-    exact_checked_adapter, extract_external_binding_rows, extract_native_external_binding_rows,
+    bind_selected_provider_plan_facts, compiler_intrinsic_diagnostic_label,
+    compiler_intrinsic_diagnostic_label_for, derive_satisfies_plans, exact_checked_adapter,
+    extract_external_binding_rows, extract_native_external_binding_rows,
     intrinsic_realization_matches_operator, primitive_float_binary_intrinsic_execution_identity,
-    satisfied_requirement_identity, satisfies_plan_name, select_derived_provider_plans,
-    select_provider_plans, selected_provider_plan_facts,
-    selected_provider_plan_facts_with_independent_components, settle_external_binding_rows,
-    validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
-    validate_selected_synchronous_invocation_cycles,
+    primitive_float_binary_intrinsic_execution_identity_for, satisfied_requirement_identity,
+    satisfies_plan_name, select_derived_provider_plans, select_provider_plans,
+    selected_provider_plan_facts, selected_provider_plan_facts_with_independent_components,
+    settle_external_binding_rows, validate_derived_provider_plan_candidates,
+    validate_provider_plan_candidates, validate_selected_synchronous_invocation_cycles,
 };
