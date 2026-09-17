@@ -121,6 +121,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                 let (first_domain, rest) = parse_path_handle_span(input, |member| {
                     syntax_trees.items.append_identifier_path_member(member)
                 })?;
+                let rest = reject_proof_fact_domain_arguments(syntax_trees, rest)?;
                 input = rest;
 
                 let first_expression_domain =
@@ -154,6 +155,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                     let (domain, rest) = parse_path_handle_span(rest, |member| {
                         syntax_trees.items.append_identifier_path_member(member)
                     })?;
+                    let rest = reject_proof_fact_domain_arguments(syntax_trees, rest)?;
                     input = rest;
                     membership_domains.push(domain);
                     let expression_domain = copy_item_path_to_expression_path(syntax_trees, domain);
@@ -366,4 +368,31 @@ fn range_membership_expression(
             operator: BinaryOperator::And,
             right: upper,
         }))
+}
+
+/// An indexed domain application after a proof-fact membership path
+/// (`result in Granted & Resident<P, T>`). The arguments are read with the
+/// type-position grammar so the spelling is the same one a declared type
+/// accepts, but the proof-fact membership node retains only the domain path:
+/// carrying the instance arguments to the typed membership fact needs the
+/// syntax, symbol-resolved, and typed proof-fact nodes to agree on an
+/// argument span and the typer to intern the instance identity, as it does
+/// for a type constraint. Until that route exists the application is rejected
+/// here by name rather than as a stray `<` before the fact terminator.
+fn reject_proof_fact_domain_arguments<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Result<Input<'tokens, 'source>, ParseError> {
+    if !input.at_punctuation(PunctuationKind::Less) {
+        return Ok(input);
+    }
+    let argument_site = input;
+    let (arguments, _) =
+        crate::type_syntax::parse_type::parse_domain_argument_handles(syntax_trees, input)?;
+    if arguments.is_empty() {
+        return Ok(input);
+    }
+    Err(argument_site.error_here(
+        "indexed domain applications are not yet carried by proof facts; declare the membership on the value's type (`Extent in Granted & Resident<P, T>`) instead",
+    ))
 }
