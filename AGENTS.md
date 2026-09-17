@@ -168,11 +168,11 @@ removing the checkout used to build it.
 ### Running one test
 
 ```bash
-mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
+mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile
 ```
 
 ```bash
-mbx nextest run -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
+mbx nextest run -p compiler --test canary_suite proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment
 ```
 
 `canary_suite` is the umbrella target driving the `tests/omega/{pass,fail,run}`
@@ -189,7 +189,7 @@ host parallelism capped at 12 and must be a positive integer.
 
 ```bash
 OMEGA_PASS_CANARY_FILTER=nested_parameter_receiver_call \
-  mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
+  mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile
 ```
 
 `canary_suite` is not in the baseline gates above and a full run is currently
