@@ -255,15 +255,18 @@ history-bearing state design as baselines; the candidate supersedes both on
 its own terms. The complete equations now exist and the produced
 full-subject certificate confirms this ledger's direction: measured at
 16.1 times the request provision and ~70-80 times the work provision /
-physical pair ceiling, the single-request route does not reach acceptance
-under the selected provisions. The remaining routes are recipe
+physical pair ceiling — reproduced exactly at `6a1751fe08` on macOS arm64 —
+the single-request route does not reach acceptance under the selected
+provisions. The remaining routes are recipe
 restructuring toward ~675k work (the measured 3.18M-row / 2.13M-term
 certificate would need ~two orders of magnitude of further reduction —
 not a plausible constants gap), checked closed-lemma composition across
 bounded requests (a checker addition needing owner escalation), or more
 native backing (an owner-level realization decision already named below).
-Splitting into multiple requests changes nothing without that composition
-rule: the checker validates premises only as earlier rows in one table.
+That residual choice is filed as owner decision
+`beta-encoding-certificate-admission`. Splitting into multiple
+requests changes nothing without that composition rule: the checker
+validates premises only as earlier rows in one table.
 Do not select a larger profile from these costs.
 
 ## Coherent provisions
