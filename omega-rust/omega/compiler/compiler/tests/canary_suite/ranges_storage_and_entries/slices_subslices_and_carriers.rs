@@ -1,6 +1,10 @@
 use super::assert_native_exit_code;
 use super::fixture_roster;
-use crate::{compile_rooted_canary_for_native_host, fs, pass_canary};
+use crate::{
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, fs, interpret,
+    pass_canary,
+};
+use compiler::CheckedCompileRequest;
 
 #[test]
 fn runtime_duration_constructors_exit_canary_runs() {
@@ -84,6 +88,39 @@ fn runtime_member_arg_nested_read_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A call through a NESTED receiver field whose argument is an exact
+// narrowing cast of a payload-bounded value
+// (`self.scanner.append_byte(value as u8)`, the product lexer's `retain`
+// state). The cast is a call-statement argument; validation now retains its
+// exact-cast evidence there, so a host-target checked compile selects the
+// attached entry and the interpreter reads the byte back. Native production
+// is not claimed: the entry's sum-literal state argument is a separate Unit
+// slice. -> 70.
+
+#[test]
+fn runtime_nested_receiver_cast_argument_exit_canary_interprets_and_establishes_its_entry() {
+    let canary = pass_canary(fixture_roster::RUNTIME_NESTED_RECEIVER_CAST_ARGUMENT_EXIT);
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+        .expect("nested receiver cast argument canary should compile to checked trees");
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should read the cast byte back from the nested receiver, got {} ({:?})",
+        outcome.exit_code, outcome.error
+    );
+
+    let established = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &main_path,
+        Some(crate::native_hosted_target()),
+    ))
+    .expect("the host target selects the attached entry over the cast-argument call");
+    assert!(
+        established.selected_program_entry_machine().is_some(),
+        "ProgramEntry establishment rejoins the receiver's attachment identity"
+    );
 }
 
 // Type-scoped constructor with COMPUTED struct-literal fields delivers
