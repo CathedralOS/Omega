@@ -143,6 +143,7 @@ fn unwind_restore_roster_replays_through_ordinary_callable_entry() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
         NativeTarget::linux_arm64(),
         NativeTarget::macos_arm64(),
     ] {
