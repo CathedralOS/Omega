@@ -95,7 +95,7 @@ rows! {
         "two propositions compared under integer-math normalization",
         "citation and conclusion equality is decided on the normalized form; structurally different spellings of one proposition match",
         &["formation:mathematical-core"],
-        &[pa!( "proof.rs"), pa!( "mathematical_core/conversion.rs")]
+        &[pa!( "proof/integer_math_normalization.rs"), pa!( "mathematical_core/conversion.rs")]
     );
     NORM_PREDICATE_DENOTATION => (
         "conversion:predicate-denotation",
@@ -127,7 +127,7 @@ rows! {
         "an ordered affine witness of exact-add definition steps and literal landings over one carrier",
         "the mapped bound from root to target when every step checks; the witness is bounded and validated before interpretation",
         &["normalization:closed-integer-evaluator"],
-        &[pa!( "integer_rules/integer_affine.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]
+        &[pa!( "integer_rules/integer_affine.rs"), pa!( "integer_rules/integer_affine/witness_checking.rs"), pa!( "integer_rules/integer_affine/bound_mapping.rs"), pa!( "integer_rules/integer_affine/truth_bounds.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]
     );
     NORM_CAST_CHAIN_WITNESS => (
         "normalization:integer-cast-chain-witness",
@@ -285,7 +285,7 @@ rows! {
         "the call-composition semantic rows supplied for the module",
         "each call tag has exactly one row with a matching schema; missing, duplicate, or schema-mismatched rows reject",
         &["formation:operation-validation"],
-        &[ts!( "call_composition.rs")]
+        &[ts!( "call_composition.rs"), ts!( "semantic_rows.rs")]
     );
     COMP_DYNAMIC_DISPATCH => (
         "composition:dynamic-dispatch",
@@ -293,7 +293,7 @@ rows! {
         "a vetted dynamic-dispatch candidate set and the call's shared argument frame",
         "per-candidate composition under one set of shared requires obligations; the candidate set is validated, not chosen by evidence",
         &["composition:call-instantiation", "formation:dynamic-dispatch"],
-        &[tv!( "validation/dynamic_dispatch.rs"), tv!( "verification/call_composition.rs")]
+        &[tv!( "validation/dynamic_dispatch.rs"), tv!( "validation/dynamic_dispatch/consumption.rs"), tv!( "validation/dynamic_dispatch/direct_dispatches.rs"), tv!( "validation/dynamic_dispatch/indirect_dispatches.rs"), tv!( "validation/dynamic_dispatch/rebound_descriptors.rs"), tv!( "validation/dynamic_dispatch/selections.rs"), tv!( "verification/call_composition.rs")]
     );
     COMP_BOUNDARY_CALL => (
         "composition:boundary-call",
@@ -366,10 +366,10 @@ rows! {
     FORM_MODULE_STRUCTURE => (
         "formation:module-structure",
         SharedFormation,
-        "the terminal module's canonical representation: machines, blocks, structural types, and declared surfaces",
+        "the terminal module's canonical representation: machines, blocks, structural types, and declared surfaces, including leaf-typed structural fields resolved through their canonical leaf shape",
         "structural validation accepting exactly well-formed modules before any reconstruction; malformed representations reject with a ModuleError",
         &["root:verification-contract"],
-        &[tv!( "validation.rs"), tv!( "validation/error.rs"), tv!( "validation/foundation.rs"), tv!( "validation/foundation/provider_result.rs"), tv!( "lib.rs"), pa!( "lib.rs")]
+        &[tv!( "validation.rs"), tv!( "validation/error.rs"), tv!( "validation/foundation.rs"), tv!( "validation/foundation/boundary_machines.rs"), tv!( "validation/foundation/domains.rs"), tv!( "validation/foundation/machine_foundations.rs"), tv!( "validation/foundation/provider_candidates.rs"), tv!( "validation/foundation/provider_result.rs"), tv!( "validation/foundation/services.rs"), tv!( "validation/foundation/structural_types.rs"), tv!( "lib.rs"), pa!( "lib.rs")]
     );
     FORM_MACHINE => (
         "formation:machine-validation",
@@ -377,7 +377,7 @@ rows! {
         "one machine's signature, blocks, parameters (including shared-borrow record views joined at block parameters), contract, and declared invariants",
         "the machine validates as a whole before its obligations are reconstructed",
         &["formation:module-structure"],
-        &[tv!( "validation/machine.rs"), tv!( "validation/block_views.rs")]
+        &[tv!( "validation/machine.rs"), tv!( "validation/machine/blocks.rs"), tv!( "validation/machine/contract_clauses.rs"), tv!( "validation/machine/custody_operations.rs"), tv!( "validation/machine/scalar_result_operations.rs"), tv!( "validation/machine/structural_places.rs"), tv!( "validation/block_views.rs")]
     );
     FORM_PROPOSITION_CONTEXT => (
         "formation:proposition-context",
@@ -393,7 +393,7 @@ rows! {
         "one operation's kind-specific fields, types, and declared identities",
         "the operation validates under its kind's exact formation rules before reconstruction assigns it any semantics",
         &["formation:module-structure", "formation:proposition-context"],
-        &[tv!( "validation/operations.rs")]
+        &[tv!( "validation/operations.rs"), tv!( "validation/operations/arithmetic_operands.rs"), tv!( "validation/operations/call_operands.rs"), tv!( "validation/operations/scalar_operands.rs"), tv!( "validation/operations/storage_operands.rs")]
     );
     FORM_CONTROL_FLOW => (
         "formation:control-flow-validation",
@@ -401,7 +401,7 @@ rows! {
         "the machine's blocks, edges, terminators, and declared cycle structure",
         "validated control flow: successors, dominance, and cycle declarations agree before reconstruction relies on them",
         &["formation:module-structure"],
-        &[tv!( "validation/control_flow.rs"), tv!( "validation/control_flow/unranked_cycles.rs"), tv!( "control_graph.rs")]
+        &[tv!( "validation/control_flow.rs"), tv!( "validation/control_flow/block_checks.rs"), tv!( "validation/control_flow/block_graph.rs"), tv!( "validation/control_flow/definitions.rs"), tv!( "validation/control_flow/unranked_cycles.rs"), tv!( "control_graph.rs")]
     );
     FORM_CONTRACT => (
         "formation:contract-validation",
@@ -489,15 +489,15 @@ rows! {
         "the machine's claim frontier and the referent roots pinned by shared-borrow join parameters at each block and traversal point",
         "the reconstructed frontier used by crash guards and cleanup checks is the validated one",
         &["scope:dominance-order"],
-        &[tv!( "validation/frontier.rs"), tv!( "validation/frontier/block_parameters.rs"), tv!( "validation/frontier/traversal.rs")]
+        &[tv!( "validation/frontier.rs"), tv!( "validation/frontier/block_entry.rs"), tv!( "validation/frontier/block_parameters.rs"), tv!( "validation/frontier/operations.rs"), tv!( "validation/frontier/terminators.rs"), tv!( "validation/frontier/traversal.rs")]
     );
     FORM_CRASH => (
         "formation:crash-validation",
         SharedFormation,
-        "a crash site's declared guard terms and outcome",
-        "crash sites validate before their private fact bundles are reconstructed",
+        "a crash site's declared guard terms and outcome, plus each operation's declared crash contracts checked against its owning machine's crash-route coverage",
+        "crash sites and operation-level crash contracts validate before their private fact bundles are reconstructed",
         &["formation:machine-validation", "formation:frontier"],
-        &[tv!( "validation/crash.rs"), tv!( "validation/crash/outcome.rs"), tv!( "validation/crash/site_truth.rs")]
+        &[tv!( "validation/crash.rs"), tv!( "validation/crash/operation_contracts.rs"), tv!( "validation/crash/outcome.rs"), tv!( "validation/crash/site_truth.rs")]
     );
     FORM_CRASH_REQUIREMENTS => (
         "formation:crash-entry-requirements",
@@ -521,7 +521,7 @@ rows! {
         "the module's evidence bundle: envelopes, provenance, and producer identity",
         "evidence validates for provenance and coverage: every obligation has evidence, no duplicate, unknown, noncanonical, or unused evidence is accepted",
         &["formation:module-structure", "route:certificate-derived"],
-        &[tv!( "verification.rs"), tv!( "verification/evidence_provenance.rs"), tv!( "verification/proof_bundle.rs"), tv!( "validation/evidence.rs")]
+        &[tv!( "verification.rs"), tv!( "verification/evidence_provenance.rs"), tv!( "verification/proof_bundle.rs"), tv!( "validation/evidence.rs"), tv!( "validation/evidence/contract_lanes.rs"), tv!( "validation/evidence/guarded_call_outputs.rs"), tv!( "validation/evidence/proof_output_calls.rs")]
     );
     FORM_PROOF_RECURSION => (
         "formation:proof-recursion-validation",
@@ -545,7 +545,7 @@ rows! {
         "the module's dynamic-dispatch declarations and candidate sets",
         "candidate sets validate before dispatch calls compose them",
         &["formation:contract-validation", "formation:root-service-reach"],
-        &[tv!( "validation/dynamic_dispatch.rs")]
+        &[tv!( "validation/dynamic_dispatch.rs"), tv!( "validation/dynamic_dispatch/consumption.rs"), tv!( "validation/dynamic_dispatch/direct_dispatches.rs"), tv!( "validation/dynamic_dispatch/indirect_dispatches.rs"), tv!( "validation/dynamic_dispatch/rebound_descriptors.rs"), tv!( "validation/dynamic_dispatch/selections.rs")]
     );
     FORM_SUSPENSION => (
         "formation:suspension-call-plan",
@@ -606,10 +606,10 @@ rows! {
     FORM_STRUCTURAL_OPS => (
         "formation:structural-operations",
         SharedFormation,
-        "structural field stores and their canonical write paths",
-        "stores validate and resolve their write paths before invalidation and leaf equations are reconstructed",
+        "structural, boundary, and effect operation custody: structural field stores and their canonical write paths, structural arguments and claim transfers, unit operations, payloadless and primitive structural calls, contract places, crash continuations, and boundary requirements",
+        "these operations validate and resolve their paths and custody before invalidation, leaf equations, or call composition are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/structural_operations/structural_paths.rs")]
+        &[tv!( "validation/structural_operations.rs"), tv!( "validation/structural_operations/boundary_requirements.rs"), tv!( "validation/structural_operations/claim_transfers.rs"), tv!( "validation/structural_operations/claim_transfers/argument_claims.rs"), tv!( "validation/structural_operations/claim_transfers/transfer_roster.rs"), tv!( "validation/structural_operations/contract_places.rs"), tv!( "validation/structural_operations/crash_continuations.rs"), tv!( "validation/structural_operations/payloadless_calls.rs"), tv!( "validation/structural_operations/primitive_calls.rs"), tv!( "validation/structural_operations/structural_arguments.rs"), tv!( "validation/structural_operations/structural_arguments/argument_checks.rs"), tv!( "validation/structural_operations/structural_arguments/argument_pairs.rs"), tv!( "validation/structural_operations/structural_paths.rs"), tv!( "validation/structural_operations/unit_operation.rs"), tv!( "validation/structural_operations/unit_operation/boundary_calls.rs"), tv!( "validation/structural_operations/unit_operation/local_establishments.rs"), tv!( "validation/structural_operations/unit_operation/structural_calls.rs"), tv!( "validation/structural_operations/unit_operation/unit_calls.rs")]
     );
     FORM_STRUCTURAL_SCALAR => (
         "formation:structural-scalar-fields",
@@ -646,10 +646,10 @@ rows! {
     FORM_MATHEMATICAL_CORE => (
         "formation:mathematical-core",
         SharedFormation,
-        "the mathematical-integer term language: universe-level expressions over the judgment's level parameters, terms, typing, substitution, conversion, universe-polymorphic certificates, and inductive W-type formation with dependent elimination",
+        "the mathematical-integer term language: universe-level expressions over the judgment's level parameters, terms, typing, substitution, conversion, universe-polymorphic certificates, inductive W-type formation with dependent elimination, indexed families derived from it, a set-quotient scheme whose lifts are authored as checked declarations, theorem declarations crossing the certificate wire, and the bounded denotation that re-decides a ProofNode certificate inside the core",
         "mathematical terms are well-typed, bounded, level-scope-checked, and canonically formed before any judgment or normalization evaluates them",
         &["formation:proposition-context"],
-        &[pa!( "mathematical_core.rs"), pa!( "mathematical_core/term.rs"), pa!( "mathematical_core/typing.rs"), pa!( "mathematical_core/substitution.rs"), pa!( "mathematical_core/conversion.rs"), pa!( "mathematical_core/certificate.rs")]
+        &[pa!( "mathematical_core.rs"), pa!( "mathematical_core/term.rs"), pa!( "mathematical_core/typing.rs"), pa!( "mathematical_core/substitution.rs"), pa!( "mathematical_core/conversion.rs"), pa!( "mathematical_core/certificate.rs"), pa!( "mathematical_core/bounded_denotation.rs"), pa!( "mathematical_core/indexed.rs"), pa!( "mathematical_core/quotient.rs"), pa!( "mathematical_core/scheme_dsl.rs"), pa!( "mathematical_core/theorems.rs")]
     );
     FORM_REWRITE => (
         "formation:optimization-rewrite-validation",

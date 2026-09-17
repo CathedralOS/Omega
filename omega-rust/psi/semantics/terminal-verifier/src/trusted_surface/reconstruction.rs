@@ -84,7 +84,11 @@ static OWNER_OPERATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
         "fact:structural-effect-observation",
         "fact:byte-extent-length",
     ],
-    implementation: &[OPERATION_FACTS, RECONSTRUCTION],
+    implementation: &[
+        OPERATION_FACTS,
+        RECONSTRUCTION,
+        "omega-rust/psi/semantics/terminal-semantics/src/semantic_rows.rs",
+    ],
     soundness: TRUSTED,
 };
 
@@ -268,7 +272,9 @@ static FACT_GOAL_FREE_SCALAR_RESULT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     ],
     implementation: &[
         OPERATION_FACTS,
-        "omega-rust/psi/semantics/terminal-semantics/src/lib.rs",
+        "omega-rust/psi/semantics/terminal-semantics/src/semantic_rows.rs",
+        "omega-rust/psi/semantics/terminal-semantics/src/scalar_leaf_schema.rs",
+        "omega-rust/psi/semantics/terminal-semantics/src/scalar_leaf_semantics.rs",
     ],
     soundness: TRUSTED,
 };
@@ -287,7 +293,12 @@ static FACT_BOOLEAN_POLARITY: TrustedSurfaceEntry = TrustedSurfaceEntry {
         "rule:equality-transitivity",
         "rule:implication-introduction",
     ],
-    implementation: &[OP_FACTS_POLARITY],
+    implementation: &[
+        OP_FACTS_POLARITY,
+        "omega-rust/psi/semantics/terminal-semantics/src/semantic_rows.rs",
+        "omega-rust/psi/semantics/terminal-semantics/src/scalar_leaf_schema.rs",
+        "omega-rust/psi/semantics/terminal-semantics/src/scalar_leaf_semantics.rs",
+    ],
     soundness: SoundnessStatus::Proved {
         evidence: "boolean_polarity::implications is a total certifying procedure: every emitted implication carries a fixed-shape derivation (implication introduction over equality transitivity of the result-equation axiom and the predicate-denotation conversion of the implication's own normalized premise) accepted by proof-admission's certificate checker before the fact may join the premise roster; checker rejection fails generation closed",
     },
@@ -376,6 +387,7 @@ static FACT_STRUCTURAL_EFFECT_OBSERVATION: TrustedSurfaceEntry = TrustedSurfaceE
     ],
     implementation: &[
         OPERATION_FACTS,
+        "omega-rust/psi/semantics/terminal-semantics/src/semantic_rows.rs",
         "omega-rust/psi/semantics/terminal-semantics/src/structural_effect.rs",
     ],
     soundness: TRUSTED,
@@ -421,6 +433,7 @@ static FACT_PROOF_BEARING_SCALAR_GOAL: TrustedSurfaceEntry = TrustedSurfaceEntry
     dependencies: &["formation:operation-validation"],
     implementation: &[
         OPERATION_FACTS,
+        "omega-rust/psi/semantics/terminal-semantics/src/semantic_rows.rs",
         "omega-rust/psi/semantics/terminal-semantics/src/proof_bearing_scalar.rs",
         "omega-rust/psi/semantics/terminal-semantics/src/proof_bearing_scalar/canonical_goal.rs",
     ],

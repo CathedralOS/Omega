@@ -12,7 +12,11 @@ use super::{CoveredSurface, EntryBinding, LedgerFamily, SoundnessStatus, Trusted
 
 const VOCAB: &str =
     "omega-rust/psi/representations/terminal-psi/src/terminal_module/control_flow/operations.rs";
-const TS_LIB: &str = "omega-rust/psi/semantics/terminal-semantics/src/lib.rs";
+const TS_ROWS: &str = "omega-rust/psi/semantics/terminal-semantics/src/semantic_rows.rs";
+const TS_LEAF_SCHEMA: &str =
+    "omega-rust/psi/semantics/terminal-semantics/src/scalar_leaf_schema.rs";
+const TS_LEAF_SEMANTICS: &str =
+    "omega-rust/psi/semantics/terminal-semantics/src/scalar_leaf_semantics.rs";
 const TS_PBS: &str = "omega-rust/psi/semantics/terminal-semantics/src/proof_bearing_scalar.rs";
 const TS_PBS_GOAL: &str =
     "omega-rust/psi/semantics/terminal-semantics/src/proof_bearing_scalar/canonical_goal.rs";
@@ -122,19 +126,34 @@ const CALL_DEPS: &[&str] = &[
 ];
 const NO_FACT_DEPS: &[&str] = &["formation:operation-validation"];
 
-const GOAL_FREE_SITES: &[&str] = &[VOCAB, TS_LIB, OP_FACTS, VAL_OPS];
-const GOAL_FREE_BOOLEAN_SITES: &[&str] = &[VOCAB, TS_LIB, OP_FACTS, OP_FACTS_POLARITY, VAL_OPS];
-const PROOF_BEARING_SITES: &[&str] = &[VOCAB, TS_LIB, TS_PBS, TS_PBS_GOAL, OP_FACTS, VAL_OPS];
+const GOAL_FREE_SITES: &[&str] = &[
+    VOCAB,
+    TS_ROWS,
+    TS_LEAF_SCHEMA,
+    TS_LEAF_SEMANTICS,
+    OP_FACTS,
+    VAL_OPS,
+];
+const GOAL_FREE_BOOLEAN_SITES: &[&str] = &[
+    VOCAB,
+    TS_ROWS,
+    TS_LEAF_SCHEMA,
+    TS_LEAF_SEMANTICS,
+    OP_FACTS,
+    OP_FACTS_POLARITY,
+    VAL_OPS,
+];
+const PROOF_BEARING_SITES: &[&str] = &[VOCAB, TS_ROWS, TS_PBS, TS_PBS_GOAL, OP_FACTS, VAL_OPS];
 const CALL_SITES: &[&str] = &[
     VOCAB,
-    TS_LIB,
+    TS_ROWS,
     TS_CALLS,
     TV_CALLS,
     OP_FACTS,
     VAL_OPS,
     VAL_CONTRACTS,
 ];
-const NO_FACT_SITES: &[&str] = &[VOCAB, TS_LIB, OP_FACTS, VAL_OPS];
+const NO_FACT_SITES: &[&str] = &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS];
 
 // -- Structural-effect observation rows --
 
@@ -143,14 +162,14 @@ static OP_ESTABLISH_REFERENCE: TrustedSurfaceEntry = entry(
     "a validated source place whose reference the operation establishes",
     "the reference-establishment observation; it invalidates nothing and publishes no scalar equation",
     EFFECT_DEPS,
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_REFERENCES],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_REFERENCES],
 );
 static OP_RELEASE_REFERENCE: TrustedSurfaceEntry = entry(
     "operation:release-reference",
     "a validated established reference released by this operation",
     "the reference-release observation ending the reference's validity",
     EFFECT_DEPS,
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_REFERENCES],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_REFERENCES],
 );
 static OP_ESTABLISH_PRIMITIVE_LOCAL: TrustedSurfaceEntry = entry(
     "operation:establish-primitive-local",
@@ -163,7 +182,7 @@ static OP_ESTABLISH_PRIMITIVE_LOCAL: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -177,7 +196,7 @@ static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
     EFFECT_DEPS,
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -190,7 +209,14 @@ static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
     "a readable live whole root and validated field/index path to the exact nominal sum case",
     "the exact root/path/case Boolean observation; no reusable current-storage equation or payload refinement",
     EFFECT_DEPS,
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_CASE_MEMBERSHIP],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_CASE_MEMBERSHIP,
+    ],
 );
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     "operation:write-only-primitive-store",
@@ -203,7 +229,7 @@ static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -223,7 +249,7 @@ static OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -243,7 +269,7 @@ static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -264,7 +290,7 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -282,7 +308,7 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -300,7 +326,7 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE: TrustedSurfaceEntry = entry
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -317,7 +343,7 @@ static OP_ESTABLISH_SCALAR_CASE: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         OP_FACTS_SCALAR_CASE,
@@ -332,7 +358,7 @@ static OP_ESTABLISH_SCALAR_ARRAY: TrustedSurfaceEntry = entry(
     &["formation:operation-validation"],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -349,7 +375,7 @@ static OP_ESTABLISH_BYTE_SEQUENCE_LITERAL: TrustedSurfaceEntry = entry(
         "fact:byte-extent-length",
         "formation:operation-validation",
     ],
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
 );
 static OP_BYTE_SEQUENCE_LENGTH: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-length",
@@ -360,7 +386,7 @@ static OP_BYTE_SEQUENCE_LENGTH: TrustedSurfaceEntry = entry(
         "fact:byte-extent-length",
         "formation:operation-validation",
     ],
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_BYTES_LENGTH],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_BYTES_LENGTH],
 );
 static OP_BYTE_SEQUENCE_WRITE: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-write",
@@ -371,14 +397,14 @@ static OP_BYTE_SEQUENCE_WRITE: TrustedSurfaceEntry = entry(
         "invalidation:byte-sequence-write",
         "formation:operation-validation",
     ],
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_BYTES_WRITE],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_BYTES_WRITE],
 );
 static OP_BYTE_SEQUENCE_READ: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-read",
     "a validated in-bounds byte-sequence read",
     "the read observation's local equation where the schema declares one",
     EFFECT_DEPS,
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_BYTES_READ],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_BYTES_READ],
 );
 static OP_BYTE_SEQUENCE_SUBSLICE: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-subslice",
@@ -391,7 +417,7 @@ static OP_BYTE_SEQUENCE_SUBSLICE: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         TS_SE_EXTENT,
         OP_FACTS,
@@ -405,7 +431,7 @@ static OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL: TrustedSurfaceEntry = entry(
     "a validated trivial-affine local establishment",
     "the affine establishment observation; no scalar equation is published",
     EFFECT_DEPS,
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS, VAL_PARTIAL_AFFINE],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_PARTIAL_AFFINE],
 );
 static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
     "operation:establish-record",
@@ -417,7 +443,7 @@ static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         OP_FACTS_RECORD,
@@ -436,7 +462,7 @@ static OP_BOOLEAN_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -454,7 +480,7 @@ static OP_INTEGER_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_SE,
         OP_FACTS,
         VAL_OPS,
@@ -466,7 +492,7 @@ static OP_PORT_WRITE: TrustedSurfaceEntry = entry(
     "a validated port write of a byte sequence",
     "the port-write observation; no proposition facts are published",
     EFFECT_DEPS,
-    &[VOCAB, TS_LIB, TS_SE, OP_FACTS, VAL_OPS],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
 );
 
 // -- Goal-free scalar leaf rows --
@@ -706,21 +732,21 @@ static OP_IEEE_FLOAT_CONSTANT: TrustedSurfaceEntry = entry(
     "a validated IEEE float literal result under the declared float meaning",
     "no proposition facts: the vocabulary has no IEEE scalar term; validation alone carries the row",
     &["formation:operation-validation", "formation:float-meaning"],
-    &[VOCAB, TS_LIB, OP_FACTS, VAL_OPS, VAL_FLOAT],
+    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_FLOAT],
 );
 static OP_NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD: TrustedSurfaceEntry = entry(
     "operation:nearest-ieee-float-fused-multiply-add",
     "three validated same-format IEEE operands under the declared float meaning",
     "no proposition facts: the vocabulary has no IEEE scalar term; validation alone carries the row",
     &["formation:operation-validation", "formation:float-meaning"],
-    &[VOCAB, TS_LIB, OP_FACTS, VAL_OPS, VAL_FLOAT],
+    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_FLOAT],
 );
 static OP_IEEE_FLOAT_COMPARE: TrustedSurfaceEntry = entry(
     "operation:ieee-float-compare",
     "two validated same-format IEEE operands under the declared float meaning",
     "no proposition facts: the vocabulary has no IEEE scalar term; validation alone carries the row",
     &["formation:operation-validation", "formation:float-meaning"],
-    &[VOCAB, TS_LIB, OP_FACTS, VAL_OPS, VAL_FLOAT],
+    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_FLOAT],
 );
 static OP_STORE_DYNAMIC_DESCRIPTOR: TrustedSurfaceEntry = entry(
     "operation:store-dynamic-descriptor",
@@ -764,7 +790,7 @@ static OP_CALL_DYNAMIC_SCALAR: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_CALLS,
         TV_CALLS,
         OP_FACTS,
@@ -784,7 +810,7 @@ static OP_CALL_DYNAMIC_PARAMETER_SCALAR: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_CALLS,
         TV_CALLS,
         OP_FACTS,
@@ -804,7 +830,7 @@ static OP_CALL_DYNAMIC_UNIT: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_CALLS,
         TV_CALLS,
         OP_FACTS,
@@ -824,7 +850,7 @@ static OP_CALL_DYNAMIC_PARAMETER_UNIT: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_CALLS,
         TV_CALLS,
         OP_FACTS,
@@ -857,7 +883,7 @@ static OP_BOUNDARY_CALL: TrustedSurfaceEntry = entry(
     ],
     &[
         VOCAB,
-        TS_LIB,
+        TS_ROWS,
         TS_CALLS,
         TS_CALLS_VIEW,
         TV_CALLS,

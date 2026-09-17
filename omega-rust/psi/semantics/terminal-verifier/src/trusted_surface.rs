@@ -568,25 +568,57 @@ pub fn check_source_coverage(root: &Path) -> Vec<LedgerFailure> {
     for trusted_root in TRUSTED_SOURCE_ROOTS {
         collect_unclaimed_sources(&root.join(trusted_root), &mut claimed, &mut failures);
     }
+    let test_only: BTreeMap<&str, &TestOnlySource> = TEST_ONLY_SOURCES
+        .iter()
+        .map(|source| (source.path, source))
+        .collect();
     for source in TEST_ONLY_SOURCES {
-        let parent = root.join(source.parent);
-        let Ok(contents) = std::fs::read_to_string(&parent) else {
-            failures.push(LedgerFailure::TestOnlySourceNotGated { path: source.path });
-            continue;
-        };
-        let lines: Vec<&str> = contents.lines().collect();
-        let needle = format!("mod {};", source.module);
-        let gated = lines.iter().enumerate().any(|(index, line)| {
-            line.trim() == needle
-                && lines[index.saturating_sub(4)..index]
-                    .iter()
-                    .any(|prior| prior.trim() == "#[cfg(test)]")
-        });
-        if !gated {
+        if !test_source_gated(root, source, &test_only, &mut BTreeSet::new()) {
             failures.push(LedgerFailure::TestOnlySourceNotGated { path: source.path });
         }
     }
     failures
+}
+
+/// A declared test-only source is gated when its parent declares
+/// `#[cfg(test)] mod <module>;`, or when that declaring parent file is itself
+/// a gated test-only source: a `mod` inside a test-only subtree compiles only
+/// under `cfg(test)`, so gating is transitive down the module tree.
+fn test_source_gated<'a>(
+    root: &Path,
+    source: &'a TestOnlySource,
+    sources: &BTreeMap<&'static str, &'a TestOnlySource>,
+    visiting: &mut BTreeSet<&'static str>,
+) -> bool {
+    if !visiting.insert(source.path) {
+        return false;
+    }
+    let gated = (|| {
+        let Ok(contents) = std::fs::read_to_string(root.join(source.parent)) else {
+            return false;
+        };
+        let lines: Vec<&str> = contents.lines().collect();
+        let needle = format!("mod {};", source.module);
+        let mut declared = false;
+        for (index, line) in lines.iter().enumerate() {
+            if line.trim() != needle {
+                continue;
+            }
+            declared = true;
+            if lines[index.saturating_sub(4)..index]
+                .iter()
+                .any(|prior| prior.trim() == "#[cfg(test)]")
+            {
+                return true;
+            }
+        }
+        declared
+            && sources
+                .get(source.parent)
+                .is_some_and(|parent| test_source_gated(root, parent, sources, visiting))
+    })();
+    visiting.remove(source.path);
+    gated
 }
 
 fn collect_unclaimed_sources(
