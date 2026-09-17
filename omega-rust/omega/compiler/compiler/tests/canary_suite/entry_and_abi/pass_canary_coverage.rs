@@ -362,15 +362,16 @@ fn discovered_exact_native_coverage_is_consistent() {
             .source_path
             .ends_with("canary_suite/arithmetic_and_data/enum_and_comparison_canaries.rs")
     );
+    // The linear-transfer fixture was the corpus example of an ambiguous
+    // rooted owner until its second, dump-reading test was removed with the
+    // debug dumps; it is now uniquely owned and elided like every other rooted
+    // fixture. Synthetic ambiguity stays covered by the source-index unit test.
+    let linear_transfer = coverage
+        .unique_rooted_owner("ownership/linear_transfer_and_consume")
+        .expect("the linear-transfer fixture keeps exactly one rooted exact-native owner");
     assert_eq!(
-        coverage.rooted_owner_count("ownership/linear_transfer_and_consume"),
-        2,
-        "the repeated linear-transfer fixture must remain ambiguous and unelided",
-    );
-    assert!(
-        coverage
-            .unique_rooted_owner("ownership/linear_transfer_and_consume")
-            .is_none()
+        linear_transfer.test_name,
+        "backend_report_renders_ownership_summary_events"
     );
     #[cfg(windows)]
     {
