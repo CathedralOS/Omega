@@ -78,13 +78,18 @@ fn component_candidate(
 /// for a subslice the structural result preserved inside the moved
 /// operation), a byte-sequence-literal establishment (declared place, type,
 /// and payload all preserved byte-exact inside the moved operation while
-/// consumers keep spelling the same place identity), an invariant scalar
+/// consumers keep spelling the same place identity), a primitive-local
+/// establishment (declared place, type, and claim-free custody preserved
+/// byte-exact while its scalar initializer substitutes like a computation —
+/// the run orders it ahead of any `CallStructuralScalar` borrowing its
+/// root), an invariant scalar
 /// computation (an obligated variant keeps
 /// its discharged obligation byte-exact inside the moved operation), an
 /// invariant scalar-signature call whose callee's transitive effect summary
 /// proves no observable effect, crash, or suspension and whose member roster
 /// is unobservable throughout, an invariant unit-result call —
-/// `CallUnit` — whose callee passes the same effect bar, whose member roster
+/// `CallUnit` — or scalar-result structural call — `CallStructuralScalar` —
+/// whose callee passes the same effect bar, whose member roster
 /// is unobservable, whose component performs no place mutation or custody
 /// movement, and whose every shared-borrow structural argument names a root
 /// already visible at the preheader, resolved through an invariant member
@@ -327,6 +332,40 @@ pub(super) fn component_plan(
                         continue;
                     }
                     Vec::new()
+                } else if crate::validation::admissible_invariant_primitive_local(node).is_some() {
+                    // A primitive-local establishment is the byte literal's
+                    // operand-carrying sibling — and the storage
+                    // prerequisite a `CallStructuralScalar` borrows: the
+                    // cyclic eligibility fence only lets a shared-borrow
+                    // structural-scalar argument name a `let mut` local's
+                    // place, so the call relocates only when the
+                    // establishment that produced that root leaves in the
+                    // same run and the place lands in `relocating_roots`.
+                    // Establishing the cell performs work a bypassed
+                    // traversal would not, so both halves of the
+                    // non-speculative gate apply; the whole-component
+                    // custody bound then proves no member stores to the
+                    // declared place — the one condition under which a cell
+                    // initialized once still reads `value` on every
+                    // traversal — and `value` itself obeys the scalar
+                    // substitution. The declared place, structural type,
+                    // and result custody move byte-exact inside the moved
+                    // operation.
+                    if !(guaranteed_entry && guaranteed.contains(member)) {
+                        continue;
+                    }
+                    let Some(substitution) = crate::validation::invariant_primitive_local_admission(
+                        function,
+                        component,
+                        node,
+                        &relocating,
+                    ) else {
+                        continue;
+                    };
+                    if !representable(&substitution, &relocating) {
+                        continue;
+                    }
+                    substitution.into_iter().collect()
                 } else if crate::validation::admissible_invariant_scalar_call(node).is_some() {
                     // A scalar-signature call keeps the full non-speculative
                     // gate — it performs callee work a skipped traversal would
@@ -391,6 +430,40 @@ pub(super) fn component_plan(
                     }
                     argument_rewrites = rewrites;
                     substitution.into_iter().collect()
+                } else if crate::validation::admissible_invariant_structural_scalar_call(node)
+                    .is_some()
+                {
+                    // A scalar-result structural call keeps the unit call's
+                    // whole evidence surface — the non-speculative gate, the
+                    // pure transitive callee, the unobservable member roster,
+                    // the whole-component place-custody bound, and every
+                    // shared-borrow argument root landing where the run can
+                    // see it — and then its preserved scalar result joins
+                    // `relocating`, so a member node consuming the call's
+                    // return value relocates behind it in the same run.
+                    if !(guaranteed_entry && guaranteed.contains(member)) {
+                        continue;
+                    }
+                    let effects = call_effects.get_or_insert_with(|| {
+                        crate::validation::unit_effect_summaries(session.unit())
+                    });
+                    let Some((substitution, rewrites)) =
+                        crate::validation::invariant_structural_scalar_call_admission(
+                            function,
+                            component,
+                            node,
+                            &relocating,
+                            &relocating_roots,
+                            effects,
+                        )
+                    else {
+                        continue;
+                    };
+                    if !representable(&substitution, &relocating) {
+                        continue;
+                    }
+                    argument_rewrites = rewrites;
+                    substitution.into_iter().collect()
                 } else {
                     if !(guaranteed_entry && guaranteed.contains(member)) {
                         continue;
@@ -419,11 +492,11 @@ pub(super) fn component_plan(
                         }
                     }
                     [] => match &node.operation {
-                        // Only a shape-gated subslice, byte literal, or unit
-                        // call reaches relocation without a scalar definition
-                        // — any other zero- or multi-definition node cannot
-                        // pass an admission gate, so reaching one here means
-                        // the plan drifted.
+                        // Only a shape-gated subslice, byte literal,
+                        // primitive local, or unit call reaches relocation
+                        // without a scalar definition — any other zero- or
+                        // multi-definition node cannot pass an admission
+                        // gate, so reaching one here means the plan drifted.
                         AbstractOperation::ByteSequenceSubslice { result, .. }
                             if crate::validation::admissible_invariant_subslice(node).is_some() =>
                         {
@@ -433,6 +506,12 @@ pub(super) fn component_plan(
                             if crate::validation::admissible_invariant_byte_literal(node) =>
                         {
                             LoopInvariantNodeResult::LiteralPlace(*place)
+                        }
+                        AbstractOperation::EstablishPrimitiveLocal { result, .. }
+                            if crate::validation::admissible_invariant_primitive_local(node)
+                                .is_some() =>
+                        {
+                            LoopInvariantNodeResult::Structural(result.clone())
                         }
                         AbstractOperation::CallUnit { .. }
                             if crate::validation::admissible_invariant_unit_call(node)

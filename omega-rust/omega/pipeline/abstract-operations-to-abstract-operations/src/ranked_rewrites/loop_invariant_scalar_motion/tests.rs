@@ -5160,3 +5160,728 @@ fn bypassed_literal_moved_by_hand_is_rejected_by_the_freeze_fence() {
         ) if rejected_machine == machine && block == member
     ));
 }
+
+/// A cyclic `let mut` primitive local borrowed by a scalar-result structural
+/// call: `measure` is a pure callee whose shared borrow of `scratch` the
+/// cyclic eligibility fence only admits because `scratch` is a
+/// primitive-local establishment result, so the establishment and the call
+/// relocate in the same run — the local's declared place identity stays
+/// byte-exact, its initializer member parameter rebinds to the relocated `7`
+/// constant's preserved result, the call's scalar argument rebinds to
+/// `scale`'s preheader anchor, and the `measured & scale` computation chained
+/// on the call's result relocates behind it through the same run.
+const STRUCTURAL_SCALAR_CALL_SOURCE: &str = r#"
+    machine measure(value: &u64, bias: u64) -> u64 { bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let measured: u64 = measure(&scratch, scale);
+        let combined: u64 = measured & scale;
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> combined
+        }
+    }
+"#;
+
+/// Same component shape, but the call's scalar argument is the loop-carried
+/// countdown: the member parameter the call reads never resolves to a
+/// preheader representative, so the call stays inside even though its callee
+/// is pure and its borrowed root relocates — the establishment itself still
+/// leaves, because a `let mut` cell no member mutates reads its invariant
+/// initializer on every traversal whether it is created there or once in the
+/// preheader.
+const CARRIED_ARGUMENT_STRUCTURAL_CALL_SOURCE: &str = r#"
+    machine measure(value: &u64, bias: u64) -> u64 { bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let measured: u64 = measure(&scratch, remaining);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> measured
+        }
+    }
+"#;
+
+/// Same component shape, but the borrowed local's initializer is the
+/// loop-carried countdown: the establishment cannot leave (its `value`
+/// operand is not invariant), and with its producer staying inside the call's
+/// borrowed root has no run-covered landing — the call stays inside too even
+/// though its scalar argument is invariant.
+const CARRIED_LOCAL_STRUCTURAL_CALL_SOURCE: &str = r#"
+    machine measure(value: &u64, bias: u64) -> u64 { bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = remaining;
+        let measured: u64 = measure(&scratch, scale);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> measured
+        }
+    }
+"#;
+
+/// Same component shape, but a member stores to the borrowed local: the
+/// whole-component place-custody bound refuses the establishment — a cell
+/// re-initialized per traversal in the source cannot collapse into one
+/// persistent preheader cell when its contents are rewritten inside the loop
+/// — and with the establishment inside, the call's borrowed root never lands
+/// in the relocated run either.
+const STORED_LOCAL_STRUCTURAL_CALL_SOURCE: &str = r#"
+    machine measure(value: &u64, bias: u64) -> u64 { bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        scratch = scale;
+        let measured: u64 = measure(&scratch, scale);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> measured
+        }
+    }
+"#;
+
+/// Same component shape, but the callee takes `&mut`: a mutable-borrow
+/// structural argument is outside the shared-borrow whitelist, so the call
+/// stays inside — and because a member node can now mutate the local through
+/// that borrow, the place-custody bound keeps the establishment inside too.
+const MUTABLE_BORROW_STRUCTURAL_CALL_SOURCE: &str = r#"
+    machine measure_mut(value: &mut u64, bias: u64) -> u64 { value = bias; bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let measured: u64 = measure_mut(&mut scratch, scale);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> measured
+        }
+    }
+"#;
+
+/// Two primitive locals each borrowed by their own structural scalar call:
+/// both establishments and both calls relocate, and each call's borrowed
+/// root keeps its producer's declared place byte-exact. The second live
+/// place is what a forgery can claim as a substituted argument root.
+const TWO_LOCAL_STRUCTURAL_CALL_SOURCE: &str = r#"
+    machine measure(value: &u64, bias: u64) -> u64 { bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let mut other: u64 = 9;
+        let first: u64 = measure(&scratch, scale);
+        let second: u64 = measure(&other, scale);
+        let combined: u64 = first & second;
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> combined
+        }
+    }
+"#;
+
+/// The `EstablishPrimitiveLocal` node inside a member block and its block —
+/// the primitive-local counterpart of [`member_call`].
+fn member_primitive_local<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> (
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+) {
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::EstablishPrimitiveLocal { .. } = &node.operation {
+                return (block, node);
+            }
+        }
+    }
+    panic!("the primitive-local establishment lives in a member block")
+}
+
+/// The `CallStructuralScalar` node inside a member block and its block —
+/// the shared-borrow counterpart of [`member_call`]. With more than one
+/// structural call in the roster, [`member_structural_scalar_calls`] lists
+/// them all.
+fn member_structural_scalar_call<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> (
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+) {
+    let calls = member_structural_scalar_calls(function, component);
+    let [(block, node)] = calls.as_slice() else {
+        panic!("exactly one structural scalar call lives in a member block")
+    };
+    (block, node)
+}
+
+fn member_structural_scalar_calls<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> Vec<(
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+)> {
+    let mut calls = Vec::new();
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::CallStructuralScalar { .. } = &node.operation {
+                calls.push((block, node));
+            }
+        }
+    }
+    calls
+}
+
+#[test]
+fn structural_scalar_call_relocates_with_its_primitive_local() {
+    let session = lowered_session_entry(
+        STRUCTURAL_SCALAR_CALL_SOURCE,
+        "structural scalar call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (local_block, local) = member_primitive_local(function, component);
+    let (call_block, call) = member_structural_scalar_call(function, component);
+    let (local_operation, local_place, local_value) = match &local.operation {
+        AbstractOperation::EstablishPrimitiveLocal {
+            psi_operation,
+            result,
+            value,
+        } => (*psi_operation, result.place, value.value),
+        operation => panic!("the member node is a primitive-local establishment: {operation:?}"),
+    };
+    let (call_operation, scalar_argument, borrowed_place, callee) = match &call.operation {
+        AbstractOperation::CallStructuralScalar {
+            psi_operation,
+            arguments,
+            structural_arguments,
+            callee,
+            ..
+        } => (
+            *psi_operation,
+            arguments[0],
+            structural_arguments[0].place,
+            *callee,
+        ),
+        operation => panic!("the member node is a structural scalar call: {operation:?}"),
+    };
+    assert_eq!(
+        borrowed_place, local_place,
+        "the call's shared borrow names the local's declared place"
+    );
+    let scalar_anchor =
+        crate::validation::invariant_member_parameters(function, component)[&scalar_argument];
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let local_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == local_operation)
+        .expect("the primitive-local establishment is a planned relocation");
+    // The declared place relocates byte-exact inside the moved operation, so
+    // the borrowing call keeps spelling the same root — no argument rewrite.
+    let LoopInvariantNodeResult::Structural(result) = local_relocation.node().result() else {
+        panic!("the establishment relocates its structural result")
+    };
+    assert_eq!(result.place, local_place);
+    let [(initializer, representative)] = local_relocation.node().operand_rewrites() else {
+        panic!("the establishment carries exactly its initializer rewrite")
+    };
+    assert_eq!(*initializer, local_value);
+    // The initializer member parameter rebinds to the relocated `7`
+    // constant's preserved result — a producer the same run already covers.
+    let initializer_producer = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| {
+            matches!(
+                relocation.node().result(),
+                LoopInvariantNodeResult::Scalar { value, .. } if value == representative
+            )
+        })
+        .expect("the initializer's producer relocates in the same run");
+    let producer_block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == initializer_producer.node().location().block)
+        .expect("producer block exists");
+    assert!(
+        matches!(
+            producer_block.nodes
+                [usize::try_from(initializer_producer.node().location().node).unwrap()]
+            .operation,
+            AbstractOperation::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Unsigned(7),
+                ..
+            }
+        ),
+        "the initializer rebinds to the relocated `7` constant"
+    );
+
+    let call_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the structural scalar call is a planned relocation");
+    assert_eq!(
+        call_relocation.node().operand_rewrites(),
+        &[(scalar_argument, scalar_anchor)],
+        "the call's member-parameter scalar argument rebinds to its preheader anchor"
+    );
+    assert!(
+        call_relocation.node().argument_rewrites().is_empty(),
+        "the moved establishment preserves the borrowed place identity byte-exact"
+    );
+    assert_eq!(call_relocation.node().location().block, call_block.id);
+    assert_eq!(local_relocation.node().location().block, local_block.id);
+    assert_eq!(call_relocation.destination().block, entry.source);
+    assert!(
+        local_relocation.destination().node < call_relocation.destination().node,
+        "the relocated establishment lands ahead of the call borrowing its root"
+    );
+    // The `measured & scale` computation consumes the call's preserved result
+    // through a member parameter every reaching edge binds to it, so it
+    // relocates behind the call in the same candidate.
+    assert!(
+        candidate.relocations().iter().any(|relocation| {
+            let source = function
+                .blocks
+                .iter()
+                .find(|block| block.id == relocation.node().location().block)
+                .expect("source block exists");
+            matches!(
+                source.nodes[usize::try_from(relocation.node().location().node).unwrap()].operation,
+                AbstractOperation::IntegerBitwiseAnd { .. }
+            )
+        }),
+        "the computation chained on the call result relocates in the same run"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == call_relocation.destination().block)
+        .expect("destination block exists");
+    let moved_local =
+        &destination.nodes[usize::try_from(local_relocation.destination().node).unwrap()];
+    match &moved_local.operation {
+        AbstractOperation::EstablishPrimitiveLocal { result, value, .. } => {
+            assert_eq!(
+                result.place, local_place,
+                "the declared place is byte-exact"
+            );
+            assert_eq!(
+                value.value, *representative,
+                "the initializer rebinds to the relocated constant"
+            );
+        }
+        operation => panic!("relocated node keeps its establishment operation: {operation:?}"),
+    }
+    let moved_call =
+        &destination.nodes[usize::try_from(call_relocation.destination().node).unwrap()];
+    match &moved_call.operation {
+        AbstractOperation::CallStructuralScalar {
+            callee: moved_callee,
+            arguments,
+            structural_arguments,
+            ..
+        } => {
+            assert_eq!(arguments.as_slice(), &[scalar_anchor]);
+            assert_eq!(
+                structural_arguments[0].place, local_place,
+                "the borrowed root stays byte-exact"
+            );
+            assert_eq!(*moved_callee, callee, "callee identity is byte-exact");
+        }
+        operation => panic!("relocated node keeps its call operation: {operation:?}"),
+    }
+    assert_eq!(moved_call.provenance, call_relocation.node().provenance());
+    assert_eq!(moved_call.fuel, call_relocation.node().fuel());
+}
+
+#[test]
+fn structural_scalar_call_stays_when_its_scalar_argument_is_carried() {
+    let session = lowered_session_entry(
+        CARRIED_ARGUMENT_STRUCTURAL_CALL_SOURCE,
+        "carried argument structural call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    // The establishment still relocates — its `7` initializer is invariant
+    // and no member mutates the declared place — but the call's scalar
+    // argument is the carried countdown, so the call stays inside.
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .any(|relocation| relocation.node().psi_operation() == local_operation),
+        "the invariant-initialized establishment relocates"
+    );
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the call reading a carried scalar argument stays inside"
+    );
+}
+
+#[test]
+fn structural_scalar_call_stays_when_its_borrowed_local_is_carried() {
+    let session = lowered_session_entry(
+        CARRIED_LOCAL_STRUCTURAL_CALL_SOURCE,
+        "carried local structural call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    for candidate in &candidates {
+        // The carried initializer keeps the establishment inside, and with
+        // its producer inside the call's borrowed root has no run-covered
+        // landing — no structural-argument root rewrite ever appears.
+        assert!(
+            candidate
+                .relocations()
+                .iter()
+                .all(
+                    |relocation| relocation.node().psi_operation() != local_operation
+                        && relocation.node().psi_operation() != call_operation
+                ),
+            "the carried local and its borrowing call stay inside"
+        );
+        assert!(
+            candidate
+                .relocations()
+                .iter()
+                .all(|relocation| relocation.node().argument_rewrites().is_empty()),
+            "no incorrect root rebinding occurs"
+        );
+    }
+}
+
+#[test]
+fn primitive_local_and_call_stay_when_a_member_stores_to_it() {
+    let session = lowered_session_entry(
+        STORED_LOCAL_STRUCTURAL_CALL_SOURCE,
+        "stored local structural call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+    // The store lands inside the roster as `PrimitiveLocalStore`.
+    assert!(
+        component.members.iter().any(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+                .any(|node| {
+                    matches!(
+                        node.operation,
+                        AbstractOperation::PrimitiveLocalStore { .. }
+                    )
+                })
+        }),
+        "the member roster contains the local store"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    for candidate in &candidates {
+        // The whole-component place-custody bound refuses the establishment —
+        // a member rewrites the cell the source creates per traversal — and
+        // with the establishment inside, the call's borrowed root never lands
+        // in the relocated run.
+        assert!(
+            candidate
+                .relocations()
+                .iter()
+                .all(
+                    |relocation| relocation.node().psi_operation() != local_operation
+                        && relocation.node().psi_operation() != call_operation
+                ),
+            "a member store keeps the local and its borrowing call inside"
+        );
+    }
+}
+
+#[test]
+fn structural_scalar_call_stays_under_a_mutable_borrow() {
+    let session = lowered_session_entry(
+        MUTABLE_BORROW_STRUCTURAL_CALL_SOURCE,
+        "mutable borrow structural call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+    match &call.operation {
+        AbstractOperation::CallStructuralScalar {
+            structural_arguments,
+            ..
+        } => assert_eq!(
+            structural_arguments[0].access,
+            terminal_psi::StructuralAccess::MutableBorrow,
+            "the member call borrows the local mutably"
+        ),
+        operation => panic!("the member node is a structural scalar call: {operation:?}"),
+    }
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    for candidate in &candidates {
+        // A mutable-borrow argument is outside the shared-borrow whitelist,
+        // and the same member node fails the place-custody bound — so the
+        // establishment cannot collapse to a persistent cell a member mutates
+        // through the borrow either.
+        assert!(
+            candidate
+                .relocations()
+                .iter()
+                .all(
+                    |relocation| relocation.node().psi_operation() != local_operation
+                        && relocation.node().psi_operation() != call_operation
+                ),
+            "a mutable borrow keeps the local and the call inside"
+        );
+    }
+}
+
+#[test]
+fn forged_structural_scalar_call_argument_root_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        TWO_LOCAL_STRUCTURAL_CALL_SOURCE,
+        "two-local structural call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    // The two calls borrow `scratch` and `other` respectively; the first's
+    // root is the place the forgery swaps for the second live place.
+    let calls = member_structural_scalar_calls(function, component);
+    let mut call_roots = calls
+        .iter()
+        .map(|(_, node)| match &node.operation {
+            AbstractOperation::CallStructuralScalar {
+                psi_operation,
+                structural_arguments,
+                ..
+            } => (*psi_operation, structural_arguments[0].place),
+            operation => panic!("member node is a structural scalar call: {operation:?}"),
+        })
+        .collect::<Vec<_>>();
+    call_roots.sort();
+    let [(forged_operation, forged_from), (_, forged_to)] = call_roots.as_slice() else {
+        panic!("two calls borrow two distinct local places")
+    };
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == *forged_operation)
+        .expect("the structural scalar call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Swapping the borrowed root to the other live local is not a planned
+    // rewrite — the call's structural argument stays byte-exact because the
+    // run preserves its producer's declared place identity — so the
+    // seed-derived operation comparison rejects the moved node.
+    let forged = find_operation_mut(&mut unit, *forged_operation);
+    if let AbstractOperation::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut forged.operation
+    {
+        assert_eq!(structural_arguments[0].place, *forged_from);
+        structural_arguments[0].place = *forged_to;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn forged_primitive_local_initializer_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        STRUCTURAL_SCALAR_CALL_SOURCE,
+        "structural scalar call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (local_operation, local_value) = match &local.operation {
+        AbstractOperation::EstablishPrimitiveLocal {
+            psi_operation,
+            value,
+            ..
+        } => (*psi_operation, value.value),
+        operation => panic!("the member node is a primitive-local establishment: {operation:?}"),
+    };
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == local_operation)
+        .expect("the primitive-local establishment is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the moved initializer back to the member parameter skips the
+    // seed-derived substitution — the establishment's `value` operand rebinds
+    // to the relocated constant's preserved result, so the replayed
+    // operation comparison rejects the drifted spelling.
+    let forged = find_operation_mut(&mut unit, local_operation);
+    if let AbstractOperation::EstablishPrimitiveLocal { value, .. } = &mut forged.operation {
+        value.value = local_value;
+    }
+    forged.uses[0].value = local_value;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}

@@ -36,7 +36,8 @@ pub use model::{
 /// Propose every unique-preheader cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, invariant place observations, byte observations, pure-callee
-/// scalar-signature and shared-borrow unit calls, and
+/// scalar-signature, shared-borrow unit, and shared-borrow scalar-result
+/// structural calls, and
 /// side-effect-free scalar
 /// computations — including exact, saturating, and
 /// wrapping variants carrying a verifier-discharged obligation, which moves
@@ -82,7 +83,25 @@ pub use model::{
 /// each argument's root must be visible at the preheader insertion point
 /// either directly, through an invariant member structural parameter's
 /// representative (rebound on the moved node), or through a node earlier in
-/// the same run that produced the root (the argument stays byte-exact).
+/// the same run that produced the root (the argument stays byte-exact). A
+/// `CallStructuralScalar` — the same shared-borrow call returning one
+/// scalar — adds the family's third call relocation on unchanged evidence:
+/// its preserved result joins the run's relocated values, so a member node
+/// consuming the call's return relocates behind it in the same run, and the
+/// place-custody bound is also what makes the hoisted invocation return
+/// what every in-loop traversal's invocation returned.
+/// An `EstablishPrimitiveLocal` adds the family's second establishment
+/// relocation — and the storage prerequisite that lets the structural-scalar
+/// call leave at all: the cyclic eligibility fence only lets a shared-borrow
+/// structural argument name a `let mut` primitive local's place, so the call
+/// relocates only when the establishment that produced its borrowed root
+/// leaves in the same run and the run keeps the declared place identity
+/// byte-exact for the argument to keep spelling. The establishment reads one
+/// scalar initializer — admitted under the same use-site substitution a
+/// computation obeys — and the place-custody bound is what makes hoisting a
+/// *re-established-every-iteration* cell sound: only when no member stores
+/// to or moves the declared place does a cell initialized once still read
+/// `value` on every traversal.
 /// Computation,
 /// observation, and establishment
 /// relocation is non-speculative: every successor of the unique preheader's
