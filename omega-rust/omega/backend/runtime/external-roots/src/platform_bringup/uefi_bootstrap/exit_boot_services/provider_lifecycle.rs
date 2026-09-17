@@ -1,10 +1,8 @@
 //! The lifecycle-scoped exit-boot-services provider, its join and release.
 
 use crate::platform_bringup::uefi_bootstrap::exit_boot_services::{
-    BoundUefiExitBootServicesInvocation, EXIT_BOOT_SERVICES_FIELD_ALIGNMENT,
-    EXIT_BOOT_SERVICES_FIELD_OFFSET, EXIT_BOOT_SERVICES_FIELD_ORDINAL,
-    EXIT_BOOT_SERVICES_FIELD_SIZE, ExecutedUefiExitBootServicesInvocation,
-    PlannedUefiExitBootServicesInvocation, SERVICE_IDENTITY,
+    BoundUefiExitBootServicesInvocation, ExecutedUefiExitBootServicesInvocation,
+    PlannedUefiExitBootServicesInvocation,
 };
 use crate::platform_bringup::uefi_bootstrap::{
     LifecycleScopedUefiBootServicesProjection, ReleasedUefiSystemTableScope,
@@ -14,11 +12,13 @@ use crate::{
     ExternalRootDiagnostic, UefiBootServicesTableOccurrenceId, UefiImageHandleOccurrenceId,
     UefiPhysicalInvocationId,
 };
+use program_entry_plan::{
+    UEFI_EXIT_BOOT_SERVICES_SERVICE_IDENTITY, plan_uefi_os_handoff_invocation,
+};
 use std::num::NonZeroU64;
 use target::{
-    TargetProfile, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
-    UefiBootServicesNativeFieldLayout, ValidatedUefiBootServicesHeaderIntegrity,
-    plan_uefi_boot_services_native_layout,
+    TargetProfile, UefiBootServicesNativeField, UefiBootServicesNativeFieldLayout,
+    ValidatedUefiBootServicesHeaderIntegrity, plan_uefi_boot_services_native_layout,
 };
 
 /// Exact Boot Services occurrence and private `ExitBootServices` slot retained
@@ -70,7 +70,7 @@ impl LifecycleScopedUefiExitBootServicesProvider<'_, '_> {
         self.field.alignment()
     }
     pub const fn service_identity(&self) -> &'static str {
-        SERVICE_IDENTITY
+        UEFI_EXIT_BOOT_SERVICES_SERVICE_IDENTITY
     }
     pub const fn boot_services_revision(&self) -> u32 {
         self.integrity.revision()
@@ -127,8 +127,9 @@ impl std::error::Error for UefiExitBootServicesProviderJoinError<'_, '_> {}
 
 /// Join an admitted Boot Services occurrence to the exact private pointer
 /// projected from the physical System Table. `table_address` is an admitted
-/// correspondence premise; layout, header integrity, and service geometry are
-/// independently replayed before the provider carrier is formed.
+/// correspondence premise; layout, header integrity, and the service row the
+/// planned `ExitBootServices` leg names are independently replayed before
+/// the provider carrier is formed.
 pub fn join_lifecycle_scoped_uefi_exit_boot_services_provider<'system_table, 'boot_services>(
     ledger: &UefiApplicationFirmwareLedger<'system_table>,
     projection: LifecycleScopedUefiBootServicesProjection<'system_table>,
@@ -180,25 +181,28 @@ pub fn join_lifecycle_scoped_uefi_exit_boot_services_provider<'system_table, 'bo
             "UEFI Boot Services layout has no ExitBootServices row",
         );
     };
-    if (
-        field.ordinal(),
-        field.byte_offset(),
-        field.byte_size(),
-        field.alignment(),
-        field.kind(),
-    ) != (
-        EXIT_BOOT_SERVICES_FIELD_ORDINAL,
-        EXIT_BOOT_SERVICES_FIELD_OFFSET,
-        EXIT_BOOT_SERVICES_FIELD_SIZE,
-        EXIT_BOOT_SERVICES_FIELD_ALIGNMENT,
-        UefiBootServicesNativeFieldKind::FunctionPointer,
-    ) {
+    let plan = match plan_uefi_os_handoff_invocation(TargetProfile::UefiX64) {
+        Ok(plan) => plan,
+        Err(error) => {
+            return reject_join(
+                projection,
+                integrity,
+                occurrence,
+                table_address,
+                format!(
+                    "UEFI OS-handoff invocation plan rejected: {}",
+                    error.diagnostic()
+                ),
+            );
+        }
+    };
+    if field != plan.exit_boot_services().service_field() {
         return reject_join(
             projection,
             integrity,
             occurrence,
             table_address,
-            "UEFI ExitBootServices row drifted from exact target geometry",
+            "UEFI ExitBootServices row drifted from the planned handoff leg",
         );
     }
     let start = field.byte_offset() as usize;

@@ -4,23 +4,25 @@ use crate::identities::Fnv1a;
 use crate::platform_bringup::uefi_bootstrap::UefiExitBootServicesProviderResult;
 use crate::platform_bringup::uefi_bootstrap::exit_boot_services::invocation_planning::UefiExitBootServicesFunction;
 use crate::platform_bringup::uefi_bootstrap::exit_boot_services::{
-    BoundUefiExitBootServicesInvocation, EFI_INVALID_PARAMETER, EFI_SUCCESS,
-    PlannedUefiExitBootServicesInvocation, matches_exact_uefi_x64_call_plan,
-    validate_exact_call_shape,
+    BoundUefiExitBootServicesInvocation, PlannedUefiExitBootServicesInvocation,
 };
 use crate::{
     ExternalRootDiagnostic, UefiExitBootServicesReceiptId, UefiImageHandleOccurrenceId,
     UefiMemoryMapKeyId, UefiPhysicalInvocationId,
 };
+use program_entry_plan::UefiOsHandoffStatusRole;
 use std::ffi::c_void;
 
-/// Closed interpretation of the exact returned `EFI_STATUS`. Unknown values
-/// remain observable as unsupported execution results and retain their
-/// custody for release.
+/// Closed interpretation of the exact returned `EFI_STATUS`, derived from the
+/// custody role the retained `ExitBootServices` leg assigns the code. Codes
+/// outside the leg's table remain observable as unsupported execution
+/// results and retain their custody for release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UefiExitBootServicesAttemptStatus {
+    /// The leg's `TransferNonReturning` row: Boot Services are consumed.
     Success,
-    InvalidParameter,
+    /// The leg's `RetryStaleMapKey` row: the bound key went stale.
+    StaleMapKey,
     Unknown,
 }
 
@@ -59,11 +61,22 @@ impl ExecutedUefiExitBootServicesInvocation<'_, '_> {
     pub const fn status_code(&self) -> u64 {
         self.status_code
     }
-    pub const fn status(&self) -> UefiExitBootServicesAttemptStatus {
-        match self.status_code {
-            EFI_SUCCESS => UefiExitBootServicesAttemptStatus::Success,
-            EFI_INVALID_PARAMETER => UefiExitBootServicesAttemptStatus::InvalidParameter,
-            _ => UefiExitBootServicesAttemptStatus::Unknown,
+    pub fn status(&self) -> UefiExitBootServicesAttemptStatus {
+        match self
+            .invocation
+            .invocation
+            .plan
+            .status_role(self.status_code)
+        {
+            Some(UefiOsHandoffStatusRole::TransferNonReturning) => {
+                UefiExitBootServicesAttemptStatus::Success
+            }
+            Some(UefiOsHandoffStatusRole::RetryStaleMapKey) => {
+                UefiExitBootServicesAttemptStatus::StaleMapKey
+            }
+            // The exit leg's closed table carries only the two rows above; an
+            // acquisition-side or rejecting role here is outside its contract.
+            Some(_) | None => UefiExitBootServicesAttemptStatus::Unknown,
         }
     }
 }
@@ -116,9 +129,7 @@ pub unsafe fn execute_uefi_exit_boot_services<'system_table, 'boot_services>(
     ExecutedUefiExitBootServicesInvocation<'system_table, 'boot_services>,
     Box<UefiExitBootServicesExecutionError<'system_table, 'boot_services>>,
 > {
-    if !matches_exact_uefi_x64_call_plan(&invocation.invocation.plan)
-        || validate_exact_call_shape(invocation.invocation.plan.plan()).is_err()
-    {
+    if !invocation.invocation.retains_exact_plan() {
         return Err(Box::new(UefiExitBootServicesExecutionError {
             invocation,
             diagnostic: ExternalRootDiagnostic(
@@ -163,16 +174,17 @@ pub unsafe fn execute_uefi_exit_boot_services<'system_table, 'boot_services>(
 /// admission and only the provider result remains.
 #[must_use = "UEFI ExitBootServices attempt outcome must feed the handoff ledger or release custody"]
 pub enum UefiExitBootServicesAttemptOutcome<'system_table, 'boot_services> {
-    /// `EFI_INVALID_PARAMETER`: the map/key pair is stale. Provider custody
-    /// returns for a fresh acquire and bind; the result feeds the ledger's
-    /// stale-key transition.
+    /// The leg's `RetryStaleMapKey` row: the map/key pair is stale. Provider
+    /// custody returns for a fresh acquire and bind; the result feeds the
+    /// ledger's stale-key transition.
     Retry {
         invocation: PlannedUefiExitBootServicesInvocation<'system_table, 'boot_services>,
         status_code: u64,
         result: UefiExitBootServicesProviderResult,
     },
-    /// `EFI_SUCCESS`: boot-scoped services were consumed. The result feeds
-    /// the ledger's completing transition; no provider custody survives.
+    /// The leg's `TransferNonReturning` row: boot-scoped services were
+    /// consumed. The result feeds the ledger's completing transition; no
+    /// provider custody survives.
     Exited {
         status_code: u64,
         result: UefiExitBootServicesProviderResult,
@@ -248,7 +260,7 @@ pub fn admit_uefi_exit_boot_services_execution<'system_table, 'boot_services>(
 > {
     let status_code = execution.status_code;
     match execution.status() {
-        UefiExitBootServicesAttemptStatus::InvalidParameter => {
+        UefiExitBootServicesAttemptStatus::StaleMapKey => {
             Ok(UefiExitBootServicesAttemptOutcome::Retry {
                 invocation: execution.invocation.invocation,
                 status_code,

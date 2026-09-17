@@ -4,25 +4,31 @@ use crate::identities::Fnv1a;
 use crate::platform_bringup::uefi_bootstrap::PlannedUefiExitBootServicesInvocation;
 use crate::platform_bringup::uefi_bootstrap::get_memory_map::invocation_planning::UefiGetMemoryMapFunction;
 use crate::platform_bringup::uefi_bootstrap::get_memory_map::{
-    BoundUefiGetMemoryMapInvocation, EFI_BUFFER_TOO_SMALL, EFI_INVALID_PARAMETER, EFI_SUCCESS,
-    MIN_MEMORY_DESCRIPTOR_BYTES, PlannedUefiGetMemoryMapInvocation, UefiMemoryMapBuffer,
-    matches_exact_uefi_x64_call_plan, validate_exact_get_memory_map_call_shape,
+    BoundUefiGetMemoryMapInvocation, MIN_MEMORY_DESCRIPTOR_BYTES,
+    PlannedUefiGetMemoryMapInvocation, UefiMemoryMapBuffer,
 };
 use crate::{
     ExternalRootDiagnostic, UefiFirmwareSessionId, UefiImageHandleOccurrenceId, UefiMemoryMapKeyId,
     UefiMemoryMapSnapshotId, UefiPhysicalInvocationId,
 };
+use program_entry_plan::UefiOsHandoffStatusRole;
 use std::ffi::c_void;
 use std::num::NonZeroU64;
 
-/// Closed interpretation of the exact returned `EFI_STATUS`. `BufferTooSmall`
-/// is the grow-and-retry outcome; unknown values stay observable as
-/// unsupported execution results and retain their custody for release.
+/// Closed interpretation of the exact returned `EFI_STATUS`, derived from the
+/// custody role the retained `GetMemoryMap` leg assigns the code.
+/// `BufferTooSmall` is the grow-and-retry outcome; `Rejected` is a
+/// closed-table row with no acquisition role; codes outside the leg's table
+/// stay observable as unsupported execution results. Both rejecting shapes
+/// retain their custody for release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UefiGetMemoryMapAttemptStatus {
+    /// The leg's `MapAcquired` row.
     Success,
+    /// The leg's `GrowMapBuffer` row.
     BufferTooSmall,
-    InvalidParameter,
+    /// The leg's `Reject` row.
+    Rejected,
     Unknown,
 }
 
@@ -67,12 +73,21 @@ impl ExecutedUefiGetMemoryMapInvocation<'_, '_, '_, '_> {
     pub const fn status_code(&self) -> u64 {
         self.status_code
     }
-    pub const fn status(&self) -> UefiGetMemoryMapAttemptStatus {
-        match self.status_code {
-            EFI_SUCCESS => UefiGetMemoryMapAttemptStatus::Success,
-            EFI_BUFFER_TOO_SMALL => UefiGetMemoryMapAttemptStatus::BufferTooSmall,
-            EFI_INVALID_PARAMETER => UefiGetMemoryMapAttemptStatus::InvalidParameter,
-            _ => UefiGetMemoryMapAttemptStatus::Unknown,
+    pub fn status(&self) -> UefiGetMemoryMapAttemptStatus {
+        match self
+            .invocation
+            .invocation
+            .plan
+            .status_role(self.status_code)
+        {
+            Some(UefiOsHandoffStatusRole::MapAcquired) => UefiGetMemoryMapAttemptStatus::Success,
+            Some(UefiOsHandoffStatusRole::GrowMapBuffer) => {
+                UefiGetMemoryMapAttemptStatus::BufferTooSmall
+            }
+            Some(UefiOsHandoffStatusRole::Reject) => UefiGetMemoryMapAttemptStatus::Rejected,
+            // The acquisition leg's closed table carries only the three rows
+            // above; an exit-side role here is outside its contract.
+            Some(_) | None => UefiGetMemoryMapAttemptStatus::Unknown,
         }
     }
 }
@@ -151,9 +166,7 @@ pub unsafe fn execute_uefi_get_memory_map<'pending_exit, 'system_table, 'boot_se
     ExecutedUefiGetMemoryMapInvocation<'pending_exit, 'system_table, 'boot_services, 'buffer>,
     Box<UefiGetMemoryMapExecutionError<'pending_exit, 'system_table, 'boot_services, 'buffer>>,
 > {
-    if !matches_exact_uefi_x64_call_plan(&invocation.invocation.plan)
-        || validate_exact_get_memory_map_call_shape(invocation.invocation.plan.plan()).is_err()
-    {
+    if !invocation.invocation.retains_exact_plan() {
         return Err(Box::new(UefiGetMemoryMapExecutionError {
             invocation,
             diagnostic: ExternalRootDiagnostic(
@@ -468,9 +481,10 @@ pub fn admit_uefi_get_memory_map_execution<
                 required_map_bytes,
             })
         }
-        UefiGetMemoryMapAttemptStatus::InvalidParameter => {
-            reject(execution, "UEFI GetMemoryMap returned InvalidParameter")
-        }
+        UefiGetMemoryMapAttemptStatus::Rejected => reject(
+            execution,
+            "UEFI GetMemoryMap returned a rejecting status from its closed target table",
+        ),
         UefiGetMemoryMapAttemptStatus::Unknown => reject(
             execution,
             "UEFI GetMemoryMap returned a status outside its closed target table",

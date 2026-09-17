@@ -1,14 +1,15 @@
 //! UEFI get-memory-map tests.
 
 use super::{
-    EFI_BUFFER_TOO_SMALL, EFI_INVALID_PARAMETER, EFI_STATUS_ERROR_BIT, EFI_SUCCESS,
-    ExternalRootDiagnostic, GET_MEMORY_MAP_FIELD_OFFSET, PlannedUefiExitBootServicesInvocation,
     UefiGetMemoryMapAttemptOutcome, UefiMemoryMapAcquisition, UefiMemoryMapBuffer,
     admit_uefi_get_memory_map_execution, bind_uefi_get_memory_map_invocation,
     execute_uefi_get_memory_map, join_lifecycle_scoped_uefi_get_memory_map_provider,
     prepare_uefi_get_memory_map_invocation,
 };
-use crate::platform_bringup::uefi_bootstrap::UefiApplicationFirmwareLedger;
+use crate::ExternalRootDiagnostic;
+use crate::platform_bringup::uefi_bootstrap::{
+    PlannedUefiExitBootServicesInvocation, UefiApplicationFirmwareLedger,
+};
 use crate::{
     LifecycleScopedUefiBootServicesProjection, UefiApplicationBootstrapLedgerId,
     UefiBootServicesPhaseLeaseId, UefiErrorStatus, UefiExitBootServicesAttemptOutcome,
@@ -41,6 +42,13 @@ use target::{
     validate_uefi_boot_services_occurrence, validate_uefi_system_table_occurrence,
 };
 use target::{TargetProfile, UefiBootServicesNativeField};
+
+// The fabricated firmware answers with raw `EFI_STATUS` codes; the edge under
+// test classifies them only through the planned leg's status table.
+const EFI_STATUS_ERROR_BIT: u64 = 1_u64 << 63;
+const EFI_SUCCESS: u64 = 0;
+const EFI_INVALID_PARAMETER: u64 = EFI_STATUS_ERROR_BIT | 2;
+const EFI_BUFFER_TOO_SMALL: u64 = EFI_STATUS_ERROR_BIT | 5;
 
 static FIRMWARE_TEST_LOCK: Mutex<()> = Mutex::new(());
 static FAKE_GET_STATUS: AtomicU64 = AtomicU64::new(0);
@@ -144,6 +152,10 @@ fn table(signature: u64, size: usize, pointer_offset: usize, pointer: u64) -> Ve
 /// GetMemoryMap at its exact offset and ExitBootServices at its own.
 fn boot_table(get_memory_map: u64, exit_boot_services: u64) -> Vec<u8> {
     let layout = plan_uefi_boot_services_native_layout(TargetProfile::UefiX64).unwrap();
+    let get_offset = layout
+        .field_layout(UefiBootServicesNativeField::GetMemoryMap)
+        .unwrap()
+        .byte_offset() as usize;
     let exit_offset = layout
         .field_layout(UefiBootServicesNativeField::ExitBootServices)
         .unwrap()
@@ -151,7 +163,7 @@ fn boot_table(get_memory_map: u64, exit_boot_services: u64) -> Vec<u8> {
     let mut bytes = table(
         UEFI_BOOT_SERVICES_SIGNATURE,
         376,
-        GET_MEMORY_MAP_FIELD_OFFSET as usize,
+        get_offset,
         get_memory_map,
     );
     bytes[exit_offset..exit_offset + 8].copy_from_slice(&exit_boot_services.to_le_bytes());
@@ -618,8 +630,8 @@ fn rejected_and_malformed_statuses_retain_executed_custody() {
     // reject with executed custody; each release returns the identical
     // pending-exit borrow and the buffer.
     for (status, fragment) in [
-        (EFI_INVALID_PARAMETER, "InvalidParameter"),
-        (EFI_STATUS_ERROR_BIT | 9, "closed target table"),
+        (EFI_INVALID_PARAMETER, "rejecting status"),
+        (EFI_STATUS_ERROR_BIT | 9, "outside its closed target table"),
     ] {
         FAKE_GET_STATUS.store(status, Ordering::SeqCst);
         let provider =

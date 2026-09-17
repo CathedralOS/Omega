@@ -2,26 +2,25 @@
 
 use crate::platform_bringup::uefi_bootstrap::PlannedUefiExitBootServicesInvocation;
 use crate::platform_bringup::uefi_bootstrap::get_memory_map::{
-    GET_MEMORY_MAP_FIELD_ALIGNMENT, GET_MEMORY_MAP_FIELD_OFFSET, GET_MEMORY_MAP_FIELD_ORDINAL,
-    GET_MEMORY_MAP_FIELD_SIZE, LifecycleScopedUefiGetMemoryMapProvider, UefiMemoryMapBuffer,
-    evaluate_get_memory_map_plan, matches_exact_uefi_x64_call_plan, pending_exit_plan_is_exact,
-    validate_exact_get_memory_map_call_shape,
+    LifecycleScopedUefiGetMemoryMapProvider, UefiMemoryMapBuffer,
 };
 use crate::{ExternalRootDiagnostic, UefiImageHandleOccurrenceId, UefiPhysicalInvocationId};
-use calling_conventions::{BoundaryEntryPlan, MachineRegister, ValidatedBoundaryEntryPlan};
+use calling_conventions::MachineRegister;
+use program_entry_plan::{UefiOsHandoffLegPlan, plan_uefi_os_handoff_invocation};
 use std::ffi::c_void;
 use std::num::NonZeroU64;
-use target::UefiBootServicesNativeFieldKind;
+use target::TargetProfile;
 
 /// One exact five-operand acquisition plan joined to the live provider
-/// carrier. The retained plan fixes the RCX/RDX/R8/R9 operand registers, the
-/// stack-resident descriptor-version slot, RAX status, shadow space, and
-/// clobbers without performing the firmware call.
+/// carrier. The retained `GetMemoryMap` leg plan fixes the RCX/RDX/R8/R9
+/// operand registers, the stack-resident descriptor-version slot, RAX
+/// status, shadow space, clobbers, and the closed status table without
+/// performing the firmware call.
 #[must_use = "planned UEFI GetMemoryMap invocation retains provider and pending-exit custody"]
 pub struct PlannedUefiGetMemoryMapInvocation<'pending_exit, 'system_table, 'boot_services> {
     pub(crate) provider:
         LifecycleScopedUefiGetMemoryMapProvider<'pending_exit, 'system_table, 'boot_services>,
-    pub(super) plan: ValidatedBoundaryEntryPlan,
+    pub(super) plan: UefiOsHandoffLegPlan,
 }
 
 impl std::fmt::Debug for PlannedUefiGetMemoryMapInvocation<'_, '_, '_> {
@@ -47,16 +46,27 @@ impl PlannedUefiGetMemoryMapInvocation<'_, '_, '_> {
         self.provider.image_handle_occurrence()
     }
     pub const fn service_identity(&self) -> &'static str {
-        self.provider.service_identity()
+        self.plan.service_identity()
     }
-    pub const fn plan(&self) -> &BoundaryEntryPlan {
-        self.plan.plan()
+    pub const fn plan(&self) -> &UefiOsHandoffLegPlan {
+        &self.plan
     }
-    pub fn calling_plan_report_fingerprint(&self) -> u64 {
-        self.plan.contract_report_fingerprint()
+    pub const fn calling_plan_report_fingerprint(&self) -> u64 {
+        self.plan.calling_plan_report_fingerprint()
     }
-    pub fn calling_plan_commitment(&self) -> [u8; 32] {
-        self.plan.contract_commitment_digest()
+    pub const fn calling_plan_commitment(&self) -> [u8; 32] {
+        *self.plan.calling_plan_commitment()
+    }
+
+    /// Replay that the retained leg is still the canonical `GetMemoryMap`
+    /// leg for this provider's sealed service row and that the borrowed
+    /// pending exit still retains its own exact leg. Every custody
+    /// transition after preparation gates on this before touching an
+    /// operand.
+    pub(super) fn retains_exact_plan(&self) -> bool {
+        self.plan.matches_exact_uefi_x64_plan()
+            && self.plan.service_field() == self.provider.field
+            && self.provider.pending_exit.retains_exact_plan()
     }
 }
 
@@ -102,31 +112,19 @@ impl std::fmt::Display for UefiGetMemoryMapInvocationPlanningError<'_, '_, '_> {
 impl std::error::Error for UefiGetMemoryMapInvocationPlanningError<'_, '_, '_> {}
 
 /// Consume the live provider into the exact target-authored GetMemoryMap call
-/// shape. The evaluated plan fixes the four register operands and the
-/// stack-resident descriptor-version operand under the Microsoft-x64 policy;
-/// its exactness is replayed here and at every later custody transition.
+/// shape. The `GetMemoryMap` leg of the planned OS-handoff invocation fixes
+/// the four register operands, the stack-resident descriptor-version operand,
+/// RAX status, and the closed status table under the Microsoft-x64 policy;
+/// the leg must replay exact and name the provider's sealed service row, the
+/// borrowed pending exit must still retain its own exact leg, and every later
+/// custody transition replays the same gate.
 pub fn prepare_uefi_get_memory_map_invocation<'pending_exit, 'system_table, 'boot_services>(
     provider: LifecycleScopedUefiGetMemoryMapProvider<'pending_exit, 'system_table, 'boot_services>,
 ) -> Result<
     PlannedUefiGetMemoryMapInvocation<'pending_exit, 'system_table, 'boot_services>,
     Box<UefiGetMemoryMapInvocationPlanningError<'pending_exit, 'system_table, 'boot_services>>,
 > {
-    let plan = match evaluate_get_memory_map_plan() {
-        Ok(plan) => plan,
-        Err(diagnostic) => {
-            return Err(Box::new(UefiGetMemoryMapInvocationPlanningError {
-                provider,
-                diagnostic,
-            }));
-        }
-    };
-    if let Err(diagnostic) = validate_exact_get_memory_map_call_shape(plan.plan()) {
-        return Err(Box::new(UefiGetMemoryMapInvocationPlanningError {
-            provider,
-            diagnostic,
-        }));
-    }
-    if !pending_exit_plan_is_exact(provider.pending_exit) {
+    if !provider.pending_exit.retains_exact_plan() {
         return Err(Box::new(UefiGetMemoryMapInvocationPlanningError {
             provider,
             diagnostic: ExternalRootDiagnostic(
@@ -135,27 +133,31 @@ pub fn prepare_uefi_get_memory_map_invocation<'pending_exit, 'system_table, 'boo
             ),
         }));
     }
-    if (
-        provider.field.ordinal(),
-        provider.field.byte_offset(),
-        provider.field.byte_size(),
-        provider.field.alignment(),
-        provider.field.kind(),
-    ) != (
-        GET_MEMORY_MAP_FIELD_ORDINAL,
-        GET_MEMORY_MAP_FIELD_OFFSET,
-        GET_MEMORY_MAP_FIELD_SIZE,
-        GET_MEMORY_MAP_FIELD_ALIGNMENT,
-        UefiBootServicesNativeFieldKind::FunctionPointer,
-    ) {
+    let plan = match plan_uefi_os_handoff_invocation(TargetProfile::UefiX64) {
+        Ok(plan) => plan,
+        Err(error) => {
+            return Err(Box::new(UefiGetMemoryMapInvocationPlanningError {
+                provider,
+                diagnostic: ExternalRootDiagnostic(format!(
+                    "UEFI OS-handoff invocation plan rejected: {}",
+                    error.diagnostic()
+                )),
+            }));
+        }
+    };
+    let leg = plan.get_memory_map().clone();
+    if !plan.matches_exact_uefi_x64_plan() || leg.service_field() != provider.field {
         return Err(Box::new(UefiGetMemoryMapInvocationPlanningError {
             provider,
             diagnostic: ExternalRootDiagnostic(
-                "UEFI GetMemoryMap provider service row drifted before planning".into(),
+                "UEFI GetMemoryMap invocation plan drifted from its lifecycle provider".into(),
             ),
         }));
     }
-    Ok(PlannedUefiGetMemoryMapInvocation { provider, plan })
+    Ok(PlannedUefiGetMemoryMapInvocation {
+        provider,
+        plan: leg,
+    })
 }
 
 /// Concrete, still-uninvoked operands for one exact map acquisition: the
@@ -202,7 +204,7 @@ impl BoundUefiGetMemoryMapInvocation<'_, '_, '_, '_> {
             MachineRegister::X86R9,
         ]
     }
-    pub fn calling_plan_report_fingerprint(&self) -> u64 {
+    pub const fn calling_plan_report_fingerprint(&self) -> u64 {
         self.invocation.calling_plan_report_fingerprint()
     }
 }
@@ -291,33 +293,11 @@ pub fn bind_uefi_get_memory_map_invocation<
             diagnostic: ExternalRootDiagnostic(message.into()),
         }))
     };
-    if !matches_exact_uefi_x64_call_plan(&invocation.plan)
-        || validate_exact_get_memory_map_call_shape(invocation.plan.plan()).is_err()
-        || !pending_exit_plan_is_exact(invocation.provider.pending_exit)
-    {
+    if !invocation.retains_exact_plan() {
         return reject(
             invocation,
             buffer,
-            "UEFI GetMemoryMap operand binding plan drifted from its exact call shape",
-        );
-    }
-    if (
-        invocation.provider.field.ordinal(),
-        invocation.provider.field.byte_offset(),
-        invocation.provider.field.byte_size(),
-        invocation.provider.field.alignment(),
-        invocation.provider.field.kind(),
-    ) != (
-        GET_MEMORY_MAP_FIELD_ORDINAL,
-        GET_MEMORY_MAP_FIELD_OFFSET,
-        GET_MEMORY_MAP_FIELD_SIZE,
-        GET_MEMORY_MAP_FIELD_ALIGNMENT,
-        UefiBootServicesNativeFieldKind::FunctionPointer,
-    ) {
-        return reject(
-            invocation,
-            buffer,
-            "UEFI GetMemoryMap provider service row drifted before binding",
+            "UEFI GetMemoryMap operand binding plan drifted from its lifecycle provider",
         );
     }
     // Re-arm the in-out and output cells so every post-call value is sealed

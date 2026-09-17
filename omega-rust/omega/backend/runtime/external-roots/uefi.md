@@ -12,7 +12,18 @@ map/exit cycle and returns complete linear custody on stale keys or exhaustion.
 across the `get_memory_map` and `exit_boot_services` provider edges in the only
 legal order — acquire the freshest map, bind its key into the exit attempt,
 execute and admit, then apply — returning complete live custody on every
-rejection. That state model alone does not qualify final-map physical memory.
+rejection. Both edges consume the `program-entry-plan` OS-handoff invocation
+plan rather than local target constants: each planned invocation retains its
+`GetMemoryMap` or `ExitBootServices` leg (service-table row, Microsoft-x64
+call shape, closed status table with custody roles), the join checks the
+sealed row against that leg, preparation and every later custody transition
+replay the retained leg against a freshly derived plan and the provider's row,
+status classification reads the leg's roles, and the ledger admits an
+exhaustion status only through the plan's error predicate. That state model
+alone does not qualify final-map physical memory, and the generated
+custody-transfer adapter that `source/library/std/targets/uefi_x86_64/handoff.omg`
+names as its realization is not built: the authored surface stays planned and
+non-invoked.
 
 ## Target evidence and execution
 

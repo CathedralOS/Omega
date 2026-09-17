@@ -17,6 +17,7 @@ use crate::{
 
 use super::UefiMemoryMapAcquisition;
 use crate::platform_bringup::uefi_bootstrap::firmware_ledger::claim_ledger_authority;
+use program_entry_plan::uefi_os_handoff_exhaustion_requires_error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum UefiOsHandoffPhase {
@@ -31,10 +32,12 @@ enum UefiOsHandoffPhase {
 pub struct UefiErrorStatus(u64);
 
 impl UefiErrorStatus {
-    /// UEFI x64 error statuses have the high bit set; success and warning
-    /// values cannot become the exhaustion result.
+    /// The planned OS-handoff invocation admits only a target-authored EFI
+    /// error as the exhaustion result; success and warning values are
+    /// rejected here, so `UefiOsHandoffLedger::new` receives an already
+    /// gated carrier.
     pub fn from_target_status(status: u64) -> Result<Self, ExternalRootDiagnostic> {
-        if status & (1_u64 << 63) == 0 {
+        if !uefi_os_handoff_exhaustion_requires_error(status) {
             return Err(ExternalRootDiagnostic(
                 "UEFI OS-handoff exhaustion status must be a target-authored EFI error".into(),
             ));

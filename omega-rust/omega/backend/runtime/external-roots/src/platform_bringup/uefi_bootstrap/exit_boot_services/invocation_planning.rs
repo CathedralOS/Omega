@@ -1,28 +1,25 @@
 //! Planned and bound exit-boot-services invocations and their errors.
 
 use crate::platform_bringup::uefi_bootstrap::UefiOsHandoffMapAcquired;
-use crate::platform_bringup::uefi_bootstrap::exit_boot_services::{
-    EXIT_BOOT_SERVICES_FIELD_ALIGNMENT, EXIT_BOOT_SERVICES_FIELD_OFFSET,
-    EXIT_BOOT_SERVICES_FIELD_ORDINAL, EXIT_BOOT_SERVICES_FIELD_SIZE,
-    LifecycleScopedUefiExitBootServicesProvider, evaluate_exit_boot_services_plan,
-    matches_exact_uefi_x64_call_plan, validate_exact_call_shape,
-};
+use crate::platform_bringup::uefi_bootstrap::exit_boot_services::LifecycleScopedUefiExitBootServicesProvider;
 use crate::{
     ExternalRootDiagnostic, UefiImageHandleOccurrenceId, UefiMemoryMapKeyId, UefiOsHandoffId,
     UefiPhysicalInvocationId,
 };
-use calling_conventions::{BoundaryEntryPlan, MachineRegister, ValidatedBoundaryEntryPlan};
+use calling_conventions::MachineRegister;
+use program_entry_plan::{UefiOsHandoffLegPlan, plan_uefi_os_handoff_invocation};
 use std::ffi::c_void;
 use std::num::NonZeroU64;
-use target::UefiBootServicesNativeFieldKind;
+use target::TargetProfile;
 
 /// One exact two-operand invocation joined to the live provider carrier. The
-/// retained plan fixes RCX/RDX inputs, RAX status, shadow space, and clobbers
-/// without performing the firmware call.
+/// retained `ExitBootServices` leg plan fixes RCX/RDX inputs, RAX status,
+/// shadow space, clobbers, and the closed status table without performing
+/// the firmware call.
 #[must_use = "planned UEFI ExitBootServices invocation retains provider and physical custody"]
 pub struct PlannedUefiExitBootServicesInvocation<'system_table, 'boot_services> {
     pub(crate) provider: LifecycleScopedUefiExitBootServicesProvider<'system_table, 'boot_services>,
-    pub(crate) plan: ValidatedBoundaryEntryPlan,
+    pub(crate) plan: UefiOsHandoffLegPlan,
 }
 
 impl std::fmt::Debug for PlannedUefiExitBootServicesInvocation<'_, '_> {
@@ -48,16 +45,23 @@ impl PlannedUefiExitBootServicesInvocation<'_, '_> {
         self.provider.image_handle_occurrence()
     }
     pub const fn service_identity(&self) -> &'static str {
-        self.provider.service_identity()
+        self.plan.service_identity()
     }
-    pub const fn plan(&self) -> &BoundaryEntryPlan {
-        self.plan.plan()
+    pub const fn plan(&self) -> &UefiOsHandoffLegPlan {
+        &self.plan
     }
-    pub fn calling_plan_report_fingerprint(&self) -> u64 {
-        self.plan.contract_report_fingerprint()
+    pub const fn calling_plan_report_fingerprint(&self) -> u64 {
+        self.plan.calling_plan_report_fingerprint()
     }
-    pub fn calling_plan_commitment(&self) -> [u8; 32] {
-        self.plan.contract_commitment_digest()
+    pub const fn calling_plan_commitment(&self) -> [u8; 32] {
+        *self.plan.calling_plan_commitment()
+    }
+
+    /// Replay that the retained leg is still the canonical `ExitBootServices`
+    /// leg for this provider's sealed service row. Every custody transition
+    /// after preparation gates on this before touching an operand.
+    pub(crate) fn retains_exact_plan(&self) -> bool {
+        self.plan.matches_exact_uefi_x64_plan() && self.plan.service_field() == self.provider.field
     }
 }
 
@@ -93,51 +97,42 @@ impl std::fmt::Display for UefiExitBootServicesInvocationPlanningError<'_, '_> {
 impl std::error::Error for UefiExitBootServicesInvocationPlanningError<'_, '_> {}
 
 /// Consume the live provider into the exact target-authored ExitBootServices
-/// call shape. The evaluated plan fixes the RCX/RDX operand placement and RAX
-/// status under the Microsoft-x64 policy; its exactness is replayed here and
-/// at every later custody transition.
+/// call shape. The `ExitBootServices` leg of the planned OS-handoff
+/// invocation fixes the RCX/RDX operand placement, RAX status, and closed
+/// status table under the Microsoft-x64 policy; the leg must replay exact
+/// and name the provider's sealed service row, and every later custody
+/// transition replays the same gate.
 pub fn prepare_uefi_exit_boot_services_invocation<'system_table, 'boot_services>(
     provider: LifecycleScopedUefiExitBootServicesProvider<'system_table, 'boot_services>,
 ) -> Result<
     PlannedUefiExitBootServicesInvocation<'system_table, 'boot_services>,
     Box<UefiExitBootServicesInvocationPlanningError<'system_table, 'boot_services>>,
 > {
-    let plan = match evaluate_exit_boot_services_plan() {
+    let plan = match plan_uefi_os_handoff_invocation(TargetProfile::UefiX64) {
         Ok(plan) => plan,
-        Err(diagnostic) => {
+        Err(error) => {
             return Err(Box::new(UefiExitBootServicesInvocationPlanningError {
                 provider,
-                diagnostic,
+                diagnostic: ExternalRootDiagnostic(format!(
+                    "UEFI OS-handoff invocation plan rejected: {}",
+                    error.diagnostic()
+                )),
             }));
         }
     };
-    if let Err(diagnostic) = validate_exact_call_shape(plan.plan()) {
-        return Err(Box::new(UefiExitBootServicesInvocationPlanningError {
-            provider,
-            diagnostic,
-        }));
-    }
-    if (
-        provider.field.ordinal(),
-        provider.field.byte_offset(),
-        provider.field.byte_size(),
-        provider.field.alignment(),
-        provider.field.kind(),
-    ) != (
-        EXIT_BOOT_SERVICES_FIELD_ORDINAL,
-        EXIT_BOOT_SERVICES_FIELD_OFFSET,
-        EXIT_BOOT_SERVICES_FIELD_SIZE,
-        EXIT_BOOT_SERVICES_FIELD_ALIGNMENT,
-        UefiBootServicesNativeFieldKind::FunctionPointer,
-    ) {
+    let leg = plan.exit_boot_services().clone();
+    if !plan.matches_exact_uefi_x64_plan() || leg.service_field() != provider.field {
         return Err(Box::new(UefiExitBootServicesInvocationPlanningError {
             provider,
             diagnostic: ExternalRootDiagnostic(
-                "UEFI ExitBootServices provider service row drifted before planning".into(),
+                "UEFI ExitBootServices invocation plan drifted from its lifecycle provider".into(),
             ),
         }));
     }
-    Ok(PlannedUefiExitBootServicesInvocation { provider, plan })
+    Ok(PlannedUefiExitBootServicesInvocation {
+        provider,
+        plan: leg,
+    })
 }
 
 /// Concrete, still-uninvoked operands for one exact acquired-map
@@ -189,7 +184,7 @@ impl BoundUefiExitBootServicesInvocation<'_, '_> {
     pub const fn argument_destinations(&self) -> [MachineRegister; 2] {
         [MachineRegister::X86Rcx, MachineRegister::X86Rdx]
     }
-    pub fn calling_plan_report_fingerprint(&self) -> u64 {
+    pub const fn calling_plan_report_fingerprint(&self) -> u64 {
         self.invocation.calling_plan_report_fingerprint()
     }
 }
@@ -243,12 +238,10 @@ pub fn bind_uefi_exit_boot_services_invocation<'system_table, 'boot_services>(
             diagnostic: ExternalRootDiagnostic(message.into()),
         }))
     };
-    if !matches_exact_uefi_x64_call_plan(&invocation.plan)
-        || validate_exact_call_shape(invocation.plan.plan()).is_err()
-    {
+    if !invocation.retains_exact_plan() {
         return reject(
             invocation,
-            "UEFI ExitBootServices operand binding plan drifted from its exact call shape",
+            "UEFI ExitBootServices operand binding plan drifted from its lifecycle provider",
         );
     }
     if acquired.physical_invocation() != invocation.provider.physical_invocation() {
