@@ -15,15 +15,19 @@
 //! primitive-local establishment (whose declared place, structural type, and
 //! claim-free result custody relocate byte-exact while its scalar
 //! initializer obeys the re-derived substitution — and whose declared root
-//! is what a `CallStructuralScalar`'s shared-borrow argument keeps
+//! is what a `CallStructuralScalar`'s borrow argument keeps
 //! spelling),
 //! an admissible scalar-signature call (its callee's transitive effect
 //! summary proves no observable effect, crash, or suspension, and every node
 //! inside the member roster is unobservable, so hoisting the call's possible
 //! divergence reorders nothing anyone could see), an admissible
-//! shared-borrow unit or scalar-result structural call (the same effect and
+//! borrow unit or scalar-result structural call (the same effect and
 //! observability bars plus the whole-component place-custody bound and each
-//! borrowed root's preheader landing), or
+//! borrowed root's preheader landing — a shared borrow's root must be
+//! preheader-visible, resolved through an invariant member structural
+//! parameter, or produced in the same run, while a mutable or write-only
+//! borrow may name only a uniquely member-produced root the same run already
+//! relocated and no other member observes), or
 //! an admissible scalar
 //! computation (an obligated variant keeps its verifier-discharged
 //! obligation byte-exact inside the moved operation) whose uses are all
@@ -327,11 +331,13 @@ pub(super) fn validate(
             // A unit-result call replays the scalar call's whole admission
             // plus its structural halves from the seed: the pure callee,
             // the unobservable member roster, the whole-component
-            // place-custody bound, the shared-borrow whitelist, and each
+            // place-custody bound, the non-owned borrow whitelist, and each
             // argument root's landing — already preheader-visible, resolved
             // through an invariant member structural parameter, or produced
-            // by a node this component's run already relocated. A forged
-            // move that skipped the root rebind, kept a non-shared borrow,
+            // by a node this component's run already relocated; a mutable or
+            // write-only borrow additionally requires that root's unique
+            // member producer among the relocated set. A forged
+            // move that skipped the root rebind, kept an owned argument,
             // or left the literal's producer behind rejects here or in
             // `same_relocated_node`'s operation comparison.
             let effects = call_effects
@@ -360,7 +366,7 @@ pub(super) fn validate(
         {
             // A scalar-result structural call replays the unit call's whole
             // admission from the seed — the pure callee, the unobservable
-            // member roster, the place-custody bound, the shared-borrow
+            // member roster, the place-custody bound, the non-owned borrow
             // whitelist, and each argument root's landing — and additionally
             // preserves its scalar result identity, so a forged result or a
             // skipped scalar-argument or borrow rebind rejects here or in
@@ -463,6 +469,39 @@ pub(super) fn validate(
             _ => None,
         })
         .collect::<BTreeSet<_>>();
+    // The proposal's move-together coupling, replayed against the seed: a
+    // relocated establishment initializes its declared cell once, so a node
+    // that mutably borrows a relocated root but stayed behind would read
+    // accumulated post-write contents where the source traversal
+    // re-initialized the cell. Every mutable borrower of a relocated root —
+    // anywhere in the function, not only inside the roster, since a borrower
+    // outside the component can never have moved under its run — must itself
+    // appear among the relocated operations; a forged move that hoisted the
+    // producer while leaving its mutable borrower resident rejects here.
+    let all_relocated_roots: BTreeSet<PlaceId> = relocated_roots
+        .values()
+        .flat_map(|roots| roots.iter().copied())
+        .collect();
+    if !all_relocated_roots.is_empty() {
+        for expected_block in &expected.blocks {
+            for node in &expected_block.nodes {
+                if !crate::validation::mutable_borrow_roots(&node.operation)
+                    .iter()
+                    .any(|root| all_relocated_roots.contains(root))
+                {
+                    continue;
+                }
+                let moved_borrower = matches!(
+                    node.provenance.first(),
+                    Some(PsiProvenance::Operation(operation))
+                        if relocated_operations.contains(operation)
+                );
+                if !moved_borrower {
+                    return Err(mismatch(machine, expected_block.id));
+                }
+            }
+        }
+    }
     for expected_block in &expected.blocks {
         let current_block = block(current, expected_block.id)
             .ok_or_else(|| mismatch(machine, expected_block.id))?;

@@ -36,7 +36,7 @@ pub use model::{
 /// Propose every unique-preheader cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, invariant place observations, byte observations, pure-callee
-/// scalar-signature, shared-borrow unit, and shared-borrow scalar-result
+/// scalar-signature, borrow unit, and borrow scalar-result
 /// structural calls, and
 /// side-effect-free scalar
 /// computations — including exact, saturating, and
@@ -75,16 +75,20 @@ pub use model::{
 /// requirement obligations move byte-exact inside the operation. A
 /// `CallUnit` — a structural-signature call producing no result — adds the
 /// family's second call relocation on top of that evidence: the component
-/// must additionally preserve all place custody (the callee can observe
-/// caller places through its borrows), every structural argument must be a
-/// shared borrow — no mutable, write-only, or owned access may reach a
-/// caller place — its claim roster must be empty (the vacuous
-/// `ClaimTransfer` ownership row moves byte-exact with the operation), and
-/// each argument's root must be visible at the preheader insertion point
-/// either directly, through an invariant member structural parameter's
-/// representative (rebound on the moved node), or through a node earlier in
-/// the same run that produced the root (the argument stays byte-exact). A
-/// `CallStructuralScalar` — the same shared-borrow call returning one
+/// must additionally preserve member-visible place custody (the callee can
+/// observe caller places through its borrows), every structural argument
+/// must be a borrow — owned access would move the caller's place into the
+/// callee outright, so it stays refused — its claim roster must be empty
+/// (the vacuous `ClaimTransfer` ownership row moves byte-exact with the
+/// operation), and each shared-borrow argument's root must be visible at the
+/// preheader insertion point either directly, through an invariant member
+/// structural parameter's representative (rebound on the moved node), or
+/// through a node earlier in the same run that produced the root (the
+/// argument stays byte-exact). A mutable or write-only borrow's root is
+/// narrower still: it may name only a member-produced place whose unique
+/// producer relocates in the same run and no other member observes — the
+/// callee's writes then land in a cell nothing else reads.
+/// `CallStructuralScalar` — the same borrow call returning one
 /// scalar — adds the family's third call relocation on unchanged evidence:
 /// its preserved result joins the run's relocated values, so a member node
 /// consuming the call's return relocates behind it in the same run, and the
@@ -92,16 +96,20 @@ pub use model::{
 /// what every in-loop traversal's invocation returned.
 /// An `EstablishPrimitiveLocal` adds the family's second establishment
 /// relocation — and the storage prerequisite that lets the structural-scalar
-/// call leave at all: the cyclic eligibility fence only lets a shared-borrow
+/// call leave at all: the cyclic eligibility fence only lets a borrow
 /// structural argument name a `let mut` primitive local's place, so the call
 /// relocates only when the establishment that produced its borrowed root
 /// leaves in the same run and the run keeps the declared place identity
 /// byte-exact for the argument to keep spelling. The establishment reads one
 /// scalar initializer — admitted under the same use-site substitution a
 /// computation obeys — and the place-custody bound is what makes hoisting a
-/// *re-established-every-iteration* cell sound: only when no member stores
-/// to or moves the declared place does a cell initialized once still read
-/// `value` on every traversal.
+/// *re-established-every-iteration* cell sound: only when no member observes
+/// the declared place's evolving contents does a cell initialized once still
+/// read `value` on every traversal. When a member call borrows that cell
+/// mutably, the coupling runs the other way too: the establishment relocates
+/// only when every mutable borrower is itself admissible under the run
+/// extended by its root, so a borrower that could read accumulated
+/// post-write contents never stays behind while its producer leaves.
 /// Computation,
 /// observation, and establishment
 /// relocation is non-speculative: every successor of the unique preheader's

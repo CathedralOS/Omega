@@ -5250,10 +5250,12 @@ const STORED_LOCAL_STRUCTURAL_CALL_SOURCE: &str = r#"
     }
 "#;
 
-/// Same component shape, but the callee takes `&mut`: a mutable-borrow
-/// structural argument is outside the shared-borrow whitelist, so the call
-/// stays inside — and because a member node can now mutate the local through
-/// that borrow, the place-custody bound keeps the establishment inside too.
+/// Same component shape, but the callee takes `&mut`: the mutably borrowed
+/// root is produced inside the component and no other member observes it, so
+/// the establishment and the borrowing call relocate together — the moved
+/// producer's byte-exact place identity lets the call keep spelling the same
+/// root, and the callee's per-traversal view stays identical because the
+/// cell is initialized once to the same invariant value.
 const MUTABLE_BORROW_STRUCTURAL_CALL_SOURCE: &str = r#"
     machine measure_mut(value: &mut u64, bias: u64) -> u64 { value = bias; bias }
 
@@ -5262,6 +5264,108 @@ const MUTABLE_BORROW_STRUCTURAL_CALL_SOURCE: &str = r#"
     {
         let mut scratch: u64 = 7;
         let measured: u64 = measure_mut(&mut scratch, scale);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> measured
+        }
+    }
+"#;
+
+/// Same component shape, but the callee takes `&write`: a write-only borrow
+/// hands the callee write authority over the member-produced cell without
+/// read authority, so the establishment and the borrowing call relocate
+/// together under the same member-produced-root rule.
+const WRITE_ONLY_BORROW_STRUCTURAL_CALL_SOURCE: &str = r#"
+    machine fill(value: &write u64, bias: u64) -> u64 { value = bias; bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let measured: u64 = fill(&write scratch, scale);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> measured
+        }
+    }
+"#;
+
+/// A `CallUnit` counterpart of the mutable-borrow shape: the unit-result
+/// call mutates the member-produced cell through `&mut`, and producer and
+/// borrower relocate together.
+const MUTABLE_BORROW_UNIT_CALL_SOURCE: &str = r#"
+    machine poke(value: &mut u64, bias: u64) { value = bias; }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        poke(&mut scratch, scale);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> 0
+        }
+    }
+"#;
+
+/// Same mutable-borrow component shape, but a member node reads the borrowed
+/// root after the call: the read breaks the borrow's exclusivity — the moved
+/// producer's persistent cell would hand the member read accumulated
+/// post-write contents where the source traversal re-initialized it — so the
+/// whole-component custody bound keeps the establishment, the call, and the
+/// read inside.
+const MEMBER_READS_MUTABLE_BORROW_SOURCE: &str = r#"
+    machine measure_mut(value: &mut u64, bias: u64) -> u64 { value = bias; bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let measured: u64 = measure_mut(&mut scratch, scale);
+        let observed: u64 = scratch;
+        let combined: u64 = measured & observed;
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> combined
+        }
+    }
+"#;
+
+/// Same mutable-borrow component shape, but two calls mutably borrow one
+/// root: each breaks the other's exclusivity — a moved call's callee could
+/// observe the sibling borrower's accumulated writes where the source handed
+/// it a freshly initialized cell — so the establishment and both calls stay
+/// inside.
+const SHARED_MUTABLE_ROOT_SOURCE: &str = r#"
+    machine measure_mut(value: &mut u64, bias: u64) -> u64 { value = bias; bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let first: u64 = measure_mut(&mut scratch, scale);
+        let second: u64 = measure_mut(&mut scratch, scale);
+        let combined: u64 = first & second;
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> combined
+        }
+    }
+"#;
+
+/// Same mutable-borrow component shape, but the borrower's scalar argument
+/// is the loop-carried countdown: the call can never relocate, so the
+/// move-together coupling keeps the producer's establishment inside too — a
+/// persistent preheader cell would let the staying borrower read accumulated
+/// writes where the source traversal re-initialized it.
+const CARRIED_ARGUMENT_MUTABLE_BORROW_SOURCE: &str = r#"
+    machine measure_mut(value: &mut u64, bias: u64) -> u64 { value = bias; bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let measured: u64 = measure_mut(&mut scratch, remaining);
         transition remaining > 0 {
             true -> scan(remaining - 1, scale)
             _ -> measured
@@ -5698,7 +5802,7 @@ fn primitive_local_and_call_stay_when_a_member_stores_to_it() {
 }
 
 #[test]
-fn structural_scalar_call_stays_under_a_mutable_borrow() {
+fn mutable_borrow_call_relocates_with_its_primitive_local() {
     let session = lowered_session_entry(
         MUTABLE_BORROW_STRUCTURAL_CALL_SOURCE,
         "mutable borrow structural call loop",
@@ -5707,6 +5811,121 @@ fn structural_scalar_call_stays_under_a_mutable_borrow() {
     let [component] = session.cycle_components().components() else {
         panic!("one cyclic component")
     };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+    let (local_place, callee) = match (&local.operation, &call.operation) {
+        (
+            AbstractOperation::EstablishPrimitiveLocal { result, .. },
+            AbstractOperation::CallStructuralScalar {
+                structural_arguments,
+                callee,
+                ..
+            },
+        ) => {
+            assert_eq!(
+                structural_arguments[0].access,
+                terminal_psi::StructuralAccess::MutableBorrow,
+                "the member call borrows the local mutably"
+            );
+            assert_eq!(structural_arguments[0].place, result.place);
+            (result.place, *callee)
+        }
+        operations => {
+            panic!("member nodes are a local and a structural scalar call: {operations:?}")
+        }
+    };
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    // The move-together coupling: the establishment relocates only because
+    // its sole mutable borrower relocates in the same run, and the moved
+    // producer's byte-exact place identity keeps the borrow argument
+    // spelling unchanged — no argument rewrite.
+    let local_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == local_operation)
+        .expect("the primitive-local establishment relocates with its borrower");
+    let call_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the mutable-borrow call relocates behind its producer");
+    assert!(
+        call_relocation.node().argument_rewrites().is_empty(),
+        "the moved establishment preserves the borrowed place identity byte-exact"
+    );
+    assert_eq!(call_relocation.destination().block, entry.source);
+    assert!(
+        local_relocation.destination().node < call_relocation.destination().node,
+        "the relocated establishment lands ahead of the call mutating its root"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == call_relocation.destination().block)
+        .expect("destination block exists");
+    let moved_call =
+        &destination.nodes[usize::try_from(call_relocation.destination().node).unwrap()];
+    match &moved_call.operation {
+        AbstractOperation::CallStructuralScalar {
+            callee: moved_callee,
+            structural_arguments,
+            ..
+        } => {
+            assert_eq!(
+                structural_arguments[0].place, local_place,
+                "the mutably borrowed root stays byte-exact"
+            );
+            assert_eq!(
+                structural_arguments[0].access,
+                terminal_psi::StructuralAccess::MutableBorrow,
+                "the mutable-borrow access stays byte-exact"
+            );
+            assert_eq!(*moved_callee, callee, "callee identity is byte-exact");
+        }
+        operation => panic!("relocated node keeps its call operation: {operation:?}"),
+    }
+    assert_eq!(moved_call.provenance, call_relocation.node().provenance());
+    assert_eq!(moved_call.fuel, call_relocation.node().fuel());
+}
+
+#[test]
+fn write_only_borrow_call_relocates_with_its_primitive_local() {
+    let session = lowered_session_entry(
+        WRITE_ONLY_BORROW_STRUCTURAL_CALL_SOURCE,
+        "write-only borrow structural call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let preheader = entry.source;
     let function = session
         .unit()
         .functions
@@ -5723,19 +5942,288 @@ fn structural_scalar_call_stays_under_a_mutable_borrow() {
             ..
         } => assert_eq!(
             structural_arguments[0].access,
-            terminal_psi::StructuralAccess::MutableBorrow,
-            "the member call borrows the local mutably"
+            terminal_psi::StructuralAccess::WriteOnlyBorrow,
+            "the member call borrows the local write-only"
         ),
         operation => panic!("the member node is a structural scalar call: {operation:?}"),
     }
 
     let candidates =
         propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let local_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == local_operation)
+        .expect("the primitive-local establishment relocates with its borrower");
+    let call_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the write-only-borrow call relocates behind its producer");
+    assert!(
+        call_relocation.node().argument_rewrites().is_empty(),
+        "the moved establishment preserves the borrowed place identity byte-exact"
+    );
+    assert!(
+        local_relocation.destination().node < call_relocation.destination().node,
+        "the relocated establishment lands ahead of the call writing its root"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == preheader)
+        .expect("destination block exists");
+    let moved_call =
+        &destination.nodes[usize::try_from(call_relocation.destination().node).unwrap()];
+    match &moved_call.operation {
+        AbstractOperation::CallStructuralScalar {
+            structural_arguments,
+            ..
+        } => assert_eq!(
+            structural_arguments[0].access,
+            terminal_psi::StructuralAccess::WriteOnlyBorrow,
+            "the write-only-borrow access stays byte-exact"
+        ),
+        operation => panic!("relocated node keeps its call operation: {operation:?}"),
+    }
+}
+
+#[test]
+fn mutable_borrow_unit_call_relocates_with_its_primitive_local() {
+    let session = lowered_session_entry(
+        MUTABLE_BORROW_UNIT_CALL_SOURCE,
+        "mutable borrow unit call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let preheader = entry.source;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_unit_call(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+    match &call.operation {
+        AbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } => assert_eq!(
+            structural_arguments[0].access,
+            terminal_psi::StructuralAccess::MutableBorrow,
+            "the member unit call borrows the local mutably"
+        ),
+        operation => panic!("the member node is a unit call: {operation:?}"),
+    }
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let local_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == local_operation)
+        .expect("the primitive-local establishment relocates with its borrower");
+    let call_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the mutable-borrow unit call relocates behind its producer");
+    assert!(
+        matches!(
+            call_relocation.node().result(),
+            LoopInvariantNodeResult::Unit
+        ) && call_relocation.node().argument_rewrites().is_empty(),
+        "the unit call relocates byte-exact behind its producer"
+    );
+    assert!(
+        local_relocation.destination().node < call_relocation.destination().node,
+        "the relocated establishment lands ahead of the call mutating its root"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == preheader)
+        .expect("destination block exists");
+    let moved_call =
+        &destination.nodes[usize::try_from(call_relocation.destination().node).unwrap()];
+    assert!(
+        matches!(
+            &moved_call.operation,
+            AbstractOperation::CallUnit {
+                structural_arguments,
+                ..
+            } if structural_arguments[0].access
+                == terminal_psi::StructuralAccess::MutableBorrow
+        ),
+        "the relocated unit call keeps its mutable-borrow argument byte-exact"
+    );
+}
+
+#[test]
+fn mutable_borrow_stays_when_a_member_reads_the_borrowed_root() {
+    let session = lowered_session_entry(
+        MEMBER_READS_MUTABLE_BORROW_SOURCE,
+        "member reads mutable borrow loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+    let read = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+        })
+        .find(|node| {
+            matches!(
+                node.operation,
+                AbstractOperation::PrimitiveScalarRead { .. }
+            )
+        })
+        .expect("the member read of the borrowed local exists");
+    let read_operation = operation_of(read);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
     for candidate in &candidates {
-        // A mutable-borrow argument is outside the shared-borrow whitelist,
-        // and the same member node fails the place-custody bound — so the
-        // establishment cannot collapse to a persistent cell a member mutates
-        // through the borrow either.
+        // The member read breaks the mutating borrow's exclusivity: a moved
+        // producer would hand the read a persistent cell's accumulated
+        // contents where the source traversal re-initialized it, so the
+        // custody bound keeps all three inside.
+        assert!(
+            candidate
+                .relocations()
+                .iter()
+                .all(
+                    |relocation| relocation.node().psi_operation() != local_operation
+                        && relocation.node().psi_operation() != call_operation
+                        && relocation.node().psi_operation() != read_operation
+                ),
+            "a member read keeps the local, its mutable borrower, and the read inside"
+        );
+    }
+}
+
+#[test]
+fn mutable_borrow_stays_when_two_calls_share_the_root() {
+    let session = lowered_session_entry(
+        SHARED_MUTABLE_ROOT_SOURCE,
+        "shared mutable root loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let calls = member_structural_scalar_calls(function, component);
+    let local_operation = operation_of(local);
+    let [(_, first), (_, second)] = calls.as_slice() else {
+        panic!("two calls borrow the same local mutably")
+    };
+    let call_operations = [operation_of(first), operation_of(second)];
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    for candidate in &candidates {
+        // Each mutable borrower breaks the other's exclusivity: a moved
+        // call's callee would read the persistent cell where the source
+        // re-initialized it — and the sibling's staying writes would have
+        // accumulated into it — so nothing carrying the shared root moves.
+        assert!(
+            candidate
+                .relocations()
+                .iter()
+                .all(
+                    |relocation| relocation.node().psi_operation() != local_operation
+                        && !call_operations.contains(&relocation.node().psi_operation())
+                ),
+            "two mutable borrowers of one root keep the local and both calls inside"
+        );
+    }
+}
+
+#[test]
+fn mutable_borrow_producer_stays_when_its_borrower_cannot_relocate() {
+    let session = lowered_session_entry(
+        CARRIED_ARGUMENT_MUTABLE_BORROW_SOURCE,
+        "carried argument mutable borrow loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    for candidate in &candidates {
+        // The borrower's carried scalar argument can never rebind, so the
+        // call stays inside — and the move-together coupling then refuses
+        // the establishment too: a persistent preheader cell would let the
+        // staying borrower read accumulated writes where the source
+        // traversal re-initialized it.
         assert!(
             candidate
                 .relocations()
@@ -5744,9 +6232,130 @@ fn structural_scalar_call_stays_under_a_mutable_borrow() {
                     |relocation| relocation.node().psi_operation() != local_operation
                         && relocation.node().psi_operation() != call_operation
                 ),
-            "a mutable borrow keeps the local and the call inside"
+            "a staying mutable borrower keeps its producer inside"
         );
     }
+}
+
+#[test]
+fn stranded_mutable_borrower_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MUTABLE_BORROW_STRUCTURAL_CALL_SOURCE,
+        "mutable borrow structural call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, call) = member_structural_scalar_call(function, component);
+    let call_operation = operation_of(call);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the mutable-borrow call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forge the unsound half of the coupling: leave the relocated
+    // establishment in the preheader but hand the mutable borrower back to
+    // its member block. The staying callee reads the persistent cell where
+    // the source traversal re-initialized it, so the coverage replay rejects
+    // the forged unit.
+    let moved = take_operation(&mut unit, call_operation);
+    let member_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|block| block.id == member)
+        .expect("member block exists");
+    let terminator = member_block.nodes.len() - 1;
+    member_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    let outcome = VerifiedPsiOptimizationSession::from_transformed(input, unit);
+    assert!(
+        matches!(
+            outcome,
+            Err(
+                OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                    machine: rejected_machine,
+                    ..
+                }
+            ) if rejected_machine == machine
+        ),
+        "the stranded-borrower forgery is rejected: {outcome:?}"
+    );
+}
+
+#[test]
+fn forged_mutable_borrow_access_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MUTABLE_BORROW_STRUCTURAL_CALL_SOURCE,
+        "mutable borrow structural call loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, call) = member_structural_scalar_call(function, component);
+    let call_operation = operation_of(call);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the mutable-borrow call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the borrow's access to `SharedBorrow` rewrites a structural
+    // field the relocation preserves byte-exact — the seed-derived operation
+    // comparison rejects the drifted spelling.
+    let forged = find_operation_mut(&mut unit, call_operation);
+    if let AbstractOperation::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut forged.operation
+    {
+        structural_arguments[0].access = terminal_psi::StructuralAccess::SharedBorrow;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
 }
 
 #[test]
