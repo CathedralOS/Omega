@@ -629,40 +629,53 @@ fn direct_boundary_result_operands_retain_exact_nonself_transfer_events() {
             .facts
             .flow
             .terminal_unit_effects
-            .for_machine(machine.symbol)
-            .expect("direct boundary consumes an established affine result");
-        assert!(plan.operations.iter().any(|operation| matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                discard_result_on_return: false,
-                ..
-            }
-        )));
-        let consumer = plan
-            .operations
-            .iter()
-            .find_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::BoundaryCall {
-                    coordinate,
-                    structural_arguments,
-                    completion_receipts,
-                    target_state,
+            .for_machine(machine.symbol);
+        let consumer_target = if nominal {
+            // Since c5843e4c43 a nominal binder call is an obligation for
+            // specialization, not an executable boundary body: the open
+            // generic entry retains no Unit plan, while its ownership events
+            // below are still produced by the checker.
+            assert!(
+                plan.is_none(),
+                "open nominal binder entry retains no executable plan"
+            );
+            None
+        } else {
+            let plan = plan.expect("direct boundary consumes an established affine result");
+            assert!(plan.operations.iter().any(|operation| matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    discard_result_on_return: false,
                     ..
-                } if coordinate.statement_index == 2 => {
-                    Some((structural_arguments, completion_receipts, target_state))
                 }
-                _ => None,
-            })
-            .unwrap();
-        assert!(
-            consumer.1.is_empty(),
-            "claim-free result has no completion claim"
-        );
-        let [argument] = consumer.0.as_slice() else {
-            unreachable!()
+            )));
+            let consumer = plan
+                .operations
+                .iter()
+                .find_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::BoundaryCall {
+                        coordinate,
+                        structural_arguments,
+                        completion_receipts,
+                        target_state,
+                        ..
+                    } if coordinate.statement_index == 2 => {
+                        Some((structural_arguments, completion_receipts, target_state))
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            assert!(
+                consumer.1.is_empty(),
+                "claim-free result has no completion claim"
+            );
+            let [argument] = consumer.0.as_slice() else {
+                unreachable!()
+            };
+            assert_eq!(argument.source_structural_result_binding_ordinal(), Some(0));
+            assert!(argument.path.is_empty());
+            Some(*consumer.2)
         };
-        assert_eq!(argument.source_structural_result_binding_ordinal(), Some(0));
-        assert!(argument.path.is_empty());
         let flow = &checked.facts.flow.control;
         let source_state = flow
             .states
@@ -684,10 +697,9 @@ fn direct_boundary_result_operands_retain_exact_nonself_transfer_events() {
                 .machine_parameter_signature(source_call.target_symbol)
                 .expect("authored nominal parameter retains its requirement");
             assert_eq!(owner.symbol, machine.symbol);
-            assert_eq!(requirement.symbol, *consumer.2);
-            assert_ne!(source_call.target_symbol, *consumer.2);
+            assert_ne!(source_call.target_symbol, requirement.symbol);
         } else {
-            assert_eq!(source_call.target_symbol, *consumer.2);
+            assert_eq!(Some(source_call.target_symbol), consumer_target);
         }
         let events = checked
             .facts
