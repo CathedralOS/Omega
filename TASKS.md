@@ -451,6 +451,10 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   scalar local pure initializer, 3 scalar call binding, 1 structural call
   binding); 7 call statements; 4 unconsumed nested calls; 3 trivial affine
   locals; 2 signature; 2 provider attachment requirements.
+  The 36 call-statement-shape stops (e0c8333c4c, macOS ARM64) are all bodies
+  with no admitted statement sequence: 23 keep a different call count than
+  their call statements and 13 keep a non-call statement without a unit
+  statement call (the roster names its index).
   Distribution reconstructed 2026-09-17 (macOS ARM64, `cargo nextest run -p
   compiler --test canary_suite --no-fail-fast` at 4dcb7723da): 1379 tests,
   223 pass, 1156 fail. By owner: 680 stop at Terminal production with
