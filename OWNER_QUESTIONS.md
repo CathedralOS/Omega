@@ -291,6 +291,91 @@ must be surfaced before relying on them.
    start until one of these edges exists; AP-BRINGUP owns the implementation
    either way.
 
+8. **Is `alpha_bootstrap` an ordinary target profile of the differential
+   compiler, and what happens to a root row owned by a profile the comparator
+   does not catalogue?** (named decision: `alpha-bootstrap-target-profile`).
+   The [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain)
+   says interpreted D compiles the Omega compiler source closure C "given the
+   package-resolved Omega compiler source closure C and ordinary target
+   `alpha_bootstrap`", so `source/omega/build.omg` binds
+   `builder.roots.bind(alpha_bootstrap::ProgramEntry, Main::main)` beside the
+   four native rows, and the
+   [compiler request](wiki/spec/build/compiler_request.md) already tags an
+   `alpha_bootstrap_tape` product. But no std target package declares
+   `alpha_bootstrap::ProgramEntry`, the Rust comparator's profile catalog
+   (`omega/representations/target/src/lib.rs`) knows only the native, UEFI,
+   `cross_platform_cli` and `local_unchecked` profiles, and the
+   [entry-roots contract](wiki/spec/build/entry_roots.md) says "only rows
+   owned by the selected profile enter the durable child projection" while
+   listing as rejections only a row "misattributing its slot to another
+   profile", duplicates and missing required slots; it does not say whether a
+   row owned by a profile the toolchain does not catalogue is merely
+   unselected or rejects. Today `build-evaluation/src/admission/selection.rs`
+   rejects it (`root slot alpha_bootstrap::ProgramEntry belongs to unknown
+   target profile alpha_bootstrap`), which is the next stop of
+   `omega --check source/omega/main.omg` after the std calling-policy
+   admission bug (OMEGA-PRODUCT-COMPILER-SOURCE at 18a391f660). Options:
+
+   - (a) Catalogue `alpha_bootstrap` as an ordinary profile with a std target
+     package (`std/targets/alpha_bootstrap/entry.omg` declaring
+     `ProgramEntry` and its calling policy) whose only realization is the
+     `alpha_bootstrap_tape` product; native realization of that profile
+     rejects explicitly. Unknown-profile rows keep rejecting. This keeps the
+     contract's "ordinary target" wording literal and the fail-closed row
+     rule intact. Recommended default.
+   - (b) Keep the comparator's catalog as is and make a row owned by an
+     uncatalogued profile unselected rather than rejected (the spec sentence
+     "only rows owned by the selected profile enter" read permissively). Cheap,
+     but a misspelled profile would then pass silently, which the entry-roots
+     rejection list otherwise guards against.
+   - (c) Remove the `alpha_bootstrap` row from `source/omega/build.omg` until
+     the bootstrap boards need it, and let the bootstrap toolchain supply the
+     row by its own invocation. Unblocks the product check immediately but
+     contradicts the bootstrap contract's "same C for the same target"
+     requirement.
+
+   Until answered, the product check stops on this row once the calling-policy
+   admission bug is fixed; everything before that stop is engineering.
+
+9. **May an affine value be moved out of storage reached through `&mut` when
+   the same statement sequence installs a replacement before the borrow ends?**
+   (named decision: `borrowed-storage-owner-replacement`). Since 036d60d9c9
+   the checker rejects every owned transfer out of a borrowed record field
+   ("cannot transfer a non-copy value out of borrowed storage without
+   replacing its owner", `checks/multiplicity/projected_affine.rs`
+   `is_borrowed_place_transfer`), and it has no owner-replacement route at all:
+   the pass fixture `tests/omega/pass/ownership/move_keyword_field_assignment`
+   (`let replacement: Inventory = self.inventory; self.inventory = move
+   replacement;`, chapter 2's spelling) is rejected with that diagnostic on
+   main, and the product parser had to be respelled to borrow the lexer's
+   token stream instead of taking it (b30c5ae693). The
+   [ownership contract](wiki/spec/language/ownership.md) says a borrow grants
+   no ownership of an affine referent and that partial moves retain unselected
+   siblings, and the [lifetimes contract](wiki/spec/language/lifetimes.md)
+   says assignment "evaluates the replacement while old loans remain active,
+   ends the overwritten field's carried loans, then installs the replacement's
+   exact loans", but neither says whether a move out through `&mut` followed
+   by an assignment back is a legal replacement of the owner's content or a
+   forbidden transfer. Options:
+
+   - (a) Legal when every path from the move to the end of the exclusive
+     borrow (return, transition, exit, or any call that can observe the place)
+     assigns a replacement to the same place before anything observes it; the
+     checker tracks the hole as a partial move of the borrowed root and clears
+     it on the assignment. Matches the fixture, the diagnostic's own wording
+     and chapter 2. Recommended default.
+   - (b) Never legal through a reference; owner replacement needs an explicit
+     consuming route (a `move self` machine, or a builtin exchange such as
+     `swap`/`take` on the place). Simplest checker; the fixture and chapter 2
+     must change, and the product parser's borrow respell becomes the only
+     idiom.
+   - (c) Legal only as one atomic exchange expression (`self.field = move
+     replacement` returning the old value), never as a two-statement
+     move-then-assign.
+
+   Until answered, `ownership/move_keyword_field_assignment` stays on the
+   known-failing pass list and product source avoids the shape.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
