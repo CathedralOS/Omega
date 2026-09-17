@@ -88,6 +88,55 @@ must be surfaced before relying on them.
    position and ordinary call already requires the explicit borrow and the
    spec names no implicit loan outside attached receivers.
 
+3. **Board hygiene: items the spec does not ask for, or that duplicate
+   another item.** A read-only pass on 2026-09-17 traced every TASKS.md
+   item to `wiki/spec`; 64 of 75 rest on a normative clause and twelve are
+   named by the spec itself. The remainder need an owner decision because
+   removing or merging a board item is a scope choice, not engineering:
+   - **CRASH-GUARD-COST**: no spec text asks for checker throughput work;
+     the mandated experiment ran and was inconclusive (1.5%), the prototype
+     was discarded, and the cache-dedup slice landed. Recommend removal.
+   - **CANARY-CORPUS** and **SAMPLE-CORPUS**: two triage umbrellas over the
+     same "fix what the suite reports" activity, the first listing the
+     second as a dependency; neither defines a corpus the spec names beyond
+     `wiki/drafts/rust_compiler_completion.md` RC-REPRESENTATIVE-PROGRAMS.
+     Recommend one corpus row with that command as its acceptance.
+   - **FFIVAL**: a one-line host-gated canary run that restates
+     REGISTERED-CALLBACK-LIFETIME's remaining acceptance and the
+     platform-gated verification bullet. Recommend removal.
+   - **MACOS-APPLICATION-PUBLICATION**: its own first line says the
+     [contract](wiki/spec/build/macos_application.md) is landed; what
+     remains is host- and dependency-gated acceptance already listed under
+     platform-gated verification. Recommend demoting to that bullet.
+   - **BOUNDARY-ISSUANCE** (four-line stub sequenced "after conservation
+     closes", same spec section) into **CONSERVATION-CONTRACT**;
+     **BOUNDED-INSTALLATION-REACH-ROWS** (only open work is the carrier
+     COMPONENT-SUBSTRATE must supply) into **COMPONENT-SUBSTRATE**;
+     **FILESYSTEM-RELEASE-CONTRACT** (same
+     [permissions](wiki/spec/build/permissions.md) clause and the same
+     `FilesystemOrdinaryReleaseContract` evidence row) into
+     **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**;
+     **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP** split into **CML4**
+     (cleanup hook) and **PROOF-RELEVANCE-MIGRATION** (erased ownership).
+     Recommend the merges.
+   - **SYMBOLIC-MATERIALIZATION**: the mandate
+     ([plans](wiki/spec/layouts/plans.md#derived-consumers)) stands, but its
+     notes accreted recursive direct-sum and nested sum-array layout work no
+     spec text asks for, and the only stated remaining acceptance is a
+     host-gated Linux aarch64 rerun. Recommend trimming to the mandate plus
+     one platform-gated line.
+   - **EXTERNAL-ENTRY-STACK-EPOCHS** and **TR3-TR8** both own stack leases
+     and epochs ([entry stacks](wiki/spec/resources/entry_stacks.md) versus
+     [storage](wiki/spec/resources/storage.md)) with no stated boundary;
+     either could absorb the other's work. Recommend one boundary line or a
+     merge.
+   - **OMEGA-PRODUCT-COMPILER-SOURCE**: the spec assumes an Omega-written
+     compiler ([compiler request](wiki/spec/build/compiler_request.md)) and
+     AGENTS.md names `source/psi` and `source/omega`, but no spec clause
+     prescribes the two-sibling-package split or the `build.omg`/`main.omg`
+     entrypoints. Keep the item; decide whether that split is spec (add the
+     clause) or an owner architecture decision recorded here.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
