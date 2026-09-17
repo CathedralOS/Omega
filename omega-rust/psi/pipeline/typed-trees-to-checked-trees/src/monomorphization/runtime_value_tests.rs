@@ -49,7 +49,7 @@ fn runtime_value_argument_realizes_an_ordinary_parameter() {
         "machine prefix_count<Count: u32>(base: u32) -> u32 { Count }
          machine main(base: u32) -> u32 { let n: u32 = 3; prefix_count<n>(base) }",
     );
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
         .expect("runtime subject specializes");
     let [receipt] = program.machine_specializations.as_slice() else {
         panic!("one runtime-carrier specialization");
@@ -92,7 +92,7 @@ fn runtime_value_forwarding_appends_the_realized_parameter() {
          machine forward<K: u32>(base: u32) -> u32 { prefix_count<K>(base) }
          machine main(base: u32) -> u32 { let n: u32 = 3; forward<n>(base) }",
     );
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
         .expect("forwarded runtime subject specializes");
     assert_eq!(program.machine_specializations.len(), 2);
     let forward = program
@@ -158,7 +158,7 @@ fn static_and_runtime_value_applications_share_one_template() {
              prefix_count<n>(base)
          }",
     );
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
         .expect("static and runtime tuples specialize");
     // The static literal and the runtime carrier are distinct tuples: the
     // literal specializes by value, the runtime subject by its declared
@@ -243,9 +243,12 @@ fn runtime_value_in_a_static_range_position_rejects() {
              ranged<n>()
          }",
     );
-    let error =
-        monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
-            .expect_err("a runtime subject cannot close a static bound");
+    let error = monomorphize_generic_machine_value_calls_with_nominal_uses(
+        &mut program,
+        &mut Vec::new(),
+        true,
+    )
+    .expect_err("a runtime subject cannot close a static bound");
     assert!(error.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -265,9 +268,12 @@ fn runtime_value_in_a_static_length_position_rejects() {
     // The explicit runtime subject conflicts with the `4` length inferred from
     // `witness`: the call cannot close `Count` statically, so specialization
     // rejects it before any layout is realized.
-    let error =
-        monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
-            .expect_err("a runtime subject cannot close a static layout");
+    let error = monomorphize_generic_machine_value_calls_with_nominal_uses(
+        &mut program,
+        &mut Vec::new(),
+        true,
+    )
+    .expect_err("a runtime subject cannot close a static layout");
     assert!(!error.is_empty());
 }
 
@@ -284,7 +290,7 @@ fn runtime_value_requires_rebases_onto_the_realized_parameter() {
          { Count }
          machine main() -> u32 { let n: u32 = 3; pick<n>(7) }",
     );
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
         .expect("a requires contract on a runtime subject specializes");
     let [receipt] = program.machine_specializations.as_slice() else {
         panic!("one specialization for the runtime tuple");
@@ -392,7 +398,7 @@ fn mixed_static_and_runtime_value_slots_keep_telescope_order() {
              pick<2, n>(base)
          }",
     );
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
         .expect("a mixed static/runtime tuple specializes");
     let [receipt] = program.machine_specializations.as_slice() else {
         panic!("one specialization for the mixed tuple");
@@ -560,7 +566,7 @@ fn runtime_value_subjects_reach_transition_targets_in_a_cloned_machine() {
              self.walk<n>(n);
          }",
     );
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
         .expect("a transitioned runtime subject specializes");
     let [receipt] = program.machine_specializations.as_slice() else {
         panic!("one specialization for the runtime tuple");

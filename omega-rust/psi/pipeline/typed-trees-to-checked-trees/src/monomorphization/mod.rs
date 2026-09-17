@@ -170,9 +170,17 @@ struct SpecializationKey {
     evidence_arguments: Vec<u64>,
 }
 
+/// `enforce_complete_concrete_selections` distinguishes the authoritative
+/// checking pass from speculative specialization runs. Build-program
+/// preparation and `build.omg` interpretation specialize a private typed copy
+/// while const endpoint folds are still outstanding; an underivable tuple
+/// there is interim evidence, not a rejected program. Only the checking pass
+/// that emits the program may reject an incomplete concrete selection, and
+/// only once no pending endpoint fold can still supply the missing binding.
 pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     program: &mut TypedTrees,
     nominal_uses: &mut Vec<validation::ValidatedNominalMachineUse>,
+    enforce_complete_concrete_selections: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     loop {
         // Provider clones may restore old inferred types even when this round
@@ -223,13 +231,36 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
             // Open callers keep their symbolic applications. Concrete applications
             // of the same template are independent tuples, never evidence with
             // which to consume the declaration or specialize another caller.
+            //
+            // An incomplete selection that already holds const, machine, or
+            // conformance evidence rejects in every pass: partial static
+            // evidence can never complete to a single tuple.
+            //
+            // The authoritative checking pass additionally rejects EVERY
+            // incomplete statement-position selection from a concrete caller:
+            // a statement call has no result slot for the value-position
+            // validation fence to inspect, so a fully underivable or
+            // type-only-partial tuple would otherwise emit unspecialized.
+            // This gate is the last honest stop for `pick(7);` and
+            // `pair<i32>(v);` alike.
+            //
+            // Speculative passes (build-program preparation, `build.omg`
+            // interpretation) and the preliminary window that still carries
+            // pending endpoint folds do not widen the gate: a zero-binding
+            // tuple may still complete once deferred const evaluation lands,
+            // and incomplete expression calls keep their value-position fence
+            // diagnostic. The settled pass sees no pending endpoints, so an
+            // underivable statement call always rejects there.
+            let gate_is_final = enforce_complete_concrete_selections
+                && program.pending_const_range_endpoints.is_empty();
             if selections.iter().any(|selection| {
                 selection.candidate_index == candidate_index
                     && !selection.caller_is_generic
                     && !selection.is_complete()
                     && (selection.const_bindings.iter().any(Option::is_some)
                         || selection.machine_bindings.iter().any(Option::is_some)
-                        || selection.evidence_bindings.iter().any(Option::is_some))
+                        || selection.evidence_bindings.iter().any(Option::is_some)
+                        || (gate_is_final && matches!(selection.site, CallSite::Statement(_))))
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived",

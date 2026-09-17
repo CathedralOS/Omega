@@ -1072,3 +1072,67 @@ fn named_conformance_bound_rejects_a_name_owned_by_another_carrier() {
             .contains("names conformance `Bad::Primary`, but that declaration belongs to `Good`")
     }));
 }
+
+/// A concrete caller that resolves to a generic machine but cannot derive its
+/// complete specialization tuple must reject: the statement-position call has
+/// no result slot for the validation fence to inspect, so an underivable or
+/// partial tuple would otherwise remain an unspecialized call to the generic
+/// template. Zero-binding calls, partial explicit applications and conflicted
+/// tuples all take the same honest rejection.
+#[test]
+fn underivable_generic_statement_calls_reject_instead_of_passing_unspecialized() {
+    for source in [
+        // No derivable evidence at all: the anonymous literal proposes
+        // nothing, so `T` stays open.
+        "machine pick<T>(value: T) {}
+         machine main() -> u64 { pick(7); 7 }",
+        // A partial explicit static tuple: `T` binds, `N` never does.
+        "machine pair<T, const N: u64>(value: T) {}
+         machine main() -> u64 { pair<i32>(7i32); 7 }",
+        // Conflicting argument evidence can never complete one tuple.
+        "machine choose<T>(first: T, second: T) {}
+         machine main() -> u64 { choose(1i32, 2i64); 7 }",
+        // A derived type beside an underivable sibling still cannot complete.
+        "machine pair<T, U>(first: T, second: U) {}
+         machine main() -> u64 { pair(7i32, 2); 7 }",
+    ] {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing");
+        let diagnostics = lower_typed_trees(typed)
+            .expect_err("an underivable generic call must not pass unspecialized");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.message.contains("cannot be derived") }),
+            "{source}: {diagnostics:?}"
+        );
+    }
+}
+
+/// Statement-position calls that DO derive a complete tuple keep specializing:
+/// a concrete argument carrier or a destination annotation still supplies the
+/// tuple the selection gate requires.
+#[test]
+fn derivable_generic_statement_calls_still_specialize() {
+    let source = r#"
+        machine consume<T>(value: T) {}
+        machine ident<T>(value: T) -> T { value }
+        machine main() -> u64 {
+            consume(7i32);
+            let chosen: u64 = ident(9);
+            chosen
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("derivable calls should specialize");
+    assert_eq!(checked.machine_specializations.len(), 2);
+}

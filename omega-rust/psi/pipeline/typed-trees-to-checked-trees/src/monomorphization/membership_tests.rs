@@ -27,8 +27,12 @@ fn parameter_membership_instances_follow_single_and_multiple_specialization() {
              machine run(value: i64 in Coordinate<7>) -> i64 in Coordinate<7> {{ relay<7>(value) }}
              {second}"
         ));
-        monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
-            .expect("closed specializations");
+        monomorphize_generic_machine_value_calls_with_nominal_uses(
+            &mut program,
+            &mut Vec::new(),
+            true,
+        )
+        .expect("closed specializations");
         refresh_closed_domain_instance_identities(&mut program).expect("refresh memberships");
         let mut instances = Vec::new();
         for specialization in &program.machine_specializations {

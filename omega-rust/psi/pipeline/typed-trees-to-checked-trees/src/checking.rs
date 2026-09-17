@@ -71,7 +71,8 @@ fn check_program(
         &program,
         selected_generic_operator_providers,
     );
-    let mut nominal_machine_uses = specialize_static_machine_calls_with_nominal_uses(&mut program)?;
+    let mut nominal_machine_uses =
+        specialize_static_machine_calls_with_nominal_uses(&mut program, true)?;
     normalize_open_index_identities(&mut program)?;
     while let Some(templates) = &selected_provider_templates {
         let materialized = crate::monomorphization::specialize_selected_generic_operator_providers(
@@ -82,7 +83,8 @@ fn check_program(
         if materialized == 0 {
             break;
         }
-        nominal_machine_uses = specialize_static_machine_calls_with_nominal_uses(&mut program)?;
+        nominal_machine_uses =
+            specialize_static_machine_calls_with_nominal_uses(&mut program, true)?;
         normalize_open_index_identities(&mut program)?;
     }
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
@@ -281,14 +283,20 @@ pub fn normalize_open_index_identities(
 /// checked-tree path invokes this before validation; orchestration also uses
 /// it on a private clone before interpreting build.omg so build-time execution
 /// sees the same specialized program as runtime lowering.
+///
+/// This speculative route tolerates an incomplete concrete selection: build
+/// preparation runs while const endpoint folds are still outstanding, so an
+/// underivable tuple is interim evidence, not a rejected program. The
+/// authoritative checking pass enforces the complete-tuple gate itself.
 pub fn specialize_static_machine_calls(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    specialize_static_machine_calls_with_nominal_uses(program).map(|_| ())
+    specialize_static_machine_calls_with_nominal_uses(program, false).map(|_| ())
 }
 
 pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
     program: &mut typed_trees::TypedTrees,
+    enforce_complete_concrete_selections: bool,
 ) -> Result<Vec<::validation::ValidatedNominalMachineUse>, Vec<diagnostics::Diagnostic>> {
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
@@ -299,6 +307,7 @@ pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
     crate::monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses(
         program,
         &mut nominal_uses,
+        enforce_complete_concrete_selections,
     )?;
     let operational = ::validation::infer_operational_may(program);
     ::validation::validate_static_machine_call_contracts(program, &operational)
