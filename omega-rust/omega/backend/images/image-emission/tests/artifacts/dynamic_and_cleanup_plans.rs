@@ -879,6 +879,7 @@ pub(super) fn dynamic_conformance_table_plan() -> MachineCodePlan {
             terminal_psi::ClosedConformanceRow {
                 declaring_trait_identity: "closed.trait".to_string(),
                 public_requirement_identity: "closed.req.a".to_string(),
+                family_tuple: Vec::new(),
                 requirement_identity: "closed.req.a.impl".to_string(),
                 realization_identity: "closed.real.a".to_string(),
                 realization_callable_identity: Some("closed.callable.a".to_string()),
@@ -886,6 +887,7 @@ pub(super) fn dynamic_conformance_table_plan() -> MachineCodePlan {
             terminal_psi::ClosedConformanceRow {
                 declaring_trait_identity: "closed.trait".to_string(),
                 public_requirement_identity: "closed.req.b".to_string(),
+                family_tuple: Vec::new(),
                 requirement_identity: "closed.req.b.impl".to_string(),
                 realization_identity: "closed.real.b".to_string(),
                 realization_callable_identity: None,
@@ -1250,6 +1252,7 @@ pub(super) fn stored_dynamic_call_plan() -> MachineCodePlan {
             terminal_psi::ClosedConformanceRow {
                 declaring_trait_identity: "closed.trait".to_string(),
                 public_requirement_identity: "closed.req.a".to_string(),
+                family_tuple: Vec::new(),
                 requirement_identity: "closed.req.a.impl".to_string(),
                 realization_identity: "closed.real.a".to_string(),
                 realization_callable_identity: Some("closed.callable.a".to_string()),
@@ -1257,6 +1260,7 @@ pub(super) fn stored_dynamic_call_plan() -> MachineCodePlan {
             terminal_psi::ClosedConformanceRow {
                 declaring_trait_identity: "closed.trait".to_string(),
                 public_requirement_identity: "closed.req.b".to_string(),
+                family_tuple: Vec::new(),
                 requirement_identity: "closed.req.b.impl".to_string(),
                 realization_identity: "closed.real.b".to_string(),
                 realization_callable_identity: None,
@@ -1716,6 +1720,7 @@ pub(super) fn forwarded_dynamic_descriptor_call_plan() -> MachineCodePlan {
         rows: vec![terminal_psi::ClosedConformanceRow {
             declaring_trait_identity: "fwd.trait".to_string(),
             public_requirement_identity: "fwd.req".to_string(),
+            family_tuple: Vec::new(),
             requirement_identity: "fwd.req.impl".to_string(),
             realization_identity: "fwd.real.a".to_string(),
             realization_callable_identity: Some("fwd.callable.a".to_string()),

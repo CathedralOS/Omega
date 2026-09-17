@@ -91,6 +91,7 @@ pub(super) fn validate_indirect_dispatches(
             .filter(|row| {
                 row.declaring_trait_identity == dispatch.declaring_trait_identity
                     && row.public_requirement_identity == dispatch.public_requirement_identity
+                    && row.family_tuple == dispatch.family_tuple
                     && row.requirement_identity == dispatch.requirement_identity
                     && row.realization_identity == dispatch.realization_identity
                     && row.realization_callable_identity.as_deref()

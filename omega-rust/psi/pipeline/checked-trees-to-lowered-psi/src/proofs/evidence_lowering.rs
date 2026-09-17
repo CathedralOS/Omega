@@ -119,30 +119,31 @@ pub(crate) fn checked_evidence_requirement_identity(
     Ok(exact_trait_requirement(checked, declaring_trait, requirement)?.overload_identity)
 }
 
-/// Establish that a dynamic row's requirement carries the nongeneric empty
-/// family tuple.
+/// The canonical family tuple one closed conformance table row carries for
+/// its requirement; dispatch rows copy the tuple from the row they select.
 ///
-/// A Terminal dynamic row names `(declaring trait, complete requirement
-/// overload, canonical value tuple)`. The local dynamic surface admits only
-/// requirements without local generic binders
-/// (`DynamicSignatureIneligibility::RequirementLocalGenerics`), so the only
-/// tuple this lowering can retain is the empty one. A requirement that
-/// declares binders has no Terminal tuple producer yet and rejects here rather
-/// than lowering as an unbound row that merely looks nongeneric.
-pub(crate) fn checked_dynamic_requirement_is_nongeneric(
+/// A Terminal table or dispatch row names `(declaring trait, complete
+/// requirement overload, canonical value tuple)`. The local dynamic surface
+/// admits only requirements without local generic binders
+/// (`DynamicSignatureIneligibility::RequirementLocalGenerics`) and the static
+/// requirement dispatch carries no tuple coordinate, so the only tuple this
+/// lowering can retain is the empty one. A requirement that declares binders
+/// has no Terminal tuple producer yet and rejects here rather than lowering
+/// as an unbound row that merely looks nongeneric.
+pub(crate) fn checked_requirement_family_tuple(
     checked: &CheckedTrees,
     declaring_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
-) -> Result<(), LoweringError> {
+) -> Result<Vec<String>, LoweringError> {
     if exact_trait_requirement(checked, declaring_trait, requirement)?
         .declares_local_generic_binders
     {
         return unsupported(
-            "dynamic requirement declares requirement-local generic binders without a family \
-             tuple producer",
+            "conformance requirement declares requirement-local generic binders without a \
+             family tuple producer",
         );
     }
-    Ok(())
+    Ok(Vec::new())
 }
 
 /// The exact typed requirement one `(declaring trait, requirement)` symbol

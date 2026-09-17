@@ -108,6 +108,7 @@ pub(super) fn validate_rebound_descriptors(
                     initial.declaring_trait_identity == rebound.declaring_trait_identity
                         && initial.public_requirement_identity
                             == rebound.public_requirement_identity
+                        && initial.family_tuple == rebound.family_tuple
                         && initial.requirement_identity == rebound.requirement_identity
                 });
         if descriptor.initial_selection_ordinal.checked_add(1)

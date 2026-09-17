@@ -135,6 +135,9 @@ fn validate_static_requirement_dispatch(
         row.declaring_trait_identity == dispatch.declaring_trait_identity
             && row.public_requirement_identity == dispatch.public_requirement_identity
             && row.public_requirement_identity == invocation.target_machine_identity
+            // A static requirement dispatch carries no tuple coordinate, so it
+            // can only name the nongeneric row of its overload.
+            && row.family_tuple.is_empty()
             && row.requirement_identity == dispatch.requirement_identity
             && row.realization_identity == dispatch.realization_identity
             && row.realization_callable_identity.as_deref()

@@ -86,6 +86,7 @@ pub(super) fn validate_closed_conformance_applications(
             || application.rows.iter().any(|row| {
                 row.declaring_trait_identity.is_empty()
                     || row.public_requirement_identity.is_empty()
+                    || row.family_tuple.iter().any(String::is_empty)
                     || row.requirement_identity.is_empty()
                     || row.realization_identity.is_empty()
                     || row
@@ -203,6 +204,9 @@ pub(super) fn validate_closed_conformance_applications(
                                         == row.declaring_trait_identity
                                     && dispatch.public_requirement_identity
                                         == row.public_requirement_identity
+                                    // A static requirement dispatch carries no
+                                    // tuple, so it consumes only the nongeneric row.
+                                    && row.family_tuple.is_empty()
                                     && dispatch.requirement_identity == row.requirement_identity
                                     && dispatch.realization_identity == row.realization_identity
                                     && dispatch.realization_callable_identity
@@ -221,6 +225,7 @@ pub(super) fn validate_closed_conformance_applications(
                             && dispatch.declaring_trait_identity == row.declaring_trait_identity
                             && dispatch.public_requirement_identity
                                 == row.public_requirement_identity
+                            && dispatch.family_tuple == row.family_tuple
                             && dispatch.requirement_identity == row.requirement_identity
                             && dispatch.realization_identity == row.realization_identity
                             && dispatch.realization_callable_identity
@@ -245,6 +250,7 @@ pub(super) fn validate_closed_conformance_applications(
                                     == row.declaring_trait_identity
                                 && dispatch.public_requirement_identity
                                     == row.public_requirement_identity
+                                && dispatch.family_tuple == row.family_tuple
                                 && dispatch.requirement_identity == row.requirement_identity
                                 && dispatch.realization_identity == row.realization_identity
                                 && dispatch.realization_callable_identity
@@ -276,6 +282,7 @@ pub(super) fn validate_closed_conformance_applications(
                             && dispatch.declaring_trait_identity == row.declaring_trait_identity
                             && dispatch.public_requirement_identity
                                 == row.public_requirement_identity
+                            && dispatch.family_tuple == row.family_tuple
                             && dispatch.requirement_identity == row.requirement_identity
                             && dispatch.realization_identity == row.realization_identity
                             && dispatch.realization_callable_identity
@@ -323,6 +330,7 @@ pub(super) fn validate_closed_conformance_applications(
                                             == dispatch.declaring_trait_identity
                                             && row.public_requirement_identity
                                                 == dispatch.public_requirement_identity
+                                            && row.family_tuple == dispatch.family_tuple
                                             && row.requirement_identity
                                                 == dispatch.requirement_identity
                                             && row.realization_identity
@@ -364,6 +372,7 @@ pub(super) fn validate_closed_conformance_applications(
                                         == dispatch.declaring_trait_identity
                                         && row.public_requirement_identity
                                             == dispatch.public_requirement_identity
+                                        && row.family_tuple == dispatch.family_tuple
                                         && row.requirement_identity
                                             == dispatch.requirement_identity
                                         && row.realization_identity

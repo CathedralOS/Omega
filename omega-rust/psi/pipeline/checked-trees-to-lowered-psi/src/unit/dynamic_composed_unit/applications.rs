@@ -84,7 +84,7 @@ pub(crate) fn lower_initial_rebound_application(
                 checked,
                 closed.realization_machine,
             )?;
-            evidence_lowering::checked_dynamic_requirement_is_nongeneric(
+            let family_tuple = evidence_lowering::checked_requirement_family_tuple(
                 checked,
                 closed.declaring_trait,
                 closed.requirement,
@@ -103,6 +103,7 @@ pub(crate) fn lower_initial_rebound_application(
                     .symbols
                     .display_path(closed.declaring_trait, "::"),
                 public_requirement_identity: requirement_identity,
+                family_tuple,
                 requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
                 realization_identity: checked.symbols.display_path(closed.realization_state, "::"),
                 realization_callable_identity: None,
@@ -194,7 +195,7 @@ pub(crate) fn lower_exact_application(
             checked,
             closed.realization_machine,
         )?;
-        evidence_lowering::checked_dynamic_requirement_is_nongeneric(
+        let family_tuple = evidence_lowering::checked_requirement_family_tuple(
             checked,
             closed.declaring_trait,
             closed.requirement,
@@ -228,6 +229,7 @@ pub(crate) fn lower_exact_application(
         let row = ClosedConformanceRow {
             declaring_trait_identity: checked.symbols.display_path(closed.declaring_trait, "::"),
             public_requirement_identity: requirement_identity,
+            family_tuple,
             requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
             realization_identity: checked.symbols.display_path(closed.realization_state, "::"),
             realization_callable_identity: matching_realization

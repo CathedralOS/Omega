@@ -755,9 +755,7 @@ fn lower_unit_call_custody(
                         public_requirement_identity: selected_row
                             .public_requirement_identity
                             .clone(),
-                        // A nongeneric requirement row (guarded when the row map was built)
-                        // carries the empty family tuple.
-                        family_tuple: Vec::new(),
+                        family_tuple: selected_row.family_tuple.clone(),
                         requirement_identity: selected_row.requirement_identity.clone(),
                         realization_identity: selected_row.realization_identity.clone(),
                         realization_callable_identity: callable_identity,
@@ -860,9 +858,7 @@ fn lower_unit_call_custody(
                         public_requirement_identity: selected_row
                             .public_requirement_identity
                             .clone(),
-                        // A nongeneric requirement row (guarded when the row map was built)
-                        // carries the empty family tuple.
-                        family_tuple: Vec::new(),
+                        family_tuple: selected_row.family_tuple.clone(),
                         requirement_identity: selected_row.requirement_identity.clone(),
                         realization_identity: selected_row.realization_identity.clone(),
                         realization_callable_identity: callable_identity,
@@ -1230,7 +1226,7 @@ pub(super) fn lower_exact_unit_application(
             checked,
             closed.realization_machine,
         )?;
-        evidence_lowering::checked_dynamic_requirement_is_nongeneric(
+        let family_tuple = evidence_lowering::checked_requirement_family_tuple(
             checked,
             closed.declaring_trait,
             closed.requirement,
@@ -1264,6 +1260,7 @@ pub(super) fn lower_exact_unit_application(
         let row = ClosedConformanceRow {
             declaring_trait_identity: checked.symbols.display_path(closed.declaring_trait, "::"),
             public_requirement_identity: requirement_identity,
+            family_tuple,
             requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
             realization_identity: checked.symbols.display_path(closed.realization_state, "::"),
             realization_callable_identity: matching

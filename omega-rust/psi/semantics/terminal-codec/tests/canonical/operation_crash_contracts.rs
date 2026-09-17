@@ -86,7 +86,7 @@ fn comparison_fixture() -> TerminalModule {
 fn operation_crash_contracts_round_trip_and_enter_semantic_identity() {
     let module = comparison_fixture();
     let bytes = encode_module(&module).expect("operation crash contract encodes");
-    assert_eq!(&bytes[8..12], &[99, 0, 107, 0]);
+    assert_eq!(&bytes[8..12], &[100, 0, 107, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -136,10 +136,10 @@ fn modules_without_the_roster_section_reject() {
     );
 
     let mut previous_marker = current;
-    previous_marker[8..10].copy_from_slice(&98_u16.to_le_bytes());
+    previous_marker[8..10].copy_from_slice(&99_u16.to_le_bytes());
     assert_eq!(
         decode_module(&previous_marker),
-        Err(CodecError::UnsupportedFormatMarker(98))
+        Err(CodecError::UnsupportedFormatMarker(99))
     );
 }
 

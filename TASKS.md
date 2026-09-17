@@ -3558,18 +3558,27 @@ Owners include
   direct/indirect/stored dispatch rows in
   `terminal_module/boundary/dynamic_dispatch.rs` carry `family_tuple` (the
   producer's canonical const identities in binder declaration order, empty
-  for a nongeneric requirement), `terminal-codec` encodes it under format
-  marker 98 with round-trip, byte-identity, and previous-layout rejection
-  tests in `dynamic_dispatch_wire.rs`, and `checked-trees-to-lowered-psi`
-  rejects a dynamic row whose requirement declares local binders rather than
-  lowering it as an empty-tuple row. Remaining open slice: Omega native table
-  replay of tuple rows, including the tuple on `ClosedConformanceRow` table
-  rows so the verifier can rejoin dispatch tuples to the table, and a Psi
-  producer admitting a finite family into the local `dyn` surface (the
+  for a nongeneric requirement), and `ClosedConformanceRow` table rows in
+  `terminal_module/boundary/conformances.rs` carry the same tuple inside the
+  application commitment (domain `v4`) and report fingerprint;
+  `terminal-codec` encodes both under format marker 100 with round-trip,
+  byte-identity, and previous-layout rejection tests in
+  `dynamic_dispatch_wire.rs` and `closed_conformance_wire.rs`;
+  `terminal-verifier` rejoins every direct/indirect/stored dispatch,
+  descriptor-parameter slot, rebound row pair, and static requirement
+  dispatch to the table row by exact tuple (`tests/dynamic_dispatch.rs`);
+  and `checked-trees-to-lowered-psi` fills every table and dispatch row from
+  one `checked_requirement_family_tuple` source, rejecting a requirement that
+  declares local binders rather than lowering an empty-tuple row. Remaining
+  open slice: Omega native table replay of tuple rows
+  (`terminal-psi-to-abstract-operations`, `abstract-operations`, and
+  `image-emission` replay still rejoin rows by the two identities alone), and
+  a Psi producer admitting a finite family into the local `dyn` surface (the
   `selected-dispatch` roster settles only boundary adapter dispatch, which
-  that surface excludes); boundary calls never demand provider
-  specializations, so every roster tuple needs one static call site until
-  a dynamic selection generates the complete family.
+  that surface excludes), so a nonempty tuple is producible only by tests;
+  boundary calls never demand provider specializations, so every roster
+  tuple needs one static call site until a dynamic selection generates the
+  complete family.
 
   Acceptance: widths 16/32/64 need no handwritten suffix-method family; source
   alternative order and duplicates normalize deterministically. One selected
