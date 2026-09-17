@@ -184,6 +184,8 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
+        | O::EstablishReference { .. }
+        | O::ReleaseReference { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => {}

@@ -241,6 +241,21 @@ pub(crate) fn operation_structural_call_contract_matches(
             returned_claim_transfers,
             ..
         } => functions.get(callee).is_some_and(|callee| {
+            // A call returning reference custody has its own complete rule:
+            // the caller instantiates the callee's exact source roster, and
+            // claim traffic stays empty because carriers carry no claims.
+            if callee
+                .result
+                .structural()
+                .is_some_and(|signature| {
+                    crate::unit_validation::references::contains_reference(
+                        types,
+                        signature.structural_type,
+                    )
+                })
+            {
+                return reference_call_matches(caller, operation, callee, types);
+            }
             structural_arguments_match(
                 caller,
                 structural_arguments,
@@ -297,4 +312,79 @@ pub(crate) fn operation_structural_call_contract_matches(
         }),
         _ => true,
     }
+}
+
+/// A call returning reference custody replays the verified rule exactly: the
+/// result is a whole established carrier or constructible record matching the
+/// callee signature, no claim traffic crosses, and every structural argument
+/// is admitted under the ordinary internal-call contract (which itself admits
+/// `.., Referent` projections through their exact primitive parameters).
+fn reference_call_matches(
+    caller: &PsiOptimizationFunction,
+    operation: &O,
+    callee: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    let O::CallStructural {
+        psi_operation,
+        result,
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let Some(signature) = callee
+        .result
+        .structural()
+        .filter(|signature| {
+            crate::unit_validation::references::contains_reference(
+                types,
+                signature.structural_type,
+            )
+        })
+    else {
+        return false;
+    };
+    let Some(contract) = callee.verified_contract.as_ref() else {
+        return false;
+    };
+    result.structural_type == signature.structural_type
+        && result.multiplicity == signature.multiplicity
+        && result.qualifications == signature.qualifications
+        && result.projected_qualifications == signature.projected_qualifications
+        && crate::unit_validation::references::contains_reference(types, result.structural_type)
+        && (crate::unit_validation::references::referent(types, result.structural_type).is_some()
+            || crate::unit_validation::operation_contracts::constructible_record(
+                types,
+                result.structural_type,
+            ))
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && result.claims.is_empty()
+        && caller.structural_places.iter().any(|place| {
+            place.id == result.place
+                && place.kind
+                    == crate::StructuralPlaceKind::OperationResult {
+                        producer: *psi_operation,
+                        structural_type: result.structural_type,
+                    }
+        })
+        && claim_transfers.is_empty()
+        && returned_claim_transfers.is_empty()
+        && callee.entry_claims.is_empty()
+        && callee.content_entry_claims.is_empty()
+        && arguments.len() == callee.parameters.len()
+        && requirement_obligations.len() == contract.requires.len()
+        && structural_arguments_match(
+            caller,
+            structural_arguments,
+            &callee.structural_parameters,
+            types,
+            StructuralProjectionPolicy::Unit,
+            true,
+        )
 }

@@ -61,6 +61,27 @@ pub(crate) fn structural_arguments_match(
         return false;
     }
     for (argument, parameter) in arguments.iter().zip(parameters) {
+        // A projection through a reference carrier names the carrier's exact
+        // primitive referent, never a byte of the carrier itself. This mirrors
+        // the verified call rule: internal calls only, exact parameter match.
+        if argument
+            .path
+            .contains(&terminal_psi::StructuralPathSegment::Referent)
+        {
+            let admitted = !matches!(
+                projection,
+                StructuralProjectionPolicy::Boundary | StructuralProjectionPolicy::EmptyOnly
+            ) && crate::unit_validation::reference_source_type(caller, types, argument)
+                == Some(parameter.structural_type)
+                && argument.access == parameter.access
+                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty();
+            if !admitted {
+                return false;
+            }
+            continue;
+        }
         let Some(source) = structural_source_contract(caller, argument.place, allow_byte_literal)
         else {
             return false;
@@ -429,6 +450,7 @@ fn structural_operation_result_contract(
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
+                | O::EstablishReference { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

@@ -370,6 +370,66 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
+                O::EstablishReference {
+                    psi_operation,
+                    result,
+                    source,
+                } => {
+                    // Whole-carrier establishment: the result is an affine
+                    // `ref mut` over a primitive referent and the source must
+                    // name exactly that referent under mutable authority.
+                    let expected =
+                        crate::unit_validation::references::referent(
+                            structural_types,
+                            result.structural_type,
+                        );
+                    let valid = expected.is_some()
+                        && result.multiplicity
+                            == terminal_psi::StructuralMultiplicity::Affine
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.claims.is_empty()
+                        && matches!(
+                            place_kinds.get(&result.place),
+                            Some(StructuralPlaceKind::OperationResult {
+                                producer,
+                                structural_type,
+                            }) if *producer == *psi_operation
+                                && *structural_type == result.structural_type
+                        )
+                        && source.access == terminal_psi::StructuralAccess::MutableBorrow
+                        && crate::unit_validation::references::reference_source_type(
+                            function,
+                            structural_types,
+                            source,
+                        ) == expected;
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::StructuralCatalogMismatch {
+                                machine: Some(function.machine),
+                            },
+                        );
+                    }
+                }
+                O::ReleaseReference { source, .. } => {
+                    let valid = crate::unit_validation::structural_source_contract(
+                        function, *source, false,
+                    )
+                    .is_some_and(|signature| {
+                        crate::unit_validation::references::referent(
+                            structural_types,
+                            signature.structural_type,
+                        )
+                        .is_some()
+                    });
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::StructuralCatalogMismatch {
+                                machine: Some(function.machine),
+                            },
+                        );
+                    }
+                }
                 O::ReturnStructural { source, .. } => {
                     let Some(signature) = function.result.structural() else {
                         return Err(
@@ -442,6 +502,11 @@ pub(crate) fn validate_structural_root_operations(
                                         ..
                                     }
                                     | O::EstablishRecord {
+                                        psi_operation,
+                                        result,
+                                        ..
+                                    }
+                                    | O::EstablishReference {
                                         psi_operation,
                                         result,
                                         ..
@@ -551,6 +616,7 @@ fn readable_field_type(
                     O::EstablishRecord { result, .. }
                     | O::EstablishScalarArray { result, .. }
                     | O::EstablishScalarCase { result, .. }
+                    | O::EstablishReference { result, .. }
                     | O::CallStructural { result, .. }
                     | O::BoundaryCall {
                         result: abstract_operations::AbstractBoundaryResult::Structural(result),

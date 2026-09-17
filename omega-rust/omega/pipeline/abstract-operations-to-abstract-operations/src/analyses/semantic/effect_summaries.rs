@@ -389,6 +389,8 @@ fn operation_effect(
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishRecord { .. }
+        | O::EstablishReference { .. }
+        | O::ReleaseReference { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }

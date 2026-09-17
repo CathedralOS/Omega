@@ -196,6 +196,24 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 }
             });
         }
+        O::EstablishReference {
+            psi_operation,
+            result,
+            source,
+        } => {
+            bytes.u8(79);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            encode_structural_argument(bytes, source);
+        }
+        O::ReleaseReference {
+            psi_operation,
+            source,
+        } => {
+            bytes.u8(80);
+            bytes.id(*psi_operation);
+            bytes.id(*source);
+        }
         _ => unreachable!("operation family routing admitted a non-structural operation"),
     }
 }

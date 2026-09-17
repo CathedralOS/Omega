@@ -26,6 +26,7 @@ pub(crate) fn validate_structural_place_availability(
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
+                | O::EstablishReference { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -173,6 +174,8 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
             source,
             ..
         } => vec![*destination, *source],
+        O::EstablishReference { source, .. } => vec![source.place],
+        O::ReleaseReference { source, .. } => vec![*source],
         O::PrimitiveScalarRead { source, .. }
         | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceSubslice { source, .. }

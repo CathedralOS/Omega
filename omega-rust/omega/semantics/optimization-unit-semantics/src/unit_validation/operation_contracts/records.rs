@@ -103,7 +103,7 @@ pub(crate) fn record_establishment_matches(
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
-        || !plain_record(types, result.structural_type)
+        || !constructible_record(types, result.structural_type)
     {
         return false;
     }
@@ -195,6 +195,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
                     O::EstablishScalarArray { result, .. }
                     | O::EstablishScalarCase { result, .. }
                     | O::EstablishRecord { result, .. }
+                    | O::EstablishReference { result, .. }
                     | O::CallStructural { result, .. }
                     | O::BoundaryCall {
                         result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -209,6 +210,24 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
 fn plain_record(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
+) -> bool {
+    record_type(types, root, false)
+}
+
+/// Local construction can relocate checked reference carriers. Keep this
+/// separate from plain payload classification: plain calls and returns do not
+/// thereby acquire recursive reference transfer semantics.
+pub(crate) fn constructible_record(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+) -> bool {
+    record_type(types, root, true)
+}
+
+fn record_type(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    references: bool,
 ) -> bool {
     let mut pending = vec![(root, false)];
     let mut active = BTreeSet::new();
@@ -241,6 +260,9 @@ fn plain_record(
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
+                StructuralFieldType::Structural(child)
+                    if references
+                        && crate::unit_validation::references::referent(types, child).is_some() => {}
                 StructuralFieldType::Structural(child) => pending.push((child, false)),
                 _ => return false,
             }

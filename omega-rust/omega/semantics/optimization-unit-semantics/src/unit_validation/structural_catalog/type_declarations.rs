@@ -132,8 +132,8 @@ pub(crate) fn validate_structural_type_graph(
         }
         let declaration = types[&id];
         match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { .. } => {
-                return Err(OptimizationUnitValidationError::InvalidStructuralTypeIdentity(id));
+            terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
+                visit(*referent, types, active, complete)?;
             }
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(_) => {}

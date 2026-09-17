@@ -81,6 +81,8 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
+        | O::EstablishReference { .. }
+        | O::ReleaseReference { .. }
         | O::Jump { .. }
         | O::Conditional { .. }
         | O::StructuralCase { .. }

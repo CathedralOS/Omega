@@ -666,6 +666,20 @@ pub enum AbstractOperation {
         )>,
         trivial_affine_discards: Vec<PlaceId>,
     },
+    /// Establish one verified reference carrier. The structural result owns the
+    /// loan; its referent remains the `source` argument's projected home and is
+    /// located by compile-time custody, never by reading a stored pointer.
+    EstablishReference {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: StructuralArgument,
+    },
+    /// Close one verified loan: the carrier is discarded and the referent
+    /// root's suspended access is restored. Referent storage is not disposed.
+    ReleaseReference {
+        psi_operation: OperationId,
+        source: PlaceId,
+    },
     /// A verified no-successor terminal. The audit-only site guard and frontier
     /// remain attached at the Omega boundary even though native realization
     /// only needs the closed cause and edge identity.

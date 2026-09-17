@@ -52,6 +52,7 @@ pub(crate) fn reconstruct_declared_places(
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
+                | O::EstablishReference { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -123,6 +124,8 @@ pub(crate) fn validate_operation_places(
         }
         O::EstablishByteSequenceLiteral { .. } | O::EstablishTrivialAffineLocal { .. } => {}
         O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
+        O::EstablishReference { source, .. } => require(source.place, known)?,
+        O::ReleaseReference { source, .. } => require(*source, known)?,
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => {
             require(destination.place, known)?;

@@ -38,11 +38,9 @@ pub(super) fn index_structural_types(
     }
     for declaration in &unit.structural_types {
         match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { .. } => {
-                return Err(
-                    OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
-                );
-            }
+            // A reference carrier holds loan permission, not referent
+            // storage; its exact contract is checked once `types` is complete.
+            terminal_psi::StructuralTypeShape::Reference { .. } => {}
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView,
@@ -102,8 +100,72 @@ pub(super) fn index_structural_types(
                 *target,
             ));
         }
+        // The supported carrier is one exclusive permission over one primitive
+        // scalar referent; write-only carriers share the mutable loan shape.
+        if let terminal_psi::StructuralTypeShape::Reference {
+            referent, access, ..
+        } = &declaration.shape
+            && (!matches!(
+                access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) || !matches!(
+                types.get(referent).map(|referent| &referent.shape),
+                Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))
+            ))
+        {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
+            );
+        }
     }
     validate_structural_type_graph(&types)?;
+    // Only record construction currently transfers stored reference custody.
+    // Reject other containers recursively, including a record hidden in them.
+    for declaration in &unit.structural_types {
+        if matches!(
+            declaration.shape,
+            terminal_psi::StructuralTypeShape::Record { .. }
+        ) {
+            continue;
+        }
+        let children: Vec<StructuralTypeId> = match &declaration.shape {
+            terminal_psi::StructuralTypeShape::Sum { cases } => cases
+                .iter()
+                .flat_map(|case| &case.fields)
+                .filter_map(|field| {
+                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
+                        Some(child)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| &case.fields))
+                .filter_map(|field| {
+                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
+                        Some(child)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => vec![*element],
+            terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+            | terminal_psi::StructuralTypeShape::ByteSequence(_)
+            | terminal_psi::StructuralTypeShape::Reference { .. }
+            | terminal_psi::StructuralTypeShape::Record { .. } => Vec::new(),
+        };
+        if children.iter().any(|child| {
+            crate::unit_validation::references::contains_reference(&types, *child)
+        }) {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
+            );
+        }
+    }
     // Empty primitive arrays retain their complete type below the zero extent.
     // Resolve references and cycles first; zero bytes cannot hide invalid types.
     for declaration in &unit.structural_types {
