@@ -117,6 +117,169 @@ fn direct_crash_fallthrough_does_not_confuse_state_and_entry_parameters() {
     );
 }
 
+fn check_fallthrough_coverage(
+    source: &str,
+) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed)
+}
+
+fn assert_covered_site(source: &str) {
+    let checked = check_fallthrough_coverage(source)
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(symbol_of_checked(&checked, "value"))
+        .expect("contract plan");
+    let [site] = plan.crash.checked_sites() else {
+        panic!("one source crash site: {source}");
+    };
+    assert_eq!(site.guard_covering_buckets().len(), 1, "{source}");
+}
+
+fn assert_uncovered_site(source: &str) {
+    let diagnostics = check_fallthrough_coverage(source)
+        .expect_err("a current-storage read cannot claim the published entry route");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("machine `value` has an uncovered Trap crash")
+        }),
+        "{source}: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn direct_crash_fallthrough_projects_pristine_mutable_snapshots() {
+    // A `mut` parameter read still denotes its bound entry operand while no
+    // statement before the guarded edge could have written it, and a write
+    // after the edge cannot unmake the entry fact the unselected arm
+    // established. A write before the guard ends that provenance: the
+    // fallthrough then reads current storage, not the invocation snapshot.
+    for (body, covered) in [
+        ("transition { flag -> true } crash Trap;", true),
+        (
+            // The later arm's own guard borrows `flag` exclusively and may
+            // overwrite it, but that evaluation runs after the earlier arm
+            // established `!flag`; provenance is resolved where the read ran.
+            "transition { flag -> true } transition { touch(&mut flag) -> true } crash Trap;",
+            true,
+        ),
+        (
+            "flag = true; transition { flag -> true } crash Trap;",
+            false,
+        ),
+        (
+            "let saved: bool = flag; flag = true; transition { flag -> true } crash Trap;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "machine touch(slot: &mut bool) -> bool {{ slot = true; slot }}
+             machine value(mut flag: bool) -> bool
+             crashes Trap !flag
+             {{ {body} }}"
+        );
+        if covered {
+            assert_covered_site(&source);
+        } else {
+            assert_uncovered_site(&source);
+        }
+    }
+}
+
+#[test]
+fn direct_crash_fallthrough_projects_entry_field_snapshots() {
+    // The same provenance law covers field projections: an immutable record
+    // parameter's member read was never a scalar snapshot, and a mutable
+    // record keeps `flag.enabled` across a write confined to `flag.other`.
+    for (mutable, prefix, covered) in [
+        ("", "", true),
+        ("mut ", "flag.other = true;", true),
+        ("mut ", "flag.enabled = true;", false),
+    ] {
+        let source = format!(
+            "data Flag {{ enabled: bool; other: bool; }}
+             machine value({mutable}flag: Flag) -> bool
+             crashes Trap !flag.enabled
+             {{
+                 {prefix}
+                 transition {{ flag.enabled -> true }}
+                 crash Trap;
+             }}"
+        );
+        if covered {
+            assert_covered_site(&source);
+        } else {
+            assert_uncovered_site(&source);
+        }
+    }
+}
+
+#[test]
+fn direct_crash_fallthrough_projects_uniform_state_arrivals() {
+    // Every named edge into `next` binds its `flag` to the entry operand, so
+    // its fallthrough still speaks for the published entry route.
+    assert_covered_site(
+        "machine value(flag: bool) -> bool
+         crashes Trap !flag
+         {
+             transition { _ -> next(flag) }
+             state next(flag: bool) -> bool {
+                 transition { flag -> true }
+                 crash Trap;
+             }
+         }",
+    );
+    // A mutable state parameter keeps the same snapshot under the same rule:
+    // one arrival binding it to the entry operand, no write before the read.
+    assert_covered_site(
+        "machine value(flag: bool) -> bool
+         crashes Trap !flag
+         {
+             transition { _ -> next(flag) }
+             state next(mut flag: bool) -> bool {
+                 transition { flag -> true }
+                 crash Trap;
+             }
+         }",
+    );
+    // A second arrival binding a different operand breaks the uniformity the
+    // first case relied on: `flag` inside `next` is no longer the entry one.
+    assert_uncovered_site(
+        "machine value(flag: bool, other: bool) -> bool
+         crashes Trap !flag
+         {
+             transition other { true -> next(flag) _ -> next(other) }
+             state next(flag: bool) -> bool {
+                 transition { flag -> true }
+                 crash Trap;
+             }
+         }",
+    );
+}
+
+#[test]
+fn direct_crash_fallthrough_does_not_substitute_local_aliases() {
+    // `saved` holds the entry operand's value, but its own spelling claims no
+    // parameter position: the published route names `flag`, and no proven
+    // leaf identity equals that claim.
+    assert_uncovered_site(
+        "machine value(flag: bool) -> bool
+         crashes Trap !flag
+         {
+             let saved: bool = flag;
+             transition { saved -> true }
+             crash Trap;
+         }",
+    );
+}
+
 #[test]
 fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     let source = r#"
