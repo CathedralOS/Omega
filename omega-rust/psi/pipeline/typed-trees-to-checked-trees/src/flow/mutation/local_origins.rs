@@ -271,7 +271,7 @@ pub(crate) fn rebase_exact_local_place(
     Some(canonical)
 }
 
-pub(super) fn rebase_local_write_places(
+pub(crate) fn rebase_local_write_places(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
