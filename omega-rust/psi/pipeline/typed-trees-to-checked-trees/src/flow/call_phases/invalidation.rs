@@ -59,7 +59,13 @@ pub(in crate::flow) fn apply_call_invalidations(
     active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> CallInvalidationResult {
-    let mutated_places = call_storage_writes(program, borrow, ctx, machine, state, borrow_call);
+    // An unknown frame retires no more than the declared-signature ceiling
+    // (call_phases/ceiling.rs); only an unrepresentable ceiling still retires
+    // every live fact.
+    let mutated_places = call_storage_writes(program, borrow, ctx, machine, state, borrow_call)
+        .or_else(|| {
+            super::ceiling::signature_ceiling_places(program, ctx, machine, state, borrow_call)
+        });
     let invalidations_start = ctx.invalidations.events.len();
     let post_contexts = match mutated_places {
         None => HandleSpan::empty(),

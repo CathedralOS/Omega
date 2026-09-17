@@ -10,6 +10,7 @@ use checked_trees::{
 };
 use facts::{FactPlan, ProgramPoint};
 
+mod ceiling;
 mod invalidation;
 mod referents;
 

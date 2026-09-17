@@ -15,6 +15,7 @@ mod boolean_call_results;
 mod bounded_arguments;
 mod bounded_returns;
 mod byte_sequences;
+mod call_ceilings;
 mod closed_boolean_calls;
 mod closed_scalar_arithmetic;
 mod contract_entailment_certificates;
