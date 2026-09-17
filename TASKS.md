@@ -3052,11 +3052,20 @@ Owners include
   projection declaration), `Float::meaning32/64` in core use it with the
   float harness legs identical, and a user-package lookalike rejects
   ("merely naming a declaration `Float::meaning32` grants no primitive",
-  `fail/float/float_meaning_lookalike_grants_no_primitive`); the
-  `FloatSemantics::*` family, `Nat::Descending` (identified by spelling
-  only in `RankingView::canonical` and `checks/termination/order.rs`) and
-  the corpus ranking/surface fixtures need per-family catalog rows before
-  the same route admits them; bodyless domain-family and
+  `fail/float/float_meaning_lookalike_grants_no_primitive`); at
+  1cd2e7d1ed/d23557f541/2b3882430d the 65 `FloatSemantics::*` definitions
+  are bare catalog signatures selected by exact normalized callable
+  identity (`numerics/src/float_semantics_catalog.rs`, signature-keyed
+  rows so the `from_integer` carriers never collide, identity-only with
+  the discharge binding as FLOAT-PROVIDERS' extension point) under the
+  same custody rule, with typed shape validation rejecting drift and the
+  float harness, std check and std policy (modulo core's digest)
+  identical; the lookalike control
+  `fail/float/float_semantics_lookalike_grants_no_primitive` still needs
+  its roster line in `canary_suite.rs`. `Nat::Descending` (identified by
+  spelling only in `RankingView::canonical` and
+  `checks/termination/order.rs`) and the corpus ranking/surface fixtures
+  need their own catalog rows before the route admits them; bodyless domain-family and
   carrier-qualified semantic declarations (5 library, 26 tests) migrate
   to declaration-owned bodies with their relational `ensures`, since the
   supply table admits no other nonboundary supply (at c74c9adcbf a
