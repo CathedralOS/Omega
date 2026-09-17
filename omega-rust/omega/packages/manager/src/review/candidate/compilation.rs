@@ -217,7 +217,10 @@ fn compile_candidate(
         TargetEntryDiscovery::Dependencies,
         preparation,
     )?;
-    let discovered = candidate_semantic_binding_inputs(&preliminary.reviews)?;
+    let discovered = candidate_semantic_binding_inputs(
+        &preliminary.reviews,
+        target_closure.source_closure().graph().root(),
+    )?;
     if discovered.is_empty() {
         return Ok(preliminary);
     }
