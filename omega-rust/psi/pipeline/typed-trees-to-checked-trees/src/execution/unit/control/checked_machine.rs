@@ -517,6 +517,7 @@ fn build_checked_machine_with_trace(
         &statements[local_count..]
     };
     if write_only_store.is_some() || structural_scalar_field_store.is_some() {
+        trace.phase("call statement shape: store route statement count");
         if construction.is_some()
             || if scalar_result_local.is_some() {
                 local_count != 1 || calls.len() != 1 || statements.len() != 2
@@ -532,13 +533,18 @@ fn build_checked_machine_with_trace(
         let expected_call_count = call_statements.len().checked_add(usize::from(
             scalar_result_local.is_some() || structural_result_local.is_some(),
         ))?;
-        if statement_sequence.is_none()
-            && (calls.len() != expected_call_count
-                || call_statements
+        if statement_sequence.is_none() {
+            trace.phase("call statement shape: call statements without a statement sequence");
+            if calls.len() != expected_call_count {
+                trace.phase("call statement shape: call count without a statement sequence");
+                return None;
+            }
+            if let Some(index) =
+                call_statements
                     .iter()
                     .enumerate()
-                    .any(|(index, statement)| {
-                        !matches!(statement, StatementNode::Call(_))
+                    .find_map(|(index, statement)| {
+                        (!matches!(statement, StatementNode::Call(_))
                             && local_count
                                 .checked_add(index)
                                 .and_then(|index| {
@@ -546,10 +552,17 @@ fn build_checked_machine_with_trace(
                                         program, machine, state, index,
                                     )
                                 })
-                                .is_none()
-                    }))
-        {
-            return None;
+                                .is_none())
+                        .then_some(index)
+                    })
+            {
+                trace.statement(
+                    local_count
+                        .checked_add(index)
+                        .and_then(|index| u32::try_from(index).ok()),
+                );
+                return None;
+            }
         }
         // Primitive structural places belong to the checked store/call closure,
         // including stores and returned reference leaves retained by the shared
@@ -594,6 +607,7 @@ fn build_checked_machine_with_trace(
             && source_parameters
                 .iter()
                 .all(|parameter| !parameter.is_self && !parameter.is_const);
+        trace.phase("call statement shape: primitive carrier without a store or call closure");
         if carries_primitive
             && source_calls.is_empty()
             && !statement_sequence.as_ref().is_some_and(|sequence| {
