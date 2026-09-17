@@ -228,6 +228,7 @@ pub(super) fn build(
             &[],
             binding_count,
             call_frames,
+            &control::LocalConstructionTrace::default(),
         )?;
         let mut operations = sequence.operations;
         // Named results remain live through successor operand evaluation. The

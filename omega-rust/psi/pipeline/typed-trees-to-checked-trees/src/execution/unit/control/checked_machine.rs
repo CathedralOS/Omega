@@ -437,6 +437,7 @@ fn build_checked_machine_with_trace(
             sequence_trivial_locals.as_deref().unwrap_or(&[]),
             construction_statement_count,
             call_frames,
+            trace,
         )?)
     } else {
         None
