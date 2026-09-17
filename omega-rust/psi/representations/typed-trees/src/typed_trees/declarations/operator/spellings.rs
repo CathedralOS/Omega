@@ -32,6 +32,9 @@ pub fn resolve_spelling<'program>(
     spelling: OperatorSpelling,
     receiver_type: Option<TypeReferenceHandle>,
 ) -> Vec<SpelledOperator<'program>> {
+    // A token-bearing machine attached to a domain is that domain's family
+    // meaning: it participates only where an operand binding selects the
+    // domain, exactly like a domain-homed `operator` declaration.
     let root_candidates = program
         .operators()
         .iter()
@@ -39,7 +42,9 @@ pub fn resolve_spelling<'program>(
         .filter(|operator| operator.spelling == Some(spelling))
         .map(|operator| SpelledOperator {
             operator,
-            domain: None,
+            domain: program.domain_definitions().iter().find(|domain| {
+                operator.home_domain.is_valid() && domain.symbol == operator.home_domain
+            }),
         });
     let domain_candidates = program.domain_definitions().iter().flat_map(|domain| {
         program

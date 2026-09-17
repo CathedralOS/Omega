@@ -74,6 +74,7 @@ pub(crate) fn lower_token_binding_view(
         // Authored `operator` declarations count their own tokens for review
         // fingerprints; the machine's identity is fingerprinted as a machine.
         token_count: 0,
+        home_domain: attached_domain_symbol(lowerer, typed_machine),
     };
     let leaf = machine
         .name
@@ -91,6 +92,31 @@ pub(crate) fn lower_token_binding_view(
         .typed_trees
         .push_operator_path_member(&mut view, typed::name::Identifier::generated(&leaf));
     Ok(Some(view))
+}
+
+/// The domain a token-bearing machine is attached to, matched by its exact
+/// declared path: attachment symbols are assigned against data declarations
+/// only, so a domain-attached machine carries an invalid attachment symbol.
+/// Symbol resolution already required the path to name exactly one domain.
+fn attached_domain_symbol(
+    lowerer: &Lowerer,
+    typed_machine: &typed::machine::Machine,
+) -> symbols::SymbolHandle {
+    if typed_machine.attached_data_symbol.is_valid() {
+        return symbols::SymbolHandle::invalid();
+    }
+    let Some(attached) = typed_machine.attached_data.as_ref() else {
+        return symbols::SymbolHandle::invalid();
+    };
+    let mut matches = lowerer
+        .typed_trees
+        .domain_definitions()
+        .iter()
+        .filter(|domain| domain.name.as_str() == attached.as_str());
+    match (matches.next(), matches.next()) {
+        (Some(domain), None) => domain.symbol,
+        _ => symbols::SymbolHandle::invalid(),
+    }
 }
 
 fn lower_machine_contents(

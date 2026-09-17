@@ -107,3 +107,71 @@ fn index_token_use_rejects_instead_of_falling_back() {
         "{diagnostics:?}"
     );
 }
+
+const ADDITIVE_QUANTITY: &str = "data Quantity { value: i32; }
+    domain Quantity::Additive requires self.value >= 0;
+    machine + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity {
+        Quantity { value: ((left.value as i32 in Wrapping) + (right.value as i32 in Wrapping)) as i32 }
+    }";
+
+fn calls_targeting(checked: &checked_trees::CheckedTrees, machine_name: &str) -> usize {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+        .expect("declaration");
+    let entry = checked.machine_states(machine)[0].symbol;
+    checked
+        .expression_table
+        .iter_expressions()
+        .filter(|(_, expression)| {
+            matches!(expression, ExpressionNode::Call(call) if call.target_symbol == entry)
+        })
+        .count()
+}
+
+#[test]
+fn domain_homed_token_use_binds_the_body_only_where_the_domain_is_selected() {
+    // A signature `requires` selects the domain for `left`, so `left + right`
+    // is the domain-family meaning and binds `Quantity::Additive::add`'s body.
+    let selected = check(&format!(
+        "{ADDITIVE_QUANTITY}
+        machine combine(left: Quantity, right: Quantity) -> Quantity
+        requires left in Quantity::Additive
+        {{ left + right }}"
+    ))
+    .expect("a selected domain meaning binds the declaration body");
+    assert_eq!(calls_targeting(&selected, "Quantity::Additive::add"), 1);
+
+    // Nothing selects the domain: the data operands have no meaning at all,
+    // which rejects instead of quietly reaching the body or a builtin.
+    let diagnostics = check(&format!(
+        "{ADDITIVE_QUANTITY}
+        machine combine(left: Quantity, right: Quantity) -> Quantity {{ left + right }}"
+    ))
+    .expect_err("an unselected domain meaning is inadmissible for data operands");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("has no admissible meaning")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn unselected_domain_binding_over_a_builtin_carrier_keeps_the_builtin_meaning() {
+    // Declaring `machine + i32::Degrees::add` does not replace ordinary `i32`
+    // addition: `i32 in Wrapping` operands select no `Degrees` binding, so
+    // the use stays a builtin operator and no call to the body exists.
+    let checked = check(
+        "domain i32::Degrees requires self >= 0;
+        machine + i32::Degrees::add(left: i32, right: i32) -> i32 {
+            ((left as i32 in Wrapping) + (right as i32 in Wrapping)) as i32
+        }
+        machine rotate(value: i32 in Wrapping, delta: i32 in Wrapping) -> i32 in Wrapping {
+            value + delta
+        }",
+    )
+    .expect("builtin wrapping addition stays selected");
+    assert_eq!(calls_targeting(&checked, "i32::Degrees::add"), 0);
+}

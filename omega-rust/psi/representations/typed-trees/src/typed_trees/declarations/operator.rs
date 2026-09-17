@@ -76,6 +76,11 @@ pub struct OperatorDefinition {
     /// Optional `spelling` clause carried from syntax (Wave 0 decision #3).
     pub spelling: Option<OperatorSpelling>,
     pub token_count: usize,
+    /// The domain a token-bearing machine is attached to
+    /// (`machine + Quantity::Additive::add`), making its signature view a
+    /// domain-family candidate. Invalid for root declarations; domain-homed
+    /// `operator` declarations live in the domain's own operator span instead.
+    pub home_domain: SymbolHandle,
 }
 
 /// A spelled operator meaning visible at a use site: a root operator, or a

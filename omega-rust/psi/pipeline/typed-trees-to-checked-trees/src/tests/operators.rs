@@ -124,6 +124,7 @@ fn operator_with_spelling(symbol: SymbolHandle, spelling: OperatorSpelling) -> O
         contracts: HandleSpan::empty(),
         spelling: Some(spelling),
         token_count: 0,
+        home_domain: SymbolHandle::invalid(),
     }
 }
 

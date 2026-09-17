@@ -22,6 +22,15 @@
 //! Which declared type is the home of a free binding, and whether that
 //! declaration's package may publish it, are typed-stage and package-graph
 //! questions and remain open in OPERATOR-MACHINE-SUPPLY.
+//!
+//! A binding attached to a domain (`machine + Quantity::Additive::add`) is a
+//! domain-family meaning ([domains: semantic roles and operators](../../../../../../../wiki/spec/language/domains.md#semantic-roles-and-operators)):
+//! it participates only where an operand binding selects that domain, so its
+//! semantic home is the domain's carrier (the data or builtin type the domain
+//! classifies), not the domain symbol itself. The domain is its owner for the
+//! duplicate check, and declaring such a binding gives the domain its
+//! denotation role exactly as a domain-homed `operator` declaration did, so
+//! implicit weakening and result-dispatch keep treating it as semantic.
 
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
@@ -109,6 +118,27 @@ impl TokenBinding<'_> {
                     "`{}` binds the fixed operator token `{}` but no operand names its semantic \
                      home `{}` ({}); a closed family's direct token bindings belong to the owner \
                      of a participating operand",
+                    self.machine.name,
+                    self.spelling.symbol(),
+                    self.machine
+                        .attached_data
+                        .as_ref()
+                        .map_or("", |attached| attached.as_str()),
+                    self.operand_shape
+                )
+            }
+            BindingOwner::Domain { carrier, .. } => {
+                if carrier.is_valid()
+                    && operand_types
+                        .iter()
+                        .any(|type_reference| names_symbol(program, type_reference, carrier))
+                {
+                    return None;
+                }
+                format!(
+                    "`{}` binds the fixed operator token `{}` but no operand names the carrier of \
+                     its home domain `{}` ({}); a domain-family binding participates only through \
+                     operands the domain classifies",
                     self.machine.name,
                     self.spelling.symbol(),
                     self.machine
@@ -254,16 +284,88 @@ fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReferen
 enum BindingOwner {
     /// `machine + Vec2::add(...)`: the exact attached data declaration.
     AttachedData(SymbolHandle),
+    /// `machine + Quantity::Additive::add(...)`: the attached domain, whose
+    /// carrier type is the binding's semantic home.
+    Domain {
+        domain: SymbolHandle,
+        carrier: SymbolHandle,
+    },
     /// A free machine: its declaring module (invalid for root scope).
     Module(SymbolHandle),
 }
 
 fn binding_owner(program: &SymbolResolvedTrees, machine: &Machine) -> BindingOwner {
-    if machine.attached_data.is_some() {
-        BindingOwner::AttachedData(machine.attached_data_symbol)
-    } else {
-        BindingOwner::Module(program.symbols.symbol_module(machine.symbol))
+    if machine.attached_data.is_none() {
+        return BindingOwner::Module(program.symbols.symbol_module(machine.symbol));
     }
+    if let Some(domain) = attached_domain(program, machine) {
+        return BindingOwner::Domain {
+            domain: domain.symbol,
+            carrier: carrier_symbol(program, &domain.target_type),
+        };
+    }
+    BindingOwner::AttachedData(machine.attached_data_symbol)
+}
+
+/// The domain a machine's attached path names, if any. Attachment symbols are
+/// assigned against data declarations only, so a domain-attached machine
+/// carries an invalid attachment symbol and is matched by its exact declared
+/// path; a path naming more than one domain is no home.
+fn attached_domain<'program>(
+    program: &'program SymbolResolvedTrees,
+    machine: &Machine,
+) -> Option<&'program symbol_resolved_trees::domain::DomainDefinition> {
+    if machine.attached_data_symbol.is_valid() {
+        return None;
+    }
+    let attached = machine.attached_data.as_ref()?.as_str();
+    let mut matches = program
+        .domain_definitions
+        .iter()
+        .filter(|domain| domain.name.as_str() == attached);
+    let domain = matches.next()?;
+    matches.next().is_none().then_some(domain)
+}
+
+/// The declaration a domain classifies: the named base of its target type,
+/// behind references and generic applications.
+fn carrier_symbol(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> SymbolHandle {
+    match type_reference {
+        TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => *symbol,
+        TypeReference::Generic(generic) => generic.base_symbol,
+        TypeReference::Reference(reference) => {
+            carrier_symbol(program, program.child_type_reference(reference.referee))
+        }
+        TypeReference::Constrained(constrained) => {
+            carrier_symbol(program, program.child_type_reference(constrained.base_type))
+        }
+        TypeReference::DynamicTrait { .. }
+        | TypeReference::FixedArray(_)
+        | TypeReference::Slice(_)
+        | TypeReference::ConstExpression(_)
+        | TypeReference::Unit => SymbolHandle::invalid(),
+    }
+}
+
+/// Give every domain that owns a token-bearing machine its denotation role,
+/// as `normalize_domain_operator_homes` does for domain-homed `operator`
+/// declarations. Runs once attached symbols are assigned and before the
+/// selections that classify predicate-only domains read the roles.
+pub(crate) fn mark_token_bound_domain_homes(program: &mut SymbolResolvedTrees) {
+    let homes = program
+        .machines
+        .iter()
+        .filter(|machine| machine.spelling.is_some())
+        .filter_map(|machine| attached_domain(program, machine).map(|domain| domain.symbol))
+        .collect::<Vec<_>>();
+    if homes.is_empty() {
+        return;
+    }
+    program.domain_definitions.for_each_mut(|domain| {
+        if homes.contains(&domain.symbol) {
+            domain.semantic_roles.denotation_dimension = Some(domain.semantic_id);
+        }
+    });
 }
 
 /// The complete operand telescope of the machine's entry state, rendered by

@@ -76,3 +76,28 @@ fn borrowed_operand_token_call_runs_the_declaration_body() {
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
+
+#[test]
+fn domain_homed_token_call_runs_the_declaration_body() {
+    // `machine + Quantity::Additive::add` is a domain-family meaning: the
+    // caller's `requires` selects the domain, so `left + right` runs the
+    // declaration's own body (5 + 7 = 12) through the ordinary call edge.
+    let outcome = interpret_main(
+        "data Quantity { value: i32; }
+         domain Quantity::Additive requires self.value >= 0;
+         machine + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity {
+             Quantity { value: ((left.value as i32 in Wrapping) + (right.value as i32 in Wrapping)) as i32 }
+         }
+         machine combine(left: Quantity, right: Quantity) -> Quantity
+         requires left in Quantity::Additive
+         { left + right }
+         machine main() -> i32 {
+             let left: Quantity = Quantity { value: 5 };
+             let right: Quantity = Quantity { value: 7 };
+             let sum: Quantity = combine(left, right);
+             transition sum.value == 12 { true -> 7 false -> 11 }
+         }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
