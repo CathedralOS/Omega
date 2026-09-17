@@ -191,6 +191,100 @@ fn prefix_call_writing_a_premise_carrier_invalidates_the_ranking() {
     ));
 }
 
+const BORROWED_STATES: &str = r#"
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+machine walk(card: &Card, amount: u64 [1..=2])
+requires card.power <= 5;
+terminates by card -> Card::PowerOrder in 0..=5;
+-> u64 {
+    transition { _ -> step(card, amount) }
+    state step(c: &Card, amount: u64 [1..=2]) {
+        transition c.power >= amount {
+            true -> step(&Card { power: c.power - amount }, amount)
+            false -> c.power
+        }
+    }
+}
+"#;
+
+#[test]
+fn borrowed_subject_keeps_its_named_state_telescope() {
+    prove(BORROWED_STATES);
+    // The only arrival into `step` constructs the borrow; discovery still has
+    // to anchor the state telescope through it.
+    prove(&BORROWED_STATES.replace(
+        "transition { _ -> step(card, amount) }",
+        "transition { _ -> step(&Card { power: card.power }, amount) }",
+    ));
+    // A dependency-free constructed borrow anchors through the unique record
+    // formal, exactly as an owned literal does.
+    prove(&BORROWED_STATES.replace(
+        "transition { _ -> step(card, amount) }",
+        "transition { _ -> step(&Card { power: 5 }, amount) }",
+    ));
+}
+
+#[test]
+fn nested_projection_under_a_borrowed_subject_keeps_its_telescope() {
+    prove(
+        r#"
+data Card { power: u64; }
+data Pair { card: Card; }
+measure Pair::PowerOrder(pair: Pair) -> u64 { pair.card.power }
+machine walk(pair: &Pair, amount: u64 [1..=2])
+requires pair.card.power <= 5;
+terminates by pair -> Pair::PowerOrder in 0..=5;
+-> u64 {
+    transition { _ -> step(&Pair { card: Card { power: pair.card.power } }, amount) }
+    state step(p: &Pair, amount: u64 [1..=2]) {
+        transition p.card.power >= amount {
+            true -> step(&Pair { card: Card { power: p.card.power - amount } }, amount)
+            false -> p.card.power
+        }
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn constructed_borrow_arrivals_still_prove_the_rank() {
+    // The arrived field value is substituted and read live: a literal outside
+    // the pinned range cannot hide behind the constructed borrow.
+    reject(&BORROWED_STATES.replace(
+        "transition { _ -> step(card, amount) }",
+        "transition { _ -> step(&Card { power: 6 }, amount) }",
+    ));
+    // A cyclic constructed borrow that does not decrease the ranked field is
+    // not rescued by the anchored telescope.
+    reject(&BORROWED_STATES.replace(
+        "step(&Card { power: c.power - amount }, amount)",
+        "step(&Card { power: c.power }, amount)",
+    ));
+    // Anchoring the slot is not the same as reading the arrival: borrowing an
+    // owned formal crosses a reference boundary the field substitution does
+    // not yet traverse, so the edge still has no produced-rank evidence.
+    reject(
+        r#"
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+machine walk(card: Card, amount: u64 [1..=2])
+requires card.power <= 5;
+terminates by card -> Card::PowerOrder in 0..=5;
+-> u64 {
+    transition { _ -> step(&card, amount) }
+    state step(c: &Card, amount: u64 [1..=2]) {
+        transition c.power >= amount {
+            true -> step(&Card { power: c.power - amount }, amount)
+            false -> c.power
+        }
+    }
+}
+"#,
+    );
+}
+
 fn reject_unsupported(source: &str) {
     let diagnostics =
         crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);

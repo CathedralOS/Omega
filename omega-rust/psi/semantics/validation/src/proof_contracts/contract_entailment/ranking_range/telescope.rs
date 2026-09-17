@@ -4,13 +4,13 @@
 //! correspondence or a call hypothesis could name a different value than the
 //! member's own termination witness proves.
 
+use super::fields::record_referent;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
-use typed_trees::types::TypeReferenceNode;
 
 /// One entry parameter symbol per non-self formal of every machine state
 /// (`SymbolHandle::default()` marks a formal with no discovered entry role).
@@ -335,32 +335,18 @@ fn fresh_record_carrier(
         .state_parameters(root)
         .iter()
         .find(|parameter| !parameter.is_self && parameter.symbol == rank_subject)?;
-    let TypeReferenceNode::Named { symbol: owner, .. } = program
-        .type_reference_table
-        .type_reference(subject.type_reference)
-    else {
-        return None;
-    };
-    // Builtin named carriers are not records the view can project.
-    if !program
-        .data_definitions()
-        .iter()
-        .any(|data| data.symbol == *owner)
-    {
-        return None;
-    }
+    // The same referent the field coordinate resolves: a subject or formal
+    // reached through one reference is still this record, and its literal
+    // actual arrives under one borrow.
+    let (owner, _) = record_referent(program, subject.type_reference)?;
     let target_parameters = program
         .state_parameters(target)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     let mut carriers = target_parameters.iter().filter(|parameter| {
-        matches!(
-            program
-                .type_reference_table
-                .type_reference(parameter.type_reference),
-            TypeReferenceNode::Named { symbol, .. } if *symbol == *owner
-        )
+        record_referent(program, parameter.type_reference)
+            .is_some_and(|(referent, _)| referent == owner)
     });
     let formal = carriers.next()?;
     if carriers.next().is_none()
@@ -368,7 +354,7 @@ fn fresh_record_carrier(
             .get(position)
             .is_some_and(|parameter| parameter.symbol == formal.symbol)
     {
-        Some(*owner)
+        Some(owner)
     } else {
         None
     }
@@ -390,12 +376,8 @@ fn entry_is_record_of(
     program.state_parameters(root).iter().any(|parameter| {
         !parameter.is_self
             && parameter.symbol == entry
-            && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                TypeReferenceNode::Named { symbol, .. } if *symbol == owner
-            )
+            && record_referent(program, parameter.type_reference)
+                .is_some_and(|(referent, _)| referent == owner)
     })
 }
 
@@ -425,6 +407,14 @@ fn argument_subjects(
         }
         ExpressionNode::Atomic(atomic) => {
             argument_subjects(program, machine, state, atomic.value, subjects, depth + 1)?;
+        }
+        ExpressionNode::Borrow(borrow) => {
+            // A constructed borrow carries the lineage of its target: `&x`
+            // names `x`'s role and `&R { field: value }` names the field
+            // values' roles, exactly as the unborrowed record arrival does.
+            // The edge judgment still requires the literal or projection the
+            // field coordinate can read before this dependency means anything.
+            argument_subjects(program, machine, state, borrow.target, subjects, depth + 1)?;
         }
         ExpressionNode::Member(member) => {
             // A projection identifies a candidate input role, not its field's
