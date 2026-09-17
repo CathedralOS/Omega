@@ -1,0 +1,21 @@
+// FAIL CANARY. The self edge rebuilds the sibling record and writes the
+// limit through the projection. Five still contains every next rank, but the
+// endpoint read through `countdown.bounds.limit` is not proved equal to its
+// invocation-fixed value.
+data Inner { remaining: u64 [0..=5]; }
+data Bounds { limit: u64 [0..=5]; }
+data Countdown { inner: Inner; bounds: Bounds; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown)
+requires countdown.inner.remaining <= countdown.bounds.limit;
+terminates by countdown -> Countdown::Remaining in 0..=countdown.bounds.limit;
+-> u64 {
+    transition countdown.inner.remaining > 0 {
+        true -> walk(Countdown {
+            inner: Inner { remaining: countdown.inner.remaining - 1 },
+            bounds: Bounds { limit: 5 }
+        })
+        false -> countdown.inner.remaining
+    }
+}

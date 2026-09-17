@@ -17,6 +17,7 @@ mod identity_measures;
 mod increasing_calls;
 mod named_states;
 mod payloads;
+mod projected_relations;
 mod relational;
 mod slice_length;
 mod state_edges;

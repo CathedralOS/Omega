@@ -81,18 +81,15 @@ pub(super) fn prove_with_entry_requirements(
         (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
             validation::RankingRangeMeasure::SliceLength(subject)
         }
-        // The relational field coordinate binds one direct field of an owned
-        // record; a nested path or a borrowed subject keeps the static
-        // membership tier and the self-loop prover.
-        (
-            RankingOrder::CustomStructView {
-                field_symbol, path, ..
-            },
-            DecreaseMeasure::Single(subject),
-        ) if path.is_empty() => validation::RankingRangeMeasure::Field {
-            subject,
-            field: *field_symbol,
-        },
+        // The relational field coordinate follows the declared view's exact
+        // projection chain, nested or direct, and reads a borrowed subject's
+        // referent; validation re-resolves that chain from the declaration.
+        (RankingOrder::CustomStructView { measure, .. }, DecreaseMeasure::Single(subject)) => {
+            validation::RankingRangeMeasure::Field {
+                subject,
+                measure: *measure,
+            }
+        }
         (RankingOrder::BoundedDistance, DecreaseMeasure::Distance { lower, upper }) => {
             validation::RankingRangeMeasure::Distance { lower, upper }
         }

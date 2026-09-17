@@ -2,11 +2,9 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, Machine, Polynomial, ProofFact,
     SignatureContractKind, State, StrictArithmeticBindingValue, TypedTrees, collect_guard,
-    comparison_proven, field_coordinates, fields, inductive_judgment, integer_bindings, lengths,
-    meanings,
+    comparison_proven, field_coordinates, inductive_judgment, integer_bindings, lengths, meanings,
 };
 use field_coordinates::FieldCoordinates;
-use fields::FieldCoordinate;
 
 /// The EntryInvariant graph tier re-establishes every readable scalar/length
 /// comparison. Its ignored Boolean or nominal facts confer no such guarantee.
@@ -161,9 +159,7 @@ fn prove(
             .coordinates()
             .filter(|field| field.parameter.symbol == parameter.symbol)
         {
-            let actual = if let Some(actual) =
-                FieldCoordinate::resolve(program, caller_state, *argument, field.field.symbol)
-            {
+            let actual = if let Some(actual) = field.rebased(program, caller_state, *argument) {
                 let value = actual.value();
                 source_fields.include(actual);
                 value

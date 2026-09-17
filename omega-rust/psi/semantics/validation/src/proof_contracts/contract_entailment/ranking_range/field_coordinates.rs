@@ -1,6 +1,7 @@
-//! Exact owned fields used by one ranking judgment. Root-template projections
-//! and current-state projections share an atom only through a unique, nominally
-//! checked arrival role. Record ancestry alone never proves copy equality.
+//! Exact field projections used by one ranking judgment. Root-template
+//! projections and current-state projections share an atom only through a
+//! unique, nominally checked arrival role. Record ancestry alone never proves
+//! copy equality.
 use super::{
     BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Polynomial, RankingRangeState,
     State, TypedTrees, fields,
@@ -37,10 +38,12 @@ impl<'program> FieldCoordinates<'program> {
     }
 
     pub(super) fn include(&mut self, coordinate: FieldCoordinate<'program>) {
-        if !self.coordinates().any(|existing| {
-            existing.parameter.symbol == coordinate.parameter.symbol
-                && existing.field.symbol == coordinate.field.symbol
-        }) {
+        // The identity spells the formal and the whole resolved chain, so two
+        // same-named leaves under different steps stay distinct coordinates.
+        if !self
+            .coordinates()
+            .any(|existing| existing.identity == coordinate.identity)
+        {
             self.auxiliary.push(coordinate);
         }
     }
@@ -51,8 +54,8 @@ impl<'program> FieldCoordinates<'program> {
             .collect()
     }
 
-    /// Bind only authored direct projections, never all fields in a record.
-    /// Two same-named fields remain independent by parameter and field handles.
+    /// Bind only authored projections, never all fields in a record. Two
+    /// same-named fields remain independent by parameter and resolved chain.
     pub(super) fn install(
         &mut self,
         program: &'program TypedTrees,
@@ -73,19 +76,12 @@ impl<'program> FieldCoordinates<'program> {
             let mut visit = |child| pending.push((child, depth + 1));
             match program.expression_table.expression(expression) {
                 ExpressionNode::Member(member) => {
-                    if let Some(coordinate) = FieldCoordinate::resolve(
-                        program,
-                        state,
-                        member.receiver,
-                        member.member_symbol,
+                    if let Some(coordinate) = FieldCoordinate::resolve_projection(
+                        program, state, expression,
                     )
                     .or_else(|| {
-                        let coordinate = FieldCoordinate::resolve(
-                            program,
-                            root,
-                            member.receiver,
-                            member.member_symbol,
-                        )?;
+                        let coordinate =
+                            FieldCoordinate::resolve_projection(program, root, expression)?;
                         coordinate.at_arrival(
                             program,
                             RankingRangeState {
@@ -94,9 +90,7 @@ impl<'program> FieldCoordinates<'program> {
                             },
                             coordinate.parameter.symbol,
                         )
-                    }) && member.member == coordinate.field.name
-                        && member.case_variant.is_none()
-                    {
+                    }) {
                         if !engine.bind_strict_projection(expression, coordinate.value()) {
                             return None;
                         }
@@ -104,6 +98,7 @@ impl<'program> FieldCoordinates<'program> {
                     }
                     visit(member.receiver);
                 }
+                ExpressionNode::Borrow(borrow) => visit(borrow.target),
                 ExpressionNode::Binary(binary) => {
                     visit(binary.left);
                     visit(binary.right);

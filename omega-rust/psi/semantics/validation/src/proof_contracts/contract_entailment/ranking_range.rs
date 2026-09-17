@@ -55,9 +55,14 @@ pub enum RankingRangeMeasure {
         carrier: symbols::BuiltinTypeAtom,
     },
     SliceLength(ExpressionHandle),
+    /// A declared field view's rank: the `u64` field the measure `measure`
+    /// projects from `subject`'s record, through the measure body's exact
+    /// nested path and, for a borrowed subject, through its reference. The
+    /// judgment re-resolves that chain against the subject's declaration; the
+    /// checked owner's selection is not trusted as the coordinate.
     Field {
         subject: ExpressionHandle,
-        field: symbols::SymbolHandle,
+        measure: symbols::SymbolHandle,
     },
     Distance {
         lower: ExpressionHandle,
@@ -289,11 +294,11 @@ fn prove_edge(
         }
     };
     let mut field_rank = match measure {
-        RankingRangeMeasure::Field { subject, field } => {
+        RankingRangeMeasure::Field { subject, measure } => {
             // Scalar telescope compatibility says nothing about records.
-            // Rebind the selected field only after proving its unique owned
+            // Rebind the selected field only after proving its unique
             // nominal arrival; template spellings cannot supply that proof.
-            let coordinate = fields::FieldCoordinate::resolve(program, root, subject, field)?;
+            let coordinate = fields::FieldCoordinate::resolve(program, root, subject, measure)?;
             let coordinate = match entry_parameters {
                 Some(entries) => coordinate.at_arrival(
                     program,

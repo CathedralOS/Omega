@@ -56,7 +56,10 @@ pub(super) enum RankingOrder {
     /// from the parameter's record to `owner`, the record declaring `field`.
     /// The subject is that root record, owned or reached through a reference;
     /// the stored field type retains its exact declaration's range constraints.
+    /// `measure` is the declaration itself, which the relational range route
+    /// hands to validation to re-resolve the projection independently.
     CustomStructView {
+        measure: symbols::SymbolHandle,
         path: Vec<ProjectionStep>,
         field: typed_trees::name::Identifier,
         field_type: typed_trees::types::TypeReferenceHandle,
@@ -271,6 +274,7 @@ impl RankingOrder {
                     return None;
                 }
                 Some(Self::CustomStructView {
+                    measure: measure.symbol,
                     path,
                     field,
                     field_type,

@@ -189,10 +189,13 @@ fn field_relation_requires_exact_reconstruction_owner_and_carrier() {
         COUNTDOWN.replace("walk(Countdown {", "walk(Other {")
     ));
     // A mutable owned carrier names its arrival record under the same
-    // preserved-prefix evidence an immutable formal carries; only borrowed
-    // carriers stay outside the coordinate.
+    // preserved-prefix evidence an immutable formal carries. A borrowed
+    // carrier reads its referent and arrives as a borrow of the rebuilt
+    // literal; an owned literal is not an arrival of the borrowed formal.
     prove_termination(&COUNTDOWN.replace("countdown: Countdown,", "mut countdown: Countdown,"));
-    reject_termination(&COUNTDOWN.replace("countdown: Countdown,", "countdown: &Countdown,"));
+    let borrowed = COUNTDOWN.replace("countdown: Countdown,", "countdown: &Countdown,");
+    reject_termination(&borrowed);
+    prove_termination(&borrowed.replace("walk(Countdown {", "walk(&Countdown {"));
     lower_typed_trees(typed(
         &COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]"),
     ))

@@ -392,8 +392,16 @@ fn field_endpoints_require_defined_intermediates_and_exact_owned_carriers() {
     ));
     // A mutable owned carrier still names its arrival field: the preserved
     // prefix supplies the same endpoint evidence an immutable formal would.
-    // Borrowed carriers remain outside the coordinate entirely.
+    // A borrowed carrier reads the endpoint through its reference; forwarding
+    // the binding keeps the referent, while rebinding it before the edge
+    // writes the endpoint's carrier path.
     prove_termination(&second_record().replace("bounds: Countdown", "mut bounds: Countdown"));
-    reject_range(&second_record().replace("bounds: Countdown", "bounds: &Countdown"));
+    let borrowed = second_record().replace("bounds: Countdown", "bounds: &Countdown");
+    prove_termination(&borrowed);
+    reject_range(
+        &borrowed
+            .replace("bounds: &Countdown", "mut bounds: &Countdown")
+            .replace("    transition", "    bounds = bounds;\n    transition"),
+    );
     reject_range(&COUNTDOWN.replace("limit: u64 [0..=5];", "limit: u64 [0..=5] in Wrapping;"));
 }

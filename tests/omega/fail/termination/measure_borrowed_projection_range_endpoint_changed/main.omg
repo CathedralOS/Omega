@@ -1,0 +1,15 @@
+// FAIL CANARY. The borrowed subject rebuilds correctly, but the self edge
+// replaces the invocation-fixed ceiling, so the relational range read
+// through the reference does not transport.
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+
+machine walk(card: &Card, ceiling: u64 [0..=5], amount: u64 [1..=2])
+requires card.power <= ceiling;
+terminates by card -> Card::PowerOrder in 0..=ceiling;
+-> u64 {
+    transition card.power >= amount {
+        true -> walk(&Card { power: card.power - amount }, 5, amount)
+        false -> card.power
+    }
+}

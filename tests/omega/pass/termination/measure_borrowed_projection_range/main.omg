@@ -1,0 +1,17 @@
+// PASS CANARY. The subject reaches its record through a reference. The
+// relational range route reads the referent's ranked field at entry and on
+// every self edge, which rebuilds a borrow of the new literal while the
+// binding, the ceiling and the step stay unwritten. The field declares no
+// store range: only the entry requirement bounds the produced rank.
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+
+machine walk(card: &Card, ceiling: u64 [0..=5], amount: u64 [1..=2])
+requires card.power <= ceiling;
+terminates by card -> Card::PowerOrder in 0..=ceiling;
+-> u64 {
+    transition card.power >= amount {
+        true -> walk(&Card { power: card.power - amount }, ceiling, amount)
+        false -> card.power
+    }
+}

@@ -1,4 +1,8 @@
-//! A direct owned field is a distinct arithmetic coordinate, never its record.
+//! An exact field projection is a distinct arithmetic coordinate, never its
+//! record. The projection may descend a nested path of exact declared record
+//! fields, and its root record may be reached through a reference; each step
+//! is resolved against the declaration the previous step named.
+use super::identity_views::{MeasureBodyShape, measure_body_shape, unwrap_constraint_shells};
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, TypedTrees,
@@ -6,6 +10,7 @@ use super::{
 };
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::{DataField, DataMember};
+use typed_trees::name::Identifier;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -35,28 +40,88 @@ pub(super) fn endpoints_formed(
     Some(())
 }
 
+/// One `u64` field reached from a state formal through an exact chain of
+/// declared record fields: `parameter.steps[0]. ... .steps[n].field`.
 pub(super) struct FieldCoordinate<'program> {
     pub parameter: &'program StateParameter,
+    /// The formal names its record through a reference; an arrival actual is
+    /// then a borrow of the rebuilt literal rather than the literal itself.
+    pub borrowed: bool,
+    /// The record the formal's (referent) type declares.
+    pub root: SymbolHandle,
+    /// The record-typed fields from `root` down to `field`'s owner, in order.
+    pub steps: Vec<&'program DataField>,
     pub field: &'program DataField,
-    pub owner: SymbolHandle,
     pub identity: String,
 }
 
 impl<'program> FieldCoordinate<'program> {
+    /// The produced rank of the declared field view `measure` applied to
+    /// `subject`: the measure body's projection chain, re-resolved against
+    /// the subject formal's own declaration rather than trusted from the view.
     pub(super) fn resolve(
         program: &'program TypedTrees,
         state: &State,
         subject: ExpressionHandle,
-        field: SymbolHandle,
+        measure: SymbolHandle,
     ) -> Option<Self> {
         let parameter = parameter(program, state, subject)?;
-        Self::for_parameter(program, parameter, field)
+        let definition = program
+            .measures()
+            .iter()
+            .find(|definition| measure.is_valid() && definition.symbol == measure)?;
+        let MeasureBodyShape::FieldProjection {
+            path, field_symbol, ..
+        } = measure_body_shape(program, definition)?
+        else {
+            return None;
+        };
+        let chain = path
+            .iter()
+            .map(|step| step.field_symbol)
+            .chain([field_symbol])
+            .collect::<Vec<_>>();
+        Self::for_parameter(program, parameter, &chain)
+    }
+
+    /// The coordinate an authored member chain names: every step an exact
+    /// declared field, by resolved symbol and spelling, of the record before
+    /// it, rooted at a state formal.
+    pub(super) fn resolve_projection(
+        program: &'program TypedTrees,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Option<Self> {
+        let (parameter, chain) = member_chain(program, state, expression)?;
+        let coordinate = Self::for_parameter(
+            program,
+            parameter,
+            &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
+        )?;
+        let spelled_as_declared = chain
+            .iter()
+            .zip(coordinate.steps.iter().chain([&coordinate.field]))
+            .all(|((_, spelled), field)| **spelled == field.name);
+        spelled_as_declared.then_some(coordinate)
+    }
+
+    /// This coordinate's exact chain read from another formal of the same
+    /// declared record, for a call site forwarding one record to another.
+    pub(super) fn rebased(
+        &self,
+        program: &'program TypedTrees,
+        state: &State,
+        subject: ExpressionHandle,
+    ) -> Option<Self> {
+        let parameter = parameter(program, state, subject)?;
+        let coordinate = Self::for_parameter(program, parameter, &self.chain())?;
+        (coordinate.root == self.root).then_some(coordinate)
     }
 
     fn for_parameter(
         program: &'program TypedTrees,
         parameter: &'program StateParameter,
-        field: SymbolHandle,
+        chain: &[SymbolHandle],
     ) -> Option<Self> {
         // A mutable record still denotes its arrival value at an edge whose
         // evaluated prefix is proven to preserve its path; mutability is a
@@ -64,23 +129,55 @@ impl<'program> FieldCoordinate<'program> {
         if parameter.is_self || parameter.is_const {
             return None;
         }
-        let (owner, field) = declared_field(program, parameter, field)?;
-        // The independently selected direct-field view produces builtin u64.
+        let (root, borrowed) = record_referent(program, parameter.type_reference)?;
+        let (last, step_symbols) = chain.split_last()?;
+        let mut owner = root;
+        let mut steps = Vec::with_capacity(step_symbols.len());
+        for symbol in step_symbols {
+            let (_, field) = declared_field(program, owner, *symbol)?;
+            // An intermediate step is an owned exact record; a reference
+            // boundary inside the chain needs its own load evidence.
+            let TypeReferenceNode::Named { symbol: next, .. } = program
+                .type_reference_table
+                .type_reference(unwrap_constraint_shells(program, field.type_reference))
+            else {
+                return None;
+            };
+            steps.push(field);
+            owner = *next;
+        }
+        let (_, field) = declared_field(program, owner, *last)?;
+        // The independently selected field view produces builtin u64.
         // Other carriers need their own view-application proof.
         if exact_integer_parameter(program, field.type_reference) != Some(PrimitiveType::U64) {
             return None;
         }
+        let mut identity = format!("\0ranking:field:{:?}", parameter.symbol);
+        for symbol in chain {
+            identity.push_str(&format!(":{symbol:?}"));
+        }
         Some(Self {
             parameter,
+            borrowed,
+            root,
+            steps,
             field,
-            owner,
-            identity: format!("\0ranking:field:{:?}:{:?}", parameter.symbol, field.symbol),
+            identity,
         })
     }
 
+    /// The resolved field symbols from the root record down to `field`.
+    pub(super) fn chain(&self) -> Vec<SymbolHandle> {
+        self.steps
+            .iter()
+            .chain([&self.field])
+            .map(|field| field.symbol)
+            .collect()
+    }
+
     /// A telescope names a role, not record compatibility or equality between
-    /// copies. Only a unique owned formal with the exact declaration can carry
-    /// this coordinate; duplicated record roles need independent field facts.
+    /// copies. Only a unique formal with the exact declaration can carry this
+    /// coordinate; duplicated record roles need independent field facts.
     pub(super) fn at_arrival(
         &self,
         program: &'program TypedTrees,
@@ -100,8 +197,8 @@ impl<'program> FieldCoordinate<'program> {
         if parameters.next().is_some() {
             return None;
         }
-        let coordinate = Self::for_parameter(program, parameter, self.field.symbol)?;
-        (coordinate.owner == self.owner).then_some(coordinate)
+        let coordinate = Self::for_parameter(program, parameter, &self.chain())?;
+        (coordinate.root == self.root).then_some(coordinate)
     }
 
     pub(super) fn value(&self) -> Polynomial {
@@ -133,6 +230,12 @@ impl<'program> FieldCoordinate<'program> {
         comparisons
     }
 
+    /// The value this coordinate holds after `expression` arrives in its
+    /// formal: the formal itself forwarded, or the literal chain rebuilt
+    /// declaration by declaration down to the field. A forward of the exact
+    /// prefix projection at any depth keeps the remaining chain's current
+    /// value; a literal of another declaration, a foreign record, or a
+    /// missing step is not this coordinate.
     pub(super) fn actual(
         &self,
         program: &TypedTrees,
@@ -145,46 +248,130 @@ impl<'program> FieldCoordinate<'program> {
         {
             return Some(self.value());
         }
-        let ExpressionNode::StructLiteral(literal) =
-            program.expression_table.expression(expression)
-        else {
-            return None;
-        };
-        if literal.type_symbol != self.owner
-            || literal.case_symbol.is_some()
-            || literal.case_name.is_some()
-        {
-            return None;
+        let mut current = expression;
+        if self.borrowed {
+            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current)
+            else {
+                return None;
+            };
+            current = borrow.target;
         }
-        let mut fields = program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .filter(|field| {
-                field.field_symbol == self.field.symbol && field.name == self.field.name
-            });
-        let value = fields.next()?.value;
-        if fields.next().is_some() {
-            return None;
+        let mut owner = self.root;
+        for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
+            if depth > 0 && self.is_prefix_projection(program, state, current, depth) {
+                return Some(self.value());
+            }
+            current = unique_literal_field(program, current, owner, field)?;
+            if let TypeReferenceNode::Named { symbol, .. } = program
+                .type_reference_table
+                .type_reference(unwrap_constraint_shells(program, field.type_reference))
+            {
+                owner = *symbol;
+            }
         }
-        engine.normalize(value)
+        engine.normalize(current)
+    }
+
+    /// `expression` is exactly `parameter.steps[..depth]`: the same formal
+    /// projected through the first `depth` steps of this chain.
+    fn is_prefix_projection(
+        &self,
+        program: &TypedTrees,
+        state: &State,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        member_chain(program, state, expression).is_some_and(|(parameter, chain)| {
+            parameter.symbol == self.parameter.symbol
+                && chain.len() == depth
+                && chain
+                    .iter()
+                    .zip(&self.steps)
+                    .all(|((symbol, spelled), step)| {
+                        *symbol == step.symbol && *spelled == &step.name
+                    })
+        })
     }
 }
 
+/// The declared type of an exact member chain rooted at a state formal:
+/// `parameter.a.b.field`, every step a resolved field of the record before it.
 pub(super) fn projected_type(
     program: &TypedTrees,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+    let (parameter, chain) = member_chain(program, state, expression)?;
+    let (mut owner, _) = record_referent(program, parameter.type_reference)?;
+    let mut declared = None;
+    for (symbol, spelled) in &chain {
+        let (_, field) = declared_field(program, owner, *symbol)?;
+        if field.name != **spelled {
+            return None;
+        }
+        declared = Some(field.type_reference);
+        match program
+            .type_reference_table
+            .type_reference(unwrap_constraint_shells(program, field.type_reference))
+        {
+            TypeReferenceNode::Named { symbol, .. } => owner = *symbol,
+            _ => owner = SymbolHandle::default(),
+        }
+    }
+    declared
+}
+
+/// The member chain of `expression` from its root formal outward, each step
+/// as `(resolved field symbol, spelling)`. Case projections are not fields.
+fn member_chain<'program>(
+    program: &'program TypedTrees,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(
+    &'program StateParameter,
+    Vec<(SymbolHandle, &'program Identifier)>,
+)> {
+    let mut chain = Vec::new();
+    let mut cursor = expression;
+    while let ExpressionNode::Member(member) = program.expression_table.expression(cursor) {
+        if !member.member_symbol.is_valid() || member.case_variant.is_some() || chain.len() >= 128 {
+            return None;
+        }
+        chain.push((member.member_symbol, &member.member));
+        cursor = member.receiver;
+    }
+    if chain.is_empty() {
+        return None;
+    }
+    chain.reverse();
+    Some((parameter(program, state, cursor)?, chain))
+}
+
+/// The record a formal's type declares, directly or as the referent of one
+/// reference, and whether that reference boundary is present.
+fn record_referent(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<(SymbolHandle, bool)> {
+    let mut reference = unwrap_constraint_shells(program, type_reference);
+    let mut borrowed = false;
+    if let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = unwrap_constraint_shells(program, *referee);
+        borrowed = true;
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
         return None;
     };
-    let parameter = parameter(program, state, member.receiver)?;
-    let (_, field) = declared_field(program, parameter, member.member_symbol)?;
-    (member.case_variant.is_none()
-        && member.member == field.name
-        && exact_integer_parameter(program, field.type_reference).is_some())
-    .then_some(field.type_reference)
+    (symbol.is_valid()
+        && program
+            .data_definitions()
+            .iter()
+            .any(|data| data.symbol == *symbol))
+    .then_some((*symbol, borrowed))
 }
 
 fn parameter<'program>(
@@ -211,23 +398,18 @@ fn parameter<'program>(
     })
 }
 
-fn declared_field<'program>(
-    program: &'program TypedTrees,
-    parameter: &StateParameter,
+/// The unique field `symbol` declared by the exact record `owner`.
+fn declared_field(
+    program: &TypedTrees,
+    owner: SymbolHandle,
     symbol: SymbolHandle,
-) -> Option<(SymbolHandle, &'program DataField)> {
-    let TypeReferenceNode::Named { symbol: owner, .. } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
-    };
+) -> Option<(SymbolHandle, &DataField)> {
     let declaration = program
         .data_definitions()
         .iter()
-        .find(|data| owner.is_valid() && data.symbol == *owner)?;
+        .find(|data| owner.is_valid() && data.symbol == owner)?;
     let selected = program.symbols.get(symbol);
-    if !symbol.is_valid() || selected.kind != SymbolKind::Field || selected.parent != *owner {
+    if !symbol.is_valid() || selected.kind != SymbolKind::Field || selected.parent != owner {
         return None;
     }
     let mut fields = program
@@ -238,5 +420,29 @@ fn declared_field<'program>(
             _ => None,
         });
     let field = fields.next()?;
-    fields.next().is_none().then_some((*owner, field))
+    fields.next().is_none().then_some((owner, field))
+}
+
+/// The value of the unique `field` entry of a plain literal of exactly `owner`.
+fn unique_literal_field(
+    program: &TypedTrees,
+    literal: ExpressionHandle,
+    owner: SymbolHandle,
+    field: &DataField,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(literal)
+    else {
+        return None;
+    };
+    if literal.type_symbol != owner || literal.case_symbol.is_some() || literal.case_name.is_some()
+    {
+        return None;
+    }
+    let mut fields = program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .filter(|candidate| candidate.field_symbol == field.symbol && candidate.name == field.name);
+    let value = fields.next()?.value;
+    fields.next().is_none().then_some(value)
 }
