@@ -1,11 +1,15 @@
-//! Unit-call chain whose spill reload interval must survive an intervening call.
+//! Unit-call chain whose spill victim's flexible uses straddle an intervening
+//! call.
 //!
 //! The caller materializes enough live constants to exhaust an explicit
-//! physical-view allowlist at the first `CallUnit`, so the chosen spill
-//! victim's uses are rewritten onto a reload interval that reaches across a
-//! later `CallUnit`. A `CallUnit` clobbers every caller-saved unit, including
-//! the ABI result register, which leaves the callee-saved allowlist member as
-//! the only common candidate for the whole interval.
+//! physical-view allowlist at the first `CallUnit`, and holds one filler live
+//! across that call so the single callee-saved survivor is already occupied,
+//! leaving the chosen spill victim without a home. A `CallUnit` clobbers
+//! every caller-saved unit, including the ABI result register, which leaves
+//! the callee-saved allowlist member as the filler's only candidate — and
+//! closes any still-open spill reload, so the victim's uses on either side of
+//! a later `CallUnit` each take a private reload pair whose interval never
+//! demands a cross-call home.
 
 use crate::tests::{
     AdmissionProfile, AllocatorAvailabilityPolicy, Block, BlockId, ContractId, EdgeId, IntegerSign,
@@ -40,6 +44,12 @@ pub(crate) fn call_spanning_reload_caller() -> MachineId {
 /// The source value the reduced allowlist forces onto runtime-value storage.
 pub(crate) fn call_spanning_reload_victim() -> ValueId {
     ValueId::new(CALL_SPANNING_RELOAD_VICTIM).unwrap()
+}
+
+/// The filler held live across the first call, so its interval occupies the
+/// callee-saved survivor exactly when the victim would need it.
+pub(crate) fn call_spanning_reload_incoming() -> ValueId {
+    ValueId::new(CALL_SPANNING_RELOAD_INCOMING).unwrap()
 }
 
 /// Views an unconstrained home may occupy: the callee-saved survivor plus the
@@ -151,7 +161,7 @@ fn call_spanning_reload_module(target: NativeTarget) -> TerminalModule {
     // The constant emission order and the first call's argument order differ per
     // ABI so each filler holds the pinned argument view it will die into in pin
     // order; the victim is materialized where the pressure point spills it and
-    // its two later uses straddle the second `CallUnit`.
+    // its two later uses straddle an intervening `CallUnit`.
     let (const_order, call_arguments): ([usize; 6], Vec<ValueId>) =
         match (target.architecture, target.object_format) {
             (Architecture::X86_64, ObjectFormat::Elf) => (
