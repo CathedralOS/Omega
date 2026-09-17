@@ -110,18 +110,21 @@ pub(super) fn semantic_bindings_by_consumer(
 /// compiler review. The bound recompilation remains the exact validator, and
 /// its resulting provider and authority rows still require root policy.
 ///
-/// The Console exit proposal for the closure root also carries the one
-/// terminal-authority permission its recognized requirement needs at native
-/// realization. Without that row the review has nothing to decide, the lock
-/// retains no permission, and the accepted policy projected for realization
-/// is empty, so the ordinary CLI route can never realize a program that
-/// exits. The row is a proposal, not a grant: it surfaces in the review as
-/// its own blocking `terminal_permission` decision, the final pass rejoins it
-/// to exactly one schema method, and realization still checks the selected
-/// mechanism's exercised classes against it. Only the root consumer
-/// receives it because permissions are the consuming project's decision and
-/// every package's open permissions propagate into one root policy, where an
-/// identical row accepted twice would be a duplicate rather than a grant.
+/// The Console exit proposal for the closure root also carries the
+/// terminal-authority permissions its recognized compiler-intrinsic leaves
+/// need at native realization: process termination for `exit_process`, and
+/// process output and input for the `write_byte` and `read_byte` rows the
+/// nominated provider declares. Without those rows the review has nothing to
+/// decide, the lock retains no permission, and the accepted policy projected
+/// for realization is empty, so the ordinary CLI route can never realize a
+/// program that writes, reads or exits. Each row is a proposal, not a grant:
+/// it surfaces in the review as its own blocking `terminal_permission`
+/// decision, the final pass rejoins it to exactly one schema method, and
+/// realization still checks the selected mechanism's exercised classes
+/// against it. Only the root consumer receives them because permissions are
+/// the consuming project's decision and every package's open permissions
+/// propagate into one root policy, where an identical row accepted twice
+/// would be a duplicate rather than a grant.
 pub(super) fn candidate_semantic_binding_inputs(
     preliminary: &CompilerIssuedPackageReviewSet,
     root: &PackageKey,
@@ -171,9 +174,9 @@ pub(super) fn candidate_semantic_binding_inputs(
         .map_err(|_| invalid())?;
         if review.key() == root {
             binding = binding
-                .with_terminal_authority_permissions(vec![
-                    candidate_console_exit_permission(provider).ok_or_else(invalid)?,
-                ])
+                .with_terminal_authority_permissions(
+                    candidate_console_permissions(provider).ok_or_else(invalid)?,
+                )
                 .map_err(|_| invalid())?;
         }
         inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
@@ -184,27 +187,50 @@ pub(super) fn candidate_semantic_binding_inputs(
     Ok(inputs)
 }
 
-/// The process-termination permission for the exact `exit_process`
-/// requirement of one nominated Console provider schema. The class is the one
-/// the compiler's own mechanism classification assigns to hosted process exit.
-/// The readable name only selects the method, as the binding candidate itself
-/// does; the row binds the schema digest and requirement identity, so a
-/// lookalike schema cannot reuse an accepted row.
-fn candidate_console_exit_permission(
+/// The terminal-authority permission rows for the compiler-intrinsic Console
+/// leaves of one nominated provider schema: process termination for the
+/// exact `exit_process` requirement, process output for `write_byte` and
+/// process input for `read_byte`. Each class is the one the compiler's own
+/// mechanism classification assigns to that hosted leaf. The readable names
+/// only select the schema methods, as the binding candidate itself does; each
+/// row binds the schema digest and requirement identity, so a lookalike
+/// schema cannot reuse an accepted row. The exit leaf is the nomination
+/// itself and must be present exactly once; the byte leaves are proposed only
+/// when the provider declares them as compiler-intrinsic rows, so a provider
+/// without console I/O proposes no output or input row.
+fn candidate_console_permissions(
     provider: &CheckedPackageProviderReview,
-) -> Option<ServiceTerminalAuthorityPermission> {
-    let mut methods = provider
-        .compiler_intrinsic_methods()
-        .filter(|method| method.name == "exit_process");
-    let method = methods.next()?;
-    if methods.next().is_some() {
-        return None;
+) -> Option<Vec<ServiceTerminalAuthorityPermission>> {
+    const LEAVES: [(&str, TerminalAuthorityClass, bool); 3] = [
+        (
+            "exit_process",
+            TerminalAuthorityClass::ProcessTermination,
+            true,
+        ),
+        ("write_byte", TerminalAuthorityClass::ProcessOutput, false),
+        ("read_byte", TerminalAuthorityClass::ProcessInput, false),
+    ];
+    let mut permissions = Vec::with_capacity(LEAVES.len());
+    for (name, class, required) in LEAVES {
+        let mut methods = provider
+            .compiler_intrinsic_methods()
+            .filter(|method| method.name == name);
+        let Some(method) = methods.next() else {
+            if required {
+                return None;
+            }
+            continue;
+        };
+        if methods.next().is_some() {
+            return None;
+        }
+        permissions.push(ServiceTerminalAuthorityPermission::new(
+            provider.schema().identity_digest(),
+            method.requirement_identity.clone(),
+            TerminalAuthorityDisposition::from_classes([class]),
+        ));
     }
-    Some(ServiceTerminalAuthorityPermission::new(
-        provider.schema().identity_digest(),
-        method.requirement_identity.clone(),
-        TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::ProcessTermination]),
-    ))
+    Some(permissions)
 }
 
 /// Nominate exact package-owned requirement surfaces that the consumer's
