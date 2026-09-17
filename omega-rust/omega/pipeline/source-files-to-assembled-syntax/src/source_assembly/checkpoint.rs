@@ -260,6 +260,7 @@ impl ImmutableSourceParseCheckpoint {
             source_scoped_top_level_bindings,
             generated_source_custody,
             &import_scopes,
+            package_inputs,
         )?;
         Ok((source_file_count, syntax))
     }

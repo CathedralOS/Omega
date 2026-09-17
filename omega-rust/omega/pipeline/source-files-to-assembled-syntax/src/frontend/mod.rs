@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -376,12 +376,16 @@ fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
 
 /// The dependency scope `source_path`'s own imports resolve in.
 ///
-/// Only the compilation root's package carries build scope: its build entry
-/// and the transitive local helpers it imports execute in the build context.
-/// Every other package's sources — and any root source never claimed through
-/// the build entry — resolve product-scope imports. Scope claims are recorded
-/// per source path as imports are reconciled; an unclaimed root source
-/// defaults to product scope.
+/// Only the compilation root's package carries build-scope edges: its build
+/// entry and the transitive local helpers it imports select
+/// `build_depend`/`build_depend_as` targets. Every other package's sources —
+/// and any root source never claimed through the build entry — resolve
+/// product-scope imports: a build dependency's own files use its ordinary
+/// `depend` edges even though they execute in the host context
+/// (wiki/spec/build/scoped_execution.md). Which execution profile a package's
+/// target-scoped rows select against is a separate, graph-derived decision;
+/// see [`build_only_packages`]. Scope claims are recorded per source path as
+/// imports are reconciled; an unclaimed root source defaults to product scope.
 pub(crate) fn source_import_scope(
     packages: &PackageCompilationInputs,
     import_scopes: &BTreeMap<PathBuf, DependencyPurpose>,
@@ -401,6 +405,48 @@ pub(crate) fn source_import_scope(
     } else {
         DependencyPurpose::Product
     }
+}
+
+/// Packages whose sources join the build scope for target selection: the
+/// targets of the root's `build_depend`/`build_depend_as` edges and,
+/// transitively, their ordinary dependencies — a helper library's host
+/// implementation context (wiki/spec/build/scoped_execution.md, "a helper
+/// library uses its ordinary dependency edges in that host context"). A
+/// package the root also reaches through product edges serves both purposes;
+/// the spec's checked-twice rule for that case is not implemented, so it
+/// keeps product scope here and its target-scoped rows select against the
+/// product target. The decision reads the reconciled graph, never which
+/// import happened to reach a file first.
+pub(crate) fn build_only_packages(
+    packages: &PackageCompilationInputs,
+) -> BTreeSet<semantic_vocabulary::PackageKeyIdentity> {
+    let mut ordinary_edges = BTreeMap::<semantic_vocabulary::PackageKeyIdentity, Vec<_>>::new();
+    for (requester, _, target) in packages.dependencies() {
+        ordinary_edges.entry(requester).or_default().push(target);
+    }
+    let reach_through_ordinary_edges = |seeds: Vec<semantic_vocabulary::PackageKeyIdentity>| {
+        let mut reached = BTreeSet::new();
+        let mut pending = seeds;
+        while let Some(package) = pending.pop() {
+            if reached.insert(package)
+                && let Some(targets) = ordinary_edges.get(&package)
+            {
+                pending.extend(targets.iter().copied());
+            }
+        }
+        reached
+    };
+    let root = packages.root();
+    let product_reachable = reach_through_ordinary_edges(vec![root]);
+    let build_seeds = packages
+        .build_dependencies()
+        .filter(|(requester, _, _)| *requester == root)
+        .map(|(_, _, target)| target)
+        .collect();
+    reach_through_ordinary_edges(build_seeds)
+        .difference(&product_reachable)
+        .copied()
+        .collect()
 }
 
 /// Record the scope under which a resolved package import target participates.
