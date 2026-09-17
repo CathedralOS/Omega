@@ -1,14 +1,19 @@
 use super::{
     AdmissionProfile, BlockId, CertificateEnvelope, EdgeId, EvidenceIdentity, EvidenceRoute,
     IntegerSign, IntegerType, IntegerValue, MachineId, ModuleError, ObligationEvidence,
-    ObligationId, Operation, OperationId, OperationKind, OperationResult, PlaceId, ProofBundle,
-    ProofNode, ProofRule, ProofSystemMarker, Proposition, ScalarTerm, ScalarType, SuccessorEdge,
-    TerminalModule, Terminator, ValueDeclaration, ValueId, VerificationError,
-    add_loop_preserved_affine_parameter, id, ranked_countdown, validate_module,
+    ObligationId, Operation, OperationId, OperationKind, OperationResult, PlaceId,
+    PrimitiveJudgment, ProofBundle, ProofNode, ProofRule, ProofSystemMarker, Proposition,
+    ScalarTerm, ScalarType, SuccessorEdge, TerminalModule, Terminator, ValueDeclaration, ValueId,
+    VerificationError, add_loop_preserved_affine_parameter, countdown_cycle_evidence,
+    countdown_decrement_evidence, id, ranked_countdown, validate_module,
     validate_module_for_interpretation, verify_module,
 };
+use proof_admission::{EvidenceError, ProofError};
 use terminal_psi::{ScalarBlockInvariant, ScalarBlockInvariantArrival};
-use terminal_verifier::{ReconstructedTerminalObligationOwner, reconstruct_terminal_obligations};
+use terminal_verifier::{
+    ReconstructedTerminalObligationOwner, reconstruct_control_cycle_obligations,
+    reconstruct_terminal_obligations,
+};
 
 fn integer() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
@@ -555,4 +560,281 @@ fn block_predicate_facts_split_only_unconditional_conjunctions() {
     assert!(facts.contains(&implication));
     assert!(!facts.contains(&Proposition::Falsehood));
     assert!(!facts.contains(&Proposition::Truth));
+}
+
+fn value(raw: u64) -> ScalarTerm {
+    ScalarTerm::value(id(raw, ValueId::new), ScalarType::Integer(integer()))
+}
+
+/// The ranked countdown carrying a second header parameter `previous` (value
+/// 7) that the latch updates to the current rank on every iteration. The
+/// header claims `rank <= previous`: the accumulated record never falls
+/// below the rank that follows it. The ranking record is the fixture's own
+/// `Natural` certificate, untouched.
+fn ranked_accumulator_module() -> TerminalModule {
+    let mut module = ranked_countdown();
+    let machine = &mut module.machines[0];
+    machine.blocks[1].parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
+        id: id(7, ValueId::new),
+        scalar_type: ScalarType::Integer(integer()),
+    });
+    let Terminator::Jump { arguments, .. } = &mut machine.blocks[0].terminator else {
+        panic!("fixture preheader is a jump");
+    };
+    arguments.push(id(1, ValueId::new));
+    let Terminator::Jump { arguments, .. } = &mut machine.blocks[2].terminator else {
+        panic!("fixture latch is a jump");
+    };
+    arguments.push(id(2, ValueId::new));
+    module.scalar_block_invariants = vec![ScalarBlockInvariant {
+        machine: id(1, MachineId::new),
+        header: id(2, BlockId::new),
+        predicate: Proposition::LessOrEqual(value(2), value(7)),
+        arrivals: vec![
+            ScalarBlockInvariantArrival {
+                edge: id(1, EdgeId::new),
+                obligation: id(100, ObligationId::new),
+            },
+            ScalarBlockInvariantArrival {
+                edge: id(4, EdgeId::new),
+                obligation: id(101, ObligationId::new),
+            },
+        ],
+    }];
+    module
+}
+
+/// The complete bundle for the accumulator fixture: the decrement's own
+/// representability certificate, the unchanged `Natural` cycle certificate,
+/// and one arrival certificate per header edge. Establishment weakens the
+/// reflexive `initial = initial`; preservation weakens the strict descent
+/// `next < rank` that the cycle certificate also proves.
+fn ranked_accumulator_evidence(module: &TerminalModule) -> ProofBundle {
+    let questions = reconstruct_terminal_obligations(module).unwrap();
+    let one = value(5);
+    let one_literal = ScalarTerm::integer(integer(), IntegerValue::Unsigned(1)).unwrap();
+    let zero_literal = ScalarTerm::integer(integer(), IntegerValue::Unsigned(0)).unwrap();
+    let axiom = |axioms: &[Proposition], conclusion: Proposition| ProofNode {
+        rule: ProofRule::SemanticAxiom {
+            index: axioms
+                .iter()
+                .position(|axiom| *axiom == conclusion)
+                .expect("accumulator premise is a reconstructed semantic axiom"),
+        },
+        conclusion,
+    };
+    let mut proofs = ProofBundle {
+        control_cycles: vec![countdown_cycle_evidence(module)],
+        ..ProofBundle::default()
+    };
+    for question in questions.obligations() {
+        let goal = &question.obligation.proposition;
+        let proof = match question.owner {
+            ReconstructedTerminalObligationOwner::Operation { .. } => {
+                proofs.evidence.push(countdown_decrement_evidence(
+                    module,
+                    &question.obligation,
+                    &question.semantic_axioms,
+                ));
+                continue;
+            }
+            ReconstructedTerminalObligationOwner::ScalarBlockInvariant { edge, .. }
+                if edge == id(1, EdgeId::new) =>
+            {
+                let Proposition::LessOrEqual(left, right) = goal else {
+                    panic!("establishment goal is an order");
+                };
+                assert_eq!(
+                    left, right,
+                    "establishment compares the initial rank with itself"
+                );
+                ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerOrderWeakening {
+                        relation: Box::new(ProofNode {
+                            conclusion: Proposition::Equal(left.clone(), right.clone()),
+                            rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                        }),
+                    },
+                }
+            }
+            ReconstructedTerminalObligationOwner::ScalarBlockInvariant { .. } => {
+                let Proposition::LessOrEqual(next, rank) = goal else {
+                    panic!("preservation goal is an order");
+                };
+                let difference =
+                    ScalarTerm::exact_integer_subtract(integer(), rank.clone(), one.clone())
+                        .unwrap();
+                ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerOrderWeakening {
+                        relation: Box::new(ProofNode {
+                            conclusion: Proposition::LessThan(next.clone(), rank.clone()),
+                            rule: ProofRule::IntegerSubtractOrder {
+                                difference: Box::new(axiom(
+                                    &question.semantic_axioms,
+                                    Proposition::Equal(next.clone(), difference),
+                                )),
+                                positive: Box::new(ProofNode {
+                                    conclusion: Proposition::LessThan(
+                                        zero_literal.clone(),
+                                        one.clone(),
+                                    ),
+                                    rule: ProofRule::IntegerOrderSubstitution {
+                                        relation: Box::new(ProofNode {
+                                            conclusion: Proposition::LessThan(
+                                                zero_literal.clone(),
+                                                one_literal.clone(),
+                                            ),
+                                            rule: ProofRule::Primitive(
+                                                PrimitiveJudgment::ClosedIntegerRelation,
+                                            ),
+                                        }),
+                                        equality: Box::new(axiom(
+                                            &question.semantic_axioms,
+                                            Proposition::Equal(one.clone(), one_literal.clone()),
+                                        )),
+                                        endpoint: 1,
+                                    },
+                                }),
+                            },
+                        }),
+                    },
+                }
+            }
+            _ => panic!("accumulator fixture has only decrement and arrival questions"),
+        };
+        proofs.evidence.push(ObligationEvidence {
+            obligation: question.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: id(question.obligation.id.get(), EvidenceIdentity::new),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof,
+            }),
+        });
+    }
+    proofs
+}
+
+/// Rebind the accumulator argument of the latch backedge; the rank argument
+/// and therefore the certified descent are untouched.
+fn forward_accumulator(module: &mut TerminalModule, raw: u64) {
+    let Terminator::Jump { arguments, .. } = &mut module.machines[0].blocks[2].terminator else {
+        panic!("fixture latch is a jump");
+    };
+    arguments[1] = id(raw, ValueId::new);
+}
+
+#[test]
+fn ranked_natural_certificate_replays_with_a_correct_accumulator_arrival() {
+    let module = ranked_accumulator_module();
+    assert_eq!(
+        terminal_verifier::maximum_registered_obligation_id(&module).unwrap(),
+        101
+    );
+    let proofs = ranked_accumulator_evidence(&module);
+    assert_eq!(proofs.evidence.len(), 3);
+    assert_eq!(proofs.control_cycles.len(), 1);
+    let verified = verify_module(&module, &proofs, &AdmissionProfile::default()).unwrap();
+    assert_eq!(verified.accepted_control_cycles().len(), 1);
+    let questions = reconstruct_terminal_obligations(&module).unwrap();
+    let preservation = questions
+        .obligations()
+        .iter()
+        .find(|question| question.obligation.id == id(101, ObligationId::new))
+        .unwrap();
+    assert_eq!(
+        preservation.obligation.proposition,
+        Proposition::LessOrEqual(value(6), value(2)),
+        "preservation substitutes the latch's actual arguments"
+    );
+    // The functional claim is not inherited from termination: dropping either
+    // arrival certificate leaves the module unverified with its cycle intact.
+    for arrival in [100, 101] {
+        let mut omitted = proofs.clone();
+        omitted
+            .evidence
+            .retain(|proof| proof.obligation != id(arrival, ObligationId::new));
+        assert!(matches!(
+            verify_module(&module, &omitted, &AdmissionProfile::default()),
+            Err(VerificationError::MissingEvidence(obligation))
+                if obligation == id(arrival, ObligationId::new)
+        ));
+    }
+    // Nor does the claim depend on the ranking record.
+    let mut unranked = module.clone();
+    unranked.machines[0].ranked_scc = None;
+    let mut unranked_proofs = proofs.clone();
+    unranked_proofs.control_cycles.clear();
+    verify_module(&unranked, &unranked_proofs, &AdmissionProfile::default()).unwrap();
+}
+
+#[test]
+fn ranked_natural_certificate_replay_rejects_a_wrong_accumulator_arrival() {
+    let module = ranked_accumulator_module();
+    let proofs = ranked_accumulator_evidence(&module);
+    // The latch forwards the header's zero constant (value 3) as the next
+    // `previous` instead of the current rank.
+    let mut wrong = module.clone();
+    forward_accumulator(&mut wrong, 3);
+    let validated = validate_module(&wrong).expect("a wrong accumulator arrival is well formed");
+    // The control cycle asks the same question, and the unchanged certificate
+    // still answers it: the wrong update preserves the certified descent.
+    let cycle_questions = reconstruct_control_cycle_obligations(&wrong).unwrap();
+    assert_eq!(
+        cycle_questions,
+        reconstruct_control_cycle_obligations(&module).unwrap()
+    );
+    let [cycle_question] = cycle_questions.as_slice() else {
+        panic!("one ranked component");
+    };
+    let context = validated.value_context(&wrong.machines[0]).unwrap();
+    let parameters = wrong.machines[0]
+        .parameters
+        .iter()
+        .map(|parameter| parameter.id)
+        .collect();
+    proof_admission::verify_recursive_component_with_machine_parameters(
+        &context,
+        &cycle_question.obligation,
+        &parameters,
+        proofs.control_cycles[0].certificate.clone(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    // The accumulator's preservation goal now names the forwarded zero.
+    let questions = reconstruct_terminal_obligations(&wrong).unwrap();
+    let preservation = questions
+        .obligations()
+        .iter()
+        .find(|question| question.obligation.id == id(101, ObligationId::new))
+        .unwrap();
+    assert_eq!(
+        preservation.obligation.proposition,
+        Proposition::LessOrEqual(value(6), value(3))
+    );
+    // Replaying the valid bundle checks every sub-derivation of the retained
+    // `next <= rank` certificate and then refuses it for the changed goal.
+    assert_eq!(
+        verify_module(&wrong, &proofs, &AdmissionProfile::default()).err(),
+        Some(VerificationError::RejectedEvidence {
+            obligation: id(101, ObligationId::new),
+            error: EvidenceError::Certificate(ProofError::CertificateConclusionMismatch),
+        })
+    );
+    // Forwarding the decremented rank itself is the other natural mistake; the
+    // replay refuses that goal too.
+    let mut stale = module.clone();
+    forward_accumulator(&mut stale, 6);
+    assert!(matches!(
+        verify_module(&stale, &proofs, &AdmissionProfile::default()),
+        Err(VerificationError::RejectedEvidence {
+            obligation,
+            error: EvidenceError::Certificate(ProofError::CertificateConclusionMismatch),
+        }) if obligation == id(101, ObligationId::new)
+    ));
+    // Restoring the correct arrival, and nothing else, restores acceptance.
+    forward_accumulator(&mut wrong, 2);
+    verify_module(&wrong, &proofs, &AdmissionProfile::default()).unwrap();
 }
