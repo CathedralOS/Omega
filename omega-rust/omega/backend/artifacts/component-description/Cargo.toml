@@ -1,0 +1,19 @@
+[package]
+name = "component-description"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "component_description"
+path = "src/lib.rs"
+
+[dependencies]
+effects = { path = "../../../representations/effects" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+language-semantics = { path = "../../../../psi/foundation/language-semantics" }

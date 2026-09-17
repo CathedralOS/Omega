@@ -10,21 +10,20 @@
 //! resource admission; installation-dependent facts are emitted only as
 //! obligations that a later occurrence must satisfy under a fresh profile.
 //!
-//! The producer [`describe_component`] rejoins a `ComponentCandidate` to this
-//! source-free carrier. The independent consumer lives in
-//! `component_verification::verify_component`, which re-decodes the embedded
-//! artifact and re-derives every description fact rather than trusting the
-//! producer's rows.
+//! The producer [`describe_component_facts`] publishes this source-free
+//! carrier from independently supplied facts; `component-candidate` fills
+//! those facts from a realized `ComponentCandidate`. The independent consumer
+//! lives in `component_verification::verify_component`, which re-decodes the
+//! embedded artifact and re-derives every description fact rather than
+//! trusting the producer's rows.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BoundaryMachineId, ServiceId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, ServiceId};
 use sha2::{Digest, Sha256};
 use terminal_psi::{
     OperationKind, SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker,
 };
-
-use crate::ComponentCandidate;
 
 /// Wire magic for the canonical component-description encoding.
 const DESCRIPTION_MAGIC: &[u8; 8] = b"OMGCMPD\0";
@@ -760,12 +759,31 @@ pub(crate) fn derive_component_inventory(
     })
 }
 
+/// The selected entry's internal stack demand reduced to the three facts the
+/// description publishes as its `StackProvision` obligation.
+///
+/// The emitter derives the complete demand (with its target, contributing
+/// machines, and admitted contributions) beside the native artifact; the
+/// description keeps only the entry, ceiling, and alignment that installation
+/// must provision, so this crate never imports image emission. The row is
+/// declared evidence: it names a demand and grants no provision, lease, or
+/// installed-root admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StackDemandFacts {
+    /// The selected component entry machine the demand closes over.
+    pub entry: MachineId,
+    /// Exact internal call-graph stack ceiling in bytes.
+    pub ceiling_bytes: u64,
+    /// Required stack alignment in bytes.
+    pub stack_alignment: u32,
+}
+
 /// The exact publication facts a component description is built from.
 ///
 /// `stack_demand` and `realization_identity` are optional so the same
 /// producer covers a Psi-only component capsule (no native realization yet)
-/// and a fully realized `ComponentCandidate`; `describe_component` supplies
-/// both.
+/// and a fully realized `ComponentCandidate`; `component-candidate`'s
+/// `describe_component` supplies both.
 #[derive(Debug, Clone, Copy)]
 pub struct ComponentDescriptionFacts<'a> {
     /// The sealed canonical Terminal artifact to embed.
@@ -776,30 +794,17 @@ pub struct ComponentDescriptionFacts<'a> {
     pub component_progress: Option<&'a effects::ComponentProgressManifest>,
     /// Emitter-derived internal stack demand for the selected entry, when a
     /// native realization exists.
-    pub stack_demand: Option<&'a image_emission::StackDemand>,
+    pub stack_demand: Option<StackDemandFacts>,
     /// Strong identity of the bound native realization, when one exists.
     pub realization_identity: Option<[u8; 32]>,
 }
 
-/// Rejoin a checked component candidate to its canonical description.
-///
-/// The produced carrier embeds the candidate's sealed canonical artifact and
-/// emits the module-derived inventory plus the retained selected-provider
-/// facts. This is publication evidence only: it cannot satisfy its own
-/// installation obligations or grant callable authority to any reader.
-pub fn describe_component(
-    candidate: &ComponentCandidate,
-) -> Result<ComponentDescription, DescribeError> {
-    describe_component_facts(ComponentDescriptionFacts {
-        artifact: candidate.artifact(),
-        selected_provider_plans: candidate.selected_provider_plans(),
-        component_progress: candidate.component_progress(),
-        stack_demand: Some(candidate.stack_demand()),
-        realization_identity: Some(*candidate.native_artifact().identity().as_bytes()),
-    })
-}
-
 /// Publish one canonical description from independently supplied facts.
+///
+/// The produced carrier embeds the sealed canonical artifact and emits the
+/// module-derived inventory plus the retained selected-provider facts. This
+/// is publication evidence only: it cannot satisfy its own installation
+/// obligations or grant callable authority to any reader.
 pub fn describe_component_facts(
     facts: ComponentDescriptionFacts<'_>,
 ) -> Result<ComponentDescription, DescribeError> {
@@ -885,9 +890,9 @@ pub fn describe_component_facts(
             kind: ObligationKind::StackProvision,
             identity: format!(
                 "stack-provision:{}:{}:{}",
-                stack.entry().get(),
-                stack.ceiling_bytes(),
-                stack.stack_alignment(),
+                stack.entry.get(),
+                stack.ceiling_bytes,
+                stack.stack_alignment,
             ),
             detail: "provision the exact selected-entry stack closure under a fresh profile"
                 .to_string(),
