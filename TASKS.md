@@ -2683,15 +2683,23 @@ Owners include
   operand tuple omits its semantic home (the attached data, or any
   declared type/domain for a free machine) before the duplicate check
   (`expressions/token_bound_machine_{operand_selection,
-  duplicate_shape_rejected,foreign_family_rejected}`, checked-only because
-  body supply for the selected machine still runs through satisfier search
-  in `monomorphization/selected_operator_providers.rs` and build-time
-  `selected_operators.rs`). A mixed `Wrapped + u64` operand with only a
+  duplicate_shape_rejected,foreign_family_rejected}`). At
+  0002df3b6a/c4af6429cc the checked stage binds every resolved binary use
+  of a token-bearing machine to an ordinary compiler-synthesized call on
+  that declaration's entry state (`operators/token_bound_machine_calls.rs`;
+  finalization settles the `Operator` occurrence to the machine symbol),
+  `[]`/`[..]`/match-equality selections reject fail-closed, and the pass
+  canary executes through the checked interpreter returning 260
+  (`token_bound_machine_operand_selection_exit_canary_interprets`). It
+  stays checked-only because the native route rejects borrowed (macOS
+  receiver bridge) and by-value (Unit-plan admission) local data
+  arguments to a free machine independently of token supply, and
+  build-time evaluation does not run the binding (a token use inside a
+  build machine fails closed). A mixed `Wrapped + u64` operand with only a
   `(Wrapped, Wrapped)` binding reports a builtin overflow obligation
   instead of "no operator" because
   `value_custody/expression_types/operator_validation.rs` asks the
-  receiver-only spelling query. Next frontier: body supply for the
-  selected token-bearing machine, cross-package closed-family
+  receiver-only spelling query. Next frontier: cross-package closed-family
   semantic-home ownership (the current check is owner-local within one
   program; the unqualified operand-tuple home needs typing), the token joining canonical machine
   signature identity in package-review evidence capture
