@@ -1,1 +1,1 @@
-cannot prove `b in Quantity::Additive` — the `requires` of `Quantity::Additive::add` (spelled `+`)
+cannot prove requires contract for call add from Main::combine: b in Quantity::Additive

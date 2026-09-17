@@ -1,6 +1,8 @@
 domain i32::Degrees;
 
-operator + i32::Degrees::add(left: i32, right: i32) -> i32;
+machine + i32::Degrees::add(left: i32, right: i32) -> i32 {
+    ((left as i32 in Wrapping) + (right as i32 in Wrapping)) as i32
+}
 
 data Main {
     raw: i32;
