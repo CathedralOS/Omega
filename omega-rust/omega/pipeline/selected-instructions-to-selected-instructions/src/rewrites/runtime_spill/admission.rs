@@ -26,7 +26,12 @@ pub(super) struct Admission<'source> {
     /// `false` keeps each use on a private reload pair.
     pub shared_reload: Vec<bool>,
     pub victim: &'source VirtualRegister,
-    pub source_value: ValueId,
+    /// What the spill restates. A scalar victim keeps its source `ValueId`;
+    /// a structural ABI live-in is the incoming pointer to a declared place
+    /// and names no source value at all, so value bindings cannot transport
+    /// it and its reload registers carry an observation origin, not a result
+    /// one.
+    pub lineage: VictimLineage,
     pub address_scalar_type: ScalarType,
     pub definitions: Vec<StorageDefinition>,
     /// The physical slot the rewrite addresses. When `fresh_slot` is false this
@@ -54,11 +59,22 @@ pub(super) struct Admission<'source> {
 /// Source definition coordinates, not proposed spill instructions. An incoming
 /// parameter has one exact edge definition per predecessor: the predecessor's
 /// own copy output, or a case bridge's field observation behind its load. An
-/// entry parameter's single definition is the function-entry boundary itself.
+/// entry-bound register's single definition is the function-entry boundary
+/// itself.
 pub(super) struct StorageDefinition {
     pub block_index: usize,
     pub position: StoragePosition,
     pub register: VirtualRegisterId,
+}
+
+/// The identity a spilled register's reloads restate. A scalar victim keeps
+/// its source `ValueId`; a structural ABI live-in is the incoming pointer to
+/// a declared place and names no source value at all — value bindings can
+/// transport only the former, and the reload's register origin follows suit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum VictimLineage {
+    Scalar(ValueId),
+    Structural(PlaceId),
 }
 
 /// Where the definition's store lands inside `block_index`.
@@ -67,7 +83,7 @@ pub(super) enum StoragePosition {
     /// Immediately after the instruction that physically defines the stored
     /// register — the victim's own result or an edge's copy/observation output.
     AfterInstruction(SelectedInstructionId),
-    /// Ahead of every block instruction: an entry parameter's boundary
+    /// Ahead of every block instruction: an entry-bound register's boundary
     /// definition. Its register is live-in, so position zero is the earliest
     /// point the stored value exists and the only one every use follows.
     BlockStart,
@@ -132,7 +148,15 @@ pub(super) fn admit<'source>(
         .ok_or(RuntimeSpillError::UnsupportedValue)?;
     let unsigned = IntegerType::new(IntegerSign::Unsigned, 64)
         .map_err(|_| RuntimeSpillError::UnsupportedValue)?;
-    let (source_value, definition, block_index) = match victim.origin {
+    // Every register the representation's own entry-liveness replay
+    // recognizes — a scalar or structural parameter, or the hidden
+    // aggregate-result destination — has the function-entry boundary as its
+    // definition anchor. Its ABI live-in pin is its own boundary constraint:
+    // rewriting shrinks that register's interval to the entry-to-store
+    // window, so the view still pins exactly where the value must arrive. A
+    // fixed view on any other origin stays a rejection.
+    let entry_boundary = function.is_entry_register(victim);
+    let (lineage, definition, block_index) = match victim.origin {
         VirtualRegisterOrigin::InstructionResult {
             instruction,
             source_value,
@@ -147,7 +171,11 @@ pub(super) fn admit<'source>(
                         .any(|candidate| candidate.id == instruction)
                 })
                 .ok_or(RuntimeSpillError::UnsupportedValue)?;
-            (source_value, Some(instruction), block_index)
+            (
+                VictimLineage::Scalar(source_value),
+                Some(instruction),
+                block_index,
+            )
         }
         VirtualRegisterOrigin::BlockParameter {
             source_value,
@@ -167,7 +195,7 @@ pub(super) fn admit<'source>(
             {
                 return Err(RuntimeSpillError::UnsupportedValue);
             }
-            (source_value, None, block_index)
+            (VictimLineage::Scalar(source_value), None, block_index)
         }
         VirtualRegisterOrigin::EntryParameter {
             source_value,
@@ -187,7 +215,47 @@ pub(super) fn admit<'source>(
             {
                 return Err(RuntimeSpillError::UnsupportedValue);
             }
-            (source_value, None, block_index)
+            (VictimLineage::Scalar(source_value), None, block_index)
+        }
+        VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index,
+        } => {
+            // A structural parameter is the same boundary live-in: the ABI
+            // hands in the pointer or fragment register pinned to its entry
+            // view. Its provenance is the structural contract's own
+            // parameter row — the declared place at this index — and it
+            // carries no source definition site.
+            let block_index = function
+                .blocks
+                .iter()
+                .position(|block| block.id == function.entry_block)
+                .ok_or(RuntimeSpillError::SourceMismatch)?;
+            if victim.definition_site.is_some()
+                || !function
+                    .structural
+                    .as_ref()
+                    .and_then(|contract| contract.parameters.get(parameter_index))
+                    .is_some_and(|parameter| {
+                        parameter.semantic.place == place && parameter.target.place == place
+                    })
+            {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            }
+            (VictimLineage::Structural(place), None, block_index)
+        }
+        VirtualRegisterOrigin::AbiTransport { place, .. } if entry_boundary => {
+            // The hidden aggregate-result destination is the only transport
+            // register that is a boundary live-in rather than an
+            // instruction-made address: `is_entry_register` has already
+            // proved instruction zero, offset zero, the pinned view, no site,
+            // and the declared result place.
+            let block_index = function
+                .blocks
+                .iter()
+                .position(|block| block.id == function.entry_block)
+                .ok_or(RuntimeSpillError::SourceMismatch)?;
+            (VictimLineage::Structural(place), None, block_index)
         }
         _ => return Err(RuntimeSpillError::UnsupportedValue),
     };
@@ -204,19 +272,22 @@ pub(super) fn admit<'source>(
     };
     // Semantic lineage alone does not locate physical storage definitions.
     // Instruction results and incoming parameters establish those separately.
-    // An entry parameter's ABI live-in pin is its own boundary constraint:
-    // rewriting shrinks that register's interval to the entry-to-store window,
-    // so the view still pins exactly where the value must arrive. A fixed view
-    // on any other origin stays a rejection.
-    let entry_boundary = matches!(victim.origin, VirtualRegisterOrigin::EntryParameter { .. });
+    // Structural ABI live-ins carry no source definition site at all — the
+    // boundary itself is their definition — while every other admitted origin
+    // must keep its declared site.
     if !scalar_payload
         || (victim.entry_fixed_view.is_some() && !entry_boundary)
-        || !matches!(
+        || !(matches!(
             victim.definition_site,
             Some(ValueDefinitionSite::FunctionParameter(_))
                 | Some(ValueDefinitionSite::BlockParameter { .. })
                 | Some(ValueDefinitionSite::Node { .. })
-        )
+        ) || (victim.definition_site.is_none()
+            && matches!(
+                victim.origin,
+                VirtualRegisterOrigin::StructuralParameter { .. }
+                    | VirtualRegisterOrigin::AbiTransport { .. }
+            )))
     {
         return Err(RuntimeSpillError::UnsupportedValue);
     }
@@ -237,6 +308,12 @@ pub(super) fn admit<'source>(
     } else if entry_boundary {
         entry_definitions(function, block_index, victim)?
     } else {
+        // Only a block parameter reaches this arm: structural live-ins took
+        // the boundary branch, and they carry no source value to check the
+        // edge bindings against.
+        let VictimLineage::Scalar(source_value) = lineage else {
+            return Err(RuntimeSpillError::UnsupportedValue);
+        };
         parameter_definitions(function, block_index, victim, source_value)?
     };
     let mut defined = definition.is_none();
@@ -322,9 +399,10 @@ pub(super) fn admit<'source>(
                 }
                 // An edge-transport argument reads the victim at the end of
                 // this block. Its semantic declaration must name the victim's
-                // source value and exact type; anything else is an
-                // inconsistent plan, not a use this rewrite can serve.
-                if binding.semantic.argument != source_value
+                // source value and exact type; a structural live-in has none,
+                // so any binding naming it is an inconsistent plan, not a use
+                // this rewrite can serve.
+                if lineage != VictimLineage::Scalar(binding.semantic.argument)
                     || binding.semantic.scalar_type != victim.scalar_type
                 {
                     return Err(RuntimeSpillError::UnsupportedUse);
@@ -509,7 +587,7 @@ pub(super) fn admit<'source>(
         })
         .and_then(|total| total.checked_add(uses.checked_mul(4)?))
         .and_then(|total| total.checked_add(definitions.len()))
-        // An entry parameter's boundary definition scans every block's
+        // An entry-bound register's boundary definition scans every block's
         // successor list once for a re-entry edge — the same per-block shape
         // the two dominance passes below already pay for.
         .and_then(|total| {
@@ -793,7 +871,7 @@ pub(super) fn admit<'source>(
         use_blocks,
         shared_reload,
         victim,
-        source_value,
+        lineage,
         address_scalar_type: ScalarType::Integer(unsigned),
         definitions,
         slot,
@@ -974,11 +1052,12 @@ fn parameter_definitions(
     Ok(definitions)
 }
 
-/// An entry parameter's storage definition is the function-entry boundary:
-/// the value arrives live-in, so its store opens the entry block. Any edge
-/// back to that block — a loop header reuse or a shared continuation — would
-/// re-execute the store reading a register whose interval already ended at
-/// the first store, so re-entry stays rejected rather than replayed against.
+/// An entry-bound register's storage definition is the function-entry
+/// boundary: the value arrives live-in, so its store opens the entry block.
+/// Any edge back to that block — a loop header reuse or a shared
+/// continuation — would re-execute the store reading a register whose
+/// interval already ended at the first store, so re-entry stays rejected
+/// rather than replayed against.
 fn entry_definitions(
     function: &SelectedFunction,
     entry: usize,
@@ -1081,9 +1160,19 @@ pub(super) fn reload(
             id: reload_register,
             scalar_type: admitted.victim.scalar_type,
             class: admitted.victim.class,
-            origin: VirtualRegisterOrigin::InstructionResult {
-                instruction: load_instruction,
-                source_value: admitted.source_value,
+            origin: match admitted.lineage {
+                VictimLineage::Scalar(source_value) => VirtualRegisterOrigin::InstructionResult {
+                    instruction: load_instruction,
+                    source_value,
+                },
+                // A structural live-in restates no source value; the reload
+                // re-observes the place's ABI pointer bits from private
+                // storage.
+                VictimLineage::Structural(place) => VirtualRegisterOrigin::StructuralObservation {
+                    instruction: load_instruction,
+                    place,
+                    byte_offset: 0,
+                },
             },
             definition_site: admitted.victim.definition_site,
             entry_fixed_view: None,

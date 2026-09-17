@@ -1,11 +1,212 @@
-use super::{candidate_position, split_domain_pressure};
+use super::{candidate_position, candidates, split_domain_pressure};
 use crate::RegisterHomeError;
+use legalized_operations::LegalizedStructuralContract;
+use optimization_unit::ValueDefinitionSite;
+use register_environment::baseline_target_register_environment;
 use register_model::RegisterClassId;
-use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
-use semantic_vocabulary::{EdgeId, MachineId};
+use selected_instructions::{
+    SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use semantic_vocabulary::{
+    EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, PlaceId, ScalarType, ValueId,
+};
+use target::NativeTarget;
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 fn pressure(function: usize, register: u32) -> RegisterHomeError {
     RegisterHomeError::NoCompatibleHome { function, register }
+}
+
+/// The finite roster covers every register the representation's own
+/// entry-liveness replay recognizes — scalar and structural parameters plus
+/// the hidden aggregate-result destination — alongside instruction results
+/// and block parameters. Instruction-made transport addresses and generated
+/// spill origins never join it.
+#[test]
+fn roster_covers_every_entry_live_in_origin() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let copy = environment.constraint(keys.copy_i64).unwrap();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let class = copy.operands[0].class;
+    let view = environment
+        .physical()
+        .model()
+        .classes
+        .iter()
+        .find(|row| row.id == class)
+        .and_then(|row| row.views.first())
+        .copied()
+        .expect("the scalar class always declares a view");
+    let place = PlaceId::new(1).unwrap();
+    let structural_type = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
+    let register = |id: u32,
+                    origin: VirtualRegisterOrigin,
+                    site: Option<ValueDefinitionSite>,
+                    pinned: bool| VirtualRegister {
+        id: VirtualRegisterId(id),
+        scalar_type,
+        class,
+        origin,
+        definition_site: site,
+        entry_fixed_view: pinned.then_some(view),
+    };
+    let machine = MachineId::new(1).unwrap();
+    let function = SelectedFunction {
+        machine,
+        attachment: None,
+        provenance: Default::default(),
+        structural: Some(LegalizedStructuralContract {
+            result: Some(terminal_psi::StructuralResultDeclaration {
+                place,
+                structural_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            }),
+            structural_types: Vec::new().into(),
+            parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+                semantic: terminal_psi::StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    is_self: false,
+                    structural_type,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+                target: target_operations::TargetStructuralParameter {
+                    place,
+                    structural_type,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    projected_qualifications: Vec::new(),
+                    shape: calling_conventions::ValueShape::borrowed_reference(8, 8),
+                    placement: calling_conventions::ValuePlacement {
+                        shape: calling_conventions::ValueShape::borrowed_reference(8, 8),
+                        locations: Vec::new(),
+                    },
+                },
+            }],
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }),
+        local_storage_slots: Vec::new(),
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
+        entry_block: SelectedBlockId(0),
+        virtual_registers: vec![
+            register(
+                0,
+                VirtualRegisterOrigin::EntryParameter {
+                    source_value: ValueId::new(1).unwrap(),
+                    parameter_index: 0,
+                },
+                Some(ValueDefinitionSite::FunctionParameter(0)),
+                true,
+            ),
+            register(
+                1,
+                VirtualRegisterOrigin::StructuralParameter {
+                    place,
+                    parameter_index: 0,
+                },
+                None,
+                true,
+            ),
+            register(
+                2,
+                VirtualRegisterOrigin::AbiTransport {
+                    instruction: SelectedInstructionId(0),
+                    place,
+                    byte_offset: 0,
+                },
+                None,
+                true,
+            ),
+            // An instruction-made transport address is no entry live-in.
+            register(
+                3,
+                VirtualRegisterOrigin::AbiTransport {
+                    instruction: SelectedInstructionId(4),
+                    place,
+                    byte_offset: 0,
+                },
+                None,
+                false,
+            ),
+            register(
+                4,
+                VirtualRegisterOrigin::InstructionResult {
+                    instruction: SelectedInstructionId(4),
+                    source_value: ValueId::new(2).unwrap(),
+                },
+                Some(ValueDefinitionSite::FunctionParameter(0)),
+                false,
+            ),
+            register(
+                5,
+                VirtualRegisterOrigin::BlockParameter {
+                    source_value: ValueId::new(3).unwrap(),
+                    block: SelectedBlockId(1),
+                    parameter_index: 0,
+                },
+                Some(ValueDefinitionSite::BlockParameter {
+                    block: semantic_vocabulary::BlockId::new(3).unwrap(),
+                    position: 0,
+                }),
+                false,
+            ),
+            // Generated spill origins never become candidates.
+            register(
+                6,
+                VirtualRegisterOrigin::SpillAddress {
+                    instruction: SelectedInstructionId(4),
+                    register: VirtualRegisterId(0),
+                },
+                None,
+                false,
+            ),
+            register(
+                7,
+                VirtualRegisterOrigin::StructuralObservation {
+                    instruction: SelectedInstructionId(4),
+                    place,
+                    byte_offset: 0,
+                },
+                None,
+                false,
+            ),
+        ],
+        blocks: Vec::new(),
+    };
+    let plan = SelectedInstructionPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
+        },
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        target,
+        entry: machine,
+        functions: vec![function].into(),
+    };
+    assert_eq!(
+        candidates(&plan),
+        vec![
+            (0, VirtualRegisterId(0)),
+            (0, VirtualRegisterId(1)),
+            (0, VirtualRegisterId(2)),
+            (0, VirtualRegisterId(4)),
+            (0, VirtualRegisterId(5)),
+        ]
+    );
 }
 
 #[test]
