@@ -1,0 +1,12 @@
+// A template whose own signature bound depends on a sibling parameter has no
+// closed bound in any round: `cap` is never a build-time endpoint value, so
+// the explicit application rejects as an unclosed signature bound instead of
+// folding.
+machine unclosable<const N: u64>(cap: u64, value: u64[0..=cap]) -> u64 { N }
+
+machine rejected(value: u64[0..=unclosable<256>(256, 0)]) -> u64 { value }
+
+data Main {}
+
+machine Main::main(&mut self) {
+}

@@ -1048,36 +1048,90 @@ machine take_bounded(value: u64[0..=limit()]) -> u64 { value }
 }
 
 #[test]
-fn template_signature_bounds_with_endpoint_calls_reject_under_explicit_application() {
-    // The template's own bound `u64[0..=limit()]` folds in the working tree,
-    // but the instance's cloned bound lives only in the prepared tree, which
-    // is prepared once before any fold. Positions of a static application
-    // read that tree, so the bound is not closed there and the application
-    // rejects as an unclosed signature bound rather than folding a wrong
-    // value or reading the template's symbolic bound. Closing this needs a
-    // second preparation after the template bound folds; it is not admitted
-    // by reading the working tree, whose handles the clone does not share.
-    for endpoint in [
-        "bounded<256>(0)",
-        "bounded<256>(300)",
-        "result_bounded<256>()",
+fn template_signature_bounds_with_endpoint_calls_close_under_explicit_application() {
+    // The template's own bound `u64[0..=limit()]` folds in the first round.
+    // The instance's cloned bound lives only in the prepared tree, so the
+    // static application fails that round; the driver re-prepares from the
+    // folded working tree and the second round closes it. The instance's
+    // folded bound is what the argument position checks: `300` rejects.
+    let declarations = "machine limit() -> u64 { 256 }
+         machine bounded<const N: u64>(value: u64[0..=limit()]) -> u64 { N }
+         machine result_bounded<const N: u64>() -> u64[0..=limit()] { N }";
+    for (endpoint, bound) in [
+        ("bounded<256>(0)", "256"),
+        ("result_bounded<256>()", "256"),
+        ("bounded<256>(limit() - 256)", "256"),
     ] {
         let mut program = typed(&format!(
-            "machine limit() -> u64 {{ 256 }}
-             machine bounded<const N: u64>(value: u64[0..=limit()]) -> u64 {{ N }}
-             machine result_bounded<const N: u64>() -> u64[0..=limit()] {{ N }}
+            "{declarations}
              machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
-        let errors = evaluate_const_range_endpoints(&mut program, None).expect_err(endpoint);
-        assert_eq!(errors.len(), 1, "{endpoint}: {errors:?}");
+        evaluate_const_range_endpoints(&mut program, None)
+            .unwrap_or_else(|errors| panic!("{endpoint}: {errors:?}"));
         assert!(
-            errors[0]
-                .message
-                .contains("range endpoint signature bound is not closed"),
-            "{endpoint}: {}",
-            errors[0].message
+            pending_endpoints(&program).unwrap().is_empty(),
+            "{endpoint}"
         );
-        // The failed application must not leave a partial fold behind.
-        assert!(folded_maximum(&program).is_none(), "{endpoint}");
+        let (_, _, constraints) = *program
+            .type_reference_table
+            .constrained_type_reference_sites()
+            .last()
+            .expect("keep's authored range");
+        let TypeConstraintNode::Range { maximum, .. } =
+            program.type_reference_table.constraints(constraints)[0]
+        else {
+            panic!("{endpoint}: authored range");
+        };
+        assert_eq!(
+            validation::closed_integer_range_bound(&program, maximum)
+                .map(|value| value.to_string())
+                .as_deref(),
+            Some(bound),
+            "{endpoint}"
+        );
     }
+    let mut program = typed(&format!(
+        "{declarations}
+         machine keep(value: u64[0..=bounded<256>(300)]) {{}}"
+    ));
+    let errors = evaluate_const_range_endpoints(&mut program, None).expect_err("out of range");
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(
+        errors[0]
+            .message
+            .contains("range endpoint value `300` is outside declared range `0..=256`"),
+        "{}",
+        errors[0].message
+    );
+}
+
+#[test]
+fn rounds_stop_without_progress_and_restore_every_published_fold() {
+    // A template bound that depends on a sibling parameter is never a
+    // pending endpoint, so no round can close the application: the first
+    // round folds `limit()` for the sibling endpoint, the second makes no
+    // progress and reports the unclosed signature bound. Every fold
+    // published by the first round is restored so the rejected program
+    // keeps its authored calls and their deferral marks.
+    let mut program = typed(
+        "machine limit() -> u64 { 256 }
+         machine unclosable<const N: u64>(cap: u64, value: u64[0..=cap]) -> u64 { N }
+         machine keep(first: u64[0..=limit()], second: u64[0..=unclosable<256>(256, 0)]) {}",
+    );
+    let authored = pending_endpoints(&program).unwrap().len();
+    assert_eq!(authored, 2);
+    let errors = evaluate_const_range_endpoints(&mut program, None).expect_err("unclosable bound");
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(
+        errors[0]
+            .message
+            .contains("range endpoint signature bound is not closed"),
+        "{}",
+        errors[0].message
+    );
+    assert_eq!(
+        pending_endpoints(&program).unwrap().len(),
+        authored,
+        "a rejected program keeps every authored endpoint call"
+    );
 }

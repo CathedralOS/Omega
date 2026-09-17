@@ -1,0 +1,12 @@
+// Once the template's own bound `u64[0..=limit()]` folds and the application
+// is re-prepared, the instance's folded bound is what the concrete argument
+// must satisfy: `300` is outside `0..=256`.
+machine limit() -> u64 { 256 }
+machine bounded<const N: u64>(value: u64[0..=limit()]) -> u64 { N }
+
+machine rejected(value: u64[0..=bounded<256>(300)]) -> u64 { value }
+
+data Main {}
+
+machine Main::main(&mut self) {
+}

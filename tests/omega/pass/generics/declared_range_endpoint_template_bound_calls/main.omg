@@ -1,0 +1,28 @@
+// A generic template whose own signature bound carries a named endpoint call
+// closes under an explicit static application: the endpoint pass folds the
+// template's bound in one round, re-prepares the execution program, and the
+// instance's cloned bound is then the folded literal.
+use omega_language_std::console;
+use omega::language::core::service;
+
+machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+machine limit() -> u64 { 256 }
+machine bounded<const N: u64>(value: u64[0..=limit()]) -> u64 { N }
+// The body returns a provably in-range value; the result bound itself is
+// what the endpoint route must close before it can check the result.
+machine result_bounded<const N: u64>() -> u64[0..=limit()] { 0 }
+
+machine parameter_bound(value: u64[0..=bounded<256>(0)]) -> u64 { upper_bound(value) }
+machine result_bound(value: u64[0..=result_bounded<256>()]) -> u64 { upper_bound(value) }
+
+data Main { console: Service<Console> in Bound; }
+machine Main::main(&mut self) reaches Console {
+    let parameter: u64 = parameter_bound(0);
+    let result: u64 = result_bound(0);
+    transition parameter == 256 && result == 0 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}
