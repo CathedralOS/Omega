@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "contract_expressions/collection_views.rs"]
 mod collection_views;

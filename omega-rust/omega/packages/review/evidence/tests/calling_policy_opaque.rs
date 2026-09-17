@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;

@@ -1,6 +1,6 @@
 //! Checked inherited substitutions use the same semantic identity as concrete types.
 
-mod support;
+use crate::support;
 
 use compiler::CheckedCompileRequest;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;

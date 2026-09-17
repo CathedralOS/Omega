@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "conformance/public_conformances.rs"]
 mod public_conformances;

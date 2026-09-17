@@ -1,6 +1,6 @@
 //! Complete checked calling policies retain meaning, not replay receipts.
 
-mod support;
+use crate::support;
 
 use compiler::CheckedCompileRequest;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;

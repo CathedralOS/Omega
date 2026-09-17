@@ -1,6 +1,6 @@
 //! Lossless external policy is captured from the exact checked source owner.
 
-mod support;
+use crate::support;
 
 use compiler::CheckedCompileRequest;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;

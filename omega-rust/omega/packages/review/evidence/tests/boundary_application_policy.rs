@@ -1,5 +1,5 @@
 //! Receipt-free D29 relationships derived from checked compiler consumers.
-mod support;
+use crate::support;
 
 use compiler::CheckedCompileRequest;
 use package_evidence::record::*;

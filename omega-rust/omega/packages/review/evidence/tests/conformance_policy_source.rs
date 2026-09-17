@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "fixture_rosters/conformance_policy_source.rs"]
 mod fixture_roster;

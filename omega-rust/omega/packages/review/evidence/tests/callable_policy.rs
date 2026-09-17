@@ -16,7 +16,7 @@ mod progress;
 mod reach_dependencies;
 #[path = "callable_policy/signatures.rs"]
 mod signatures;
-mod support;
+use crate::support;
 
 use fixtures::Fixture;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;

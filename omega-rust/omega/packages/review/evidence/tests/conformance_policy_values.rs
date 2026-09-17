@@ -1,6 +1,6 @@
 //! Const custody and caller-relative lifetime policy projection.
 
-mod support;
+use crate::support;
 
 use compiler::CheckedCompileRequest;
 use package_evidence::project_checked_conformance_policy;

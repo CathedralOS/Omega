@@ -4,7 +4,7 @@ mod calling;
 mod fixtures;
 #[path = "terminal_permission_policy/generics.rs"]
 mod generics;
-mod support;
+use crate::support;
 #[path = "terminal_permission_policy/uefi.rs"]
 mod uefi;
 
