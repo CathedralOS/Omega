@@ -301,3 +301,44 @@ satisfies LifetimeSlot<'left>::perform
     ));
     assert_eq!(first, renamed);
 }
+
+#[test]
+fn fixed_token_binding_joins_the_callable_identity_and_only_when_present() {
+    // A fixed operator token is part of a declaration's public signature:
+    // adding, removing, or changing it is a breaking revision, so two
+    // revisions that differ only in the binding must not review identically.
+    // A tokenless declaration keeps the coordinate grammar it always had, so
+    // retained locks see no churn.
+    let tokenless = r#"
+pub data Wrapped { value: u8; }
+pub machine Wrapped::add(left: Wrapped, right: Wrapped) -> u64 {
+    (left.value as u64) + (right.value as u64)
+}
+"#;
+    let bound = tokenless.replace("pub machine Wrapped::add", "pub machine + Wrapped::add");
+    let rebound = tokenless.replace("pub machine Wrapped::add", "pub machine * Wrapped::add");
+    let unbound = project(&Fixture::local(tokenless));
+    let bound = project(&Fixture::local(&bound));
+    let rebound = project(&Fixture::local(&rebound));
+    let unbound_callable = callable(&unbound, "Wrapped::add");
+    let bound_callable = callable(&bound, "Wrapped::add");
+    let rebound_callable = callable(&rebound, "Wrapped::add");
+    assert_eq!(unbound_callable.parameters(), bound_callable.parameters());
+    assert_eq!(unbound_callable.return_type(), bound_callable.return_type());
+    assert_ne!(unbound_callable.identity(), bound_callable.identity());
+    assert_ne!(bound_callable.identity(), rebound_callable.identity());
+    assert_ne!(
+        unbound.canonical_bytes().unwrap(),
+        bound.canonical_bytes().unwrap()
+    );
+    assert!(bound_callable.identity().path().contains("token-bound"));
+    assert!(bound_callable.identity().path().contains("1:+"));
+    assert!(!unbound_callable.identity().path().contains("token-bound"));
+    // The tokenless coordinate grammar is pinned byte-for-byte: this is the
+    // path retained locks recorded before token bindings joined the identity.
+    assert_eq!(
+        unbound_callable.identity().path(),
+        "20:conformance-callable12:Wrapped::add221:named-callable(path(Wrapped::add),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Wrapped\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Wrapped\\)\\)\\)),result-dispatch())12:Wrapped::add7:machine188:9:parameter153:14:signature-type125:named(name(nominal\\(package-owner\\(32:2929292929292929292929292929292929292929292929292929292929292929\\)\\,path\\(Wrapped\\)\\)))5:named17:false:false:false188:9:parameter153:14:signature-type125:named(name(nominal\\(package-owner\\(32:2929292929292929292929292929292929292929292929292929292929292929\\)\\,path\\(Wrapped\\)\\)))5:named17:false:false:false85:11:result-type68:14:signature-type41:named(name(compiler-type\\(atom\\(u64\\)\\)))5:named"
+    );
+    assert_eq!(unbound, project(&Fixture::local(tokenless)));
+}

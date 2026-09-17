@@ -78,6 +78,17 @@ pub(crate) fn callable_identity(
         .normalized_machine_overload_identity(machine)
         .ok_or_else(|| rejected("a callable without an exact overload coordinate"))?
         .identity();
+    // A fixed operator token is part of the declaration's public signature:
+    // adding, removing, or changing it is a breaking revision, so it joins
+    // the review coordinate here. It stays out of the Psi overload identity
+    // because a token never distinguishes named overloads (two same-shape
+    // declarations differing only by token are still duplicates). A tokenless
+    // declaration keeps the bare overload coordinate, so retained locks and
+    // decoders that treat this field as an opaque coordinate see no change.
+    let overload = match machine.spelling {
+        Some(spelling) => framed_identity("token-bound", &[overload, spelling.symbol().to_owned()]),
+        None => overload,
+    };
     let binders = compilation
         .machine_type_parameters(machine)
         .iter()
