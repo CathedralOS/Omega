@@ -110,13 +110,14 @@ pub(super) fn build_traced(
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
     for (state_index, state) in states.iter().enumerate() {
-        trace.phase("state graph: state signature");
+        trace.phase("state graph: state signature: result and contracts");
         trace.state(u32::try_from(state_index).ok());
         if returns::signature(program, shapes, state.return_type)? != result
             || !validation::structural_state_contracts_are_parameter_qualifications(program, state)
         {
             return None;
         }
+        trace.phase("state graph: state signature: parameter signature");
         let (structural, scalar) = if machine.attached_data.is_some() {
             let (identity, structural, scalar) =
                 structural_scalar_signature(program, shapes, machine, state, &[], true)?;
@@ -127,6 +128,7 @@ pub(super) fn build_traced(
         };
         // Persistent receivers keep their invocation place. Other structural
         // parameters retain explicit owned-value or borrowed-view edge custody.
+        trace.phase("state graph: state signature: parameter custody shape");
         if structural.iter().any(|parameter| {
             (parameter.multiplicity != Multiplicity::Linear && !parameter.qualifications.is_empty())
                 || if parameter.is_self {
@@ -162,6 +164,7 @@ pub(super) fn build_traced(
         }) {
             return None;
         }
+        trace.phase("state graph: state signature: entry claims");
         let claims = entry_claims(
             program,
             facts,
@@ -171,6 +174,7 @@ pub(super) fn build_traced(
             program.state_parameters(state),
         )?;
         // Claim-bearing successor transport is not represented by these edges.
+        trace.phase("state graph: state signature: claim-bearing successor");
         if states.len() > 1 && !claims.is_empty() {
             return None;
         }
@@ -435,6 +439,7 @@ pub(super) fn build_traced(
         } else {
             match &statements[terminator_index..] {
                 [] if result == checked_trees::CheckedControlResultPlan::Unit => {
+                    trace.phase("state graph: terminator: unit tail cleanup");
                     if facts.flow.ownership.permissions.iter().any(|(_, event)| {
                         event.machine_symbol == machine.symbol
                             && event.state_symbol == state.symbol
@@ -458,6 +463,7 @@ pub(super) fn build_traced(
                 [StatementNode::Expression(expression)]
                     if result != checked_trees::CheckedControlResultPlan::Unit =>
                 {
+                    trace.phase("state graph: terminator: return expression");
                     if let Some(result) = sequence.structural_result.clone() {
                         CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
                     } else {
@@ -475,6 +481,7 @@ pub(super) fn build_traced(
                 [StatementNode::Transition(transition)]
                     if transition.guard == TransitionGuardNode::Always =>
                 {
+                    trace.phase("state graph: terminator: jump successor");
                     CheckedComposedUnitControlTerminatorPlan::Jump {
                         successor: edge(transition, ordinal)?,
                     }
@@ -487,6 +494,7 @@ pub(super) fn build_traced(
                         program, when_true, when_false,
                     ) =>
                 {
+                    trace.phase("state graph: terminator: conditional successors");
                     let guard = facts
                         .values
                         .scalar_expressions
@@ -502,10 +510,12 @@ pub(super) fn build_traced(
                     }
                 }
                 _ => {
+                    trace.phase("state graph: terminator: unsupported tail");
                     return None;
                 }
             }
         };
+        trace.phase("state graph: exit result locals");
         let disposable_locals = if matches!(
             terminator,
             CheckedComposedUnitControlTerminatorPlan::Jump { .. }
@@ -518,6 +528,7 @@ pub(super) fn build_traced(
         } else {
             Vec::new()
         };
+        trace.phase("state graph: result custody accounting");
         for (producer_index, operation) in operations.iter().enumerate() {
             let result = match operation {
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }

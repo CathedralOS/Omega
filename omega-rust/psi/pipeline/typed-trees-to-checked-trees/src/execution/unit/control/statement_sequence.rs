@@ -338,7 +338,7 @@ pub(in crate::execution::terminal_unit) fn build(
     let binders = machine_binders(program, machine);
     trace.phase("statement sequence: scalar field store sequence");
     let mut stores =
-        super::super::structural_scalar_store::build_structural_scalar_field_store_sequence(
+        super::super::structural_scalar_store::build_structural_scalar_field_store_sequence_traced(
             program,
             facts,
             machine,
@@ -347,6 +347,7 @@ pub(in crate::execution::terminal_unit) fn build(
             scalar_parameters,
             construction_statement_count,
             call_frames,
+            trace,
         )?
         .into_iter();
     for (index, statement) in program

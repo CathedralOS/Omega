@@ -7,6 +7,7 @@ use super::{
     DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, SymbolHandle,
     TypeReferenceNode, TypedTrees,
 };
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::terminal_field_identity;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
@@ -198,7 +199,9 @@ pub(super) fn build_structural_scalar_field_store(
     Some(store)
 }
 
-pub(super) fn build_structural_scalar_field_store_sequence(
+/// `build_structural_scalar_field_store_sequence` tracing which assignment
+/// (or which write-frame guard) declined the body.
+pub(super) fn build_structural_scalar_field_store_sequence_traced(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -207,6 +210,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statement_start: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     if !statements
@@ -216,6 +220,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
     {
         return Some(Vec::new());
     }
+    trace.phase("scalar field store sequence: state write frame");
     let frame = &match facts.mutation.for_machine(machine.symbol) {
         Some(mutation) => match mutation
             .state_write_frames
@@ -231,9 +236,11 @@ pub(super) fn build_structural_scalar_field_store_sequence(
             return None;
         }
     };
+    trace.phase("scalar field store sequence: write frame agreement");
     if !frame::matches(program, machine, state, frame, call_frames) {
         return None;
     }
+    trace.phase("scalar field store sequence: assignment store");
     statements
         .iter()
         .enumerate()
@@ -242,6 +249,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
             let StatementNode::Assignment(assignment) = statement else {
                 return None;
             };
+            trace.statement(u32::try_from(statement_index).ok());
             Some(
                 u32::try_from(statement_index)
                     .ok()
@@ -274,6 +282,31 @@ pub(super) fn build_structural_scalar_field_store_sequence(
             )
         })
         .collect()
+}
+
+/// Test convenience: the traced builder without a trace.
+#[cfg(test)]
+pub(super) fn build_structural_scalar_field_store_sequence(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_start: usize,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    build_structural_scalar_field_store_sequence_traced(
+        program,
+        facts,
+        machine,
+        state,
+        structural_parameters,
+        scalar_parameters,
+        statement_start,
+        call_frames,
+        &LocalConstructionTrace::default(),
+    )
 }
 
 fn build_structural_field_store_at(
