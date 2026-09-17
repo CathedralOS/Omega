@@ -4167,6 +4167,24 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   and production pipeline, passes the shared product suite, and publishes a
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
+  Resume (macOS ARM64, 2632fdf8b7): `source/psi` `lex`, `source` and
+  `tokens` now forward entry parameters explicitly into their named
+  states (the d405dd087c rule that states consume only their explicit
+  value bindings; `pass/control_flow/entry_parameter_explicit_state_forwarding`
+  pins the three product shapes) and `Main::main` declares
+  `reaches Console`, so `omega --check source/omega/main.omg` emits no
+  diagnostics but does not complete: after 45 minutes it is still inside
+  validation's `write_frames` permuted-cycle walk
+  (`state_write_walk` with `permuted_cycle_frames::
+  summarize_transition_target_written_paths`, 63 to 70 nested frames)
+  over the untouched `parse/` members, while a scratch package of
+  `lex`+`source`+`tokens`(+`syntax`) passes every Psi stage in about
+  four minutes. That walk cost is the next dependency (see
+  CRASH-GUARD-COST's throughput lane). `source/psi/gates/parser/build.omg`
+  also imports `psi::parse::harness` through a product `depend_as` edge
+  and needs a `build_depend_as` edge before
+  `command_line::routed_production_entry_roots_pass_real_package_resolution`
+  can pass.
 
 ## Platform-gated verification
 
