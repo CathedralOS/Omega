@@ -48,7 +48,13 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     // realization, so allowing an ordinary body call would turn "introduces
     // no fact" into a hidden runtime implementation hole.  Contract
     // expressions are not body call sites and remain free to name the symbol.
-    report_bodyless_boundary_symbol_call(callee_machine, target_name, diagnostics);
+    report_bodyless_boundary_symbol_call(
+        program,
+        callee_machine,
+        callee_state,
+        target_name,
+        diagnostics,
+    );
     validate_type_parameter_instantiation_bounds(
         program,
         symbols,
@@ -63,8 +69,31 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     );
 }
 
-fn report_bodyless_boundary_symbol_call(
+/// Whether a top-level `boundary requirement` may be called directly: public,
+/// nongeneric and receiver-free. Such a call executes only through the
+/// selected provider row that selected-dispatch settles after provider
+/// planning, which rejects a called requirement with no selected provider; a
+/// private, generic or receiver-bearing requirement keeps the symbol fence.
+fn is_directly_callable_top_level_requirement(
+    program: &TypedTrees,
     callee_machine: &Machine,
+    callee_state: &State,
+) -> bool {
+    callee_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        && callee_machine.is_public
+        && callee_machine.lifetime_parameters.is_empty()
+        && program.machine_type_parameters(callee_machine).is_empty()
+        && program.machine_states(callee_machine).len() == 1
+        && !program
+            .state_parameters(callee_state)
+            .iter()
+            .any(|parameter| parameter.is_self)
+}
+
+fn report_bodyless_boundary_symbol_call(
+    program: &TypedTrees,
+    callee_machine: &Machine,
+    callee_state: &State,
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -78,6 +107,7 @@ fn report_bodyless_boundary_symbol_call(
             | language_semantics::MachineSupplyMode::TopLevelRequirement
     ) && !compiler_placed_accessor
         && !callee_machine.body_is_present
+        && !is_directly_callable_top_level_requirement(program, callee_machine, callee_state)
     {
         diagnostics.push(Diagnostic::error(format!(
             "bodyless boundary symbol `{target_name}` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider"
