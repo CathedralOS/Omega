@@ -265,6 +265,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
                         ) {
                             return Some(store);
                         }
+                        trace.phase("scalar field store sequence: structural field store");
                         build_structural_field_store_at(
                             program,
                             facts,
