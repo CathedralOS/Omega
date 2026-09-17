@@ -11,7 +11,6 @@
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::Proposition;
 
-use super::super::integer_evidence::projected_facts;
 use super::{case_analysis, logical};
 
 #[cfg(test)]
@@ -83,7 +82,10 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         if logical.is_some() {
             return logical;
         }
-        for fact in projected_facts(assumptions, self.semantic_axioms) {
+        // Only implications connected to the goal's values can shorten its
+        // proof; an unrelated guard would otherwise be tried, and its premise
+        // proved, at every depth of the search.
+        for fact in case_analysis::connected_implications(goal, assumptions, self.semantic_axioms) {
             let Proposition::Implication {
                 premise,
                 conclusion,

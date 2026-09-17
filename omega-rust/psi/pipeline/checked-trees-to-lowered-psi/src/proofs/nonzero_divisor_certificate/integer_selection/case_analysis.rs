@@ -6,6 +6,19 @@ use semantic_vocabulary::Proposition;
 
 mod dependencies;
 
+/// The implications a goal can reach through value dependencies, for the
+/// implication search that composes them.
+pub(super) fn connected_implications<'a>(
+    goal: &Proposition,
+    assumptions: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> Vec<ProjectedFact<'a>> {
+    dependencies::connected_implications(goal, assumptions, semantic_axioms)
+}
+
+/// Prove a goal the caller has already failed to prove under `assumptions`
+/// by eliminating each connected case; only a branch that adds an
+/// alternative retries the ordinary builder.
 pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
@@ -15,10 +28,10 @@ pub(super) fn prove(
     // Stable citation order prevents revisiting permutations of the same
     // cases. Each recursive path consumes a strict suffix of this finite set.
     let cases = dependencies::connected_cases(goal, assumptions, semantic_axioms);
-    prove_with_cases(goal, assumptions, &cases, &mut ordinary)
+    eliminate_cases(goal, assumptions, &cases, &mut ordinary)
 }
 
-fn prove_with_cases(
+fn prove_branch(
     goal: &Proposition,
     assumptions: &[Proposition],
     cases: &[ProjectedFact<'_>],
@@ -27,6 +40,15 @@ fn prove_with_cases(
     if let Some(proof) = ordinary(assumptions) {
         return Some(proof);
     }
+    eliminate_cases(goal, assumptions, cases, ordinary)
+}
+
+fn eliminate_cases(
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    cases: &[ProjectedFact<'_>],
+    ordinary: &mut impl FnMut(&[Proposition]) -> Option<ProofNode>,
+) -> Option<ProofNode> {
     for (index, fact) in cases.iter().enumerate() {
         let Proposition::Disjunction(disjuncts) = fact.proposition else {
             unreachable!("only retained disjunctions become cases")
@@ -36,7 +58,7 @@ fn prove_with_cases(
             .map(|disjunct| {
                 let mut branch_assumptions = assumptions.to_vec();
                 branch_assumptions.push(disjunct.clone());
-                prove_with_cases(goal, &branch_assumptions, &cases[index + 1..], ordinary)
+                prove_branch(goal, &branch_assumptions, &cases[index + 1..], ordinary)
             })
             .collect::<Option<Vec<_>>>();
         if let Some(branches) = branches {

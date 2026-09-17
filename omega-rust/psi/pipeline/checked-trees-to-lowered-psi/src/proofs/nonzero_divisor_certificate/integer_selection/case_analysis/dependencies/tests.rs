@@ -1,4 +1,4 @@
-use super::{BTreeSet, Proposition, ScalarTerm, ValueId, connected_cases};
+use super::{BTreeSet, Proposition, ScalarTerm, ValueId, connected_cases, connected_implications};
 use proof_admission::{ProofRule, accept_certificate};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, PropositionContext, PropositionId, ScalarType,
@@ -58,8 +58,78 @@ fn disconnected_cases_do_not_multiply_search_even_with_shared_literal_aliases() 
             })
             .is_none()
         );
-        assert_eq!(calls.get(), 1, "no disconnected alternative is explored");
+        assert_eq!(calls.get(), 0, "no disconnected alternative is explored");
     }
+}
+
+#[test]
+fn disconnected_implications_never_enter_the_implication_search() {
+    // One guard pair per unrelated value, as a machine with many exact
+    // shifts publishes: `count < width` decides that shift's guard flag.
+    for shared_literal in [false, true] {
+        let width = if shared_literal {
+            value(1001)
+        } else {
+            integer(8)
+        };
+        let mut facts = (1..=64)
+            .flat_map(|index| {
+                let flag =
+                    ScalarTerm::value(ValueId::new(500 + index).unwrap(), ScalarType::Boolean);
+                [
+                    Proposition::Implication {
+                        premise: Box::new(Proposition::LessThan(value(index), width.clone())),
+                        conclusion: Box::new(Proposition::Equal(
+                            flag.clone(),
+                            ScalarTerm::boolean(true),
+                        )),
+                    },
+                    Proposition::Implication {
+                        premise: Box::new(Proposition::LessOrEqual(width.clone(), value(index))),
+                        conclusion: Box::new(Proposition::Equal(flag, ScalarTerm::boolean(false))),
+                    },
+                ]
+            })
+            .collect::<Vec<_>>();
+        if shared_literal {
+            facts.push(Proposition::Equal(value(1001), value(1002)));
+            facts.push(Proposition::Equal(integer(8), value(1002)));
+        }
+        let goal = Proposition::LessOrEqual(integer(28), value(999));
+        assert!(connected_implications(&goal, &[], &facts).is_empty());
+        let calls = Cell::new(0);
+        assert!(
+            super::super::super::implications::prove(&goal, &[], &facts, |_, _| {
+                calls.set(calls.get() + 1);
+                None
+            })
+            .is_none()
+        );
+        assert_eq!(calls.get(), 1, "only the goal itself is tried");
+    }
+}
+
+#[test]
+fn implications_connect_to_the_goal_transitively_like_cases() {
+    let goal = Proposition::LessOrEqual(integer(1), value(1));
+    let relevant = Proposition::Implication {
+        premise: Box::new(Proposition::LessThan(value(4), integer(8))),
+        conclusion: Box::new(Proposition::LessOrEqual(integer(1), value(4))),
+    };
+    let unrelated = Proposition::Implication {
+        premise: Box::new(Proposition::LessThan(value(5), integer(8))),
+        conclusion: Box::new(Proposition::LessOrEqual(integer(1), value(5))),
+    };
+    let facts = [
+        relevant.clone(),
+        unrelated,
+        Proposition::Equal(value(3), value(4)),
+        Proposition::LessOrEqual(value(2), value(3)),
+        Proposition::Equal(value(1), value(2)),
+    ];
+    let selected = connected_implications(&goal, &[], &facts);
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0].proposition, &relevant);
 }
 
 #[test]
@@ -102,7 +172,7 @@ fn case_search_preserves_jointly_required_cases_and_kernel_acceptance() {
         )
     })
     .expect("both case assumptions remain available jointly");
-    assert_eq!(calls.get(), 7, "root, two single cases, four joint cases");
+    assert_eq!(calls.get(), 6, "two single cases, four joint cases");
     assert!(matches!(
         proof.rule,
         ProofRule::DisjunctionElimination { .. }
