@@ -2908,7 +2908,18 @@ Owners include
   machine-only clauses such as `reaches` reject on it), so `satisfies`,
   provider selection, evidence and Terminal lowering are unchanged and
   `providers/checked_fixed_operator_dispatch_exit` passes identically in
-  that spelling (2676523303); tokenless boundary requirements (155
+  that spelling (2676523303); at 16d5b516d4 every token-bearing boundary
+  declaration in `tests/omega` except two and all 22 in
+  `core/float_operations.omg` and `core/slice.omg` spell
+  `boundary machine <token> Owner::name(...);` with identical check and
+  harness outcomes and a normalized std review policy byte-identical
+  modulo core's content digest (`evidence/tests/operators/fixed_token_checked_adapters.rs`
+  pins that both spellings project identically); the last two fixtures
+  wait on one-line gaps, the machine-head `crashes Cause;` terminator in
+  `tokens-to-syntax-trees/src/contracts/parse_contract_clauses.rs` and
+  `has_no_authored_spelling` in
+  `preparation/generic_data/const_evaluation/anonymous.rs` ignoring a
+  token-bearing `Item::Machine`; tokenless boundary requirements (155
   library, 18 tests) wait on the named `boundary requirement`
   provider/interpreter/Terminal route (TOP-LEVEL-BOUNDARY-REQUIREMENTS),
   and the representation inversion (`SpelledOperator` wrapping machine
