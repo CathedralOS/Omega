@@ -4,7 +4,8 @@
 //! the whole program still reaches ordinary callable publication. x86-64 emits
 //! `sub rsp` move-and-touch chunks; AArch64 emits a shifted-then-unshifted
 //! `sub sp` pair per chunk followed by an `ldr xzr, [sp]` touch, so frames
-//! past the single-instruction 4095-byte bound commit on all four targets.
+//! past the single-instruction 4095-byte bound commit on all five admitted
+//! targets.
 
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -227,6 +228,7 @@ fn wide_outgoing_area_commits_through_exact_probe_roster_and_publication() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::windows_x64(),
+        target::NativeTarget::uefi_x64(),
         target::NativeTarget::linux_arm64(),
         target::NativeTarget::macos_arm64(),
     ] {
