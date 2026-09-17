@@ -37,6 +37,29 @@ fn inspect(machine: &str, source: &Path) -> Output {
         .expect("run omega inspect-terminal")
 }
 
+/// `inspect` with an explicit target and extra child environment. Package
+/// preparation requires an exact target, and the host profile is not
+/// selectable on every development host.
+fn inspect_on_target(
+    machine: &str,
+    source: &Path,
+    target: &str,
+    environment: &[(&str, &Path)],
+) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+    command
+        .args([
+            "inspect-terminal",
+            "--machine",
+            machine,
+            "--target",
+            target,
+            source.to_str().expect("UTF-8 temporary source path"),
+        ])
+        .envs(environment.iter().copied());
+    command.output().expect("run omega inspect-terminal")
+}
+
 fn remove_fixture(path: PathBuf) {
     let directory = path.parent().expect("fixture has a parent");
     std::fs::remove_dir_all(directory).expect("remove inspect-terminal fixture");

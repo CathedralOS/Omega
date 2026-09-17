@@ -126,6 +126,18 @@ fn checked_compile_request(
     .build_dir();
     let (entry_path, package_inputs) = prepared.into_parts();
     let mut checked = CheckedCompileRequest::new(&entry_path, Some(target.target_name()));
+    // A packaged binding carrying the compiler-captured canonical Source
+    // metadata index is sealed package custody: its build activation runs
+    // against a fresh private materialization of the captured inventory,
+    // never the shared resolver snapshot, exactly as the manager's review
+    // pass and the retained-source `check` rejoin already request. The
+    // invocation roster stays empty; required outputs remain the obligations
+    // the build registers through `builder.output.require`. A binding without
+    // that index has no validated inventory to capture against and keeps the
+    // root it names.
+    checked.build_snapshot = package_inputs
+        .canonical_source_metadata(package_inputs.root())
+        .map(|_| compiler::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
     checked.package_inputs = Some(package_inputs);
     checked.build_dir = Some(build_dir);
     Ok(checked)
