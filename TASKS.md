@@ -479,6 +479,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   four were dump-reading canaries (since rewritten), two roster umbrellas pass
   after a fixture sync, and `pass_canaries_compile` is a corpus umbrella
   rather than a fixture.
+  The 112 pure-source stops store Wrapping/Saturating arithmetic, atomics,
+  float conversions or a call result into a scalar field without a bound pure
+  scalar expression; the 105 scalar-field-type stops store into case, record,
+  string or nested-record fields (**STATE-LOCAL-VALUE-FRONTIER** value
+  transport). The 32 write-frame stops are opaque state write frames, not
+  summary/resolver disagreement (`build_mutation_facts` stores what
+  `CallFrameResolver::inferred_state_write_frame` inferred):
+  `walk_state_write_prefix_inner` fails closed on an initializer-less or
+  borrow-bearing record local without stored-origin evidence and on a record
+  literal replacing a `self.` field (`stored_origins::assigned_stored_origins`
+  accepts only local/parameter roots), both **STATE-LOCAL-VALUE-FRONTIER**,
+  and on synthesized wire `encode`/`decode` calls, which have no write-frame
+  model and fall to `demand::syntactic_call_written_paths`, whose type-name
+  receiver root fails state-relative visibility; that codec gap is owned here.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
