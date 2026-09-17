@@ -1041,11 +1041,13 @@ fn package_registration_owns_exact_component_era_lease_through_replacement() {
 ///
 /// An unresolved provider-selected disposition can never be leased — it is a
 /// pending choice, and leasing it would admit the root without deciding which
-/// concrete domain runs. A lease sealed to another installed occurrence is a
-/// cross-context disposition and rejects both at seal and at admission. An
-/// install with no retained set, with no lease for a demanded domain, or
-/// below the composed demand all reject with the validated root, slot, and
-/// admission returned for correction and retry.
+/// concrete domain runs. An empty seal or a second lease for one domain
+/// cannot describe one exact supply either. A lease sealed to another
+/// installed occurrence is a cross-context disposition and rejects both at
+/// seal and at admission. An install with no retained set, with no lease for
+/// a demanded domain, or with capacity or alignment below the composed
+/// demand all reject with the validated root, slot, and admission returned
+/// for correction and retry.
 #[test]
 fn external_root_install_rejoins_exact_admitted_stack_provision() {
     let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
@@ -1097,6 +1099,47 @@ fn external_root_install_rejoins_exact_admitted_stack_provision() {
         lease_receipt,
     )
     .expect_err("non-power-of-two alignment cannot provision a domain");
+
+    // An empty seal names no supply at all, and a second lease for one domain
+    // would leave the provisioned supply ambiguous.
+    let error = seal_external_stack_provision(fixture.runnable.installed(), [])
+        .expect_err("an empty lease set cannot seal a provision");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("at least one admitted domain lease")
+    );
+    let error = seal_external_stack_provision(
+        fixture.runnable.installed(),
+        [
+            admit_external_stack_domain_lease(
+                fixture.runnable.installed(),
+                StackDomain::Interrupted,
+                8192,
+                16,
+                provisioner,
+                lease_receipt,
+            )
+            .expect("first interrupted-domain stack lease"),
+            admit_external_stack_domain_lease(
+                fixture.runnable.installed(),
+                StackDomain::Interrupted,
+                4096,
+                16,
+                provisioner,
+                lease_receipt,
+            )
+            .expect("second interrupted-domain stack lease"),
+        ],
+    )
+    .expect_err("two leases for one domain cannot seal a provision");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("two external stack leases provision domain")
+    );
 
     // A lease bound to another installed occurrence is a cross-context
     // disposition: it cannot seal into this occurrence's set, and the foreign
@@ -1240,6 +1283,40 @@ fn external_root_install_rejoins_exact_admitted_stack_provision() {
             .diagnostic()
             .to_string()
             .contains("below the composed"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (validated, slot, admission) = (*error).into_parts();
+    drop(runtime);
+
+    // A lease aligned below the composed domain demand rejects for the same
+    // reason: supply, not its own claim, must meet the bound evidence.
+    let under_aligned = seal_external_stack_provision(
+        fixture.runnable.installed(),
+        [admit_external_stack_domain_lease(
+            fixture.runnable.installed(),
+            StackDomain::Interrupted,
+            8192,
+            8,
+            provisioner,
+            lease_receipt,
+        )
+        .expect("under-aligned stack lease")],
+    )
+    .expect("under-aligned provision set");
+    fixture
+        .runnable
+        .admit_external_stack_provision(under_aligned)
+        .expect("under-aligned provision replaces while no roots are live");
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let error = runtime
+        .install(validated, slot, admission)
+        .expect_err("a lease aligned below the composed domain demand rejects");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("below the composed alignment"),
         "unexpected diagnostic: {}",
         error.diagnostic()
     );
