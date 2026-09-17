@@ -2,7 +2,9 @@
 
 mod address_fold;
 mod allocation_recovery;
+mod condition_state;
 mod constant_boolean;
+mod constant_branch;
 mod copy_removal;
 mod dead_store;
 mod diamond_relocation;
@@ -27,6 +29,7 @@ mod window_hazards;
 pub use address_fold::*;
 pub use allocation_recovery::*;
 pub use constant_boolean::*;
+pub use constant_branch::*;
 pub use copy_removal::*;
 pub use dead_store::*;
 pub use diamond_relocation::*;
