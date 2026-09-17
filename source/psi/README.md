@@ -45,8 +45,8 @@ machine-plan boundary. The latest macOS check-only recheck exceeded ten minutes
 on both the original and revised harness. The required 68-case run is not current
 acceptance evidence and no cached executable may stand in for it.
 
-The lexer now transfers one canonical mixed `Token` stream to the parser as a
-whole ownership move.
+The lexer keeps its one canonical mixed `Token` stream; the parser observes it
+through a shared borrow forwarded along its state edges.
 There is no `TokenObservation`, numeric token array, per-token handoff, raw
 parser ordinal, or scalar tag/span cache. Structural parser serialization lives
 only in the gate-owned Omega harness; the exact
@@ -72,11 +72,11 @@ owns bounded token selection and trivia traversal;
 | --- | --- | --- |
 | `build.omg` | Declares the target-neutral `psi` package consumed by Omega's product build. | Delete only if ordinary package ownership replaces this root atomically. |
 | `source/` | Owns bounded source bytes and coordinates shared by the lexer and parser. | Absorb when a replacement representation preserves every live source/coordinate discriminator. |
-| `tokens/` | Owns the sole typed lexical token stream transferred whole from lexer to parser. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
+| `tokens/` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving comment/literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
-| `parse/` | Owns token-to-structural parsing; `harness.omg` is gate-only black-box serialization and is absent from the product closure. | Absorb the parser only into its canonical successor; delete the harness when an equal or stronger semantic-free gate preserves all 57 cases. |
-| `gates/parser/`, `test-parser.sh` | Builds one fresh explicit-target harness artifact, prints exact identities, and exercises the live lexical/parser boundary across 57 structural cases. Its selected profile is immutable compiler invocation input; the harness declares no target-support set. | Delete the gate only when an equal or stronger product-source gate subsumes every retained failure class. |
+| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows. | Absorb the parser only into its canonical successor. |
+| `gates/parser/`, `test-parser.sh` | Builds one fresh explicit-target harness artifact, prints exact identities, and exercises the live lexical/parser boundary across 57 structural cases. `gates/parser/harness.omg` is the gate package's own product entry: gate-only black-box serialization, absent from the product closure. Its selected profile is immutable compiler invocation input; the harness declares no target-support set. | Delete the gate only when an equal or stronger product-source gate subsumes every retained failure class; delete the harness when an equal or stronger semantic-free gate preserves all 57 cases. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be

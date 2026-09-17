@@ -1,5 +1,6 @@
-// Gate-owned black-box lexer/parser harness. This file is excluded from the
-// product compiler closure and imported only by the parser acceptance gate.
+// Gate-owned black-box lexer/parser harness. It lives in the gate package so
+// the gate's build root can bind `ParserHarness::main` as its own product
+// entry; the product compiler closure under `source/psi` never includes it.
 
 use omega_language_std::console;
 use omega::language::core::service;
