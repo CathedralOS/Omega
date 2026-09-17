@@ -30,6 +30,7 @@ mod owned_projected_selection;
 mod preterminal_optimization;
 mod proof_recursion;
 mod quotient_correspondence;
+mod ranked_value_guarantees;
 mod reach_and_scalar_lowering;
 mod reborrow_lowering;
 mod scalar_block_invariants;

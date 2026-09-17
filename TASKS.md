@@ -2317,9 +2317,46 @@ Owners include
   identical cycle question. The claim is an order the current kernel can
   derive; an arithmetic accumulation claim (`sum + rank = initial`) still
   needs ring evidence, which is the shared law-normalization gap below.
-  Remaining acceptance: (b) the producer
-  lowers a value-returning ranked machine with an `ensures` so an executable
-  proof canary with a wrong-accumulator fail twin leaves
+  Leg (b), Terminal half, landed on macOS ARM64: a value-returning ranked
+  free machine (`descend(n, previous) terminates by n -> Nat::Descending`,
+  returning the accumulator) already lowers through the scalar-graph cycle
+  route with its `Natural` certificate; what was missing was the header
+  invariant an `ensures` needs after the loop. The producer's
+  `proofs/scalar_block_invariants/cyclic_guarantees.rs` now strengthens the
+  cyclic header, only when a cyclic machine's guarantee is otherwise
+  unprovable, with entry requirements generalized over the header
+  parameters, `header == formal` for parameters every in-component arrival
+  forwards unchanged, and the guarantee transported through the exit's exact
+  equations; the whole strengthening is discarded when any arrival or the
+  guarantee still fails, so other modules keep their roster unchanged.
+  `checked-trees-to-lowered-psi` `tests::ranked_value_guarantees` pins it:
+  `requires n <= previous`/`ensures result <= previous` retains
+  `rank <= accumulator /\ accumulator <= previous` at the header, every
+  obligation certificate is produced, the module verifies with its cycle
+  certificate, dropping an arrival certificate rejects, forwarding the
+  latch's `1` constant as the accumulator asks the identical cycle question
+  (the retained `Natural` certificate still answers it) but replays with
+  `RejectedEvidence { CertificateConclusionMismatch }` on the preservation
+  obligation and refuses fresh production, and a guarantee the loop does
+  not establish (`result <= n`) leaves the roster empty and the guarantee
+  `OperationProofUnavailable`. The contract is injected at the Terminal
+  level in that test because the source side still refuses every such
+  program: `checks/contracts/exits.rs` reports `cannot prove ensures
+  contract for exit from descend ...; no exact incoming reference origin
+  for previous` for a re-entered entry parameter (`flow/entry_origins.rs`
+  unions the invocation and backedge origins), and `result <= limit` with a
+  stably forwarded `limit` fails without an origin complaint, so no source
+  fixture reaches the producer with a guarantee over a loop-carried value.
+  The two existing fixtures are further out: their `&mut self` machines
+  have no scalar graph and stop in the attached Unit closure at
+  `local construction stopped at call statement shape: call count without
+  a statement sequence` (`execution/unit/control/checked_machine.rs`), and
+  their arithmetic claims (`result * 2 == acc * 2 + n * (n + 1)`, `embed`
+  over a two-subject `Nat::BoundedDistance` rank) need the ring evidence
+  below. Remaining acceptance: (b) the source exit prover admits a guarantee
+  over a re-entered parameter for the free-loop form (or the attached
+  value-returning cyclic route lands), so an executable proof canary with a
+  wrong-accumulator fail twin leaves
   `CHECKED_ONLY_PASS_CANARIES`. Law normalization (`verify_normalization`
   in `proof-admission/src/admission/normalization.rs`) has no Terminal
   consumer; routing quotient/ring-law evidence through it is shared with
