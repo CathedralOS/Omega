@@ -673,4 +673,228 @@ mod machine_bounds {
             );
         }
     }
+
+    /// A component that contains the machine entry still amplifies each member
+    /// by the full rank budget and composes the exit edge.
+    #[test]
+    fn natural_cycle_entry_block_inside_component_amplifies() {
+        // entry = 2 (the header): 2 cond -> 3 or exit 4; 3 work -> 2 strict.
+        let mut m = machine(
+            1,
+            2,
+            vec![
+                block(2, Vec::new(), conditional(2, 3, 3, 4)),
+                block(3, vec![integer_constant(10, 11, 0)], jump(4, 2)),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            None,
+        );
+        m.ranked_scc = Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+            rank_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            ranks: [2, 3]
+                .into_iter()
+                .map(|block| TerminalBlockNaturalRank {
+                    block: id(block),
+                    value: id::<ValueId>(7_000),
+                })
+                .collect(),
+            edges: vec![
+                rank_edge(2, 2, 3, TerminalNaturalRankComparison::Preserving),
+                rank_edge(4, 3, 2, TerminalNaturalRankComparison::Strict),
+            ],
+        }]));
+        let module = module(1, vec![m]);
+        // member_units = visit2(1) + visit3(1 op + 1 jump) = 3
+        // component = 3 * (255+1) = 768; bound = 768 + exit return edge (1).
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(769));
+    }
+
+    /// Two disjoint components sequence through the condensed control DAG.
+    #[test]
+    fn natural_cycle_two_components_compose() {
+        // entry 1 -> component A {2,3} -> mid 9 -> component B {5,6} -> exit 7
+        let mut m = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump(1, 2)),
+                block(2, Vec::new(), conditional(2, 3, 3, 9)),
+                block(3, vec![integer_constant(10, 11, 0)], jump(4, 2)),
+                block(9, Vec::new(), jump(9, 5)),
+                block(5, Vec::new(), conditional(5, 6, 6, 7)),
+                block(6, vec![integer_constant(12, 13, 0)], jump(6, 5)),
+                block(7, Vec::new(), return_unit(7)),
+            ],
+            None,
+        );
+        let comp = |members: [u64; 2], edges: Vec<TerminalNaturalRankEdge>| TerminalNaturalCycle {
+            rank_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            ranks: members
+                .into_iter()
+                .map(|block| TerminalBlockNaturalRank {
+                    block: id(block),
+                    value: id::<ValueId>(7_000),
+                })
+                .collect(),
+            edges,
+        };
+        m.ranked_scc = Some(TerminalRankedScc::Natural(vec![
+            comp(
+                [2, 3],
+                vec![
+                    rank_edge(2, 2, 3, TerminalNaturalRankComparison::Preserving),
+                    rank_edge(4, 3, 2, TerminalNaturalRankComparison::Strict),
+                ],
+            ),
+            comp(
+                [5, 6],
+                vec![
+                    rank_edge(5, 5, 6, TerminalNaturalRankComparison::Preserving),
+                    rank_edge(6, 6, 5, TerminalNaturalRankComparison::Strict),
+                ],
+            ),
+        ]));
+        let module = module(1, vec![m]);
+        // each component member_units = visit_cond(1) + visit_work(1 op + 1 jump) = 3
+        // component = 3 * (255+1) = 768
+        // bound = 1 (entry) + 768 + 1 (mid jump) + 768 + 1 (exit return) = 1539.
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(1539));
+    }
+
+    /// A boundary call inside a cyclic member composes the maximum provider
+    /// candidate bound, amplified per visit.
+    #[test]
+    fn natural_cycle_boundary_call_amplifies_candidate_maximum() {
+        let walk = cyclic_machine(32, vec![boundary_call(10, 7)]);
+        let small = machine(5, 5, vec![block(5, Vec::new(), return_unit(6))], None);
+        let large = machine(
+            6,
+            6,
+            vec![block(6, vec![integer_constant(11, 12, 0)], return_unit(8))],
+            None,
+        );
+        let mut module = module(1, vec![walk, small, large]);
+        module.provider_candidates = vec![provider_candidate(7, 5), provider_candidate(7, 6)];
+        // visit3 = 1 boundary op + max(candidate5=1, candidate6=2) + 1 jump = 4;
+        // member_units = 1 + 4 = 5; component = 5 * (2^32) ; bound = 1+5*2^32+1.
+        let expected = 1 + 5 * (u64::from(u32::MAX) + 1) + 1;
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(expected));
+    }
+
+    /// A cyclic callee's own amplified bound composes into a cyclic caller's
+    /// per-visit work, which is itself amplified.
+    #[test]
+    fn natural_cycle_callee_amplifies_into_caller() {
+        let mut inner = cyclic_machine(8, Vec::new());
+        inner.id = id(5);
+        let walk = cyclic_machine(8, vec![call_unit(10, 5)]);
+        let module = module(1, vec![walk, inner]);
+        // inner: member_units = visit2(1) + visit3(0 ops + 1 jump) = 2;
+        // component = 2*256 = 512; inner bound = 1 + 512 + 1 = 514.
+        assert_eq!(derive_maximum_entry_bound(&module, id(5)), Ok(514));
+        // walk visit3 = 1 call + inner(514) + 1 jump = 516;
+        // member_units = 1 + 516 = 517; component = 517*256 = 132352;
+        // bound = 1 + 132352 + 1 = 132354.
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(132354));
+    }
+
+    /// A callee that can only crash still contributes its crash bound through
+    /// the cyclic member's per-visit work via `maximum()`.
+    #[test]
+    fn natural_cycle_crash_only_callee_still_bounds_crash() {
+        // callee 5 always crashes (returned: None, crashed: Some(1)).
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = Vec::new();
+        let walk = cyclic_machine(32, vec![call_unit(10, 5)]);
+        let module = module(1, vec![walk, callee]);
+        // member3 visit = 1 op + callee max(=crash bound 1) + 1 jump = 3;
+        // member2 visit = 1; member_units = 4; component = 4*2^32;
+        // bound = 1 + 4*2^32 + 1.
+        let expected = 1 + 4 * (u64::from(u32::MAX) + 1) + 1;
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(expected));
+    }
+
+    /// An invocation-bound dynamic-parameter call inside a cyclic member still
+    /// rejects rather than silently dropping the open callee set.
+    #[test]
+    fn natural_cycle_dynamic_parameter_call_rejects() {
+        let walk = cyclic_machine(32, vec![parameter_unit_call(10)]);
+        let module = module(1, vec![walk]);
+        assert!(matches!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Err(FixedFuelError::InvocationBoundCallee { .. })
+        ));
+    }
+
+    /// A `StructuralCase` member's multi-way branch amplifies inside the
+    /// component and its exits route through the condensed DAG.
+    #[test]
+    fn natural_cycle_structural_case_member_branches() {
+        // component {2,3,8}: 2 cond -> 3 or exit 4; 3 case -> 8 (either case);
+        // 8 jump -> 2 (strict).
+        let mut m = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump(1, 2)),
+                block(2, Vec::new(), conditional(2, 3, 3, 4)),
+                block(
+                    3,
+                    vec![integer_constant(10, 11, 0)],
+                    Terminator::StructuralCase {
+                        source: id(60),
+                        cases: vec![
+                            terminal_psi::StructuralCaseSuccessorEdge {
+                                edge: id(30),
+                                target: id(8),
+                                case: id(70),
+                                payload_fields: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            terminal_psi::StructuralCaseSuccessorEdge {
+                                edge: id(31),
+                                target: id(8),
+                                case: id(71),
+                                payload_fields: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        ],
+                    },
+                ),
+                block(8, Vec::new(), jump(8, 2)),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            None,
+        );
+        m.ranked_scc = Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+            rank_type: IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            ranks: [2, 3, 8]
+                .into_iter()
+                .map(|block| TerminalBlockNaturalRank {
+                    block: id(block),
+                    value: id::<ValueId>(7_000),
+                })
+                .collect(),
+            edges: vec![
+                rank_edge(2, 2, 3, TerminalNaturalRankComparison::Preserving),
+                rank_edge(30, 3, 8, TerminalNaturalRankComparison::Preserving),
+                rank_edge(31, 3, 8, TerminalNaturalRankComparison::Preserving),
+                rank_edge(8, 8, 2, TerminalNaturalRankComparison::Strict),
+            ],
+        }]));
+        let module = module(1, vec![m]);
+        // members: 2 (cond 1), 3 (1 op + case 1), 8 (jump 1) = 1+2+1 = 4
+        // component = 4 * 256 = 1024; bound = 1 + 1024 + 1 = 1026.
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(1026));
+    }
 }
