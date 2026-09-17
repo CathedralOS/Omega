@@ -8,7 +8,9 @@
 
 mod token_bindings;
 
-pub(crate) use token_bindings::reject_duplicate_direct_token_bindings;
+pub(crate) use token_bindings::{
+    mark_token_bound_domain_homes, reject_duplicate_direct_token_bindings,
+};
 
 use crate::lowering::data::lower_type_parameters;
 use crate::lowering::expression::lower_expression_into_table;

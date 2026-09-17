@@ -206,3 +206,60 @@ fn a_named_sibling_never_collides_with_a_token_binding() {
         ]
     );
 }
+
+#[test]
+fn domain_attached_binding_homes_in_the_carrier_and_marks_the_domain_semantic() {
+    let program = resolve_source(
+        "data Quantity { value: i32; }
+         domain Quantity::Additive requires self.value >= 0;
+         domain Quantity::Plain requires self.value >= 0;
+         machine + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity { left }",
+    )
+    .expect("a domain-attached binding whose operands name the carrier resolves");
+    let roles = program
+        .domain_definitions
+        .iter()
+        .map(|domain| {
+            (
+                domain.name.to_string(),
+                domain.semantic_roles.denotation_dimension.is_some(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        roles,
+        [
+            ("Quantity::Additive".to_owned(), true),
+            ("Quantity::Plain".to_owned(), false),
+        ],
+        "only the domain owning a token binding gains the denotation role"
+    );
+
+    let diagnostics = resolve_source(
+        "data Quantity { value: i32; }
+         data Other { value: i32; }
+         domain Quantity::Additive requires self.value >= 0;
+         machine + Quantity::Additive::add(left: Other, right: Other) -> Other { left }",
+    )
+    .expect_err("operands must name the home domain's carrier");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "`Quantity::Additive::add` binds the fixed operator token `+` but no operand names the carrier of its home domain `Quantity::Additive`"
+        )),
+        "{diagnostics:?}"
+    );
+
+    let diagnostics = resolve_source(
+        "data Quantity { value: i32; }
+         domain Quantity::Additive requires self.value >= 0;
+         machine + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity { left }
+         machine + Quantity::Additive::plus(left: Quantity, right: Quantity) -> Quantity { right }",
+    )
+    .expect_err("the domain is the owner for the duplicate-shape check");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "`Quantity::Additive::plus` binds the fixed operator token `+` already bound by `Quantity::Additive::add`"
+        )),
+        "{diagnostics:?}"
+    );
+}

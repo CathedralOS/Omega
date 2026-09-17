@@ -43,7 +43,14 @@ pub(crate) fn bind_token_bound_machine_calls(
     if program.machine_token_bindings().is_empty() {
         return Ok(());
     }
-    let facts = crate::derive_pre_flow_operator_selections(program);
+    let mut facts = crate::derive_pre_flow_operator_selections(program);
+    // A domain-homed binding (`machine + Quantity::Additive::add`) is a
+    // `DomainPending` candidate until binding-site selection settles it. That
+    // selection reads only static operand qualifications, mints, and
+    // signature `requires` -- never flow facts -- so it can run here, before
+    // validation, and an unselected domain meaning keeps the builtin surface
+    // exactly as a domain-homed `operator` declaration did.
+    crate::operators::select_pending_domain_operator_meanings(program, &mut facts);
     let mut diagnostics = Vec::new();
     let mut bindings: Vec<(ExpressionHandle, SymbolHandle)> = Vec::new();
     for operator_use in facts.uses_with_status(CheckedOperatorResolutionStatus::Resolved) {

@@ -29,6 +29,7 @@ pub(crate) fn lower_operator_definition(
         contracts: Default::default(),
         spelling: operator.spelling,
         token_count: operator.token_count,
+        home_domain: symbols::SymbolHandle::invalid(),
     };
 
     for member in lowerer.source_trees.operator_path_members(operator.name) {

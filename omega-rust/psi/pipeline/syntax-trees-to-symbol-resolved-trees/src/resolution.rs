@@ -142,6 +142,7 @@ fn begin(
 /// preconditions allow: operator homes need no symbols; constants need the
 /// table; the authored-selection ledger needs substituted constants; operator
 /// obligations need the ledger; every remaining selection needs all of it;
+/// domain homes of token-bearing machines need assigned attached symbols;
 /// duplicate machine token bindings compare settled operand identities.
 fn drive(
     mut lowerer: Lowerer,
@@ -151,6 +152,10 @@ fn drive(
     let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;
     crate::symbols::assign(&mut lowerer)?;
+    // A token-bearing machine attached to a domain gives that domain its
+    // denotation role before the selections below classify predicate-only
+    // domains; it needs the attached symbols the assignment just settled.
+    lowering::machine::mark_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
     constant::finalize(&mut lowerer)?;
     selection::finalize_authored_selections(&mut lowerer)?;
     constant::finalize_operator_obligations(&mut lowerer)?;
