@@ -349,7 +349,7 @@ fn member_chain<'program>(
 
 /// The record a formal's type declares, directly or as the referent of one
 /// reference, and whether that reference boundary is present.
-fn record_referent(
+pub(super) fn record_referent(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<(SymbolHandle, bool)> {
