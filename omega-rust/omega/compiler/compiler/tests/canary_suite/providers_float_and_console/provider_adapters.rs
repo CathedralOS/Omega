@@ -1101,9 +1101,33 @@ fn assert_selected_requirement_association(
         "{label} the journaled occurrence names the requirement",
     );
     assert_eq!(authored_call.target.as_str(), "offset_zero");
-    assert!(
-        checked.facts.operators.boundary_applications.is_empty(),
-        "{label} a top-level requirement is not a boundary-operator application",
+    // The direct call is the requirement's own D29 demand, keyed on the
+    // requirement machine symbol with the canonical empty application, the
+    // same row a named boundary operator use retains; the adapter route
+    // publishes no Terminal occurrence for it, so coverage stays empty.
+    let requirement_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked
+                .typed
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == requirement)
+        })
+        .unwrap_or_else(|| panic!("{label} requirement machine"));
+    let demands = checked
+        .facts
+        .operators
+        .boundary_applications
+        .iter()
+        .map(|demand| (demand.requirement_symbol, demand.arguments.len()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        demands,
+        vec![(requirement_machine.symbol, 0)],
+        "{label} the direct requirement call is one requirement-keyed D29 demand",
     );
     (requirement, realization)
 }
