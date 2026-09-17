@@ -2171,6 +2171,12 @@ Owners include
   `&write` roots, bare `&write` forwarding, `&write`→`&mut` widening, and
   same-root `&write` argument pairs still reject upstream as required.
 
+  Parked WIP: unmerged local branch `write-only-borrow` at 71a647f464 (over
+  348c542350, Windows coordinator checkout) carries the computed-IEEE-stores
+  slice — selected IEEE binary operations through the native pipeline plus
+  `&write` field reads/computed stores, 135 files. Have the coordinator merge
+  it to main through the landing queue before re-implementing that slice.
+
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
   through call argument preparation and native validation/replay. Extend the
