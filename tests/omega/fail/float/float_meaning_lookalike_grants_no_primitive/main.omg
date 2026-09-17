@@ -1,0 +1,15 @@
+// OPERATOR-MACHINE-SUPPLY: `Float::meaning32` is an exact compiler primitive
+// supplied by the closed catalog only for the sealed toolchain declaration in
+// core/float_operations.omg. A user package declaring the same bare bodyless
+// signature -- the same path, the same shape -- earns no primitive
+// implementation or proof authority: catalog identity is declaration custody,
+// never a spelling.
+use omega::language::core::float_operations;
+
+machine Float::meaning32(value: f32) -> FloatMeaning;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
