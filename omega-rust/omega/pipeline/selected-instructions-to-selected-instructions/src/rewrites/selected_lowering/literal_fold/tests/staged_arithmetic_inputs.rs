@@ -2526,7 +2526,40 @@ pub(super) fn staged_saturating_divide_carrier_inputs(
     literal_operand: u16,
     block0: BlockZeroTerminator,
 ) -> Inputs {
-    staged_saturating_divide_family_inputs(target, carrier, literal_operand, block0)
+    staged_saturating_divide_family_inputs(
+        target,
+        carrier,
+        literal_operand,
+        IntegerValue::Unsigned(1),
+        LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+        block0,
+    )
+}
+
+/// The same fixture for `SaturatingDivide` on `carrier` whose
+/// `MaterializeI64` victim produces `Unsigned(0)` and feeds operand 0 —
+/// the dividend: `0 /| x` is `0` inside the carrier's bounds under the
+/// carried nonzero-divisor obligation. The surviving register
+/// `VirtualRegisterId(0)` occupies the operand-1 divisor `Use` the fold
+/// drops; the fold's fault discharge is the consumer's recorded
+/// obligation, not the folded literal. The grammar is asymmetric —
+/// `x /| 0` is the divide-by-zero case, not a constant — so
+/// `literal_operand` must be 0 for an admitted fold; staging it at 1
+/// produces the right-literal arrangement the family refuses.
+pub(super) fn staged_saturating_divide_zero_dividend_carrier_inputs(
+    target: NativeTarget,
+    carrier: SaturatingCarrier,
+    literal_operand: u16,
+    block0: BlockZeroTerminator,
+) -> Inputs {
+    staged_saturating_divide_family_inputs(
+        target,
+        carrier,
+        literal_operand,
+        IntegerValue::Unsigned(0),
+        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
+        block0,
+    )
 }
 
 /// Shared staging for the exact-literal binary families: a
@@ -3140,6 +3173,8 @@ fn staged_saturating_divide_family_inputs(
     target: NativeTarget,
     carrier: SaturatingCarrier,
     literal_operand: u16,
+    literal_immediate: IntegerValue,
+    policy: LiteralFoldPolicy,
     block0: BlockZeroTerminator,
 ) -> Inputs {
     let environment = baseline_target_register_environment(target).unwrap();
@@ -3219,7 +3254,7 @@ fn staged_saturating_divide_family_inputs(
     let literal = SelectedInstruction {
         id: literal_id,
         kind: SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(1),
+            value: literal_immediate,
         },
         constraint: materialize.key,
         operands: vec![SelectedOperand {
@@ -3456,7 +3491,7 @@ fn staged_saturating_divide_family_inputs(
             machine_effect_catalog: effect_catalog_identity,
             optimization_unit: unit,
             fuel_schedule: fuel,
-            policy: LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+            policy,
             budget: budget(),
             usage: usage(),
             functions: vec![FunctionLiteralFold {
@@ -3479,7 +3514,7 @@ fn staged_saturating_divide_family_inputs(
             optimization_unit: unit,
             fuel_schedule: fuel,
             transformed_selected: selected_identity,
-            policy: LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+            policy,
             usage: usage(),
             function_count: 1,
             applied_count: 0,
@@ -3762,7 +3797,7 @@ fn staged_saturating_divide_family_inputs(
                         RecoveryClassification::ImmediateU64RematerializationCandidate {
                             defining_instruction: literal_id,
                             source_value: literal_value,
-                            value: IntegerValue::Unsigned(1),
+                            value: literal_immediate,
                             provenance: literal_provenance,
                             future_uses: vec![RecoveryFutureUse {
                                 block: SelectedBlockId(0),

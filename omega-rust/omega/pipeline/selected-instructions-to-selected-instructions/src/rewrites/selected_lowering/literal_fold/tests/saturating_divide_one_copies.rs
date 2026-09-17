@@ -1,6 +1,6 @@
 use super::{
     BlockZeroTerminator, assert_budget_is_enforced, assert_deterministic_fixed_point, fold_with,
-    policy_without, restage_literal, staged_saturating_divide_carrier_inputs,
+    policy_without, policy_without_all, restage_literal, staged_saturating_divide_carrier_inputs,
     staged_saturating_divide_inputs, staged_saturating_subtract_inputs, staged_wrapping_add_inputs,
     validate,
 };
@@ -961,21 +961,40 @@ fn saturating_divide_one_fold_rejects_consumers_the_selection_does_not_enable() 
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // The saturating-divide operand grammar admits the literal only under
-    // the saturating-divide-one policy: every other selected family sees
-    // no admitted consumer kind — including its sibling saturating
-    // families and the strongest posture, every other rule enabled at
-    // once.
+    // the saturating-divide-one policy: every selection naming no
+    // saturating-divide family sees no admitted consumer kind — including
+    // its sibling saturating families and the strongest posture, every
+    // other rule enabled at once with both saturating-divide bits closed.
     let inputs = staged_saturating_divide_inputs(target, 1, BlockZeroTerminator::Jump);
     for policy in [
         LiteralFoldPolicy::EXACT_ADD_V1,
         LiteralFoldPolicy::EXACT_DIVIDE_V1,
         LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
         LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
-        policy_without(LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1),
+        policy_without_all(&[
+            LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+            LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
+        ]),
     ] {
         assert_eq!(
             fold_with(&inputs, &environment, policy).map(|_| ()),
             Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
+            "{policy:?}"
+        );
+    }
+    // The sibling zero-dividend family admits the same consumer kind at
+    // the operand-0 dividend position: with only the divisor-one bit
+    // closed — or with the zero-dividend bit alone — the kind is
+    // admitted but no enabled grammar covers the operand-1 divisor
+    // position the staged literal occupies: a future-use mismatch, not
+    // an unadmitted consumer.
+    for policy in [
+        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
+        policy_without(LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1),
+    ] {
+        assert_eq!(
+            fold_with(&inputs, &environment, policy).map(|_| ()),
+            Err(LiteralFoldError::FutureUseMismatch { function: 0 }),
             "{policy:?}"
         );
     }

@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 8;
+const LITERAL_FOLD_VERSION: u32 = 9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -54,6 +54,7 @@ impl LiteralFoldPolicy {
     const SATURATING_ADD_ZERO_BIT: u32 = 1 << 15;
     const SATURATING_SUBTRACT_ZERO_BIT: u32 = 1 << 16;
     const SATURATING_DIVIDE_ONE_BIT: u32 = 1 << 17;
+    const SATURATING_DIVIDE_ZERO_BIT: u32 = 1 << 18;
     const KNOWN_BITS: u32 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -71,7 +72,8 @@ impl LiteralFoldPolicy {
         | Self::EXACT_DIVIDE_ZERO_BIT
         | Self::SATURATING_ADD_ZERO_BIT
         | Self::SATURATING_SUBTRACT_ZERO_BIT
-        | Self::SATURATING_DIVIDE_ONE_BIT;
+        | Self::SATURATING_DIVIDE_ONE_BIT
+        | Self::SATURATING_DIVIDE_ZERO_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -261,6 +263,30 @@ impl LiteralFoldPolicy {
     pub const SATURATING_DIVIDE_ONE_V1: Self = Self {
         enabled_rules: Self::SATURATING_DIVIDE_ONE_BIT,
     };
+    /// Saturating-divide zero-dividend fold: fold a materialized literal
+    /// `0` feeding its sole `SaturatingDivide` consumer's dividend
+    /// operand on any carrier into a `MaterializeI64` of zero at the
+    /// result register — a saturating divide of a zero dividend is
+    /// always zero inside the carrier's bounds. The literal is not what
+    /// discharges the consumer's encoded fault surface: a quotient of
+    /// zero can never overflow or clamp, and the nonzero-divisor
+    /// obligation the saturating-divide kind carries already excludes
+    /// division by zero — so the fold retires the trap surface under the
+    /// consumer's own definedness proof while dropping the divisor `Use`
+    /// and every tail operand under its own custody: the provably-zero
+    /// auxiliary `Use` an x86-64 `div`/`idiv` realization reads as the
+    /// dividend's upper half, and the bound scratch `Def` an aarch64
+    /// clamped signed row writes. The signed-carrier aarch64 consumer
+    /// also implicitly defines `nzcv`; the fold retires the definition
+    /// with the folded form, admitting the consumer only while every
+    /// unit its record defines is dead in the function. The
+    /// zero-dividend grammar is disjoint from the divisor-one family on
+    /// the folded literal's operand position: the producer selects
+    /// between the two `SaturatingDivide` families by which position the
+    /// recorded future use names.
+    pub const SATURATING_DIVIDE_ZERO_V1: Self = Self {
+        enabled_rules: Self::SATURATING_DIVIDE_ZERO_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -346,6 +372,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_saturating_divide_one(self) -> bool {
         self.enabled_rules & Self::SATURATING_DIVIDE_ONE_BIT != 0
+    }
+
+    pub const fn enables_saturating_divide_zero(self) -> bool {
+        self.enabled_rules & Self::SATURATING_DIVIDE_ZERO_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u32 {

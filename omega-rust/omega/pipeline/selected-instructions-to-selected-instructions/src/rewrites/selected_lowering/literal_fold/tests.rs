@@ -12,6 +12,7 @@ mod extension_and_copy_folds;
 mod load_and_byte_view_folds;
 mod saturating_add_zero_copies;
 mod saturating_divide_one_copies;
+mod saturating_divide_zero_dividend_materializations;
 mod saturating_subtract_zero_copies;
 mod staged_arithmetic_inputs;
 mod staged_memory_inputs;
@@ -22,9 +23,9 @@ use staged_arithmetic_inputs::{
     staged_divide_inputs, staged_divide_zero_dividend_inputs, staged_remainder_inputs,
     staged_remainder_zero_dividend_inputs, staged_saturating_add_carrier_inputs,
     staged_saturating_add_inputs, staged_saturating_divide_carrier_inputs,
-    staged_saturating_divide_inputs, staged_saturating_subtract_carrier_inputs,
-    staged_saturating_subtract_inputs, staged_subtract_inputs, staged_wrapping_add_inputs,
-    staged_xor_inputs,
+    staged_saturating_divide_inputs, staged_saturating_divide_zero_dividend_carrier_inputs,
+    staged_saturating_subtract_carrier_inputs, staged_saturating_subtract_inputs,
+    staged_subtract_inputs, staged_wrapping_add_inputs, staged_xor_inputs,
 };
 use staged_memory_inputs::{
     staged_byte_view_address_inputs, staged_copy_inputs, staged_extension_inputs,
@@ -657,6 +658,7 @@ fn policy_without_all(disabled: &[LiteralFoldPolicy]) -> LiteralFoldPolicy {
         LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
         LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
         LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
     ]
     .into_iter()
     .filter(|policy| !disabled.contains(policy))
