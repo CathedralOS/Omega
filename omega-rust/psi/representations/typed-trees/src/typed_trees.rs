@@ -227,6 +227,12 @@ pub struct TypedTreeRoots {
     pub machines: HandleSpan<machine::Machine>,
     pub measures: HandleSpan<measure::MeasureDefinition>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
+    /// Operator-signature views of token-bearing machines (`machine + Vec2::add`),
+    /// one per binding, stored in the same operator table as the authored
+    /// `operator` declarations but rooted separately so `operators()` keeps
+    /// enumerating authored declarations only. See
+    /// [`crate::operator::resolve_spelling`] for why the view exists.
+    pub machine_token_bindings: HandleSpan<crate::operator::OperatorDefinition>,
     pub propositions: HandleSpan<proposition::PropositionDefinition>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
     pub conformances: HandleSpan<trait_definition::Conformance>,
@@ -248,6 +254,7 @@ impl TypedTreeRoots {
             machines,
             measures: HandleSpan::default(),
             operators,
+            machine_token_bindings: HandleSpan::default(),
             propositions: HandleSpan::default(),
             traits,
             conformances: HandleSpan::default(),

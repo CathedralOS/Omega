@@ -1,0 +1,1 @@
+`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped`

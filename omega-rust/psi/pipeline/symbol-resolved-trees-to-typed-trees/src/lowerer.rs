@@ -1,6 +1,6 @@
 use crate::declarations::data::lower_data_definition;
 use crate::declarations::domain::lower_domain_definition;
-use crate::declarations::machine::lower_machine;
+use crate::declarations::machine::{lower_machine, lower_token_binding_view};
 use crate::declarations::operator::lower_operator_definition;
 use crate::declarations::trait_definition::lower_trait_definition;
 use crate::expressions::qualification_casts::normalize_qualification_casts;
@@ -260,11 +260,14 @@ impl Lowerer<'_> {
         &mut self,
         machine: &symbol_resolved_trees::machine::Machine,
     ) -> Result<(), Diagnostic> {
-        let machine = self
+        let typed_machine = self
             .with_type_reference_exposure(machine_interface_exposure(machine), |lowerer| {
                 lower_machine(lowerer, machine)
             })?;
-        self.typed_trees.push_machine(machine);
+        if let Some(view) = lower_token_binding_view(self, machine, &typed_machine)? {
+            self.typed_trees.push_machine_token_binding(view);
+        }
+        self.typed_trees.push_machine(typed_machine);
         Ok(())
     }
 

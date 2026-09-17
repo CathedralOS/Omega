@@ -285,6 +285,23 @@ impl TypedTrees {
         self.tables.operators.span_or_empty(self.roots.operators)
     }
 
+    /// Append one token-bearing machine's operator-signature view. The view
+    /// shares the machine's symbol and its parameter, contract, and type
+    /// parameter spans; it is never a second declaration.
+    pub fn push_machine_token_binding(&mut self, view: crate::operator::OperatorDefinition) {
+        self.tables
+            .operators
+            .append_to_span(&mut self.roots.machine_token_bindings, view);
+    }
+
+    /// The operator-signature views of every token-bearing machine, in
+    /// machine declaration order.
+    pub fn machine_token_bindings(&self) -> &[crate::operator::OperatorDefinition] {
+        self.tables
+            .operators
+            .span_or_empty(self.roots.machine_token_bindings)
+    }
+
     pub fn push_operator_path_member(
         &mut self,
         operator: &mut crate::operator::OperatorDefinition,

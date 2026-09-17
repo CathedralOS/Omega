@@ -1,0 +1,19 @@
+// OPERATOR-MACHINE-SUPPLY: a fixed token after `machine` binds operator syntax
+// to an ordinary named declaration. `left + right` on `Wrapped` operands
+// selects `Wrapped::add` by operand type, and the same declaration remains
+// callable by name; nothing is searched among satisfiers. Execution supply
+// through the declaration's own body is a later slice, so this canary is
+// checked only.
+pub data Wrapped { value: u8; }
+
+pub machine + Wrapped::add(left: Wrapped, right: Wrapped) -> u64 {
+    (left.value as u64) + (right.value as u64)
+}
+
+machine by_token(left: Wrapped, right: Wrapped) -> u64 {
+    left + right
+}
+
+machine by_name(left: Wrapped, right: Wrapped) -> u64 {
+    Wrapped::add(left, right)
+}

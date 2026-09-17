@@ -31,14 +31,16 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
-    // OPERATOR-MACHINE-SUPPLY frontier: `machine.spelling` (the optional fixed
-    // token after `machine`) is copied onto the symbol-resolved declaration
-    // below and flows through the typed and checked machine records;
-    // `token_bindings` rejects an owner-local duplicate token/operand shape
-    // after selection. Operand-directed selection at use sites, cross-package
-    // semantic-home ownership, the `operator`-introducer migration, and
-    // supply-mode wiring are the next stages: a token-bearing machine still
-    // lowers and executes exactly like its tokenless named form.
+    // OPERATOR-MACHINE-SUPPLY: `machine.spelling` (the optional fixed token
+    // after `machine`) is copied onto the symbol-resolved declaration below
+    // and flows through the typed machine record, where the typed lowering
+    // publishes an operator-signature view so `resolve_spelling` selects the
+    // machine by operand type. `token_bindings` rejects a binding whose
+    // operands omit its semantic home and an owner-local duplicate
+    // token/operand shape after selection. Cross-package ownership, the
+    // `operator`-introducer migration, and supply-mode wiring are the next
+    // stages: a selected token-bearing machine still executes exactly like
+    // its tokenless named form.
     let compiler_selection_partition = compiler_selection_partition(
         lowerer.symbol_resolved_trees.machines.len(),
         syntax_trees,

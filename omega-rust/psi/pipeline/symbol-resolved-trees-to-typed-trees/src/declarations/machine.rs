@@ -25,6 +25,74 @@ pub(crate) fn lower_machine(
         .with_type_reference_exposure(exposure, |lowerer| lower_machine_contents(lowerer, machine))
 }
 
+/// The operator-signature view of a token-bearing machine, or `None` for a
+/// named machine and for a generic-data clone (its template already carries
+/// the binding; a clone entering the candidate set would only duplicate it).
+///
+/// The view is how `machine + Vec2::add(...)` reaches operand-directed
+/// selection: `typed_trees::operator::resolve_spelling` enumerates
+/// `OperatorDefinition` records, so the machine's entry-state parameters and
+/// return type, its head contracts, and its type parameters are exposed under
+/// the machine's own symbol. Every span is shared with the machine record;
+/// nothing is copied and no second declaration or executable identity exists.
+/// The path members follow the authored `operator` convention
+/// (`[owner, leaf]` for an attached machine) so path-based diagnostics and
+/// `satisfies Owner::leaf` matching read the same shape.
+pub(crate) fn lower_token_binding_view(
+    lowerer: &mut Lowerer,
+    machine: &resolved::machine::Machine,
+    typed_machine: &typed::machine::Machine,
+) -> Result<Option<typed::operator::OperatorDefinition>, Diagnostic> {
+    let Some(spelling) = typed_machine.spelling else {
+        return Ok(None);
+    };
+    if generic_data::is_derived(lowerer.source_trees, machine)? {
+        return Ok(None);
+    }
+    let entry = lowerer
+        .typed_trees
+        .machine_states(typed_machine)
+        .first()
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "`{}` binds the fixed operator token `{}` but declares no entry state",
+                typed_machine.name,
+                spelling.symbol()
+            ))
+        })?;
+    let mut view = typed::operator::OperatorDefinition {
+        is_public: typed_machine.is_public,
+        is_boundary: typed_machine.supply_mode == language_semantics::MachineSupplyMode::Boundary,
+        symbol: typed_machine.symbol,
+        name: Default::default(),
+        lifetime_parameters: typed_machine.lifetime_parameters.clone(),
+        type_parameters: typed_machine.type_parameters,
+        parameters: entry.parameters,
+        return_type: entry.return_type,
+        contracts: typed_machine.contracts,
+        spelling: Some(spelling),
+        // Authored `operator` declarations count their own tokens for review
+        // fingerprints; the machine's identity is fingerprinted as a machine.
+        token_count: 0,
+    };
+    let leaf = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default()
+        .to_owned();
+    if let Some(attached_data) = &typed_machine.attached_data {
+        lowerer
+            .typed_trees
+            .push_operator_path_member(&mut view, attached_data.clone());
+    }
+    lowerer
+        .typed_trees
+        .push_operator_path_member(&mut view, typed::name::Identifier::generated(&leaf));
+    Ok(Some(view))
+}
+
 fn lower_machine_contents(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
