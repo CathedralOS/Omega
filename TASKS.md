@@ -332,6 +332,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   the hosted receiver bridge (`number_guess`), `Utf8` field proofs
   (`multiplication_table`), and `OperationProofUnavailable(ObligationId(25))`
   (`print_squares`); none is a legalization error.
+  `number_guess`'s remaining failure is not receiver storage: the bridge
+  provisions its `[copy]` record and buffer once the Console field is
+  spelled `Service<Console> in Bound`, and the unchanged sample then exits
+  70 (macOS ARM64, ab5f28700d, probe reverted). The bare `console: Console;`
+  instance field has no establishment row by contract, which is
+  [owner question 1](OWNER_QUESTIONS.md); do not migrate the sample or add
+  an eligibility path before that answer. `print_squares` now stops at
+  `UnsupportedScalarOperation(WrappingIntegerMultiply { u32 })`: no integer
+  multiply reaches legalization for any width (641 `*` sites across 238
+  sample and corpus files), the next arithmetic family after saturation.
   `multiplication_table` still fails checked-stage `Utf8` field proofs and
   `print_squares` still stops at `OperationProofUnavailable(ObligationId(25))`.
 
@@ -1104,6 +1114,20 @@ Owners include
   native-realization entrance is sibling-owned; the receiver-side bridge and
   macOS contract remain open below.
 
+  Witnessed at ab5f28700d (macOS ARM64): a bare boundary-trait receiver field
+  (`console: Console;`) is classified `ProviderBacked` in
+  `typed-trees-to-checked-trees/src/execution/unit/types/build_types.rs`,
+  lowered to the same Terminal `Erased` field shape as a Bound field,
+  admitted by `terminal-production/src/terminal_production/receiver_eligibility.rs`
+  without a `fused_service_fields` entry, given no
+  `ProgramEntryFusedServiceEstablishment` row by
+  `selected-dispatch/src/service_custody/root.rs`, and therefore rejected by
+  `image-emission/src/hosted_receiver.rs` (exactly the
+  `hosted_receiver_rejects_bare_interface_without_bound_establishment`
+  canary). Whether that field is establishable is
+  [owner question 1](OWNER_QUESTIONS.md); if it is, the route is a positive
+  Psi eligibility witness carried through `NativeProgramEntrySettlement` and
+  checked at the bridge, never a missing-row fallback.
   Acceptance: execute an authored receiver entry as a published process with no
   test-supplied `self`. Reject redirected continuation/receiver identities,
   non-ZII state, insufficient/misaligned backing, overlapping partitions, stale
