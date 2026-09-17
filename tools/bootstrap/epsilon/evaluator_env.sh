@@ -22,6 +22,23 @@ EPSILON_EVALUATOR_MANIFEST_SHA256=717e6bdc90850b9cacc0858279f3483d10c93f3289f43d
 EPSILON_EVALUATOR_PACKED_SIZE=617354
 EPSILON_EVALUATOR_PACKED_SHA256=4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e
 
+# Bound edge adapter and reconstructed obligation. The canonical execution
+# driver tests/epsilon/interpreted-omega-experiment/execution_driver.delta is
+# the Delta adapter every cross-rung consumer appends after the packed
+# evaluator; compiling the bound evaluator plus this driver and the bound
+# Delta support section through the bound Delta compiler reconstructs exactly
+# one evaluator receipt, which those consumers then execute. The identical
+# pins in tests/epsilon/interpreted-omega-experiment/{README.md,run.sh},
+# tests/epsilon/array-storage/gate.py, and tests/bootstrap/omega-*/gate.py are
+# records of this one obligation, not independent identities. A digest here is
+# an identity check on the driver or the reconstructed bytes; it is not a
+# proof of evaluation. Changing the driver or any bound input changes the
+# receipt and must update every record together.
+EPSILON_EXECUTION_DRIVER_SIZE=2565
+EPSILON_EXECUTION_DRIVER_SHA256=ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38
+EPSILON_EVALUATOR_RECEIPT_SIZE=721484
+EPSILON_EVALUATOR_RECEIPT_SHA256=71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082
+
 # require_epsilon_evaluator_identity : the canonical manifest is the bound
 # file and repacking it reproduces exactly the bound evaluator closure.
 # Every materialization runs it; tests may call it directly. bootstrap_sha256
@@ -51,6 +68,30 @@ require_epsilon_evaluator_identity() {
   EPSILON_IDENTITY_RC=$?
   rm -rf -- "$EPSILON_IDENTITY_TMP"
   return "$EPSILON_IDENTITY_RC"
+}
+
+# require_epsilon_execution_driver_identity : the canonical slice driver
+# appended after the packed evaluator by every cross-rung consumer is the
+# bound file. The driver is a separate input to the DCREQ subject, so
+# consumers that frame evaluator+driver requests run this before compiling;
+# tests may call it directly. It is not part of the source closure and does
+# not run during materialization.
+require_epsilon_execution_driver_identity() {
+  require_bound_identity "execution_driver.delta" \
+    "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" \
+    "$EPSILON_EXECUTION_DRIVER_SIZE" "$EPSILON_EXECUTION_DRIVER_SHA256" \
+    "tests/epsilon/interpreted-omega-experiment/README.md"
+}
+
+# require_epsilon_evaluator_receipt_identity RECEIPT : the receipt a caller
+# reconstructed by executing the bound Delta compiler over the bound
+# evaluator, bound driver, and bound support section is exactly the bound
+# obligation. The check executes nothing; a divergent reconstruction is
+# refused before the caller could consume it.
+require_epsilon_evaluator_receipt_identity() {
+  require_bound_identity "Epsilon evaluator receipt" "$1" \
+    "$EPSILON_EVALUATOR_RECEIPT_SIZE" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
+    "tests/epsilon/interpreted-omega-experiment/README.md"
 }
 
 # materialize_epsilon_evaluator DEST : write the canonical packed evaluator

@@ -152,6 +152,20 @@ The manifest itself is 15,163 bytes, SHA-256
 materialization and `tests/bootstrap/epsilon-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being evaluated, not a proof that
 the evaluator implements Epsilon.
+
+The canonical slice driver
+[`execution_driver.delta`](../../tests/epsilon/interpreted-omega-experiment/execution_driver.delta)
+is 2,565 bytes, SHA-256
+`ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`; every
+cross-rung consumer appends it after the packed evaluator to form the DCREQ
+subject. Compiling the bound evaluator, driver, and Delta support section
+through the bound Delta compiler reconstructs exactly one evaluator receipt:
+721,484 bytes, SHA-256
+`71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082`.
+`tools/bootstrap/epsilon/evaluator_env.sh` binds both identities, and
+`tests/bootstrap/epsilon-identity.sh` covers the refusals and checks every
+consuming gate's record. The receipt identity is an obligation on the
+reconstructed bytes, not a proof that the evaluator implements Epsilon.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.

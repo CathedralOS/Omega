@@ -72,8 +72,11 @@ This removes no language observation and does not close the resource profile.
 The gate compiles the exact evaluator plus the 55-line / 2,565-byte
 `execution_driver.delta` (SHA-256
 `ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`) through the
-selected Delta route and pins the measured 719,826-byte receipt, SHA-256
-`dd4985c0eb6e1f30bc2178f90dd30e25ae7b842fb544137f606a44e622000f22`.
+selected Delta route and pins the measured 721,484-byte receipt, SHA-256
+`71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082`.
+`tools/bootstrap/epsilon/evaluator_env.sh` binds both identities and
+`tests/bootstrap/epsilon-identity.sh` covers the refusals and every consuming
+gate's record.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
