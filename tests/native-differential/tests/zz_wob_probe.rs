@@ -33,6 +33,50 @@ fn optimize(
     .map_err(|e| format!("optimize: {e:?}"))
 }
 
+/// Full physical publication leg: optimized plan -> target/physical pipeline ->
+/// function fragment -> fixed-frame text -> object -> image -> installation.
+fn publish(
+    optimized: abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan,
+) -> Result<(), String> {
+    let physical =
+        native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target::NativeTarget::linux_x64(),
+            &[],
+        )
+        .map_err(|e| format!("physical: {e:?}"))?;
+    let fragments = machine_emission::stage_optimized_function_fragment_emission(
+        physical.into_function_fragment_emission_source(),
+    )
+    .map_err(|e| format!("fragments: {e:?}"))?;
+    let framed = machine_emission::stage_function_fragment_frame_application(fragments)
+        .map_err(|e| format!("frame: {e:?}"))?;
+    let placed = machine_emission::stage_optimized_fixed_frame_text_section(framed)
+        .map_err(|e| format!("placed: {e:?}"))?;
+    machine_emission::validate_optimized_fixed_frame_text_section(&placed)
+        .map_err(|e| format!("placed-validate: {e:?}"))?;
+    let source = std::sync::Arc::new(
+        object_file::stage_optimized_relocation_free_object_container(placed)
+            .map_err(|e| format!("object-stage: {e:?}"))?,
+    );
+    let object = image_emission::build_function_fragment_object_artifact(source)
+        .map_err(|e| format!("object: {e:?}"))?;
+    let image = image_emission::emit_executable_image(&object, 3)
+        .map_err(|e| format!("image: {e:?}"))?;
+    let installed = image_emission::build_installation_record(
+        &image,
+        semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+    )
+    .map_err(|e| format!("installation: {e:?}"))?;
+    let bytes = image_emission::encode_installation_record(&installed)
+        .map_err(|e| format!("installation-encode: {e:?}"))?;
+    let decoded = image_emission::decode_installation_record(&bytes)
+        .map_err(|e| format!("installation-decode: {e:?}"))?;
+    image_emission::validate_installation_record(&decoded, &image)
+        .map_err(|e| format!("installation-validate: {e:?}"))?;
+    Ok(())
+}
+
 #[test]
 fn probe_candidate_shapes() {
     let candidates: &[(&str, &str, &str)] = &[
@@ -253,7 +297,12 @@ fn probe_candidate_shapes() {
                     module.structural_types
                 );
                 match optimize(&artifact) {
-                    Ok(_) => eprintln!("PROBE {name}: artifact OK, optimize OK"),
+                    Ok(optimized) => match publish(optimized) {
+                        Ok(()) => eprintln!("PROBE {name}: artifact OK, optimize OK, publish OK"),
+                        Err(error) => {
+                            eprintln!("PROBE {name}: artifact OK, optimize OK, PUBLISH FAIL: {error}")
+                        }
+                    },
                     Err(error) => {
                         eprintln!("PROBE {name}: artifact OK, OPTIMIZE FAIL: {error}")
                     }
