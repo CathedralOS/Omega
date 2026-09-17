@@ -112,10 +112,10 @@ lifetime arguments after those distinctions have been projected away.
 `recover_canonical()` restores typed signatures, contracts, expressions, and
 bindings without an old checkout or compiler execution. Recovery rejects
 unknown vocabulary, truncated or trailing fields, and noncanonical encodings;
-a retired tag such as the selected-provider binding's string-backed import
-bootstrap (tag 0) is rejected by name and never reassigned, so the component
-versions stay unchanged while every value the current toolchain can produce
-keeps its exact bytes;
+a retired tag such as the string-backed import bootstrap (tag 0 of both the
+selected-provider binding and the external-supply binding) is rejected by name
+and never reassigned, so the component versions stay unchanged while every
+value the current toolchain can produce keeps its exact bytes;
 caller ceilings can lower the hard byte, aggregate-element, owned-storage, and
 nesting limits. The existing full-review encoding and validators are unchanged.
 This component is not an accepted-lock record or an acceptance decision.

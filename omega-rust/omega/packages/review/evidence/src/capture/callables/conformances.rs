@@ -9,7 +9,7 @@ use super::boundary_operators::{
 use super::boundary_requirements::project_top_level_requirement_external_supply;
 use super::external_supply::{
     project_evaluated_binding, project_external_binding,
-    project_external_executable_supply_with_source, validate_external_binding_payload,
+    project_external_executable_supply_with_source,
 };
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
@@ -78,10 +78,9 @@ pub(super) fn project_callable_conformances(
                             machine.name
                         ))]);
                     }
-                    validate_external_binding_payload(compilation, machine, identity)?;
                     (
                         ExpectedExternalCarrier::Legacy(binding),
-                        project_external_binding(identity),
+                        project_external_binding(compilation, machine, identity)?,
                     )
                 }
                 (None, None)

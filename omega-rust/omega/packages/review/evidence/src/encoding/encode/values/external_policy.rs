@@ -60,12 +60,9 @@ pub(in crate::encoding::encode) fn validated_value(
         signatures::requirement(encoder, &supply.requirement)
     })?;
     encoder.field("binding", |encoder| {
+        // Tag 0 carried the retired string-backed import row; recovery
+        // rejects it by name and no policy produces it again.
         match &supply.binding {
-            PackagePolicyExternalBinding::Import { library, symbol } => {
-                encoder.tag("import", 0);
-                encoder.field("library", |encoder| encoder.string(library))?;
-                encoder.field("symbol", |encoder| encoder.string(symbol))?;
-            }
             PackagePolicyExternalBinding::Syscall { number } => {
                 encoder.tag("syscall", 1);
                 encoder.field("number", |encoder| {

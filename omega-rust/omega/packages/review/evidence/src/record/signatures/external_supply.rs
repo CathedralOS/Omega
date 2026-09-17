@@ -11,13 +11,11 @@ use crate::record::PackageReviewTypeIdentity;
 /// capability classifications.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewExternalBinding {
-    Import {
-        library: String,
-        symbol: String,
-    },
-    /// Ordinary typed `Binding::DllImport` evaluation. This remains distinct
-    /// from the legacy string-backed import so review can never reinterpret
-    /// two independently authored strings as one atomic physical locator.
+    /// Ordinary typed `Binding::DllImport` evaluation: the only import row.
+    /// The string-backed `Import { library, symbol }` row is retired; review
+    /// never reinterprets two independently authored strings as one atomic
+    /// physical locator, and capture fails closed on a typed program that
+    /// still interns that identity.
     NormalizedImport(PackageReviewEvaluatedImport),
     /// Ordinary typed `Binding::Syscall` evaluation. This remains distinct
     /// from the legacy integer syscall carrier and retains its exact producer,

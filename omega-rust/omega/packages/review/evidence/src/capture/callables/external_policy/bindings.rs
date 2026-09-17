@@ -1,6 +1,4 @@
-use super::super::external_supply::{
-    project_evaluated_binding, project_external_binding, validate_external_binding_payload,
-};
+use super::super::external_supply::{project_evaluated_binding, project_external_binding};
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewExternalBinding;
@@ -37,8 +35,7 @@ pub(super) fn project(
                     "external mechanism differs from its exact binding",
                 ));
             }
-            validate_external_binding_payload(compilation, machine, identity)?;
-            Ok(project_external_binding(identity))
+            project_external_binding(compilation, machine, identity)
         }
         (None, None)
             if conformance.external_binding.is_none() && conformance.via_expression.is_valid() =>

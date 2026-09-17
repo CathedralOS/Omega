@@ -92,10 +92,10 @@ fn requirement(reader: &mut Reader<'_>) -> Result<PackagePolicyExternalRequireme
 
 fn binding(reader: &mut Reader<'_>) -> Result<PackagePolicyExternalBinding, Error> {
     Ok(match reader.byte()? {
-        0 => PackagePolicyExternalBinding::Import {
-            library: reader.string()?,
-            symbol: reader.string()?,
-        },
+        // Tag 0 carried the retired string-backed import row. A policy that
+        // still uses it is a stale artifact: reject it by name rather than
+        // reinterpreting two authored strings as a physical locator.
+        0 => return Err(Error::RetiredVocabulary),
         1 => PackagePolicyExternalBinding::Syscall {
             number: reader.i64()?,
         },

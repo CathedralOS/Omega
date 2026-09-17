@@ -151,31 +151,39 @@ fn project_evaluated_syscall(
     ))
 }
 
-pub(super) fn validate_external_binding_payload(
+/// Project one retained typed external-binding identity to its review row,
+/// validating the payload first. The string-backed `Import` identity has no
+/// review row any more: two authored strings are not a physical locator, so
+/// capture fails closed with the diagnostic that names the evaluated
+/// replacement instead of projecting anything.
+pub(super) fn project_external_binding(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     identity: &language_semantics::ExternalBindingIdentity,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
     use language_semantics::ExternalBindingIdentity;
 
-    let invalid = match identity {
-        // The string-backed import identity has no review projection any
-        // more: two authored strings are not a physical locator, so the
-        // review fails closed before projecting anything.
-        ExternalBindingIdentity::Import { .. } => Some(
+    let rejected = |reason: &str| {
+        Err(vec![Diagnostic::error(format!(
+            "reviewed external callable `{}` {reason}",
+            machine.name
+        ))])
+    };
+    match identity {
+        ExternalBindingIdentity::Import { .. } => rejected(
             "uses the retired string-backed import bootstrap; declare a typed locator through an evaluated `via` binding producer",
         ),
         ExternalBindingIdentity::Syscall { number } if u32::try_from(*number).is_err() => {
-            Some("has a syscall number outside 0..=u32::MAX")
+            rejected("has a syscall number outside 0..=u32::MAX")
         }
         ExternalBindingIdentity::VtableSlot { index } if *index < 0 => {
-            Some("has a negative vtable-slot index")
+            rejected("has a negative vtable-slot index")
         }
         ExternalBindingIdentity::VtableField { field }
         | ExternalBindingIdentity::TableFunction { field }
             if field.is_empty() =>
         {
-            Some("has no exact table-field identity")
+            rejected("has no exact table-field identity")
         }
         ExternalBindingIdentity::VtableField { .. }
         | ExternalBindingIdentity::TableFunction { .. }
@@ -186,51 +194,26 @@ pub(super) fn validate_external_binding_payload(
                     .iter()
                     .any(|definition| definition.symbol == machine.attached_data_symbol) =>
         {
-            Some("has table-field supply without one exact attached provider data declaration")
+            rejected("has table-field supply without one exact attached provider data declaration")
         }
-        ExternalBindingIdentity::Syscall { .. }
-        | ExternalBindingIdentity::CompilerIntrinsic
-        | ExternalBindingIdentity::VtableSlot { .. }
-        | ExternalBindingIdentity::VtableField { .. }
-        | ExternalBindingIdentity::TableFunction { .. } => None,
-    };
-    match invalid {
-        Some(reason) => Err(vec![Diagnostic::error(format!(
-            "reviewed external callable `{}` {reason}",
-            machine.name
-        ))]),
-        None => Ok(()),
-    }
-}
-
-pub(super) fn project_external_binding(
-    identity: &language_semantics::ExternalBindingIdentity,
-) -> PackageReviewExternalBinding {
-    match identity {
-        language_semantics::ExternalBindingIdentity::Import { library, symbol } => {
-            PackageReviewExternalBinding::Import {
-                library: library.clone(),
-                symbol: symbol.clone(),
-            }
+        ExternalBindingIdentity::Syscall { number } => {
+            Ok(PackageReviewExternalBinding::Syscall { number: *number })
         }
-        language_semantics::ExternalBindingIdentity::Syscall { number } => {
-            PackageReviewExternalBinding::Syscall { number: *number }
+        ExternalBindingIdentity::CompilerIntrinsic => {
+            Ok(PackageReviewExternalBinding::CompilerIntrinsic)
         }
-        language_semantics::ExternalBindingIdentity::CompilerIntrinsic => {
-            PackageReviewExternalBinding::CompilerIntrinsic
+        ExternalBindingIdentity::VtableSlot { index } => {
+            Ok(PackageReviewExternalBinding::VtableSlot { index: *index })
         }
-        language_semantics::ExternalBindingIdentity::VtableSlot { index } => {
-            PackageReviewExternalBinding::VtableSlot { index: *index }
-        }
-        language_semantics::ExternalBindingIdentity::VtableField { field } => {
-            PackageReviewExternalBinding::VtableField {
+        ExternalBindingIdentity::VtableField { field } => {
+            Ok(PackageReviewExternalBinding::VtableField {
                 field: field.clone(),
-            }
+            })
         }
-        language_semantics::ExternalBindingIdentity::TableFunction { field } => {
-            PackageReviewExternalBinding::TableFunction {
+        ExternalBindingIdentity::TableFunction { field } => {
+            Ok(PackageReviewExternalBinding::TableFunction {
                 field: field.clone(),
-            }
+            })
         }
     }
 }
