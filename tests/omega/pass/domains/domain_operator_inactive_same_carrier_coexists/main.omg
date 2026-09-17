@@ -12,13 +12,17 @@ domain Quantity::Linear
 requires
     self.value >= 0;
 
-operator + Quantity::Linear::add(left: Quantity, right: Quantity) -> Quantity;
+machine + Quantity::Linear::add(left: Quantity, right: Quantity) -> Quantity {
+    Quantity { value: ((left.value as i32 in Wrapping) + (right.value as i32 in Wrapping)) as i32 }
+}
 
 domain Quantity::Cyclic
 requires
     self.value >= 0;
 
-operator + Quantity::Cyclic::add(left: Quantity, right: Quantity) -> Quantity;
+machine + Quantity::Cyclic::add(left: Quantity, right: Quantity) -> Quantity {
+    Quantity { value: ((left.value as i32 in Wrapping) + (right.value as i32 in Wrapping)) as i32 }
+}
 
 data Main {}
 
