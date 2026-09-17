@@ -1,0 +1,30 @@
+// An indexed domain application in proof-fact position
+// (`ensures result.storage in Granted & Resident<SlotPlacement, Slot>`) is
+// read with the type-position grammar and rejected by name: the proof-fact
+// membership node carries only the domain path, so the instance arguments
+// cannot reach the typed membership fact yet. The membership is declared on
+// the value's type instead, as `Occupied.storage` does here; the accepted
+// shape is `tests/omega/pass/memory/bump_allocator_canary`.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Slot [copy] {
+    value: u32;
+}
+
+data SlotPlacement {}
+
+data Occupied {
+    storage: Extent in Granted & Resident<SlotPlacement, Slot>;
+}
+
+boundary trait ResidentStorage {
+    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
+    ensures
+        result.storage in Granted & Resident<SlotPlacement, Slot>,
+        Granted::content(old(&storage)) == Granted::content(&result.storage);
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

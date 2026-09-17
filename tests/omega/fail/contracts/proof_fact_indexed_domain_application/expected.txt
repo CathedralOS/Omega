@@ -1,0 +1,1 @@
+indexed domain applications are not yet carried by proof facts
