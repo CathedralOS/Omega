@@ -23,7 +23,7 @@ use typed_trees::statement::StatementNode;
 
 pub(crate) fn derive_checked_claim_outcome_maps(
     program: &typed_trees::TypedTrees,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
 ) -> Vec<CheckedClaimOutcomeMap> {
     let state_count = program
@@ -42,7 +42,7 @@ pub(crate) fn derive_checked_claim_outcome_maps(
                         program,
                         machine.symbol,
                         state,
-                        segments,
+                        ownership,
                         permission_events,
                         &maps,
                     )
@@ -62,10 +62,11 @@ fn derive_checked_claim_outcome_map(
     program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Option<CheckedClaimOutcomeMap> {
+    let segments = &ownership.segments;
     let expected_paths = linear_claim_frontier(program, state.return_type)
         .into_iter()
         .map(|claim| claim.path)
@@ -85,7 +86,7 @@ fn derive_checked_claim_outcome_map(
                 state,
                 statement_index,
                 expression,
-                segments,
+                ownership,
                 permission_events,
                 known_maps,
                 &[],
@@ -398,11 +399,12 @@ fn claim_outcomes_for_expression(
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
     output_prefix: &[facts::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
+    let segments = &ownership.segments;
     if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
@@ -457,7 +459,7 @@ fn claim_outcomes_for_expression(
                     state,
                     statement_index,
                     *value,
-                    segments,
+                    ownership,
                     permission_events,
                     known_maps,
                     &element_prefix,
@@ -493,7 +495,7 @@ fn claim_outcomes_for_expression(
                         state,
                         statement_index,
                         value,
-                        segments,
+                        ownership,
                         permission_events,
                         known_maps,
                         &field_prefix,
@@ -541,7 +543,7 @@ fn claim_outcomes_for_expression(
                         state,
                         statement_index,
                         literal_field.value,
-                        segments,
+                        ownership,
                         permission_events,
                         known_maps,
                         &field_prefix,
@@ -583,8 +585,86 @@ fn claim_outcomes_for_expression(
                 })
                 .collect()
         }
+        // A receipt'd selection joins one result claim at the destination;
+        // the receipt's transfers name the consumed source claim per edge
+        // rather than a permission event.
+        typed_trees::expression::ExpressionNode::Match(_) => claim_outcomes_for_owned_selection(
+            program,
+            state,
+            statement_index,
+            expression,
+            ownership,
+            output_prefix,
+        ),
         _ => Vec::new(),
     }
+}
+
+/// A receipt'd selection produces its result claim at the join edge: each
+/// transfer names the consumed source claim that becomes the result's claim
+/// on that edge, and uniform linear consumption means every edge maps the
+/// result to the same source place. A parameter source binds the caller's
+/// claim; a local source publishes the established identity the roster
+/// recorded. A fresh per-edge product establishes its claim inside the
+/// selection, so its origin is intentionally untracked.
+fn claim_outcomes_for_owned_selection(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    ownership: &checked_trees::FlowOwnershipFacts,
+    output_prefix: &[facts::PlaceSegment],
+) -> Vec<CheckedClaimOutcomeEntry> {
+    let Some((_, receipt)) = ownership.owned_selection_at(state.symbol, statement_index as u32)
+    else {
+        return Vec::new();
+    };
+    if receipt.expression != expression {
+        return Vec::new();
+    }
+    let mut entries = Vec::new();
+    for transfer in ownership
+        .selection_transfers
+        .span_or_empty(receipt.transfers)
+    {
+        if !transfer.source.is_valid() {
+            continue;
+        }
+        let source = ownership.selection_sources.get(transfer.source);
+        let consumed_path = ownership.segments.span_or_empty(transfer.path);
+        let source = if program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.symbol == source.symbol)
+        {
+            CheckedClaimOutcomeSource::Input {
+                parameter_symbol: source.symbol,
+                path: consumed_path.to_vec(),
+            }
+        } else {
+            CheckedClaimOutcomeSource::Established {
+                claim_identity: source.claim_identity,
+                provenance: source.provenance,
+            }
+        };
+        let entry = CheckedClaimOutcomeEntry {
+            output_path: output_prefix.to_vec(),
+            source,
+        };
+        if !entries.contains(&entry) {
+            entries.push(entry);
+        }
+    }
+    if entries.is_empty() {
+        entries.push(CheckedClaimOutcomeEntry {
+            output_path: output_prefix.to_vec(),
+            source: CheckedClaimOutcomeSource::Established {
+                claim_identity: PermissionClaimIdentity::Unknown,
+                provenance: PermissionProvenance::Unknown,
+            },
+        });
+    }
+    entries
 }
 
 fn claim_outcome_source_for_event(

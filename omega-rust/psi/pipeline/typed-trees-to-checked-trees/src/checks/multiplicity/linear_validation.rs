@@ -36,6 +36,7 @@ use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource,
 };
+use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
 pub(crate) fn validate_linear_permission_events(
@@ -79,6 +80,10 @@ pub(crate) fn validate_linear_permission_events(
                     .then_some(event)
             })
             .collect::<Vec<_>>();
+        // Replay entry establishment so a parameter source's minted claim
+        // identity reaches the receipt roster exactly as the recording pass
+        // observed it.
+        apply_recorded_state_entry_events(&events, &facts.flow.ownership.segments, &mut places);
         append_unresolved_state_result_mapping_diagnostics(
             program,
             state,
@@ -250,6 +255,39 @@ pub(crate) fn validate_linear_permission_events(
             .ownership
             .selection_sources
             .span_or_empty(receipt.sources);
+        // A linear receipt consumes only the exact claim each transfer names;
+        // residual siblings of a source root remain live custody with their
+        // own later events. Only an event overlapping a consumed path on a
+        // source root is a second life for the same claim.
+        let consumed_places: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> =
+            if program.type_multiplicity(receipt.type_reference) == Multiplicity::Linear {
+                selected_replay
+                    .flow
+                    .ownership
+                    .selection_transfers
+                    .span_or_empty(receipt.transfers)
+                    .iter()
+                    .filter(|transfer| transfer.source.is_valid())
+                    .map(|transfer| {
+                        (
+                            selected_replay
+                                .flow
+                                .ownership
+                                .selection_sources
+                                .get(transfer.source)
+                                .symbol,
+                            selected_replay
+                                .flow
+                                .ownership
+                                .segments
+                                .span_or_empty(transfer.path)
+                                .to_vec(),
+                        )
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
         if facts.flow.ownership.permissions.iter().any(|(_, event)| {
             if event.machine_symbol != receipt.machine
                 || event.state_symbol != receipt.state
@@ -258,14 +296,25 @@ pub(crate) fn validate_linear_permission_events(
                 return false;
             }
             let statement = permission_event_statement_index(event.source);
-            statement == Some(receipt.statement_ordinal as usize)
-                || (sources
+            if statement == Some(receipt.statement_ordinal as usize) {
+                return true;
+            }
+            if event.source != PermissionEventSource::StateExit
+                && !statement
+                    .is_some_and(|statement| statement > receipt.statement_ordinal as usize)
+            {
+                return false;
+            }
+            if consumed_places.is_empty() {
+                return sources
                     .iter()
-                    .any(|source| event.root == facts::PlaceRoot::Symbol(source.symbol))
-                    && (event.source == PermissionEventSource::StateExit
-                        || statement.is_some_and(|statement| {
-                            statement > receipt.statement_ordinal as usize
-                        })))
+                    .any(|source| event.root == facts::PlaceRoot::Symbol(source.symbol));
+            }
+            let event_path = facts.flow.ownership.segments.span_or_empty(event.segments);
+            consumed_places.iter().any(|(symbol, path)| {
+                event.root == facts::PlaceRoot::Symbol(*symbol)
+                    && owned_selection::place_paths_overlap(event_path, path)
+            })
         }) {
             diagnostics.push(Diagnostic::error("owned selection acquired unconditional transfer, establishment, or residual cleanup events"));
         }

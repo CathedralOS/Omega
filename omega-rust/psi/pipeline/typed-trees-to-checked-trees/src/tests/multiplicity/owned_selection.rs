@@ -661,3 +661,268 @@ fn owned_selection_replay_rejects_changed_origin_arm_and_death() {
         assert!(format!("{errors:?}").contains("owned selection receipts differ"));
     }
 }
+
+fn lower_linear_program(
+    source: &str,
+) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    lower_program(&format!(
+        "pub data Token [linear] {{ id: u64; }}
+         boundary machine Token::settle(self) ensures true;
+         {source}"
+    ))
+}
+
+#[test]
+fn linear_owned_selection_moves_one_whole_claim_on_every_edge() {
+    for (name, body) in [
+        (
+            "parameter source",
+            "machine choose(selected: bool, a: Token) -> u64 {
+                 let picked: Token = match selected { true -> a, false -> a };
+                 picked.settle();
+                 0
+             }",
+        ),
+        (
+            "local source",
+            "machine choose(selected: bool) -> u64 {
+                 let a: Token = Token { id: 1 };
+                 let picked: Token = match selected { true -> a, false -> a };
+                 picked.settle();
+                 0
+             }",
+        ),
+    ] {
+        let checked =
+            lower_linear_program(body).unwrap_or_else(|errors| panic!("{name}: {errors:#?}"));
+        let ownership = &checked.facts.flow.ownership;
+        let (_, receipt) = ownership
+            .owned_selections
+            .iter()
+            .next()
+            .expect("linear selection receipt");
+        assert_eq!(
+            ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .len(),
+            1,
+            "{name}: one source joins both edges"
+        );
+        let transfers = ownership
+            .selection_transfers
+            .span_or_empty(receipt.transfers);
+        assert_eq!(transfers.len(), 2, "{name}");
+        assert!(
+            transfers.iter().all(|transfer| transfer.source.is_valid()
+                && ownership.segments.span_or_empty(transfer.path).is_empty()),
+            "{name}: each edge moves the same whole-root claim: {transfers:?}"
+        );
+    }
+}
+
+#[test]
+fn linear_owned_selection_rejects_a_nonuniform_frontier() {
+    for (name, source) in [
+        (
+            "distinct sources",
+            "machine choose(selected: bool, a: Token, b: Token) -> u64 {
+                 let picked: Token = match selected { true -> a, false -> b };
+                 picked.settle();
+                 0
+             }",
+        ),
+        (
+            "fresh arm beside a source",
+            "machine choose(selected: bool, a: Token) -> u64 {
+                 let picked: Token = match selected { true -> a, false -> Token { id: 2 } };
+                 picked.settle();
+                 0
+             }",
+        ),
+        (
+            "source only on nested edges",
+            "machine choose(selected: bool, other: bool, a: Token) -> u64 {
+                 let picked: Token = match selected {
+                     true -> match other { true -> a, false -> a },
+                     false -> Token { id: 2 }
+                 };
+                 picked.settle();
+                 0
+             }",
+        ),
+    ] {
+        let errors = lower_linear_program(source)
+            .expect_err(&format!("{name}: a partial frontier cannot join"));
+        assert!(
+            format!("{errors:?}").contains(
+                "linear match custody requires every reachable arm to move the same live source place"
+            ),
+            "{name}: {errors:#?}"
+        );
+    }
+}
+
+#[test]
+fn linear_owned_selection_rejects_distinct_projected_children() {
+    let errors = lower_linear_program(
+        "data Pair { first: Token; second: Token; }
+         machine choose(selected: bool, pair: Pair) -> u64 {
+             let picked: Token = match selected { true -> pair.first, false -> pair.second };
+             picked.settle();
+             pair.second.settle();
+             0
+         }",
+    )
+    .expect_err("different projected children leave different residual frontiers");
+    assert!(
+        format!("{errors:?}").contains(
+            "linear match custody requires every reachable arm to move the same live source place"
+        ),
+        "{errors:#?}"
+    );
+}
+
+#[test]
+fn linear_owned_selection_projected_child_keeps_the_residual_sibling_live() {
+    // `pair.second` survives the join that consumed `pair.first` on every
+    // edge, so consuming it afterwards discharges the residual claim. A
+    // projected `self` receiver does not consume a linear child at all, so
+    // the residual consumption uses the explicit call form.
+    let checked = lower_linear_program(
+        "data Pair { first: Token; second: Token; }
+         machine choose(selected: bool, pair: Pair) -> u64 {
+             let picked: Token = match selected { true -> pair.first, false -> pair.first };
+             picked.settle();
+             Token::settle(pair.second);
+             0
+         }",
+    )
+    .expect("the residual linear sibling stays consumable after the join");
+    let ownership = &checked.facts.flow.ownership;
+    let (_, receipt) = ownership
+        .owned_selections
+        .iter()
+        .next()
+        .expect("linear selection receipt");
+    let transfers = ownership
+        .selection_transfers
+        .span_or_empty(receipt.transfers);
+    assert_eq!(transfers.len(), 2);
+    for transfer in transfers {
+        assert!(
+            matches!(
+                ownership.segments.span_or_empty(transfer.path),
+                [facts::PlaceSegment::Field { .. }]
+            ),
+            "each edge consumes the exact `first` claim path: {transfer:?}"
+        );
+    }
+}
+
+#[test]
+fn linear_owned_selection_rejects_reusing_the_consumed_claim() {
+    for (name, source, expected) in [
+        // A whole-source receiver use is not itself a transfer, so the
+        // selection-use fence reports the consumed claim directly.
+        (
+            "whole source receiver use",
+            "machine choose(selected: bool, a: Token) -> u64 {
+                 let picked: Token = match selected { true -> a, false -> a };
+                 a.settle();
+                 picked.settle();
+                 0
+             }",
+            "linear match transfer consumed this exact claim on every edge",
+        ),
+        (
+            "projected child receiver use",
+            "data Pair { first: Token; second: Token; }
+             machine choose(selected: bool, pair: Pair) -> u64 {
+                 let picked: Token = match selected { true -> pair.first, false -> pair.first };
+                 pair.first.settle();
+                 Token::settle(pair.second);
+                 picked.settle();
+                 0
+             }",
+            "linear match transfer consumed this exact claim on every edge",
+        ),
+        // An argument move of the dead claim hits the general
+        // moved-place fence before the selection-use fence can run.
+        (
+            "projected child move",
+            "data Pair { first: Token; second: Token; }
+             machine choose(selected: bool, pair: Pair) -> u64 {
+                 let picked: Token = match selected { true -> pair.first, false -> pair.first };
+                 Token::settle(pair.first);
+                 Token::settle(pair.second);
+                 picked.settle();
+                 0
+             }",
+            "was already transferred or consumed",
+        ),
+    ] {
+        let errors = lower_linear_program(source)
+            .expect_err(&format!("{name}: the joined claim is dead on every edge"));
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)),
+            "{name}: expected {expected:?}: {errors:#?}"
+        );
+    }
+}
+
+#[test]
+fn linear_owned_selection_all_fresh_edges_need_no_tracked_source() {
+    let checked = lower_linear_program(
+        "machine choose(selected: bool) -> u64 {
+             let picked: Token = match selected { true -> Token { id: 1 }, false -> Token { id: 2 } };
+             picked.settle();
+             0
+         }",
+    )
+    .expect("fresh per-edge products join vacuously");
+    assert_eq!(
+        checked.facts.flow.ownership.owned_selections.iter().count(),
+        0,
+        "fresh edges record no ownership join"
+    );
+}
+
+#[test]
+fn linear_owned_selection_return_maps_the_result_to_the_source_claim() {
+    let checked = lower_linear_program(
+        "machine choose(selected: bool, a: Token) -> Token {
+             match selected { true -> a, false -> a }
+         }",
+    )
+    .expect("a linear return selection checks");
+    let ownership = &checked.facts.flow.ownership;
+    let (_, receipt) = ownership
+        .owned_selections
+        .iter()
+        .next()
+        .expect("linear selection receipt");
+    assert!(
+        !receipt.destination.is_valid(),
+        "a return destination is anonymous"
+    );
+    let (_, map) = ownership
+        .claim_outcome_maps
+        .iter()
+        .next()
+        .expect("a linear result publishes its claim outcome map");
+    let entries = ownership.claim_outcome_entries.span_or_empty(map.entries);
+    assert!(
+        entries.iter().any(|entry| {
+            entry.output_segments.is_empty()
+                && matches!(
+                    entry.source,
+                    checked_trees::FlowClaimOutcomeSource::Input {
+                        parameter_symbol: _,
+                        ..
+                    }
+                )
+        }),
+        "the selected result maps to the caller's parameter claim: {entries:?}"
+    );
+}

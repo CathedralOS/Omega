@@ -42,11 +42,27 @@ impl ContentType {
 enum ContentsRequirement {
     PlainOwned,
     NumericOwned,
+    /// The same no-code owned storage as `NumericOwned`, except a data
+    /// declaration marked `[linear]` remains a valid carrier: linear custody
+    /// keeps its own claim accounting, so a selection join only needs to know
+    /// the value holds no loans, nominal cleanup, or recursive storage. Nested
+    /// linear children are equally plain linear carriers, never a second kind
+    /// of obligation the join would have to name separately.
+    LinearOwned,
     StableObservation,
 }
 
 pub fn has_plain_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     has_plain_owned_contents_with_substitutions(program, reference, &[])
+}
+
+/// Owned storage a linear selection join can carry whole: no references,
+/// slices, nominal cleanup, or recursive data, with the numeric-constraint
+/// tolerance of [`has_plain_owned_contents_with_numeric_constraints`]. Linear
+/// declarations remain carriers because the claim itself is tracked by the
+/// caller's own custody machinery.
+pub fn has_linear_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    check_contents_requirement(program, reference, &[], ContentsRequirement::LinearOwned)
 }
 
 pub fn has_plain_owned_contents_with_substitutions(
@@ -296,7 +312,10 @@ fn check_contents(
     // A repeated declaration must consume finite type-argument structure, as
     // in Wrapper<Wrapper<Value>>. Expanding recursive by-value data is not a
     // finite owned carrier and must not make this classifier recurse forever.
-    if data.properties.multiplicity == Multiplicity::Linear
+    // A linear declaration is not plain owned storage, but under LinearOwned it
+    // is still a finite carrier whose custody the caller tracks explicitly.
+    if (data.properties.multiplicity == Multiplicity::Linear
+        && requirement != ContentsRequirement::LinearOwned)
         || active.iter().any(|ancestor| {
             matches!(ancestor, ContentType::Data(owner, _)
             if owner == symbol && resolved.size() >= ancestor.size())
