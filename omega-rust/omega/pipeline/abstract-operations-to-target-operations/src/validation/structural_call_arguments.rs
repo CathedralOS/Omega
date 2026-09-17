@@ -1,28 +1,145 @@
-//! Reconcile retained structural call arguments against source and callee identity.
+//! Reconcile retained embedded calls against source operations and callee identity.
+//!
+//! Every retained row in the in-module and installed-provider call families is
+//! collected and replayed against the callee's independently reconstructed
+//! signature: the embedded plan, scalar and structural argument rows,
+//! descriptor and dispatch custody, result identity, and result home are all
+//! re-derived from the abstract declarations. The retained target plan, its
+//! self-reported placements, and any producer-side digest are never admission
+//! authority. A retained row bound to no source call operation, or a second
+//! row under an operation key that already has one, is forged by construction.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
-use calling_conventions::{CallingPolicy, evaluate_call_plan};
-use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
+use abstract_operations::{
+    AbstractBoundaryResult, AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
+    AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
+    AbstractStoredDynamicDispatch, CompletionClaimSource,
+};
+use calling_conventions::{
+    CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
+    evaluate_call_plan,
+};
+use semantic_vocabulary::{
+    MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+};
 use target::NativeTarget;
 use target_operations::{
-    NativeCallOrigin, TargetFunction, TargetStructuralArgument, TargetUnitOperation,
-    TargetUnitScalarCallArgument,
+    NativeCallOrigin, ScalarAbiValue, ScalarFunctionAbi, TargetDynamicDescriptorArgument,
+    TargetFunction, TargetStructuralArgument, TargetStructuralArgumentSource,
+    TargetStructuralHomeRequirement, TargetUnitOperation, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration,
+    ClaimTransfer, CrashRouteBucket, StructuralAccess, StructuralArgument,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
 };
 
 use super::structural_shapes;
+use super::structural_signatures;
 
-struct TargetCall<'a> {
-    origin: &'a NativeCallOrigin,
-    callee: semantic_vocabulary::MachineId,
-    call_plan: &'a calling_conventions::CallPlan,
-    scalar_arguments: &'a [TargetUnitScalarCallArgument],
-    arguments: &'a [TargetStructuralArgument],
+/// The result row one retained `Call`-family operation carries.
+enum EmbeddedResult<'a> {
+    /// `Call`: the callee returns Unit and no result row exists.
+    Unit,
+    /// `StructuralScalarCall`: the retained scalar result row.
+    Scalar(&'a AbstractResult),
+    /// `StructuralResultCall`: the call's result row, the retained declared
+    /// callee result, and the required durable home.
+    Structural {
+        result: &'a StructuralOperationResult,
+        callee_result: &'a StructuralResultDeclaration,
+        result_home: Option<&'a TargetStructuralHomeRequirement>,
+    },
+}
+
+/// One retained call-family row keyed by its source operation identity. Each
+/// variant is a distinct producer role; a row collected under the wrong role
+/// for its source operation rejects rather than silently passing.
+enum EmbeddedCall<'a> {
+    /// `Call`, `StructuralScalarCall`, and `StructuralResultCall` share one
+    /// scalar plus structural argument roster and an origin row.
+    Structural {
+        origin: &'a NativeCallOrigin,
+        callee: MachineId,
+        call_plan: &'a CallPlan,
+        scalar_arguments: &'a [TargetUnitScalarCallArgument],
+        arguments: &'a [TargetStructuralArgument],
+        result: EmbeddedResult<'a>,
+        claim_transfers: &'a [ClaimTransfer],
+        returned_claim_transfers: &'a [StructuralResultClaimTransfer],
+        requirement_obligations: &'a [ObligationId],
+        crash_continuations: &'a [CrashRouteBucket],
+    },
+    /// `ScalarCall`: a service-free scalar call with no structural roster.
+    Scalar {
+        callee: MachineId,
+        call_plan: &'a CallPlan,
+        result_home: &'a TargetUnitScalarHomeRequirement,
+        arguments: &'a [TargetUnitScalarCallArgument],
+        requirement_obligations: &'a [ObligationId],
+        crash_continuations: &'a [CrashRouteBucket],
+    },
+    /// `StructuralScalarCallWithDynamicArguments` and
+    /// `StructuralUnitCallWithDynamicArguments`: ordered `{data, table}`
+    /// descriptor pairs instead of scalar or structural rows.
+    DynamicArguments {
+        callee: MachineId,
+        call_plan: &'a CallPlan,
+        result: Option<(&'a AbstractResult, &'a TargetUnitScalarHomeRequirement)>,
+        structural_arguments: &'a [TargetStructuralArgument],
+        dynamic_arguments: &'a [TargetDynamicDescriptorArgument],
+        claim_transfers: &'a [ClaimTransfer],
+        requirement_obligations: &'a [ObligationId],
+        crash_continuations: &'a [CrashRouteBucket],
+    },
+    /// `StoredDynamicScalarCall`: reload and invoke one stored descriptor.
+    StoredDynamic {
+        dynamic_dispatch: &'a AbstractStoredDynamicDispatch,
+        call_plan: &'a CallPlan,
+        result: &'a AbstractResult,
+        result_home: &'a TargetUnitScalarHomeRequirement,
+        source_argument: &'a TargetStructuralArgument,
+        requirement_obligations: &'a [ObligationId],
+        crash_continuations: &'a [CrashRouteBucket],
+    },
+    /// `DynamicScalarCall` and `DynamicUnitCall`: rebound descriptor calls
+    /// through a private table.
+    ReboundDynamic {
+        dynamic_dispatch: &'a AbstractReboundDynamicDispatch,
+        call_plan: &'a CallPlan,
+        result: Option<(&'a AbstractResult, &'a TargetUnitScalarHomeRequirement)>,
+        initial_argument: &'a TargetStructuralArgument,
+        rebound_argument: &'a TargetStructuralArgument,
+        requirement_obligations: &'a [ObligationId],
+        crash_continuations: &'a [CrashRouteBucket],
+    },
+    /// `StoreDynamicDescriptor`: not a call, but its retained argument row
+    /// embeds the unique stored call's plan placement and must replay it.
+    StoredDescriptor {
+        stored: &'a AbstractStoredDynamicDescriptor,
+        source_argument: &'a TargetStructuralArgument,
+    },
+}
+
+/// The result contract one source operation binds the embedded call to.
+enum BoundResult<'a> {
+    Unit,
+    Scalar(&'a AbstractResult),
+    Structural(&'a StructuralOperationResult),
+}
+
+/// Everything one replay needs that stays constant across the plan.
+struct Replay<'a> {
+    source: &'a AbstractFunction,
+    source_functions: &'a [AbstractFunction],
+    target: &'a TargetFunction,
+    target_functions: &'a [TargetFunction],
+    declarations: &'a [StructuralTypeDeclaration],
+    native_target: NativeTarget,
+    roots: &'a BTreeMap<PlaceId, RootDeclaration>,
 }
 
 /// The semantic referent declaration bound to one argument place: the root
@@ -38,184 +155,1431 @@ pub(super) fn validate(
     source: &AbstractFunction,
     source_functions: &[AbstractFunction],
     target: &TargetFunction,
+    target_functions: &[TargetFunction],
     declarations: &[StructuralTypeDeclaration],
     native_target: NativeTarget,
 ) -> Result<(), OperationId> {
-    let target_calls = target
+    // One source operation yields at most one retained call row; a second row
+    // under the same operation key can only shadow the honest replay.
+    let mut target_calls = BTreeMap::new();
+    for call in target
         .graph
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| {
-            let (psi_operation, origin, callee, call_plan, scalar_arguments, arguments) =
-                match operation {
-                    TargetUnitOperation::Call {
-                        origin,
-                        psi_operation,
-                        callee,
-                        call_plan,
-                        scalar_arguments,
-                        arguments,
-                        ..
-                    }
-                    | TargetUnitOperation::StructuralScalarCall {
-                        origin,
-                        psi_operation,
-                        callee,
-                        call_plan,
-                        scalar_arguments,
-                        arguments,
-                        ..
-                    }
-                    | TargetUnitOperation::StructuralResultCall {
-                        origin,
-                        psi_operation,
-                        callee,
-                        call_plan,
-                        scalar_arguments,
-                        arguments,
-                        ..
-                    } => (
-                        *psi_operation,
-                        origin,
-                        *callee,
-                        call_plan,
-                        scalar_arguments.as_slice(),
-                        arguments.as_slice(),
-                    ),
-                    _ => return None,
-                };
-            Some((
-                psi_operation,
-                TargetCall {
+            let call = match operation {
+                TargetUnitOperation::Call {
                     origin,
+                    psi_operation,
                     callee,
                     call_plan,
                     scalar_arguments,
                     arguments,
-                },
-            ))
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::Structural {
+                        origin,
+                        callee: *callee,
+                        call_plan,
+                        scalar_arguments,
+                        arguments,
+                        result: EmbeddedResult::Unit,
+                        claim_transfers,
+                        returned_claim_transfers: &[],
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::StructuralScalarCall {
+                    origin,
+                    psi_operation,
+                    result,
+                    callee,
+                    call_plan,
+                    scalar_arguments,
+                    arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::Structural {
+                        origin,
+                        callee: *callee,
+                        call_plan,
+                        scalar_arguments,
+                        arguments,
+                        result: EmbeddedResult::Scalar(result),
+                        claim_transfers,
+                        returned_claim_transfers: &[],
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::StructuralResultCall {
+                    origin,
+                    psi_operation,
+                    result,
+                    callee,
+                    callee_result,
+                    result_home,
+                    call_plan,
+                    scalar_arguments,
+                    arguments,
+                    claim_transfers,
+                    returned_claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::Structural {
+                        origin,
+                        callee: *callee,
+                        call_plan,
+                        scalar_arguments,
+                        arguments,
+                        result: EmbeddedResult::Structural {
+                            result,
+                            callee_result,
+                            result_home: result_home.as_ref(),
+                        },
+                        claim_transfers,
+                        returned_claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::ScalarCall {
+                    psi_operation,
+                    callee,
+                    call_plan,
+                    result_home,
+                    arguments,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::Scalar {
+                        callee: *callee,
+                        call_plan,
+                        result_home,
+                        arguments,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
+                    psi_operation,
+                    result,
+                    callee,
+                    call_plan,
+                    result_home,
+                    structural_arguments,
+                    dynamic_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::DynamicArguments {
+                        callee: *callee,
+                        call_plan,
+                        result: Some((result, result_home)),
+                        structural_arguments,
+                        dynamic_arguments,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::StructuralUnitCallWithDynamicArguments {
+                    psi_operation,
+                    callee,
+                    call_plan,
+                    structural_arguments,
+                    dynamic_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::DynamicArguments {
+                        callee: *callee,
+                        call_plan,
+                        result: None,
+                        structural_arguments,
+                        dynamic_arguments,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::StoredDynamicScalarCall {
+                    psi_operation,
+                    result,
+                    dynamic_dispatch,
+                    call_plan,
+                    result_home,
+                    source_argument,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::StoredDynamic {
+                        dynamic_dispatch,
+                        call_plan,
+                        result,
+                        result_home,
+                        source_argument,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::DynamicScalarCall {
+                    psi_operation,
+                    result,
+                    dynamic_dispatch,
+                    call_plan,
+                    result_home,
+                    initial_argument,
+                    rebound_argument,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::ReboundDynamic {
+                        dynamic_dispatch,
+                        call_plan,
+                        result: Some((result, result_home)),
+                        initial_argument,
+                        rebound_argument,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::DynamicUnitCall {
+                    psi_operation,
+                    dynamic_dispatch,
+                    call_plan,
+                    initial_argument,
+                    rebound_argument,
+                    requirement_obligations,
+                    crash_continuations,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::ReboundDynamic {
+                        dynamic_dispatch,
+                        call_plan,
+                        result: None,
+                        initial_argument,
+                        rebound_argument,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                ),
+                TargetUnitOperation::StoreDynamicDescriptor {
+                    psi_operation,
+                    stored,
+                    source_argument,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::StoredDescriptor {
+                        stored,
+                        source_argument,
+                    },
+                ),
+                _ => return None,
+            };
+            Some(call)
         })
-        .collect::<BTreeMap<_, _>>();
+    {
+        if target_calls.insert(call.0, call.1).is_some() {
+            return Err(call.0);
+        }
+    }
+
+    // Every retained call row must bind to one source call-family operation.
+    // A row keyed to anything else has no declaration to replay against, so it
+    // is forged whether or not its fields happen to look consistent.
+    let source_call_operations = source
+        .operations
+        .iter()
+        .filter_map(|operation| {
+            Some(*match operation {
+                AbstractOperation::CallUnit { psi_operation, .. }
+                | AbstractOperation::CallStructuralScalar { psi_operation, .. }
+                | AbstractOperation::CallStructural { psi_operation, .. }
+                | AbstractOperation::BoundaryCall { psi_operation, .. }
+                | AbstractOperation::Call { psi_operation, .. }
+                | AbstractOperation::CallUnitWithDynamicArguments { psi_operation, .. }
+                | AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                    psi_operation,
+                    ..
+                }
+                | AbstractOperation::CallStoredDynamicScalar { psi_operation, .. }
+                | AbstractOperation::CallDynamicScalar { psi_operation, .. }
+                | AbstractOperation::CallDynamicUnit { psi_operation, .. }
+                | AbstractOperation::CallDynamicParameterScalar { psi_operation, .. }
+                | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. }
+                | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. } => psi_operation,
+                _ => return None,
+            })
+        })
+        .collect::<BTreeSet<_>>();
 
     let roots = canonical_roots(source);
+    let replay = Replay {
+        source,
+        source_functions,
+        target,
+        target_functions,
+        declarations,
+        native_target,
+        roots: &roots,
+    };
 
     for operation in &source.operations {
-        let (psi_operation, source_callee, scalar_arguments, structural_arguments) = match operation
-        {
+        match operation {
             AbstractOperation::CallUnit {
                 psi_operation,
                 callee,
                 arguments,
                 structural_arguments,
-                ..
-            }
-            | AbstractOperation::CallStructuralScalar {
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => replay.structural_call(
+                *psi_operation,
+                *callee,
+                BoundResult::Unit,
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                &[],
+                requirement_obligations,
+                crash_continuations,
+                target_calls.get(psi_operation),
+            )?,
+            AbstractOperation::CallStructuralScalar {
                 psi_operation,
+                result,
                 callee,
                 arguments,
                 structural_arguments,
-                ..
-            }
-            | AbstractOperation::CallStructural {
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => replay.structural_call(
+                *psi_operation,
+                *callee,
+                BoundResult::Scalar(result),
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                &[],
+                requirement_obligations,
+                crash_continuations,
+                target_calls.get(psi_operation),
+            )?,
+            AbstractOperation::CallStructural {
                 psi_operation,
+                result,
                 callee,
                 arguments,
                 structural_arguments,
-                ..
+                claim_transfers,
+                returned_claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                selected_evidence,
             } => {
-                if target_calls
-                    .get(psi_operation)
-                    .is_some_and(|call| call.origin != &NativeCallOrigin::Authored)
-                {
+                if !selected_evidence.is_empty() {
                     return Err(*psi_operation);
                 }
-                (
+                replay.structural_call(
                     *psi_operation,
                     *callee,
-                    arguments.as_slice(),
-                    structural_arguments.as_slice(),
-                )
+                    BoundResult::Structural(result),
+                    arguments,
+                    structural_arguments,
+                    claim_transfers,
+                    returned_claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                    target_calls.get(psi_operation),
+                )?;
             }
             AbstractOperation::BoundaryCall {
                 psi_operation,
+                result,
                 boundary,
                 arguments,
                 structural_arguments,
                 completion_claim_sources,
                 completion_receipts,
-                ..
-            } => {
-                let Some(call) = target_calls.get(psi_operation) else {
-                    continue;
-                };
-                let NativeCallOrigin::InstalledProvider {
-                    boundary: expected,
-                    provider,
-                    completion_claim_sources: sources,
-                    completion_receipts: receipts,
-                } = call.origin
-                else {
-                    return Err(*psi_operation);
-                };
-                if expected != boundary
-                    || provider.boundary != *boundary
-                    || provider.candidate != call.callee
-                    || sources != completion_claim_sources
-                    || receipts != completion_receipts
-                    || call.scalar_arguments.len() != arguments.len()
-                {
+            } => replay.boundary_call(
+                *psi_operation,
+                result,
+                *boundary,
+                arguments,
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+                target_calls.get(psi_operation),
+            )?,
+            AbstractOperation::Call {
+                psi_operation,
+                result,
+                scalar_type,
+                callee,
+                arguments,
+                requirement_obligations,
+                crash_continuations,
+            } => replay.scalar_call(
+                *psi_operation,
+                *result,
+                *scalar_type,
+                *callee,
+                arguments,
+                requirement_obligations,
+                crash_continuations,
+                target_calls.get(psi_operation),
+            )?,
+            AbstractOperation::CallUnitWithDynamicArguments {
+                psi_operation,
+                callee,
+                structural_arguments,
+                dynamic_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => replay.dynamic_arguments_call(
+                *psi_operation,
+                *callee,
+                None,
+                structural_arguments,
+                dynamic_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                target_calls.get(psi_operation),
+            )?,
+            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                psi_operation,
+                result,
+                callee,
+                structural_arguments,
+                dynamic_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => replay.dynamic_arguments_call(
+                *psi_operation,
+                *callee,
+                Some(result),
+                structural_arguments,
+                dynamic_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                target_calls.get(psi_operation),
+            )?,
+            AbstractOperation::CallStoredDynamicScalar {
+                psi_operation,
+                result,
+                dynamic_dispatch,
+                requirement_obligations,
+                crash_continuations,
+            } => replay.stored_dynamic_call(
+                *psi_operation,
+                result,
+                dynamic_dispatch,
+                requirement_obligations,
+                crash_continuations,
+                target_calls.get(psi_operation),
+            )?,
+            AbstractOperation::CallDynamicScalar {
+                psi_operation,
+                result,
+                dynamic_dispatch,
+                requirement_obligations,
+                crash_continuations,
+            } => replay.rebound_dynamic_call(
+                *psi_operation,
+                Some(result),
+                dynamic_dispatch,
+                requirement_obligations,
+                crash_continuations,
+                target_calls.get(psi_operation),
+            )?,
+            // `CallDynamicUnit`, like the parameter-dispatch calls, has no
+            // producer lane in this stage: the only lowerer admits the scalar
+            // form, so any retained call row keyed to one is forged.
+            AbstractOperation::CallDynamicUnit { psi_operation, .. }
+            | AbstractOperation::CallDynamicParameterScalar { psi_operation, .. }
+            | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. } => {
+                if target_calls.contains_key(psi_operation) {
                     return Err(*psi_operation);
                 }
-                (
-                    *psi_operation,
-                    provider.candidate,
-                    arguments.as_slice(),
-                    structural_arguments.as_slice(),
-                )
+            }
+            AbstractOperation::StoreDynamicDescriptor {
+                psi_operation,
+                stored,
+            } => {
+                replay.stored_descriptor(*psi_operation, stored, target_calls.get(psi_operation))?
             }
             _ => continue,
+        }
+    }
+    if let Some(&forged) = target_calls
+        .keys()
+        .find(|key| !source_call_operations.contains(key))
+    {
+        return Err(forged);
+    }
+    Ok(())
+}
+
+impl Replay<'_> {
+    fn callee(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+    ) -> Result<&AbstractFunction, OperationId> {
+        self.source_functions
+            .iter()
+            .find(|function| function.machine == machine)
+            .ok_or(operation)
+    }
+
+    /// The independently derived signature and evaluated plan for one callee.
+    /// The embedded plan is not authority: a substituted scalar row, result
+    /// placement, or plan detail cannot carry matching destinations.
+    fn expected_plan(
+        &self,
+        callee: &AbstractFunction,
+        operation: OperationId,
+    ) -> Result<CallPlan, OperationId> {
+        let signature =
+            structural_signatures::signature(callee, self.declarations).ok_or(operation)?;
+        evaluate_call_plan(
+            CallingPolicy::native_for_target(self.native_target),
+            &signature,
+        )
+        .map_err(|_| operation)
+    }
+
+    /// Authored and installed `Call`-family rows share one roster shape; the
+    /// expected origin and result contract differ per source operation.
+    #[allow(clippy::too_many_arguments)]
+    fn structural_call(
+        &self,
+        psi_operation: OperationId,
+        source_callee: MachineId,
+        expected_result: BoundResult<'_>,
+        scalar_arguments: &[ValueId],
+        structural_arguments: &[StructuralArgument],
+        claim_transfers: &[ClaimTransfer],
+        returned_claim_transfers: &[StructuralResultClaimTransfer],
+        requirement_obligations: &[ObligationId],
+        crash_continuations: &[CrashRouteBucket],
+        call: Option<&EmbeddedCall<'_>>,
+    ) -> Result<(), OperationId> {
+        let Some(call) = call else {
+            return Ok(());
         };
-        let Some(target_call) = target_calls.get(&psi_operation) else {
-            continue;
+        let EmbeddedCall::Structural {
+            origin,
+            callee,
+            call_plan,
+            scalar_arguments: actual_scalar,
+            arguments: actual_structural,
+            result: actual_result,
+            claim_transfers: actual_claims,
+            returned_claim_transfers: actual_returned,
+            requirement_obligations: actual_obligations,
+            crash_continuations: actual_crashes,
+        } = call
+        else {
+            return Err(psi_operation);
         };
-        if target_call.callee != source_callee
-            || target_call.arguments.len() != structural_arguments.len()
-            || target_call.scalar_arguments.len() != scalar_arguments.len()
+        // The producer admits only empty claim, obligation, and crash rosters
+        // on every lane that can emit this row, and an authored source never
+        // retains an installed-provider origin. A retained call carrying extra
+        // rows or the wrong origin is forged even when plausible.
+        if *origin != &NativeCallOrigin::Authored
+            || !claim_transfers.is_empty()
+            || !returned_claim_transfers.is_empty()
+            || !requirement_obligations.is_empty()
+            || !crash_continuations.is_empty()
+            || !actual_claims.is_empty()
+            || !actual_returned.is_empty()
+            || !actual_obligations.is_empty()
+            || !actual_crashes.is_empty()
+            || *callee != source_callee
+            || actual_structural.len() != structural_arguments.len()
+            || actual_scalar.len() != scalar_arguments.len()
         {
             return Err(psi_operation);
         }
-        let Some(callee) = source_functions
+        let callee_function = self.callee(source_callee, psi_operation)?;
+        // Every producer lane admits only fixed-native scalar parameters on
+        // the callee; a wider roster cannot produce this row.
+        if callee_function.structural_parameters.len() != actual_structural.len()
+            || callee_function.parameters.len() != scalar_arguments.len()
+            || callee_function.parameters.iter().any(|parameter| {
+                structural_signatures::fixed_native_scalar_shape(parameter.scalar_type).is_none()
+            })
+        {
+            return Err(psi_operation);
+        }
+        let expected_plan = self.expected_plan(callee_function, psi_operation)?;
+        if *call_plan != &expected_plan {
+            return Err(psi_operation);
+        }
+        self.scalar_arguments(
+            psi_operation,
+            actual_scalar,
+            scalar_arguments,
+            &callee_function.parameters,
+            &expected_plan,
+        )?;
+        for (index, ((actual, semantic), declared)) in actual_structural
+            .iter()
+            .zip(structural_arguments)
+            .zip(&callee_function.structural_parameters)
+            .enumerate()
+        {
+            self.structural_argument(
+                psi_operation,
+                index + scalar_arguments.len(),
+                actual,
+                semantic,
+                declared,
+                &expected_plan,
+            )?;
+        }
+        self.bind_result(
+            psi_operation,
+            expected_result,
+            actual_result,
+            callee_function,
+        )
+    }
+
+    /// An installed provider call projects the boundary call's scalar and
+    /// structural rosters through the selected candidate's signature; the
+    /// origin row carries the boundary, provider, and receipt identity so a
+    /// substituted provider or receipt set cannot satisfy the replay.
+    #[allow(clippy::too_many_arguments)]
+    fn boundary_call(
+        &self,
+        psi_operation: OperationId,
+        result: &AbstractBoundaryResult,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        arguments: &[ValueId],
+        structural_arguments: &[StructuralArgument],
+        completion_claim_sources: &[CompletionClaimSource],
+        completion_receipts: &[terminal_psi::CompletionReceipt],
+        call: Option<&EmbeddedCall<'_>>,
+    ) -> Result<(), OperationId> {
+        let Some(call) = call else {
+            return Ok(());
+        };
+        let EmbeddedCall::Structural {
+            origin:
+                NativeCallOrigin::InstalledProvider {
+                    boundary: actual_boundary,
+                    provider,
+                    completion_claim_sources: actual_sources,
+                    completion_receipts: actual_receipts,
+                },
+            callee,
+            call_plan,
+            scalar_arguments: actual_scalar,
+            arguments: actual_structural,
+            result: actual_result,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } = call
+        else {
+            return Err(psi_operation);
+        };
+        // The resolved call carries claim transfers derived from the
+        // completion receipts; every receiving lane admits only empty rosters,
+        // so a call with receipts or any nonempty roster row is forged.
+        if *actual_boundary != boundary
+            || provider.boundary != boundary
+            || provider.candidate != *callee
+            || *actual_sources != *completion_claim_sources
+            || *actual_receipts != *completion_receipts
+            || !completion_receipts.is_empty()
+            || !claim_transfers.is_empty()
+            || !returned_claim_transfers.is_empty()
+            || !requirement_obligations.is_empty()
+            || !crash_continuations.is_empty()
+        {
+            return Err(psi_operation);
+        }
+        let expected_result = match result {
+            AbstractBoundaryResult::Unit => BoundResult::Unit,
+            // A scalar boundary result has no honest embedded call row: the
+            // resolved projection admits only Unit and Structural results.
+            AbstractBoundaryResult::Scalar(_) => return Err(psi_operation),
+            AbstractBoundaryResult::Structural(result) => BoundResult::Structural(result),
+        };
+        let callee_function = self.callee(provider.candidate, psi_operation)?;
+        if callee_function.structural_parameters.len() != actual_structural.len()
+            || callee_function.parameters.len() != arguments.len()
+            || actual_structural.len() != structural_arguments.len()
+            || actual_scalar.len() != arguments.len()
+            || callee_function.parameters.iter().any(|parameter| {
+                structural_signatures::fixed_native_scalar_shape(parameter.scalar_type).is_none()
+            })
+        {
+            return Err(psi_operation);
+        }
+        let expected_plan = self.expected_plan(callee_function, psi_operation)?;
+        if *call_plan != &expected_plan {
+            return Err(psi_operation);
+        }
+        self.scalar_arguments(
+            psi_operation,
+            actual_scalar,
+            arguments,
+            &callee_function.parameters,
+            &expected_plan,
+        )?;
+        for (index, ((actual, semantic), declared)) in actual_structural
+            .iter()
+            .zip(structural_arguments)
+            .zip(&callee_function.structural_parameters)
+            .enumerate()
+        {
+            self.structural_argument(
+                psi_operation,
+                index + arguments.len(),
+                actual,
+                semantic,
+                declared,
+                &expected_plan,
+            )?;
+        }
+        self.bind_result(
+            psi_operation,
+            expected_result,
+            actual_result,
+            callee_function,
+        )
+    }
+
+    /// A scalar-result direct call replays the published fixed-native scalar
+    /// ABI: the callee must be the same service-free family the standalone
+    /// entrance publishes, and the published ABI rows must equal this plan.
+    #[allow(clippy::too_many_arguments)]
+    fn scalar_call(
+        &self,
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: ScalarType,
+        source_callee: MachineId,
+        arguments: &[ValueId],
+        requirement_obligations: &[ObligationId],
+        crash_continuations: &[CrashRouteBucket],
+        call: Option<&EmbeddedCall<'_>>,
+    ) -> Result<(), OperationId> {
+        let Some(&EmbeddedCall::Scalar {
+            callee,
+            call_plan,
+            result_home,
+            arguments: actual,
+            requirement_obligations: actual_obligations,
+            crash_continuations: actual_crashes,
+        }) = call
+        else {
+            return if call.is_none() {
+                Ok(())
+            } else {
+                Err(psi_operation)
+            };
+        };
+        if callee != source_callee
+            || actual.len() != arguments.len()
+            || *actual_obligations != *requirement_obligations
+            || *actual_crashes != *crash_continuations
+        {
+            return Err(psi_operation);
+        }
+        let callee_function = self.callee(source_callee, psi_operation)?;
+        let Some(callee_result) = callee_function.result.scalar() else {
+            return Err(psi_operation);
+        };
+        if !callee_function.structural_parameters.is_empty()
+            || !callee_function.entry_claims.is_empty()
+            || !callee_function.published_service_ceiling.is_empty()
+            || callee_function.operations.iter().any(|operation| {
+                matches!(
+                    operation,
+                    AbstractOperation::DynamicDescriptorParameter { .. }
+                )
+            })
+            || callee_result.scalar_type != scalar_type
+            || structural_signatures::fixed_native_scalar_shape(scalar_type).is_none()
+            || callee_function.parameters.len() != arguments.len()
+            || callee_function.parameters.iter().any(|parameter| {
+                structural_signatures::fixed_native_scalar_shape(parameter.scalar_type).is_none()
+            })
+        {
+            return Err(psi_operation);
+        }
+        let expected_plan = self.expected_plan(callee_function, psi_operation)?;
+        if call_plan != &expected_plan {
+            return Err(psi_operation);
+        }
+        let Some(result_placement) = expected_plan.result.as_ref() else {
+            return Err(psi_operation);
+        };
+        // The producer admits only a single-register result at offset zero.
+        if !matches!(
+            result_placement.locations.as_slice(),
+            [ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            }] if *byte_size == result_placement.shape.byte_size
+        ) {
+            return Err(psi_operation);
+        }
+        self.scalar_arguments(
+            psi_operation,
+            actual,
+            arguments,
+            &callee_function.parameters,
+            &expected_plan,
+        )?;
+        if result_home.defining_operation != psi_operation
+            || result_home.source_value != result
+            || result_home.scalar_type != scalar_type
+            || result_home.shape != result_placement.shape
+        {
+            return Err(psi_operation);
+        }
+        // The callee's published standalone entrance must carry this same
+        // plan and identity rows; a call to a callee that never published one
+        // is forged no matter how consistent the embedded plan looks.
+        let expected_abi = ScalarFunctionAbi {
+            call_plan: expected_plan.clone(),
+            parameters: callee_function
+                .parameters
+                .iter()
+                .zip(&expected_plan.parameters)
+                .map(|(parameter, placement)| ScalarAbiValue {
+                    value: parameter.value,
+                    scalar_type: parameter.scalar_type,
+                    placement: placement.clone(),
+                })
+                .collect(),
+            result: ScalarAbiValue {
+                value: callee_result.value,
+                scalar_type: callee_result.scalar_type,
+                placement: result_placement.clone(),
+            },
+        };
+        if self
+            .target_functions
             .iter()
             .find(|function| function.machine == source_callee)
-        else {
-            return Err(psi_operation);
-        };
-        if callee.structural_parameters.len() != target_call.arguments.len()
-            || callee.parameters.len() != scalar_arguments.len()
+            .and_then(|function| function.scalar_abi.as_ref())
+            != Some(&expected_abi)
         {
             return Err(psi_operation);
         }
-        // The embedded plan is not authority: independently re-derive the
-        // callee's signature and evaluated plan so a substituted scalar row,
-        // result placement, or plan detail cannot carry matching destinations.
-        let Some(signature) = super::structural_signatures::signature(callee, declarations) else {
-            return Err(psi_operation);
-        };
-        let Ok(expected_plan) =
-            evaluate_call_plan(CallingPolicy::native_for_target(native_target), &signature)
+        Ok(())
+    }
+
+    /// A dynamic-argument call expands each existential descriptor into an
+    /// ordered `{data, table}` pointer pair. The callee's leading descriptor
+    /// parameters, the source custody joins, and the concrete instance
+    /// projections all replay independently.
+    #[allow(clippy::too_many_arguments)]
+    fn dynamic_arguments_call(
+        &self,
+        psi_operation: OperationId,
+        source_callee: MachineId,
+        expected_result: Option<&AbstractResult>,
+        source_structural: &[StructuralArgument],
+        source_dynamic: &[AbstractDynamicDescriptorArgument],
+        claim_transfers: &[ClaimTransfer],
+        requirement_obligations: &[ObligationId],
+        crash_continuations: &[CrashRouteBucket],
+        call: Option<&EmbeddedCall<'_>>,
+    ) -> Result<(), OperationId> {
+        let Some(&EmbeddedCall::DynamicArguments {
+            callee,
+            call_plan,
+            result: actual_result,
+            structural_arguments,
+            dynamic_arguments,
+            claim_transfers: actual_claims,
+            requirement_obligations: actual_obligations,
+            crash_continuations: actual_crashes,
+        }) = call
         else {
-            return Err(psi_operation);
+            return if call.is_none() {
+                Ok(())
+            } else {
+                Err(psi_operation)
+            };
         };
-        if target_call.call_plan != &expected_plan {
+        if self.source.attachment.is_none()
+            || !source_structural.is_empty()
+            || source_dynamic.is_empty()
+            || callee != source_callee
+            || !structural_arguments.is_empty()
+            || dynamic_arguments.len() != source_dynamic.len()
+            || *actual_claims != *claim_transfers
+            || *actual_obligations != *requirement_obligations
+            || *actual_crashes != *crash_continuations
+        {
             return Err(psi_operation);
         }
-        for (position, ((actual, value), declared)) in target_call
-            .scalar_arguments
+        let callee_function = self.callee(source_callee, psi_operation)?;
+        let callee_dynamic_parameters = callee_function
+            .operations
             .iter()
-            .zip(scalar_arguments)
-            .zip(&callee.parameters)
-            .enumerate()
+            .take_while(|operation| {
+                matches!(
+                    operation,
+                    AbstractOperation::DynamicDescriptorParameter { .. }
+                )
+            })
+            .filter_map(|operation| match operation {
+                AbstractOperation::DynamicDescriptorParameter { parameter } => Some(parameter),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let result_matches = match (expected_result, &callee_function.result) {
+            (None, AbstractFunctionResult::Unit) => true,
+            (Some(result), AbstractFunctionResult::Scalar(declared)) => {
+                declared.scalar_type == result.scalar_type
+                    && matches!(
+                        result.scalar_type,
+                        ScalarType::Boolean | ScalarType::Integer(_)
+                    )
+            }
+            _ => false,
+        };
+        if !result_matches
+            || !callee_function.parameters.is_empty()
+            || !callee_function.structural_parameters.is_empty()
+            || !callee_function.published_service_ceiling.is_empty()
+            || callee_dynamic_parameters.len() != source_dynamic.len()
+            || source_dynamic
+                .iter()
+                .enumerate()
+                .any(|(ordinal, argument)| {
+                    argument.target != *callee_dynamic_parameters[ordinal]
+                        || argument.target.ordinal != u32::try_from(ordinal).unwrap_or(u32::MAX)
+                        || argument.target.source_position
+                            != u32::try_from(ordinal).unwrap_or(u32::MAX)
+                        || !argument.has_complete_custody(
+                            self.source.machine,
+                            psi_operation,
+                            source_callee,
+                        )
+                })
+        {
+            return Err(psi_operation);
+        }
+        let pointer_size =
+            u16::try_from(self.native_target.pointer_size).map_err(|_| psi_operation)?;
+        let pointer_alignment =
+            u16::try_from(self.native_target.pointer_alignment).map_err(|_| psi_operation)?;
+        let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+        let result_shape =
+            expected_result.map(|result| structural_shapes::scalar_shape(result.scalar_type));
+        let descriptor_parameter_count =
+            source_dynamic.len().checked_mul(2).ok_or(psi_operation)?;
+        let expected_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(self.native_target),
+            &CallSignature {
+                parameters: vec![pointer_shape; descriptor_parameter_count],
+                result: result_shape,
+            },
+        )
+        .map_err(|_| psi_operation)?;
+        if call_plan != &expected_plan
+            || expected_plan.parameters.len() != descriptor_parameter_count
+        {
+            return Err(psi_operation);
+        }
+        match (expected_result, actual_result) {
+            (None, None) => {}
+            (Some(expected), Some((actual, home))) => {
+                if *actual != *expected
+                    || home.defining_operation != psi_operation
+                    || home.source_value != expected.value
+                    || home.scalar_type != expected.scalar_type
+                    || Some(home.shape) != result_shape
+                {
+                    return Err(psi_operation);
+                }
+            }
+            _ => return Err(psi_operation),
+        }
+        for (ordinal, (actual, custody)) in dynamic_arguments.iter().zip(source_dynamic).enumerate()
+        {
+            self.descriptor_argument(psi_operation, ordinal, actual, custody, &expected_plan)?;
+        }
+        Ok(())
+    }
+
+    /// One `{data, table}` descriptor pair replays its selection's concrete
+    /// instance projection through the caller's own parameter placement.
+    fn descriptor_argument(
+        &self,
+        psi_operation: OperationId,
+        ordinal: usize,
+        actual: &TargetDynamicDescriptorArgument,
+        custody: &AbstractDynamicDescriptorArgument,
+        expected_plan: &CallPlan,
+    ) -> Result<(), OperationId> {
+        if actual.custody != *custody {
+            return Err(psi_operation);
+        }
+        let selection = match &custody.source {
+            AbstractDynamicDescriptorSource::Selection { selection, .. } => selection,
+            AbstractDynamicDescriptorSource::Rebound { rebound, .. } => rebound,
+            AbstractDynamicDescriptorSource::Parameter(_) => return Err(psi_operation),
+        };
+        let source = &selection.source;
+        if custody.target.access != source.access
+            || source.path.is_empty()
+            || source
+                .path
+                .iter()
+                .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+        {
+            return Err(psi_operation);
+        }
+        let root = self
+            .target
+            .graph
+            .parameters
+            .iter()
+            .find(|parameter| parameter.place == source.place)
+            .ok_or(psi_operation)?;
+        let (projected_type, projected_shape, byte_offset) = structural_shapes::projected_field(
+            root.structural_type,
+            &source.path,
+            self.declarations,
+        )
+        .map_err(|_| psi_operation)?;
+        if byte_offset
+            .checked_add(u32::from(projected_shape.byte_size))
+            .is_none_or(|end| end > u32::from(root.shape.byte_size))
+        {
+            return Err(psi_operation);
+        }
+        let instance_index = ordinal.checked_mul(2).ok_or(psi_operation)?;
+        let (Some(destination), Some(table)) = (
+            expected_plan.parameters.get(instance_index),
+            expected_plan.parameters.get(instance_index + 1),
+        ) else {
+            return Err(psi_operation);
+        };
+        let instance = &actual.instance;
+        if instance.place != source.place
+            || instance.access != source.access
+            || instance.path != source.path
+            || instance.root_structural_type != root.structural_type
+            || instance.structural_type != projected_type
+            || instance.shape != projected_shape
+            || instance.source_byte_offset != byte_offset
+            || instance.source != root.placement
+            || instance.destination != *destination
+            || actual.table_destination != *table
+        {
+            return Err(psi_operation);
+        }
+        Ok(())
+    }
+
+    /// A stored descriptor's retained source argument embeds the unique stored
+    /// call's plan placement; the descriptor custody, the unique call, and the
+    /// callee's single structural parameter all replay.
+    fn stored_descriptor(
+        &self,
+        psi_operation: OperationId,
+        stored: &AbstractStoredDynamicDescriptor,
+        call: Option<&EmbeddedCall<'_>>,
+    ) -> Result<(), OperationId> {
+        let Some(&EmbeddedCall::StoredDescriptor {
+            stored: actual_stored,
+            source_argument,
+        }) = call
+        else {
+            return if call.is_none() {
+                Ok(())
+            } else {
+                Err(psi_operation)
+            };
+        };
+        if actual_stored != stored
+            || !stored.has_complete_custody(self.source.machine, psi_operation)
+        {
+            return Err(psi_operation);
+        }
+        let calls = self
+            .source
+            .operations
+            .iter()
+            .filter_map(|candidate| match candidate {
+                AbstractOperation::CallStoredDynamicScalar {
+                    psi_operation,
+                    dynamic_dispatch,
+                    result,
+                    ..
+                } if &dynamic_dispatch.stored == stored => {
+                    Some((*psi_operation, dynamic_dispatch, result))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(call_operation, dispatch, result)] = calls.as_slice() else {
+            return Err(psi_operation);
+        };
+        let (expected_plan, callee_parameter) = self.stored_call_layout(
+            *call_operation,
+            psi_operation,
+            dispatch,
+            result.scalar_type,
+            structural_shapes::scalar_shape(result.scalar_type),
+        )?;
+        let [destination] = expected_plan.parameters.as_slice() else {
+            return Err(psi_operation);
+        };
+        self.projected_call_argument(
+            psi_operation,
+            source_argument,
+            &stored.selection.source,
+            callee_parameter,
+            destination,
+        )
+    }
+
+    /// A stored dynamic call replays the descriptor's unique establishment
+    /// and the callee realization's single-argument signature.
+    fn stored_dynamic_call(
+        &self,
+        psi_operation: OperationId,
+        result: &AbstractResult,
+        dynamic_dispatch: &AbstractStoredDynamicDispatch,
+        requirement_obligations: &[ObligationId],
+        crash_continuations: &[CrashRouteBucket],
+        call: Option<&EmbeddedCall<'_>>,
+    ) -> Result<(), OperationId> {
+        let Some(&EmbeddedCall::StoredDynamic {
+            dynamic_dispatch: actual_dispatch,
+            call_plan,
+            result: actual_result,
+            result_home,
+            source_argument,
+            requirement_obligations: actual_obligations,
+            crash_continuations: actual_crashes,
+        }) = call
+        else {
+            return if call.is_none() {
+                Ok(())
+            } else {
+                Err(psi_operation)
+            };
+        };
+        if !matches!(
+            result.scalar_type,
+            ScalarType::Boolean | ScalarType::Integer(_)
+        ) || self.source.attachment.is_none()
+            || actual_dispatch != dynamic_dispatch
+            || !dynamic_dispatch.has_complete_custody(self.source.machine, psi_operation)
+            || *actual_result != *result
+            || *actual_obligations != *requirement_obligations
+            || *actual_crashes != *crash_continuations
+            || self
+                .source
+                .operations
+                .iter()
+                .filter(|candidate| {
+                    matches!(candidate,
+                        AbstractOperation::StoreDynamicDescriptor { stored, .. }
+                            if stored == &dynamic_dispatch.stored)
+                })
+                .count()
+                != 1
+        {
+            return Err(psi_operation);
+        }
+        let result_shape = structural_shapes::scalar_shape(result.scalar_type);
+        let (expected_plan, callee_parameter) = self.stored_call_layout(
+            psi_operation,
+            psi_operation,
+            dynamic_dispatch,
+            result.scalar_type,
+            result_shape,
+        )?;
+        if call_plan != &expected_plan {
+            return Err(psi_operation);
+        }
+        let [destination] = expected_plan.parameters.as_slice() else {
+            return Err(psi_operation);
+        };
+        self.projected_call_argument(
+            psi_operation,
+            source_argument,
+            &dynamic_dispatch.stored.selection.source,
+            callee_parameter,
+            destination,
+        )?;
+        if result_home.defining_operation != psi_operation
+            || result_home.source_value != result.value
+            || result_home.scalar_type != result.scalar_type
+            || result_home.shape != result_shape
+        {
+            return Err(psi_operation);
+        }
+        Ok(())
+    }
+
+    /// The shared stored-call projection: dispatch custody joins at the call
+    /// operation, the realization callee admits exactly one structural
+    /// parameter and the matching scalar result, and the independently derived
+    /// plan leaves exactly one destination. Returns the evaluated plan and the
+    /// callee's sole structural parameter.
+    fn stored_call_layout(
+        &self,
+        custody_operation: OperationId,
+        error_operation: OperationId,
+        dynamic_dispatch: &AbstractStoredDynamicDispatch,
+        expected_result: ScalarType,
+        result_shape: ValueShape,
+    ) -> Result<(CallPlan, &StructuralParameterDeclaration), OperationId> {
+        if self.source.attachment.is_none()
+            || !dynamic_dispatch.has_complete_custody(self.source.machine, custody_operation)
+        {
+            return Err(error_operation);
+        }
+        let callee = dynamic_dispatch.dispatch.realization;
+        let callee_function = self.callee(callee, error_operation)?;
+        let [callee_parameter] = callee_function.structural_parameters.as_slice() else {
+            return Err(error_operation);
+        };
+        if !callee_function.parameters.is_empty()
+            || !matches!(
+                &callee_function.result,
+                AbstractFunctionResult::Scalar(result)
+                    if result.scalar_type == expected_result
+            )
+            || !callee_function.published_service_ceiling.is_empty()
+        {
+            return Err(error_operation);
+        }
+        let expected_plan = self.expected_plan(callee_function, error_operation)?;
+        let [_] = expected_plan.parameters.as_slice() else {
+            return Err(error_operation);
+        };
+        if expected_plan
+            .result
+            .as_ref()
+            .map(|placement| placement.shape)
+            != Some(result_shape)
+        {
+            return Err(error_operation);
+        }
+        Ok((expected_plan, callee_parameter))
+    }
+
+    /// A rebound dynamic call lowers both the initializer and the latest
+    /// source against the selected realization's single-argument signature.
+    fn rebound_dynamic_call(
+        &self,
+        psi_operation: OperationId,
+        expected_result: Option<&AbstractResult>,
+        dynamic_dispatch: &AbstractReboundDynamicDispatch,
+        requirement_obligations: &[ObligationId],
+        crash_continuations: &[CrashRouteBucket],
+        call: Option<&EmbeddedCall<'_>>,
+    ) -> Result<(), OperationId> {
+        let Some(&EmbeddedCall::ReboundDynamic {
+            dynamic_dispatch: actual_dispatch,
+            call_plan,
+            result: actual_result,
+            initial_argument,
+            rebound_argument,
+            requirement_obligations: actual_obligations,
+            crash_continuations: actual_crashes,
+        }) = call
+        else {
+            return if call.is_none() {
+                Ok(())
+            } else {
+                Err(psi_operation)
+            };
+        };
+        if self.source.attachment.is_none()
+            || actual_dispatch != dynamic_dispatch
+            || !dynamic_dispatch
+                .has_complete_application_custody(self.source.machine, psi_operation)
+            || *actual_obligations != *requirement_obligations
+            || *actual_crashes != *crash_continuations
+        {
+            return Err(psi_operation);
+        }
+        let callee = dynamic_dispatch.dispatch.realization;
+        let callee_function = self.callee(callee, psi_operation)?;
+        let [callee_parameter] = callee_function.structural_parameters.as_slice() else {
+            return Err(psi_operation);
+        };
+        let result_matches = match (&callee_function.result, expected_result) {
+            (AbstractFunctionResult::Unit, None) => true,
+            (AbstractFunctionResult::Scalar(declared), Some(result)) => {
+                declared.scalar_type == result.scalar_type
+                    && matches!(
+                        result.scalar_type,
+                        ScalarType::Boolean | ScalarType::Integer(_)
+                    )
+            }
+            _ => false,
+        };
+        if !result_matches
+            || !callee_function.parameters.is_empty()
+            || !callee_function.published_service_ceiling.is_empty()
+        {
+            return Err(psi_operation);
+        }
+        let result_shape =
+            expected_result.map(|result| structural_shapes::scalar_shape(result.scalar_type));
+        let expected_plan = self.expected_plan(callee_function, psi_operation)?;
+        let [destination] = expected_plan.parameters.as_slice() else {
+            return Err(psi_operation);
+        };
+        if call_plan != &expected_plan
+            || expected_plan
+                .result
+                .as_ref()
+                .map(|placement| placement.shape)
+                != result_shape
+        {
+            return Err(psi_operation);
+        }
+        self.projected_call_argument(
+            psi_operation,
+            initial_argument,
+            &dynamic_dispatch.initial.source,
+            callee_parameter,
+            destination,
+        )?;
+        self.projected_call_argument(
+            psi_operation,
+            rebound_argument,
+            &dynamic_dispatch.rebound.source,
+            callee_parameter,
+            destination,
+        )?;
+        match (expected_result, actual_result) {
+            (None, None) => Ok(()),
+            (Some(expected), Some((actual, home))) => {
+                if *actual == *expected
+                    && home.defining_operation == psi_operation
+                    && home.source_value == expected.value
+                    && home.scalar_type == expected.scalar_type
+                    && Some(home.shape) == result_shape
+                {
+                    Ok(())
+                } else {
+                    Err(psi_operation)
+                }
+            }
+            _ => Err(psi_operation),
+        }
+    }
+
+    /// The producer's `projected_argument::lower` replay: the argument must be
+    /// a nonempty field-only path into one caller structural parameter whose
+    /// projected carrier type, access-adjusted shape, and byte offset land on
+    /// the plan's canonical destination.
+    fn projected_call_argument(
+        &self,
+        psi_operation: OperationId,
+        actual: &TargetStructuralArgument,
+        source: &StructuralArgument,
+        callee_parameter: &StructuralParameterDeclaration,
+        destination: &ValuePlacement,
+    ) -> Result<(), OperationId> {
+        let root = self
+            .target
+            .graph
+            .parameters
+            .iter()
+            .find(|parameter| parameter.place == source.place)
+            .ok_or(psi_operation)?;
+        if source.path.is_empty()
+            || source
+                .path
+                .iter()
+                .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+        {
+            return Err(psi_operation);
+        }
+        let (projected_type, projected_shape, byte_offset) = structural_shapes::projected_field(
+            root.structural_type,
+            &source.path,
+            self.declarations,
+        )
+        .map_err(|_| psi_operation)?;
+        let shape = structural_shapes::parameter_shape(projected_shape, callee_parameter.access);
+        if projected_type != callee_parameter.structural_type
+            || source.access != callee_parameter.access
+            || shape != destination.shape
+            || u32::from(projected_shape.byte_size)
+                .checked_add(byte_offset)
+                .is_none_or(|end| end > u32::from(root.shape.byte_size))
+        {
+            return Err(psi_operation);
+        }
+        if actual.place != source.place
+            || actual.access != source.access
+            || actual.path != source.path
+            || actual.root_structural_type != root.structural_type
+            || actual.structural_type != projected_type
+            || actual.shape != shape
+            || actual.source_byte_offset != byte_offset
+            || actual.fixed_array_length.is_some()
+            || actual.element_stride.is_some()
+            || actual.source != TargetStructuralArgumentSource::Placement(root.placement.clone())
+            || actual.destination != *destination
+        {
+            return Err(psi_operation);
+        }
+        Ok(())
+    }
+
+    /// Ordered scalar argument rows bind the plan's anonymous parameter
+    /// placements back to the declared value and type identities.
+    fn scalar_arguments(
+        &self,
+        psi_operation: OperationId,
+        actual: &[TargetUnitScalarCallArgument],
+        values: &[ValueId],
+        declared: &[AbstractParameter],
+        expected_plan: &CallPlan,
+    ) -> Result<(), OperationId> {
+        for (position, ((actual, value), declared)) in
+            actual.iter().zip(values).zip(declared).enumerate()
         {
             let Ok(index) = u32::try_from(position) else {
                 return Err(psi_operation);
@@ -228,79 +1592,145 @@ pub(super) fn validate(
                 return Err(psi_operation);
             }
         }
-        for (index, ((actual, semantic), declared)) in target_call
-            .arguments
-            .iter()
-            .zip(structural_arguments)
-            .zip(&callee.structural_parameters)
-            .enumerate()
+        Ok(())
+    }
+
+    /// One retained structural call argument replays the declared parameter
+    /// identity, the independently reconstructed referent shape, and the
+    /// canonical destination placement.
+    fn structural_argument(
+        &self,
+        psi_operation: OperationId,
+        plan_index: usize,
+        actual: &TargetStructuralArgument,
+        semantic: &StructuralArgument,
+        declared: &StructuralParameterDeclaration,
+        expected_plan: &CallPlan,
+    ) -> Result<(), OperationId> {
+        if !matches_argument_identity(actual, semantic, declared) {
+            return Err(psi_operation);
+        }
+        let Some(referent) =
+            structural_shapes::reconstruct(actual.structural_type, self.declarations).ok()
+        else {
+            return Err(psi_operation);
+        };
+        if actual.shape != structural_shapes::parameter_shape(referent, actual.access) {
+            return Err(psi_operation);
+        }
+        let Some(destination) = expected_plan.parameters.get(plan_index) else {
+            return Err(psi_operation);
+        };
+        if actual.destination != *destination {
+            return Err(psi_operation);
+        }
+        let Some(root) = self.roots.get(&semantic.place) else {
+            return Ok(());
+        };
+        // Static subloans carry a pointer to the reconstructed leaf, not
+        // an array-view descriptor. Indexed paths need the same carrier
+        // and offset replay as fields; owned indexed copies retain their
+        // separate array transport metadata.
+        let static_borrow = root.access != StructuralAccess::Owned
+            && semantic.access != StructuralAccess::Owned
+            && semantic.path.iter().all(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                )
+            });
+        if static_borrow
+            || semantic
+                .path
+                .iter()
+                .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
         {
-            if !matches_argument_identity(actual, semantic, declared) {
+            if actual.root_structural_type != root.structural_type {
                 return Err(psi_operation);
             }
-            let Some(referent) =
-                structural_shapes::reconstruct(actual.structural_type, declarations).ok()
-            else {
-                return Err(psi_operation);
-            };
-            if actual.shape != structural_shapes::parameter_shape(referent, actual.access) {
-                return Err(psi_operation);
-            }
-            let Some(destination) = expected_plan
-                .parameters
-                .get(scalar_arguments.len().saturating_add(index))
-            else {
-                return Err(psi_operation);
-            };
-            if actual.destination != *destination {
-                return Err(psi_operation);
-            }
-            let Some(root) = roots.get(&semantic.place) else {
-                continue;
-            };
-            // Static subloans carry a pointer to the reconstructed leaf, not
-            // an array-view descriptor. Indexed paths need the same carrier
-            // and offset replay as fields; owned indexed copies retain their
-            // separate array transport metadata.
-            let static_borrow = root.access != StructuralAccess::Owned
-                && semantic.access != StructuralAccess::Owned
-                && semantic.path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-                    )
-                });
-            if static_borrow
-                || semantic
-                    .path
-                    .iter()
-                    .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-            {
-                if actual.root_structural_type != root.structural_type {
-                    return Err(psi_operation);
-                }
-                match structural_shapes::project_static_path(
-                    root.structural_type,
-                    &semantic.path,
-                    declarations,
-                ) {
-                    Ok((projected_type, byte_offset)) => {
-                        if !matches_projected_carrier(actual, projected_type, declarations)
-                            || actual.source_byte_offset != byte_offset
-                        {
-                            return Err(psi_operation);
-                        }
+            match structural_shapes::project_static_path(
+                root.structural_type,
+                &semantic.path,
+                self.declarations,
+            ) {
+                Ok((projected_type, byte_offset)) => {
+                    if !matches_projected_carrier(actual, projected_type, self.declarations)
+                        || actual.source_byte_offset != byte_offset
+                    {
+                        return Err(psi_operation);
                     }
-                    Err(_) => {
-                        if !matches_bounded_byte_field(actual, root, declarations) {
-                            return Err(psi_operation);
-                        }
+                }
+                Err(_) => {
+                    if !matches_bounded_byte_field(actual, root, self.declarations) {
+                        return Err(psi_operation);
                     }
                 }
             }
         }
+        Ok(())
     }
-    Ok(())
+
+    /// The retained result row must be the source-declared result verbatim,
+    /// the declared callee result kind, and the independently reconstructed
+    /// durable home. A physically similar row is never authority.
+    fn bind_result(
+        &self,
+        psi_operation: OperationId,
+        expected: BoundResult<'_>,
+        actual: &EmbeddedResult<'_>,
+        callee: &AbstractFunction,
+    ) -> Result<(), OperationId> {
+        match (expected, actual) {
+            (BoundResult::Unit, EmbeddedResult::Unit) => {
+                if callee.result != AbstractFunctionResult::Unit {
+                    return Err(psi_operation);
+                }
+                Ok(())
+            }
+            (BoundResult::Scalar(expected), EmbeddedResult::Scalar(actual)) => {
+                let declared = callee.result.scalar().ok_or(psi_operation)?;
+                if **actual != *expected
+                    || actual.scalar_type != declared.scalar_type
+                    || !callee.entry_claims.is_empty()
+                    || !callee.published_service_ceiling.is_empty()
+                {
+                    return Err(psi_operation);
+                }
+                Ok(())
+            }
+            (
+                BoundResult::Structural(expected),
+                EmbeddedResult::Structural {
+                    result,
+                    callee_result,
+                    result_home,
+                },
+            ) => {
+                let declared = callee.result.structural().ok_or(psi_operation)?;
+                if **result != *expected
+                    || *callee_result != declared
+                    || declared.structural_type != expected.structural_type
+                    || declared.multiplicity != expected.multiplicity
+                    || !declared.qualifications.is_empty()
+                    || !declared.projected_qualifications.is_empty()
+                    || !callee.entry_claims.is_empty()
+                {
+                    return Err(psi_operation);
+                }
+                let expected_home = structural_shapes::structural_result_home(
+                    psi_operation,
+                    expected,
+                    self.declarations,
+                )
+                .map_err(|_| psi_operation)?;
+                if *result_home != Some(&expected_home) {
+                    return Err(psi_operation);
+                }
+                Ok(())
+            }
+            _ => Err(psi_operation),
+        }
+    }
 }
 
 /// A fixed byte array lends its original backing through a view descriptor.
@@ -364,14 +1794,16 @@ fn matches_bounded_byte_field(
     matches!(
         actual.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) && match (root.access, actual.access) {
+    ) && matches!(
+        (root.access, actual.access),
         (
             StructuralAccess::MutableBorrow,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+        ) | (
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::SharedBorrow
         )
-        | (StructuralAccess::SharedBorrow, StructuralAccess::SharedBorrow) => true,
-        _ => false,
-    } && declarations.iter().any(|declaration| {
+    ) && declarations.iter().any(|declaration| {
         declaration.id == actual.structural_type
             && declaration.shape
                 == terminal_psi::StructuralTypeShape::ByteSequence(

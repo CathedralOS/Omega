@@ -241,7 +241,7 @@ fn scalar_rows(
 
 /// Producer-independent fixed native shape eligibility for the published
 /// scalar ABI: Booleans, fixed 8/16/32/64 integers, and IEEE floats.
-fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+pub(super) fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     match scalar_type {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::Integer(integer) => fixed_native_integer_shape(integer),
@@ -261,7 +261,7 @@ fn fixed_integer_or_boolean_shape(scalar_type: ScalarType) -> Option<ValueShape>
     }
 }
 
-fn fixed_native_integer_shape(integer: IntegerType) -> Option<ValueShape> {
+pub(super) fn fixed_native_integer_shape(integer: IntegerType) -> Option<ValueShape> {
     if integer.carrier() != IntegerCarrier::Fixed || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
         return None;
     }

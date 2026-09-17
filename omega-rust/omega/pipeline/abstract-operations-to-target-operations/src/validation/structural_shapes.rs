@@ -2,11 +2,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use calling_conventions::ValueShape;
-use semantic_vocabulary::{IeeeFloatFormat, ScalarType, StructuralTypeId};
+use calling_conventions::{ConventionalSumLayout, ValueShape};
+use semantic_vocabulary::{IeeeFloatFormat, OperationId, ScalarType, StructuralTypeId};
+use target_operations::{
+    TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
+};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -124,6 +128,76 @@ pub(super) fn project_static_path(
         structural_type = field_type;
     }
     Ok((structural_type, byte_offset))
+}
+
+/// The call-argument projection: every segment names a record field and the
+/// projected shape is the selected field's own storage shape. Leaf fields keep
+/// their natural declaration shape resolved through the canonical leaf
+/// catalog; the returned shape is not the catalog's normalized scalar shape,
+/// matching the producer's `resolve_structural_field_path` replay exactly.
+pub(super) fn projected_field(
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<(StructuralTypeId, ValueShape, u32), InvalidStructuralShape> {
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let mut byte_offset = 0_u32;
+    let mut selected_shape = None;
+    for segment in path {
+        let StructuralPathSegment::Field(identity) = segment else {
+            return Err(InvalidStructuralShape);
+        };
+        let declaration = indexed
+            .get(&structural_type)
+            .ok_or(InvalidStructuralShape)?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return Err(InvalidStructuralShape);
+        };
+        let mut local_offset = 0_u32;
+        let mut selected = None;
+        for field in fields.iter().filter(|field| {
+            !field.relevance.is_erased()
+                && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+        }) {
+            let shape = field_shape(&field.field_type, &indexed, &mut cache, &mut active)?;
+            local_offset = align(local_offset, u32::from(shape.alignment))?;
+            if field.identity == *identity {
+                let field_type = match &field.field_type {
+                    StructuralFieldType::Structural(nested) => *nested,
+                    leaf => {
+                        let shape = leaf.canonical_leaf_shape().ok_or(InvalidStructuralShape)?;
+                        *indexed
+                            .iter()
+                            .find(|(_, declaration)| declaration.shape == shape)
+                            .map(|(id, _)| id)
+                            .ok_or(InvalidStructuralShape)?
+                    }
+                };
+                selected = Some((field_type, shape, local_offset));
+                break;
+            }
+            local_offset = local_offset
+                .checked_add(u32::from(shape.byte_size))
+                .ok_or(InvalidStructuralShape)?;
+        }
+        let (field_type, shape, field_offset) = selected.ok_or(InvalidStructuralShape)?;
+        byte_offset = byte_offset
+            .checked_add(field_offset)
+            .ok_or(InvalidStructuralShape)?;
+        structural_type = field_type;
+        selected_shape = Some(shape);
+    }
+    selected_shape
+        .map(|shape| (structural_type, shape, byte_offset))
+        .ok_or(InvalidStructuralShape)
 }
 
 /// A bounded inline byte field has no projected carrier identity: the path's
@@ -301,6 +375,17 @@ fn conventional_sum_shape(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<ValueShape, InvalidStructuralShape> {
+    conventional_sum_layout(common_fields, cases, declarations, cache, active)
+        .map(|layout| layout.shape)
+}
+
+fn conventional_sum_layout(
+    common_fields: &[terminal_psi::StructuralFieldDeclaration],
+    cases: &[terminal_psi::StructuralCaseDeclaration],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<ConventionalSumLayout, InvalidStructuralShape> {
     let common = common_fields
         .iter()
         .filter(|field| !field.relevance.is_erased())
@@ -317,8 +402,80 @@ fn conventional_sum_shape(
         })
         .collect::<Result<Vec<_>, _>>()?;
     calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
-        .map(|layout| layout.shape)
         .map_err(|_| InvalidStructuralShape)
+}
+
+/// The exact durable home one `StructuralResultCall` must require, replayed the
+/// way the producer derives it: the retained operation-result origin carries
+/// the semantic result row verbatim, and the layout is the aggregate shape or
+/// the conventional sum layout the declared structural type resolves to.
+/// Claimed, linear, qualified, or non-aggregate non-sum results have no honest
+/// home, so a retained home on one is forged regardless of how plausible the
+/// layout looks.
+pub(super) fn structural_result_home(
+    operation: OperationId,
+    result: &StructuralOperationResult,
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<TargetStructuralHomeRequirement, InvalidStructuralShape> {
+    if !result.claims.is_empty() {
+        return Err(InvalidStructuralShape);
+    }
+    Ok(TargetStructuralHomeRequirement {
+        origin: TargetStructuralHomeOrigin::OperationResult {
+            operation,
+            result: result.clone(),
+        },
+        layout: result_home_layout(result, declarations)?,
+    })
+}
+
+fn result_home_layout(
+    result: &StructuralOperationResult,
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<TargetStructuralHomeLayout, InvalidStructuralShape> {
+    if result.multiplicity == StructuralMultiplicity::Linear
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+    {
+        return Err(InvalidStructuralShape);
+    }
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    match indexed
+        .get(&result.structural_type)
+        .map(|declaration| &declaration.shape)
+    {
+        Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
+            reconstruct(result.structural_type, declarations)
+                .map(TargetStructuralHomeLayout::Aggregate)
+        }
+        Some(StructuralTypeShape::Sum { cases }) => {
+            if cases.iter().flat_map(|case| &case.fields).any(|field| {
+                !matches!(
+                    field.field_type.scalar_type(),
+                    Some(ScalarType::Integer(integer))
+                        if super::structural_signatures::fixed_native_integer_shape(integer)
+                            .is_some()
+                )
+            }) {
+                return Err(InvalidStructuralShape);
+            }
+            conventional_sum_layout(
+                &[],
+                cases,
+                &indexed,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )
+            .map(TargetStructuralHomeLayout::Sum)
+        }
+        _ => Err(InvalidStructuralShape),
+    }
 }
 
 fn field_shape(
