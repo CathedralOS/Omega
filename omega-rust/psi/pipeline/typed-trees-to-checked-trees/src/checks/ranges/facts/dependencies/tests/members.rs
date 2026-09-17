@@ -580,15 +580,143 @@ fn a_match_collection_index_stays_incomplete() {
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
 
-/// Member identity on a `match` result temporary cannot be recovered from
-/// the receiver's position — the match carries no declared result type the
-/// member walk can stand on — so `match .. .a` keeps an incomplete read set.
+/// A member on a `match` result names no storage, so `match .. .a` reads
+/// exactly the dispatch footprint — the subject, the compared patterns, and
+/// every arm's value. The member's declared field identity is recovered from
+/// the arms' agreeing declared result types, not from a place position.
 #[test]
-fn a_match_receiver_member_stays_incomplete() {
+fn a_match_receiver_member_reads_the_match_footprint() {
     let program = typed_source(
         "data Pair { a: i64; b: i64; }
         machine window(flag: i64, left: Pair, right: Pair, unrelated: i64) {
             let cut: i64 = match flag { 0 -> left, _ -> right }.a;
+        }",
+    );
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    let label = record_label(&mut facts, &program, machine, state);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("match-receiver member footprint");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "flag"),
+            parameter_place(&program, state, "left"),
+            parameter_place(&program, state, "right"),
+        ]
+        .as_slice(),
+        "{reads:?}"
+    );
+    for (name, survives) in [
+        ("flag", false),
+        ("left", false),
+        ("right", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// Arm values that are themselves compound temporaries contribute their own
+/// footprints: `match .. { 0 -> Pair { a: left, .. }, _ -> Pair { a: right, .. } }.a`
+/// reads every evaluated field operand through the same member identity —
+/// separately spelled references to one declaration still agree on its leaf.
+#[test]
+fn a_match_receiver_member_with_literal_arms_reads_each_initializer() {
+    let program = typed_source(
+        "data Pair { a: i64; b: i64; }
+        machine window(flag: i64, left: i64, right: i64, unrelated: i64) {
+            let cut: i64 = match flag { 0 -> Pair { a: left, b: 0 }, _ -> Pair { a: right, b: 1 } }.a;
+        }",
+    );
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    let label = record_label(&mut facts, &program, machine, state);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("literal-arm match footprint");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "flag"),
+            parameter_place(&program, state, "left"),
+            parameter_place(&program, state, "right"),
+        ]
+        .as_slice(),
+        "{reads:?}"
+    );
+    let writes = [parameter_place(&program, state, "unrelated")];
+    assert!(
+        facts
+            .preserved_expression_labels(&program, machine, state, Some(&writes))
+            .contains(&label),
+        "a disjoint write preserves the premise"
+    );
+}
+
+/// A member spelling that names no field of the arms' agreed declaration has
+/// no honest identity: leaf agreement still requires the member to resolve
+/// on that declaration.
+#[test]
+fn a_match_receiver_member_with_unresolved_identity_stays_incomplete() {
+    let mut program = typed_source(
+        "data Pair { a: i64; b: i64; }
+        machine window(flag: i64, left: Pair, right: Pair, unrelated: i64) {
+            let cut: i64 = match flag { 0 -> left, _ -> right }.a;
+        }",
+    );
+    let expression = {
+        let (_, state) = window(&program);
+        initializer(&program, state)
+    };
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(expression) else {
+        panic!("member fixture")
+    };
+    member.member = "missing".into();
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    record_label(&mut facts, &program, machine, state);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+/// Arms whose declared result types resolve to different declarations give
+/// the member no single honest identity — `left` and `right` both carry a
+/// field spelled `a`, but `.a` cannot name one declared field across the
+/// dispatch.
+#[test]
+fn a_match_receiver_member_with_disagreeing_arm_leaves_stays_incomplete() {
+    let program = typed_source(
+        "data Pair { a: i64; b: i64; }
+        data Other { a: i64; }
+        machine window(flag: i64, left: Pair, right: Other, unrelated: i64) {
+            let cut: i64 = match flag { 0 -> left, _ -> right }.a;
+        }",
+    );
+    let (machine, state) = window(&program);
+    let mut facts = RangeFacts::new(&[]);
+    record_label(&mut facts, &program, machine, state);
+    assert!(facts.expression_dependencies[0].reads.is_none());
+}
+
+/// An arm whose declared result type cannot be recovered — a borrow has no
+/// by-value result type — leaves the member identity unproven, so the read
+/// set stays incomplete rather than guessing at the surviving peer.
+#[test]
+fn a_match_receiver_member_with_an_untyped_arm_stays_incomplete() {
+    let program = typed_source(
+        "data Pair { a: i64; b: i64; }
+        machine window(flag: i64, left: Pair, right: Pair, unrelated: i64) {
+            let cut: i64 = match flag { 0 -> left, _ -> &right }.a;
         }",
     );
     let (machine, state) = window(&program);

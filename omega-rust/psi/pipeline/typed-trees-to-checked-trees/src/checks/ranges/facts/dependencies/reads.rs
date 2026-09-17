@@ -972,17 +972,17 @@ fn collect_place_read(
 
 /// A member on a place chain reads its projected place. A member whose
 /// receiver produces a temporary instead of naming storage — `compute().a`,
-/// `Pair { .. }.a`, `compute().inner.a` — reads exactly whatever producing
-/// that temporary read; the projection itself touches no caller place, so
-/// the member expression's canonical place is expression-rooted and the
-/// place path cannot describe it. That shape admits only when the member
-/// still resolves to a declared field of the receiver's exact type — the
-/// same `effective_member_symbol` identity the canonical-place production
-/// would stamp — and the receiver's own read scan completes, so a missing
-/// call-occurrence custody row or an unproven operand still leaves the set
-/// incomplete. A `Borrow` receiver keeps the place floor either way:
-/// `(&x).f` is `x.f`, while a borrow of a temporary has no statement-use
-/// place custody to lend the projection.
+/// `Pair { .. }.a`, `compute().inner.a`, `match flag { .. }.a` — reads
+/// exactly whatever producing that temporary read; the projection itself
+/// touches no caller place, so the member expression's canonical place is
+/// expression-rooted and the place path cannot describe it. That shape admits
+/// only when the member still resolves to a declared field of the receiver's
+/// exact type — the identity `temporary_member_symbol` recovers — and the
+/// receiver's own read scan completes, so a missing call-occurrence custody
+/// row or an unproven operand still leaves the set incomplete. A `Borrow`
+/// receiver keeps the place floor either way: `(&x).f` is `x.f`, while a
+/// borrow of a temporary has no statement-use place custody to lend the
+/// projection.
 fn collect_member_reads(
     program: &TypedTrees,
     machine: &Machine,
@@ -1020,7 +1020,7 @@ fn collect_member_reads(
             depth,
         );
     }
-    crate::flow::effective_member_symbol(program, member.receiver, member).is_valid()
+    temporary_member_symbol(program, machine, state, member).is_valid()
         && collect_reads(
             program,
             machine,
@@ -1032,6 +1032,54 @@ fn collect_member_reads(
             reads,
             depth + 1,
         )
+}
+
+/// The declared field identity of a member whose receiver produces a
+/// temporary. `effective_member_symbol` already answers receivers that keep a
+/// place position — names, calls, literals, indexed chains — plus any
+/// binder-stamped `member_symbol`. A `match` receiver has neither: value
+/// dispatch is a control-flow join the member binder never walked, so the
+/// identity must come from the arms' declared result types instead. The
+/// checker's own result oracle is what `validate_match_dispatch` consults for
+/// arm compatibility, so requiring every arm's recovered leaf to name the
+/// same declaration is the member-level statement of that agreement — judged
+/// on leaf symbols rather than type handles, because separately authored
+/// references to one declaration intern separately. An arm whose result type
+/// cannot be recovered, leaves that disagree, a case-qualified member (whose
+/// variant disambiguation the leaf alone cannot supply), or a member name no
+/// field of the agreed declaration owns all stay unproven. The footprint
+/// itself still comes from the receiver's own read scan — this answers only
+/// which field the projection selects.
+fn temporary_member_symbol(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> SymbolHandle {
+    let direct = crate::flow::effective_member_symbol(program, member.receiver, member);
+    if direct.is_valid() || member.case_variant.is_some() {
+        return direct;
+    }
+    let ExpressionNode::Match(dispatch) = program.expression_table.expression(member.receiver)
+    else {
+        return direct;
+    };
+    let mut leaf = SymbolHandle::invalid();
+    for arm in program.expression_table.match_arms(dispatch.arms) {
+        let Some(symbol) =
+            validation::expression_result_type_reference(program, machine, state, arm.value)
+                .map(|reference| program.type_reference_table.type_symbol(reference))
+                .filter(|symbol| symbol.is_valid())
+        else {
+            return SymbolHandle::invalid();
+        };
+        if leaf.is_valid() && leaf != symbol {
+            return SymbolHandle::invalid();
+        }
+        leaf = symbol;
+    }
+    crate::flow::resolve_member_symbol_from_type_symbol(program, leaf, member.member.as_str())
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 /// A selected `[]`/`[..]` application is a checked occurrence, not a place:
