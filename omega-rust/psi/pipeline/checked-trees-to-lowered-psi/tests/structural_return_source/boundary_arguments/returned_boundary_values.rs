@@ -2,7 +2,7 @@ use super::{
     BOOLEAN_HELPERS, INTEGER_HELPERS, ObserveSettlement, artifact, assert_unsettled_helper_crash,
     checked, pause_before_crashing_helper, source, start, unsigned,
 };
-use crate::{
+use crate::structural_return_source::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalInterpretError,
     TerminalScalarValue,
 };

@@ -11,7 +11,7 @@ mod mixed_scalar_and_unit_wrappers;
 #[path = "boundary_arguments/returned_boundary_values.rs"]
 mod returned_boundary_values;
 
-use crate::{
+use crate::structural_return_source::{
     AdmissionProfile, Lexer, ResolutionRequest, TerminalEffect, TerminalEffectHandler,
     TerminalEffectRejection, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalFuelMeter, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,

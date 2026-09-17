@@ -1,5 +1,5 @@
 use super::{artifact, execute, integer, source};
-use crate::{CheckedUnitEffectOperationPlan, checked_from_source};
+use crate::unit_scalar_result_source::{CheckedUnitEffectOperationPlan, checked_from_source};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};

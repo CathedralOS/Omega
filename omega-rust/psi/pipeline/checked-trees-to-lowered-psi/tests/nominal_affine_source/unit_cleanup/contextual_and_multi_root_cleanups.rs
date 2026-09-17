@@ -4,7 +4,7 @@ use super::{
     TWO_ROOT_ONE_EXECUTABLE_SOURCE, TWO_ROOT_SHARED_EXECUTABLE_SOURCE, TWO_ROOT_SOURCE,
     TWO_ROOT_TWO_EXECUTABLE_SOURCE,
 };
-use crate::{
+use crate::nominal_affine_source::{
     AcceptTerminalEffects, AdmissionProfile, EvidenceRoute, IntegerSign, IntegerType, Lexer,
     OperationKind, OperationResult, ProofRule, ResolutionRequest, ScalarType, StructuralFieldType,
     StructuralMultiplicity, StructuralTypeShape, TerminalAffineCleanupAction,
