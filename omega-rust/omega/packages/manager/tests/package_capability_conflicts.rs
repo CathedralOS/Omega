@@ -1,1 +1,1 @@
-mod capability_conflicts;
+use crate::capability_conflicts;
