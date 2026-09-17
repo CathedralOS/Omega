@@ -415,12 +415,13 @@ reaches Console
             PrimaryGitChoices::default(),
         )
         .unwrap();
-        resolve_external_local_project_closure_with_storage(
+        resolve_external_local_project_closure(
             self.0.join("application"),
             ExternalSourceContext::derive(b"candidate-console-permission"),
             &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
+            GitResolutionOptions::default(),
         )
         .unwrap()
     }
