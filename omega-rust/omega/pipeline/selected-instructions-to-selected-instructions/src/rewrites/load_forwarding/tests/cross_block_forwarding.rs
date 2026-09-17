@@ -10,11 +10,11 @@ use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
-    SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedInstructionId,
-    SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, SelectedStructuralBinding, SelectedStructuralCaseEdge,
-    SelectedStructuralTransport, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
-    VirtualRegisterId,
+    SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
+    SelectedMemoryAccessRole, SelectedOperand, SelectedStructuralBinding,
+    SelectedStructuralCaseEdge, SelectedStructuralTransport, SelectedTerminator,
+    SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
@@ -574,10 +574,172 @@ fn cross_block_joins_reject_when_paths_disagree_or_never_resolve() {
         forward(&terminator_write, &environment).unwrap_err(),
         StoredLoadForwardingError::AliasingWrite
     );
-    // A deferred cycle among the predecessors never reaches a writer: block 2
-    // jumps to the load's block or to block 3, which jumps back to block 2.
-    // Every arriving path does carry block 0's store, but the unresolved
-    // region keeps the walk conservative, matching the self-loop rejection.
+    // A deferred cycle whose arriving legs disagree stays unproven: block 2
+    // jumps to the load's block or to block 3, which jumps back to block 2,
+    // and a fourth block stores a different register into the same range on
+    // its own leg into block 3 — the cycle's legs carry both registers, so
+    // no single register decides every arriving path.
+    let cycled = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        *edge = successor(2);
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: successor(1),
+                when_zero: successor(3),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(5).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(2),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(4),
+            origin: SelectedBlockOrigin::Source(BlockId::new(6).unwrap()),
+            instructions: vec![instruction(
+                SelectedInstructionId(10),
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                },
+                store,
+                &[POINTER, SCRATCH],
+            )],
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(9),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(3),
+            },
+        });
+        function.memory_accesses.push(access(
+            SelectedInstructionId(10),
+            5,
+            place(),
+            0,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    assert_eq!(
+        forward(&cycled, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // A writer inside the cycle that stores a different register decides its
+    // own leg to that register, which disagrees with block 0's leg the same
+    // way an external writer does.
+    let cycle_writer = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        *edge = successor(2);
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: successor(1),
+                when_zero: successor(3),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(5).unwrap()),
+            instructions: vec![instruction(
+                SelectedInstructionId(10),
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                },
+                store,
+                &[POINTER, SCRATCH],
+            )],
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(2),
+            },
+        });
+        function.memory_accesses.push(access(
+            SelectedInstructionId(10),
+            5,
+            place(),
+            0,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    assert_eq!(
+        forward(&cycle_writer, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+}
+
+/// A deferred cycle carries no writer of its own, so it forwards the one
+/// register every arriving leg settled on: a two-block cycle under the
+/// store, a self-loop on the load's own block, and a multi-block loop back
+/// through the load's block all resolve to block 0's stored register.
+#[test]
+fn cross_block_writerless_cycles_resolve_when_arriving_legs_agree() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Block 2 jumps to the load's block or to block 3, which jumps back to
+    // block 2 — every arriving path carries block 0's store.
     let cycled = mutated_chained(target, |function, environment| {
         let branch = environment
             .constraint(environment.selected_keys().conditional_branch)
@@ -622,10 +784,539 @@ fn cross_block_joins_reject_when_paths_disagree_or_never_resolve() {
             },
         });
     });
+    let result = forward(&cycled, &environment).unwrap();
+    let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+    assert_eq!(rewritten.id, LOAD);
+    assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+    validate_stored_load_forwarding(
+        &cycled,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A self-loop on the load's block makes the block its own predecessor;
+    // the empty tail behind the load keeps the cycle clear.
+    let looped = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(9),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(1),
+            when_zero: successor(2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(4).unwrap(),
+            },
+        });
+    });
+    let result = forward(&looped, &environment).unwrap();
+    let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+    assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    validate_stored_load_forwarding(
+        &looped,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A multi-block loop returns to the load's block: 1 branches to block 2
+    // or exits at block 4, 2 jumps to 3, and 3 jumps back to 1. The span
+    // behind the load is empty, so the cyclic legs still carry block 0's
+    // store.
+    let looped_through = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(9),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(4),
+        };
+        for (instruction_id, block_id, destination) in [(7, 2, 3), (8, 3, 1)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block_id),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block_id) + 3).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(destination),
+                },
+            });
+        }
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(4),
+            origin: SelectedBlockOrigin::Source(BlockId::new(6).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::ReturnUnit,
+                    return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(5).unwrap(),
+            },
+        });
+    });
+    let result = forward(&looped_through, &environment).unwrap();
     assert_eq!(
-        forward(&cycled, &environment).unwrap_err(),
-        StoredLoadForwardingError::UnsupportedPair
+        result.transformed().functions[0].blocks[1].instructions[0].kind,
+        SelectedInstructionKind::CopyI64
     );
+    validate_stored_load_forwarding(
+        &looped_through,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A writer inside the cycle that stores the same register decides its
+    // own leg to that register: block 3 stores VALUE before jumping back to
+    // block 2, so every arriving leg agrees.
+    let cycle_writer = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        *edge = successor(2);
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: successor(1),
+                when_zero: successor(3),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(5).unwrap()),
+            instructions: vec![instruction(
+                SelectedInstructionId(10),
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                },
+                store,
+                &[POINTER, VALUE],
+            )],
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(2),
+            },
+        });
+        function.memory_accesses.push(access(
+            SelectedInstructionId(10),
+            5,
+            place(),
+            0,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    let result = forward(&cycle_writer, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1].instructions[0].kind,
+        SelectedInstructionKind::CopyI64
+    );
+    validate_stored_load_forwarding(
+        &cycle_writer,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // The looped head's tail stays subject to the walk's rules: a store to
+    // a different place behind the load cannot touch the forwarded bytes,
+    // so the self-loop still resolves.
+    let disjoint_tail = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        function.blocks[1].instructions.push(instruction(
+            SelectedInstructionId(10),
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        ));
+        function.memory_accesses.push(access(
+            SelectedInstructionId(10),
+            5,
+            PlaceId::new(2).unwrap(),
+            0,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+        function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(9),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(1),
+            when_zero: successor(2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(4).unwrap(),
+            },
+        });
+    });
+    let result = forward(&disjoint_tail, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1].instructions[0].kind,
+        SelectedInstructionKind::CopyI64
+    );
+    validate_stored_load_forwarding(
+        &disjoint_tail,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// A self-loop on the load's block makes the span behind the load part of
+/// the walked interval: a write into the forwarded place there decides the
+/// next iteration's read, and redefining either carried register breaks the
+/// copy's identity.
+#[test]
+fn cross_block_looped_head_needs_a_clear_tail() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let looped_tail = |edit: &dyn Fn(
+        &mut SelectedFunction,
+        &register_environment::ValidatedTargetRegisterEnvironment,
+    )| {
+        mutated_chained(target, |function, environment| {
+            let branch = environment
+                .constraint(environment.selected_keys().conditional_branch)
+                .unwrap();
+            let return_row = environment
+                .constraint(environment.selected_keys().return_unit)
+                .unwrap();
+            edit(function, environment);
+            function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(9),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: successor(1),
+                when_zero: successor(2),
+            };
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(2),
+                origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Return {
+                    instruction: instruction(
+                        SelectedInstructionId(8),
+                        SelectedInstructionKind::ReturnUnit,
+                        return_row,
+                        &[],
+                    ),
+                    psi_return_edge: EdgeId::new(4).unwrap(),
+                },
+            });
+        })
+    };
+    // A store into the forwarded place behind the load is the last writer on
+    // the looping path — the read does not observe the carried register.
+    let tail_write = looped_tail(&|function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[1].instructions.push(instruction(
+            SelectedInstructionId(10),
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        ));
+        function.memory_accesses.push(access(
+            SelectedInstructionId(10),
+            5,
+            place(),
+            0,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    assert_eq!(
+        forward(&tail_write, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // The same store without its roster row is an unaccounted write.
+    let unaccounted_tail = looped_tail(&|function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[1].instructions.push(instruction(
+            SelectedInstructionId(10),
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        ));
+    });
+    assert_eq!(
+        forward(&unaccounted_tail, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A tail redefinition of the carried register leaves the copy reading a
+    // different value than the place holds.
+    let redefined_tail = looped_tail(&|function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[1].instructions.push(instruction(
+            SelectedInstructionId(10),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[POINTER, VALUE],
+        ));
+    });
+    assert_eq!(
+        forward(&redefined_tail, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedUse
+    );
+    // A tail definition of the load's own result register is equally fatal.
+    let predefined_tail = looped_tail(&|function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[1].instructions.push(instruction(
+            SelectedInstructionId(10),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[POINTER, OUTPUT],
+        ));
+    });
+    assert_eq!(
+        forward(&predefined_tail, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedUse
+    );
+    // The looped head's terminator joins the walked interval too: a branch
+    // instruction defining the carried register cannot keep the copy honest.
+    let terminator_defined = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        let class = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .operands[0]
+            .class;
+        let mut terminator = instruction(
+            SelectedInstructionId(9),
+            SelectedInstructionKind::ConditionalBranchNonZero,
+            branch,
+            &[POINTER],
+        );
+        terminator.operands.push(SelectedOperand {
+            operand: 1,
+            virtual_register: VALUE,
+            access: RegisterOperandAccess::Def,
+            class,
+            fixed_view: None,
+            tied_to: None,
+            early_clobber: false,
+        });
+        function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: terminator,
+            when_nonzero: successor(1),
+            when_zero: successor(2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(4).unwrap(),
+            },
+        });
+    });
+    assert_eq!(
+        forward(&terminator_defined, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedUse
+    );
+}
+
+/// The mirror of the tail-write rejection: a tail store that sources the
+/// carried register itself is the last writer on the looping path, and the
+/// next iteration's read still observes that register.
+#[test]
+fn cross_block_looped_head_tail_store_of_the_carried_register_forwards() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let carried_tail = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        function.blocks[1].instructions.push(instruction(
+            SelectedInstructionId(10),
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, VALUE],
+        ));
+        function.memory_accesses.push(access(
+            SelectedInstructionId(10),
+            5,
+            place(),
+            0,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+        function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(9),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(1),
+            when_zero: successor(2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(4).unwrap(),
+            },
+        });
+    });
+    let result = forward(&carried_tail, &environment).unwrap();
+    let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+    assert_eq!(rewritten.id, LOAD);
+    assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+    validate_stored_load_forwarding(
+        &carried_tail,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -685,41 +1376,61 @@ fn cross_block_joins_unreachable_and_entry_blocks_reject() {
         forward(&detached, &environment).unwrap_err(),
         StoredLoadForwardingError::UnsupportedPair
     );
-    // A self-loop on the load's block makes the block its own predecessor.
-    let looped = mutated_chained(target, |function, environment| {
+    // A deferred cycle closed on itself never carries a register: blocks 2
+    // and 3 jump between each other and to the load's block, but no edge
+    // enters the region from a resolved block — every leg stays open and the
+    // load's block never settles.
+    let closed = mutated_chained(target, |function, environment| {
         let branch = environment
             .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
             .unwrap();
         let return_row = environment
             .constraint(environment.selected_keys().return_unit)
             .unwrap();
-        function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
+        function.blocks[0].terminator = SelectedTerminator::Return {
             instruction: instruction(
-                SelectedInstructionId(9),
-                SelectedInstructionKind::ConditionalBranchNonZero,
-                branch,
+                SelectedInstructionId(11),
+                SelectedInstructionKind::ReturnUnit,
+                return_row,
                 &[],
             ),
-            when_nonzero: successor(1),
-            when_zero: successor(2),
+            psi_return_edge: EdgeId::new(5).unwrap(),
         };
         function.blocks.push(SelectedBlock {
             id: SelectedBlockId(2),
-            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
             instructions: Vec::new(),
-            terminator: SelectedTerminator::Return {
+            terminator: SelectedTerminator::ConditionalBranch {
                 instruction: instruction(
-                    SelectedInstructionId(8),
-                    SelectedInstructionKind::ReturnUnit,
-                    return_row,
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
                     &[],
                 ),
-                psi_return_edge: EdgeId::new(4).unwrap(),
+                when_nonzero: successor(1),
+                when_zero: successor(3),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(5).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(2),
             },
         });
     });
     assert_eq!(
-        forward(&looped, &environment).unwrap_err(),
+        forward(&closed, &environment).unwrap_err(),
         StoredLoadForwardingError::UnsupportedPair
     );
     // Removing the store walks to the entry block's top, where the implicit
