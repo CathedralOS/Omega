@@ -331,9 +331,7 @@ fn provider_selection_composition_mode(
                 "provider selection must retain zero arguments for fused composition or one exact compiler-owned CompositionMode value",
             ));
         };
-        let typed_trees::expression::ExpressionNode::Name(path) =
-            typed.expression_table.expression(*argument)
-        else {
+        let Some(case_symbol) = exact_case_argument_symbol(typed, *argument) else {
             return Err(Diagnostic::error(
                 "provider selection composition mode must be the exact compiler-owned CompositionMode::Fused or CompositionMode::Independent case",
             ));
@@ -355,7 +353,7 @@ fn provider_selection_composition_mode(
             .iter()
             .filter_map(|member| match member {
                 typed_trees::data::DataMember::Variant(variant)
-                    if variant.symbol == path.symbol
+                    if variant.symbol == case_symbol
                         && typed.symbols.get(variant.symbol).parent == modes.symbol =>
                 {
                     Some(variant)
@@ -715,6 +713,28 @@ fn authored_service_exclusion(
     }
 }
 
+/// The case symbol one build-declaration argument names, whichever typed
+/// shape carries it. A payload-free case such as `CompositionMode::Independent`
+/// or `CrashCause::Trap` is normalized to a constructor literal retaining the
+/// exact case symbol; marker positions can instead retain the plain name path
+/// or a member projection. Every shape must still resolve to an exact
+/// toolchain case at the caller; any other expression is not a case.
+fn exact_case_argument_symbol(
+    typed: &TypedTrees,
+    argument: typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match typed.expression_table.expression(argument) {
+        typed_trees::expression::ExpressionNode::Name(path) => Some(path.symbol),
+        typed_trees::expression::ExpressionNode::Member(member) => Some(member.member_symbol),
+        typed_trees::expression::ExpressionNode::StructLiteral(literal)
+            if literal.fields.is_empty() =>
+        {
+            Some(literal.case_symbol.unwrap_or_else(SymbolHandle::invalid))
+        }
+        _ => None,
+    }
+}
+
 fn authored_crash_cause(
     typed: &TypedTrees,
     arguments: &[typed_trees::expression::ExpressionHandle],
@@ -724,23 +744,10 @@ fn authored_crash_cause(
             "behavior exclusion `exclude_crash` takes exactly one compiler-owned CrashCause case",
         ));
     };
-    // A typed `CrashCause::Trap` argument is a payload-free case literal
-    // carrying the exact case symbol; marker positions can retain the plain
-    // name path or member projection instead. Every accepted shape must
-    // resolve to an exact toolchain CrashCause case below.
-    let case_symbol = match typed.expression_table.expression(*argument) {
-        typed_trees::expression::ExpressionNode::Name(path) => path.symbol,
-        typed_trees::expression::ExpressionNode::Member(member) => member.member_symbol,
-        typed_trees::expression::ExpressionNode::StructLiteral(literal)
-            if literal.fields.is_empty() =>
-        {
-            literal.case_symbol.unwrap_or_else(SymbolHandle::invalid)
-        }
-        _ => {
-            return Err(Diagnostic::error(
-                "behavior exclusion `exclude_crash` argument must be the exact compiler-owned CrashCause case",
-            ));
-        }
+    let Some(case_symbol) = exact_case_argument_symbol(typed, *argument) else {
+        return Err(Diagnostic::error(
+            "behavior exclusion `exclude_crash` argument must be the exact compiler-owned CrashCause case",
+        ));
     };
     let exact_causes = typed
         .data_definitions()
